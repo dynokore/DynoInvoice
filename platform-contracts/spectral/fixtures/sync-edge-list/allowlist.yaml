@@ -1,0 +1,9 @@
+# Fixture allowlist for self-test-sync-edges.sh (INV-T-8456; same shape as invoice-docs sync-edges.yaml).
+edges:
+- {caller: console-bff, callee: ingestion-svc, kind: console, why: fixture}
+- {caller: canonical-svc, callee: ingestion-svc, kind: domain, why: fixture}
+- {caller: Any except access-svc, callee: ingestion-svc, kind: fallback, why: fixture}
+- {caller: Any except access-svc, callee: masterdata-svc, kind: fallback, why: fixture, note: a callee other than the owning service of the case}
+- {caller: console-bff, callee: masterdata-svc, kind: console, why: fixture}
+- {caller: canonical-svc, callee: masterdata-svc, kind: domain, why: fixture}
+- {caller: Any, callee: masterdata-svc, kind: fallback, why: fixture (a plain Any row stays any)}

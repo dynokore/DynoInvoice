@@ -55,5 +55,44 @@ expect_callee_fail callee-case "canonical-svc->Console-BFF"
 expect_callee_fail caller-lookalike "console-web-svc->console-bff"
 expect_callee_fail caller-lookalike-2 "console-web2->console-bff"
 
+# INV-T-8456 (INV-AC-8455): x-sync-edge as a sequence and the exclusion form any-except:<svc>-><callee>.
+# Each element is checked as a single string; an exclusion edge equals the allowlist row "Any except <svc>".
+F3=fixtures/sync-edge-list
+run_list() { python3 check-sync-edges.py $F3/allowlist.yaml "$F3/$1" 2>&1; }
+for c in pass-sequence pass-exclusion pass-plain-any; do
+  out=$(run_list inv-ac-8455-$c); rc=$?
+  if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — list fixture '$c' rejected:"; echo "$out"; failed=1; fi
+  case "$out" in *"allowlist check passed: 1 internal operations, 1 x-sync-edge values"*) ;; *) echo "gst-ci: FAIL — list fixture '$c' did not print the passing line:"; echo "$out"; failed=1;; esac
+done
+expect_list_fail() { # case, expected message fragment (the line also names the operation, fixtureOp)
+  out=$(run_list "inv-ac-8455-$1"); rc=$?
+  if [ $rc -ne 1 ]; then echo "gst-ci: FAIL — list fixture '$1' exited $rc, expected 1"; failed=1
+  else case "$out" in *"(fixtureOp): "*"$2"*) echo "gst-ci: self-test list '$1' failed as expected ($2)";;
+       *) echo "gst-ci: FAIL — list fixture '$1' failed, but not with '$2' on fixtureOp:"; echo "$out"; failed=1;; esac; fi
+}
+expect_list_fail sequence-not-in-allowlist "x-sync-edge 'rules-svc->ingestion-svc' is not an edge of sync-edges.yaml"
+expect_list_fail sequence-wrong-callee "x-sync-edge 'console-bff->masterdata-svc' names a callee other than the owning service ingestion-svc"
+expect_list_fail sequence-any-and-named "element 'any->masterdata-svc' (any caller) cannot sit next to a named caller"
+expect_list_fail sequence-two-callees "names two different callees"
+expect_list_fail sequence-repeat "repeats an element"
+expect_list_fail sequence-one "has fewer than two elements"
+expect_list_fail sequence-empty "has fewer than two elements"
+expect_list_fail mapping "is neither a string nor a sequence of strings"
+expect_list_fail number "is neither a string nor a sequence of strings"
+expect_list_fail sequence-non-string "x-sync-edge element 5 is not a string"
+expect_list_fail sequence-star "a callee * is valid as a single string only"
+expect_list_fail exclusion-in-sequence "x-sync-edge 'any-except:access-svc->ingestion-svc': the exclusion form is valid as a single string only"
+expect_list_fail exclusion-vs-plain-any "x-sync-edge 'any->ingestion-svc' is not an edge of sync-edges.yaml"
+expect_list_fail exclusion-wrong-service "x-sync-edge 'any-except:payload-svc->ingestion-svc' is not an edge of sync-edges.yaml"
+expect_list_fail exclusion-wrong-callee "x-sync-edge 'any-except:access-svc->masterdata-svc' names a callee other than the owning service ingestion-svc"
+expect_list_fail exclusion-trailing-space "x-sync-edge 'any-except:access-svc->ingestion-svc ' is not an edge of sync-edges.yaml"
+expect_list_fail exclusion-list "is a malformed exclusion"
+expect_list_fail exclusion-empty "is a malformed exclusion"
+expect_list_fail exclusion-upper "is a malformed exclusion"
+expect_list_fail exclusion-spaced "is a malformed exclusion"
+expect_list_fail exclusion-non-svc "is a malformed exclusion"
+expect_list_fail exclusion-is-callee "excludes the callee itself"
+
+
 [ "$failed" -eq 0 ] && echo "gst-ci: check-sync-edges.py self-test passed."
 exit $failed

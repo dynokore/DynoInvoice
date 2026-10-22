@@ -1,0 +1,9 @@
+# Fixture for self-test-sync-edges.sh (inv-ac-8455, INV-T-8456): sequence-non-string.
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/ingestion/op:
+    get:
+      operationId: fixtureOp
+      x-sync-edge: [console-bff->ingestion-svc, 5]
+      responses: {"200": {description: ok}}

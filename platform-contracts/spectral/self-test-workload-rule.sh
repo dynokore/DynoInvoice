@@ -53,5 +53,38 @@ for fx in x-principal-scope-ok; do
     echo "gst-ci: FAIL — $fx: expected $prule exactly once, on the control operation only (hits=$hits, on control=$on_control):"; echo "$out"; failed=1
   fi
 done
+
+# INV-T-8456 (INV-AC-8455): x-sync-edge as a string, a sequence or the exclusion form. A
+# case is asserted by exit status and by the rule's message, compared by equality.
+# hits_of <file> <rule code> sets RC (spectral exit status) and HITS ("<path><TAB><message>" lines).
+hits_of() {
+  out=$(spectral lint --ruleset ruleset.yaml --fail-severity error -f json "$1" 2>/dev/null); RC=$?
+  HITS=$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const seen=new Set();for(const r of JSON.parse(s))if(r.code===process.argv[1])seen.add(r.path.join(".")+"\t"+r.message);console.log([...seen].sort().join("\n"))})' "$2")
+}
+# expect_refused <fixture> <rule code> <message>: exit status 1 and every hit of the rule is the message, on x-sync-edge of the operation
+expect_refused() {
+  hits_of "fixtures/$1.yaml" "$2"
+  # sequence elements are reported on x-sync-edge.<n>; accept that path suffix with the same message
+  wrong=$(printf '%s\n' "$HITS" | grep . | grep -vE "^paths\./internal/v1/fixture/op\.get\.x-sync-edge(\.[0-9]+)?	" | wc -l)
+  other=$(printf '%s\n' "$HITS" | grep . | cut -f2 | grep -vcxF "$3")
+  if [ "$RC" -eq 1 ] && [ -n "$HITS" ] && [ "$wrong" -eq 0 ] && [ "$other" -eq 0 ]; then echo "gst-ci: self-test $1 refused by $2 as expected"
+  else echo "gst-ci: FAIL — $1: expected exit 1 and only the message of $2 on x-sync-edge (rc=$RC):"; echo "$HITS"; failed=1; fi
+}
+# expect_accepted <fixture> <rule code>: exit status 0 and no hit of the rule
+expect_accepted() {
+  hits_of "fixtures/$1.yaml" "$2"
+  if [ "$RC" -eq 0 ] && [ -z "$HITS" ]; then echo "gst-ci: self-test $1 accepted by $2 as expected"
+  else echo "gst-ci: FAIL — $1: expected exit 0 and no hit of $2 (rc=$RC):"; echo "$HITS"; failed=1; fi
+}
+wmsg="x-principal \`workload\` is only for installer-only operations (x-sync-edge installer-><callee>) and the gateway's access-svc key-material queries (x-sync-edge api-gateway->access-svc) (API-23/API-25 workload note)"
+wrule=inv-api-02-x-principal-workload-restricted
+hits_of fixtures/inv-ac-8455-workload-ok-sequence.yaml $wrule
+if [ "$(printf '%s\n' "$HITS" | grep -c .)" -eq 1 ] && printf '%s\n' "$HITS" | grep -q "^paths./internal/v1/fixture/control.get.x-sync-edge	" ; then echo "gst-ci: self-test inv-ac-8455-workload-ok-sequence accepted by $wrule as expected (control operation refused, so the rule ran)"
+else echo "gst-ci: FAIL — inv-ac-8455-workload-ok-sequence: expected $wrule once, on the control operation only (rc=$RC):"; echo "$HITS"; failed=1; fi
+expect_refused inv-ac-8455-workload-bad-element-outside-pattern $wrule "$wmsg"
+expect_refused inv-ac-8455-workload-bad-exclusion $wrule "$wmsg"
+expect_refused inv-ac-8455-workload-bad-two-callees $wrule "$wmsg"
+expect_refused inv-ac-8455-workload-bad-one $wrule "$wmsg"
+expect_refused inv-ac-8455-workload-bad-repeat $wrule "$wmsg"
 [ "$failed" -eq 0 ] && echo "gst-ci: $rule and $prule self-tests passed."
 exit $failed

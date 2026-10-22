@@ -1,0 +1,20 @@
+# Fixture for the x-sync-edge Spectral self-tests (inv-ac-8455, INV-T-8456): inv-ac-8455-workload-ok-sequence.
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/fixture/op:
+    get:
+      operationId: fixtureOp
+      x-error-codes: []
+      x-requirements: []
+      x-timeout: 500
+      x-principal: workload
+      x-sync-edge: [installer->access-svc, api-gateway->access-svc]
+      responses: {"200": {description: ok}}
+  # Control operation (refused): proves the rule ran on this document.
+  /internal/v1/fixture/control:
+    get:
+      operationId: controlQuery
+      x-principal: workload
+      x-sync-edge: console-bff->access-svc
+      responses: {"200": {description: ok}}

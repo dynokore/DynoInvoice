@@ -19,3 +19,7 @@ resilience_policy:
   timeout_or_budget: 3 s; 10 s for request bodies above 1 MB
 - edge: console-web → console-bff
   timeout_or_budget: 3 s for an operation making at most one downstream call, 5 s for two sequential downstream calls
+- edge: canonical-svc → tenancy-svc
+  timeout_or_budget: 500 ms, 2 s
+- edge: rules-svc → tenancy-svc
+  timeout_or_budget: 2 s

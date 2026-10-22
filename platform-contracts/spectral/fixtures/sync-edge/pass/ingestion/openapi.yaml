@@ -9,7 +9,7 @@ paths:
   /internal/v1/ingestion/fallback:
     get:
       operationId: fallbackQuery
-      x-sync-edge: any->ingestion-svc
+      x-sync-edge: "any-except:access-svc->ingestion-svc"
       responses: {"200": {description: ok}}
   /internal/v1/ingestion/gateway:
     get:

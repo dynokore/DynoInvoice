@@ -1606,7 +1606,7 @@ paths:
       tags:
       - entities
       x-principal: filing-workflow
-      x-sync-edge: any->tenancy-svc
+      x-sync-edge: any-except:access-svc->tenancy-svc
       x-timeout: 500
       x-requirements:
       - FR-AC.1

@@ -23,8 +23,18 @@ caller console-bff; anywhere else it fails as before (not an allowlist edge).
 Every other file is checked exactly as before.
 
 Allowlist callers that are not service identifiers are normalised: "Any except
-<svc>" (the fallback edges) becomes `any`, "API gateway" becomes `api-gateway`
-(lower case, spaces to hyphens), so the operation writes `any->access-svc`.
+<svc>" (the fallback edges) becomes `any-except:<svc>` (lower case, the one
+excluded service after the colon), a plain "Any" stays `any`, "API gateway"
+becomes `api-gateway` (lower case, spaces to hyphens), so the operation writes
+`any-except:tenancy-svc->access-svc`. A contract value is accepted only when it
+equals an allowlist edge by string equality.
+
+x-sync-edge (INV-T-8456, owner ruling 2026-10-22) is one string, or a YAML
+sequence of at least two such strings for a shared operation. Each element is
+checked as a single string; elements are unique, share one callee, and none is
+`any-><callee>` next to a named caller. The exclusion form
+`any-except:<svc>-><callee>` is a single string only, with `<svc>` a service
+(`-svc`) that differs from the callee. `console-bff->*` is a single string only.
 
 Before the per-operation checks, the allowlist itself is checked (INV-REQ-870,
 INV-AC-1922): console-bff and the API gateway sit outside the pipeline, so the
@@ -38,6 +48,7 @@ Usage: check-sync-edges.py <sync-edges.yaml> <root>
 <root> holds the service directories (the repository root in CI). Exit 0 if
 all pass, 1 otherwise. Needs PyYAML.
 """
+import re
 import sys
 from pathlib import Path
 from urllib.parse import unquote
@@ -48,6 +59,9 @@ METHODS = ("get", "post", "put", "delete", "patch")
 SHARED_RUNTIME = "service-runtime"
 SHARED_EDGE = "console-bff->*"
 OUTSIDE_PIPELINE = ("console-bff", "api-gateway")
+ANY_EXCEPT_ROW = re.compile(r"any except ([a-z][a-z0-9-]*-svc)")
+EXCLUSION_PREFIX = "any-except:"
+EXCLUSION_EDGE = re.compile(r"any-except:([a-z][a-z0-9-]*-svc)->(.+)")
 
 
 def callee_of(service_dir: str) -> str:
@@ -55,14 +69,55 @@ def callee_of(service_dir: str) -> str:
 
 
 def caller_id(caller: str) -> str:
-    c = caller.strip()
-    if c.lower().startswith("any"):
-        return "any"
-    return c.lower().replace(" ", "-")
+    c = caller.strip().lower()
+    m = ANY_EXCEPT_ROW.fullmatch(c)
+    if m:
+        return EXCLUSION_PREFIX + m.group(1)
+    return c.replace(" ", "-")
 
 
 def callee_id(callee: str) -> str:
     return str(callee).strip().lower().replace(" ", "-")
+
+
+def element_errors(edge, svc: str, allowed: set, in_sequence: bool) -> list:
+    """Problems of one x-sync-edge string (API-08), without its operation prefix."""
+    if not isinstance(edge, str):
+        return [f"x-sync-edge element {edge!r} is not a string (API-08)"]
+    errors = []
+    if edge.startswith(EXCLUSION_PREFIX):
+        m = EXCLUSION_EDGE.fullmatch(edge)
+        if in_sequence:
+            errors.append(f"x-sync-edge '{edge}': the exclusion form is valid as a single string only (API-08)")
+        elif m is None:
+            errors.append(f"x-sync-edge '{edge}' is a malformed exclusion, expected any-except:<svc>-svc-><callee> (API-08)")
+        elif m.group(1) == m.group(2):
+            errors.append(f"x-sync-edge '{edge}' excludes the callee itself (API-08)")
+    if in_sequence and edge.endswith("*"):
+        errors.append(f"x-sync-edge '{edge}': a callee * is valid as a single string only (API-08)")
+    if svc == SHARED_RUNTIME and edge == SHARED_EDGE:
+        return errors
+    if edge not in allowed:
+        errors.append(f"x-sync-edge '{edge}' is not an edge of sync-edges.yaml (API-08)")
+    elif edge.split("->", 1)[1] != callee_of(svc):
+        errors.append(f"x-sync-edge '{edge}' names a callee other than the owning service {callee_of(svc)} (API-08)")
+    return errors
+
+
+def sequence_errors(edges: list) -> list:
+    """Shape problems of a sequence value (API-08), beyond its elements."""
+    errors = []
+    if len(edges) < 2:
+        errors.append(f"x-sync-edge sequence {edges!r} has fewer than two elements (API-08)")
+    strs = [e for e in edges if isinstance(e, str)]
+    if len(set(strs)) != len(strs):
+        errors.append(f"x-sync-edge sequence {edges!r} repeats an element (API-08)")
+    if len({e.split("->", 1)[1] for e in strs if "->" in e}) > 1:
+        errors.append(f"x-sync-edge sequence {edges!r} names two different callees (API-08)")
+    for e in strs:
+        if re.fullmatch(r"any->.*", e) and len(strs) > 1:
+            errors.append(f"x-sync-edge sequence {edges!r}: element '{e}' (any caller) cannot sit next to a named caller (API-08)")
+    return errors
 
 
 def outside_pipeline_errors(edges) -> list:
@@ -105,12 +160,17 @@ def main(argv) -> int:
                         errors.append(f"{where}: internal operation has no x-sync-edge (API-08)")
                     continue
                 n_edges += 1
-                if svc == SHARED_RUNTIME and edge == SHARED_EDGE:
-                    continue
-                if edge not in allowed:
-                    errors.append(f"{where}: x-sync-edge '{edge}' is not an edge of sync-edges.yaml (API-08)")
-                elif edge.split("->", 1)[1] != callee_of(svc):
-                    errors.append(f"{where}: x-sync-edge '{edge}' names a callee other than the owning service {callee_of(svc)} (API-08)")
+                if isinstance(edge, list):
+                    for msg in sequence_errors(edge):
+                        errors.append(f"{where}: {msg}")
+                    for el in edge:
+                        for msg in element_errors(el, svc, allowed, True):
+                            errors.append(f"{where}: {msg}")
+                elif isinstance(edge, str):
+                    for msg in element_errors(edge, svc, allowed, False):
+                        errors.append(f"{where}: {msg}")
+                else:
+                    errors.append(f"{where}: x-sync-edge {edge!r} is neither a string nor a sequence of strings (API-08)")
     if errors:
         print("gst-ci: API-08 allowlist check FAILED:")
         for e in errors:

@@ -50,7 +50,7 @@ paths:
       tags:
       - authorise
       x-principal: filing-workflow
-      x-sync-edge: any->access-svc
+      x-sync-edge: any-except:tenancy-svc->access-svc
       x-timeout: 500
       x-requirements:
       - FR-AC.1

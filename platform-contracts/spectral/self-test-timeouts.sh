@@ -30,5 +30,16 @@ expect_fail fallback-2000 "(getEntityStructure) x-timeout 2000: not a figure of 
 expect_fail public-5000 "(drainPeriod) x-timeout 5000: not a figure of row 'API gateway → any other service's public /v1 operation'"
 expect_fail issuance-3000 "(requestIssuance) x-timeout 3000: not a figure of row 'API gateway → ingestion-svc requestIssuance'"
 
+# INV-T-8456 (INV-AC-8455): the exclusion edge finds the row of the caller any; a sequence is
+# checked against the row of every element and the error names the element.
+for c in pass-exclusion-tenancy pass-exclusion-access pass-sequence; do
+  out=$(run inv-ac-8455-$c); rc=$?
+  if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — '$c' fixture rejected:"; echo "$out"; failed=1; fi
+  case "$out" in *"1 operations match their §36.6 row, 0 unchecked."*) ;; *) echo "gst-ci: FAIL — '$c' did not check its one operation:"; echo "$out"; failed=1;; esac
+done
+expect_fail inv-ac-8455-exclusion-tenancy-2000 "(fixtureOp) x-timeout 2000: not a figure of row 'Any → tenancy-svc (fallback)'"
+expect_fail inv-ac-8455-exclusion-access-2000 "(fixtureOp) x-timeout 2000: not a figure of row 'Any → access-svc (fallback)'"
+expect_fail inv-ac-8455-sequence-different-timeouts "x-timeout 500: element 'rules-svc->tenancy-svc': not a figure of row 'rules-svc → tenancy-svc'"
+
 [ "$failed" -eq 0 ] && echo "gst-ci: check-timeouts.py self-test passed."
 exit $failed

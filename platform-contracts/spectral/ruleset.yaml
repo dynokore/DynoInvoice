@@ -14,6 +14,9 @@
 extends:
   - spectral:oas
   - spectral:asyncapi
+# INV-T-8456: functions/oneCallee.js compares the elements of an x-sync-edge sequence.
+functionsDir: ./functions
+functions: [oneCallee]
 rules:
   # --- API-01: contract-first, one directory per service ----------------------
   # Enforced by repository layout and CODEOWNERS, not lintable per-document.
@@ -80,10 +83,19 @@ rules:
     then:
       - field: x-sync-edge
         function: defined
+      # INV-T-8456: a string, or a sequence of at least two such strings of one callee.
       - field: x-sync-edge
-        function: pattern
+        function: schema
         functionOptions:
-          match: "^(installer->[a-z0-9-]+|api-gateway->access-svc)$"
+          schema:
+            oneOf:
+              - {type: string, pattern: "^(installer->[a-z0-9-]+|api-gateway->access-svc)$"}
+              - type: array
+                minItems: 2
+                uniqueItems: true
+                items: {type: string, pattern: "^(installer->[a-z0-9-]+|api-gateway->access-svc)$"}
+      - field: x-sync-edge
+        function: oneCallee
 
   inv-api-02-x-error-codes:
     description: API-02 — every operation declares x-error-codes (every catalogue code it can return).
@@ -130,19 +142,34 @@ rules:
   # sync-edge-allowlist-check); Spectral cannot read that file.
   inv-api-08-x-sync-edge:
     description: API-08 — every /internal/v1 operation carries x-sync-edge '<caller>-><callee>'.
-    message: "internal operation must carry x-sync-edge: <caller>-><callee> (API-08): {{error}}"
+    message: "internal operation must carry x-sync-edge: a '<caller>-><callee>' string, a sequence of at least two such strings of one callee, or 'any-except:<svc>-><callee>' (API-08)"
     given: "$.paths[?(@property.startsWith('/internal/v1/'))][get,post,put,delete,patch]"
     severity: error
     formats: ["oas3_1"]
     then:
       - field: x-sync-edge
         function: defined
+      # INV-T-8456: x-sync-edge is one string, or a sequence of at least two strings of one callee
+      # (a shared operation). A string is a '<caller>-><callee>' edge, console-bff->* (the shared
+      # runtime contract's edge, INV-T-3007, INV-Q-3425 A; check-sync-edges.py accepts it only in
+      # service-runtime/) or the exclusion any-except:<svc>-><callee> (every verified service but
+      # <svc>; check-sync-edges.py compares <svc> with the callee). A sequence element is a plain
+      # edge: never `any` next to a named caller, never an exclusion or console-bff->*.
       - field: x-sync-edge
-        function: pattern
+        function: schema
         functionOptions:
-          # console-bff->* is the shared runtime contract's edge (INV-T-3007, INV-Q-3425 A);
-          # check-sync-edges.py accepts it only in service-runtime/.
-          match: "^([a-z][a-z0-9-]*->[a-z][a-z0-9-]*-(svc|bff)|console-bff->\\*)$"
+          schema:
+            oneOf:
+              - type: string
+                pattern: "^([a-z][a-z0-9-]*->[a-z][a-z0-9-]*-(svc|bff)|console-bff->\\*|any-except:[a-z][a-z0-9-]*-svc->[a-z][a-z0-9-]*-(svc|bff))$"
+              - type: array
+                minItems: 2
+                uniqueItems: true
+                items:
+                  type: string
+                  pattern: "^(?!any->)[a-z][a-z0-9-]*->[a-z][a-z0-9-]*-(svc|bff)$"
+      - field: x-sync-edge
+        function: oneCallee
 
   # --- FR-AC.1 / FR-AC.19: the per-operation extension -------------------------
   # A state-changing or third-party-transmitting operation (FR-AC.1's own

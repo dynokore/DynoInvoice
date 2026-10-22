@@ -1,0 +1,10 @@
+# Fixture for self-test-timeouts.sh (inv-ac-8455, INV-T-8456): pass-exclusion-tenancy.
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/tenancy/op:
+    get:
+      operationId: fixtureOp
+      x-sync-edge: "any-except:access-svc->tenancy-svc"
+      x-timeout: 500
+      responses: {"200": {description: ok}}

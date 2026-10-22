@@ -27,6 +27,11 @@ milliseconds; a row with several figures (e.g. `150 ms budget (pre-issuance),
 2 s (Relay validation)`) accepts any of them. The check fails when x-timeout is
 not one of the row's figures.
 
+x-sync-edge may be a sequence of such strings (INV-T-8456): the x-timeout must
+satisfy the row of every element, and an error names the element whose row it
+does not satisfy. The exclusion edge `any-except:<svc>-><callee>` finds the row
+of the caller `any` (the rows `Any → tenancy-svc` and `Any → access-svc`).
+
 Listed as unchecked, never failed: edges with no row, and rows with no figure
 (`Per §13.7`, `Per binding`).
 
@@ -62,6 +67,14 @@ def norm_caller(caller: str) -> str:
     if c.endswith("gateway"):
         return "api-gateway"
     return c.replace(" ", "-")
+
+
+EXCLUSION_CALLER = re.compile(r"any-except:[a-z][a-z0-9-]*-svc")
+
+
+def edge_caller(caller: str) -> str:
+    """The caller key of an edge string; the exclusion form finds the rows of `any`."""
+    return "any" if EXCLUSION_CALLER.fullmatch(caller) else caller
 
 
 def split_callee(callee: str) -> tuple:
@@ -123,22 +136,37 @@ def main(argv) -> int:
                 timeout = op.get("x-timeout")
                 where = f"{svc}: {m.upper()} {path} ({oid}) x-timeout {timeout}"
                 edge = op.get("x-sync-edge") or public_edge(svc)
-                caller, _, callee = edge.partition("->")
-                row = (rows.get((caller, callee, oid)) or rows.get((caller, callee, None))
-                       or rows.get((caller, "any", None)))
-                if row is None:
-                    unchecked.append(f"{where}: edge {edge} has no resilience_policy row")
-                    continue
-                allowed = figures_ms(row.get("timeout_or_budget", ""))
-                if not allowed:
-                    unchecked.append(f"{where}: row '{row['edge']}' gives no figure ({row.get('timeout_or_budget')})")
-                    continue
-                if timeout not in allowed:
-                    errors.append(
-                        f"{where}: not a figure of row '{row['edge']}' "
-                        f"({row.get('timeout_or_budget')}; allowed {allowed} ms)"
-                    )
+                if isinstance(edge, list):
+                    elements, prefix = edge, "element {!r}: "
                 else:
+                    elements, prefix = [edge], ""
+                op_ok = True
+                for el in elements:
+                    pre = prefix.format(el) if prefix else ""
+                    if not isinstance(el, str):
+                        unchecked.append(f"{where}: {pre}edge {el!r} is not a string")
+                        op_ok = False
+                        continue
+                    caller, _, callee = el.partition("->")
+                    caller = edge_caller(caller)
+                    row = (rows.get((caller, callee, oid)) or rows.get((caller, callee, None))
+                           or rows.get((caller, "any", None)))
+                    if row is None:
+                        unchecked.append(f"{where}: {pre}edge {el} has no resilience_policy row")
+                        op_ok = False
+                        continue
+                    allowed = figures_ms(row.get("timeout_or_budget", ""))
+                    if not allowed:
+                        unchecked.append(f"{where}: {pre}row '{row['edge']}' gives no figure ({row.get('timeout_or_budget')})")
+                        op_ok = False
+                        continue
+                    if timeout not in allowed:
+                        errors.append(
+                            f"{where}: {pre}not a figure of row '{row['edge']}' "
+                            f"({row.get('timeout_or_budget')}; allowed {allowed} ms)"
+                        )
+                        op_ok = False
+                if op_ok:
                     n_ok += 1
     if unchecked:
         print(f"gst-ci: x-timeout unchecked ({len(unchecked)}):")
