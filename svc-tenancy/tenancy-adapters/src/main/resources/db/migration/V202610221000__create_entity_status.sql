@@ -17,6 +17,7 @@ CREATE TABLE tenancy.entity_status (
     obligation_start_basis    text        CHECK (obligation_start_basis IN ('MANDATORY_DATE', 'EARLIER_VOLUNTARY_DATE', 'IRAS_COMMUNICATED_DATE')),
     iras_reference            text        CHECK (iras_reference IS NULL OR length(iras_reference) BETWEEN 1 AND 100),
     obligation_start_override boolean,
+    registration_start_date   date,
     recorded_at               timestamptz NOT NULL,
     UNIQUE (tenant_id, entity_id, status_kind, effective_from),
     FOREIGN KEY (tenant_id, entity_id) REFERENCES tenancy.entity (tenant_id, id),

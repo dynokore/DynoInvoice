@@ -22,6 +22,11 @@ data class GstReturn(
 
 private const val CY2024 = 2024
 private const val CY2025 = 2025
+private const val CY2026 = 2026
+private const val CY2028 = 2028
+private const val CY2029 = 2029
+private const val CY2030 = 2030
+private const val CY2031 = 2031
 
 /** The window of period-end months of INV-NOTE-2 section 2.2.1, as the first and last month summed. */
 enum class PhaseWindow(
@@ -53,11 +58,34 @@ enum class PhaseWindow(
     }
 }
 
-/** The inputs of an assessment and the figures used, recorded with the result (INV-REQ-334). */
+/**
+ * One dated row of the phased-applicability table of INV-NOTE-2 section 2.2.1, in table order (contract enum
+ * PhaseAssessmentResponse.phase, INV-Q-8727 A).
+ */
+enum class Phase(
+    val mandatoryDate: LocalDate,
+) {
+    PHASE_1(LocalDate.of(CY2025, Month.NOVEMBER, 1)),
+    PHASE_2(LocalDate.of(CY2026, Month.APRIL, 1)),
+    PHASE_3(LocalDate.of(CY2028, Month.APRIL, 1)),
+    PHASE_4(LocalDate.of(CY2029, Month.APRIL, 1)),
+    PHASE_5(LocalDate.of(CY2030, Month.APRIL, 1)),
+    PHASE_6(LocalDate.of(CY2031, Month.APRIL, 1)),
+    ;
+
+    companion object {
+        fun ofMandatoryDate(date: LocalDate): Phase = entries.single { it.mandatoryDate == date }
+    }
+}
+
+/**
+ * The inputs of an assessment and the figures used, recorded with the result (INV-REQ-334). A request that carries one
+ * Box 4 figure and no returns has no [window], no returns and no [daysCovered].
+ */
 data class PhaseInputs(
-    val window: PhaseWindow,
+    val window: PhaseWindow?,
     val returnsUsed: List<GstReturn>,
-    val daysCovered: Long,
+    val daysCovered: Long?,
     val extrapolationChosen: Boolean,
     val summedBox4: BigDecimal,
 )
@@ -67,7 +95,9 @@ data class PhaseAssessment(
     val totalAnnualSupplies: BigDecimal,
     val mandatoryDate: LocalDate,
     val inputs: PhaseInputs,
-)
+) {
+    val phase: Phase get() = Phase.ofMandatoryDate(mandatoryDate)
+}
 
 sealed interface PhaseOutcome {
     data class Assessed(
@@ -78,7 +108,9 @@ sealed interface PhaseOutcome {
     data object Outstanding : PhaseOutcome
 
     /** The returns' period-end months fall in more than one row of the window table: no single window applies. */
-    data object MixedPeriodEndMonths : PhaseOutcome
+    data class MixedPeriodEndMonths(
+        val months: List<Month>,
+    ) : PhaseOutcome
 
     /** Extrapolation was chosen but the returns cover no day. */
     data object NoDaysCovered : PhaseOutcome
@@ -93,12 +125,19 @@ sealed interface PhaseOutcome {
 object PhaseAssessor {
     private val THRESHOLDS: List<Pair<BigDecimal, LocalDate>> =
         listOf(
-            BigDecimal("200000") to LocalDate.of(2028, Month.APRIL, 1),
-            BigDecimal("1000000") to LocalDate.of(2029, Month.APRIL, 1),
-            BigDecimal("4000000") to LocalDate.of(2030, Month.APRIL, 1),
+            BigDecimal("200000") to Phase.PHASE_3.mandatoryDate,
+            BigDecimal("1000000") to Phase.PHASE_4.mandatoryDate,
+            BigDecimal("4000000") to Phase.PHASE_5.mandatoryDate,
         )
-    private val ABOVE_ALL: LocalDate = LocalDate.of(2031, Month.APRIL, 1)
+    private val ABOVE_ALL: LocalDate = Phase.PHASE_6.mandatoryDate
     private const val YEAR_DAYS = 365L
+
+    /** The assessment of one Box 4 figure with no returns: no window, no days covered and no extrapolation. */
+    fun assessFigure(box4: BigDecimal): PhaseAssessment =
+        PhaseAssessment(box4, mandatoryDateOf(box4), PhaseInputs(null, emptyList(), null, false, box4))
+
+    private fun mandatoryDateOf(total: BigDecimal): LocalDate =
+        THRESHOLDS.firstOrNull { total <= it.first }?.second ?: ABOVE_ALL
 
     fun assess(
         returns: List<GstReturn>,
@@ -110,9 +149,23 @@ object PhaseAssessor {
                     it.periodEnd.year == CY2025
                 }.groupBy { PhaseWindow.ofPeriodEndMonth(it.periodEnd.month) }
         return when (windows.size) {
-            0 -> PhaseOutcome.Outstanding
-            1 -> assessWindow(windows.keys.single(), windows.values.single(), extrapolate)
-            else -> PhaseOutcome.MixedPeriodEndMonths
+            0 -> {
+                PhaseOutcome.Outstanding
+            }
+
+            1 -> {
+                assessWindow(windows.keys.single(), windows.values.single(), extrapolate)
+            }
+
+            else -> {
+                PhaseOutcome.MixedPeriodEndMonths(
+                    windows.values
+                        .flatten()
+                        .map { it.periodEnd.month }
+                        .distinct()
+                        .sorted(),
+                )
+            }
         }
     }
 
@@ -132,7 +185,7 @@ object PhaseAssessor {
             } else {
                 sum
             }
-        val date = THRESHOLDS.firstOrNull { total <= it.first }?.second ?: ABOVE_ALL
+        val date = mandatoryDateOf(total)
         return if (extrapolate && days <= 0) {
             PhaseOutcome.NoDaysCovered
         } else {

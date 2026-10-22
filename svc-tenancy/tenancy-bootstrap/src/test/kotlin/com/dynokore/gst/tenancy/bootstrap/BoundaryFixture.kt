@@ -18,6 +18,14 @@ object BoundaryFixture {
     private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
     val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4926")
 
+    /**
+     * The tables config-resolver's ConfigSchema.ddl creates (a platform library, INV-T-4926). Their `entity_id` is null
+     * for a setting at tenant or group scope by design, so the per-entity rules of INV-AC-1714 and INV-AC-2041 cover
+     * the service's own tables only. Exact names; a table added to this list needs a reason here.
+     */
+    private val libraryTables = listOf("config_setting", "config_resolved_value", "config_relaxation_acknowledgement")
+    private val notLibrary = libraryTables.joinToString(",") { "'$it'" }
+
     private val migrationsDir: Path = Path.of("..", "tenancy-adapters", "src", "main", "resources", "db", "migration")
     private val roles: Path = Path.of("..", "tenancy-adapters", "src", "integrationTest", "resources", "roles.sql")
 
@@ -90,7 +98,8 @@ object BoundaryFixture {
             c
                 .prepareStatement(
                     "select table_name, is_nullable from information_schema.columns " +
-                        "where table_schema = 'tenancy' and column_name = 'entity_id'",
+                        "where table_schema = 'tenancy' and column_name = 'entity_id' " +
+                        "and table_name not in ($notLibrary)",
                 ).use { s -> s.executeQuery().use(::textPairs) }
         }
 
@@ -100,7 +109,8 @@ object BoundaryFixture {
             c
                 .prepareStatement(
                     "select table_name, column_name from information_schema.columns where table_schema = 'tenancy' " +
-                        "and column_name in ('entity_id', 'group_id') and is_nullable = 'YES'",
+                        "and column_name in ('entity_id', 'group_id') and is_nullable = 'YES' " +
+                        "and table_name not in ($notLibrary)",
                 ).use { s -> s.executeQuery().use(::textPairs) }
         }
 

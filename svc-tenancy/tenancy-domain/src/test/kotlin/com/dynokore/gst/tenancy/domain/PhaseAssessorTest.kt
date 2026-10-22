@@ -85,7 +85,10 @@ class PhaseAssessorTest {
             PhaseAssessor.assess(listOf(ret("2024-01-01", "2024-12-31", "5")), false),
         )
         val mixed = listOf(ret("2025-01-01", "2025-03-31", "1"), ret("2025-04-01", "2025-04-30", "1"))
-        assertEquals(PhaseOutcome.MixedPeriodEndMonths, PhaseAssessor.assess(mixed, false))
+        assertEquals(
+            PhaseOutcome.MixedPeriodEndMonths(listOf(java.time.Month.MARCH, java.time.Month.APRIL)),
+            PhaseAssessor.assess(mixed, false),
+        )
     }
 
     @Test

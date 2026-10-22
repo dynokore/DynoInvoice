@@ -231,6 +231,8 @@ internal object Assignments {
                 "recordAppliedOperatingProfile",
                 "getAppliedOperatingProfile",
             ) +
+            of("INV-T-8142", "openTenant") +
+            of("INV-T-8179", "closeTenant") +
             of("INV-T-3290", "recordInstallationAction") +
             of("INV-T-7382", "recordMigrationCutover", "getMigrationCutover")
 

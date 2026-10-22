@@ -20,7 +20,11 @@ data class EntityStatusEntry(
     val obligationStartBasis: ObligationStartBasis? = null,
     val irasReference: String? = null,
     val obligationStartOverride: Boolean? = null,
+    val registrationStartDate: LocalDate? = null,
 ) : Effective {
+    /** Whether [other] records the same values for the same kind and date (a repeat replays, INV-Q-8735 A). */
+    fun sameValues(other: EntityStatusEntry): Boolean = this == other
+
     /** The profile attribute this entry sets and its value as the event carries it (opaque string). */
     val attribute: String
         get() =

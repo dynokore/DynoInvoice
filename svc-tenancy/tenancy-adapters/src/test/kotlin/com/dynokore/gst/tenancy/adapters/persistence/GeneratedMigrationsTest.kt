@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.persistence
 
+import com.dynokore.platform.configresolver.ConfigSchema
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.tenancykernel.SqlIdentifier
@@ -38,6 +39,12 @@ class GeneratedMigrationsTest {
     fun `the idempotency migration is the DDL service-runtime generates for the tenancy schema`() {
         val expected = IdempotencySchema.ddl("tenancy", "tenancy_runtime", "tenancy_sys").trim()
         assertEquals(expected, body(migration("V202610190940__create_idempotency.sql")))
+    }
+
+    @Test
+    fun `the config-resolver migration is the DDL config-resolver generates for the tenancy schema`() {
+        val expected = ConfigSchema.ddl("tenancy", "tenancy_runtime", "tenancy_sys").trim()
+        assertEquals(expected, body(migration("V202610221050__create_config_resolver.sql")))
     }
 
     @Test

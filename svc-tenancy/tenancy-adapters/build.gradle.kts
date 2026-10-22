@@ -31,6 +31,7 @@ dependencies {
     implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.auditLog.api)
+    implementation(libs.platform.configResolver.api)
     implementation(libs.platform.serviceRuntime.api)
     implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.productRuntime.impl)
@@ -44,6 +45,7 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.platform.configResolver.impl)
     testImplementation(libs.platform.serviceRuntime.impl)
     testImplementation(libs.platform.productRuntime.impl)
     testImplementation(libs.kotest.assertionsCore)

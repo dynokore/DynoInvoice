@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.http
 
+import com.dynokore.gst.tenancy.domain.CodeRefusal
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
@@ -65,3 +66,17 @@ internal fun conflict(
     code: TenancyErrorCode,
     message: String,
 ): Nothing = throw TenancyRefusal(code, message)
+
+/** A repeated status with other values: the closed 409 of the platform, the detail names the conflict. */
+internal fun statusConflict(): Nothing =
+    throw ApiRefusal(
+        ClosedErrorCode.STALE_AGGREGATE,
+        "a status of this kind is already recorded from this date with other values",
+    )
+
+internal fun shortCodeConflict(reason: CodeRefusal): Nothing =
+    if (reason == CodeRefusal.USED_IN_AGGREGATE_NUMBER) {
+        conflict(TenancyErrorCode.SHORT_CODE_FIXED, "the short code is fixed by an aggregate number")
+    } else {
+        conflict(TenancyErrorCode.SHORT_CODE_ALREADY_USED, "the short code is already used in the tenant")
+    }

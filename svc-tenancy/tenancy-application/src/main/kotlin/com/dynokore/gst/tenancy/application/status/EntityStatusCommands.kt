@@ -1,10 +1,13 @@
 package com.dynokore.gst.tenancy.application.status
 
+import com.dynokore.gst.tenancy.application.structure.EntityRecord
 import com.dynokore.gst.tenancy.application.structure.ProfileEntry
 import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.gst.tenancy.domain.ExcludedBusinessStatus
+import com.dynokore.gst.tenancy.domain.ImplementationDate
 import com.dynokore.gst.tenancy.domain.ObligationStartBasis
+import com.dynokore.gst.tenancy.domain.ObligationStartRule
 import com.dynokore.gst.tenancy.domain.StatusKind
 import com.dynokore.gst.tenancy.domain.StatusTimeline
 import com.dynokore.platform.tenancykernel.TenantId
@@ -23,6 +26,7 @@ data class StatusChange(
     val obligationStartBasis: ObligationStartBasis?,
     val irasReference: String?,
     val obligationStartOverride: Boolean?,
+    val registrationStartDate: LocalDate? = null,
 )
 
 sealed interface StatusOutcome {
@@ -33,6 +37,19 @@ sealed interface StatusOutcome {
     ) : StatusOutcome
 
     data object NotFound : StatusOutcome
+
+    /** The same (entity, kind, effective date) was recorded with other values; nothing is written (INV-Q-8735 A). */
+    data class Conflict(
+        val existing: EntityStatusEntry,
+    ) : StatusOutcome
+
+    /**
+     * No obligation start can be derived yet, so no record is written and the date stays outstanding (INV-REQ-1312):
+     * [reason] says which input is missing.
+     */
+    data class Outstanding(
+        val reason: String,
+    ) : StatusOutcome
 
     /** The request lacks what its status kind requires (INV-REQ-331 b1, INV-REQ-333 b1, INV-REQ-335 b1). */
     data class Invalid(
@@ -49,6 +66,8 @@ class EntityStatusCommands(
     private val structure: StructureStore,
     private val statuses: EntityStatusStore,
     private val publisher: EntityProfileChangePublisher,
+    private val assessments: PhaseAssessmentStore,
+    private val implementation: ImplementationBasisReader,
 ) {
     fun setEntityStatus(
         tenant: TenantId,
@@ -58,13 +77,18 @@ class EntityStatusCommands(
         tx.inTransaction {
             val entity = structure.entity(entityRef) ?: return@inTransaction StatusOutcome.NotFound
             val entry =
-                when (val built = build(change)) {
+                when (val built = build(change, entity)) {
                     is Built.Refused -> return@inTransaction StatusOutcome.Invalid(built.reason)
+                    is Built.Outstanding -> return@inTransaction StatusOutcome.Outstanding(built.reason)
                     is Built.Entry -> built.entry
                 }
             val history = statuses.history(entity.id)
             history.firstOrNull { it.kind == entry.kind && it.effectiveFrom == entry.effectiveFrom }?.let {
-                return@inTransaction StatusOutcome.Done(it, repeated = true)
+                return@inTransaction if (it.sameValues(entry)) {
+                    StatusOutcome.Done(it, repeated = true)
+                } else {
+                    StatusOutcome.Conflict(it)
+                }
             }
             val previous = StatusTimeline.inForceOn(history.filter { it.kind == entry.kind }, entry.effectiveFrom)
             statuses.insert(entity.id, entry)
@@ -96,13 +120,20 @@ class EntityStatusCommands(
         data class Refused(
             val reason: String,
         ) : Built
+
+        data class Outstanding(
+            val reason: String,
+        ) : Built
     }
 
-    private fun build(change: StatusChange): Built =
+    private fun build(
+        change: StatusChange,
+        entity: EntityRecord,
+    ): Built =
         when (change.kind) {
             StatusKind.PARTIAL_EXEMPTION -> partialExemption(change)
             StatusKind.EXCLUDED_BUSINESS -> excludedBusiness(change)
-            StatusKind.OBLIGATION_START -> obligationStart(change)
+            StatusKind.OBLIGATION_START -> obligationStart(change, entity)
         }
 
     private fun partialExemption(change: StatusChange): Built {
@@ -143,32 +174,101 @@ class EntityStatusCommands(
             )
     }
 
-    private fun obligationStart(change: StatusChange): Built {
-        val basis = change.obligationStartBasis ?: ObligationStartBasis.MANDATORY_DATE
-        val reason =
-            when {
-                change.obligationStartDate == null -> {
-                    "obligationStartDate is required"
-                }
-
-                basis == ObligationStartBasis.IRAS_COMMUNICATED_DATE && change.irasReference.isNullOrBlank() -> {
-                    "irasReference is required when the basis is IRAS_COMMUNICATED_DATE"
-                }
-
-                else -> {
-                    null
-                }
+    /**
+     * INV-REQ-335, INV-Q-8733 A: the service derives the obligation start, the later of the registration start date and
+     * the implementation date of VP-51 resolved on the effective date. What the caller supplies of the derived fields
+     * must equal the derived value.
+     */
+    private fun obligationStart(
+        change: StatusChange,
+        entity: EntityRecord,
+    ): Built {
+        val implementation = implementationDate(change, entity)
+        return when (implementation) {
+            is Implementation.Missing -> {
+                Built.Outstanding(implementation.reason)
             }
-        return reason?.let { Built.Refused(it) }
-            ?: Built.Entry(
-                EntityStatusEntry(
-                    StatusKind.OBLIGATION_START,
-                    change.effectiveFrom,
-                    obligationStartDate = change.obligationStartDate,
-                    obligationStartBasis = basis,
-                    irasReference = change.irasReference,
-                    obligationStartOverride = change.obligationStartOverride ?: false,
-                ),
-            )
+
+            is Implementation.Found -> {
+                val derived = ObligationStartRule.derive(change.registrationStartDate, implementation.date)
+                val entry =
+                    EntityStatusEntry(
+                        StatusKind.OBLIGATION_START,
+                        change.effectiveFrom,
+                        obligationStartDate = derived.date,
+                        obligationStartBasis = derived.implementation.basis,
+                        irasReference = derived.implementation.irasReference,
+                        obligationStartOverride = derived.implementation.override,
+                        registrationStartDate = derived.registrationStartDate,
+                    )
+                suppliedDifference(change, entry)?.let { Built.Refused(it) } ?: Built.Entry(entry)
+            }
+        }
     }
+
+    private sealed interface Implementation {
+        data class Found(
+            val date: ImplementationDate,
+        ) : Implementation
+
+        data class Missing(
+            val reason: String,
+        ) : Implementation
+    }
+
+    private fun implementationDate(
+        change: StatusChange,
+        entity: EntityRecord,
+    ): Implementation =
+        when (val basis = implementation.resolve(entity.groupRef, entity.ref, change.effectiveFrom)) {
+            ResolvedImplementation.MandatoryDate -> {
+                assessments.latest(entity.id)?.let {
+                    val mandatory = it.assessment.mandatoryDate
+                    Implementation.Found(ImplementationDate(mandatory, ObligationStartBasis.MANDATORY_DATE))
+                } ?: Implementation.Missing("no mandatory date is stored: run assessPhase for the entity first")
+            }
+
+            is ResolvedImplementation.EarlierVoluntaryDate -> {
+                Implementation.Found(ImplementationDate(basis.date, ObligationStartBasis.EARLIER_VOLUNTARY_DATE))
+            }
+
+            is ResolvedImplementation.IrasCommunicatedDate -> {
+                Implementation.Found(
+                    ImplementationDate(basis.date, ObligationStartBasis.IRAS_COMMUNICATED_DATE, basis.irasReference),
+                )
+            }
+        }
+
+    /**
+     * The first field the caller supplied that differs from the derived [entry], or null (one source, INV-Q-8733 A).
+     * The contract gives `obligationStartBasis` the default MANDATORY_DATE and `obligationStartOverride` the default
+     * false, so the generated request cannot tell those values from an absent field: they are not compared.
+     */
+    private fun suppliedDifference(
+        change: StatusChange,
+        entry: EntityStatusEntry,
+    ): String? =
+        when {
+            change.obligationStartDate != null && change.obligationStartDate != entry.obligationStartDate -> {
+                "obligationStartDate differs from the derived ${entry.obligationStartDate}"
+            }
+
+            change.obligationStartBasis != null &&
+                change.obligationStartBasis != ObligationStartBasis.MANDATORY_DATE &&
+                change.obligationStartBasis != entry.obligationStartBasis -> {
+                "obligationStartBasis differs from the derived ${entry.obligationStartBasis}"
+            }
+
+            change.irasReference != null && change.irasReference != entry.irasReference -> {
+                "irasReference differs from the derived value"
+            }
+
+            change.obligationStartOverride == true && entry.obligationStartOverride != true -> {
+                "obligationStartOverride differs from the derived ${entry.obligationStartOverride}"
+            }
+
+            else -> {
+                null
+            }
+        }
 }

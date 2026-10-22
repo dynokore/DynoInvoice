@@ -35,6 +35,7 @@ class JooqEntityStatusStore(
                     it.obligationStartBasis?.let(ObligationStartBasis::valueOf),
                     it.irasReference,
                     it.obligationStartOverride,
+                    it.registrationStartDate,
                 )
             }
 
@@ -57,6 +58,7 @@ class JooqEntityStatusStore(
             .set(ENTITY_STATUS.OBLIGATION_START_BASIS, entry.obligationStartBasis?.name)
             .set(ENTITY_STATUS.IRAS_REFERENCE, entry.irasReference)
             .set(ENTITY_STATUS.OBLIGATION_START_OVERRIDE, entry.obligationStartOverride)
+            .set(ENTITY_STATUS.REGISTRATION_START_DATE, entry.registrationStartDate)
             .set(ENTITY_STATUS.RECORDED_AT, OffsetDateTime.now(ZoneOffset.UTC))
             .execute()
     }

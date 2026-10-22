@@ -22,6 +22,7 @@ dependencies {
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.tenancyJooq.impl)
+    implementation(libs.platform.configResolver.api)
     implementation(libs.platform.configResolver.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)

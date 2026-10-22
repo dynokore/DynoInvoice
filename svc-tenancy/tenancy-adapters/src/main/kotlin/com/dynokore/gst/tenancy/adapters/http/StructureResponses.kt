@@ -74,6 +74,18 @@ internal fun statusResponse(
     entry.obligationStartBasis?.let { EntityStatusResponse.ObligationStartBasis.valueOf(it.name) },
     entry.irasReference,
     entry.obligationStartOverride,
+    entry.registrationStartDate,
+)
+
+/** The answer when no obligation start can be derived yet: nothing was recorded and the date stays outstanding. */
+internal fun outstandingStatusResponse(
+    entityRef: String,
+    request: SetEntityStatusRequest,
+) = EntityStatusResponse(
+    entityRef,
+    EntityStatusResponse.StatusKind.valueOf(request.statusKind.name),
+    request.effectiveFrom,
+    registrationStartDate = request.registrationStartDate,
 )
 
 internal fun statusChangeOf(request: SetEntityStatusRequest) =
@@ -88,4 +100,5 @@ internal fun statusChangeOf(request: SetEntityStatusRequest) =
         request.obligationStartBasis?.let { ObligationStartBasis.valueOf(it.name) },
         request.irasReference,
         request.obligationStartOverride,
+        request.registrationStartDate,
     )

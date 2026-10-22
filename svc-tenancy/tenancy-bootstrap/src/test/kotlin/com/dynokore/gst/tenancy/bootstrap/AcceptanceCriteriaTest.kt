@@ -216,7 +216,12 @@ class AcceptanceCriteriaTest {
     fun `INV-AC-2069 the installation runs tenant-scoped with no tenancy switch and a record carries the tenant`() {
         run { _, env ->
             // no property of the packaged configuration names tenancy except the reviewed list (exact names)
-            val allowed = setOf("inv.tenancy.platform-scoped-tables[0]")
+            val allowed =
+                setOf(
+                    "inv.tenancy.platform-scoped-tables[0]",
+                    "inv.tenancy.platform-scoped-tables[1]",
+                    "inv.tenancy.platform-scoped-tables[2]",
+                )
             val names =
                 env.context.environment.propertySources
                     .filterIsInstance<EnumerablePropertySource<*>>()

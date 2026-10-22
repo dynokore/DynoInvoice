@@ -1,5 +1,7 @@
 package com.dynokore.gst.tenancy.adapters.http
 
+import com.dynokore.gst.tenancy.application.status.AssessOutcome
+import com.dynokore.gst.tenancy.application.status.AssessPhaseCommands
 import com.dynokore.gst.tenancy.application.status.EntityStatusCommands
 import com.dynokore.gst.tenancy.application.status.StatusOutcome
 import com.dynokore.gst.tenancy.application.structure.GroupKind
@@ -10,6 +12,7 @@ import com.dynokore.gst.tenancy.application.structure.StructureCommands
 import com.dynokore.gst.tenancy.application.structure.StructureOutcome
 import com.dynokore.gst.tenancy.application.structure.StructureQueries
 import com.dynokore.gst.tenancy.contract.api.EntitiesApi
+import com.dynokore.gst.tenancy.contract.model.AssessPhaseRequest
 import com.dynokore.gst.tenancy.contract.model.BusinessUnitResponse
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
@@ -17,12 +20,14 @@ import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.EntityStatusResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
 import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest
+import com.dynokore.gst.tenancy.contract.model.PhaseAssessmentResponse
 import com.dynokore.gst.tenancy.contract.model.RegisterBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
 import com.dynokore.gst.tenancy.domain.CodeRefusal
 import com.dynokore.gst.tenancy.domain.TenantRefs
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
@@ -41,6 +46,7 @@ import java.util.UUID
 open class EntitiesController(
     private val commands: StructureCommands,
     private val statusCommands: EntityStatusCommands,
+    private val phaseCommands: AssessPhaseCommands,
     private val queries: StructureQueries,
     private val tenants: TenantContext,
 ) : EntitiesApi {
@@ -137,12 +143,39 @@ open class EntitiesController(
             )
         val entry =
             when (outcome) {
-                is StatusOutcome.Done -> outcome.entry
-                StatusOutcome.NotFound -> notFound()
-                is StatusOutcome.Invalid -> invalid(outcome.reason)
+                is StatusOutcome.Done -> {
+                    outcome.entry
+                }
+
+                StatusOutcome.NotFound -> {
+                    notFound()
+                }
+
+                is StatusOutcome.Invalid -> {
+                    invalid(outcome.reason)
+                }
+
+                is StatusOutcome.Conflict -> {
+                    statusConflict()
+                }
+
+                is StatusOutcome.Outstanding -> {
+                    return ResponseEntity.ok(outstandingStatusResponse(entityRef, setEntityStatusRequest))
+                }
             }
         return ResponseEntity.status(HttpStatus.CREATED).body(statusResponse(entityRef, entry))
     }
+
+    override fun assessPhase(
+        entityRef: String,
+        idempotencyKey: UUID,
+        assessPhaseRequest: AssessPhaseRequest,
+    ): ResponseEntity<PhaseAssessmentResponse> =
+        when (val outcome = phaseCommands.assess(entityRef, phaseRequestOf(assessPhaseRequest))) {
+            is AssessOutcome.Done -> ResponseEntity.ok(phaseResponse(entityRef, outcome.stored))
+            AssessOutcome.NotFound -> notFound()
+            is AssessOutcome.Invalid -> invalid(outcome.reason)
+        }
 
     private fun boundTenant(tenantRef: String): TenantId {
         val id =
@@ -163,12 +196,5 @@ open class EntitiesController(
             StructureOutcome.NotFound -> notFound()
             is StructureOutcome.Conflict -> shortCodeConflict(outcome.reason)
             is StructureOutcome.Invalid -> invalid("the short code must be 1 to 10 characters of A-Z and 0-9")
-        }
-
-    private fun shortCodeConflict(reason: CodeRefusal): Nothing =
-        if (reason == CodeRefusal.USED_IN_AGGREGATE_NUMBER) {
-            conflict(TenancyErrorCode.SHORT_CODE_FIXED, "the short code is fixed by an aggregate number")
-        } else {
-            conflict(TenancyErrorCode.SHORT_CODE_ALREADY_USED, "the short code is already used in the tenant")
         }
 }

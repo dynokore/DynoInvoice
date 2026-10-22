@@ -34,11 +34,16 @@ class EntityLifecycleGuard(
     private val tx: TransactionRunner,
     private val structure: StructureStore,
     private val statuses: EntityStatusStore,
+    private val elections: GroupElectionReader,
 ) {
+    /**
+     * The status gate of go-live on [on]. An entity with no Excluded Business determination is refused (fail closed,
+     * INV-Q-8735 A): [GoLiveStatusDecision.NotDetermined] is a refusal for the caller. The election of the entity's
+     * parent group (VP-64) is read on [on] only for an excluded entity.
+     */
     fun checkStatus(
         entityRef: String,
         on: LocalDate,
-        groupTransmitsExcludedMember: Boolean,
     ): GoLiveStatusDecision =
         tx.inTransaction {
             val entity = structure.entity(entityRef) ?: return@inTransaction GoLiveStatusDecision.EntityNotFound
@@ -46,7 +51,7 @@ class EntityLifecycleGuard(
             val status =
                 StatusTimeline.inForceOn(history, on)?.excludedBusinessStatus
                     ?: return@inTransaction GoLiveStatusDecision.NotDetermined
-            if (!status.excluded || groupTransmitsExcludedMember) {
+            if (!status.excluded || elections.transmitsExcludedMember(entity.groupRef, on)) {
                 GoLiveStatusDecision.Allowed(status)
             } else {
                 GoLiveStatusDecision.Refused(status)

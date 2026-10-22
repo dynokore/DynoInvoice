@@ -25,76 +25,15 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 import java.util.UUID
 
-private typealias Excl = SetEntityStatusRequest.ExcludedBusinessStatus
-
-private fun day(text: String): LocalDate = LocalDate.parse(text)
-
 /**
  * setEntityStatus (INV-REQ-322, INV-REQ-331, INV-REQ-333) and the entity-lifecycle status guard through the real
  * application context over PostgreSQL with forced row-level security. Test names carry the criterion key.
  */
 class EntityStatusTest {
-    private class Env(
-        context: AssertableWebApplicationContext,
-    ) {
-        val tenantsApi: TenantsController = context.getBean(TenantsController::class.java)
-        val api: EntitiesController = context.getBean(EntitiesController::class.java)
-        val queries: EntityStatusQueries = context.getBean(EntityStatusQueries::class.java)
-        val guard: EntityLifecycleGuard = context.getBean(EntityLifecycleGuard::class.java)
-        val tenants: TenantContext = context.getBean(TenantContext::class.java)
-        val captured: CapturedEvents = context.getBean(CapturedEvents::class.java)
-
-        fun <T> inTenant(
-            tenant: TenantId,
-            block: () -> T,
-        ): T = tenants.bind(tenant, "user:test") { block() }
-
-        /** A tenant with one entity; [block] runs bound to the tenant. */
-        fun <T> withEntity(block: (TenantId, EntityResponse) -> T): T {
-            val contract = "C-${UUID.randomUUID()}"
-            val ref = TenantRefs.refOfContract(contract)
-            tenantsApi.createTenant(UUID.randomUUID(), CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref))
-            val tenant = TenantRefs.idOf(ref)
-            return inTenant(tenant) {
-                val group =
-                    api
-                        .createGroup(
-                            UUID.randomUUID(),
-                            CreateGroupRequest(
-                                tenant.value.toString(),
-                                "Group ${UUID.randomUUID()}",
-                                CreateGroupRequest.GroupKind.GST_GROUP,
-                                "GSTN-1",
-                            ),
-                        ).body!!
-                val entity =
-                    api
-                        .createEntity(
-                            UUID.randomUUID(),
-                            CreateEntityRequest(
-                                tenant.value.toString(),
-                                group.groupRef,
-                                "Entity ${UUID.randomUUID()}",
-                                CreateEntityRequest.Constitution.PRIVATE_LIMITED,
-                                "U${UUID.randomUUID().toString().take(8).uppercase()}",
-                                null,
-                                null,
-                            ),
-                        ).body!!
-                block(tenant, entity)
-            }
-        }
-
-        fun set(
-            entity: EntityResponse,
-            request: SetEntityStatusRequest,
-        ) = api.setEntityStatus(entity.entityRef, UUID.randomUUID(), request)
-    }
-
-    private fun run(block: (Env) -> Unit) {
+    private fun run(block: (ProfileEnv) -> Unit) {
         BoundaryFixture.runner().run { context ->
             context.startupFailure?.let { throw it }
-            block(Env(context))
+            block(ProfileEnv(context))
         }
     }
 
@@ -120,13 +59,9 @@ class EntityStatusTest {
     )
 
     private fun obligation(from: String) =
-        SetEntityStatusRequest(
-            SetEntityStatusRequest.StatusKind.OBLIGATION_START,
-            day(from),
-            obligationStartDate = day("2028-04-01"),
-        )
+        SetEntityStatusRequest(SetEntityStatusRequest.StatusKind.OBLIGATION_START, day(from))
 
-    private fun profileEvents(env: Env) =
+    private fun profileEvents(env: ProfileEnv) =
         env.captured.envelopes
             .filter { it.type == ProductEventTypes.ENTITY_PROFILE_CHANGED }
             .map { JsonMapper.builder().build().readTree(it.dataJson) }
@@ -139,6 +74,7 @@ class EntityStatusTest {
                 env.set(entity, exempt("2026-07-01", true))
                 env.set(entity, exempt("2026-10-01", false))
                 env.set(entity, excluded("2026-07-01", Excl.OVR))
+                env.assess(entity, box4 = figure("100000"))
                 env.set(entity, obligation("2026-07-01"))
                 val events = profileEvents(env).drop(before)
                 assertThat(events).hasSize(4)
@@ -160,7 +96,7 @@ class EntityStatusTest {
                         .body!!
                         .node!!
                 assertThat(read.profile.map { it.attribute }).contains("partiallyExempt", "excludedBusinessStatus")
-                val decision = env.guard.checkStatus(entity.entityRef, day("2026-12-01"), false)
+                val decision = env.guard.checkStatus(entity.entityRef, day("2026-12-01"))
                 assertThat(decision).isEqualTo(GoLiveStatusDecision.Refused(ExcludedBusinessStatus.OVR))
                 assertThat(tenant).isNotNull
             }
@@ -191,12 +127,12 @@ class EntityStatusTest {
                 val response = env.set(entity, excluded("2026-07-01", Excl.OVERSEAS_S33_1)).body!!
                 assertThat(response.evidenceRef).isEqualTo("EVID-1")
                 assertThat(response.basis).isEqualTo("determination")
-                val decision = env.guard.checkStatus(entity.entityRef, day("2026-08-01"), false)
+                val decision = env.guard.checkStatus(entity.entityRef, day("2026-08-01"))
                 assertThat(decision).isEqualTo(GoLiveStatusDecision.Refused(ExcludedBusinessStatus.OVERSEAS_S33_1))
                 for (status in listOf(Excl.OVR, Excl.RC_ONLY)) {
                     env.withEntity { _, other ->
                         env.set(other, excluded("2026-07-01", status))
-                        assertThat(env.guard.checkStatus(other.entityRef, day("2026-08-01"), false))
+                        assertThat(env.guard.checkStatus(other.entityRef, day("2026-08-01")))
                             .isEqualTo(GoLiveStatusDecision.Refused(ExcludedBusinessStatus.valueOf(status.name)))
                     }
                 }
@@ -209,9 +145,9 @@ class EntityStatusTest {
         run { env ->
             env.withEntity { _, entity ->
                 env.set(entity, excluded("2026-07-01", Excl.NOT_EXCLUDED))
-                assertThat(env.guard.checkStatus(entity.entityRef, day("2026-08-01"), false))
+                assertThat(env.guard.checkStatus(entity.entityRef, day("2026-08-01")))
                     .isEqualTo(GoLiveStatusDecision.Allowed(ExcludedBusinessStatus.NOT_EXCLUDED))
-                assertThat(env.guard.checkStatus(entity.entityRef, day("2026-06-30"), false))
+                assertThat(env.guard.checkStatus(entity.entityRef, day("2026-06-30")))
                     .isEqualTo(GoLiveStatusDecision.NotDetermined)
             }
         }
@@ -236,6 +172,40 @@ class EntityStatusTest {
                         exempt("2026-07-01", true),
                     )
                 }.isInstanceOf(ApiRefusal::class.java)
+            }
+        }
+    }
+
+    @Test
+    fun `a repeat with the same values replays the first record and a repeat with other values is 409`() {
+        run { env ->
+            env.withEntity { _, entity ->
+                val first = env.set(entity, exempt("2026-07-01", true)).body!!
+                val replay = env.set(entity, exempt("2026-07-01", true)).body!!
+                assertThat(replay).isEqualTo(first)
+                val refusal =
+                    assertThatThrownBy { env.set(entity, exempt("2026-07-01", false)) }
+                        .isInstanceOf(ApiRefusal::class.java)
+                        .actual() as ApiRefusal
+                assertThat(refusal.code.httpStatus).isEqualTo(409)
+                assertThat(
+                    env.queries.history(entity.entityRef, StatusKind.PARTIAL_EXEMPTION).map { it.partiallyExempt },
+                ).containsExactly(true)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-353 an entity with no recorded determination is refused go-live beside an excluded one`() {
+        run { env ->
+            env.withEntity { _, entity ->
+                assertThat(env.guard.checkStatus(entity.entityRef, TODAY)).isEqualTo(GoLiveStatusDecision.NotDetermined)
+                env.set(entity, excluded("2026-07-01", Excl.RC_ONLY))
+                assertThat(env.guard.checkStatus(entity.entityRef, TODAY))
+                    .isEqualTo(GoLiveStatusDecision.Refused(ExcludedBusinessStatus.RC_ONLY))
+                assertThat(
+                    env.guard.checkStatus("no-such-entity", TODAY),
+                ).isEqualTo(GoLiveStatusDecision.EntityNotFound)
             }
         }
     }
