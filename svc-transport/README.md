@@ -84,9 +84,9 @@ Gradle runs in the CI image; the build needs Docker (jOOQ code generation and th
 | Database rules | `transport-adapters` `SqlRulesTest`, `TenantTablesTest`, `verifySqlPlacement` | Raw SQL, JdbcTemplate, statement creation or a connection from a DataSource; a migration table without a not null tenant column; a table without forced row level security and the signed-binding policy. |
 | Dependency integrity (STK-72) | `gradle/verification-metadata.xml`, lock files | A dependency without a checksum or signature entry, or outside the lock files. |
 
-## Open gaps (INV-T-4981)
+## Callers of the despatch operations (INV-Q-8339 D, INV-Q-8387)
 
-See the merge request description: while a principal's entity set is not current the check asks the authority decision for the permission `filing-workflow` (the operation's role), which no published text names as a permission.
+`submitPayload`, `submitPackage` and `sendNetworkDocument` are machine-to-machine calls from submission-svc: the runtime's `SyncEdgeCallerFilter` refuses any other calling service with 403 SRT-004 from the `x-sync-edge` of the contract, the workload filter refuses a missing credential with 401, and the service asks no authorisation decision and reads no entity set.
 
 ## Dependency locking and verification
 

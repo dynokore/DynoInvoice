@@ -13,20 +13,9 @@ import java.io.File
 class SubmitPayloadContractTest {
     private val real = File(System.getProperty("gst.contract.dir"), "openapi.yaml").readText()
 
-    private fun spec(
-        requestExtra: String = "# no extra property",
-        responseExtra: String = "# no extra property",
-        outcomes: String = "[ACCEPTED, REJECTED, TRANSIENT_FAILURE]",
-        additional: String = "additionalProperties: false",
-        required: String = "required: [docUuid, version, payload, entityRef]",
-        ackExtra: String = "# no extra property",
-    ) = BASELINE
-        .replace("%ADDITIONAL%", additional)
-        .replace("%REQUIRED%", required)
-        .replace("%ACK_EXTRA%", ackExtra)
-        .replace("%REQUEST_EXTRA%", requestExtra)
-        .replace("%RESPONSE_EXTRA%", responseExtra)
-        .replace("%OUTCOMES%", outcomes)
+    /** The baseline with each slot at its conforming value, except those named in [slots]. */
+    private fun spec(vararg slots: Pair<String, String>): String =
+        (CONFORMING + slots.toMap()).entries.fold(BASELINE) { text, (slot, value) -> text.replace(slot, value) }
 
     @Test
     fun `INV-AC-2031 the submit definition of the real contract holds no AP-specific field`() {
@@ -38,10 +27,10 @@ class SubmitPayloadContractTest {
         SubmitPayloadContract.findings(real).shouldBeEmpty()
         SubmitPayloadContract.findings(spec()).shouldBeEmpty()
         SubmitPayloadContract
-            .findings(spec(requestExtra = "apCredential: { type: string }"))
+            .findings(spec("%REQUEST_EXTRA%" to "apCredential: { type: string }"))
             .joinToString() shouldContain "apCredential"
         SubmitPayloadContract
-            .findings(spec(responseExtra = "apErrorCode: { type: string }"))
+            .findings(spec("%RESPONSE_EXTRA%" to "apErrorCode: { type: string }"))
             .joinToString() shouldContain "apErrorCode"
     }
 
@@ -49,22 +38,25 @@ class SubmitPayloadContractTest {
     fun `INV-AC-7857 an AP-specific name is refused whatever it is called and wherever it is nested`() {
         listOf("envelope", "batchId", "peppolMessageId", "adapterRef", "payloadRef", "AP_CODE").forEach { name ->
             SubmitPayloadContract
-                .findings(spec(requestExtra = "$name: { type: string }"))
+                .findings(spec("%REQUEST_EXTRA%" to "$name: { type: string }"))
                 .joinToString() shouldContain "'$name'"
         }
         SubmitPayloadContract
             .findings(
-                spec(outcomes = "[ACCEPTED, REJECTED, TRANSIENT_FAILURE, AP_TIMEOUT]"),
+                spec("%OUTCOMES%" to "[ACCEPTED, REJECTED, TRANSIENT_FAILURE, AP_TIMEOUT]"),
             ).shouldNotBeEmpty()
-        SubmitPayloadContract.findings(spec(outcomes = "[ACCEPTED, REJECTED]")).shouldNotBeEmpty()
+        SubmitPayloadContract.findings(spec("%OUTCOMES%" to "[ACCEPTED, REJECTED]")).shouldNotBeEmpty()
     }
 
     @Test
     fun `INV-AC-7857 the key sets of the three schemas are compared by equality`() {
         // the acknowledgement schema, a request without the closed-object marker, and a dropped property each fail
-        SubmitPayloadContract.findings(spec(ackExtra = "apCredential: { type: string }")).joinToString() shouldContain
+        SubmitPayloadContract
+            .findings(
+                spec("%ACK_EXTRA%" to "apCredential: { type: string }"),
+            ).joinToString() shouldContain
             "Acknowledgement"
-        SubmitPayloadContract.findings(spec(additional = "# open object")).joinToString() shouldContain
+        SubmitPayloadContract.findings(spec("%ADDITIONAL%" to "# open object")).joinToString() shouldContain
             "additionalProperties"
         SubmitPayloadContract.findings(spec().replace("payload: { type: string }", "")).joinToString() shouldContain
             "SubmitPayloadRequest"
@@ -74,13 +66,13 @@ class SubmitPayloadContractTest {
         SubmitPayloadContract.findings(spec().replace("entityRef: { type: string }", "")).joinToString() shouldContain
             "SubmitPayloadRequest"
         SubmitPayloadContract
-            .findings(spec(required = "required: [docUuid, version, payload]"))
+            .findings(spec("%REQUIRED%" to "required: [docUuid, version, payload]"))
             .joinToString() shouldContain "entityRef must be required"
         SubmitPayloadContract
-            .findings(spec(required = "# no required list"))
+            .findings(spec("%REQUIRED%" to "# no required list"))
             .joinToString() shouldContain "entityRef must be required"
         listOf("entityRefs", "entityref", "EntityRef", "entityRef ").forEach { name ->
-            SubmitPayloadContract.findings(spec(requestExtra = "'$name': { type: string }")).shouldNotBeEmpty()
+            SubmitPayloadContract.findings(spec("%REQUEST_EXTRA%" to "'$name': { type: string }")).shouldNotBeEmpty()
         }
         SubmitPayloadContract.findings(spec().replace("Acknowledgement:", "Receipt:")).shouldNotBeEmpty()
         listOf(
@@ -93,8 +85,8 @@ class SubmitPayloadContractTest {
             "payloadRef",
             "AP_CODE",
         ).forEach { name ->
-            SubmitPayloadContract.findings(spec(ackExtra = "$name: { type: string }")).shouldNotBeEmpty()
-            SubmitPayloadContract.findings(spec(requestExtra = "$name: { type: string }")).shouldNotBeEmpty()
+            SubmitPayloadContract.findings(spec("%ACK_EXTRA%" to "$name: { type: string }")).shouldNotBeEmpty()
+            SubmitPayloadContract.findings(spec("%REQUEST_EXTRA%" to "$name: { type: string }")).shouldNotBeEmpty()
         }
     }
 
@@ -106,6 +98,18 @@ class SubmitPayloadContractTest {
     }
 
     private companion object {
+        const val NO_EXTRA = "# no extra property"
+
+        val CONFORMING =
+            mapOf(
+                "%REQUEST_EXTRA%" to NO_EXTRA,
+                "%RESPONSE_EXTRA%" to NO_EXTRA,
+                "%OUTCOMES%" to "[ACCEPTED, REJECTED, TRANSIENT_FAILURE]",
+                "%ADDITIONAL%" to "additionalProperties: false",
+                "%REQUIRED%" to "required: [docUuid, version, payload, entityRef]",
+                "%ACK_EXTRA%" to NO_EXTRA,
+            )
+
         /** A conforming `submitPayload` definition; the placeholders are the mutations of the probes. */
         val BASELINE =
             """
