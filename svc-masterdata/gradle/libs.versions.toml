@@ -8,7 +8,7 @@ platformBuild = "0.23.4"
 platformLibsBom = "0.112.0"
 # The published platform-contracts bundle this service stages its contract from (STK-46, API-01).
 platformContractsBundle = "0.0.0-dev+7ff9c392"
-gstCatalogue = "1.14.0"
+gstCatalogue = "1.28.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 postgresql = "42.7.14"
