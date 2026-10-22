@@ -1,7 +1,15 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.persistence.JooqCounterpartyRepository
 import com.dynokore.gst.masterdata.adapters.persistence.JooqPendingChangeRepository
+import com.dynokore.gst.masterdata.adapters.persistence.JooqStructureNodeRepository
 import com.dynokore.gst.masterdata.adapters.persistence.JooqTripleRepository
+import com.dynokore.gst.masterdata.application.counterparty.ApplyStructureNode
+import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
+import com.dynokore.gst.masterdata.application.counterparty.ReadCounterpartyHistory
+import com.dynokore.gst.masterdata.application.counterparty.RecordCounterparty
+import com.dynokore.gst.masterdata.application.counterparty.ResolveCounterparty
+import com.dynokore.gst.masterdata.application.counterparty.StructureNodeRepository
 import com.dynokore.gst.masterdata.application.identity.ConfirmIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
 import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
@@ -53,4 +61,42 @@ class UseCases {
         policy: ConfirmerPolicy,
         roles: ConfirmerRoles,
     ) = ConfirmIdentityTripleChange(tx, changes, triples, policy, roles)
+
+    @Bean
+    fun counterpartyRepository(
+        dsl: DSLContext,
+        clock: Clock,
+    ): CounterpartyRepository = JooqCounterpartyRepository(dsl, clock)
+
+    @Bean
+    fun structureNodeRepository(
+        dsl: DSLContext,
+        clock: Clock,
+    ): StructureNodeRepository = JooqStructureNodeRepository(dsl, clock)
+
+    @Bean
+    fun resolveCounterparty(
+        tx: TransactionRunner,
+        parties: CounterpartyRepository,
+        structure: StructureNodeRepository,
+    ) = ResolveCounterparty(tx, parties, structure)
+
+    @Bean
+    fun recordCounterparty(
+        tx: TransactionRunner,
+        parties: CounterpartyRepository,
+        clock: Clock,
+    ) = RecordCounterparty(tx, parties, clock)
+
+    @Bean
+    fun readCounterpartyHistory(
+        tx: TransactionRunner,
+        parties: CounterpartyRepository,
+    ) = ReadCounterpartyHistory(tx, parties)
+
+    @Bean
+    fun applyStructureNode(
+        tx: TransactionRunner,
+        nodes: StructureNodeRepository,
+    ) = ApplyStructureNode(tx, nodes)
 }

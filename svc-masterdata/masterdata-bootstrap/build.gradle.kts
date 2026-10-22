@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
     implementation(platform(libs.platform.bom))
+    implementation(libs.platform.partyRegistry.api)
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":masterdata-adapters"))
     implementation(project(":masterdata-contract"))
@@ -22,6 +23,7 @@ dependencies {
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.tenancyJooq.impl)
+    implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.configResolver.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)

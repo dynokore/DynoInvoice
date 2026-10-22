@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
     implementation(platform(libs.platform.bom))
+    implementation(libs.platform.partyRegistry.api)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)

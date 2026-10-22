@@ -7,7 +7,7 @@ platformBuild = "0.23.1"
 # The tested set of platform-libs modules (STK-60): platform-libs-bom.
 platformLibsBom = "0.107.0"
 # The published platform-contracts bundle this service stages its contract from (STK-46, API-01).
-platformContractsBundle = "0.0.0-dev+fe91d878"
+platformContractsBundle = "0.0.0-dev+b07ed6bf"
 gstCatalogue = "1.14.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
@@ -31,6 +31,8 @@ platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-
 platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver" }
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
+platform-partyRegistry-api = { module = "com.dynokore.platform:party-registry-api" }
+platform-partyRegistry-impl = { module = "com.dynokore.platform:party-registry" }
 platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
 platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
 platform-konsistRules = { module = "com.dynokore.gst.build:konsist-rules", version.ref = "platformBuild" }

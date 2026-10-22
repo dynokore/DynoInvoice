@@ -24,6 +24,8 @@ dependencies {
     bindingKernel(platform(libs.platform.bom))
     bindingKernel(libs.platform.tenancyKernel.impl)
     implementation(platform(libs.platform.bom))
+    implementation(libs.platform.partyRegistry.api)
+    implementation(libs.gstCatalogue)
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":masterdata-application"))
     implementation(project(":masterdata-domain"))

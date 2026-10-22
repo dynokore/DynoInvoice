@@ -74,6 +74,8 @@ class OperationsTableTest {
     private val assigned =
         mapOf(
             "operation" to "resolveMasterDataGap" to "INV-T-4943",
+            "operation" to "resolveCounterparty" to "INV-T-4943",
+            "operation" to "getCounterpartyHistory" to "INV-T-4943",
             "operation" to "getImportRecord" to "INV-T-4944",
             "operation" to "getRegisterAndRates" to "INV-T-4947",
             "channel" to "masterdataMasterDataResolved" to "INV-T-4943",

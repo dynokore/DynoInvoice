@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     implementation(platform(libs.platform.bom))
+    implementation(libs.platform.partyRegistry.api)
     implementation(project(":masterdata-domain"))
     implementation(libs.platform.tenancyKernel.api)
     testImplementation(platform(libs.junit.bom))

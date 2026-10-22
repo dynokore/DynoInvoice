@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test
 class GeneratedMigrationsTest {
     private val outbox = "V202610210890__create_outbox.sql"
     private val triples = "V202610210900__create_identity_triple.sql"
+    private val counterparties = "V202610220900__create_counterparty.sql"
 
     private fun migration(name: String): String =
         checkNotNull(
@@ -38,7 +39,7 @@ class GeneratedMigrationsTest {
 
     @Test
     fun `no migration creates the binding functions or the binding key table`() {
-        listOf(outbox, triples).forEach { file ->
+        listOf(outbox, triples, counterparties).forEach { file ->
             val text = migration(file)
             assertTrue("CREATE TABLE masterdata.binding_key" !in text, file)
             assertTrue("CREATE FUNCTION masterdata.bound_" !in text, file)
@@ -52,11 +53,22 @@ class GeneratedMigrationsTest {
         assertTrue(TenantRlsMigration.ddl("masterdata", "identity_triple", "tenant_isolation") in text)
         assertTrue("CREATE TABLE masterdata.identity_triple (" in text)
         assertTrue("tenant_id       uuid        NOT NULL" in text)
+        val master = migration(counterparties)
+        listOf(
+            "counterparty",
+            "counterparty_version",
+            "counterparty_identifier",
+            "counterparty_scheme_status",
+            "structure_node",
+        ).forEach { table ->
+            assertTrue(TenantRlsMigration.ddl("masterdata", table, "tenant_isolation") in master, table)
+            assertTrue("CREATE TABLE masterdata.$table (" in master, table)
+        }
     }
 
     @Test
     fun `every table the service migration creates has a forced row policy`() {
-        val text = migration(triples)
+        val text = migration(triples) + migration(counterparties)
         val tables = Regex("""(?i)create table\s+masterdata\.(\w+)""").findAll(text).map { it.groupValues[1] }.toList()
         assertTrue(tables.isNotEmpty())
         tables.forEach { table ->
