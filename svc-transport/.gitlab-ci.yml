@@ -33,6 +33,10 @@ variables:
 unit-test:
   extends: [.gradle-job, .gst-registry]
   image: "$CI_GRADLE_DOCKER_IMAGE"
+  # platform-build's unit-test inherits tags [inv-arm64] (the Mac runner), whose Docker daemon cannot pull the HTTP Nexus
+  # image $CI_GRADLE_DOCKER_IMAGE ("server gave HTTP response to HTTPS client"). Per the CI-FAST B1 rule, tool-image jobs
+  # run on the amd64 group runner like build-image, so the inherited tags are cleared.
+  tags: []
   before_script:
     - !reference [.gradle-job, before_script]
     - !reference [.gst-registry-auth, script]
