@@ -10,6 +10,7 @@
 # INV-T-7988. INV-REQ-2756: the backticked names (tenant.admin, a role; access-svc, a service) are not contract elements, so they are not rows.
 # INV-T-8225. INV-AC-8224: the backticked names tenant.admin and commercial.admin are roles, grantRole is a row that exists, and provisionTenant is an operation of the control-plane contract that exists, so they add no row.
 # INV-T-8672. INV-AC-8671: the backticked names security.officer, tenant.admin, deployment.operator and tax.approver are roles, and mapIdpGroup, unlockBreakGlass, resealBreakGlass and AuthorityChanged exist already, so they add no row.
+# INV-T-8807. INV-AC-8806: the backticked names ingest, filing-workflow, ap-callback, reporting, monitoring and certification are rows as enum members already; security.officer and tenant.admin are roles; evidence-svc and access-svc are services; confirmFiling is an operation of submission/openapi.yaml; private_key_jwt and client_secret_basic are the VP-77 settings, whose contract members are the CredentialInfo.method rows, so they add no further row.
 # identifier	kind	file	requirement
 INGEST	enum_value	openapi.yaml	INV-REQ-584
 FILING_WORKFLOW	enum_value	openapi.yaml	INV-REQ-584
@@ -75,3 +76,28 @@ VIEW	enum_value	openapi.yaml	INV-REQ-896
 READINESS	enum_value	openapi.yaml	INV-REQ-896
 DRAIN	enum_value	openapi.yaml	INV-REQ-896
 REPLAY	enum_value	openapi.yaml	INV-REQ-896
+authenticatePrincipal	operation	openapi.yaml	INV-REQ-880
+withdrawCredential	operation	openapi.yaml	INV-REQ-880
+CredentialInfo.credentialRef	schema_property	openapi.yaml	INV-REQ-880
+CredentialInfo.method	schema_property	openapi.yaml	INV-REQ-880
+CredentialInfo.status	schema_property	openapi.yaml	INV-REQ-880
+CredentialInfo.validUntil	schema_property	openapi.yaml	INV-REQ-880
+CredentialInfo.clientSecret	schema_property	openapi.yaml	INV-REQ-880
+PrincipalResponse.credential	schema_property	openapi.yaml	INV-REQ-880
+PrincipalResponse.previousCredential	schema_property	openapi.yaml	INV-REQ-880
+AuthenticatePrincipalRequest.method	schema_property	openapi.yaml	INV-REQ-880
+AuthenticatePrincipalRequest.proof	schema_property	openapi.yaml	INV-REQ-880
+AuthenticatePrincipalResponse.decision	schema_property	openapi.yaml	INV-REQ-880
+CreatePrincipalRequest.credentialMethod	schema_property	openapi.yaml	INV-REQ-584
+CreatePrincipalRequest.publicKeyJwk	schema_property	openapi.yaml	INV-REQ-584
+CreatePrincipalRequest.certificateThumbprint	schema_property	openapi.yaml	INV-REQ-584
+RotatePrincipalRequest.credentialMethod	schema_property	openapi.yaml	INV-REQ-584
+RotatePrincipalRequest.publicKeyJwk	schema_property	openapi.yaml	INV-REQ-584
+RotatePrincipalRequest.certificateThumbprint	schema_property	openapi.yaml	INV-REQ-584
+CredentialInfo.method.PRIVATE_KEY_JWT	schema_enum_value	openapi.yaml	INV-REQ-880
+CredentialInfo.method.MTLS	schema_enum_value	openapi.yaml	INV-REQ-880
+CredentialInfo.method.CLIENT_SECRET_BASIC	schema_enum_value	openapi.yaml	INV-REQ-880
+CredentialInfo.status.ACTIVE	schema_enum_value	openapi.yaml	INV-REQ-880
+CredentialInfo.status.WITHDRAWN	schema_enum_value	openapi.yaml	INV-REQ-880
+AuthenticatePrincipalResponse.decision.AUTHENTICATED	schema_enum_value	openapi.yaml	INV-REQ-880
+AuthenticatePrincipalResponse.decision.REFUSED	schema_enum_value	openapi.yaml	INV-REQ-880

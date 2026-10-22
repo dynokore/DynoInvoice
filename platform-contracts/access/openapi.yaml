@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.9.0
+  version: 1.10.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
-    `authorise`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
+    `authorise`, `authenticatePrincipal`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
     called by every service and the gateway respectively; every other operation is a console command reached
     through console-bff. Several SDS §7 catalogue rows sharing one shape are consolidated onto one resource
     (noted per operation) to keep the surface small. The `access-contract` module generates its server
@@ -361,7 +361,12 @@ paths:
         Create a service principal of a chosen type (SDS §7, SCR-17.6, §22.5). Rules stated here and not in the schema
         (INV-REQ-587, ruling INV-Q-6252): access-svc requires callingSystem when principalType is FILING_WORKFLOW
         and refuses a missing value with 400; the repeat key is (principalType, scope, callingSystem), so two systems
-        may each hold a FILING_WORKFLOW principal for one scope.
+        may each hold a FILING_WORKFLOW principal for one scope. Credential rules of access-svc that the schema cannot
+        express (INV-REQ-880, INV-REQ-584): credentialMethod PRIVATE_KEY_JWT needs publicKeyJwk; MTLS needs
+        certificateThumbprint; CLIENT_SECRET_BASIC takes no key material and is refused with 400 when the installation
+        setting VP-77 (INV-REQ-2760) does not allow it; any other combination is 400. A request with none of
+        credentialMethod, publicKeyJwk and certificateThumbprint creates the principal with no new credential, as before.
+        The 201 carries credential.
       tags:
       - principals
       x-principal: filing-workflow
@@ -396,6 +401,17 @@ paths:
                   principalType: FILING_WORKFLOW
                   scope: tenant:TEN-7B1004
                   callingSystem: filing-orchestrator
+              privateKeyJwt:
+                value:
+                  principalType: INGEST
+                  scope: tenant:TEN-7B1004
+                  credentialMethod: PRIVATE_KEY_JWT
+                  publicKeyJwk:
+                    kty: EC
+                    kid: erp-2026-10
+                    crv: P-256
+                    x: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
+                    y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
       responses:
         "201":
           description: Principal created
@@ -415,6 +431,78 @@ paths:
                     principalType: FILING_WORKFLOW
                     status: ACTIVE
                     callingSystem: filing-orchestrator
+                withCredential:
+                  value:
+                    principalRef: PRN-00090
+                    principalType: INGEST
+                    status: ACTIVE
+                    credential:
+                      credentialRef: CRD-00001
+                      method: PRIVATE_KEY_JWT
+                      status: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/principals/authenticate:
+    post:
+      operationId: authenticatePrincipal
+      summary: Authenticate a service principal by the proof of one credential (INV-REQ-880, FR-P.10)
+      description: >-
+        Called by the API gateway. The call is a query like `authorise` and always answers 200; the decision carries the
+        refusal. An unknown principal, a REVOKED principal, a credential that is WITHDRAWN or past its validUntil, a
+        method that the credential does not have, and a proof that does not match are each REFUSED. AUTHENTICATED
+        carries principalRef, principalType, scope and credentialRef. The operation mints no token (open question
+        INV-Q-8809).
+      tags:
+      - principals
+      x-principal: workload
+      x-caller-auth: service-job
+      x-sync-edge: api-gateway->access-svc
+      x-timeout: 500
+      x-requirements:
+      - FR-AC.1
+      - FR-P.10
+      x-error-codes: []
+      x-operation:
+        role: API gateway workload token
+        scope: installation
+        precondition: A principal reference and the proof of one credential are presented
+        reversibility: UNDOABLE
+        repeatKey: 'none: the call changes no state, so a repeat with the same input returns the same decision while the credential state is unchanged'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticatePrincipalRequest'
+            examples:
+              default:
+                value:
+                  principalRef: PRN-00088
+                  method: CLIENT_SECRET_BASIC
+                  proof: example-secret
+      responses:
+        "200":
+          description: Decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatePrincipalResponse'
+              examples:
+                default:
+                  value:
+                    decision: AUTHENTICATED
+                    principalRef: PRN-00088
+                    principalType: INGEST
+                    scope: tenant:TEN-7B1004
+                    credentialRef: CRD-00001
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -429,7 +517,14 @@ paths:
     post:
       operationId: rotatePrincipal
       summary: Rotate a service principal's credential, with an overlap window (SDS §7, SCR-17.6)
-      description: Rotate a service principal's credential, with an overlap window (SDS §7, SCR-17.6).
+      description: >-
+        Rotate a service principal's credential, with an overlap window (SDS §7, SCR-17.6). Credential rules of
+        access-svc that the schema cannot express (INV-REQ-880, INV-REQ-584): credentialMethod PRIVATE_KEY_JWT needs
+        publicKeyJwk; MTLS needs certificateThumbprint; CLIENT_SECRET_BASIC takes no key material and is refused with
+        400 when the installation setting VP-77 (INV-REQ-2760) does not allow it; any other combination is 400. A
+        request with none of the three properties rotates with no new credential, as before. The 200 carries
+        credential (the new one) and previousCredential (the old one, whose validUntil equals the instant of the
+        rotation plus overlapMinutes minutes).
       tags:
       - principals
       x-principal: filing-workflow
@@ -466,6 +561,16 @@ paths:
               default:
                 value:
                   overlapMinutes: 60
+              privateKeyJwt:
+                value:
+                  overlapMinutes: 60
+                  credentialMethod: PRIVATE_KEY_JWT
+                  publicKeyJwk:
+                    kty: EC
+                    kid: erp-2026-11
+                    crv: P-256
+                    x: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
+                    y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
       responses:
         "200":
           description: Rotated
@@ -479,6 +584,20 @@ paths:
                     principalRef: PRN-00088
                     principalType: MACHINE_CLIENT
                     status: ACTIVE
+                withCredentials:
+                  value:
+                    principalRef: PRN-00088
+                    principalType: INGEST
+                    status: ACTIVE
+                    credential:
+                      credentialRef: CRD-00002
+                      method: PRIVATE_KEY_JWT
+                      status: ACTIVE
+                    previousCredential:
+                      credentialRef: CRD-00001
+                      method: PRIVATE_KEY_JWT
+                      status: ACTIVE
+                      validUntil: '2026-10-23T09:00:00Z'
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -493,7 +612,8 @@ paths:
     post:
       operationId: revokePrincipal
       summary: Revoke a service principal immediately (SDS §7, SCR-17.6)
-      description: Revoke a service principal immediately (SDS §7, SCR-17.6).
+      description: Revoke a service principal immediately (SDS §7, SCR-17.6). The 200 carries neither credential nor
+        previousCredential.
       tags:
       - principals
       x-principal: filing-workflow
@@ -533,6 +653,74 @@ paths:
                     principalRef: PRN-00088
                     principalType: MACHINE_CLIENT
                     status: REVOKED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/principals/{principalRef}/credentials/{credentialRef}/withdraw:
+    post:
+      operationId: withdrawCredential
+      summary: Withdraw one credential of a service principal (INV-REQ-880, FR-P.10)
+      description: >-
+        Withdraw one credential of a service principal. A withdrawn credential is refused by `authenticatePrincipal`
+        from then on. A repeat on a withdrawn credential is a no-op that answers 200.
+      tags:
+      - principals
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-P.10
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: The credential exists
+        reversibility: IRREVERSIBLE
+        repeatKey: principalRef + credentialRef + action=WITHDRAW - no-op if already withdrawn
+      parameters:
+      - name: principalRef
+        in: path
+        required: true
+        description: The service principal's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: PRN-00088
+      - name: credentialRef
+        in: path
+        required: true
+        description: The credential's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: CRD-00001
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrincipalResponse'
+              examples:
+                default:
+                  value:
+                    principalRef: PRN-00088
+                    principalType: INGEST
+                    status: ACTIVE
+                    credential:
+                      credentialRef: CRD-00001
+                      method: PRIVATE_KEY_JWT
+                      status: WITHDRAWN
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -2544,6 +2732,10 @@ components:
         scope:
           type: string
           maxLength: 128
+          description: 'Rules of access-svc that the schema cannot express (INV-Q-8779): the scope of a MONITORING
+            principal is exactly the literal installation; the scope of INGEST, FILING_WORKFLOW, REPORTING and
+            CERTIFICATION principals is entity:<ref> or tenant:<ref>; AP_CALLBACK is unchanged; any other combination
+            is refused with 400.'
         callingSystem:
           type: string
           minLength: 1
@@ -2552,6 +2744,49 @@ components:
             principal is created (INV-REQ-587). Required by access-svc when principalType is FILING_WORKFLOW (a missing
             value is refused with 400); the schema cannot express that rule. Every audit entry written for a call by
             the principal carries it.'
+        credentialMethod:
+          type: string
+          enum:
+          - PRIVATE_KEY_JWT
+          - MTLS
+          - CLIENT_SECRET_BASIC
+        publicKeyJwk:
+          type: object
+          required:
+          - kty
+          additionalProperties: false
+          properties:
+            kty:
+              type: string
+              maxLength: 1024
+            kid:
+              type: string
+              maxLength: 1024
+            use:
+              type: string
+              maxLength: 1024
+            alg:
+              type: string
+              maxLength: 1024
+            crv:
+              type: string
+              maxLength: 1024
+            x:
+              type: string
+              maxLength: 1024
+            y:
+              type: string
+              maxLength: 1024
+            n:
+              type: string
+              maxLength: 1024
+            e:
+              type: string
+              maxLength: 1024
+        certificateThumbprint:
+          type: string
+          minLength: 1
+          maxLength: 128
     PrincipalResponse:
       type: object
       required:
@@ -2579,6 +2814,90 @@ components:
             principal is created (INV-REQ-587). Present when the creating request carried it; required there when
             principalType is FILING_WORKFLOW (a missing value is refused with 400); the schema cannot express that
             rule. Every audit entry written for a call by the principal carries it.'
+        credential:
+          $ref: '#/components/schemas/CredentialInfo'
+        previousCredential:
+          $ref: '#/components/schemas/CredentialInfo'
+    CredentialInfo:
+      type: object
+      description: 'One credential of a service principal (INV-REQ-880). clientSecret is present only in the response
+        that creates or rotates a CLIENT_SECRET_BASIC credential, once, and never afterwards. No response carries a
+        private key.'
+      required:
+      - credentialRef
+      - method
+      - status
+      properties:
+        credentialRef:
+          type: string
+          maxLength: 64
+        method:
+          type: string
+          enum:
+          - PRIVATE_KEY_JWT
+          - MTLS
+          - CLIENT_SECRET_BASIC
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - WITHDRAWN
+        validUntil:
+          type: string
+          format: date-time
+        clientSecret:
+          type: string
+          minLength: 1
+          maxLength: 256
+          readOnly: true
+    AuthenticatePrincipalRequest:
+      type: object
+      required:
+      - principalRef
+      - method
+      - proof
+      properties:
+        principalRef:
+          type: string
+          maxLength: 64
+        method:
+          type: string
+          enum:
+          - PRIVATE_KEY_JWT
+          - MTLS
+          - CLIENT_SECRET_BASIC
+        proof:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          writeOnly: true
+          description: 'The secret for CLIENT_SECRET_BASIC, the signed client assertion for PRIVATE_KEY_JWT, the
+            certificate thumbprint for MTLS.'
+    AuthenticatePrincipalResponse:
+      type: object
+      required:
+      - decision
+      properties:
+        decision:
+          type: string
+          enum:
+          - AUTHENTICATED
+          - REFUSED
+        principalRef:
+          type: string
+          maxLength: 64
+        principalType:
+          type: string
+          maxLength: 32
+        scope:
+          type: string
+          maxLength: 128
+        credentialRef:
+          type: string
+          maxLength: 64
+        reasonCode:
+          type: string
+          maxLength: 16
     RotatePrincipalRequest:
       type: object
       required:
@@ -2588,6 +2907,49 @@ components:
           type: integer
           minimum: 0
           maximum: 1440
+        credentialMethod:
+          type: string
+          enum:
+          - PRIVATE_KEY_JWT
+          - MTLS
+          - CLIENT_SECRET_BASIC
+        publicKeyJwk:
+          type: object
+          required:
+          - kty
+          additionalProperties: false
+          properties:
+            kty:
+              type: string
+              maxLength: 1024
+            kid:
+              type: string
+              maxLength: 1024
+            use:
+              type: string
+              maxLength: 1024
+            alg:
+              type: string
+              maxLength: 1024
+            crv:
+              type: string
+              maxLength: 1024
+            x:
+              type: string
+              maxLength: 1024
+            y:
+              type: string
+              maxLength: 1024
+            n:
+              type: string
+              maxLength: 1024
+            e:
+              type: string
+              maxLength: 1024
+        certificateThumbprint:
+          type: string
+          minLength: 1
+          maxLength: 128
     IdpGroupMappingRequest:
       type: object
       required:

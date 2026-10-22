@@ -1,0 +1,22 @@
+# INV-T-8807. The fixed permission set of each machine principal type (INV-REQ-584 behavior 1, the one place the sets are defined).
+# The permission keys are the scribe's own names (Inference: no published text names them); the capability lists are those of INV-REQ-584 behavior 1.
+principalType	permission	source
+INGEST	ingestion.channels.write	INV-REQ-584 behavior 1
+INGEST	control-totals.write	INV-REQ-584 behavior 1
+FILING_WORKFLOW	readiness.view	INV-REQ-584 behavior 1
+FILING_WORKFLOW	readiness.run	INV-REQ-584 behavior 1
+FILING_WORKFLOW	drain.run	INV-REQ-584 behavior 1
+FILING_WORKFLOW	filing.confirm	INV-REQ-584 behavior 1
+FILING_WORKFLOW	gst-return-figures.upload	INV-REQ-584 behavior 1
+AP_CALLBACK	acknowledgements.deliver	INV-REQ-584 behavior 1
+AP_CALLBACK	delivery-status.deliver	INV-REQ-584 behavior 1
+AP_CALLBACK	inbound-network-documents.deliver	INV-REQ-584 behavior 1
+REPORTING	submissions.read	INV-REQ-584 behavior 1
+REPORTING	status.read	INV-REQ-584 behavior 1
+REPORTING	reconciliation.read	INV-REQ-584 behavior 1
+MONITORING	metrics.read	INV-REQ-584 behavior 1
+MONITORING	health.read	INV-REQ-584 behavior 1
+CERTIFICATION	certification.ingest	INV-REQ-584 behavior 1
+CERTIFICATION	certification.results.read	INV-REQ-584 behavior 1
+CERTIFICATION	certification.report.record	INV-REQ-584 behavior 1
+CERTIFICATION	certification.status.record	INV-REQ-584 behavior 1
