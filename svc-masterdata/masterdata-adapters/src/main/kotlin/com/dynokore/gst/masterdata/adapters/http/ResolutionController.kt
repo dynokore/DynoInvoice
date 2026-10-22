@@ -63,7 +63,9 @@ open class ResolutionController(
             is Resolution.Resolved -> {
                 val triple = resolution.version.triple
                 val facts = IdentityTripleFacts(triple.senderId, triple.supplierId, triple.supplierGstn)
-                ResponseEntity.ok(withParty(facts, entityRef, partyRef, partyScheme, partyValue, transactionDate))
+                ResponseEntity.ok(
+                    withParty(facts, entityRef, NamedParty(partyRef, partyScheme, partyValue), transactionDate),
+                )
             }
 
             is Resolution.Blocked -> {
@@ -78,13 +80,11 @@ open class ResolutionController(
     private fun withParty(
         facts: IdentityTripleFacts,
         entityRef: String,
-        partyRef: String?,
-        partyScheme: String?,
-        partyValue: String?,
+        named: NamedParty,
         transactionDate: LocalDate,
     ): ResolutionResult {
         val answer =
-            answerFor(entityRef, partyRef, partyScheme, partyValue, transactionDate) ?: return ResolutionResult(facts)
+            answerFor(entityRef, named, transactionDate) ?: return ResolutionResult(facts)
         val findings = answer.findings.map(CounterpartyMapping::finding).ifEmpty { null }
         return when (answer) {
             is PartyAnswer.Unresolved -> {
@@ -111,14 +111,20 @@ open class ResolutionController(
         }
     }
 
+    /** The query parameters that name a party: a reference, or a scheme and value pair. */
+    private data class NamedParty(
+        val partyRef: String?,
+        val partyScheme: String?,
+        val partyValue: String?,
+    )
+
     /** The answer for the party the query names; null when it names none. */
     private fun answerFor(
         entityRef: String,
-        partyRef: String?,
-        partyScheme: String?,
-        partyValue: String?,
+        named: NamedParty,
         transactionDate: LocalDate,
     ): PartyAnswer? {
+        val (partyRef, partyScheme, partyValue) = named
         val byRef =
             partyRef?.let { PartyKey.ByRef(runCatching { PartyRef(it) }.getOrElse { invalid("partyRef is invalid") }) }
         if (byRef == null && (partyScheme == null || partyValue == null)) return null
