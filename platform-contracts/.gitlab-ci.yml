@@ -223,7 +223,7 @@ invoice-docs-checks:
       echo "gst-ci: invoice-docs main $(git -C /tmp/invoice-docs rev-parse --short HEAD)"
     - gst_check sync-edge-allowlist-check python3 spectral/check-sync-edges.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
     - gst_check entity-ref-check python3 spectral/check-entity-ref.py .
-    - gst_check caller-auth-inv-ac-8259 python3 spectral/check-caller-auth.py .
+    - gst_check caller-auth-inv-ac-8259 python3 spectral/check-x-caller-auth.py .
     - gst_check x-timeout-check python3 spectral/check-timeouts.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
     - >
       gst_check lifecycle-states-drift-check python3 submission/schemas/generate-lifecycle-states.py
