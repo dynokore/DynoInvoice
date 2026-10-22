@@ -73,6 +73,14 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-T-8828 VP-08 is available with the options DEFAULT_PAIR_4H then OTHER_NAMED_PAIR`() {
+        val vp08 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-08" }
+        assertEquals("INV-REQ-1269", vp08.requirement)
+        assertEquals(VpStatus.AVAILABLE, vp08.status)
+        assertEquals(listOf("DEFAULT_PAIR_4H", "OTHER_NAMED_PAIR"), vp08.fields!!.options.map { it.key })
+    }
+
+    @Test
     fun `INV-T-3148 every LOOSER option carries the ruled acknowledgers`() {
         val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
         val looser =

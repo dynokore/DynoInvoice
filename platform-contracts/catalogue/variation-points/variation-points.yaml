@@ -43,6 +43,7 @@
 # Re-extracted 2026-10-11 (INV-T-3636; Keel INV-CS-3635): VP-01's typed FACT record
 # VP-01.DIRECTORY_CONNECTED and bounds text (owner ruling INV-Q-3612 A).
 # Re-extracted 2026-10-22 (INV-T-8291; Keel INV-CS-8286): adds VP-81, the sole-operator acknowledgement scope, as a planned row (INV-REQ-8287, owner answer INV-Q-8239); 81 rows.
+# Re-extracted 2026-10-23 (INV-T-8828; Keel INV-CS-8818): VP-08 becomes available (INV-REQ-1269 io_contract.status, coordinator ruling INV-Q-8841 A); 81 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -64,7 +65,7 @@
 variation_points:
 - id: VP-01
   requirement: INV-REQ-1262
-  revision: 3593bd97-1745-493c-96e8-aedfa7eca1b1
+  revision: 7a617506-677d-43b8-9ba5-cd87ab0b9700
   title: "Identities come from the platform or bundled provider by default, or from the customer's OIDC directory, or both, and the break-glass account always remains"
   class: POLICY
   class_modifiers: []
@@ -110,7 +111,7 @@ variation_points:
         refused: "electing CUSTOMER_OIDC or BOTH for a tenant with no connected and validated customer OIDC directory (access-svc)"
 - id: VP-02
   requirement: INV-REQ-1263
-  revision: c7a793b0-78d2-452b-84c7-8883bd6b7761
+  revision: bade5863-f7e7-4174-8ff4-69e85246b9d5
   title: "Grants are provisioned by hand by default, or from directory groups mapped to grants, or by SCIM, always as role, scope and validity"
   class: POLICY
   class_modifiers: []
@@ -336,7 +337,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1268: the second option needs the sole-operator acknowledgement; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-07 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-08
   requirement: INV-REQ-1269
-  revision: 1badf0c8-ab58-4d73-badb-c34f95ccde6d
+  revision: 8a1d1168-3595-4e7a-b9d9-269c0393e024
   title: "Break-glass pairs deployment.operator or tenant.admin with tax.approver for 4 hours by default; other named pairs and 1 to 8 hours are possible, and it is always two people"
   class: CONTROL
   class_modifiers:
@@ -353,7 +354,7 @@ variation_points:
     - "deployment.operator or tenant.admin, plus tax.approver; 4 hours"
     - "other named pairs; 1 to 8 hours"
   bounds: "Always two people, a restricted action set and ACC-002 (INV-REQ-896, INV-REQ-897)"
-  status: planned
+  status: available
   status_note: null
   governs:
     - "INV-REQ-896"
@@ -391,7 +392,7 @@ variation_points:
               default: 4
               direction: "DOWN_STRICTER"
     cross_scope: "A tenant value may not exceed the installation value (tighten-only across scopes, INV-Q-2936); the 1 to 8 hour range is the row's bound, so nothing inside it needs an acknowledgement and nothing outside it is offered. Compared on fields with a direction (window); the pair is not compared (INV-Q-3204). At resolution a tenant window above the installation value in force on the date is capped at it, the stored value unchanged (INV-REQ-1242 b5, INV-Q-3206). The default pair's window is configurable from 1 to 8 hours like any pair's (INV-Q-3320). A DEFAULT_PAIR_4H value is written with its window: a write with no value or without the window is refused and nothing is stored (INV-Q-3167). Where nothing is set at a scope, the catalogue default DEFAULT_PAIR_4H applies with its default window of 4 hours, in resolution, in the cross-scope comparison and in the cap (INV-Q-3548)."
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; DEFAULT_PAIR_4H typed window fixed at 4 h, directed fields only compared across scopes: coordinator ruling INV-Q-3204; resolution cap: INV-Q-3206; for INV-T-3176; owner ruling INV-Q-3320 (A′, 2026-10-11): INV-REQ-1269 allows 1 to 8 hours for any pair, so DEFAULT_PAIR_4H's window is 1 to 8 h, default 4 (supersedes INV-Q-3204's fixed 4 h); the key is kept; a write without the window is refused and the default 4 h is the window of the catalogue default only: coordinator ruling INV-Q-3548 (HIGH, reconciling INV-Q-3167 and INV-Q-3320)"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; DEFAULT_PAIR_4H typed window fixed at 4 h, directed fields only compared across scopes: coordinator ruling INV-Q-3204; resolution cap: INV-Q-3206; for INV-T-3176; owner ruling INV-Q-3320 (A′, 2026-10-11): INV-REQ-1269 allows 1 to 8 hours for any pair, so DEFAULT_PAIR_4H's window is 1 to 8 h, default 4 (supersedes INV-Q-3204's fixed 4 h); the key is kept; a write without the window is refused and the default 4 h is the window of the catalogue default only: coordinator ruling INV-Q-3548 (HIGH, reconciling INV-Q-3167 and INV-Q-3320); status available: coordinator ruling INV-Q-8841 (HIGH, delegated, owner 2026-10-14), for INV-T-8828 and INV-T-4938; owner words behind it: INV-ADR-2732 (owner decision 25 Sep 2026, ruling O1) principle 4, \"Each service built once, complete: a service is built to its full responsibility in one wave; capabilities are not sliced across waves by market priority, only a dependency can split one.\", and the Wave 2 exit of that ADR, \"grants, principals, access review, consent and break-glass run through the command APIs\"; this requirement's phase is Wave 2 and its owner is `access-svc`. Inference: the break-glass pairing and session length (the two options of this row) belong to the access service built in Wave 2, so the row cannot stay planned; this is a sequencing reading of those words, not a new function, and the owner may overrule it"
 - id: VP-09
   requirement: INV-REQ-1270
   revision: f8a5263a-6174-4f6d-bc9c-a8897e726ed3
@@ -426,7 +427,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1270, non-waivable; G2; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-10
   requirement: INV-REQ-1271
-  revision: 228de14a-1557-4874-b47b-75422188212c
+  revision: 8f070aba-d258-41f7-8f3b-ddf47a583258
   title: "An agent may do nothing for the client by default, or any combination of submitting invoice data, filing the GST return and approving mappings, as the client grants"
   class: POLICY
   class_modifiers: []
@@ -1121,7 +1122,7 @@ variation_points:
   catalogue: null
 - id: VP-28
   requirement: INV-REQ-1289
-  revision: f133321b-392f-4255-976c-a9b54498dd4c
+  revision: a45225d6-b130-4ab0-a5e9-46697c9aec63
   title: "A GST group transmits per member entity by default, or consolidated under the group, a change taking effect from the next prescribed period"
   class: POLICY
   class_modifiers: []
@@ -1826,7 +1827,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1305: \"turning them on is looser\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-44 tenant.admin (security.officer sets the switch and approves each copy): owner ruling INV-Q-3157; for INV-T-3148"
 - id: VP-45
   requirement: INV-REQ-1306
-  revision: 810b7ab8-e42f-4f0d-8a8e-19ba97b4a59a
+  revision: 8fd63779-65c1-4eaf-8a20-d8baf279ed2f
   title: "Every SaaS tenant elects its data region at provisioning, fixed afterwards except through migration"
   class: POLICY
   class_modifiers: []
@@ -2097,7 +2098,7 @@ variation_points:
         refused: "setting RELY_ON_AP_CHECK where the AP's check is not recorded at connection set-up (payload-svc)"
 - id: VP-51
   requirement: INV-REQ-1312
-  revision: 57a4cc33-7ba7-445c-af53-f53aa43c022a
+  revision: 36f348a5-9ac6-4a4f-b6f1-f7ff5abe0d5a
   title: "The implementation date is the mandatory date by default, or an earlier voluntary date, or the date IRAS communicates for a GST group, never later than mandatory"
   class: POLICY
   class_modifiers: []
@@ -2679,7 +2680,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1401; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; numbers of the row in the catalogue and read with the policy reader, notice lead default 7 calendar days: Coordinator ruling (owner delegation 2026-10-18) INV-Q-6836 (A); for INV-T-6840"
 - id: VP-64
   requirement: INV-REQ-1547
-  revision: dd66e16e-2c2a-44c0-a9ce-8c8b938a408e
+  revision: 5e944b9d-0782-45d3-88ab-2e1b5f318a02
   title: "A GST group omits an excluded member's data by default, or transmits it, in which case the member goes live"
   class: POLICY
   class_modifiers: []
@@ -3108,7 +3109,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2756; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-74
   requirement: INV-REQ-2757
-  revision: 6083cbf2-b4ca-46d0-9bc8-a60642876c3d
+  revision: 0198b75a-1735-4562-8400-f9e946b22b2d
   title: "Agent tenancy is available on in SaaS and off in a private installation by default, switchable per installation subject to live consents and the signed-link endpoint"
   class: POLICY
   class_modifiers: []
@@ -3299,7 +3300,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-2759; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-77
   requirement: INV-REQ-2760
-  revision: 35dc2afb-24aa-41d2-a8d9-59f3ed55b8d7
+  revision: f795e697-e9cd-4b90-bd39-f77fa330b651
   title: "Machine-client authentication defaults to a SaaS-standard preset allowing client_secret_basic, tighten-only to a regulated-private preset that switches it off"
   class: CONTROL
   class_modifiers:

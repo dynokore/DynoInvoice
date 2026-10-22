@@ -1,6 +1,7 @@
 package com.dynokore.gst.catalogue
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -25,9 +26,9 @@ class OperatingProfileTest {
     }
 
     @Test
-    fun `planned variation points are marked, and PRF-7 VP-08 is the typed default pair with a 2 hour window`() {
+    fun `VP-08 is no longer planned (INV-T-8828), and PRF-7 VP-08 is the typed default pair with a 2 hour window`() {
         val prf7 = OperatingProfile.PRF_7
-        assertTrue(VariationPoint.VP_08 in prf7.plannedVariationPoints)
+        assertFalse(VariationPoint.VP_08 in prf7.plannedVariationPoints)
         assertTrue(OperatingProfile.entries.all { it.unresolvedValues.isEmpty() })
         val vp08 = prf7.valueFor(VariationPoint.VP_08)!!
         assertEquals("DEFAULT_PAIR_4H", vp08.option)
