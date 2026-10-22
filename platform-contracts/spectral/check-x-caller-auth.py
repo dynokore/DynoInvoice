@@ -15,10 +15,11 @@ method and path, when:
       operationId is missing or repeated in the document;
   (c) a listed path is missing or unreadable, or an unlisted document carries x-caller-auth
       (the list must be extended in the same change);
-  (d) the list file has a malformed line or a duplicate.
+  (d) the list file has a malformed line or a duplicate, or lists no document; a listed document
+      with no operation fails under (b).
 
 Prints `caller-auth-check: N documents, M operations, K not end-user` and exits 0 only when
-nothing fails. Usage: check-x-caller-auth.py <root>   (needs python3 and PyYAML)
+nothing fails. Usage: check-x-caller-auth.py <root> (exactly one argument)   (needs python3 and PyYAML)
 """
 import re
 import sys
@@ -36,6 +37,15 @@ NOT_END_USER = {
         "openTenant": "service-job",  # control-plane-svc at go-live
         "closeTenant": "service-job",  # scheduled close job
         "recordInstallationAction": "service-job",  # installer, workload only
+    },
+    "access/openapi.yaml": {
+        "verifySignatoryLink": "signed-link",  # signed link of the signatory
+        "getVerificationKeys": "service-job",  # workload verification keys
+        "getRevocationList": "service-job",  # workload revocation list
+        "provisionInstallationFirstAdministrator": "service-job",  # installer, workload only
+    },
+    "masterdata/openapi.yaml": {
+        "submitCounterpartyDetails": "signed-link",  # counterparty signed link
     },
 }
 
@@ -74,6 +84,8 @@ def main(root):
     except OSError as e:
         print(f"caller-auth-check: FAIL {e}")
         return 1
+    if not listed and not errors:
+        errors.append("(d) x-caller-auth-documents.txt: no document is listed")
     for f in sorted(str(p.relative_to(root)) for p in root.glob("*/openapi.yaml")):
         if f in listed:
             continue
@@ -92,6 +104,7 @@ def main(root):
             errors.append(f"(c) {f} missing or unreadable: {e}")
             continue
         docs += 1
+        before = ops
         seen = set()
         rows = NOT_END_USER.get(f, {})
         for method, path, op in operations(doc):
@@ -117,6 +130,8 @@ def main(root):
                 errors.append(f"(b) {where}: {MARKER} is {v!r}, the table says {expected!r} for {oid}")
             if v != "end-user":
                 notend += 1
+        if ops == before:
+            errors.append(f"(b) {f}: the document has no operation")
         for oid in sorted(set(rows) - seen):
             errors.append(f"(b) {f}: table row {oid} matches no operation of the document")
     if errors:
@@ -128,4 +143,7 @@ def main(root):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("caller-auth-check: FAIL exactly one argument (the repository root) is required")
+        sys.exit(1)
     sys.exit(main(Path(sys.argv[1])))
