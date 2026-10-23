@@ -96,7 +96,7 @@ class TokenAcceptanceTest {
     private fun epoch(instant: Instant) = instant.epochSecond
 
     @Test
-    fun `INV-AC-8848 claims of an ingest principal of entity scope and the look-alike principals`() =
+    fun `INV-AC-8848 claims of an ingest principal of entity scope`() =
         run { t ->
             val now = t.kit.clock.freeze()
             t.kit.entity("ENT-1")
@@ -136,7 +136,12 @@ class TokenAcceptanceTest {
             val second = t.fresh(ingest)
             assertThat(second.tokenId).isNotEqualTo(first.tokenId)
             assertThat(claimFindings(claimsOf(second.accessToken!!), expected, setOf(first.tokenId!!))).isEmpty()
+        }
 
+    @Test
+    fun `INV-AC-8848 the monitoring and the filing-workflow principals get one scope and their own permissions`() =
+        run { t ->
+            t.kit.clock.freeze()
             val monitoring = t.principal("MONITORING", "installation")
             val monitored = claimsOf(t.fresh(monitoring).accessToken!!)
             assertThat(monitored["scope"]).isEqualTo("monitoring")
@@ -147,15 +152,35 @@ class TokenAcceptanceTest {
             val flowClaims = claimsOf(t.fresh(workflow).accessToken!!)
             assertThat(flowClaims["scope"]).isEqualTo("filing-workflow")
             assertThat(flowClaims["permissions"] as Collection<*>).doesNotContain("ingestion.channels.write")
-            listOf(claims, monitored, flowClaims).forEach { assertThat(scopeMembers(it)).hasSize(1) }
+            listOf(monitored, flowClaims).forEach { assertThat(scopeMembers(it)).hasSize(1) }
+        }
 
-            // probes: each broken token fails the check that guards it
+    @Test
+    fun `INV-AC-8848 probes a second scope member a missing audience and a repeated jti each fail the claim check`() =
+        run { t ->
+            t.kit.clock.freeze()
+            t.kit.entity("ENT-1")
+            val ingest = t.principal("INGEST", "entity:ENT-1")
+            val first = t.fresh(ingest)
+            val claims = claimsOf(first.accessToken!!)
+            val expected =
+                Expected(
+                    ingest.ref,
+                    "ingest",
+                    "entity:ENT-1",
+                    t.kit.tenant.toString(),
+                    permissionsOf(PrincipalType.INGEST),
+                )
+            assertThat(claimFindings(claims, expected)).isEmpty()
             val twoScopes = claims + ("scope" to "ingest reporting")
             assertThat(claimFindings(twoScopes, expected)).containsExactly("scope")
             val noAudience = claims + ("aud" to listOf("https://other.invalid"))
             assertThat(claimFindings(noAudience, expected)).containsExactly("aud")
-            assertThat(claimFindings(claimsOf(second.accessToken!!), expected, setOf(second.tokenId!!)))
-                .containsExactly("jti")
+            // a second call that returns a jti already seen is the failure; here the seen set holds the new jti
+            val second = t.fresh(ingest)
+            val repeated =
+                claimFindings(claimsOf(second.accessToken!!), expected, setOf(first.tokenId!!, second.tokenId!!))
+            assertThat(repeated).containsExactly("jti")
         }
 
     @Test

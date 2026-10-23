@@ -278,7 +278,7 @@ open class PrincipalsController(
         certificateThumbprint: String?,
     ) = CredentialRequest(
         method?.let { CredentialMethod.valueOf(it) },
-        jwkText(publicKeyJwk?.let(::jwkFields)),
+        jwkText(publicKeyJwk),
         certificateThumbprint,
     )
 
@@ -286,11 +286,12 @@ open class PrincipalsController(
         if (!manager.mayManageGrants()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
     }
 
-    private fun jwkFields(jwk: Any): Map<String, String?> = mapper.convertValue(jwk, JWK_FIELDS)
-
     /** The public JWK as JSON text, or null when the request carries none. */
-    private fun jwkText(fields: Map<String, String?>?): String? =
-        fields?.filterValues { !it.isNullOrEmpty() }?.let { mapper.writeValueAsString(it) }
+    private fun jwkText(jwk: Any?): String? =
+        jwk
+            ?.let { mapper.convertValue(it, JWK_FIELDS) }
+            ?.filterValues { !it.isNullOrEmpty() }
+            ?.let { mapper.writeValueAsString(it) }
 
     private companion object {
         val JWK_FIELDS = object : tools.jackson.core.type.TypeReference<Map<String, String?>>() {}
