@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/authority-head-observed-payload.schema.json",
+  "title": "AuthorityHeadObservedPayload",
+  "description": "Payload of the AuthorityHeadObserved heartbeat (catalogued in model/architecture/events.yaml; class: domain). access-svc publishes it every 500 ms so that an authority replica measures its lag against a known head and counts silence of more than 1000 ms as a lost feed (INV-REQ-1201, INV-Q-9047). Within a major version this schema is additive-only (API-41, FR-K.4).",
+  "type": "object",
+  "properties": {
+    "authorityVersion": {
+      "type": "integer",
+      "description": "The highest authorityVersion among the AuthorityChanged events access-svc has committed; never a drawn sequence value, so a replica at this version has applied every committed change (INV-REQ-1201 b1).",
+      "minimum": 1
+    },
+    "observedAt": {
+      "type": "string",
+      "description": "When access-svc read the head.",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "authorityVersion"
+  ],
+  "additionalProperties": true
+}

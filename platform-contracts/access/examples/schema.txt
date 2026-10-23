@@ -25,3 +25,4 @@
 ../openapi.yaml#/components/schemas/IssueAccessTokenResponse issue-access-token-response-*.json
 ../openapi.yaml#/components/schemas/BreakGlassResealResponse break-glass-reseal-response-*.json
 ../openapi.yaml#/components/schemas/AcceptFirstAdministratorInvitationResponse accept-first-administrator-invitation-response-*.json
+../schemas/authority-head-observed-payload.schema.json authority-head-observed-*.json
