@@ -78,15 +78,18 @@ internal class ProfileEnv(
         return inTenant(tenant) { block(tenant) }
     }
 
-    fun group(tenant: TenantId): GroupResponse =
+    fun group(
+        tenant: TenantId,
+        kind: CreateGroupRequest.GroupKind = CreateGroupRequest.GroupKind.GST_GROUP,
+    ): GroupResponse =
         api
             .createGroup(
                 UUID.randomUUID(),
                 CreateGroupRequest(
                     tenant.value.toString(),
                     "Group ${UUID.randomUUID()}",
-                    CreateGroupRequest.GroupKind.GST_GROUP,
-                    "GSTN-1",
+                    kind,
+                    if (kind == CreateGroupRequest.GroupKind.GST_GROUP) "GSTN-1" else null,
                 ),
             ).body!!
 
@@ -111,16 +114,19 @@ internal class ProfileEnv(
     /** A tenant with one group holding [members] entities; [block] runs bound to the tenant. */
     fun <T> withGroup(
         members: Int,
+        kind: CreateGroupRequest.GroupKind = CreateGroupRequest.GroupKind.GST_GROUP,
         block: (TenantId, GroupResponse, List<EntityResponse>) -> T,
     ): T =
         withTenant { tenant ->
-            val group = group(tenant)
+            val group = group(tenant, kind)
             block(tenant, group, List(members) { entity(tenant, group) })
         }
 
-    /** A tenant with one entity; [block] runs bound to the tenant. */
+    /** A tenant with one entity in a DIVISIONAL group (INV-Q-8915 A: it follows the entity default). */
     fun <T> withEntity(block: (TenantId, EntityResponse) -> T): T =
-        withGroup(1) { tenant, _, entities -> block(tenant, entities.single()) }
+        withGroup(1, CreateGroupRequest.GroupKind.DIVISIONAL) { tenant, _, entities ->
+            block(tenant, entities.single())
+        }
 
     fun set(
         entity: EntityResponse,

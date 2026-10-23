@@ -136,8 +136,9 @@ class AssessPhaseCommands(
 
             PhaseOutcome.Outstanding -> {
                 Computed.Refused(
-                    "no return ends in calendar year 2025: the implementation date is outstanding until IRAS " +
-                        "notifies it",
+                    "no return ends in calendar year 2025 (periods received: " +
+                        figures.joinToString { "${it.periodStart}..${it.periodEnd}" } +
+                        "): the implementation date is outstanding until IRAS notifies it",
                 )
             }
 

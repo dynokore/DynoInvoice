@@ -198,7 +198,10 @@ class PhaseAssessmentTest {
         run { env ->
             env.withEntity { _, entity ->
                 val old = listOf(quarter("2024-12-31", "5000"))
-                assertThat(refused { env.assess(entity, old) }.code.httpStatus).isEqualTo(400)
+                val outstanding = refused { env.assess(entity, old) }
+                assertThat(outstanding.code.httpStatus).isEqualTo(400)
+                assertThat(outstanding.code.code).isEqualTo("SRT-001")
+                assertThat(outstanding.detail).contains(old.single().periodStart.toString()).contains("2024-12-31")
                 assertThat(env.stored(entity)).isNull()
                 val backwards = PhaseAssessmentReturn(day("2025-03-31"), day("2025-03-01"), BigDecimal.ONE)
                 assertThat(refused { env.assess(entity, listOf(backwards)) }.code.httpStatus).isEqualTo(400)

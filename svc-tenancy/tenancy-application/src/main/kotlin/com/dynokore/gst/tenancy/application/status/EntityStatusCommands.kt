@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.application.status
 
 import com.dynokore.gst.tenancy.application.structure.EntityRecord
+import com.dynokore.gst.tenancy.application.structure.GroupKind
 import com.dynokore.gst.tenancy.application.structure.ProfileEntry
 import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.structure.entityNode
@@ -221,7 +222,12 @@ class EntityStatusCommands(
         entity: EntityRecord,
     ): Implementation =
         when (val basis = implementation.resolve(entity.groupRef, entity.ref, change.effectiveFrom)) {
-            ResolvedImplementation.MandatoryDate -> {
+            is ResolvedImplementation.MandatoryDate -> {
+                if (!basis.recorded && structure.group(entity.groupRef)?.kind == GroupKind.GST_GROUP) {
+                    return Implementation.Missing(
+                        "the GST group has no communicated implementation date (VP-51) for the entity or its group",
+                    )
+                }
                 assessments.latest(entity.id)?.let {
                     val mandatory = it.assessment.mandatoryDate
                     Implementation.Found(ImplementationDate(mandatory, ObligationStartBasis.MANDATORY_DATE))
@@ -240,9 +246,8 @@ class EntityStatusCommands(
         }
 
     /**
-     * The first field the caller supplied that differs from the derived [entry], or null (one source, INV-Q-8733 A).
-     * The contract gives `obligationStartBasis` the default MANDATORY_DATE and `obligationStartOverride` the default
-     * false, so the generated request cannot tell those values from an absent field: they are not compared.
+     * The first field the caller supplied (its key is present, so it is not null) that differs from the derived [entry],
+     * or null (one source, INV-Q-8733 A, INV-Q-8903 A): the contract has no defaults, so presence is the null test.
      */
     private fun suppliedDifference(
         change: StatusChange,
@@ -253,9 +258,7 @@ class EntityStatusCommands(
                 "obligationStartDate differs from the derived ${entry.obligationStartDate}"
             }
 
-            change.obligationStartBasis != null &&
-                change.obligationStartBasis != ObligationStartBasis.MANDATORY_DATE &&
-                change.obligationStartBasis != entry.obligationStartBasis -> {
+            change.obligationStartBasis != null && change.obligationStartBasis != entry.obligationStartBasis -> {
                 "obligationStartBasis differs from the derived ${entry.obligationStartBasis}"
             }
 
@@ -263,7 +266,8 @@ class EntityStatusCommands(
                 "irasReference differs from the derived value"
             }
 
-            change.obligationStartOverride == true && entry.obligationStartOverride != true -> {
+            change.obligationStartOverride != null &&
+                change.obligationStartOverride != entry.obligationStartOverride -> {
                 "obligationStartOverride differs from the derived ${entry.obligationStartOverride}"
             }
 

@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
 import com.dynokore.gst.tenancy.adapters.http.EntitiesController
+import com.dynokore.gst.tenancy.adapters.http.TenancyRefusal
 import com.dynokore.gst.tenancy.adapters.http.TenantsController
 import com.dynokore.gst.tenancy.application.status.EntityLifecycleGuard
 import com.dynokore.gst.tenancy.application.status.EntityStatusQueries
@@ -15,6 +16,8 @@ import com.dynokore.gst.tenancy.domain.ExcludedBusinessStatus
 import com.dynokore.gst.tenancy.domain.StatusKind
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
@@ -185,9 +188,14 @@ class EntityStatusTest {
                 assertThat(replay).isEqualTo(first)
                 val refusal =
                     assertThatThrownBy { env.set(entity, exempt("2026-07-01", false)) }
-                        .isInstanceOf(ApiRefusal::class.java)
-                        .actual() as ApiRefusal
+                        .isInstanceOf(TenancyRefusal::class.java)
+                        .actual() as TenancyRefusal
+                assertThat(refusal.code).isEqualTo(TenancyErrorCode.STATUS_RECORD_CONFLICT)
+                assertThat(refusal.code.code).isEqualTo("TNC-004")
                 assertThat(refusal.code.httpStatus).isEqualTo(409)
+                val problem = Problems.renderTenancy(refusal.code, "corr-1", refusal.detail)
+                assertThat(problem.status).isEqualTo(409)
+                assertThat(problem.body).contains("TNC-004")
                 assertThat(
                     env.queries.history(entity.entityRef, StatusKind.PARTIAL_EXEMPTION).map { it.partiallyExempt },
                 ).containsExactly(true)

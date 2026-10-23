@@ -5,7 +5,7 @@
 
 [versions]
 platformBuild = "0.23.1"
-platformLibsBom = "0.103.0"
+platformLibsBom = "0.115.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"
@@ -20,7 +20,7 @@ swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+01a4a6ad"
+platformContractsBundle = "0.0.0-dev+d09fddca"
 gstCatalogue = "1.14.0"
 
 [libraries]

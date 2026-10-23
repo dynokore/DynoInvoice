@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
+import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.EntityStatusResponse
 import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
@@ -158,6 +159,65 @@ class ObligationStartTest {
                         obligationStartOverride = false,
                     )
                 assertThat(env.set(entity, equal).body!!.obligationStartDate).isEqualTo(day("2028-04-01"))
+            }
+        }
+    }
+
+    @Test
+    fun `a supplied basis or override is compared by presence, so the former defaults are refused when they differ`() {
+        run { env ->
+            env.withGroup(1) { _, group, members ->
+                val entity = members.single()
+                env.assess(entity, box4 = BigDecimal("500000"))
+                voluntary(env, group, entity, "2027-01-01")
+                val base = obligation()
+                val differs =
+                    listOf(
+                        base.copy(obligationStartBasis = Declared.MANDATORY_DATE),
+                        base.copy(obligationStartOverride = true),
+                    )
+                for (request in differs) {
+                    assertThat(refused { env.set(entity, request) }.code.httpStatus).isEqualTo(400)
+                }
+                assertThat(env.queries.history(entity.entityRef, StatusKind.OBLIGATION_START)).isEmpty()
+                val equal =
+                    base.copy(obligationStartBasis = Declared.EARLIER_VOLUNTARY_DATE, obligationStartOverride = false)
+                assertThat(env.set(entity, equal).body!!.obligationStartDate).isEqualTo(day("2027-01-01"))
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-768 a member of a GST group with a stored assessment and no VP-51 value is still outstanding`() {
+        run { env ->
+            env.withGroup(1) { _, _, members ->
+                val entity = members.single()
+                env.assess(entity, box4 = BigDecimal("100000"))
+                val response = env.set(entity, obligation(registration = "2028-06-01"))
+                assertThat(response.body!!.obligationStartDate).isNull()
+                assertThat(env.queries.history(entity.entityRef, StatusKind.OBLIGATION_START)).isEmpty()
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-768 a member of a divisional group follows a communicated date with its IRAS reference`() {
+        run { env ->
+            env.withGroup(1, CreateGroupRequest.GroupKind.DIVISIONAL) { _, group, members ->
+                val entity = members.single()
+                env.setPolicy(
+                    vp51,
+                    ScopeLevel.GROUP,
+                    group,
+                    null,
+                    "IRAS_COMMUNICATED_DATE",
+                    """{"date":"2028-10-01","iras_reference":"IRAS-REF-4"}""",
+                    role = entityAdmin,
+                )
+                val body = env.set(entity, obligation(registration = "2028-05-01")).body!!
+                assertThat(body.obligationStartDate).isEqualTo(day("2028-10-01"))
+                assertThat(body.irasReference).isEqualTo("IRAS-REF-4")
+                assertThat(body.obligationStartBasis).isEqualTo(Basis.IRAS_COMMUNICATED_DATE)
             }
         }
     }

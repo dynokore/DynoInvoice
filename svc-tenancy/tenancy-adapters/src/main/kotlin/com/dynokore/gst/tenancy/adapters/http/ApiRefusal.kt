@@ -20,7 +20,7 @@ class ApiRefusal(
     val detail: String? = null,
 ) : RuntimeException("${code.code}: ${detail ?: code.title}")
 
-/** A business-conflict refusal with its tenancy catalogue code (TNC-001..003), rendered by `Problems.renderTenancy`. */
+/** A business-conflict refusal with its tenancy catalogue code (TNC-001..004), rendered by `Problems.renderTenancy`. */
 class TenancyRefusal(
     val code: TenancyErrorCode,
     val detail: String? = null,
@@ -67,10 +67,10 @@ internal fun conflict(
     message: String,
 ): Nothing = throw TenancyRefusal(code, message)
 
-/** A repeated status with other values: the closed 409 of the platform, the detail names the conflict. */
+/** A repeated status with other values: TNC-004 (INV-Q-8735 A). */
 internal fun statusConflict(): Nothing =
-    throw ApiRefusal(
-        ClosedErrorCode.STALE_AGGREGATE,
+    conflict(
+        TenancyErrorCode.STATUS_RECORD_CONFLICT,
         "a status of this kind is already recorded from this date with other values",
     )
 

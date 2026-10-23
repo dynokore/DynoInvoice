@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.application.status.ImplementationBasisReader
 import com.dynokore.gst.tenancy.application.status.ResolvedImplementation
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.PolicySource
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -41,10 +42,11 @@ class PolicyImplementationBasisReader(
         on: LocalDate,
     ): ResolvedImplementation {
         val scope = PolicyScope.entity(tenants.current(), entityRef, group = groupRef)
-        val option = policy.resolve(TenancyVariationPoints.IMPLEMENTATION_DATE_BASIS, scope, on).selected.single()
+        val resolved = policy.resolve(TenancyVariationPoints.IMPLEMENTATION_DATE_BASIS, scope, on)
+        val option = resolved.selected.single()
         return when (option.key) {
             TenancyVariationPoints.MANDATORY_DATE -> {
-                ResolvedImplementation.MandatoryDate
+                ResolvedImplementation.MandatoryDate(recorded = resolved.source !is PolicySource.CatalogueDefault)
             }
 
             TenancyVariationPoints.EARLIER_VOLUNTARY_DATE -> {
