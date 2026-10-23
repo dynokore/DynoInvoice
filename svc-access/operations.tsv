@@ -9,6 +9,7 @@ operation	rotatePrincipal	INV-T-4937	done
 operation	revokePrincipal	INV-T-4937	done
 operation	withdrawCredential	INV-T-4937	done
 operation	authenticatePrincipal	INV-T-4937	done
+operation	issueAccessToken	INV-T-8850	open
 operation	mapIdpGroup	INV-T-4938	done
 operation	unmapIdpGroup	INV-T-4938	done
 operation	recordSoleOperator	INV-T-4935	open

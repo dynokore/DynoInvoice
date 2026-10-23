@@ -12,11 +12,14 @@ import com.dynokore.gst.access.application.principal.RotatePrincipalOutcome
 import com.dynokore.gst.access.application.principal.RotatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.WithdrawCredentialOutcome
 import com.dynokore.gst.access.application.principal.WithdrawCredentialUseCase
+import com.dynokore.gst.access.application.token.SigningKeyUnavailable
 import com.dynokore.gst.access.contract.api.PrincipalsApi
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalRequest
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse
 import com.dynokore.gst.access.contract.model.CreatePrincipalRequest
 import com.dynokore.gst.access.contract.model.CredentialInfo
+import com.dynokore.gst.access.contract.model.IssueAccessTokenRequest
+import com.dynokore.gst.access.contract.model.IssueAccessTokenResponse
 import com.dynokore.gst.access.contract.model.PrincipalResponse
 import com.dynokore.gst.access.contract.model.RotatePrincipalRequest
 import com.dynokore.gst.access.domain.grant.TenantRef
@@ -58,6 +61,7 @@ class PrincipalOperations(
 open class PrincipalsController(
     useCases: PrincipalOperations,
     private val authenticate: GatewayAuthentication,
+    private val tokens: GatewayTokenIssuance,
     private val tenants: TenantContext,
     private val manager: GrantManagerCheck,
     private val gateway: GatewayCaller,
@@ -206,6 +210,46 @@ open class PrincipalsController(
                 is AuthenticationDecision.Refused -> {
                     AuthenticatePrincipalResponse(
                         decision = AuthenticatePrincipalResponse.Decision.REFUSED,
+                        reasonCode = decision.reasonCode,
+                    )
+                }
+            }
+        return ResponseEntity.ok(body)
+    }
+
+    /**
+     * `issueAccessToken`: always 200 with the decision, like `authenticatePrincipal`; a key that cannot sign (the
+     * stored key unreadable, or past its signing interval) is 503 SRT-011 with no token, and nothing says why (API-22).
+     */
+    override fun issueAccessToken(
+        issueAccessTokenRequest: IssueAccessTokenRequest,
+    ): ResponseEntity<IssueAccessTokenResponse> {
+        if (!gateway.isGateway()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        val decision =
+            try {
+                tokens.issue(
+                    issueAccessTokenRequest.principalRef,
+                    CredentialMethod.valueOf(issueAccessTokenRequest.method.name),
+                    issueAccessTokenRequest.proof,
+                )
+            } catch (_: SigningKeyUnavailable) {
+                throw ApiRefusal(ClosedErrorCode.ISSUER_UNAVAILABLE)
+            }
+        val body =
+            when (decision) {
+                is TokenDecision.Issued -> {
+                    IssueAccessTokenResponse(
+                        decision = IssueAccessTokenResponse.Decision.ISSUED,
+                        accessToken = decision.token.accessToken,
+                        expiresIn = decision.token.expiresIn,
+                        keyId = decision.token.keyId,
+                        tokenId = decision.token.tokenId,
+                    )
+                }
+
+                is TokenDecision.Refused -> {
+                    IssueAccessTokenResponse(
+                        decision = IssueAccessTokenResponse.Decision.REFUSED,
                         reasonCode = decision.reasonCode,
                     )
                 }

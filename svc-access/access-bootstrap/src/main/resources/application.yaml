@@ -65,5 +65,13 @@ access:
       realm: ${ACCESS_IDP_DIRECTORY_REALM}
       client-id: ${ACCESS_IDP_DIRECTORY_CLIENT_ID}
       client-secret-ref: ${ACCESS_IDP_DIRECTORY_CLIENT_SECRET_REF}
+  token:
+    # The machine access token (INV-T-8850). Issuer, audience and key rotation interval are set per installation by the
+    # Helm values; there is no default and start-up fails when one is missing. lifetime-seconds is not set here: the
+    # default is 900 and 900 is the ceiling (1 to 900, tighten only). The signing key is the secret
+    # access/token-signing-key of the SecretStore, not a property.
+    issuer: ${ACCESS_TOKEN_ISSUER}
+    audience: ${ACCESS_TOKEN_AUDIENCE}
+    key-rotation-interval: ${ACCESS_TOKEN_KEY_ROTATION_INTERVAL}
   idp-group-sync:
-    interval: PT15M                                 # the owner's figure (INV-Q-8667): the directory groups are read every 15 minutes
+    interval: PT15M                                # the owner's figure (INV-Q-8667): the directory groups are read every 15 minutes

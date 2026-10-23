@@ -1,6 +1,9 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.token.AccessTokenClaims
+import com.dynokore.gst.access.application.token.AccessTokenSigner
+import com.dynokore.gst.access.application.token.SigningSession
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Grant
@@ -53,6 +56,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 
 /** A clock the tests move forward; it never runs behind the database clock (the signed binding expires by it). */
 class MovableClock : Clock() {
@@ -154,6 +158,19 @@ class BoundaryTestConfiguration {
     fun capturedEvents(): CapturedEvents = CapturedEvents()
 
     @Bean
+    fun signerCalls(): SignerCalls = SignerCalls()
+
+    /** Counts the calls of the signer port: `open` reads the key, `sign` signs (INV-T-8850). */
+    @Bean
+    fun countingSigner(calls: SignerCalls): BeanPostProcessor =
+        object : BeanPostProcessor {
+            override fun postProcessAfterInitialization(
+                bean: Any,
+                beanName: String,
+            ): Any = if (bean is AccessTokenSigner && bean !is CountingSigner) CountingSigner(bean, calls) else bean
+        }
+
+    @Bean
     fun capturingOutbox(captured: CapturedEvents): BeanPostProcessor =
         object : BeanPostProcessor {
             override fun postProcessAfterInitialization(
@@ -168,6 +185,29 @@ class BoundaryTestConfiguration {
                     bean
                 }
         }
+}
+
+class SignerCalls {
+    val opens = AtomicInteger()
+    val signs = AtomicInteger()
+}
+
+class CountingSigner(
+    private val delegate: AccessTokenSigner,
+    private val calls: SignerCalls,
+) : AccessTokenSigner {
+    override fun open(): SigningSession {
+        calls.opens.incrementAndGet()
+        val session = delegate.open()
+        return object : SigningSession by session {
+            override fun sign(claims: AccessTokenClaims): String {
+                calls.signs.incrementAndGet()
+                return session.sign(claims)
+            }
+
+            override fun toString(): String = session.toString()
+        }
+    }
 }
 
 class CapturingOutboxWriter(
@@ -189,7 +229,7 @@ class CapturingOutboxWriter(
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
     private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
-    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4938")
+    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-8850")
 
     private val migrationsDir: Path = Path.of("..", "access-adapters", "src", "main", "resources", "db", "migration")
     private val provisioning: Path =
@@ -272,6 +312,17 @@ object BoundaryFixture {
     fun <T> asSuperuser(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, container.username, container.password).use(block)
 
+    /** A mounted directory with the runtime login password of this database and [signingKey] as the token key. */
+    fun mount(signingKey: com.nimbusds.jose.jwk.ECKey?) = TestSecrets.mount(RUNTIME_PASSWORD, signingKey = signingKey)
+
+    /** Removes the published verification keys of earlier tests, so a test can state the exact set (INV-T-8850). */
+    fun deleteVerificationKeys() =
+        asSuperuser {
+            it.createStatement().use { statement ->
+                statement.execute("DELETE FROM access.verification_key")
+            }
+        }
+
     /** A connection as the runtime login with nothing bound: forced row-level security hides every row. */
     fun <T> asRuntime(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, "access_runtime", RUNTIME_PASSWORD).use(block)
@@ -283,6 +334,8 @@ object BoundaryFixture {
     fun runner(
         catalogueMatrix: Boolean = false,
         form: String = "SAAS",
+        mounted: Path = TestSecrets.mount(RUNTIME_PASSWORD),
+        tokenProperties: Array<String> = TestSecrets.TOKEN_PROPERTIES,
     ): WebApplicationContextRunner =
         WebApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
@@ -301,12 +354,13 @@ object BoundaryFixture {
                 "service-runtime.pool.profile=minimal",
                 "service-runtime.event-loops.enabled=false",
                 "access.gateway.workload-subject=system:serviceaccount:gateway:api-gateway",
+                *tokenProperties,
                 "access.identity-provider.issuer-uri=http://127.0.0.1:1/realms/boundary-test",
                 "access.identity-provider.directory.base-uri=http://127.0.0.1:1",
                 "access.identity-provider.directory.realm=boundary-test",
                 "access.identity-provider.directory.client-id=access-svc-directory-reader",
                 "access.identity-provider.directory.client-secret-ref=idp/directory-reader-secret",
-                "gst.bindings.secret-store.mount-root=${TestSecrets.mount(RUNTIME_PASSWORD)}",
+                "gst.bindings.secret-store.mount-root=$mounted",
                 "service-runtime.datasource.credential=db/access_runtime",
             )
 

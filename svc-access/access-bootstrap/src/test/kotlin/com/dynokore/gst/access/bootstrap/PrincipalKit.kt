@@ -3,6 +3,7 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.http.AuthoriseController
 import com.dynokore.gst.access.adapters.http.GatewayAuthentication
 import com.dynokore.gst.access.adapters.http.GatewayCaller
+import com.dynokore.gst.access.adapters.http.GatewayTokenIssuance
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.http.PrincipalOperations
 import com.dynokore.gst.access.adapters.http.PrincipalsController
@@ -59,6 +60,7 @@ class PrincipalKit(
         PrincipalsController(
             context.getBean(PrincipalOperations::class.java),
             context.getBean(GatewayAuthentication::class.java),
+            context.getBean(GatewayTokenIssuance::class.java),
             tenants,
             context.getBean(GrantManagerCheck::class.java),
             GatewayCaller { true },
