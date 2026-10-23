@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -155,6 +155,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [transactions]
       x-principal: ingest
+      x-principal-also: certification
       x-timeout: 3000
       x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806, INV-REQ-807, INV-REQ-808, INV-REQ-809, INV-REQ-428, INV-REQ-327, INV-REQ-829, INV-REQ-2761]
@@ -303,6 +304,7 @@ paths:
         with the sum of the tax amounts.
       tags: [batches]
       x-principal: ingest
+      x-principal-also: certification
       x-timeout: 10000
       x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811, INV-REQ-809, INV-REQ-829, INV-REQ-2761]
@@ -383,6 +385,7 @@ paths:
         (API-24), kept for at least 7 days (API-17).
       tags: [batches]
       x-principal: ingest
+      x-principal-also: certification
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]
@@ -438,6 +441,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [aggregates]
       x-principal: ingest
+      x-principal-also: certification
       x-timeout: 3000
       x-error-codes: [ING-006, ING-004, ING-014, ING-018, ING-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-812, INV-REQ-829]
@@ -551,6 +555,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [issuances]
       x-principal: ingest
+      x-principal-also: certification
       x-timeout: 5000
       x-error-codes:
         [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-019, ING-020, ING-021, PAY-001, PAY-002, PAY-003, PAY-004, PAY-005,
@@ -643,6 +648,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [issuances]
       x-principal: ingest
+      x-principal-also: certification
       x-timeout: 300
       x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013, ING-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-325, INV-REQ-829]
@@ -698,6 +704,7 @@ paths:
         footnote) — a separate console-bff path, not this resource.
       tags: [control-totals]
       x-principal: ingest
+      x-principal-also: certification
       x-timeout: 3000
       x-error-codes: [ING-004]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-791]
