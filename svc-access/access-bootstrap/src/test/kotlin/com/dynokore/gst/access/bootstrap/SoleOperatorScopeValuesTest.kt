@@ -401,14 +401,7 @@ class SoleOperatorScopeValuesTest {
             // the stored entry: access.outbox row of that id, data.reason and data.priorState.value[0].key
             val stored = env.auditData(secondId).single()
             assertThat(stored.get("reason").asString()).isEqualTo("second reason")
-            assertThat(
-                stored
-                    .get("priorState")
-                    .get("value")
-                    .get(0)
-                    .get("key")
-                    .asString(),
-            ).isEqualTo("ONE_HOLDER")
+            assertThat(stored.get("priorState").get("value").get(0).get("key").asString()).isEqualTo("ONE_HOLDER")
             // probes: an id differing by one character, and the same id read in the context of another tenant
             val oneOff = secondId.dropLast(1) + (if (secondId.last() == '0') '1' else '0')
             assertThat(env.auditData(oneOff)).isEmpty()
@@ -528,16 +521,12 @@ class SoleOperatorScopeValuesTest {
                 assertThat(tenants.bind(tenant, actorA) { tx.inTransaction { policy.current() } })
                     .isEqualTo(SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED)
             }
-
             VpStatus.AVAILABLE -> {
                 val relaxation = acknowledge("ONE_HOLDER")
                 val response = set("ONE_HOLDER", relaxation = relaxation)
                 assertThat(response.status).describedAs(response.contentAsString).isBetween(200, 299)
             }
-
-            else -> {
-                throw AssertionError("PROD-VP81: the pinned status of VP-81 is $status")
-            }
+            else -> throw AssertionError("PROD-VP81: the pinned status of VP-81 is $status")
         }
     }
 
