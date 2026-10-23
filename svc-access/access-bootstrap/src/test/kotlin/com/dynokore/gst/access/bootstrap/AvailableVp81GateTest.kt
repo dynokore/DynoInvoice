@@ -8,7 +8,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 /**
- * Gate (1) of the catalogue availability (INV-T-8292, INV-Q-8883; fails closed): the test double [AvailableVp81] answers
+ * Gate (1) of the catalogue availability (INV-T-8292, INV-Q-8883; fails closed): the double [AvailableVp81] answers
  * `keys()` and, for every key, its row exactly as the pinned catalogue does; the one difference allowed is `status` of
  * VP-81, which the double answers AVAILABLE with every other field equal to the pinned row. The probes run the same
  * comparison on doubles that overreach.
