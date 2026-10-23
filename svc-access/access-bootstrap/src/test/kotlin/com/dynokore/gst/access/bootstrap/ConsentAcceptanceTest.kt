@@ -1,5 +1,9 @@
 package com.dynokore.gst.access.bootstrap
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.AuthoriseController
 import com.dynokore.gst.access.adapters.http.ConsentController
@@ -28,8 +32,10 @@ import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import io.micrometer.core.instrument.MeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import java.time.LocalDate
 import java.util.UUID
@@ -335,13 +341,70 @@ class ConsentAcceptanceTest {
         }
 
     @Test
-    fun `a port that fails makes the statement name the list as unavailable and the withdrawal still happens`() =
-        run(UnsubmittedDocuments { error("documents are down") }) { env ->
-            val consent = env.grant("CLI-A", setOf(ScopeItem.SUBMIT_INVOICE_DATA))
-            val ref = checkNotNull(env.withdraw(consent.consentRef).handoverStatementRef)
-            assertThat(env.statement(ref)?.documents).isEqualTo(DocumentList.Unavailable)
-            assertThat(env.decide("CLI-A", replay)).isEqualTo(DENY)
+    fun `INV-AC-8608 a throwing document-list port still withdraws, names the list unavailable, logs and counts`() {
+        var calls = 0
+        val appender = ListAppender<ILoggingEvent>().also { it.start() }
+        val logger = LoggerFactory.getLogger(ConsentUseCases::class.java) as Logger
+        logger.addAppender(appender)
+        try {
+            run(
+                UnsubmittedDocuments {
+                    calls++
+                    error("documents are down")
+                },
+            ) { env ->
+                val counter = {
+                    env.context
+                        .getBean(
+                            MeterRegistry::class.java,
+                        ).counter(HANDOVER_DOCUMENTS_FAILED_METER)
+                }
+                val consent = env.grant("CLI-A", setOf(ScopeItem.SUBMIT_INVOICE_DATA))
+                val withdrawn = env.withdraw(consent.consentRef)
+                // 1: withdrawn with the reference, list unavailable, agent denied, one WARN, counter +1
+                assertThat(withdrawn.status).isEqualTo(ConsentResponse.Status.WITHDRAWN)
+                val ref = checkNotNull(withdrawn.handoverStatementRef)
+                assertThat(env.statement(ref)?.documents).isEqualTo(DocumentList.Unavailable)
+                assertThat(env.decide("CLI-A", replay)).isEqualTo(DENY)
+                val warnings = appender.list.filter { it.level == Level.WARN }
+                assertThat(warnings).hasSize(1)
+                assertThat(warnings.single().formattedMessage)
+                    .contains(consent.consentRef)
+                    .contains("documents are down")
+                assertThat(counter().count()).isEqualTo(1.0)
+                assertThat(calls).isEqualTo(1)
+                // 2: a repeat returns the same reference, calls the port zero times, leaves the counter unchanged
+                assertThat(env.withdraw(consent.consentRef).handoverStatementRef).isEqualTo(ref)
+                assertThat(calls).isEqualTo(1)
+                assertThat(counter().count()).isEqualTo(1.0)
+                assertThat(appender.list.count { it.level == Level.WARN }).isEqualTo(1)
+            }
+        } finally {
+            logger.detachAppender(appender)
         }
+    }
+
+    @Test
+    fun `INV-AC-8608 the unbound port writes no WARN event and leaves the counter unchanged`() {
+        val appender = ListAppender<ILoggingEvent>().also { it.start() }
+        val logger = LoggerFactory.getLogger(ConsentUseCases::class.java) as Logger
+        logger.addAppender(appender)
+        try {
+            run { env ->
+                val consent = env.grant("CLI-A", setOf(ScopeItem.SUBMIT_INVOICE_DATA))
+                env.withdraw(consent.consentRef)
+                assertThat(appender.list.filter { it.level == Level.WARN }).isEmpty()
+                assertThat(
+                    env.context
+                        .getBean(MeterRegistry::class.java)
+                        .counter(HANDOVER_DOCUMENTS_FAILED_METER)
+                        .count(),
+                ).isEqualTo(0.0)
+            }
+        } finally {
+            logger.detachAppender(appender)
+        }
+    }
 
     @Test
     fun `only the client signatory of the entity grants or withdraws a consent`() =

@@ -77,6 +77,17 @@ fun interface UnsubmittedDocuments {
     }
 }
 
+/**
+ * Told when the [UnsubmittedDocuments] port throws during a withdrawal (INV-Q-9370). The application layer has no
+ * logging or metrics dependency, so the binding that logs and counts lives in `access-bootstrap`.
+ */
+fun interface DocumentsFailureObserver {
+    fun failed(
+        consentRef: ConsentRef,
+        cause: Throwable,
+    )
+}
+
 /** The handover statement of a withdrawal: what the client must now discharge itself (INV-REQ-955). */
 data class HandoverStatement(
     val ref: String,

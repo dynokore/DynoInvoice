@@ -13,6 +13,7 @@ import com.dynokore.gst.access.application.consent.AgentTenancy
 import com.dynokore.gst.access.application.consent.ConsentChangePublisher
 import com.dynokore.gst.access.application.consent.ConsentEffects
 import com.dynokore.gst.access.application.consent.ConsentRepository
+import com.dynokore.gst.access.application.consent.DocumentsFailureObserver
 import com.dynokore.gst.access.application.consent.GrantConsentUseCase
 import com.dynokore.gst.access.application.consent.HandoverPorts
 import com.dynokore.gst.access.application.consent.HandoverStatements
@@ -27,7 +28,9 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import io.micrometer.core.instrument.MeterRegistry
 import org.jooq.DSLContext
+import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -85,11 +88,29 @@ class ConsentUseCases {
         audit: GrantAudit,
     ) = ConsentEffects(publisher, audit)
 
+    /**
+     * A throwing document-list port is logged at WARN and counted (INV-Q-9370). The counter name is an Inference after
+     * `gst_errors_total` (`MicrometerErrorCodeMetrics.METER_NAME`).
+     */
+    @Bean
+    fun documentsFailureObserver(registry: MeterRegistry): DocumentsFailureObserver {
+        val counter = registry.counter(HANDOVER_DOCUMENTS_FAILED_METER)
+        return DocumentsFailureObserver { consentRef, cause ->
+            log.warn(
+                "handover statement of consent {} names the document list as unavailable: {}",
+                consentRef.value,
+                cause.message,
+            )
+            counter.increment()
+        }
+    }
+
     @Bean
     fun handoverPorts(
         documents: UnsubmittedDocuments,
         statements: HandoverStatements,
-    ) = HandoverPorts(documents, statements)
+        onDocumentsFailed: DocumentsFailureObserver,
+    ) = HandoverPorts(documents, statements, onDocumentsFailed)
 
     @Bean
     fun grantConsentUseCase(
@@ -113,6 +134,11 @@ class ConsentUseCases {
         clock,
     )
 }
+
+private val log = LoggerFactory.getLogger(ConsentUseCases::class.java)
+
+/** Counts withdrawals whose document-list port threw (INV-Q-9370). */
+const val HANDOVER_DOCUMENTS_FAILED_METER = "gst_access_handover_documents_failed_total"
 
 /** What both consent use cases share, so that no bean method takes more than a few parameters. */
 class ConsentDependencies(

@@ -135,6 +135,7 @@ sealed interface WithdrawConsentOutcome {
 class HandoverPorts(
     val documents: UnsubmittedDocuments,
     val statements: HandoverStatements,
+    val onDocumentsFailed: DocumentsFailureObserver,
 )
 
 /**
@@ -189,7 +190,7 @@ class WithdrawConsentUseCase(
                 consentRef = consent.ref,
                 client = consent.client,
                 agent = consent.agent,
-                documents = documentsOf(consent.client),
+                documents = documentsOf(consent),
                 producedAt = clock.instant(),
             ),
         )
@@ -208,8 +209,16 @@ class WithdrawConsentUseCase(
         return WithdrawConsentOutcome.Withdrawn(after, repeated = false)
     }
 
-    private fun documentsOf(client: EntityRef): DocumentList =
-        runCatching { handover.documents.forClient(client) }.getOrDefault(DocumentList.Unavailable)
+    /** A port that throws never blocks the withdrawal: the failure is reported, the statement names the list unavailable. */
+    private fun documentsOf(consent: Consent): DocumentList =
+        try {
+            handover.documents.forClient(consent.client)
+        } catch (
+            @Suppress("TooGenericExceptionCaught") failure: Exception,
+        ) {
+            handover.onDocumentsFailed.failed(consent.ref, failure)
+            DocumentList.Unavailable
+        }
 
     private companion object {
         val CONSENT_WITHDRAW = Permission("consent.withdraw")
