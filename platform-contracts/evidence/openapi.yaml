@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -513,9 +513,13 @@ paths:
         places it for a tenant that has closed, for a hold the custody holder
         requested through a signed link issued by access-svc inside the
         notice window (INV-REQ-639 behavior 3). The signed-link request is
-        access-svc's record and is not a property of this request.
+        access-svc's record and is not a property of this request. An `entityRef` outside the
+        principal's entity set is refused with `403` and the code SRT-004
+        before the handler runs (API-24); a request without `entityRef` is the
+        service's own concern.
       tags: [retention]
       x-principal: filing-workflow
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []

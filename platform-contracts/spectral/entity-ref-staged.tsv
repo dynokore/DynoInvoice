@@ -1,5 +1,4 @@
 directory	operationId
-evidence	placeLegalHold
 ingestion	sendTestEvent
 notification	createWebhookSubscription
 tenancy	offboardTenant

@@ -1,2 +1,3 @@
 directory	method	path	property
+evidence	POST	/internal/v1/evidence/legal-holds	entityRef
 masterdata	POST	/internal/v1/masterdata/counterparties/{counterpartyRef}/resolution	entityRef
