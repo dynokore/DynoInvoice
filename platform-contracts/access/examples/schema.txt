@@ -23,3 +23,5 @@
 ../openapi.yaml#/components/schemas/RotatePrincipalRequest rotate-principal-request-*.json
 ../openapi.yaml#/components/schemas/IssueAccessTokenRequest issue-access-token-request-*.json
 ../openapi.yaml#/components/schemas/IssueAccessTokenResponse issue-access-token-response-*.json
+../openapi.yaml#/components/schemas/BreakGlassResealResponse break-glass-reseal-response-*.json
+../openapi.yaml#/components/schemas/AcceptFirstAdministratorInvitationResponse accept-first-administrator-invitation-response-*.json

@@ -13,6 +13,7 @@
 # INV-T-8807. INV-AC-8806: the backticked names ingest, filing-workflow, ap-callback, reporting, monitoring and certification are rows as enum members already; security.officer and tenant.admin are roles; evidence-svc and access-svc are services; confirmFiling is an operation of submission/openapi.yaml; private_key_jwt and client_secret_basic are the VP-77 settings, whose contract members are the CredentialInfo.method rows, so they add no further row.
 # INV-T-8849. INV-AC-8847: the backticked names authenticatePrincipal, getVerificationKeys and revokePrincipal are operations that exist already or are rows of INV-T-8807; the eleven claim names are asserted by the description check of the merge request, not by this table; the six machine scopes are rows as enum members already, so they add no further row.
 # identifier	kind	file	requirement
+# INV-T-8901. INV-AC-8897 to INV-AC-8900 and the changed text of INV-REQ-897: the backticked names `acceptFirstAdministratorInvitation`, `resealBreakGlass`, `signInBreakGlass`, `provisionFirstAdministrator` and `provisionInstallationFirstAdministrator` are operation rows that exist; `BreakGlassResealResponse` and `AcceptFirstAdministratorInvitationResponse` are schema names (the table has no row kind for a schema name, only its properties); `tenant.admin`, `deployment.operator` and `tax.approver` are roles; `sealingCredential` is the two rows; the criteria INV-AC-8898 to INV-AC-8900 name store-side facts (the sealed-account table, the digest, the audit log, the outbox) that belong to INV-T-8853.
 INGEST	enum_value	openapi.yaml	INV-REQ-584
 FILING_WORKFLOW	enum_value	openapi.yaml	INV-REQ-584
 AP_CALLBACK	enum_value	openapi.yaml	INV-REQ-584
@@ -112,3 +113,5 @@ IssueAccessTokenResponse.keyId	schema_property	openapi.yaml	INV-REQ-880
 IssueAccessTokenResponse.tokenId	schema_property	openapi.yaml	INV-REQ-880
 IssueAccessTokenResponse.decision.ISSUED	schema_enum_value	openapi.yaml	INV-REQ-880
 IssueAccessTokenResponse.decision.REFUSED	schema_enum_value	openapi.yaml	INV-REQ-880
+BreakGlassResealResponse.sealingCredential	schema_property	openapi.yaml	INV-REQ-897
+AcceptFirstAdministratorInvitationResponse.sealingCredential	schema_property	openapi.yaml	INV-REQ-897
