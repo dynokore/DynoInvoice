@@ -4,7 +4,8 @@ DynoInvoice is an e-invoicing and GST compliance platform for Singapore (IRAS
 InvoiceNow / Peppol), built as Kotlin microservices. It is developed by AI
 coding agents under human direction, as a case study in agent-built enterprise
 software. This repository is **source-available**: it is published for reading
-and study, not as an open-source project.
+and study, not as an open-source project. Development is ongoing: agents
+commit continuously, and incomplete features are expected.
 
 ## How it is built
 
