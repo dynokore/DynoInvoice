@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.platform.configresolver.ConfigSchema
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
@@ -86,6 +87,17 @@ object BoundaryFixture {
                 target,
             )
         check(result.exitCode == 0) { "$file failed: ${result.stderr}" }
+    }
+
+    /** The exempt names, and the tables config-resolver's own DDL creates: the first must lie within the second. */
+    fun exemptAndLibraryTables(): Pair<Set<String>, Set<String>> {
+        val ddl = ConfigSchema.ddl("tenancy", "tenancy_runtime", "tenancy_sys")
+        val created =
+            Regex("""(?i)create\s+table\s+(?:if\s+not\s+exists\s+)?(?:tenancy\.)?(\w+)""")
+                .findAll(ddl)
+                .map { it.groupValues[1] }
+                .toSet()
+        return libraryTables.toSet() to created
     }
 
     /** A superuser connection, for the assertions that must see every row. */

@@ -175,6 +175,13 @@ class AcceptanceCriteriaTest {
     }
 
     @Test
+    fun `INV-AC-2041 the library-table exemption names only tables that config-resolver creates`() {
+        val (exempt, created) = BoundaryFixture.exemptAndLibraryTables()
+        assertThat(created).isNotEmpty()
+        assertThat(created).containsAll(exempt)
+    }
+
+    @Test
     fun `INV-AC-2041 per-entity tables carry a non-nullable entity reference and none is keyed by group or tenant`() {
         val nullable =
             BoundaryFixture.nullableScopeColumns()

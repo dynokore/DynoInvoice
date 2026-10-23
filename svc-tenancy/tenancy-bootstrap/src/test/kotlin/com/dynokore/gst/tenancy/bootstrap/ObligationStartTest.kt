@@ -136,6 +136,41 @@ class ObligationStartTest {
     }
 
     @Test
+    fun `INV-Q-8911 an earlier voluntary date at group scope is refused for any date and nothing is stored`() {
+        run { env ->
+            env.withGroup(1) { _, group, members ->
+                val entity = members.single()
+                env.assess(entity, box4 = BigDecimal("500000"))
+                val scope = PolicyScope.tenant(env.tenants.current(), group = group.groupRef)
+                for (date in listOf("2027-01-01", "2029-04-01", "2030-01-01")) {
+                    val refused =
+                        assertThatThrownBy {
+                            env.setPolicy(
+                                vp51,
+                                ScopeLevel.GROUP,
+                                group,
+                                null,
+                                "EARLIER_VOLUNTARY_DATE",
+                                "\"$date\"",
+                                role = entityAdmin,
+                            )
+                        }
+                    refused.isInstanceOf(PolicyRefused::class.java)
+                    assertThat((refused.actual() as PolicyRefused).refusal).isEqualTo(PolicyRefusal.CONSTRAINT_REFUSED)
+                }
+                val stored =
+                    env.inTx {
+                        env.reader
+                            .resolve(VariationPointKey(vp51), scope, TODAY)
+                            .selected
+                            .map { it.key }
+                    }
+                assertThat(stored).doesNotContain("EARLIER_VOLUNTARY_DATE")
+            }
+        }
+    }
+
+    @Test
     fun `a supplied obligation field that differs from the derived value is 400 and one that equals it is accepted`() {
         run { env ->
             env.withEntity { _, entity ->
