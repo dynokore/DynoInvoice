@@ -77,15 +77,19 @@ class GrantRoleUseCase(
         val held = grants.findByIdentity(command.identity).filter { it.status != GrantStatus.REVOKED }.map { it.role }
         return when {
             !SeparationOfDuty.completesConflict(held.toSet(), role) -> insert(command, role, scope)
+
             rules.soleOperators.lockActive() == null -> GrantRoleOutcome.SoleOperatorAckRequired
-            // VP-81, read after the lock; a read that fails or names no known value fails the request (nothing is written)
+
+            // VP-81, read after the lock; a failed read or an unknown value fails the request (nothing is written)
             rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> insert(command, role, scope)
+
             otherPeopleHoldingBoth(command.identity).isNotEmpty() -> GrantRoleOutcome.SecondHolderRefused
+
             else -> insert(command, role, scope)
         }
     }
 
-    /** The people other than [identity] who hold both conflicting roles in the bound tenant (VP-81 values ONE_HOLDER_WITHDRAW_BLOCKED and ONE_HOLDER). */
+    /** The people other than [identity] who hold both roles in the bound tenant (VP-81 one-holder values). */
     private fun otherPeopleHoldingBoth(identity: IdentityRef): Set<IdentityRef> =
         SeparationOfDuty.holdingBoth(
             rules.soleOperators.holders(Role.SECURITY_OFFICER),

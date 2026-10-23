@@ -14,7 +14,12 @@ class SoleOperatorScopeCatalogueGateTest {
     private fun catalogueKeys(): Set<String> {
         val row = VariationPoint.entries.filter { it.id == "VP-81" }
         assertThat(row).describedAs("the row VP-81 in the pinned gst-catalogue").hasSize(1)
-        val keys = row.single().optionSpecs.orEmpty().map { it.key }
+        val keys =
+            row
+                .single()
+                .optionSpecs
+                .orEmpty()
+                .map { it.key }
         assertThat(keys).describedAs("option keys of VP-81 are distinct").doesNotHaveDuplicates()
         return keys.toSet()
     }

@@ -4,10 +4,10 @@ import com.dynokore.gst.access.adapters.breakglass.BreakGlassPairConstraints
 import com.dynokore.gst.access.adapters.breakglass.ValueConstraintsChain
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
 import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
-import com.dynokore.gst.access.adapters.separation.VariationPointSoleOperatorScope
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
+import com.dynokore.gst.access.adapters.separation.VariationPointSoleOperatorScope
 import com.dynokore.gst.access.adapters.structure.ReplicaEntityDirectory
 import com.dynokore.gst.access.application.authorise.Authorise
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher

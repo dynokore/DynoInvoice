@@ -5,6 +5,8 @@ import com.dynokore.gst.access.adapters.http.GrantsController
 import com.dynokore.gst.access.adapters.http.SoleOperatorController
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
+import com.dynokore.gst.access.application.separation.SoleOperatorScope
+import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
 import com.dynokore.gst.access.domain.grant.Grant
@@ -42,9 +44,9 @@ import java.util.concurrent.TimeUnit
 
 /**
  * INV-AC-8289 (INV-T-8292, INV-REQ-8287): the three values of VP-81 set through the mounted PolicyCommandServlet by a
- * test-only principal source, and applied by `grantRole` and `withdrawSoleOperatorAcknowledgement`. The pinned catalogue
- * still lists VP-81 as `planned` (INV-T-8293 makes it available), and a planned row cannot be set; so these tests
- * answer the catalogue through [AvailableVp81], the pinned catalogue with the status of VP-81 alone raised to AVAILABLE.
+ * test-only principal source, and applied by `grantRole` and `withdrawSoleOperatorAcknowledgement`. The pinned
+ * catalogue still lists VP-81 as `planned` (INV-T-8293 makes it available), and a planned row cannot be set; so these
+ * tests answer the catalogue through [AvailableVp81]: the pinned catalogue with VP-81 alone raised to AVAILABLE.
  */
 class SoleOperatorScopeValuesTest {
     private val mapper = ObjectMapper()
@@ -122,7 +124,28 @@ class SoleOperatorScopeValuesTest {
             }.map(::describe).sorted()
 
         private fun describe(g: Grant) =
-            "${g.ref.value}|${g.identity.value}|${g.role.wire}|${g.scope}|${g.window}|${g.status}|${g.version}|${g.source}"
+            listOf(g.ref.value, g.identity.value, g.role.wire, g.scope, g.window, g.status, g.version, g.source)
+                .joinToString("|")
+
+        /**
+         * The `data` of the audit entry recorded by the bound AuditWriter: the row of `access.outbox` (the context is
+         * in OUTBOX mode) whose id equals [id], read through the test's own DataSource, within [of]'s tenant.
+         */
+        fun auditData(
+            id: String,
+            of: TenantId = tenant,
+        ): List<JsonNode> =
+            BoundaryFixture.asSuperuser { connection ->
+                connection
+                    .prepareStatement("select data::text from access.outbox where id = ? and tenant_id = ?")
+                    .use { statement ->
+                        statement.setString(1, id)
+                        statement.setObject(2, of.value)
+                        statement.executeQuery().use { rows ->
+                            generateSequence { if (rows.next()) mapper.readTree(rows.getString(1)) else null }.toList()
+                        }
+                    }
+            }
 
         fun refusal(block: () -> Any?): ApiRefusal {
             val thrown = runCatching { block() }.exceptionOrNull()
@@ -152,7 +175,8 @@ class SoleOperatorScopeValuesTest {
 
         fun today(): LocalDate = LocalDate.ofInstant(context.getBean(Clock::class.java).instant(), singapore)
 
-        fun advanceDays(days: Long) = (context.getBean(Clock::class.java) as MovableClock).advance(Duration.ofDays(days))
+        fun advanceDays(days: Long) =
+            (context.getBean(Clock::class.java) as MovableClock).advance(Duration.ofDays(days))
 
         fun post(
             path: String,
@@ -219,18 +243,23 @@ class SoleOperatorScopeValuesTest {
         }
     }
 
-    private fun run(block: (Env) -> Unit) {
+    private fun run(
+        withDouble: Boolean = true,
+        block: (Env) -> Unit,
+    ) {
         // each run has its own tenant: the database outlives a test, and policies and grants are stored per tenant
         val tenant = TenantId(UUID.randomUUID())
         BoundaryFixture
             .runner(catalogueMatrix = true, form = "SAAS")
             .withBean(EndUserPrincipalResolver::class.java, { principals(tenant) })
-            .withBean(VariationPointCatalogue::class.java, { AvailableVp81(GstVariationPointCatalogue("access-svc")) })
+            .let { if (withDouble) it.withBean(VariationPointCatalogue::class.java, { available() }) else it }
             .run { context ->
                 context.startupFailure?.let { throw it }
                 block(Env(context, tenant))
             }
     }
+
+    private fun available(): VariationPointCatalogue = AvailableVp81(GstVariationPointCatalogue("access-svc"))
 
     private fun principals(tenant: TenantId): EndUserPrincipalResolver =
         TestTokenPrincipals(
@@ -239,16 +268,6 @@ class SoleOperatorScopeValuesTest {
                 "token-s" to EndUserPrincipal(actorS, tenant, emptySet()),
             ),
         )
-
-    /** The pinned catalogue with VP-81 alone answered as available; every other row is the pinned row. */
-    private class AvailableVp81(
-        private val pinned: GstVariationPointCatalogue,
-    ) : VariationPointCatalogue {
-        override fun find(key: VariationPointKey) =
-            pinned.find(key)?.let { if (key.value == "VP-81") it.copy(status = VpStatus.AVAILABLE) else it }
-
-        override fun keys() = pinned.keys()
-    }
 
     /** X holds both roles under an active acknowledgement; returns the acknowledgement. */
     private fun Env.soleOperator(): String {
@@ -351,13 +370,15 @@ class SoleOperatorScopeValuesTest {
         }
 
     @Test
-    fun `INV-AC-8289 S7 a value applies from its effective date and the audit entry holds the prior value and reason`() =
+    fun `INV-AC-8289 S7 a value applies from its effective date and the audit holds prior value and reason`() =
         run { env ->
             val ack = env.soleOperator()
             env.granted("IDN-Z", "security.officer")
             val tomorrow = env.today().plusDays(1)
             val first = env.setAcknowledged("ONE_HOLDER", effective = tomorrow, reason = "first reason")
             assertThat(first.get("prior").isNull).isTrue()
+            val firstAudit = env.auditData(first.get("auditEventId").asString()).single()
+            assertThat(firstAudit.get("reason").asString()).isEqualTo("first reason")
             // before the effective date the default applies: A holds both, so the withdrawal is refused with D2
             env.assertRefused(env.refusal { env.withdraw(ack) }, d2)
             env.advanceDays(1)
@@ -366,9 +387,35 @@ class SoleOperatorScopeValuesTest {
             assertThat(env.withdraw(ack).statusCode.value()).isEqualTo(204)
             assertThat(env.rows(actorA)).isEqualTo(before)
             val second = env.setAcknowledged("ANY_NUMBER", reason = "second reason")
-            assertThat(second.get("prior").get("selected").get(0).get("option").asString()).isEqualTo("ONE_HOLDER")
+            assertThat(
+                second
+                    .get("prior")
+                    .get("selected")
+                    .get(0)
+                    .get("option")
+                    .asString(),
+            ).isEqualTo("ONE_HOLDER")
             assertThat(second.get("reason").asString()).isEqualTo("second reason")
-            assertThat(second.get("auditEventId").asString()).isNotBlank()
+            val secondId = second.get("auditEventId").asString()
+            assertThat(secondId).isNotBlank()
+            // the stored entry: access.outbox row of that id, data.reason and data.priorState.value[0].key
+            val stored = env.auditData(secondId).single()
+            assertThat(stored.get("reason").asString()).isEqualTo("second reason")
+            assertThat(
+                stored
+                    .get("priorState")
+                    .get("value")
+                    .get(0)
+                    .get("key")
+                    .asString(),
+            ).isEqualTo("ONE_HOLDER")
+            // probes: an id differing by one character, and the same id read in the context of another tenant
+            val oneOff = secondId.dropLast(1) + (if (secondId.last() == '0') '1' else '0')
+            assertThat(env.auditData(oneOff)).isEmpty()
+            assertThat(env.auditData(secondId, TenantId(UUID.randomUUID()))).isEmpty()
+            // probe: the outbox row is never rewritten, so the equality is on the stored row of that id: the first
+            // entry carries the first reason and the reason equality of the second would fail on it
+            assertThat(firstAudit.get("reason").asString()).isNotEqualTo(stored.get("reason").asString())
         }
 
     @Test
@@ -397,9 +444,10 @@ class SoleOperatorScopeValuesTest {
             BoundaryFixture.asSuperuser { connection ->
                 connection
                     .prepareStatement(
-                        "insert into access.config_setting (id, tenant_id, vp_key, scope_level, scope_id, option_keys," +
-                            " source, effective_from, set_by, reason, recorded_at) values (?, ?, 'VP-81', 'TENANT', ?," +
-                            " ARRAY['ONE_HOLDERS'], 'OVERRIDE', current_date - 1, 'user:tenant-admin', 'fixture', now())",
+                        "insert into access.config_setting (id, tenant_id, vp_key, scope_level, scope_id," +
+                            " option_keys, source, effective_from, set_by, reason, recorded_at)" +
+                            " values (?, ?, 'VP-81', 'TENANT', ?, ARRAY['ONE_HOLDERS'], 'OVERRIDE'," +
+                            " current_date - 1, 'user:tenant-admin', 'fixture', now())",
                     ).use {
                         it.setObject(1, UUID.randomUUID())
                         it.setObject(2, env.tenant.value)
@@ -437,6 +485,75 @@ class SoleOperatorScopeValuesTest {
             assertThat(matrix.export()).isEqualTo(before)
         }
 
+    // ---- production wiring: no double ------------------------------------------------------------------------------
+
+    private fun storedVp81Rows(tenant: TenantId): Int =
+        BoundaryFixture.asSuperuser { connection ->
+            connection
+                .prepareStatement("select count(*) from access.config_setting where tenant_id = ? and vp_key = 'VP-81'")
+                .use { statement ->
+                    statement.setObject(1, tenant.value)
+                    statement.executeQuery().use { rows ->
+                        rows.next()
+                        rows.getInt(1)
+                    }
+                }
+        }
+
+    /**
+     * Gate (2) of the catalogue availability: reads the pinned status of VP-81 and checks the production behaviour for
+     * it; any other status fails. Written on [Env] so the probe can run it on the double.
+     */
+    private fun Env.productionVp81() {
+        val status = GstVariationPointCatalogue("access-svc").find(VariationPointKey("VP-81"))!!.status
+        val policy = context.getBean(SoleOperatorScopePolicy::class.java)
+        when (status) {
+            VpStatus.PLANNED -> {
+                val relaxation =
+                    post(
+                        "/internal/v1/policies/VP-81/relaxations",
+                        "token-a",
+                        """{"scopeLevel":"TENANT","scopeRef":"$tenant","selected":[{"option":"ONE_HOLDER"}],""" +
+                            """"effectiveDate":"${today()}","asRole":"tenant.admin"}""",
+                    )
+                val id =
+                    if (relaxation.status in 200..299) {
+                        mapper.readTree(relaxation.contentAsString).get("relaxationId").asString()
+                    } else {
+                        null
+                    }
+                val response = set("ONE_HOLDER", relaxation = id)
+                assertThat(response.status).describedAs(response.contentAsString).isBetween(400, 499)
+                assertThat(storedVp81Rows(tenant)).isZero()
+                assertThat(tenants.bind(tenant, actorA) { tx.inTransaction { policy.current() } })
+                    .isEqualTo(SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED)
+            }
+
+            VpStatus.AVAILABLE -> {
+                val relaxation = acknowledge("ONE_HOLDER")
+                val response = set("ONE_HOLDER", relaxation = relaxation)
+                assertThat(response.status).describedAs(response.contentAsString).isBetween(200, 299)
+            }
+
+            else -> {
+                throw AssertionError("PROD-VP81: the pinned status of VP-81 is $status")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-8289 PROD-VP81 production wiring without the double follows the pinned status of VP-81`() =
+        run(withDouble = false) { it.productionVp81() }
+
+    @Test
+    fun `INV-AC-8289 PROD-VP81 probe the gate fails when run on the double`() {
+        val pinned = GstVariationPointCatalogue("access-svc").find(VariationPointKey("VP-81"))!!.status
+        if (pinned == VpStatus.PLANNED) {
+            val failure = runCatching { run(withDouble = true) { it.productionVp81() } }.exceptionOrNull()
+            assertThat(failure).isInstanceOf(AssertionError::class.java)
+        }
+    }
+
     // ---- serialisation: the row lock on the acknowledgement -------------------------------------------------------
 
     private fun <T> together(
@@ -467,7 +584,8 @@ class SoleOperatorScopeValuesTest {
                 env.grant("IDN-P1", "tenant.admin")
                 env.grant("IDN-P2", "tenant.admin")
                 env.record()
-                val results = together(2) { env.grant(listOf("IDN-P1", "IDN-P2")[it], "security.officer").statusCode.value() }
+                val people = listOf("IDN-P1", "IDN-P2")
+                val results = together(2) { env.grant(people[it], "security.officer").statusCode.value() }
                 assertThat(results.mapNotNull { it.getOrNull() }).containsExactly(201)
                 val refused = results.mapNotNull { it.exceptionOrNull() }
                 assertThat(refused).hasSize(1)
@@ -476,14 +594,18 @@ class SoleOperatorScopeValuesTest {
         }
 
     @Test
-    fun `INV-AC-8289 SER2 a grant and a withdrawal started together never give a pair with a withdrawn acknowledgement`() =
+    fun `INV-AC-8289 SER2 a grant and a withdrawal started together never give a pair and a withdrawn ack`() =
         repeat(ROUNDS) {
             run { env ->
                 env.grant("IDN-P1", "security.officer")
                 val ack = env.record()
                 val results =
                     together(2) {
-                        if (it == 0) env.grant(actorA, "security.officer").statusCode.value() else env.withdraw(ack).statusCode.value()
+                        if (it == 0) {
+                            env.grant(actorA, "security.officer").statusCode.value()
+                        } else {
+                            env.withdraw(ack).statusCode.value()
+                        }
                     }
                 val grantResult = results[0]
                 val withdrawResult = results[1]
@@ -492,7 +614,7 @@ class SoleOperatorScopeValuesTest {
                 if (grantResult.isSuccess) {
                     // grant, then the withdrawal is refused with D2
                     assertThat(grantResult.getOrNull()).isEqualTo(201)
-                    env.assertRefused(checkNotNull(withdrawRefusal) { "withdrawal must be refused: $withdrawResult" }, d2)
+                    env.assertRefused(checkNotNull(withdrawRefusal) { "withdrawal not refused: $withdrawResult" }, d2)
                     assertThat(env.activeAck()?.ref).isEqualTo(ack)
                 } else {
                     // withdrawal, then the pair is refused

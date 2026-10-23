@@ -1,8 +1,8 @@
 package com.dynokore.gst.access.application.separation
 
 /**
- * The values of VP-81 (INV-REQ-8287): who may hold `security.officer` and `tenant.admin` together under the sole-operator
- * acknowledgement and what withdrawing the acknowledgement does. The constants are the option keys of the catalogue row.
+ * The values of VP-81 (INV-REQ-8287): who may hold `security.officer` and `tenant.admin` together under the
+ * sole-operator acknowledgement and what withdrawing it does. The constants are the option keys of the catalogue row.
  */
 enum class SoleOperatorScope {
     /** At most one person holds both roles; withdrawal is refused while anyone holds both (the default). */

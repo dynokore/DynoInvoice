@@ -136,8 +136,10 @@ class WithdrawSoleOperatorUseCase(
         // D3 before D2 (INV-AC-8288): two different people must hold one of the roles, then nobody may hold both
         return when {
             (officers + admins).size < 2 -> WithdrawSoleOperatorOutcome.SecondPersonRequired
+
             value == SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED &&
                 SeparationOfDuty.holdingBoth(officers, admins).isNotEmpty() -> WithdrawSoleOperatorOutcome.HolderRemains
+
             else -> null
         }
     }

@@ -2,9 +2,9 @@ package com.dynokore.gst.access.adapters.separation
 
 import com.dynokore.gst.access.application.separation.SoleOperatorScope
 import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
-import com.dynokore.platform.configresolver.PolicySource
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.PolicySource
 import com.dynokore.platform.configresolver.ResolvedSetting
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.VariationPointKey
