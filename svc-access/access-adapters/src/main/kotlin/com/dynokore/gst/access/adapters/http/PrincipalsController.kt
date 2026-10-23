@@ -60,7 +60,6 @@ class PrincipalOperations(
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin)
 open class PrincipalsController(
     useCases: PrincipalOperations,
-    private val authenticate: GatewayAuthentication,
     private val tokens: GatewayTokenIssuance,
     private val tenants: TenantContext,
     private val manager: GrantManagerCheck,
@@ -190,7 +189,7 @@ open class PrincipalsController(
     ): ResponseEntity<AuthenticatePrincipalResponse> {
         if (!gateway.isGateway()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val decision =
-            authenticate.authenticate(
+            tokens.authentication.authenticate(
                 authenticatePrincipalRequest.principalRef,
                 CredentialMethod.valueOf(authenticatePrincipalRequest.method.name),
                 authenticatePrincipalRequest.proof,

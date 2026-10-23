@@ -17,6 +17,7 @@ import com.nimbusds.jwt.SignedJWT
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.Date
+import java.util.Locale
 
 /**
  * The `SecretStore` adapter of [AccessTokenSigner] (STK-29, CS-24). The signing key is read from the secret
@@ -56,7 +57,7 @@ private class NimbusSigningSession(
             .getInstance("SHA-256")
             .digest(der)
             .take(KID_BYTES)
-            .joinToString("") { "%02x".format(it) }
+            .joinToString("") { "%02x".format(Locale.ROOT, it) }
     override val alg: String = JWSAlgorithm.ES256.name
     override val publicKey: String = Base64.getEncoder().encodeToString(der)
 

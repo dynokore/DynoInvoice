@@ -22,7 +22,7 @@ sealed interface TokenDecision {
  * signer. A key that cannot sign propagates as `SigningKeyUnavailable`.
  */
 class GatewayTokenIssuance(
-    private val authentication: GatewayAuthentication,
+    val authentication: GatewayAuthentication,
     private val issuer: IssueAccessTokenUseCase,
 ) {
     fun issue(

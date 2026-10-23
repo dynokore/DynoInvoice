@@ -12,6 +12,7 @@ import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
+import java.util.Locale
 
 /**
  * INV-AC-8848 at the service boundary (INV-T-8850): the real context over a real PostgreSQL, the gateway-side
@@ -321,7 +322,7 @@ class TokenAcceptanceTest {
                     .getInstance("SHA-256")
                     .digest(k1.toECPublicKey().encoded)
                     .take(8)
-                    .joinToString("") { "%02x".format(it) },
+                    .joinToString("") { "%02x".format(Locale.ROOT, it) },
             ).isEqualTo(kid1)
 
             // (b) the secret is replaced by K2 and the clock reaches t1
