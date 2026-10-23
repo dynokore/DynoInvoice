@@ -1,0 +1,7 @@
+permission	item	basis
+masterdata-exception.resolve	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "handle exceptions" (Inference: key chosen for the phrase)
+period-readiness.run	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "run readiness and drain" (Inference: key chosen for the phrase)
+submission.replay	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "replay" (Inference: key chosen for the phrase)
+mapping-pack.author	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "draft mappings" (Inference: key chosen for the phrase)
+transaction.ingest	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "SUBMIT_INVOICE_DATA" (Inference: key chosen for the item name)
+mapping-pack.approve	MAPPING_APPROVAL	FR-AB.16 "a second person at the agent approves" (Inference: key chosen for the phrase)

@@ -8,6 +8,7 @@ import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
 import com.dynokore.gst.access.adapters.structure.ReplicaEntityDirectory
 import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.consent.AgentScope
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
@@ -82,8 +83,16 @@ class UseCases {
     @Bean
     fun authorise(
         dependencies: GrantDependencies,
+        agentScope: AgentScope,
         clock: Clock,
-    ) = Authorise(dependencies.tx, dependencies.grants, dependencies.directory, dependencies.matrix, clock)
+    ) = Authorise(
+        dependencies.tx,
+        dependencies.grants,
+        dependencies.directory,
+        dependencies.matrix,
+        agentScope,
+        clock,
+    )
 
     @Bean
     fun grantRoleUseCase(

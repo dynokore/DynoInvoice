@@ -1,9 +1,15 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.application.consent.ConsentRepository
+import com.dynokore.gst.access.application.consent.ScopeItemRequirements
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.application.token.AccessTokenClaims
 import com.dynokore.gst.access.application.token.AccessTokenSigner
 import com.dynokore.gst.access.application.token.SigningSession
+import com.dynokore.gst.access.domain.consent.Consent
+import com.dynokore.gst.access.domain.consent.ConsentStatus
+import com.dynokore.gst.access.domain.consent.ConsentTerms
+import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Grant
@@ -52,6 +58,7 @@ import java.sql.DriverManager
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -147,12 +154,6 @@ class FixtureMatrixConfiguration {
 class BoundaryTestConfiguration {
     @Bean
     fun clock(): Clock = MovableClock()
-
-    @Bean
-    fun consentSwitch(): ConsentSwitch = ConsentSwitch()
-
-    @Bean
-    fun consentCheck(switch: ConsentSwitch): ConsentCheck = switch.check()
 
     @Bean
     fun capturedEvents(): CapturedEvents = CapturedEvents()
@@ -336,10 +337,14 @@ object BoundaryFixture {
         form: String = "SAAS",
         mounted: Path = TestSecrets.mount(RUNTIME_PASSWORD),
         tokenProperties: Array<String> = TestSecrets.TOKEN_PROPERTIES,
+        requirements: ScopeItemRequirements? = FIXTURE_REQUIREMENTS,
     ): WebApplicationContextRunner =
         WebApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            .withInitializer(ConfigDataApplicationContextInitializer())
+            // null leaves the production bean, built from agent-scope-items.tsv, in place
+            .let { runner ->
+                requirements?.let { runner.withBean(ScopeItemRequirements::class.java, { it }) } ?: runner
+            }.withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(
                 BoundaryTestConfiguration::class.java,
                 AccessApplication::class.java,
@@ -364,6 +369,10 @@ object BoundaryFixture {
                 "service-runtime.datasource.credential=db/access_runtime",
             )
 
+    /** Test data: the one permission the fixture matrix gives an agent needs the item SUBMIT_INVOICE_DATA. */
+    private val FIXTURE_REQUIREMENTS =
+        ScopeItemRequirements(mapOf(FixtureMatrix.VIEW to ScopeItem.SUBMIT_INVOICE_DATA))
+
     fun entityNode(structureVersion: Long = 1): StructureNode =
         StructureNode(
             StructureNodeKind.ENTITY,
@@ -377,20 +386,46 @@ object BoundaryFixture {
 }
 
 /**
- * A live consent lookup the tests flip: it reads its state at every question, so a withdrawal shows at the next check.
+ * Writes consent records of [tenant] straight through the repository, the way the tests of the consent-derived scope
+ * need them; the live lookup they check against is the service's own bean, which reads the table at every question.
  */
-class ConsentSwitch {
-    private val live: MutableSet<EntityRef> = ConcurrentHashMap.newKeySet()
+class ConsentSwitch(
+    private val context: ApplicationContext,
+    private val tenant: TenantId,
+) {
+    private val tenants = context.getBean(TenantContext::class.java)
+    private val tx = context.getBean(TransactionRunner::class.java)
+    private val consents = context.getBean(ConsentRepository::class.java)
 
-    fun grant(entity: EntityRef) {
-        live += entity
+    fun grant(
+        entity: EntityRef,
+        items: Set<ScopeItem> = setOf(ScopeItem.SUBMIT_INVOICE_DATA),
+        agent: String = "IDN-AGENT",
+    ) = tenants.bind(tenant, "seed") {
+        tx.inTransaction {
+            consents.insert(
+                Consent(
+                    consents.nextRef(),
+                    entity,
+                    IdentityRef(agent),
+                    ConsentTerms(items, LocalDate.of(2020, 1, 1), "signatory@client.example"),
+                    ConsentStatus.LIVE,
+                    null,
+                    0,
+                ),
+            )
+        }
     }
 
-    fun withdraw(entity: EntityRef) {
-        live -= entity
-    }
+    fun withdraw(entity: EntityRef) =
+        tenants.bind(tenant, "seed") {
+            tx.inTransaction {
+                val live = checkNotNull(consents.findLiveForClient(entity)) { "no live consent for $entity" }
+                consents.update(live, live.withdrawn("HOS-SEED"))
+            }
+        }
 
-    fun check(): ConsentCheck = ConsentCheck { it in live }
+    fun check(): ConsentCheck = context.getBean(ConsentCheck::class.java)
 }
 
 /** One grant to seed: the scope defaults to the whole tenant, the window to yesterday until thirty days ahead. */

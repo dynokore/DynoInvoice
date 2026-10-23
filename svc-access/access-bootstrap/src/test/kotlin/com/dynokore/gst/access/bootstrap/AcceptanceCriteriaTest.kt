@@ -77,7 +77,7 @@ class AcceptanceCriteriaTest {
         val clock = context.getBean(Clock::class.java) as MovableClock
         val structure = context.getBean(StructureReplica::class.java)
         val captured = context.getBean(CapturedEvents::class.java)
-        val consent = context.getBean(ConsentSwitch::class.java)
+        val consent = ConsentSwitch(context, tenantA)
 
         init {
             listOf(tenantA, tenantB).forEach { Seeds.grant(context, it, SeedSpec(admin, Role.TENANT_ADMIN)) }
@@ -263,8 +263,8 @@ class AcceptanceCriteriaTest {
         run { _, env ->
             env.entity(tenantA, "CLIENT-A")
             env.entity(tenantA, "CLIENT-B")
-            env.consent.grant(EntityRef("CLIENT-A"))
-            env.consent.grant(EntityRef("CLIENT-B"))
+            env.consent.grant(EntityRef("CLIENT-A"), agent = "IDN-AGENT")
+            env.consent.grant(EntityRef("CLIENT-B"), agent = "IDN-AGENT")
             val now = env.clock.instant()
             env.inTenant(tenantA) {
                 env.tx.inTransaction {
@@ -288,7 +288,7 @@ class AcceptanceCriteriaTest {
     fun `INV-AC-2187 an agent action right after the client withdraws consent is denied at the next check`() =
         run { _, env ->
             env.entity(tenantA, "CLIENT-W")
-            env.consent.grant(EntityRef("CLIENT-W"))
+            env.consent.grant(EntityRef("CLIENT-W"), agent = "IDN-AGENT2")
             val now = env.clock.instant()
             env.inTenant(tenantA) {
                 env.tx.inTransaction {

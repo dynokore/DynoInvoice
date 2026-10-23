@@ -1,7 +1,11 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
+import com.dynokore.gst.access.application.consent.ConsentChangePublisher
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.AuthorityGrantRecord
+import com.dynokore.gst.access.domain.consent.ConsentStatus
+import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -20,7 +24,8 @@ import java.time.format.DateTimeFormatter
 class AuthorityChangedOutbox(
     private val outbox: OutboxWriter,
     private val mapper: ObjectMapper,
-) : AuthorityChangePublisher {
+) : AuthorityChangePublisher,
+    ConsentChangePublisher {
     override fun publish(records: List<AuthorityGrantRecord>) {
         records.forEach { record ->
             val context =
@@ -34,6 +39,40 @@ class AuthorityChangedOutbox(
                 context,
             )
         }
+    }
+
+    /** One event with a `consentRecord`: the whole state of the consent after the change . */
+    override fun publish(record: ConsentAuthorityRecord) {
+        val context =
+            EventContexts.forAggregate(
+                TenantId.of(record.tenant.value),
+                EntityRef(record.consent.client.value),
+                record.consent.agent.value,
+            )
+        outbox.append(
+            listOf(OutboundEvent(ProductEventTypes.AUTHORITY_CHANGED, consentPayload(record).toString())),
+            context,
+        )
+    }
+
+    internal fun consentPayload(record: ConsentAuthorityRecord): ObjectNode {
+        val consent = record.consent
+        val from =
+            consent.terms.validFrom
+                .atStartOfDay()
+                .atOffset(java.time.ZoneOffset.UTC)
+        val root = mapper.createObjectNode()
+        root.put("changeKind", "CONSENT")
+        root.put("principalRef", consent.agent.value)
+        root.put("authorityVersion", record.authorityVersion)
+        root.putObject("validity").put("from", ISO.format(from))
+        val node = root.putObject("consentRecord")
+        node.put("clientEntityRef", consent.client.value)
+        node.put("state", if (consent.status == ConsentStatus.LIVE) "LIVE" else "WITHDRAWN")
+        val items = node.putArray("scopeItems")
+        ScopeItem.entries.filter { it in consent.items }.forEach { items.add(it.wire) }
+        node.put("validFrom", ISO.format(from))
+        return root
     }
 
     internal fun payload(record: AuthorityGrantRecord): ObjectNode {

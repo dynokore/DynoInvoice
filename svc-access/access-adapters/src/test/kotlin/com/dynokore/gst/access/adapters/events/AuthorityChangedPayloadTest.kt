@@ -1,7 +1,13 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.grant.AuthorityGrantRecord
 import com.dynokore.gst.access.application.grant.GrantedAction
+import com.dynokore.gst.access.domain.consent.Consent
+import com.dynokore.gst.access.domain.consent.ConsentRef
+import com.dynokore.gst.access.domain.consent.ConsentStatus
+import com.dynokore.gst.access.domain.consent.ConsentTerms
+import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.ScopeLevel
@@ -130,5 +136,48 @@ class AuthorityChangedPayloadTest {
         assertThrows(EmissionNotPermitted::class.java) {
             EmissionGuard(catalogue, "tenancy-svc").require(ProductEventTypes.AUTHORITY_CHANGED)
         }
+    }
+
+    private fun consent(
+        status: ConsentStatus,
+        vararg items: ScopeItem,
+    ) = ConsentAuthorityRecord(
+        TenantRef("0a000000-0000-4000-8000-00000000000a"),
+        Consent(
+            ConsentRef("CNS-1"),
+            EntityRef("CLI-1"),
+            IdentityRef("AGT-1"),
+            ConsentTerms(items.toSet(), LocalDate.of(2026, 11, 1), "signatory@client.example"),
+            status,
+            if (status == ConsentStatus.WITHDRAWN) "HOS-1" else null,
+            0,
+        ),
+        43,
+    )
+
+    @Test
+    fun `a consent record, live or withdrawn, with any combination of items validates against the schema`() {
+        listOf(
+            consent(ConsentStatus.LIVE),
+            consent(ConsentStatus.LIVE, ScopeItem.SUBMIT_INVOICE_DATA),
+            consent(ConsentStatus.WITHDRAWN, ScopeItem.FILE_GST_RETURN, ScopeItem.MAPPING_APPROVAL),
+        ).forEach { record ->
+            val errors =
+                schema.validate(outbox.consentPayload(record).toString(), com.networknt.schema.InputFormat.JSON)
+            assertTrue(errors.isEmpty(), errors.toString())
+        }
+    }
+
+    @Test
+    fun `the consent payload carries the whole state, the agent as principal and nothing of a grant`() {
+        val node = outbox.consentPayload(consent(ConsentStatus.WITHDRAWN, ScopeItem.SUBMIT_INVOICE_DATA))
+        assertEquals("CONSENT", node["changeKind"].asString())
+        assertEquals("AGT-1", node["principalRef"].asString())
+        assertEquals(43L, node["authorityVersion"].asLong())
+        assertEquals("CLI-1", node["consentRecord"]["clientEntityRef"].asString())
+        assertEquals("WITHDRAWN", node["consentRecord"]["state"].asString())
+        val items = node["consentRecord"]["scopeItems"]
+        assertEquals(listOf("SUBMIT_INVOICE_DATA"), (0 until items.size()).map { items[it].asString() })
+        assertTrue(!node.has("grantRecord") && !node.has("principalRecord"))
     }
 }

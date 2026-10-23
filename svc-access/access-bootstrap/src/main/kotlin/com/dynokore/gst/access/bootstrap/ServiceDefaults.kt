@@ -6,6 +6,7 @@ import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
 import com.dynokore.gst.access.adapters.http.LiveTenantGrants
 import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
 import com.dynokore.gst.access.adapters.persistence.jooq.Access
+import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.principal.MachinePermissionSets
@@ -22,6 +23,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
+import java.time.ZoneId
 
 /** The service's schema, its event catalogue and the fail-closed defaults a deployment or a test replaces. */
 @Configuration(proxyBeanMethods = false)
@@ -84,9 +86,25 @@ class ServiceDefaults {
     fun machinePermissionSets(): MachinePermissionSets = MachinePermissionSets.STANDARD
 
     /**
-     * Consent records belong to INV-T-4939; until then no consent is live, so a consent-derived grant covers nothing.
+     * The live consent lookup behind a consent-derived scope: reads the consent record at every question, so a
+     * withdrawal shows at the next check (INV-REQ-865). A failed read refuses.
      */
     @Bean
     @ConditionalOnMissingBean
-    fun consentCheck(): ConsentCheck = ConsentCheck { false }
+    fun consentCheck(
+        tx: TransactionRunner,
+        consents: ConsentRepository,
+        clock: Clock,
+    ): ConsentCheck =
+        ConsentCheck { client ->
+            // the policy asks after the grants are read, so the question runs in its own (or the open) transaction
+            runCatching {
+                val today = clock.instant().atZone(BUSINESS_ZONE).toLocalDate()
+                tx.inTransaction { consents.findLiveForClient(client)?.isLiveOn(today) == true }
+            }.getOrDefault(false)
+        }
+
+    private companion object {
+        val BUSINESS_ZONE: ZoneId = ZoneId.of("Asia/Singapore")
+    }
 }

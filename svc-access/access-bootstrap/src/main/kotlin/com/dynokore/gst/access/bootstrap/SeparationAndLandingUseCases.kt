@@ -3,7 +3,6 @@ import com.dynokore.gst.access.adapters.audit.OutboxGrantAudit
 import com.dynokore.gst.access.adapters.breakglass.BreakGlassPairConstraints
 import com.dynokore.gst.access.adapters.breakglass.ValueConstraintsChain
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
-import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
@@ -27,7 +26,6 @@ import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.configresolver.PolicyReader
-import com.dynokore.platform.configresolver.ValueConstraints
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -80,19 +78,6 @@ class SeparationAndLandingUseCases {
         clock: Clock,
         mapper: ObjectMapper,
     ): RolePrecedence = VariationPointRolePrecedence(reader, tenants, clock, mapper)
-
-    /**
-     * The checks `setPolicy` asks of its owning service (INV-Q-3167): VP-73 and the pair of VP-08; no other variation
-     * point is checked.
-     */
-    @Bean
-    fun valueConstraints(
-        catalogue: RoleCatalogue,
-        mapper: ObjectMapper,
-    ): ValueConstraints =
-        ValueConstraintsChain(
-            listOf(RolePrecedenceConstraints(catalogue, mapper), BreakGlassPairConstraints(catalogue, mapper)),
-        )
 
     @Bean
     fun landingScreens(

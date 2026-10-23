@@ -31,8 +31,8 @@ operation	recordBreakGlassAction	INV-T-4938	done
 operation	resealBreakGlass	INV-T-8853	open
 operation	runAccessReview	INV-T-4941	open
 operation	closeAccessReview	INV-T-4941	open
-operation	grantConsent	INV-T-4939	open
-operation	withdrawConsent	INV-T-4939	open
+operation	grantConsent	INV-T-4939	done
+operation	withdrawConsent	INV-T-4939	done
 operation	acknowledgeMapping	INV-T-4940	open
 channel	accessAuthorityChanged	INV-T-4934	done
 channel	accessOperatorSessionKeysChanged	INV-T-4941	open
