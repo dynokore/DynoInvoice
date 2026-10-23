@@ -118,3 +118,5 @@ AcceptFirstAdministratorInvitationResponse.sealingCredential	schema_property	ope
 use	property	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
 OPERATOR_SESSION	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
 MACHINE_ACCESS	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
+UnlockBreakGlassRequest.overrideReason	schema_property	openapi.yaml	INV-REQ-896
+IDP_PARTIAL_OUTAGE	enum_value	openapi.yaml	INV-REQ-896

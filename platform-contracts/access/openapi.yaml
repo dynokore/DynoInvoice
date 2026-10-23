@@ -1815,6 +1815,7 @@ paths:
       description: Restricted session; raises ACC-002 and notifies security.officer. The 201 carries sessionHours,
         expiresAt and permittedActions; the resealBreakGlass 200 does not carry them. sessionHours is the VP-08 value
         of INV-REQ-1269 (window 1 to 8 hours, default 4), and expiresAt is the unlock instant plus sessionHours hours.
+        While the identity provider is probed as available the unlock is refused with 409 unless overrideReason is IDP_PARTIAL_OUTAGE.
       tags:
       - break-glass
       x-principal: filing-workflow
@@ -1872,6 +1873,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1934,7 +1937,8 @@ paths:
       operationId: signInBreakGlass
       summary: Sign in to an open break-glass session with the sealing credential (INV-REQ-897, INV-REQ-1269)
       description: The sealing credential is the one of the account that the unlock opened. A wrong credential is
-        refused with 403 and nothing opens; this operation adds no lockout or throttle for repeated wrong credentials.
+        refused with 403 and nothing opens; from the 3rd consecutive wrong credential for an unlock the next sign-in waits
+        1 second, doubling to at most 60 seconds, and is refused with 429 (SRT-012) and Retry-After while it waits; there is no lockout.
         No open unlock, an expired session (expiresAt passed) or a resealed one is refused with 409. The operation
         returns no token and does not grant any permission in another service.
       tags:
@@ -1946,7 +1950,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-AF.19
-      x-error-codes: []
+      x-error-codes:
+      - SRT-012
       x-operation:
         role: deployment.operator, tenant.admin, plus tax.approver
         scope: installation
@@ -1999,6 +2004,16 @@ paths:
           $ref: '#/components/responses/Error'
         "409":
           $ref: '#/components/responses/Error'
+        "429":
+          description: A wrong sealing credential was posted 3 or more times in a row for this unlock and the back-off has not elapsed (SRT-012); nothing opens.
+          headers:
+            Retry-After:
+              schema: { type: integer, minimum: 1, maximum: 60 }
+              description: Remaining whole seconds of the back-off.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/access/break-glass/{unlockRef}/actions:
@@ -3438,6 +3453,11 @@ components:
           items:
             type: string
             maxLength: 128
+        overrideReason:
+          type: string
+          enum:
+          - IDP_PARTIAL_OUTAGE
+          description: Lets the unlock proceed while the identity provider probe reads available; recorded in the audit entry and the ACC-002 alert.
     BreakGlassResealResponse:
       type: object
       required:

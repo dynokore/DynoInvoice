@@ -80,3 +80,5 @@ VIEW	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
 READINESS	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
 DRAIN	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
 REPLAY	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+overrideReason	property	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-896
+SIGN_IN_FAILED	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897

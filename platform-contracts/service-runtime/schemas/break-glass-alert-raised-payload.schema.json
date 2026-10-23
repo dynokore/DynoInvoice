@@ -27,7 +27,8 @@
         "VIEW",
         "READINESS",
         "DRAIN",
-        "REPLAY"
+        "REPLAY",
+        "SIGN_IN_FAILED"
       ],
       "x-extensible-enum": true
     },
@@ -36,6 +37,14 @@
       "minLength": 1,
       "maxLength": 64,
       "description": "The break-glass unlock the alert belongs to, when there is one."
+    },
+    "overrideReason": {
+      "type": "string",
+      "description": "The override reason the unlock carried, when it carried one.",
+      "enum": [
+        "IDP_PARTIAL_OUTAGE"
+      ],
+      "x-extensible-enum": true
     }
   },
   "required": [
