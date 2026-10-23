@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: tenancy events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event tenancy produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -127,14 +127,13 @@ components:
       summary: OrganisationStructureChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event OrganisationStructureChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
-        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, console-bff,
-        notification-svc. Delivery: At-least-once. Payload (catalogue text): tenant, group, entity or
+        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, transport-svc. Delivery: At-least-once. Payload (catalogue text): tenant, group, entity or
         business unit created, moved or retired. Authored by INV-T-2853 (T9). INV-T-3298
         (INV-API-3327, INV-Q-3324 (a), INV-Q-3337 (a)) adds, additively, the node's full state
         after the change with its structureVersion, and changeType UPDATED (a rename, code change
         or other attribute change of a business unit, group or tenant; INV-AC-2186), changeType now
         being an extensible enum. Every service's structure replica is fed from this topic
-        (INV-REQ-1200, INV-ADR-284).
+        (INV-REQ-1200, INV-ADR-284). tenancy-svc, the source, does not subscribe: it owns the structure (INV-Q-8996).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/organisation-structure-changed-payload.schema.json'
@@ -145,13 +144,12 @@ components:
       summary: EntityProfileChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event EntityProfileChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8,
-        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, canonical-svc,
-        console-bff, masterdata-svc. Delivery: At-least-once. Payload (catalogue text): entityRef, changed
+        INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: access-svc, aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, transport-svc. Delivery: At-least-once. Payload (catalogue text): entityRef, changed
         attributes, effective date. Authored by INV-T-2853 (T9). INV-T-3298 (INV-API-3327,
         INV-Q-3324 (a)) adds, additively, the node's full state after the change, its profile as
         effective-dated attribute entries, with its structureVersion (one sequence shared with
         OrganisationStructureChanged). Every service's structure replica is fed from this topic
-        (INV-REQ-1200, INV-ADR-284).
+        (INV-REQ-1200, INV-ADR-284). tenancy-svc, the source, does not subscribe: it owns the structure (INV-Q-8996).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/entity-profile-changed-payload.schema.json'
