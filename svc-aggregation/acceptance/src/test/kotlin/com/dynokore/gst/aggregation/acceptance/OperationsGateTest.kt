@@ -53,17 +53,61 @@ class OperationsGateTest {
         run(spec = extra) shouldContain "operation probeOperation: in the contract, missing from operations.tsv"
     }
 
+    private val placeholder = "channel\taggregationExampleHappened\tPLACEHOLDER\topen"
+    private val withoutPlaceholder =
+        tsv
+            .lines()
+            .filterNot {
+                it.contains(
+                    "aggregationExampleHappened",
+                )
+            }.joinToString("\n")
+
+    private fun withRow(row: String) = withoutPlaceholder.trimEnd() + "\n" + row + "\n"
+
     @Test
-    fun `a lower case unassigned and TBD fail`() {
-        run(table = tsv.replaceFirst("UNASSIGNED", "unassigned")).shouldNotBeEmpty()
-        run(table = tsv.replaceFirst("UNASSIGNED", "TBD")).shouldNotBeEmpty()
-        run(table = tsv.replaceFirst("UNASSIGNED", "INV-T-12x")).shouldNotBeEmpty()
-        run(table = tsv.replaceFirst("UNASSIGNED", "")).shouldNotBeEmpty()
+    fun `the placeholder row passes and every look-alike of it fails naming the row`() {
+        tsv.lines() shouldContain placeholder
+        run(table = withRow(placeholder)).shouldBeEmpty()
+        listOf(
+            "channel\taggregationAggregateReady\tPLACEHOLDER\topen",
+            "operation\tpublishExampleHappened\tPLACEHOLDER\topen",
+            "channel\taggregationexamplehappened\tPLACEHOLDER\topen",
+            "channel\taggregationExampleHappened2\tPLACEHOLDER\topen",
+            "channel\taggregationExampleHappened\tplaceholder\topen",
+            "channel\taggregationExampleHappened\tPLACEHOLDER\tdone",
+            "channel\taggregationExampleHappened\tUNASSIGNED\topen",
+            "channel\taggregationExampleHappened\tINV-T-8451\topen",
+            "channel\taggregationExampleHappened\tPLACEHOLDER \topen",
+        ).forEach { row ->
+            val table =
+                if (row.startsWith("channel\taggregationAggregateReady")) {
+                    tsv.replaceFirst("channel\taggregationAggregateReady\tINV-T-4979\topen", row) +
+                        withRow(placeholder).lines().last { it.isNotBlank() } +
+                        "\n"
+                } else {
+                    withRow(row)
+                }
+            run(table = table).shouldNotBeEmpty()
+        }
+    }
+
+    @Test
+    fun `UNASSIGNED, TBD, an empty task and a bad state fail on any row`() {
+        listOf("UNASSIGNED", "unassigned", "TBD", "INV-T-12x", "").forEach {
+            run(table = tsv.replaceFirst("INV-T-4980", it)).shouldNotBeEmpty()
+        }
+        run(table = tsv.replaceFirst("INV-T-4980\topen", "INV-T-4980\tdone ")).shouldNotBeEmpty()
+        run(table = tsv.replaceFirst("INV-T-4980\topen", "INV-T-4980\t")).shouldNotBeEmpty()
     }
 
     @Test
     fun `a listed operation marked done with a 501 stub fails`() {
-        val table = tsv.replaceFirst("getAggregateDrillDown\tINV-T-4980", "getAggregateDrillDown\tINV-T-9999")
+        val table =
+            tsv.replaceFirst(
+                "getAggregateDrillDown\tINV-T-4980\topen",
+                "getAggregateDrillDown\tINV-T-9999\topen",
+            )
         run(table = table).shouldBeEmpty()
         run(table = table, done = "INV-T-9999\n") shouldContain
             "operation getAggregateDrillDown: task INV-T-9999 is done but the operation still answers 501"
@@ -72,10 +116,12 @@ class OperationsGateTest {
 
     @Test
     fun `a channel missing from the table, a duplicate row and an unknown row fail`() {
-        run(table = tsv.lines().filterNot { it.contains("example-happened") }.joinToString("\n")).shouldNotBeEmpty()
-        run(table = tsv.trimEnd() + "\noperation\tgetAggregateDrillDown\tINV-T-4980\n").shouldNotBeEmpty()
-        run(table = tsv.trimEnd() + "\noperation\tnoSuchOperation\tUNASSIGNED\n").shouldNotBeEmpty()
-        run(table = tsv.trimEnd() + "\nqueue\tx\tUNASSIGNED\n").shouldNotBeEmpty()
+        run(
+            table = tsv.lines().filterNot { it.contains("aggregationExampleHappened") }.joinToString("\n"),
+        ).shouldNotBeEmpty()
+        run(table = tsv.trimEnd() + "\noperation\tgetAggregateDrillDown\tINV-T-4980\topen\n").shouldNotBeEmpty()
+        run(table = tsv.trimEnd() + "\noperation\tnoSuchOperation\tINV-T-1\topen\n").shouldNotBeEmpty()
+        run(table = tsv.trimEnd() + "\nqueue\tx\tINV-T-1\topen\n").shouldNotBeEmpty()
     }
 
     @Test
@@ -83,7 +129,11 @@ class OperationsGateTest {
         run(done = null) shouldContain "done-tasks.txt: the file is missing"
         run(done = "TBD\n") shouldContain "done-tasks.txt: 'TBD' is not exactly an INV-T key"
         run(done = "inv-t-8451\n") shouldContain "done-tasks.txt: 'inv-t-8451' is not exactly an INV-T key"
-        val table = tsv.replaceFirst("getAggregateDrillDown\tINV-T-4980", "getAggregateDrillDown\tINV-T-9998")
+        val table =
+            tsv.replaceFirst(
+                "getAggregateDrillDown\tINV-T-4980\topen",
+                "getAggregateDrillDown\tINV-T-9998\topen",
+            )
         run(table = table, done = "INV-T-99980\n") shouldContain
             "done-tasks.txt: INV-T-99980 names no row of operations.tsv"
         run(table = table, done = "INV-T-9998 \n").shouldNotBeEmpty()
@@ -91,21 +141,21 @@ class OperationsGateTest {
 
     @Test
     fun `the table names the task the split sets for each row`() {
-        val intake = "intakeAggregationBatch\tINV-T-8473"
+        val intake = "intakeAggregationBatch\tINV-T-8473\topen"
         OperationsGate
             .assignmentFindings(
-                tsv.replaceFirst(intake, "intakeAggregationBatch\tINV-T-4979"),
+                tsv.replaceFirst(intake, "intakeAggregationBatch\tINV-T-4979\topen"),
             ).single() stringContain
             "operation intakeAggregationBatch: task 'INV-T-4979', the split sets INV-T-8473"
         OperationsGate
             .assignmentFindings(
-                tsv.replaceFirst(intake, "intakeAggregationBatch\tINV-T-84730"),
+                tsv.replaceFirst(intake, "intakeAggregationBatch\tINV-T-84730\topen"),
             ).single() stringContain
             "intakeAggregationBatch"
-        OperationsGate.assignmentFindings(tsv.replace("\tINV-T-4979", "\tINV-T-49790")).single() stringContain
-            "channel gst.aggregation.aggregate-ready.v1: task 'INV-T-49790'"
-        OperationsGate.assignmentFindings(tsv.replace("\tINV-T-8453", "\tUNASSIGNED")).single() stringContain
-            "aggregate-window-changed"
+        OperationsGate.assignmentFindings(tsv.replace("\tINV-T-4979\t", "\tINV-T-49790\t")).single() stringContain
+            "channel aggregationAggregateReady: task 'INV-T-49790'"
+        OperationsGate.assignmentFindings(tsv.replace("\tINV-T-8453\t", "\tUNASSIGNED\t")).single() stringContain
+            "aggregationAggregateWindowChanged"
         OperationsGate
             .assignmentFindings(
                 tsv.lines().filterNot { it.contains("getAggregateDrillDown") }.joinToString("\n"),
@@ -121,7 +171,11 @@ class OperationsGateTest {
 
     @Test
     fun `a listed key whose operation is implemented passes`() {
-        val table = tsv.replaceFirst("getAggregateDrillDown\tINV-T-4980", "getAggregateDrillDown\tINV-T-9998")
+        val table =
+            tsv.replaceFirst(
+                "getAggregateDrillDown\tINV-T-4980\topen",
+                "getAggregateDrillDown\tINV-T-9998\topen",
+            )
         run(table = table, done = "INV-T-9998\n", stubSet = stubs - "getAggregateDrillDown").shouldBeEmpty()
     }
 }

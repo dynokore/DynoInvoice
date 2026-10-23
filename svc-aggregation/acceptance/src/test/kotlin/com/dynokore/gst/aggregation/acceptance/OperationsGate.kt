@@ -3,12 +3,14 @@ package com.dynokore.gst.aggregation.acceptance
 import org.yaml.snakeyaml.Yaml
 
 /**
- * The contract gate (INV-T-8451): `operations.tsv` lists every operationId and channel of the aggregation contract
- * with the task that implements it, or exactly `UNASSIGNED` where no published task implements it yet.
+ * The contract gate (INV-T-8451): `operations.tsv` lists every operationId and channel (its name, the key under
+ * `channels:`) of the aggregation contract with the task that implements it and the state `open` or `done`.
  *
  * Deny by default: a contract item missing from the table, a table row naming no contract item, a duplicate row, a
- * task cell that is neither an `INV-T-<digits>` key nor exactly `UNASSIGNED` (so `unassigned` and `TBD` fail), and a
- * listed task that is done while its operation still answers 501.
+ * task cell that is not an `INV-T-<digits>` key, a state other than `open` or `done`, and a listed task that is done
+ * while its operation still answers 501. The one exception is the owner value `PLACEHOLDER` (INV-Q-8791 A): it is
+ * accepted on exactly the row `channel aggregationExampleHappened` with the state `open`, compared by equality, and
+ * the value `UNASSIGNED` is accepted on no row.
  *
  * The done set is the file `done-tasks.txt` (INV-Q-7424 A), one INV-T key per line. The gate fails when the file is
  * missing, when a line is not exactly an INV-T key, when a listed key names no row of the table, and when a row names
@@ -16,13 +18,17 @@ import org.yaml.snakeyaml.Yaml
  */
 object OperationsGate {
     private val TASK_KEY = Regex("INV-T-[0-9]+")
-    private const val UNASSIGNED = "UNASSIGNED"
+    private const val PLACEHOLDER = "PLACEHOLDER"
+    private const val PLACEHOLDER_KIND = "channel"
+    private const val PLACEHOLDER_NAME = "aggregationExampleHappened"
+    private val STATES = setOf("open", "done")
     private val HTTP_METHODS = setOf("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
     data class Row(
         val kind: String,
         val id: String,
         val task: String,
+        val state: String,
     )
 
     fun contractOperations(openapi: String): Set<String> {
@@ -38,18 +44,18 @@ object OperationsGate {
 
     fun contractChannels(asyncapi: String): Set<String> {
         val channels = (Yaml().load<Map<String, Any?>>(asyncapi)["channels"] as? Map<*, *>).orEmpty()
-        return channels.values.mapNotNull { (it as? Map<*, *>)?.get("address") as? String }.toSet()
+        return channels.keys.filterIsInstance<String>().toSet()
     }
 
     fun parse(tsv: String): List<Row> {
         val lines = tsv.lines().filter { it.isNotBlank() }
-        require(lines.isNotEmpty() && lines.first().split('\t') == listOf("kind", "id", "task")) {
-            "operations.tsv: the first line must be the header kind<TAB>id<TAB>task"
+        require(lines.isNotEmpty() && lines.first().split('\t') == listOf("kind", "id", "task", "state")) {
+            "operations.tsv: the first line must be the header kind<TAB>id<TAB>task<TAB>state"
         }
         return lines.drop(1).map { line ->
             val cells = line.split('\t')
-            require(cells.size == 3) { "operations.tsv: a row has exactly three tab-separated cells: '$line'" }
-            Row(cells[0], cells[1], cells[2])
+            require(cells.size == 4) { "operations.tsv: a row has exactly four tab-separated cells: '$line'" }
+            Row(cells[0], cells[1], cells[2], cells[3])
         }
     }
 
@@ -68,6 +74,35 @@ object OperationsGate {
         return keys to findings
     }
 
+    private fun taskFindings(row: Row): List<String> {
+        val label = "${row.kind} ${row.id}"
+        val placeholderRow = row.kind == PLACEHOLDER_KIND && row.id == PLACEHOLDER_NAME
+        return listOfNotNull(
+            "$label: state '${row.state}' is neither open nor done".takeIf { row.state !in STATES },
+            when {
+                row.task == PLACEHOLDER && !placeholderRow -> {
+                    "$label: $PLACEHOLDER is accepted only on $PLACEHOLDER_KIND $PLACEHOLDER_NAME"
+                }
+
+                row.task == PLACEHOLDER && row.state != "open" -> {
+                    "$label: $PLACEHOLDER needs the state open, found '${row.state}'"
+                }
+
+                row.task != PLACEHOLDER && placeholderRow -> {
+                    "$label: the task must be exactly $PLACEHOLDER"
+                }
+
+                row.task != PLACEHOLDER && !TASK_KEY.matches(row.task) -> {
+                    "$label: task '${row.task}' is not an INV-T key"
+                }
+
+                else -> {
+                    null
+                }
+            },
+        )
+    }
+
     private fun rowFindings(
         row: Row,
         operations: Set<String>,
@@ -77,9 +112,7 @@ object OperationsGate {
     ): List<String> {
         val findings = mutableListOf<String>()
         if (row.kind != "operation" && row.kind != "channel") findings += "unknown kind '${row.kind}' for '${row.id}'"
-        if (row.task != UNASSIGNED && !TASK_KEY.matches(row.task)) {
-            findings += "${row.kind} ${row.id}: task '${row.task}' is neither an INV-T key nor exactly $UNASSIGNED"
-        }
+        findings += taskFindings(row)
         val known = if (row.kind == "channel") row.id in channels else row.kind == "operation" && row.id in operations
         if (!known) findings += "${row.kind} ${row.id}: not in the contract"
         if (row.kind == "operation" && row.task in doneTasks && row.id in stubs) {
@@ -97,8 +130,8 @@ object OperationsGate {
         mapOf(
             ("operation" to "intakeAggregationBatch") to "INV-T-8473",
             ("operation" to "getAggregateDrillDown") to "INV-T-4980",
-            ("channel" to "gst.aggregation.aggregate-ready.v1") to "INV-T-4979",
-            ("channel" to "gst.aggregation.aggregate-window-changed.v1") to "INV-T-8453",
+            ("channel" to "aggregationAggregateReady") to "INV-T-4979",
+            ("channel" to "aggregationAggregateWindowChanged") to "INV-T-8453",
         )
 
     fun assignmentFindings(tsv: String): List<String> {

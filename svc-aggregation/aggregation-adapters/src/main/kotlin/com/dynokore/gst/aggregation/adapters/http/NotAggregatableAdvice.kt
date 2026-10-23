@@ -2,8 +2,11 @@ package com.dynokore.gst.aggregation.adapters.http
 
 import com.dynokore.gst.aggregation.domain.AggregateIntakeCheck
 import com.dynokore.gst.aggregation.domain.IntakeVerdict
-import com.dynokore.gst.aggregation.domain.NotAggregatable
+import com.dynokore.platform.serviceruntime.http.IngestionErrorCode
+import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.http.StoredResponse
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -11,59 +14,69 @@ import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.util.ContentCachingRequestWrapper
+import org.springframework.web.util.WebUtils
 import tools.jackson.databind.DatabindException
-import tools.jackson.databind.exc.InvalidFormatException
-import tools.jackson.databind.node.JsonNodeFactory
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 
 /**
- * INV-REQ-410, ING-006: an `aggregateType` other than POS, STI or PCP is refused with the specific code, never the
- * generic validation failure, and with no override. The generated request type closes the enum, so the value is
- * refused while the body is read; this advice turns exactly that failure (the property `aggregateType`) into the
- * API-20 envelope of ING-006. Every other unreadable body keeps the framework answer.
+ * INV-REQ-410, ING-006: an `aggregateType` string other than POS, STI or PCP is refused with the specific code, never
+ * the generic validation failure, and with no override. The generated request type closes the enum, so the value is
+ * refused while the body is read; this advice turns exactly that failure (the property `aggregateType` offered as a
+ * JSON string) into the 422 of [Problems.renderIngestion] (INV-Q-8795 A, INV-Q-8797 A); no envelope is built here. An
+ * absent `aggregateType` is the contract violation SRT-001 (400), not ING-006. Every other unreadable body, and an
+ * `aggregateType` that is not a string, keeps the framework answer: the wire form of those is not ruled.
  */
 @RestControllerAdvice
 class NotAggregatableAdvice {
+    private val mapper = JsonMapper()
+
     @ExceptionHandler(HttpMessageNotReadableException::class)
-    fun unreadable(failure: HttpMessageNotReadableException): ResponseEntity<*> {
-        val offered = offeredAggregateType(failure)
-        val refused = offered?.let { AggregateIntakeCheck.check(it.value) as? IntakeVerdict.Refused }
-        return if (refused == null) {
-            ResponseEntity.status(HttpStatus.BAD_REQUEST).build<Unit>()
-        } else {
-            refusal(refused.refusal)
+    fun unreadable(
+        failure: HttpMessageNotReadableException,
+        request: HttpServletRequest,
+    ): ResponseEntity<*> {
+        val member = if (failsOnAggregateType(failure)) aggregateTypeMember(request) else null
+        return when {
+            member == null -> ResponseEntity.status(HttpStatus.BAD_REQUEST).build<Unit>()
+            member.isMissingNode -> respond(Problems.contractViolation("aggregateType is required", correlationId()))
+            member.isString && AggregateIntakeCheck.check(member.asString()) is IntakeVerdict.Refused -> refused()
+            else -> ResponseEntity.status(HttpStatus.BAD_REQUEST).build<Unit>()
         }
     }
 
-    private class Offered(
-        val value: String?,
-    )
+    private fun refused(): ResponseEntity<*> {
+        val rendered = Problems.renderIngestion(IngestionErrorCode.AGGREGATE_TYPE_NOT_PERMITTED, correlationId())
+        return ResponseEntity
+            .status(rendered.status)
+            .headers { headers -> rendered.headers.forEach { (name, value) -> headers.set(name, value) } }
+            .body(rendered.body)
+    }
 
-    private fun offeredAggregateType(failure: Throwable): Offered? =
+    private fun respond(stored: StoredResponse): ResponseEntity<String> =
+        ResponseEntity
+            .status(stored.status)
+            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PROBLEM_JSON_VALUE)
+            .body(stored.body)
+
+    private fun correlationId(): String =
+        CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
+
+    private fun failsOnAggregateType(failure: Throwable): Boolean =
         generateSequence(failure) { it.cause }
             .filterIsInstance<DatabindException>()
-            .firstOrNull { error -> error.path.lastOrNull()?.propertyName == AGGREGATE_TYPE }
-            ?.let { Offered((it as? InvalidFormatException)?.value?.toString()) }
+            .any { error -> error.path.lastOrNull()?.propertyName == AGGREGATE_TYPE }
 
-    private fun refusal(refusal: NotAggregatable): ResponseEntity<String> {
-        val body =
-            JsonNodeFactory.instance.objectNode().apply {
-                put("type", "https://errors.invoice.internal/${refusal.code}")
-                put("title", TITLE)
-                put("status", HttpStatus.UNPROCESSABLE_CONTENT.value())
-                put("correlationId", CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString())
-                put("code", refusal.code)
-                put("severity", "BLOCK")
-                put("disposition", if (refusal.terminal) "TERMINAL" else "MANUAL")
-                put("remediationOwner", "Integration")
-            }
-        val headers = HttpHeaders()
-        headers.contentType = MediaType.APPLICATION_PROBLEM_JSON
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).headers(headers).body(body.toString())
+    /** The `aggregateType` member of the body the converter read; null when the body is not a readable JSON object. */
+    private fun aggregateTypeMember(request: HttpServletRequest): JsonNode? {
+        val cached = WebUtils.getNativeRequest(request, ContentCachingRequestWrapper::class.java) ?: return null
+        val tree = runCatching { mapper.readTree(cached.contentAsByteArray) }.getOrNull()
+        return tree?.takeIf { it.isObject }?.path(AGGREGATE_TYPE)
     }
 
     private companion object {
         const val AGGREGATE_TYPE = "aggregateType"
-        const val TITLE = "aggregateType is not POS, STI or PCP"
     }
 }
