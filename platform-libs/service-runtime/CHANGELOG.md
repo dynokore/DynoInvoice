@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.8.0] - 2026-10-23
+### Added
+- `TenancyErrorCode.STATUS_RECORD_CONFLICT` (TNC-004, status 409, title "Status record conflict", owner `entity.admin`) and `TenancyErrorCode.Owner.ENTITY_ADMIN`, so that svc-tenancy renders the conflicting status repeat with `Problems.renderTenancy`; the pinned error-code snapshot is re-vendored at platform-contracts d09fddca (coordinator ruling INV-Q-8903 A; INV-T-8921; TNC-004).
+
 ## [10.7.0] - 2026-10-23
 ### Added
 - `IngestionErrorCode` (one entry, `AGGREGATE_TYPE_NOT_PERMITTED`: ING-006, status 422, the catalogue condition as title, owner Integration) and `Problems.renderIngestion(code, correlationId, detail)`: a 422 `application/problem+json` response with the API-20 envelope, severity BLOCK, disposition TERMINAL, so that svc-aggregation renders the refusal without a code of its own. No other ING code is added (coordinator rulings INV-Q-8795 A and INV-Q-8797 A; INV-T-8800; ING-006).
