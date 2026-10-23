@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [5.0.7] - 2026-10-24
+### Changed
+- Metadata-only release (INV-T-9055, G-DVS): depends on `outbox-and-queue 6.4.0`, whose published module metadata changed; no code change.
+
 ## [5.0.6] - 2026-10-23
 ### Changed
 - Metadata-only release (INV-T-8826, G-DVS): depends on `outbox-and-queue 6.3.0` and `product-runtime 1.3.0`, whose published module metadata changed; no code change.

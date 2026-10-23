@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.4.0] - 2026-10-24
+### Added
+- `ReplayCompletionListener`; `JdbcReplayIntake` takes an optional listener and calls it once per completed replay with the replay id, consumer and closed topics, after the incidents are closed; a throwing listener is logged and does not undo the completion (INV-Q-9047 A, INV-T-9055).
+
 ## [6.3.0] - 2026-10-23
 ### Added
 - `Envelope` platform class gains `BreakGlassAlertRaised`, the twelve platform events of INV-REQ-1226 (INV-Q-8839, INV-T-8826).

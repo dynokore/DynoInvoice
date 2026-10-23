@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.9.1] - 2026-10-24
+### Changed
+- Metadata-only release (INV-T-9055, G-DVS): depends on `outbox-and-queue 6.4.0`, whose published module metadata changed; no code change.
+
 ## [10.9.0] - 2026-10-24
 ### Added
 - `ReplicaLagTracker.expectHeartbeats(silenceBound)`: once called, silence longer than the bound after the last contact counts as a lost feed, so the lag grows from the last contact and `AuthorityReplica` falls back to access-svc; a tracker that never calls it is unchanged (coordinator ruling INV-Q-9047 A; INV-T-9056; INV-REQ-1201).

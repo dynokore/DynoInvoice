@@ -5,6 +5,8 @@ import org.jooq.DSLContext
 import org.jooq.Table
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.ZoneOffset
 import java.util.UUID
@@ -23,12 +25,14 @@ import java.util.UUID
  * (owner ruling INV-Q-3788 A) completes per pair, on each producer's own intake, and its incidents close only once
  * every addressee has completed. A marker for no pending replay is applied and changes nothing. After
  * each poll the intake closes the 'rebuild required' incident of each topic of every completed replay through
- * [sink] (INV-Q-3644, INV-AC-3658), and records that it did so.
+ * [sink] (INV-Q-3644, INV-AC-3658), and records that it did so; it then tells [listener], if any, once per replay
+ * (INV-Q-9047 A). A listener that throws is logged and not called again for that replay.
  *
  * @param subscription the replay topic's subscription; [ConsumerSubscription.consumer] is the consumer name of the
  *   live subscriptions to [producer].
  * @param catalogue the topics catalogue; record-topic types are taken from it (INV-Q-3809).
  * @param producer the pair's catalogue producer value (a service name or 'every service').
+ * @param listener told once per completed replay, after its incidents are closed; none by default.
  */
 class JdbcReplayIntake
     @JvmOverloads
@@ -43,6 +47,7 @@ class JdbcReplayIntake
         handler: EventHandler,
         private val sink: RebuildRequiredSink,
         private val clock: Clock = Clock.systemUTC(),
+        private val listener: ReplayCompletionListener? = null,
     ) : InboxConsumer {
         private val consumer = subscription.consumer
         private val s = SqlIdentifier.require(subscription.schema, "schema")
@@ -81,8 +86,22 @@ class JdbcReplayIntake
                         .where(REPLAY_ID.eq(replayId).and(CONSUMER.eq(consumer)))
                         .execute()
                 }
+                notifyListener(replayId, topics)
             }
             return done.size
+        }
+
+        private fun notifyListener(
+            replayId: UUID,
+            topics: List<String>,
+        ) {
+            try {
+                listener?.onReplayCompleted(replayId, consumer, topics)
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
+                LOG.error("replay completion listener failed for replay {} of {}", replayId, consumer, e)
+            }
         }
 
         /** The completed replays whose incidents are not yet closed: id and topics. */
@@ -213,6 +232,7 @@ class JdbcReplayIntake
         }
 
         private companion object {
+            val LOG: Logger = LoggerFactory.getLogger(JdbcReplayIntake::class.java)
             val REPLAY_ID = DSL.field(DSL.name("replay_id"), SQLDataType.UUID)
             val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
             val PRODUCER = DSL.field(DSL.name("producer"), SQLDataType.CLOB)
