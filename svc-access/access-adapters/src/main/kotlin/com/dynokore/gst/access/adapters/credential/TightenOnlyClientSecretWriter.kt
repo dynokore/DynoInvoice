@@ -19,7 +19,7 @@ import java.util.function.Supplier
  * other command passes to [delegate] unchanged.
  */
 class TightenOnlyClientSecretWriter(
-    private val delegate: PolicyWriter,
+    val delegate: PolicyWriter,
     private val reader: Supplier<PolicyReader>,
 ) : PolicyWriter by delegate {
     override fun setPolicy(command: SetPolicyCommand): PolicyChange {

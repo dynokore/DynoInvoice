@@ -1,11 +1,13 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
 import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse.Decision
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.BusinessDate
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
@@ -23,7 +25,6 @@ import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
 import java.time.Duration
 import java.time.LocalDate
-import java.time.ZoneId
 import java.util.UUID
 
 /**
@@ -36,8 +37,9 @@ import java.util.UUID
 class ClientSecretPresetTest {
     private val vp77 = VariationPointKey("VP-77")
     private val operator = "user:deployment-operator"
-    private val today = LocalDate.now(ZoneId.of("Asia/Singapore"))
-    private val effective = today.plusDays(30)
+
+    /** The preset date, 30 days after the day of the injected clock the code under test and the VP-77 reader run on. */
+    private fun effectiveOf(kit: PrincipalKit): LocalDate = BusinessDate.today(kit.clock).plusDays(30)
 
     private fun resolver(heldAt: ScopeLevel): PolicyRoleResolver =
         PolicyRoleResolver { actor, _, level, _, _ ->
@@ -95,6 +97,7 @@ class ClientSecretPresetTest {
     @Test
     fun `INV-AC-2770 client_secret_basic switched off cannot be switched back on and ap-callback keeps its method`() =
         run(resolver(ScopeLevel.INSTALLATION)) { kit ->
+            val effective = effectiveOf(kit)
             val reporting = kit.create("REPORTING", scope = "entity:ENT-1", method = PrincipalKit.SECRET)
             val secret = reporting.credential!!.clientSecret!!
             val ap =
@@ -132,6 +135,7 @@ class ClientSecretPresetTest {
     @Test
     fun `probe a resolver that holds the role only at the level TENANT cannot set the preset`() =
         run(resolver(ScopeLevel.TENANT)) { kit ->
+            val effective = effectiveOf(kit)
             val response = setPreset(kit.context, "REGULATED_PRIVATE", effective)
             assertThat(response.status).isEqualTo(403)
             assertThat(response.contentAsString).contains("SRT-004")
@@ -150,5 +154,14 @@ class ClientSecretPresetTest {
                 .contains("deployment.operator")
             assertThat(production.rolesOf(subject, kit.tenant, ScopeLevel.INSTALLATION, null, null)).isEmpty()
             assertThat(production.rolesOf(subject, TenantId.PLATFORM, ScopeLevel.INSTALLATION, null, null)).isEmpty()
+        }
+
+    @Test
+    fun `the PolicyWriter bean is wrapped by the tighten-only writer exactly once`() =
+        run { kit ->
+            val writer = kit.context.getBean(PolicyWriter::class.java)
+            assertThat(writer).isInstanceOf(TightenOnlyClientSecretWriter::class.java)
+            assertThat((writer as TightenOnlyClientSecretWriter).delegate)
+                .isNotInstanceOf(TightenOnlyClientSecretWriter::class.java)
         }
 }
