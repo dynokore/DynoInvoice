@@ -261,28 +261,6 @@ class SoleOperatorScopeValuesTest {
             }
     }
 
-    private fun assertDefaultPrior(audit: JsonNode) {
-        // the writer resolves the prior value at the effective date: with nothing set it is the default
-        val firstPrior = audit.get("priorState")
-        assertThat(firstPrior.isNull).isFalse()
-        assertThat(
-            firstPrior
-                .get("value")
-                .get(0)
-                .get("key")
-                .asString(),
-        ).isEqualTo("ONE_HOLDER_WITHDRAW_BLOCKED")
-        assertThat(firstPrior.get("source").asString()).isEqualTo("DEFAULT")
-        assertThat(
-            firstPrior
-                .get("value")
-                .get(0)
-                .get("key")
-                .asString(),
-        ).isNotEqualTo("ONE_HOLDER")
-        assertThat(firstPrior.get("source").asString()).isNotEqualTo("PROFILE")
-    }
-
     private fun Env.assertAuditNotFound(id: String) {
         val oneOff = id.dropLast(1) + (if (id.last() == '0') '1' else '0')
         assertThat(auditData(oneOff)).isEmpty()
@@ -408,8 +386,8 @@ class SoleOperatorScopeValuesTest {
             val first = env.setAcknowledged("ONE_HOLDER", effective = tomorrow, reason = "first reason")
             assertThat(first.get("prior").isNull).isTrue()
             val firstAudit = env.auditData(first.get("auditEventId").asString()).single()
-            assertThat(firstAudit.get("reason").asString()).isEqualTo("first reason")
             assertDefaultPrior(firstAudit)
+            assertStoredAuditFields(firstAudit, env.tenant, "first reason", "ONE_HOLDER", first)
             // before the effective date the default applies: A holds both, so the withdrawal is refused with D2
             env.assertRefused(env.refusal { env.withdraw(ack) }, d2)
             env.advanceDays(1)
@@ -431,7 +409,7 @@ class SoleOperatorScopeValuesTest {
             assertThat(secondId).isNotBlank()
             // the stored entry: access.outbox row of that id, data.reason and data.priorState.value[0].key
             val stored = env.auditData(secondId).single()
-            assertThat(stored.get("reason").asString()).isEqualTo("second reason")
+            assertStoredAuditFields(stored, env.tenant, "second reason", "ANY_NUMBER", second)
             assertThat(
                 stored
                     .get("priorState")
