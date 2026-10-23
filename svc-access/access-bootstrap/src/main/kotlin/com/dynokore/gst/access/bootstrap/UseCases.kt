@@ -96,20 +96,30 @@ class UseCases {
     )
 
     @Bean
-    fun grantRoleUseCase(
-        dependencies: GrantDependencies,
+    fun grantRoleEffects(
         publisher: AuthorityChangePublisher,
         audit: GrantAudit,
+    ) = GrantRoleEffects(publisher, audit)
+
+    @Bean
+    fun grantRoleRules(
         catalogue: RoleCatalogue,
         soleOperators: SoleOperatorAcks,
         soleOperatorScope: SoleOperatorScopePolicy,
+    ) = GrantRoleRules(catalogue, soleOperators, soleOperatorScope)
+
+    @Bean
+    fun grantRoleUseCase(
+        dependencies: GrantDependencies,
+        effects: GrantRoleEffects,
+        rules: GrantRoleRules,
     ) = GrantRoleUseCase(
         dependencies.tx,
         dependencies.grants,
         dependencies.directory,
         dependencies.matrix,
-        GrantRoleEffects(publisher, audit),
-        GrantRoleRules(catalogue, soleOperators, soleOperatorScope),
+        effects,
+        rules,
     )
 
     @Bean

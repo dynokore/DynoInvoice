@@ -164,7 +164,9 @@ class SoleOperatorScopeValuesTest {
         fun granted(
             identity: String,
             role: String,
-        ) = assertThat(grant(identity, role).statusCode.value()).isEqualTo(201)
+        ) {
+            assertThat(grant(identity, role).statusCode.value()).isEqualTo(201)
+        }
 
         // ---- the setting path: the mounted servlet --------------------------------------------------------------
 
@@ -257,6 +259,51 @@ class SoleOperatorScopeValuesTest {
                 context.startupFailure?.let { throw it }
                 block(Env(context, tenant))
             }
+    }
+
+    /**
+     * The stored row's actor, action, tenant scope and prior value, and the new value of the answer of the same call
+     * (the stored data holds no new-value field; the answer's `auditEventId` is the key of the stored row).
+     */
+    private fun Env.assertStoredAuditFields(
+        stored: JsonNode,
+        newOption: String,
+        answer: JsonNode,
+    ) {
+        assertThat(stored.get("actor").asString()).isEqualTo("user:tenant-admin")
+        assertThat(stored.get("action").asString()).isEqualTo("setPolicy")
+        assertThat(stored.get("scope").asString()).isEqualTo("TENANT:${tenant.value}")
+        assertThat(stored.get("priorState").get("vpId").asString()).isEqualTo("VP-81")
+        assertThat(stored.get("priorState").get("scope").asString()).isEqualTo("TENANT:${tenant.value}")
+        assertThat(answer.get("selected").get(0).get("option").asString()).isEqualTo(newOption)
+    }
+
+    private fun assertDefaultPrior(audit: JsonNode) {
+        // the writer resolves the prior value at the effective date: with nothing set it is the default
+        val firstPrior = audit.get("priorState")
+        assertThat(firstPrior.isNull).isFalse()
+        assertThat(
+            firstPrior
+                .get("value")
+                .get(0)
+                .get("key")
+                .asString(),
+        ).isEqualTo("ONE_HOLDER_WITHDRAW_BLOCKED")
+        assertThat(firstPrior.get("source").asString()).isEqualTo("DEFAULT")
+        assertThat(
+            firstPrior
+                .get("value")
+                .get(0)
+                .get("key")
+                .asString(),
+        ).isNotEqualTo("ONE_HOLDER")
+        assertThat(firstPrior.get("source").asString()).isNotEqualTo("PROFILE")
+    }
+
+    private fun Env.assertAuditNotFound(id: String) {
+        val oneOff = id.dropLast(1) + (if (id.last() == '0') '1' else '0')
+        assertThat(auditData(oneOff)).isEmpty()
+        assertThat(auditData(id, TenantId(UUID.randomUUID()))).isEmpty()
     }
 
     private fun available(): VariationPointCatalogue = AvailableVp81(GstVariationPointCatalogue("access-svc"))
@@ -379,6 +426,8 @@ class SoleOperatorScopeValuesTest {
             assertThat(first.get("prior").isNull).isTrue()
             val firstAudit = env.auditData(first.get("auditEventId").asString()).single()
             assertThat(firstAudit.get("reason").asString()).isEqualTo("first reason")
+            assertDefaultPrior(firstAudit)
+            env.assertStoredAuditFields(firstAudit, newOption = "ONE_HOLDER", answer = first)
             // before the effective date the default applies: A holds both, so the withdrawal is refused with D2
             env.assertRefused(env.refusal { env.withdraw(ack) }, d2)
             env.advanceDays(1)
@@ -401,6 +450,7 @@ class SoleOperatorScopeValuesTest {
             // the stored entry: access.outbox row of that id, data.reason and data.priorState.value[0].key
             val stored = env.auditData(secondId).single()
             assertThat(stored.get("reason").asString()).isEqualTo("second reason")
+            env.assertStoredAuditFields(stored, newOption = "ANY_NUMBER", answer = second)
             assertThat(
                 stored
                     .get("priorState")
@@ -410,9 +460,7 @@ class SoleOperatorScopeValuesTest {
                     .asString(),
             ).isEqualTo("ONE_HOLDER")
             // probes: an id differing by one character, and the same id read in the context of another tenant
-            val oneOff = secondId.dropLast(1) + (if (secondId.last() == '0') '1' else '0')
-            assertThat(env.auditData(oneOff)).isEmpty()
-            assertThat(env.auditData(secondId, TenantId(UUID.randomUUID()))).isEmpty()
+            env.assertAuditNotFound(secondId)
             // probe: the outbox row is never rewritten, so the equality is on the stored row of that id: the first
             // entry carries the first reason and the reason equality of the second would fail on it
             assertThat(firstAudit.get("reason").asString()).isNotEqualTo(stored.get("reason").asString())
