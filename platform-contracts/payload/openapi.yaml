@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -58,6 +58,7 @@ paths:
         system issues the invoice (INV-REQ-503).
       tags: [pre-issuance]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 150
       x-sync-edge: ingestion-svc->payload-svc
       x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013]
@@ -167,6 +168,7 @@ paths:
         system issues the invoice (INV-REQ-503).
       tags: [validation]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->payload-svc
       x-error-codes: [PAY-001, PAY-002, PAY-003, PAY-004, PAY-005, PAY-006, PAY-009, PAY-011, PAY-013]
@@ -269,6 +271,7 @@ paths:
         Who approves is INV-REQ-1293 and is not decided here.
       tags: [validation]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->payload-svc
       x-error-codes: [PAY-017]
@@ -373,6 +376,7 @@ paths:
         list, is refused with `404` and SRT-005; nothing is recorded.
       tags: [rendition]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->payload-svc
       x-error-codes: [SRT-005]
@@ -470,6 +474,7 @@ paths:
         list, is refused with `404` and SRT-005.
       tags: [rendition]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->payload-svc
       x-error-codes: [SRT-001, SRT-005]
@@ -555,6 +560,7 @@ paths:
       description: Payload query API to console-bff (services.yaml payload-svc `provides`; INV-REQ-1168).
       tags: [queries]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->payload-svc
       x-timeout: 2000
       x-error-codes: []
@@ -594,6 +600,7 @@ paths:
         (FR-E.10).
       tags: [queries]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->payload-svc
       x-timeout: 2000
       x-error-codes: []
@@ -635,6 +642,7 @@ paths:
         (producer-enforced).
       tags: [queries]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->payload-svc
       x-timeout: 2000
       x-error-codes: []

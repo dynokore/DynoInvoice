@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -56,6 +56,7 @@ paths:
         (must_not) — the caller carries it to evidence-svc (AD-24).
       tags: [evaluation]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 300
       x-sync-edge: canonical-svc->rules-svc
       x-error-codes: [RUL-002, RUL-003, RUL-004, RUL-006, RUL-008, RUL-011]
@@ -114,6 +115,7 @@ paths:
         `evaluateDocument`, but callable before the document is recorded.
       tags: [evaluation]
       x-principal: ingest
+      x-caller-auth: end-user
       x-timeout: 60
       x-sync-edge: payload-svc->rules-svc
       x-error-codes: [RUL-002, RUL-003, RUL-004, RUL-011]
@@ -163,6 +165,7 @@ paths:
         editable in place once activated (FR-B.4).
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -212,6 +215,7 @@ paths:
         sign-off with RUL-007. The three counts are present on this answer only.
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -245,6 +249,7 @@ paths:
         `sourceClass` and `accepted` filters combine with AND.
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -305,6 +310,7 @@ paths:
         activate (FR-2.3).
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: [RUL-001]
@@ -364,6 +370,7 @@ paths:
         parsed, and no draft pack is created (INV-AC-3484).
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: [RUL-006]
@@ -411,6 +418,7 @@ paths:
         entry alone.
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: [RUL-007]
@@ -462,6 +470,7 @@ paths:
         already be complete (FR-B.3).
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -502,6 +511,7 @@ paths:
         code catalogue (RUL-006, RUL-009, RUL-010).
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: [RUL-006, RUL-007, RUL-009, RUL-010]
@@ -544,6 +554,7 @@ paths:
         Compensated, never undone, by `rollbackPack` (FR-AC.6).
       tags: [mapping-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -615,6 +626,7 @@ paths:
         after a `202`.
       tags: [regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: [DEP-002, DEP-003, RUL-005]
@@ -683,6 +695,7 @@ paths:
         tenant).
       tags: [regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -719,6 +732,7 @@ paths:
         activation (FR-G.8).
       tags: [regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -765,6 +779,7 @@ paths:
         `rollbackPack` plus `reprocessPopulation`.
       tags: [regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: [RUL-005]
@@ -816,6 +831,7 @@ paths:
         remedy for an armed pack is compensation, never an undo (FR-AC.6).
       tags: [regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -863,6 +879,7 @@ paths:
         supersession, for every document the superseding pack reclassifies.
       tags: [regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -939,6 +956,7 @@ paths:
         the same Idempotency-Key replays the stored `202` (API-15).
       tags: [mapping-packs, regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1052,6 +1070,7 @@ paths:
         `sgdValuesAbsent`, and `valuesAbsentCount` counts those documents.
       tags: [mapping-packs, regulatory-packs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: []

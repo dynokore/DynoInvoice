@@ -6,3 +6,5 @@ masterdata/openapi.yaml
 canonical/openapi.yaml
 control-plane/openapi.yaml
 console-bff/openapi.yaml
+payload/openapi.yaml
+rules/openapi.yaml
