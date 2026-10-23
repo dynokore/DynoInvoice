@@ -209,7 +209,7 @@ class WithdrawConsentUseCase(
         return WithdrawConsentOutcome.Withdrawn(after, repeated = false)
     }
 
-    /** A port that throws never blocks the withdrawal: the failure is reported, the statement names the list unavailable. */
+    /** A port that throws never blocks the withdrawal: it is reported and the statement names the list unavailable. */
     private fun documentsOf(consent: Consent): DocumentList =
         try {
             handover.documents.forClient(consent.client)
