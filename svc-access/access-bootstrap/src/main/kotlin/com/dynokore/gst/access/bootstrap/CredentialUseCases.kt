@@ -17,6 +17,7 @@ import com.dynokore.gst.access.application.principal.ClientSecretPolicy
 import com.dynokore.gst.access.application.principal.CreatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.CredentialIssuer
 import com.dynokore.gst.access.application.principal.CredentialMaterial
+import com.dynokore.gst.access.application.principal.CredentialPorts
 import com.dynokore.gst.access.application.principal.CredentialRepository
 import com.dynokore.gst.access.application.principal.PrincipalRepository
 import com.dynokore.gst.access.application.principal.PrincipalRevocationPublisher
@@ -91,14 +92,19 @@ class CredentialUseCases {
     ) = CredentialIssuer(credentials, material, secretPolicy)
 
     @Bean
-    fun rotatePrincipalUseCase(
+    fun credentialPorts(
         tx: TransactionRunner,
         principals: PrincipalRepository,
         credentials: CredentialRepository,
+    ) = CredentialPorts(tx, principals, credentials)
+
+    @Bean
+    fun rotatePrincipalUseCase(
+        ports: CredentialPorts,
         issuer: CredentialIssuer,
         audit: GrantAudit,
         clock: Clock,
-    ) = RotatePrincipalUseCase(tx, principals, credentials, issuer, audit, clock)
+    ) = RotatePrincipalUseCase(ports, issuer, audit, clock)
 
     @Bean
     fun withdrawCredentialUseCase(
@@ -110,13 +116,11 @@ class CredentialUseCases {
 
     @Bean
     fun authenticatePrincipalUseCase(
-        tx: TransactionRunner,
-        principals: PrincipalRepository,
-        credentials: CredentialRepository,
+        ports: CredentialPorts,
         material: CredentialMaterial,
         secretPolicy: ClientSecretPolicy,
         clock: Clock,
-    ) = AuthenticatePrincipalUseCase(tx, principals, credentials, material, secretPolicy, clock)
+    ) = AuthenticatePrincipalUseCase(ports, material, secretPolicy, clock)
 
     /** The claim port of the gateway call authenticatePrincipal (INV-Q-8982 A). */
     @Bean

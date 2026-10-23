@@ -166,19 +166,28 @@ sealed interface RotatePrincipalOutcome {
     data object NotFound : RotatePrincipalOutcome
 }
 
+/** The three ports every credential use case reads and writes through. */
+class CredentialPorts(
+    val tx: TransactionRunner,
+    val principals: PrincipalRepository,
+    val credentials: CredentialRepository,
+)
+
 /**
  * `rotatePrincipal`: a new credential is issued and every credential that was live ends [overlap] after the rotation,
  * so both authenticate in the window and the old one stops by itself at its end (INV-REQ-880, INV-AC-2044). A request
  * with no credential fields rotates nothing.
  */
 class RotatePrincipalUseCase(
-    private val tx: TransactionRunner,
-    private val principals: PrincipalRepository,
-    private val credentials: CredentialRepository,
+    ports: CredentialPorts,
     private val issuer: CredentialIssuer,
     private val audit: GrantAudit,
     private val clock: Clock,
 ) {
+    private val tx = ports.tx
+    private val principals = ports.principals
+    private val credentials = ports.credentials
+
     fun handle(
         actor: String,
         ref: String,
@@ -289,13 +298,15 @@ fun interface PrincipalTenantResolver {
  * principal included (the operation always answers 200). With VP-77 switched off, CLIENT_SECRET_BASIC is refused.
  */
 class AuthenticatePrincipalUseCase(
-    private val tx: TransactionRunner,
-    private val principals: PrincipalRepository,
-    private val credentials: CredentialRepository,
+    ports: CredentialPorts,
     private val material: CredentialMaterial,
     private val secretPolicy: ClientSecretPolicy,
     private val clock: Clock,
 ) : PrincipalAuthenticator {
+    private val tx = ports.tx
+    private val principals = ports.principals
+    private val credentials = ports.credentials
+
     override fun handle(
         principalRef: String,
         method: CredentialMethod,

@@ -77,6 +77,14 @@ sealed interface CreatePrincipalOutcome {
     data object CallingSystemMissing : CreatePrincipalOutcome
 }
 
+/** What `createPrincipal` is asked to create: the type as requested, its scope, calling system and credential. */
+data class NewPrincipal(
+    val requestedType: String,
+    val scope: String,
+    val callingSystem: String?,
+    val credential: CredentialRequest = CredentialRequest(null, null, null),
+)
+
 /** `createPrincipal`: one principal of exactly one of the six types; nothing is created on a refusal. */
 class CreatePrincipalUseCase(
     private val tx: TransactionRunner,
@@ -87,23 +95,20 @@ class CreatePrincipalUseCase(
     fun handle(
         actor: String,
         tenant: TenantRef,
-        requestedType: String,
-        scope: String,
-        callingSystem: String?,
-        credential: CredentialRequest = CredentialRequest(null, null, null),
+        request: NewPrincipal,
     ): CreatePrincipalOutcome {
-        val type = PrincipalType.ofContract(requestedType)
+        val type = PrincipalType.ofContract(request.requestedType)
         return when {
             type == null -> {
-                CreatePrincipalOutcome.TypeNotIssuable(requestedType)
+                CreatePrincipalOutcome.TypeNotIssuable(request.requestedType)
             }
 
-            type == PrincipalType.FILING_WORKFLOW && callingSystem == null -> {
+            type == PrincipalType.FILING_WORKFLOW && request.callingSystem == null -> {
                 CreatePrincipalOutcome.CallingSystemMissing
             }
 
             else -> {
-                issue(actor, tenant, type, scope, callingSystem, credential)
+                issue(actor, tenant, type, request)
             }
         }
     }
@@ -112,11 +117,12 @@ class CreatePrincipalUseCase(
         actor: String,
         tenant: TenantRef,
         type: PrincipalType,
-        scope: String,
-        callingSystem: String?,
-        credential: CredentialRequest,
+        request: NewPrincipal,
     ): CreatePrincipalOutcome =
         tx.inTransaction {
+            val scope = request.scope
+            val callingSystem = request.callingSystem
+            val credential = request.credential
             principals.findActiveByRepeatKey(type, scope, callingSystem)?.let {
                 return@inTransaction CreatePrincipalOutcome.Created(it, repeated = true)
             }

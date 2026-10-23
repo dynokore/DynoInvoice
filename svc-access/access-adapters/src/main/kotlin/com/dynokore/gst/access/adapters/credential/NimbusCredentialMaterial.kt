@@ -13,6 +13,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Instant
 import java.util.Base64
+import java.util.HexFormat
 
 /**
  * The proofs of the three credential methods (INV-REQ-880). A client secret is 256 random bits and only its SHA-256
@@ -30,9 +31,11 @@ class NimbusCredentialMaterial(
     }
 
     override fun verifierOf(secret: String): String =
-        MessageDigest.getInstance("SHA-256").digest(secret.toByteArray(Charsets.UTF_8)).joinToString("") {
-            "%02x".format(it)
-        }
+        MessageDigest
+            .getInstance(
+                "SHA-256",
+            ).digest(secret.toByteArray(Charsets.UTF_8))
+            .let { HexFormat.of().formatHex(it) }
 
     override fun isPublicJwk(json: String): Boolean =
         runCatching {

@@ -4,11 +4,8 @@ import com.dynokore.gst.access.adapters.http.AuthoriseController
 import com.dynokore.gst.access.adapters.http.GatewayAuthentication
 import com.dynokore.gst.access.adapters.http.GatewayCaller
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
+import com.dynokore.gst.access.adapters.http.PrincipalOperations
 import com.dynokore.gst.access.adapters.http.PrincipalsController
-import com.dynokore.gst.access.application.principal.CreatePrincipalUseCase
-import com.dynokore.gst.access.application.principal.RevokePrincipalUseCase
-import com.dynokore.gst.access.application.principal.RotatePrincipalUseCase
-import com.dynokore.gst.access.application.principal.WithdrawCredentialUseCase
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalRequest
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse
 import com.dynokore.gst.access.contract.model.CreatePrincipalRequest
@@ -60,10 +57,7 @@ class PrincipalKit(
     /** The controller the API gateway calls: the same use cases with the gateway check answered true. */
     val gateway: PrincipalsController =
         PrincipalsController(
-            context.getBean(CreatePrincipalUseCase::class.java),
-            context.getBean(RotatePrincipalUseCase::class.java),
-            context.getBean(RevokePrincipalUseCase::class.java),
-            context.getBean(WithdrawCredentialUseCase::class.java),
+            context.getBean(PrincipalOperations::class.java),
             context.getBean(GatewayAuthentication::class.java),
             tenants,
             context.getBean(GrantManagerCheck::class.java),
@@ -92,7 +86,6 @@ class PrincipalKit(
     fun create(
         type: String,
         scope: String = "tenant:$tenant",
-        callingSystem: String? = null,
         method: CreatePrincipalRequest.CredentialMethod? = null,
         key: ECKey? = null,
         thumbprint: String? = null,
@@ -104,7 +97,7 @@ class PrincipalKit(
                     CreatePrincipalRequest(
                         CreatePrincipalRequest.PrincipalType.valueOf(type),
                         scope,
-                        callingSystem ?: "orchestrator".takeIf { type == "FILING_WORKFLOW" },
+                        "orchestrator".takeIf { type == "FILING_WORKFLOW" },
                         method,
                         key?.let(::jwkOf),
                         thumbprint,
