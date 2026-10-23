@@ -1,6 +1,5 @@
 package com.dynokore.gst.access.adapters.http
 
-import com.dynokore.gst.access.application.principal.AuthenticatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.AuthenticationDecision
 import com.dynokore.gst.access.application.principal.CreatePrincipalOutcome
 import com.dynokore.gst.access.application.principal.CreatePrincipalUseCase
@@ -50,7 +49,7 @@ open class PrincipalsController(
     private val rotate: RotatePrincipalUseCase,
     private val revoke: RevokePrincipalUseCase,
     private val withdraw: WithdrawCredentialUseCase,
-    private val authenticate: AuthenticatePrincipalUseCase,
+    private val authenticate: GatewayAuthentication,
     private val tenants: TenantContext,
     private val manager: GrantManagerCheck,
     private val gateway: GatewayCaller,
@@ -169,7 +168,7 @@ open class PrincipalsController(
     ): ResponseEntity<AuthenticatePrincipalResponse> {
         if (!gateway.isGateway()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val decision =
-            authenticate.handle(
+            authenticate.authenticate(
                 authenticatePrincipalRequest.principalRef,
                 CredentialMethod.valueOf(authenticatePrincipalRequest.method.name),
                 authenticatePrincipalRequest.proof,

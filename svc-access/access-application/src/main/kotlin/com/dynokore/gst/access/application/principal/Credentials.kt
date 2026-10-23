@@ -7,6 +7,7 @@ import com.dynokore.gst.access.domain.principal.CredentialMethod
 import com.dynokore.gst.access.domain.principal.CredentialStatus
 import com.dynokore.gst.access.domain.principal.PrincipalStatus
 import com.dynokore.gst.access.domain.principal.ServicePrincipal
+import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 import java.time.Duration
@@ -265,6 +266,23 @@ sealed interface AuthenticationDecision {
     ) : AuthenticationDecision
 }
 
+/** The decision on a presented proof under the bound tenant (the seam the gateway adapter calls). */
+fun interface PrincipalAuthenticator {
+    fun handle(
+        principalRef: String,
+        method: CredentialMethod,
+        proof: String,
+    ): AuthenticationDecision
+}
+
+/**
+ * The claim port of ARC 4.3 step 1a for the gateway call `authenticatePrincipal` (INV-Q-8982 A): the tenant of the one
+ * service principal with that reference, null when there is none. Called under the platform binding.
+ */
+fun interface PrincipalTenantResolver {
+    fun tenantOf(principalRef: String): TenantId?
+}
+
 /**
  * `authenticatePrincipal`: AUTHENTICATED only when the principal exists in the bound tenant, is not REVOKED, and one
  * of its credentials of the presented method is live now and proves possession. Everything else is REFUSED, an unknown
@@ -277,8 +295,8 @@ class AuthenticatePrincipalUseCase(
     private val material: CredentialMaterial,
     private val secretPolicy: ClientSecretPolicy,
     private val clock: Clock,
-) {
-    fun handle(
+) : PrincipalAuthenticator {
+    override fun handle(
         principalRef: String,
         method: CredentialMethod,
         proof: String,

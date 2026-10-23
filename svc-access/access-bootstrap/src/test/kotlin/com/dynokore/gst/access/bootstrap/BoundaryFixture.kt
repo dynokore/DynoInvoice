@@ -66,7 +66,11 @@ class MovableClock : Clock() {
     }
 
     /** Stops the clock at its present reading, so a test can state an instant exactly; [advance] still moves it. */
-    fun freeze(): Instant = Instant.now().plus(offset).truncatedTo(java.time.temporal.ChronoUnit.MICROS).also { frozenAt = it }
+    fun freeze(): Instant =
+        Instant.now().plus(offset).truncatedTo(java.time.temporal.ChronoUnit.MICROS).also {
+            frozenAt =
+                it
+        }
 
     override fun getZone(): java.time.ZoneId = ZoneOffset.UTC
 

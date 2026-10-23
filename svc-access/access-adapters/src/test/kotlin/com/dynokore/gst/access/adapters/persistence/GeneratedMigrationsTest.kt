@@ -92,7 +92,7 @@ class GeneratedMigrationsTest {
                     ),
                 "V202610220910__create_service_principal.sql" to
                     mapOf("service_principal" to "CREATE TABLE access.service_principal ("),
-                "V202610230900__create_principal_credential.sql" to
+                "V202610230910__create_principal_credential.sql" to
                     mapOf("principal_credential" to "CREATE TABLE access.principal_credential ("),
             )
         tables.forEach { (file, names) ->

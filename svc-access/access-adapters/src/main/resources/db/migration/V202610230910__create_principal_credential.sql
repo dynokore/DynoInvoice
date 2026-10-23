@@ -1,4 +1,4 @@
--- V202610230900__create_principal_credential.sql (INV-T-4937; INV-REQ-880, INV-REQ-584)
+-- V202610230910__create_principal_credential.sql (INV-T-4937; INV-REQ-880, INV-REQ-584)
 -- One credential of a service principal. Only the verifier of a secret is kept (a SHA-256 of a 256-bit random secret),
 -- never the secret; a public key or a certificate thumbprint is public material. A credential is withdrawn by status
 -- and ends by valid_until; the runtime login never deletes.

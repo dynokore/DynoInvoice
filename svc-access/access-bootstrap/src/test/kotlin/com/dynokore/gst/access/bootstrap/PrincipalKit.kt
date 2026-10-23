@@ -1,10 +1,10 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.http.AuthoriseController
+import com.dynokore.gst.access.adapters.http.GatewayAuthentication
 import com.dynokore.gst.access.adapters.http.GatewayCaller
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.http.PrincipalsController
-import com.dynokore.gst.access.application.principal.AuthenticatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.CreatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.RevokePrincipalUseCase
 import com.dynokore.gst.access.application.principal.RotatePrincipalUseCase
@@ -64,7 +64,7 @@ class PrincipalKit(
             context.getBean(RotatePrincipalUseCase::class.java),
             context.getBean(RevokePrincipalUseCase::class.java),
             context.getBean(WithdrawCredentialUseCase::class.java),
-            context.getBean(AuthenticatePrincipalUseCase::class.java),
+            context.getBean(GatewayAuthentication::class.java),
             tenants,
             context.getBean(GrantManagerCheck::class.java),
             GatewayCaller { true },
@@ -145,9 +145,7 @@ class PrincipalKit(
         method: AuthenticatePrincipalRequest.Method,
         proof: String,
     ): AuthenticatePrincipalResponse =
-        asAdmin {
-            gateway.authenticatePrincipal(AuthenticatePrincipalRequest(ref, method, proof)).body!!
-        }
+        gateway.authenticatePrincipal(AuthenticatePrincipalRequest(ref, method, proof)).body!!
 
     fun decide(
         ref: String,

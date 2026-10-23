@@ -4,8 +4,10 @@ import com.dynokore.gst.access.adapters.credential.NimbusCredentialMaterial
 import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
 import com.dynokore.gst.access.adapters.credential.VariationPointClientSecretPolicy
 import com.dynokore.gst.access.adapters.events.PrincipalRevocationOutbox
+import com.dynokore.gst.access.adapters.http.GatewayAuthentication
 import com.dynokore.gst.access.adapters.persistence.JooqCredentialRepository
 import com.dynokore.gst.access.adapters.persistence.JooqPrincipalRepository
+import com.dynokore.gst.access.adapters.persistence.JooqPrincipalTenantResolver
 import com.dynokore.gst.access.adapters.persistence.JooqRevocationListWriter
 import com.dynokore.gst.access.application.authorise.MachineAuthorise
 import com.dynokore.gst.access.application.grant.EntityDirectory
@@ -18,6 +20,7 @@ import com.dynokore.gst.access.application.principal.CredentialMaterial
 import com.dynokore.gst.access.application.principal.CredentialRepository
 import com.dynokore.gst.access.application.principal.PrincipalRepository
 import com.dynokore.gst.access.application.principal.PrincipalRevocationPublisher
+import com.dynokore.gst.access.application.principal.PrincipalTenantResolver
 import com.dynokore.gst.access.application.principal.RevocationListWriter
 import com.dynokore.gst.access.application.principal.RevokePrincipalUseCase
 import com.dynokore.gst.access.application.principal.RotatePrincipalUseCase
@@ -114,6 +117,22 @@ class CredentialUseCases {
         secretPolicy: ClientSecretPolicy,
         clock: Clock,
     ) = AuthenticatePrincipalUseCase(tx, principals, credentials, material, secretPolicy, clock)
+
+    /** The claim port of the gateway call authenticatePrincipal (INV-Q-8982 A). */
+    @Bean
+    fun principalTenantResolver(
+        dsl: DSLContext,
+        tx: TransactionRunner,
+    ): PrincipalTenantResolver = JooqPrincipalTenantResolver(dsl, tx)
+
+    @Bean
+    fun gatewayAuthentication(
+        resolver: PrincipalTenantResolver,
+        platform: PlatformTenantBinding,
+        tenants: TenantContext,
+        authenticator: AuthenticatePrincipalUseCase,
+        gateway: GatewayProperties,
+    ) = GatewayAuthentication(resolver, platform, tenants, authenticator, gateway.workloadSubject)
 
     @Bean
     fun machineAuthorise(
