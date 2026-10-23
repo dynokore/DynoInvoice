@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.10.0
+  version: 1.11.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1389,7 +1389,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-10.12
-      x-error-codes: []
+      x-error-codes:
+      - TNC-004
       x-operation:
         role: entity.admin
         scope: entity
@@ -1418,6 +1419,19 @@ paths:
                   statusKind: EXCLUDED_BUSINESS
                   effectiveFrom: "2026-10-01"
       responses:
+        "200":
+          description: 'Nothing recorded: for statusKind OBLIGATION_START the obligation start cannot be derived yet, so the date stays outstanding (INV-REQ-1312, INV-REQ-335); the body repeats the request values without obligationStartDate'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityStatusResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    statusKind: OBLIGATION_START
+                    effectiveFrom: "2026-11-01"
+                    registrationStartDate: "2026-11-01"
         "201":
           description: Status recorded
           content:
@@ -1437,6 +1451,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -3172,16 +3188,14 @@ components:
           - MANDATORY_DATE
           - EARLIER_VOLUNTARY_DATE
           - IRAS_COMMUNICATED_DATE
-          default: MANDATORY_DATE
-          description: Basis of the implementation date behind obligationStartDate, the option keys of INV-REQ-1312 (INV-REQ-335 b1).
+          description: Basis of the implementation date behind obligationStartDate, the option keys of INV-REQ-1312 (INV-REQ-335 b1). A field is supplied exactly when its key is present; the service refuses a present value that differs from the derived one with 400 (INV-Q-8903).
         irasReference:
           type: string
           maxLength: 100
           description: IRAS reference of a communicated date; required when obligationStartBasis is IRAS_COMMUNICATED_DATE (INV-REQ-335 b1).
         obligationStartOverride:
           type: boolean
-          default: false
-          description: True when a GST group or division overrides the computed date (INV-REQ-335, INV-REQ-717).
+          description: True when a GST group or division overrides the computed date (INV-REQ-335, INV-REQ-717). A field is supplied exactly when its key is present; the service refuses a present value that differs from the derived one with 400 (INV-Q-8903).
       allOf:
       - if:
           required:

@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 419a4ccccdd369dbfd5ada56c4f84e5da8aaa039 (2026-10-20), the merge of invoice-docs INV-T-7555 adding TNC-001 to TNC-003 (INV-T-7556, coordinator ruling INV-Q-7553 A);
+# pinned at commit 5f36b7c72b9ef9ae68f9488e004999e8dc5586c5 (2026-10-23), the merge of invoice-docs INV-T-8917 adding TNC-004 (INV-T-8919, coordinator ruling INV-Q-8903 A);
+# previously pinned at commit 419a4ccccdd369dbfd5ada56c4f84e5da8aaa039 (2026-10-20), the merge of invoice-docs INV-T-7555 adding TNC-001 to TNC-003 (INV-T-7556, coordinator ruling INV-Q-7553 A);
 # previously pinned at cbe941f4bca53b9387023c8e05b49c112197c4bb, the merge of invoice-docs!49 naming the resolving event in MDM-001 (INV-T-7287, coordinator ruling INV-Q-7282 A);
 # previously pinned at b9bccfac02575f08d1be26a921424dcf194a90a8, the
 # merge of invoice-docs!47 adding PER-015 (INV-T-7242, coordinator ruling INV-Q-7237 A;
@@ -875,3 +876,8 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: tenant.admin
+- code: TNC-004
+  condition: 'Status record conflict: a setEntityStatus names the same entityRef, statusKind and effectiveFrom as a recorded status but carries different values; the first record stays and nothing is changed or published (HTTP 409; INV-Q-8735, INV-Q-8903)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: entity.admin
