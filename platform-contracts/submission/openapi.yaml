@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -86,6 +86,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [readiness]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [SRT-004]
       x-requirements: [INV-REQ-555, INV-REQ-1168, INV-REQ-814, INV-REQ-951, INV-REQ-1250]
@@ -186,6 +187,7 @@ paths:
         deleteAtRetentionEnd.
       tags: [readiness]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [SRT-004]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-554, INV-REQ-555, INV-REQ-814, INV-REQ-951]
@@ -263,6 +265,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [readiness]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-951]
@@ -359,6 +362,7 @@ paths:
         refused for readiness (INV-REQ-72, INV-Q-6737).
       tags: [readiness]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [PER-001]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-655, INV-REQ-914, INV-REQ-917, INV-REQ-961]
@@ -445,6 +449,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-1168, INV-REQ-629, INV-REQ-975, INV-REQ-977, INV-REQ-979]
@@ -535,6 +540,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-977, INV-REQ-978]
@@ -598,6 +604,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-629, INV-REQ-976]
@@ -651,6 +658,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-978]
@@ -731,6 +739,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]
@@ -786,6 +795,7 @@ paths:
         serves (INV-Q-6942).
       tags: [transactions]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
       x-error-codes: [SRT-001, SRT-004, SRT-005, SUB-021]
@@ -861,6 +871,7 @@ paths:
         refusal changes nothing.
       tags: [transactions]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
       x-error-codes: [SRT-001, SRT-004, SRT-005]
@@ -946,6 +957,7 @@ paths:
         decided here.
       tags: [readiness]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1019,6 +1031,7 @@ paths:
         of an operator.
       tags: [transactions]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1073,6 +1086,7 @@ paths:
         grant (INV-T-2858, T14).
       tags: [transactions]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
       x-error-codes: [SUB-008]

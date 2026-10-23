@@ -8,3 +8,5 @@ control-plane/openapi.yaml
 console-bff/openapi.yaml
 payload/openapi.yaml
 rules/openapi.yaml
+submission/openapi.yaml
+transport/openapi.yaml

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -90,6 +90,7 @@ paths:
         transmission to a third party is irreversible (§31.3, FR-AC.9).
       tags: [despatch]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 30000
       x-sync-edge: submission-svc->transport-svc
       x-error-codes: [SUB-001, SUB-002, SUB-003]
@@ -151,6 +152,7 @@ paths:
         Every transmission to a third party is irreversible (§31.3, FR-AC.9).
       tags: [despatch]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 30000
       x-sync-edge: submission-svc->transport-svc
       x-error-codes: [SUB-001, SUB-002, SUB-003]
@@ -229,6 +231,7 @@ paths:
         recalled (§31.3, FR-AC.9).
       tags: [despatch]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 30000
       x-sync-edge: submission-svc->transport-svc
       x-error-codes: [SUB-001, SUB-002, SUB-003]
@@ -291,6 +294,7 @@ paths:
         notification ID (API-27).
       tags: [notifications]
       x-principal: ap-callback
+      x-caller-auth: end-user
       x-timeout: 10000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§33.6"]
@@ -352,6 +356,7 @@ paths:
         authorised the same way.
       tags: [administration]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
@@ -409,6 +414,7 @@ paths:
         authorised the same way.
       tags: [administration]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
@@ -461,6 +467,7 @@ paths:
         role.
       tags: [administration]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
@@ -523,6 +530,7 @@ paths:
         (INV-REQ-1310) and the throughput ceiling (INV-REQ-1317).
       tags: [administration]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: [SUB-018, SUB-019]
