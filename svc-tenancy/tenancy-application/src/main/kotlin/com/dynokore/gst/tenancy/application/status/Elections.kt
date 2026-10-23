@@ -5,8 +5,8 @@ import java.time.LocalDate
 /** The implementation-date basis of VP-51 resolved for an entity on a date (INV-REQ-1312). */
 sealed interface ResolvedImplementation {
     /**
-     * The mandatory date of the latest stored assessPhase result. [recorded] is false when no VP-51 value is set for the
-     * entity or its group (the catalogue default applies).
+     * The mandatory date of the latest stored assessPhase result. [recorded] is false when no VP-51 value is set for
+     * the entity or its group (the catalogue default applies).
      */
     data class MandatoryDate(
         val recorded: Boolean,
