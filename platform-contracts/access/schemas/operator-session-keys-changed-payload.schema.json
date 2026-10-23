@@ -7,9 +7,9 @@
   "properties": {
     "keys": {
       "type": "array",
-      "description": "The operator-session signing keys: the current key and, during rotation, the next key.",
+      "description": "The signing keys of access-svc: for each use, the current key and, during rotation, the next key. An item without `use` is read as OPERATOR_SESSION. A MACHINE_ACCESS key verifies machine access tokens only, and an OPERATOR_SESSION key verifies operator-session tokens only.",
       "minItems": 1,
-      "maxItems": 2,
+      "maxItems": 4,
       "items": {
         "type": "object",
         "properties": {
@@ -18,6 +18,15 @@
             "description": "Key id, matched against the token header's kid.",
             "minLength": 1,
             "maxLength": 32
+          },
+          "use": {
+            "type": "string",
+            "description": "The use of the key: OPERATOR_SESSION verifies operator-session tokens, MACHINE_ACCESS verifies machine access tokens. An item without use is read as OPERATOR_SESSION.",
+            "enum": [
+              "OPERATOR_SESSION",
+              "MACHINE_ACCESS"
+            ],
+            "x-extensible-enum": true
           },
           "alg": {
             "type": "string",
@@ -85,6 +94,26 @@
           "publicKey": "TkVYVC1QTEFDRUhPTERFUgo=",
           "validFrom": "2026-11-01T00:00:00Z",
           "validUntil": "2026-12-15T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "kid": "ops-2026-10",
+          "use": "OPERATOR_SESSION",
+          "alg": "RS256",
+          "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
+        },
+        {
+          "kid": "machine-2026-10",
+          "use": "MACHINE_ACCESS",
+          "alg": "RS256",
+          "publicKey": "TUFDSElORS1QTEFDRUhPTERFUgo=",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
         }
       ]
     }

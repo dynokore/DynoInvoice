@@ -115,3 +115,6 @@ IssueAccessTokenResponse.decision.ISSUED	schema_enum_value	openapi.yaml	INV-REQ-
 IssueAccessTokenResponse.decision.REFUSED	schema_enum_value	openapi.yaml	INV-REQ-880
 BreakGlassResealResponse.sealingCredential	schema_property	openapi.yaml	INV-REQ-897
 AcceptFirstAdministratorInvitationResponse.sealingCredential	schema_property	openapi.yaml	INV-REQ-897
+use	property	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
+OPERATOR_SESSION	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
+MACHINE_ACCESS	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202

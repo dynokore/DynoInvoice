@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -154,7 +154,8 @@ components:
         issued by openOperatorSession) only against them, refusing it (401) while none is valid.
         access-svc publishes a key before signing with it and keeps the old key until every token it
         signed has expired. getVerificationKeys and getRevocationList stay gateway-only (owner ruling
-        INV-Q-4006 A; coordinator ruling INV-Q-4162; owner ruling INV-Q-4119).
+        INV-Q-4006 A; coordinator ruling INV-Q-4162; owner ruling INV-Q-4119). Each key item carries
+        use, OPERATOR_SESSION or MACHINE_ACCESS. access-svc keeps one signing key for each use.
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/operator-session-keys-changed-payload.schema.json'
@@ -182,6 +183,22 @@ components:
             publicKey: TkVYVC1QTEFDRUhPTERFUgo=
             validFrom: '2026-11-01T00:00:00Z'
             validUntil: '2026-12-15T00:00:00Z'
+      - name: bothUses
+        summary: One operator-session key and one machine-access key
+        payload:
+          keys:
+          - kid: ops-2026-10
+            use: OPERATOR_SESSION
+            alg: RS256
+            publicKey: U0lHTkVELVBMQUNFSE9MREVSCg==
+            validFrom: '2026-10-01T00:00:00Z'
+            validUntil: '2026-11-15T00:00:00Z'
+          - kid: machine-2026-10
+            use: MACHINE_ACCESS
+            alg: RS256
+            publicKey: TUFDSElORS1QTEFDRUhPTERFUgo=
+            validFrom: '2026-10-01T00:00:00Z'
+            validUntil: '2026-11-15T00:00:00Z'
 
     AccessAlertRaised:
       name: com.dynokore.gst.access.AccessAlertRaised.v1

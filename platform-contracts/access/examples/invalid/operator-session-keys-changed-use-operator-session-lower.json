@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kid": "k1",
+      "use": "operator_session",
+      "alg": "RS256",
+      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validUntil": "2026-11-15T00:00:00Z"
+    }
+  ]
+}

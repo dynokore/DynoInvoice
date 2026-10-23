@@ -26,3 +26,4 @@
 ../openapi.yaml#/components/schemas/BreakGlassResealResponse break-glass-reseal-response-*.json
 ../openapi.yaml#/components/schemas/AcceptFirstAdministratorInvitationResponse accept-first-administrator-invitation-response-*.json
 ../schemas/authority-head-observed-payload.schema.json authority-head-observed-*.json
+../schemas/operator-session-keys-changed-payload.schema.json operator-session-keys-changed-*.json
