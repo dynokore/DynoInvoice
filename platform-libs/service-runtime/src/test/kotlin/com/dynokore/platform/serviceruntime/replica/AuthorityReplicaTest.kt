@@ -334,4 +334,16 @@ class AuthorityReplicaTest {
         access.answer = { FallbackResult.Found(AuthorityVerdict(false)) }
         decide(PrincipalKind.MACHINE).allowed shouldBe false
     }
+
+    @Test
+    fun `with heartbeats expected, silence of 1000 ms is local and 1001 ms goes to access-svc`() {
+        replica.tracker.expectHeartbeats(Duration.ofMillis(1000))
+        grantTo(1)
+        clock.advance(Duration.ofMillis(1000))
+        decide(PrincipalKind.HUMAN).source shouldBe DecisionSource.LOCAL
+        access.calls shouldBe 0
+        clock.advance(Duration.ofMillis(1))
+        decide(PrincipalKind.HUMAN).source shouldBe DecisionSource.FALLBACK
+        access.calls shouldBe 1
+    }
 }

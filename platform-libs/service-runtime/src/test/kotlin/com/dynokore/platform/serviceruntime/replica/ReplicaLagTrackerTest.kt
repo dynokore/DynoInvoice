@@ -58,4 +58,48 @@ class ReplicaLagTrackerTest {
         tracker.observeHead(3) // reconnected
         tracker.lag() shouldBe lag(0)
     }
+
+    private fun ms(n: Long) = Lag.Measured(Duration.ofMillis(n))
+
+    private fun heartbeatTracker(): ReplicaLagTracker =
+        ReplicaLagTracker(clock).also {
+            it.onSnapshotComplete(5)
+            it.expectHeartbeats(Duration.ofMillis(1000))
+        }
+
+    @Test
+    fun `silence beyond the bound counts as a lost feed and a heartbeat ends it`() {
+        val t = heartbeatTracker()
+        clock.advance(Duration.ofMillis(1000))
+        t.lag() shouldBe ms(0)
+        clock.advance(Duration.ofMillis(1))
+        t.lag() shouldBe ms(1001)
+        clock.advance(Duration.ofMillis(499))
+        t.observeHead(5)
+        t.lag() shouldBe ms(0)
+    }
+
+    @Test
+    fun `behind since the head was seen is unchanged by the silence bound`() {
+        val t = heartbeatTracker()
+        t.observeHead(9)
+        clock.advance(Duration.ofMillis(300))
+        t.lag() shouldBe ms(300)
+    }
+
+    @Test
+    fun `silence before the snapshot marker stays unknown`() {
+        val t = ReplicaLagTracker(clock).also { it.expectHeartbeats(Duration.ofMillis(1000)) }
+        clock.advance(Duration.ofHours(1))
+        t.lag() shouldBe Lag.Unknown
+    }
+
+    @Test
+    fun `without expectHeartbeats silence changes nothing and disconnect still marks the feed lost`() {
+        tracker.onApplied(1)
+        clock.advance(Duration.ofMinutes(10))
+        tracker.lag() shouldBe ms(0)
+        tracker.onDisconnected()
+        tracker.lag() shouldBe Lag.Measured(Duration.ofMinutes(10))
+    }
 }

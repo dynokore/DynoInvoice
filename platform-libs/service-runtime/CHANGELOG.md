@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.9.0] - 2026-10-24
+### Added
+- `ReplicaLagTracker.expectHeartbeats(silenceBound)`: once called, silence longer than the bound after the last contact counts as a lost feed, so the lag grows from the last contact and `AuthorityReplica` falls back to access-svc; a tracker that never calls it is unchanged (coordinator ruling INV-Q-9047 A; INV-T-9056; INV-REQ-1201).
+
 ## [10.8.0] - 2026-10-23
 ### Added
 - `TenancyErrorCode.STATUS_RECORD_CONFLICT` (TNC-004, status 409, title "Status record conflict", owner `entity.admin`) and `TenancyErrorCode.Owner.ENTITY_ADMIN`, so that svc-tenancy renders the conflicting status repeat with `Problems.renderTenancy`; the pinned error-code snapshot is re-vendored at platform-contracts d09fddca (coordinator ruling INV-Q-8903 A; INV-T-8921; TNC-004).

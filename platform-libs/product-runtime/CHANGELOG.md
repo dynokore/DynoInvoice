@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-24
+### Changed
+- Metadata-only release (INV-T-9056, G-DVS): depends on `service-runtime 10.9.0`, whose published module metadata changed; no code change.
+
 ## [1.3.2] - 2026-10-23
 ### Changed
 - Metadata-only release (INV-T-8921, G-DVS): depends on `service-runtime 10.8.0`, whose published module metadata changed; no code change.

@@ -58,6 +58,7 @@ class ReplicaLagTracker(
     private var lastContact: Instant? = null
     private var disconnected = false
     private var synced = false
+    private var silenceBound: Duration? = null
 
     fun onApplied(version: Long) =
         synchronized(lock) {
@@ -98,6 +99,20 @@ class ReplicaLagTracker(
             disconnected = true
         }
 
+    /**
+     * The feed sends a heartbeat at least every [silenceBound] / 2, so silence longer than [silenceBound]
+     * is a lost feed, counted like [onDisconnected]: lag then grows from the last contact. Called once by
+     * a replica's feed; until it is called, silence changes nothing (INV-REQ-1201, INV-Q-9047 A).
+     */
+    fun expectHeartbeats(silenceBound: Duration) =
+        synchronized(lock) {
+            require(
+                !silenceBound.isNegative && !silenceBound.isZero,
+            ) { "silence bound must be positive, was $silenceBound" }
+            check(this.silenceBound == null) { "expectHeartbeats is called once" }
+            this.silenceBound = silenceBound
+        }
+
     /** The highest version applied so far, or -1 before the first. */
     fun appliedVersion(): Long = synchronized(lock) { applied }
 
@@ -107,7 +122,8 @@ class ReplicaLagTracker(
             if (!synced || contact == null) return Lag.Unknown
             val now = clock.instant()
             val sinceBehind = behindSince?.let { Duration.between(it, now) }
-            val sinceContact = if (disconnected) Duration.between(contact, now) else Duration.ZERO
+            val silent = silenceBound?.let { Duration.between(contact, now) > it } ?: false
+            val sinceContact = if (disconnected || silent) Duration.between(contact, now) else Duration.ZERO
             val lag = listOfNotNull(sinceBehind, sinceContact).maxOrNull() ?: Duration.ZERO
             Lag.Measured(if (lag.isNegative) Duration.ZERO else lag)
         }
