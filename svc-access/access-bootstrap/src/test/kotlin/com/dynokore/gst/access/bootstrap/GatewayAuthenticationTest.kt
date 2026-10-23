@@ -97,47 +97,52 @@ class GatewayAuthenticationTest {
 
     /** The findings of the live catalogue: what the ruling INV-Q-8982 A requires of the function and the policies. */
     private fun findings(connection: Connection): List<String> =
-        buildList {
-            connection
-                .createStatement()
-                .executeQuery(
-                    "SELECT p.prosecdef, p.proconfig::text, pg_get_userbyid(p.proowner)," +
-                        " has_function_privilege('access_runtime', p.oid, 'EXECUTE')," +
-                        " has_function_privilege('public', p.oid, 'EXECUTE')" +
-                        " FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace" +
-                        " WHERE n.nspname = 'access' AND p.proname = 'resolve_principal_tenant'",
-                ).use { rows ->
-                    if (!rows.next()) {
-                        add("the function does not exist")
-                        return@use
-                    }
-                    if (!rows.getBoolean(1)) add("not SECURITY DEFINER")
-                    if (rows.getString(2)?.contains("search_path=") != true) add("no search_path")
-                    if (rows.getString(3) != "access_sys") add("not owned by access_sys")
-                    if (!rows.getBoolean(4)) add("access_runtime cannot execute")
-                    if (rows.getBoolean(5)) add("public can execute")
-                }
-            connection
-                .createStatement()
-                .executeQuery(
-                    "SELECT policyname, roles::text FROM pg_policies" +
-                        " WHERE schemaname = 'access' AND tablename = 'service_principal'",
-                ).use { rows ->
-                    val reaching = mutableListOf<String>()
-                    while (rows.next()) {
-                        val roles = rows.getString(2).trim('{', '}').split(',')
-                        if ("access_runtime" in roles || "public" in roles) reaching += rows.getString(1)
-                        if (rows.getString(1) != "tenant_isolation" && roles != listOf("access_sys")) {
-                            add("a policy outside tenant_isolation lists ${rows.getString(2)}")
-                        }
-                    }
-                    if (reaching !=
-                        listOf("tenant_isolation")
-                    ) {
-                        add("policies reaching access_runtime or public: $reaching")
+        functionFindings(connection) + policyFindings(connection)
+
+    private fun functionFindings(connection: Connection): List<String> =
+        connection
+            .createStatement()
+            .executeQuery(
+                "SELECT p.prosecdef, p.proconfig::text, pg_get_userbyid(p.proowner)," +
+                    " has_function_privilege('access_runtime', p.oid, 'EXECUTE')," +
+                    " has_function_privilege('public', p.oid, 'EXECUTE')" +
+                    " FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace" +
+                    " WHERE n.nspname = 'access' AND p.proname = 'resolve_principal_tenant'",
+            ).use { rows ->
+                if (!rows.next()) return@use listOf("the function does not exist")
+                listOfNotNull(
+                    "not SECURITY DEFINER".takeUnless { rows.getBoolean(1) },
+                    "no search_path".takeUnless { rows.getString(2)?.contains("search_path=") == true },
+                    "not owned by access_sys".takeUnless { rows.getString(3) == "access_sys" },
+                    "access_runtime cannot execute".takeUnless { rows.getBoolean(4) },
+                    "public can execute".takeIf { rows.getBoolean(5) },
+                )
+            }
+
+    private fun policyFindings(connection: Connection): List<String> =
+        connection
+            .createStatement()
+            .executeQuery(
+                "SELECT policyname, roles::text FROM pg_policies" +
+                    " WHERE schemaname = 'access' AND tablename = 'service_principal'",
+            ).use { rows ->
+                val reaching = mutableListOf<String>()
+                val stray = mutableListOf<String>()
+                while (rows.next()) {
+                    val roles = rows.getString(2).trim('{', '}').split(',')
+                    if ("access_runtime" in roles || "public" in roles) reaching += rows.getString(1)
+                    if (rows.getString(1) != "tenant_isolation" && roles != listOf("access_sys")) {
+                        stray += "a policy outside tenant_isolation lists ${rows.getString(2)}"
                     }
                 }
-        }
+                stray +
+                    listOfNotNull(
+                        "policies reaching access_runtime or public: $reaching".takeUnless {
+                            reaching ==
+                                listOf("tenant_isolation")
+                        },
+                    )
+            }
 
     private fun probe(statement: String): List<String> =
         BoundaryFixture.asSuperuser { connection ->
