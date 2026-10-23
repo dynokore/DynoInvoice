@@ -4,3 +4,5 @@ access/openapi.yaml
 service-runtime/openapi.yaml
 masterdata/openapi.yaml
 canonical/openapi.yaml
+control-plane/openapi.yaml
+console-bff/openapi.yaml

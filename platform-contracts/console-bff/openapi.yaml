@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -84,6 +84,7 @@ paths:
         call (x-timeout 3000).
       tags: [exceptions]
       x-principal: reporting
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-869, INV-REQ-871, INV-REQ-905, INV-REQ-1232]
@@ -159,6 +160,7 @@ paths:
         call (x-timeout 3000): the one routed command.
       tags: [exceptions]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-500]
@@ -225,6 +227,7 @@ paths:
         call (x-timeout 3000): the one routed command.
       tags: [evidence]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-988, INV-REQ-989]
@@ -287,6 +290,7 @@ paths:
         5000): masterdata-svc, then evidence-svc.
       tags: [privacy]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 5000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1379]
