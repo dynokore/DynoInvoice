@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -1035,8 +1035,12 @@ paths:
         an adapter's classification interactively, from the console, before
         any real feed runs. Recorded in the test namespace exactly as API-32
         describes; never becomes a production record and is never counted.
+        An `entityRef` outside the principal's entity set is refused with
+        `403` and the code SRT-004 before the handler runs (API-24); a request
+        without `entityRef` is the service's own concern.
       tags: [administration]
       x-principal: filing-workflow
+      x-entity-ref: entityRef
       x-timeout: 2000
       x-sync-edge: console-bff->ingestion-svc
       x-error-codes: []

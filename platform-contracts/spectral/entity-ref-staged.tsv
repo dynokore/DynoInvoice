@@ -1,5 +1,4 @@
 directory	operationId
-ingestion	sendTestEvent
 notification	createWebhookSubscription
 tenancy	offboardTenant
 tenancy	recordAppliedOperatingProfile
