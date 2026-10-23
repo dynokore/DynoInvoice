@@ -2718,6 +2718,7 @@ components:
           - BY_HAND
           - DIRECTORY_GROUPS
           - SCIM
+          x-extensible-enum: true
         sealingCredential:
           type: string
           minLength: 1
