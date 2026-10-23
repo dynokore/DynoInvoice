@@ -164,7 +164,9 @@ class SoleOperatorScopeValuesTest {
         fun granted(
             identity: String,
             role: String,
-        ) = assertThat(grant(identity, role).statusCode.value()).isEqualTo(201)
+        ) {
+            assertThat(grant(identity, role).statusCode.value()).isEqualTo(201)
+        }
 
         // ---- the setting path: the mounted servlet --------------------------------------------------------------
 
@@ -257,6 +259,23 @@ class SoleOperatorScopeValuesTest {
                 context.startupFailure?.let { throw it }
                 block(Env(context, tenant))
             }
+    }
+
+    /**
+     * The stored row's actor, action, tenant scope and prior value, and the new value of the answer of the same call
+     * (the stored data holds no new-value field; the answer's `auditEventId` is the key of the stored row).
+     */
+    private fun Env.assertStoredAuditFields(
+        stored: JsonNode,
+        newOption: String,
+        answer: JsonNode,
+    ) {
+        assertThat(stored.get("actor").asString()).isEqualTo("user:tenant-admin")
+        assertThat(stored.get("action").asString()).isEqualTo("setPolicy")
+        assertThat(stored.get("scope").asString()).isEqualTo("TENANT:${tenant.value}")
+        assertThat(stored.get("priorState").get("vpId").asString()).isEqualTo("VP-81")
+        assertThat(stored.get("priorState").get("scope").asString()).isEqualTo("TENANT:${tenant.value}")
+        assertThat(answer.get("selected").get(0).get("option").asString()).isEqualTo(newOption)
     }
 
     private fun assertDefaultPrior(audit: JsonNode) {
@@ -408,6 +427,7 @@ class SoleOperatorScopeValuesTest {
             val firstAudit = env.auditData(first.get("auditEventId").asString()).single()
             assertThat(firstAudit.get("reason").asString()).isEqualTo("first reason")
             assertDefaultPrior(firstAudit)
+            env.assertStoredAuditFields(firstAudit, newOption = "ONE_HOLDER", answer = first)
             // before the effective date the default applies: A holds both, so the withdrawal is refused with D2
             env.assertRefused(env.refusal { env.withdraw(ack) }, d2)
             env.advanceDays(1)
@@ -430,6 +450,7 @@ class SoleOperatorScopeValuesTest {
             // the stored entry: access.outbox row of that id, data.reason and data.priorState.value[0].key
             val stored = env.auditData(secondId).single()
             assertThat(stored.get("reason").asString()).isEqualTo("second reason")
+            env.assertStoredAuditFields(stored, newOption = "ANY_NUMBER", answer = second)
             assertThat(
                 stored
                     .get("priorState")
