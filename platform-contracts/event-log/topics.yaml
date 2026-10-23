@@ -61,6 +61,7 @@ topics:
     retained_while_resolvable: false
     producers:
       - access-svc
+      - control-plane-svc
     subscribers:
       - notification-svc
   - topic: gst.access.operator-session-keys-changed.v1
@@ -881,6 +882,7 @@ replay_topics:
       - submission-svc
   - topic: gst.control-plane.replay-notification.v1
     event_types:
+      - com.dynokore.gst.access.MessageRequested.v1
       - com.dynokore.gst.platform.AccreditationAlertRaised.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false

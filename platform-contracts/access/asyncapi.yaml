@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -178,7 +178,7 @@ components:
       summary: MessageRequested — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event MessageRequested (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: access-svc. Consumed by: notification-svc. Delivery: At-least-once.
+        class: domain). Emitted by: access-svc, control-plane-svc. Consumed by: notification-svc. Delivery: At-least-once.
         Payload (catalogue text): template, recipients, channel (e-mail or SMS), link reference or sealed
         passcode (FR-AG.70) — never invoice content. Authored by INV-T-2853 (T9).
       contentType: application/cloudevents+json
