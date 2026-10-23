@@ -1,0 +1,3 @@
+# INV-T-7645. Baseline row of the audited operation correctPersonalData (INV-REQ-2588 behavior 1).
+identifier	kind	file	requirement
+correctPersonalData	operation	openapi.yaml	INV-REQ-2588

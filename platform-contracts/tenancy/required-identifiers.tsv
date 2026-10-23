@@ -62,3 +62,14 @@ EntityStatusResponse.registrationStartDate	schema_property	openapi.yaml	INV-REQ-
 PhaseAssessmentResponse.phase.PHASE_4	schema_enum_value	openapi.yaml	INV-REQ-334
 PhaseAssessmentResponse.phase.PHASE_5	schema_enum_value	openapi.yaml	INV-REQ-334
 PhaseAssessmentResponse.phase.PHASE_6	schema_enum_value	openapi.yaml	INV-REQ-334
+# INV-T-7645. Baseline rows of the audited operations (INV-REQ-2588 behavior 1) of tenancy that existed without a row.
+answerQuestionnaire	operation	openapi.yaml	INV-REQ-2588
+changeFilingFrequency	operation	openapi.yaml	INV-REQ-2588
+confirmPeriods	operation	openapi.yaml	INV-REQ-2588
+createWorkspace	operation	openapi.yaml	INV-REQ-2588
+electRateSource	operation	openapi.yaml	INV-REQ-2588
+installLicence	operation	openapi.yaml	INV-REQ-2588
+recordElection	operation	openapi.yaml	INV-REQ-2588
+recordExtension	operation	openapi.yaml	INV-REQ-2588
+recordRenditionResponsibility	operation	openapi.yaml	INV-REQ-2588
+setIssuanceMode	operation	openapi.yaml	INV-REQ-2588
