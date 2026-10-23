@@ -99,6 +99,7 @@ class JooqGrantRepository(
             .set(ROLE_GRANT.VALID_UNTIL, grant.window.until?.atOffset(ZoneOffset.UTC))
             .set(ROLE_GRANT.STATUS, grant.status.name)
             .set(ROLE_GRANT.GRANT_SOURCE, grant.source.name)
+            .set(ROLE_GRANT.MAPPING_REF, grant.sourceRef)
             .set(ROLE_GRANT.CREATED_AT, now)
             .set(ROLE_GRANT.CREATED_BY, actor)
             .set(ROLE_GRANT.UPDATED_AT, now)
@@ -167,7 +168,7 @@ class JooqGrantRepository(
     private fun actor(): String =
         checkNotNull(tenants.currentActor()) { "no actor is bound: a grant change runs in a bound transaction" }
 
-    private fun toGrant(row: Record): Grant? {
+    internal fun toGrant(row: Record): Grant? {
         // a role removed from the catalogue grants nothing
         val role = Role.ofWire(row.get(ROLE_GRANT.ROLE).column("role")) ?: return null
         val tenant = TenantRef(row.get(ROLE_GRANT.TENANT_ID).column("tenant_id").toString())
@@ -191,6 +192,7 @@ class JooqGrantRepository(
                     GrantStatus.valueOf(row.get(ROLE_GRANT.STATUS).column("status")),
                     GrantSource.valueOf(row.get(ROLE_GRANT.GRANT_SOURCE).column("grant_source")),
                     row.get(ROLE_GRANT.VERSION).column("version"),
+                    row.get(ROLE_GRANT.MAPPING_REF),
                 ),
         )
     }

@@ -21,5 +21,11 @@ include:
       junit_paths: '**/build/test-results/*/TEST-*.xml'
       ac_pattern: 'INV-AC-\d+(?!\d)'
 
+# The identity-provider simulator (access-bootstrap tests) is a single-arch amd64 image in the HTTP Nexus registry. The inherited
+# tags [inv-arm64] (the Mac runner) cannot pull it, so the tags are cleared and the job runs on the amd64 group runner like
+# build-image (coordinator CI ruling, precedent INV-T-7512). Nothing else about the job changes.
+unit-test:
+  tags: []
+
 variables:
   IMAGE_NAME: "svc-access"

@@ -5,7 +5,7 @@
 biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=compileClasspath,testCompileClasspath
 ch.qos.logback:logback-classic:1.5.38=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 ch.qos.logback:logback-core:1.5.38=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:platform-libs-bom:0.103.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:platform-libs-bom:0.113.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.fasterxml.jackson.core:jackson-annotations:2.22=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.fasterxml:classmate:1.7.3=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
@@ -134,7 +134,7 @@ org.springframework:spring-expression:7.0.9=compileClasspath,runtimeClasspath,te
 org.springframework:spring-web:7.0.9=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.springframework:spring-webmvc:7.0.9=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.yaml:snakeyaml:2.6=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-platform-contracts-bundle:platform-contracts:0.0.0-dev+4207f8c3=contractsBundle
+platform-contracts-bundle:platform-contracts:0.0.0-dev+d6f0aac8=contractsBundle
 tools.jackson.core:jackson-core:3.2.3=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 tools.jackson.core:jackson-databind:3.2.3=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 tools.jackson.module:jackson-module-kotlin:3.2.3=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath

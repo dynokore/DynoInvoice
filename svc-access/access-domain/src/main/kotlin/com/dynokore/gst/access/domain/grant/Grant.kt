@@ -21,11 +21,16 @@ data class GrantHeader(
     val identity: IdentityRef,
 )
 
-/** The lifecycle of a grant: its status, how it was provisioned and the optimistic-concurrency version of its row. */
+/**
+ * The lifecycle of a grant: its status, how it was provisioned and the optimistic-concurrency version of its row.
+ * [sourceRef] is the reference of the directory-group mapping a [GrantSource.DIRECTORY_GROUPS] grant was made from
+ * (INV-REQ-892), null for any other source.
+ */
 data class GrantState(
     val status: GrantStatus,
     val source: GrantSource,
     val version: Long,
+    val sourceRef: String? = null,
 )
 
 /**
@@ -46,6 +51,7 @@ class Grant(
     val status: GrantStatus get() = state.status
     val source: GrantSource get() = state.source
     val version: Long get() = state.version
+    val sourceRef: String? get() = state.sourceRef
 
     init {
         require(version >= 0) { "version must not be negative" }
@@ -72,18 +78,18 @@ class Grant(
         if (status == GrantStatus.REVOKED) {
             this
         } else {
-            Grant(header, role, scope, window, GrantState(GrantStatus.REVOKED, source, version + 1))
+            Grant(header, role, scope, window, GrantState(GrantStatus.REVOKED, source, version + 1, sourceRef))
         }
 
     companion object {
-        /** A new active grant at version 0. */
+        /** A new grant at version 0: active and by hand unless [state] says how it was provisioned. */
         fun issue(
             header: GrantHeader,
             role: Role,
             scope: Scope,
             window: ValidityWindow,
-            source: GrantSource = GrantSource.BY_HAND,
-        ): Grant = Grant(header, role, scope, window, GrantState(GrantStatus.ACTIVE, source, 0))
+            state: GrantState = GrantState(GrantStatus.ACTIVE, GrantSource.BY_HAND, 0),
+        ): Grant = Grant(header, role, scope, window, state)
     }
 }
 

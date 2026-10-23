@@ -114,8 +114,16 @@ val stageContractResources =
             into("gst/contracts/access")
         }
         from(stagedRepo.map { it.dir(".bundle/service-runtime/schemas") }) {
-            include("error-envelope.schema.json", "cloud-event-envelope.schema.json")
+            include(
+                "error-envelope.schema.json",
+                "cloud-event-envelope.schema.json",
+                "break-glass-alert-raised-payload.schema.json",
+            )
             into("gst/contracts/service-runtime/schemas")
+        }
+        from(stagedRepo.map { it.dir(".bundle/service-runtime") }) {
+            include("asyncapi.yaml")
+            into("gst/contracts/service-runtime")
         }
         into(contractResources)
     }

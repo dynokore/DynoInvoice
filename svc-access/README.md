@@ -40,6 +40,24 @@ in one pass:
   -x test --continue --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache
 ```
 
+## Identity provider, group mapping and break-glass (INV-T-4938)
+
+- `access.identity-provider.issuer-uri` (required, env `ACCESS_IDP_ISSUER_URI`) is the issuer of the `IdentityProvider`
+  binding; service-runtime builds the `EndUserPrincipalResolver` from it. No class of this repository implements the port.
+- `access.identity-provider.directory.{base-uri,realm,client-id,client-secret-ref}` (all required, no default, env
+  `ACCESS_IDP_DIRECTORY_*`) say where directory groups are read: the Keycloak Admin REST API of the realm, with the
+  client-credentials token of the read-only client `access-svc-directory-reader`. `client-secret-ref` is a SecretStore
+  reference. A customer directory that is not Keycloak is federated or brokered into Keycloak (INV-Q-8835 A).
+- `access.idp-group-sync.interval` (required, ISO-8601, `PT15M` in `application.yaml`) is the interval of the directory-group
+  synchronisation (owner item INV-Q-8667). There is no default in code. The scheduler finds the tenants through
+  `access.claim_idp_sync_tenants()` (a `SECURITY DEFINER` function owned by `access_sys`, executable by `access_runtime`
+  only) and binds each tenant before it runs the use case.
+- `mapIdpGroup`, `unmapIdpGroup`, `unlockBreakGlass` and `recordBreakGlassAction` are built. ACC-002 travels as the
+  platform event `BreakGlassAlertRaised`; `AccessAlertRaised` stays the entity-scoped event of ACC-001, ACC-003 and
+  ACC-004 (its publisher is `AccessAlertOutbox`, wired by INV-T-4941). `signInBreakGlass` and `resealBreakGlass` are
+  INV-T-8853.
+- The simulator image of the tests is named by digest in `access-bootstrap/src/test/resources/simulators.properties`.
+
 ## Open items
 
 - INV-AC-1912 (entity-scope row policy) is deferred to INV-T-7520 (INV-Q-7453 option B): its row in `ac-keys.tsv` carries

@@ -19,6 +19,7 @@ service-runtime:
   modules.schema: access
   idempotency.schema: access                        # the API-15 Idempotency-Key store of the setPolicy servlet (INV-T-4935)
   workload-identity.audience: access-svc
+  end-user-identity.audience: access-svc            # the audience end-user tokens must carry for this service (STK-27)
   pool:
     runs-reprocessing: false                        # access-svc runs no pack-activation reprocessing (INV-Q-4485)
   datasource.credential: db/access_runtime          # the runtime login only; read through SecretStore on every new connection
@@ -45,8 +46,24 @@ inv:
     platform-scoped-tables:
       - access.config_purge_tenant
       - access.write_installation_setting
+      # The claim function of the group synchronisation (INV-T-4938): one tenant_id per tenant with an ACTIVE mapping, no tenant data.
+      - access.claim_idp_sync_tenants
 access:
   gateway:
     # The service account of the API gateway (edge api-gateway->access-svc): the only caller of getRevocationList and
     # getVerificationKeys. Set per installation by the Helm values; there is no default.
     workload-subject: ${ACCESS_GATEWAY_WORKLOAD_SUBJECT}
+  identity-provider:
+    # The OIDC issuer of the IdentityProvider binding: the platform provider in SaaS, the customer's directory in
+    # private. Set per installation by the Helm values; there is no default.
+    issuer-uri: ${ACCESS_IDP_ISSUER_URI}
+    # Where the directory groups are read (INV-Q-8833 A): the Keycloak Admin REST API of the realm, with the client-credentials
+    # token of the read-only client access-svc-directory-reader. Set per installation by the Helm values; there is no
+    # default. The secret is not here: client-secret-ref names it in the SecretStore.
+    directory:
+      base-uri: ${ACCESS_IDP_DIRECTORY_BASE_URI}
+      realm: ${ACCESS_IDP_DIRECTORY_REALM}
+      client-id: ${ACCESS_IDP_DIRECTORY_CLIENT_ID}
+      client-secret-ref: ${ACCESS_IDP_DIRECTORY_CLIENT_SECRET_REF}
+  idp-group-sync:
+    interval: PT15M                                 # the owner's figure (INV-Q-8667): the directory groups are read every 15 minutes

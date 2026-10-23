@@ -23,6 +23,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.outboxandqueue.StagedOutboxRow
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
@@ -65,7 +66,7 @@ class MovableClock : Clock() {
     }
 
     /** Stops the clock at its present reading, so a test can state an instant exactly; [advance] still moves it. */
-    fun freeze(): Instant = Instant.now().plus(offset).also { frozenAt = it }
+    fun freeze(): Instant = Instant.now().plus(offset).truncatedTo(java.time.temporal.ChronoUnit.MICROS).also { frozenAt = it }
 
     override fun getZone(): java.time.ZoneId = ZoneOffset.UTC
 
@@ -178,13 +179,13 @@ class CapturingOutboxWriter(
     override fun stage(
         events: List<OutboundEvent>,
         context: EventContext,
-    ) = delegate.stage(events, context)
+    ): List<StagedOutboxRow> = delegate.stage(events, context)
 }
 
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
     private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
-    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4934")
+    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4938")
 
     private val migrationsDir: Path = Path.of("..", "access-adapters", "src", "main", "resources", "db", "migration")
     private val provisioning: Path =
@@ -296,6 +297,11 @@ object BoundaryFixture {
                 "service-runtime.pool.profile=minimal",
                 "service-runtime.event-loops.enabled=false",
                 "access.gateway.workload-subject=system:serviceaccount:gateway:api-gateway",
+                "access.identity-provider.issuer-uri=http://127.0.0.1:1/realms/boundary-test",
+                "access.identity-provider.directory.base-uri=http://127.0.0.1:1",
+                "access.identity-provider.directory.realm=boundary-test",
+                "access.identity-provider.directory.client-id=access-svc-directory-reader",
+                "access.identity-provider.directory.client-secret-ref=idp/directory-reader-secret",
                 "gst.bindings.secret-store.mount-root=${TestSecrets.mount(RUNTIME_PASSWORD)}",
                 "service-runtime.datasource.credential=db/access_runtime",
             )

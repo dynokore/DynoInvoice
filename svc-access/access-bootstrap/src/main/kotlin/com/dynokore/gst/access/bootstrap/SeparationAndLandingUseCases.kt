@@ -1,5 +1,7 @@
 package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.audit.OutboxGrantAudit
+import com.dynokore.gst.access.adapters.breakglass.BreakGlassPairConstraints
+import com.dynokore.gst.access.adapters.breakglass.ValueConstraintsChain
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
@@ -79,12 +81,18 @@ class SeparationAndLandingUseCases {
         mapper: ObjectMapper,
     ): RolePrecedence = VariationPointRolePrecedence(reader, tenants, clock, mapper)
 
-    /** The check `setPolicy` asks of its owning service for VP-73 (INV-Q-3167); no other variation point is checked. */
+    /**
+     * The checks `setPolicy` asks of its owning service (INV-Q-3167): VP-73 and the pair of VP-08; no other variation
+     * point is checked.
+     */
     @Bean
-    fun rolePrecedenceConstraints(
+    fun valueConstraints(
         catalogue: RoleCatalogue,
         mapper: ObjectMapper,
-    ): ValueConstraints = RolePrecedenceConstraints(catalogue, mapper)
+    ): ValueConstraints =
+        ValueConstraintsChain(
+            listOf(RolePrecedenceConstraints(catalogue, mapper), BreakGlassPairConstraints(catalogue, mapper)),
+        )
 
     @Bean
     fun landingScreens(

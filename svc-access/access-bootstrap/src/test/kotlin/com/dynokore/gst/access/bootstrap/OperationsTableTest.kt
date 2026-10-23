@@ -166,6 +166,86 @@ class OperationsTableTest {
         ).containsExactly("operation recordSoleOperator: task is INV-T-4934, not INV-T-4935")
     }
 
+    /** The rows INV-T-4938 names: `unlockBreakGlass`, `recordBreakGlassAction` and the channel. */
+    private fun taskFindingsOf4938(lines: List<String>): List<String> {
+        val rows = rows(lines).first.associateBy { it.kind to it.name }
+        return listOf(
+            "operation" to "unlockBreakGlass",
+            "operation" to "recordBreakGlassAction",
+            "channel" to "accessAccessAlertRaised",
+        ).mapNotNull { key ->
+            val task = rows[key]?.task
+            if (task ==
+                "INV-T-4938"
+            ) {
+                null
+            } else {
+                "${key.first} ${key.second}: task is ${task ?: "missing"}, not INV-T-4938"
+            }
+        }
+    }
+
+    /** The two rows that moved to INV-T-8853 (INV-Q-8855 A): `signInBreakGlass` and `resealBreakGlass`. */
+    private fun movedFindings(lines: List<String>): List<String> {
+        val rows = rows(lines).first.associateBy { it.kind to it.name }
+        return listOf("signInBreakGlass", "resealBreakGlass").mapNotNull { name ->
+            val task = rows["operation" to name]?.task
+            if (task == "INV-T-8853") null else "operation $name: task is ${task ?: "missing"}, not INV-T-8853"
+        }
+    }
+
+    @Test
+    fun `the rows of signInBreakGlass and resealBreakGlass name INV-T-8853 and probes against it fail`() {
+        assertThat(movedFindings(table)).isEmpty()
+        val signIn =
+            table.map { it.replace("\tsignInBreakGlass\tINV-T-8853\t", "\tsignInBreakGlass\tINV-T-4938\t") }
+        assertThat(
+            movedFindings(signIn),
+        ).containsExactly("operation signInBreakGlass: task is INV-T-4938, not INV-T-8853")
+        val reseal =
+            table.map { it.replace("\tresealBreakGlass\tINV-T-8853\t", "\tresealBreakGlass\tUNASSIGNED\t") }
+        assertThat(
+            movedFindings(reseal),
+        ).containsExactly("operation resealBreakGlass: task is UNASSIGNED, not INV-T-8853")
+        val lookAlike =
+            table.map { it.replace("\tresealBreakGlass\tINV-T-8853\t", "\tresealBreakGlass\tINV-T-88530\t") }
+        assertThat(movedFindings(lookAlike)).hasSize(1)
+    }
+
+    @Test
+    fun `the task column of the rows INV-T-4938 names is INV-T-4938 and probes against it fail`() {
+        assertThat(taskFindingsOf4938(table)).isEmpty()
+        val unassigned =
+            table.map {
+                it.replace(
+                    "\tunlockBreakGlass\tINV-T-4938\t",
+                    "\tunlockBreakGlass\tUNASSIGNED\t",
+                )
+            }
+        assertThat(taskFindingsOf4938(unassigned))
+            .containsExactly("operation unlockBreakGlass: task is UNASSIGNED, not INV-T-4938")
+        listOf("INV-T-4941", "INV-T-49380").forEach { other ->
+            val channel =
+                table.map {
+                    it.replace(
+                        "\taccessAccessAlertRaised\tINV-T-4938\t",
+                        "\taccessAccessAlertRaised\t$other\t",
+                    )
+                }
+            assertThat(taskFindingsOf4938(channel))
+                .containsExactly("channel accessAccessAlertRaised: task is $other, not INV-T-4938")
+        }
+        val lookAlike =
+            table.map {
+                it.replace(
+                    "\trecordBreakGlassAction\tINV-T-4938\t",
+                    "\trecordBreakGlassAction\tINV-T-49380\t",
+                )
+            }
+        assertThat(taskFindingsOf4938(lookAlike))
+            .containsExactly("operation recordBreakGlassAction: task is INV-T-49380, not INV-T-4938")
+    }
+
     @Test
     fun `probe - done-tasks gate fails on a missing file, a bad line, a task with no row and a 501 operation`() {
         assertThat(verifyDone(doneTasks)).isEmpty()
@@ -212,6 +292,29 @@ class OperationsTableTest {
         assertThat(verify(emptyList())).isNotEmpty()
         assertThat(verify(table.drop(1))).anyMatch { "header must be" in it }
         assertThat(File("../operations-missing.tsv")).doesNotExist()
+    }
+
+    /** The two operations INV-T-8853 builds: before it merges, no POST to their paths may answer 2xx (INV-Q-8855 A). */
+    private fun servedFindings(answers: (OperationRef) -> Int): List<String> =
+        listOf("signInBreakGlass", "resealBreakGlass").mapNotNull { name ->
+            val operation = contract.operations[name] ?: return@mapNotNull "operation $name is not in the contract"
+            val status = answers(operation)
+            if (status in 200..299) "operation $name answers $status" else null
+        }
+
+    @Test
+    fun `signInBreakGlass and resealBreakGlass answer no 2xx here and a stub that answers 200 fails the check`() {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val web = context.sourceApplicationContext as WebApplicationContext
+            val mvc = MockMvcBuilders.webAppContextSetup(web).build()
+            assertThat(servedFindings { statusOf(mvc, it) }).isEmpty()
+        }
+        // probes: a stub that answers 200 on either path fails, and so does one that answers 201
+        assertThat(servedFindings { 200 })
+            .containsExactly("operation signInBreakGlass answers 200", "operation resealBreakGlass answers 200")
+        assertThat(servedFindings { if (it.path.endsWith("/reseal")) 201 else 404 })
+            .containsExactly("operation resealBreakGlass answers 201")
     }
 
     private fun statusOf(
