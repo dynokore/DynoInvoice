@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -98,14 +98,14 @@ components:
       summary: AuthorityChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event AuthorityChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: access-svc. Consumed by: console-bff, notification-svc. Delivery:
+        class: domain). Emitted by: access-svc. Consumed by: aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Delivery:
         At-least-once. Payload (catalogue text): grant, consent, principal or revocation change, with
         validity and a monotonic authority version. Authored by INV-T-2853 (T9). INV-T-3298
         (INV-API-3325, INV-Q-3322 (b), INV-Q-3339) adds, additively, one record per event: a
         grantRecord with one entity's full grant state per (principal, entity), a consentRecord per
         client entity, or a principalRecord for a deletion or revocation, each versioned by the
         event's authorityVersion. Every service's authority replica is fed from this topic
-        (INV-REQ-1201, INV-ADR-284); an event without any record is denied, never kept. CloudEvents
+        (INV-REQ-1201, INV-ADR-284). access-svc, the source, does not subscribe: it decides from its own store (INV-Q-8994). An event without any record is denied, never kept. CloudEvents
         subject is principalRef/entityRef (consent record tenant/clientEntityRef; principal record
         principalRef).
       contentType: application/cloudevents+json

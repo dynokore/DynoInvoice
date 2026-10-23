@@ -52,8 +52,20 @@ topics:
     producers:
       - access-svc
     subscribers:
+      - aggregation-svc
+      - canonical-svc
       - console-bff
+      - control-plane-svc
+      - evidence-svc
+      - ingestion-svc
+      - masterdata-svc
       - notification-svc
+      - payload-svc
+      - reconciliation-svc
+      - rules-svc
+      - submission-svc
+      - tenancy-svc
+      - transport-svc
   - topic: gst.access.message-requested.v1
     event_type: com.dynokore.gst.access.MessageRequested.v1
     content_topic: false
@@ -590,6 +602,7 @@ topics:
 replay_topics:
   - topic: gst.access.replay-aggregation.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -601,6 +614,7 @@ replay_topics:
       - aggregation-svc
   - topic: gst.access.replay-canonical.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -625,6 +639,7 @@ replay_topics:
       - console-bff
   - topic: gst.access.replay-control-plane.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -636,6 +651,7 @@ replay_topics:
       - control-plane-svc
   - topic: gst.access.replay-evidence.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
@@ -648,6 +664,7 @@ replay_topics:
       - evidence-svc
   - topic: gst.access.replay-ingestion.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -659,6 +676,7 @@ replay_topics:
       - ingestion-svc
   - topic: gst.access.replay-masterdata.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -686,6 +704,7 @@ replay_topics:
       - notification-svc
   - topic: gst.access.replay-payload.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -697,6 +716,7 @@ replay_topics:
       - payload-svc
   - topic: gst.access.replay-reconciliation.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -708,6 +728,7 @@ replay_topics:
       - reconciliation-svc
   - topic: gst.access.replay-rules.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -719,6 +740,7 @@ replay_topics:
       - rules-svc
   - topic: gst.access.replay-submission.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -730,6 +752,7 @@ replay_topics:
       - submission-svc
   - topic: gst.access.replay-tenancy.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -741,6 +764,7 @@ replay_topics:
       - tenancy-svc
   - topic: gst.access.replay-transport.v1
     event_types:
+      - com.dynokore.gst.access.AuthorityChanged.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
