@@ -519,6 +519,7 @@ paths:
         Otherwise the call records a proposal that takes effect only when confirmPeriods confirms the period named in
         confirmationPeriod of the response; PER-004 is raised, and PER-005 where a transitional period results. A repeat
         with the same (entityRef, effectiveFrom) and values returns the recorded response.
+        This call publishes no event; FilingFrequencyChanged is published once by confirmPeriods when it applies the proposal.
         Refusals: 422 POL-014 when the owning service refuses the change or cannot check it (SRT codes are not listed in x-error-codes).
       tags:
       - entities
@@ -592,6 +593,7 @@ paths:
         FIRST and FINAL confirm that one stored period record. TRANSITIONAL or FREQUENCY_CHANGE naming the
         confirmationPeriod of a pending changeFilingFrequency proposal applies the change. A kind or date that differs
         from the stored or proposed record is refused.
+        When it applies a proposal it publishes FilingFrequencyChanged once; confirming a record of kind FIRST or FINAL, or repeating a confirmation, publishes nothing.
         Refusals: 422 POL-014 when the kind or dates differ from the stored or proposed record (SRT codes are not listed in x-error-codes).
       tags:
       - periods
