@@ -336,8 +336,7 @@ object BoundaryFixture {
         catalogueMatrix: Boolean = false,
         form: String = "SAAS",
         mounted: Path = TestSecrets.mount(RUNTIME_PASSWORD),
-        tokenProperties: Array<String> = TestSecrets.TOKEN_PROPERTIES,
-        installationRoles: Array<String> = INSTALLATION_ROLES,
+        tokenProperties: Array<String> = TestSecrets.TOKEN_PROPERTIES + INSTALLATION_ROLES,
         requirements: ScopeItemRequirements? = FIXTURE_REQUIREMENTS,
     ): WebApplicationContextRunner =
         WebApplicationContextRunner()
@@ -361,7 +360,6 @@ object BoundaryFixture {
                 "service-runtime.event-loops.enabled=false",
                 "access.gateway.workload-subject=system:serviceaccount:gateway:api-gateway",
                 *tokenProperties,
-                *installationRoles,
                 "access.identity-provider.issuer-uri=http://127.0.0.1:1/realms/boundary-test",
                 "access.identity-provider.directory.base-uri=http://127.0.0.1:1",
                 "access.identity-provider.directory.realm=boundary-test",

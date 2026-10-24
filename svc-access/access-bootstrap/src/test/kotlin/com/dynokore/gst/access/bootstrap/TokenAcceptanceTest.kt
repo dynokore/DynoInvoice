@@ -245,8 +245,11 @@ class TokenAcceptanceTest {
     fun `INV-AC-8848 the service refuses to start without a key rotation interval`() {
         val without = TestSecrets.TOKEN_PROPERTIES.filterNot { it.startsWith("access.token.key-rotation-interval") }
         BoundaryFixture
-            .runner(mounted = TestSecrets.mount(), tokenProperties = without.toTypedArray())
-            .run { context ->
+            .runner(
+                mounted = TestSecrets.mount(),
+                tokenProperties =
+                    without.toTypedArray() + BoundaryFixture.INSTALLATION_ROLES,
+            ).run { context ->
                 val failure = context.startupFailure
                 assertThat(failure).isNotNull
                 assertThat(generateSequence(failure) { it.cause }.joinToString { it.message.orEmpty() })

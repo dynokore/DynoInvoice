@@ -43,7 +43,7 @@ class InstallationRolesTest {
     ) {
         val resolver = principals("user:op-1", "user:grantee")
         BoundaryFixture
-            .runner(installationRoles = roles)
+            .runner(tokenProperties = TestSecrets.TOKEN_PROPERTIES + roles)
             .withBean(EndUserPrincipalResolver::class.java, { resolver })
             .run { context ->
                 context.startupFailure?.let { throw it }
@@ -54,7 +54,7 @@ class InstallationRolesTest {
     private fun refusedStart(roles: Array<String>?): Throwable? {
         var failure: Throwable? = null
         BoundaryFixture
-            .runner(installationRoles = roles ?: emptyArray())
+            .runner(tokenProperties = TestSecrets.TOKEN_PROPERTIES + roles.orEmpty())
             .run { failure = it.startupFailure }
         return failure
     }
