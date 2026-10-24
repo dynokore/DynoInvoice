@@ -62,6 +62,47 @@ class DocumentPartitionTest {
         }
     }
 
+    private fun bounds(table: String): Set<String> =
+        DocumentSql
+            .rows(
+                "select pg_get_expr(child.relpartbound, child.oid) from pg_inherits i " +
+                    "join pg_class child on child.oid = i.inhrelid where i.inhparent = ?::regclass",
+                table,
+            ).map { it[0]!! }
+            .toSet()
+
+    @Test
+    fun `INV-AC-1809 the created ranges are the calendar years 2025 to 2027 with modulus 4 and a default leaf`() {
+        listOf("canonical.document", "canonical.document_version").forEach { table ->
+            bounds(table) shouldBe
+                setOf(
+                    "2025",
+                    "2026",
+                    "2027",
+                ).map { "FOR VALUES FROM ('$it-01-01') TO ('${it.toInt() + 1}-01-01')" }.toSet() +
+                "DEFAULT"
+            val years =
+                DocumentSql
+                    .rows(
+                        "select inhrelid::regclass::text from pg_inherits where inhparent = ?::regclass " +
+                            "and inhrelid in (select partrelid from pg_partitioned_table)",
+                        table,
+                    ).map { it[0]!! }
+            years.size shouldBe 3
+            years.forEach { year ->
+                bounds(year) shouldBe
+                    (0..3).map { "FOR VALUES WITH (modulus 4, remainder $it)" }.toSet()
+            }
+        }
+        val edges =
+            listOf("2024-12-31", "2028-01-01").map { day ->
+                val doc = DocumentKit.document(tenant, entity, LocalDate.parse(day))
+                kit.insert(doc)
+                holder("document", doc.docUuid)
+            }
+        edges shouldBe listOf("canonical.document_default", "canonical.document_default")
+    }
+
     @Test
     fun `INV-AC-1809 a partition date outside every created range goes to the default partition`() {
         val document = DocumentKit.document(tenant, entity, LocalDate.of(1999, 1, 1))

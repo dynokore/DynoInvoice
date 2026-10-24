@@ -81,7 +81,11 @@ class DocumentStorageTest {
         listOf("tenant_id", "entity_id").forEach { version[it] shouldBe Triple("uuid", "", "NO") }
         version["partition_date"] shouldBe Triple("date", "", "NO")
         version["version"] shouldBe Triple("integer", "", "NO")
-        version["mde_pack_version"] shouldBe Triple("character varying", "", "YES")
+        version["mde_pack_version"] shouldBe Triple("character varying", "32", "YES")
+        listOf("scope_pack_version", "mapping_pack_version").forEach {
+            version[it] shouldBe
+                Triple("character varying", "32", "NO")
+        }
     }
 
     @Test

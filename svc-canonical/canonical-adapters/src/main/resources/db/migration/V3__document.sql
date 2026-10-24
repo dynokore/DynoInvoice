@@ -33,9 +33,9 @@ create table canonical.document_version (
     partition_date date not null,
     canonical jsonb not null,
     scope_verdict text not null check (scope_verdict in ('IN_SCOPE', 'EXCLUDED_TXN', 'OUT_OF_SCOPE')),
-    scope_pack_version varchar not null,
-    mapping_pack_version varchar not null,
-    mde_pack_version varchar,
+    scope_pack_version varchar(32) not null,
+    mapping_pack_version varchar(32) not null,
+    mde_pack_version varchar(32),
     specification_version text not null check (specification_version in ('PINT_SG', 'SG_PEPPOL_BIS')),
     created_at timestamptz not null default now(),
     created_by text not null,
@@ -80,7 +80,7 @@ create table canonical.document_version_default partition of canonical.document_
 create index document_entity_document_number on canonical.document (entity_id, document_number);
 create index document_entity_transaction_date on canonical.document (entity_id, transaction_date);
 create function canonical.document_identity_check() returns trigger
-language plpgsql set search_path = pg_catalog, canonical, pg_temp as $$
+language plpgsql security definer set search_path = pg_catalog, canonical, pg_temp as $$
 begin
     perform pg_advisory_xact_lock(hashtextextended('document_identity' || chr(31) || concat_ws(chr(31), new.tenant_id,
         new.entity_id, new.direction, new.document_type_code, new.issuer_party_key, new.document_number,
@@ -98,6 +98,17 @@ begin
     return new;
 end
 $$;
+-- The function runs as its owner canonical_sys so that the doc_uuid check sees the rows of every tenant although
+-- document forces row security: the select policy and column grant below give that one NOLOGIN role the columns of the
+-- two checks. The runtime login cannot assume the role, and gets no BYPASSRLS and no privilege on another table.
+create policy document_sys_identity_select on canonical.document for select to canonical_sys using (true);
+grant select (doc_uuid, tenant_id, entity_id, direction, document_type_code, issuer_party_key, document_number,
+    fiscal_year) on canonical.document to canonical_sys;
+-- ALTER ... OWNER TO needs CREATE on the schema for the new owner; it is granted for that statement only.
+grant create on schema canonical to canonical_sys;
+alter function canonical.document_identity_check() owner to canonical_sys;
+revoke create on schema canonical from canonical_sys;
+revoke all on function canonical.document_identity_check() from public;
 create trigger document_identity_check before insert on canonical.document
     for each row execute function canonical.document_identity_check();
 
