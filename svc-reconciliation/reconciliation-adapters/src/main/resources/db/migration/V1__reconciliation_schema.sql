@@ -7,17 +7,9 @@
 -- tenancy-kernel's BindingKeyMigration.ddl; this file does not run that generator and does not switch role.
 -- The schema itself is created by Flyway (the `schemas` setting) or by the installer, owned by reconciliation_migrate.
 --
--- Read-model boundary (INV-REQ-1206, INV-AC-2189, INV-AC-9536): the database role `reconciliation` is created here and
--- gets USAGE and CREATE on schema reconciliation and nothing on any other schema, so it cannot read the `canonical` or
--- the `submission` schema. No table of the read model is built by this task.
-do $$
-begin
-    if not exists (select 1 from pg_roles where rolname = 'reconciliation') then
-        create role reconciliation nologin nosuperuser nobypassrls;
-    end if;
-end $$;
-grant usage, create on schema reconciliation to reconciliation;
-
+-- Read-model boundary (INV-REQ-1206, INV-AC-2189, INV-AC-9536): this file creates no database role and grants nothing on
+-- any other schema, so the three roles of the family see only schema reconciliation. No table of the read model is
+-- built by this task.
 
 -- OutboxSchema.ddl("reconciliation", "reconciliation_runtime", "reconciliation_sys")
 create table reconciliation.outbox (
