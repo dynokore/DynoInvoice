@@ -337,6 +337,7 @@ object BoundaryFixture {
         form: String = "SAAS",
         mounted: Path = TestSecrets.mount(RUNTIME_PASSWORD),
         tokenProperties: Array<String> = TestSecrets.TOKEN_PROPERTIES,
+        installationRoles: Array<String> = INSTALLATION_ROLES,
         requirements: ScopeItemRequirements? = FIXTURE_REQUIREMENTS,
     ): WebApplicationContextRunner =
         WebApplicationContextRunner()
@@ -360,6 +361,7 @@ object BoundaryFixture {
                 "service-runtime.event-loops.enabled=false",
                 "access.gateway.workload-subject=system:serviceaccount:gateway:api-gateway",
                 *tokenProperties,
+                *installationRoles,
                 "access.identity-provider.issuer-uri=http://127.0.0.1:1/realms/boundary-test",
                 "access.identity-provider.directory.base-uri=http://127.0.0.1:1",
                 "access.identity-provider.directory.realm=boundary-test",
@@ -368,6 +370,15 @@ object BoundaryFixture {
                 "gst.bindings.secret-store.mount-root=$mounted",
                 "service-runtime.datasource.credential=db/access_runtime",
             )
+
+    /** The configured installation-scope roles of the test contexts (INV-AC-9212). */
+    val INSTALLATION_ROLES: Array<String> =
+        arrayOf(
+            "access.installation-roles[0].subject=user:op-1",
+            "access.installation-roles[0].role=deployment.operator",
+            "access.installation-roles[1].subject=user:eng-1",
+            "access.installation-roles[1].role=platform.engineer",
+        )
 
     /** Test data: the one permission the fixture matrix gives an agent needs the item SUBMIT_INVOICE_DATA. */
     private val FIXTURE_REQUIREMENTS =

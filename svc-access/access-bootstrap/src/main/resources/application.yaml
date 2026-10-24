@@ -49,6 +49,9 @@ inv:
       # The claim function of the group synchronisation (INV-T-4938): one tenant_id per tenant with an ACTIVE mapping, no tenant data.
       - access.claim_idp_sync_tenants
 access:
+  # installation-roles: the subjects that hold platform.engineer (SaaS) or deployment.operator (private) at installation
+  # scope (INV-Q-8789 A), a list of entries with a subject and a role. Set per installation; there is no default and
+  # start-up fails when it is absent. The empty list is valid.
   gateway:
     # The service account of the API gateway (edge api-gateway->access-svc): the only caller of getRevocationList and
     # getVerificationKeys. Set per installation by the Helm values; there is no default.

@@ -2,6 +2,7 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.events.AccessEventCatalogue
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
+import com.dynokore.gst.access.adapters.http.InstallationRole
 import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
 import com.dynokore.gst.access.adapters.http.LiveTenantGrants
 import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
@@ -20,6 +21,8 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.Schema
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -27,6 +30,7 @@ import java.time.ZoneId
 
 /** The service's schema, its event catalogue and the fail-closed defaults a deployment or a test replaces. */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(InstallationRoleProperties::class)
 class ServiceDefaults {
     @Bean
     fun accessSchema(): Schema = Access.ACCESS
@@ -72,10 +76,17 @@ class ServiceDefaults {
         clock: Clock,
     ) = LiveTenantGrants(tenants, tx, grants, clock)
 
-    /** The roles `setPolicy` of service-runtime asks for the TENANT level (INV-REQ-2756 item 1). */
+    /**
+     * The roles `setPolicy` of service-runtime asks for: the live tenant grants at the TENANT level, the configured
+     * `access.installation-roles` at the INSTALLATION level (INV-REQ-2756 item 1, INV-Q-8789 A). The property has no
+     * default: start-up fails when it is absent or an entry is invalid.
+     */
     @Bean
     @ConditionalOnMissingBean
-    fun policyRoleResolver(live: LiveTenantGrants): PolicyRoleResolver = TenantPolicyRoleResolver(live)
+    fun policyRoleResolver(
+        live: LiveTenantGrants,
+        installation: InstallationRoleProperties,
+    ): PolicyRoleResolver = TenantPolicyRoleResolver(live, installation.entries())
 
     /**
      * The fixed permission set of each of the six machine principal types (INV-REQ-584, INV-Q-8779 A). Built from the
@@ -106,5 +117,25 @@ class ServiceDefaults {
 
     private companion object {
         val BUSINESS_ZONE: ZoneId = ZoneId.of("Asia/Singapore")
+    }
+}
+
+/**
+ * The subjects that hold `platform.engineer` (SaaS) or `deployment.operator` (private) at installation scope, set per
+ * installation: a list of entries with a `subject` and a `role`. No default; the empty list is valid.
+ */
+@ConfigurationProperties(prefix = "access")
+class InstallationRoleProperties(
+    val installationRoles: List<Entry>?,
+) {
+    class Entry(
+        val subject: String?,
+        val role: String?,
+    )
+
+    /** The validated entries; throws when the property is absent or an entry is invalid. */
+    fun entries(): List<InstallationRole> {
+        val listed = requireNotNull(installationRoles) { "access.installation-roles is required and has no default" }
+        return listed.map { InstallationRole.of(it.subject, it.role) }
     }
 }

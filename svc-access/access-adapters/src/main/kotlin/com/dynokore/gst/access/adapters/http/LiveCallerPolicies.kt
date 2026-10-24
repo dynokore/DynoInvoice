@@ -6,6 +6,7 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.TenantAuthority
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.PermissionMatrix
+import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -58,13 +59,45 @@ class LiveGrantManagerCheck(
 }
 
 /**
- * The roles `setPolicy` checks (INV-REQ-2756 item 1): those of the actor's live Tenant-scope grants, only for the
- * TENANT level and the actor's own tenant as scope reference; any other case, a failed read included, is the empty
- * set, which the caller treats as 403.
+ * One configured installation-scope role (INV-Q-8789 A): [subject] holds [role] at the INSTALLATION level. The role is
+ * `platform.engineer` or `deployment.operator` by equality and nothing else; the subject is not blank. Anything else
+ * is refused when the entry is built, so the service does not start.
+ */
+class InstallationRole(
+    val subject: String,
+    val role: Role,
+) {
+    companion object {
+        private val ALLOWED = setOf(Role.PLATFORM_ENGINEER, Role.DEPLOYMENT_OPERATOR)
+
+        /** The entry for [subject] and the wire name [role]; throws [IllegalArgumentException] naming the property. */
+        fun of(
+            subject: String?,
+            role: String?,
+        ): InstallationRole {
+            require(!subject.isNullOrBlank()) { "access.installation-roles: the subject of an entry must not be blank" }
+            val parsed = role?.let { Role.ofWire(it) }
+            require(parsed != null && parsed in ALLOWED) {
+                "access.installation-roles: the role of an entry must be platform.engineer or deployment.operator"
+            }
+            return InstallationRole(subject, parsed)
+        }
+    }
+}
+
+/**
+ * The roles `setPolicy` checks (INV-REQ-2756 item 1). At the TENANT level with the actor's own tenant as scope
+ * reference: those of the actor's live Tenant-scope grants. At the INSTALLATION level (scope reference null): the roles
+ * of the configured [installationRoles] whose subject equals the actor exactly (INV-Q-8789 A); no grant counts there.
+ * Any other case, a failed read included, is the empty set, which the caller treats as 403.
  */
 class TenantPolicyRoleResolver(
     private val live: LiveTenantGrants,
+    installationRoles: List<InstallationRole> = emptyList(),
 ) : PolicyRoleResolver {
+    private val installation: Map<String, Set<String>> =
+        installationRoles.groupBy { it.subject }.mapValues { (_, entries) -> entries.map { it.role.wire }.toSet() }
+
     override fun rolesOf(
         actor: String,
         tenant: TenantId,
@@ -72,13 +105,21 @@ class TenantPolicyRoleResolver(
         scopeRef: String?,
         entityRef: String?,
     ): Set<String> =
-        if (level != ScopeLevel.TENANT || scopeRef != tenant.toString()) {
-            emptySet()
-        } else {
-            runCatching {
-                live.read(actor, tenant) { grants, ref, at ->
-                    TenantAuthority.tenantRoles(grants, ref, at).map { it.wire }.toSet()
-                }
-            }.getOrNull().orEmpty()
+        when {
+            level == ScopeLevel.INSTALLATION && scopeRef == null -> {
+                installation[actor].orEmpty()
+            }
+
+            level == ScopeLevel.TENANT && scopeRef == tenant.toString() -> {
+                runCatching {
+                    live.read(actor, tenant) { grants, ref, at ->
+                        TenantAuthority.tenantRoles(grants, ref, at).map { it.wire }.toSet()
+                    }
+                }.getOrNull().orEmpty()
+            }
+
+            else -> {
+                emptySet()
+            }
         }
 }

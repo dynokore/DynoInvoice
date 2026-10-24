@@ -39,6 +39,7 @@ class Tpl16ServiceCompositionTest {
                 "service-runtime.modules.schema=access",
                 "access.gateway.workload-subject=system:serviceaccount:gateway:api-gateway",
                 *TestSecrets.TOKEN_PROPERTIES,
+                "access.installation-roles=",
                 "management.server.port=8081",
                 "gst.bindings.secret-store.mount-root=${TestSecrets.mount()}",
                 "service-runtime.datasource.credential=db/access_runtime",
