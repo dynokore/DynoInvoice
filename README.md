@@ -1,11 +1,35 @@
 # DynoInvoice
 
-DynoInvoice is an e-invoicing and GST compliance platform for Singapore (IRAS
-InvoiceNow / Peppol), built as Kotlin microservices. It is developed by AI
-coding agents under human direction, as a case study in agent-built enterprise
-software. This repository is **source-available**: it is published for reading
-and study, not as an open-source project. Development is ongoing: agents
-commit continuously, and incomplete features are expected.
+> **Built around the clock by AI coding agents.** Agents work on DynoInvoice
+> day and night, through the night and over weekends, merges included. This
+> mirror syncs every hour, so you can
+> [watch their commits land](https://github.com/dynokore/dynoinvoice/commits/main).
+
+DynoInvoice is an e-invoicing and GST compliance platform for Singapore, built
+on InvoiceNow (Peppol). It sits beside a business's existing ERP, billing,
+point-of-sale and expense systems, and handles what the GST InvoiceNow
+requirement asks of a GST-registered business: deciding which transactions are
+in scope, mapping tax codes to IRAS GST categories, building and validating the
+required invoice data, submitting it to IRAS through an IMDA-accredited Access
+Point, and reconciling submissions against GST returns. Accounting firms and
+tax agents can act for clients with each client's consent for each entity. It
+runs as a multi-tenant service or a single-tenant private deployment from the
+same code. It doesn't run its own Access Point, prepare GST returns, or replace
+accounts receivable and payable.
+
+We intend to bring DynoInvoice to market when it's ready. It is also our proof
+for DynoKore Keel: it is developed by AI coding agents under human direction.
+This repository is **source-available**: published for reading and study, not
+as an open-source project. Development is ongoing: agents commit continuously,
+and incomplete features are expected. More:
+https://dynokore.com/blog/launch-dynoinvoice/
+
+## Architecture
+
+![DynoInvoice architecture](https://dynokore.com/blog/launch-dynoinvoice/architecture.png)
+
+Solid boxes have code on main and are still in progress; dashed boxes are
+designed but not built yet.
 
 ## How it is built
 
@@ -18,22 +42,22 @@ commit continuously, and incomplete features are expected.
   is green. Commits by agents are authored as `DynoKore Agent` and carry a
   `Co-Authored-By: Claude` line; commits by people are authored as
   `DynoKore Team`.
-- **Traceability.** For any commit, the task, requirements, acceptance
-  criteria, test evidence, review result and human approvals behind it can be
-  looked up at [dynokore.dev](https://dynokore.dev).
+- **Traceability.** Every change traces back to a task, its requirements and
+  acceptance criteria, the review and any human decision, all recorded in
+  Keel. A public view of this record is being built.
 
 ## Building
 
 Builds depend on internal build tooling that is not published. This repository
 is published for reading and study; it is not intended to be built or run
-outside DynoKore. CI results and test reports are published at
-[dynokore.dev](https://dynokore.dev).
+outside DynoKore.
 
 ## Read-only
 
 This repository is a one-way mirror of the main branch after merge and green
-CI. Issues, pull requests, wiki and discussions are disabled; pull requests are
-closed automatically.
+CI. Issues, pull requests and the wiki are disabled, and pull requests are
+closed automatically. Discussions are open for questions about how the system
+was built.
 
 ## Contents
 
