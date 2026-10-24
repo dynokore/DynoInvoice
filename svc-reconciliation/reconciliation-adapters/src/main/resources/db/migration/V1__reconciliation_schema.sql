@@ -384,8 +384,8 @@ language plpgsql security definer set search_path = pg_catalog, reconciliation, 
 declare
     deleted bigint;
 begin
-    if p_consumer is null or p_consumer ~ '^[\u0001-\u001F\u007F-\u009F    -     　﻿]*$'
-        or p_source is null or p_source ~ '^[\u0001-\u001F\u007F-\u009F    -     　﻿]*$' then
+    if p_consumer is null or p_consumer ~ '^[\u0001-\u001F\u007F-\u009F \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$'
+        or p_source is null or p_source ~ '^[\u0001-\u001F\u007F-\u009F \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$' then
         raise exception 'a full sync names one consumer and one source' using errcode = '22023';
     end if;
     delete from reconciliation.consumer_sequence where consumer = p_consumer and source = p_source;
@@ -404,7 +404,7 @@ language plpgsql security definer set search_path = pg_catalog, reconciliation, 
 declare
     recorded bigint;
 begin
-    if p_consumer is null or p_consumer ~ '^[\u0001-\u001F\u007F-\u009F    -     　﻿]*$'
+    if p_consumer is null or p_consumer ~ '^[\u0001-\u001F\u007F-\u009F \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$'
         or p_topic is null or p_log_offset is null
         or p_reason is null or p_raw is null then
         raise exception 'a dead letter names its consumer, topic, offset, reason and record'
