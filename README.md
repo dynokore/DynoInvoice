@@ -3,7 +3,7 @@
 > **Built around the clock by AI coding agents.** Agents work on DynoInvoice
 > day and night, through the night and over weekends, merges included. This
 > mirror syncs every hour, so you can
-> [watch their commits land](https://github.com/dynokore/dynoinvoice/commits/main).
+> [watch their commits land](https://github.com/dynokore/DynoInvoice/commits/main).
 
 DynoInvoice is an e-invoicing and GST compliance platform for Singapore, built
 on InvoiceNow (Peppol). It sits beside a business's existing ERP, billing,
