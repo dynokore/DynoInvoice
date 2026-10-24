@@ -93,3 +93,9 @@ FilingFrequencyResponse.confirmationPeriod	schema_property	openapi.yaml	INV-REQ-
 FilingFrequencyResponse.status.ACTIVE	schema_enum_value	openapi.yaml	INV-REQ-708
 FilingFrequencyResponse.status.PENDING_CONFIRMATION	schema_enum_value	openapi.yaml	INV-REQ-708
 ConfirmPeriodRequest.kind.FREQUENCY_CHANGE	schema_enum_value	openapi.yaml	INV-REQ-84
+# INV-T-9770 adds five rows (INV-REQ-987): the entity-scope answers of answerQuestionnaire. goLive and the other names of INV-REQ-987 belong to the tasks that carry them.
+QuestionnaireAnswersRequest.entityRef	schema_property	openapi.yaml	INV-REQ-987
+QuestionnaireAnswersRequest.entityFacts	schema_property	openapi.yaml	INV-REQ-987
+EntityFacts.recordsPurchases	schema_property	openapi.yaml	INV-REQ-987
+EntityFacts.hasForeignCurrencyDocuments	schema_property	openapi.yaml	INV-REQ-987
+EntityFacts.claimsInputTaxOnPostingBasis	schema_property	openapi.yaml	INV-REQ-987

@@ -3,3 +3,4 @@ evidence	POST	/internal/v1/evidence/legal-holds	entityRef
 masterdata	POST	/internal/v1/masterdata/counterparties/{counterpartyRef}/resolution	entityRef
 ingestion	POST	/internal/v1/ingestion/test-events	entityRef
 notification	POST	/internal/v1/notification/webhook-subscriptions	entityRef,entityRefs
+tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/questionnaire-answers	entityRef

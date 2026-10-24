@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.13.0
+  version: 1.14.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -443,8 +443,14 @@ paths:
       operationId: answerQuestionnaire
       summary: Record onboarding questionnaire answers and the recommended operating profile (SDS §7,
         SCR-40.1)
-      description: Nothing is applied yet; the recommendation is surfaced with its reasons (PG-7, FR-AI.7,
-        FR-AI.8).
+      description: >-
+        Nothing is applied yet; the recommendation is surfaced with its reasons (PG-7, FR-AI.7, FR-AI.8).
+        With entityRef the call records entity-scope answers: the entity facts are kept per entity and apart
+        from the tenant answers, and a repeat replaces only the facts it carries. A fact that is not carried
+        stays as stored, and a fact never recorded is "not recorded", which keeps the elections it decides
+        OUTSTANDING. entityFacts without entityRef is 400 SRT-001, and an entity of another tenant is 404
+        (rules the schema language cannot express, enforced by the service). The role stays tenant.admin for
+        both scopes.
       tags:
       - tenants
       x-principal: filing-workflow
@@ -455,6 +461,7 @@ paths:
       - FR-AC.1
       - FR-AI.7
       - FR-AI.8
+      x-entity-ref: entityRef
       x-error-codes: []
       x-operation:
         role: tenant.admin
@@ -485,6 +492,15 @@ paths:
                   answers:
                     OQ-1: 'YES'
                     OQ-2: 'NO'
+              entityScope:
+                value:
+                  questionnaireVersion: '2026.1'
+                  answers:
+                    OQ-1: 'YES'
+                  entityRef: ENT-4C2A01
+                  entityFacts:
+                    recordsPurchases: false
+                    claimsInputTaxOnPostingBasis: true
       responses:
         "201":
           description: Answers recorded with a recommendation
@@ -499,6 +515,16 @@ paths:
                     recommendedProfile: STANDARD
                     reasons:
                     - OQ-1=YES selects STANDARD
+                entityScope:
+                  value:
+                    tenantRef: TEN-7B1004
+                    recommendedProfile: STANDARD
+                    reasons:
+                    - OQ-1=YES selects STANDARD
+                    entityRef: ENT-4C2A01
+                    entityFacts:
+                      recordsPurchases: false
+                      claimsInputTaxOnPostingBasis: true
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -2885,6 +2911,30 @@ components:
           additionalProperties:
             type: string
             maxLength: 200
+        entityRef:
+          type: string
+          maxLength: 64
+          description: The opaque reference of an entity of the tenant in the path, as in the other entity
+            operations. With it the call records entity-scope answers.
+        entityFacts:
+          $ref: '#/components/schemas/EntityFacts'
+    EntityFacts:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        recordsPurchases:
+          type: boolean
+          description: Whether the entity records purchases; it decides the apportionment submission mode
+            (VP-23, INV-REQ-1284).
+        hasForeignCurrencyDocuments:
+          type: boolean
+          description: Whether the entity has foreign-currency documents; it decides the exchange rate
+            source (VP-24, INV-REQ-1285).
+        claimsInputTaxOnPostingBasis:
+          type: boolean
+          description: Whether the entity claims input tax on the posting basis; it decides whether
+            POSTING_DATE may be elected for the purchase date basis (VP-22.POSTING_BASIS, INV-REQ-1283).
     QuestionnaireAnswersResponse:
       type: object
       required:
@@ -2904,6 +2954,12 @@ components:
           items:
             type: string
             maxLength: 200
+        entityRef:
+          type: string
+          maxLength: 64
+        entityFacts:
+          $ref: '#/components/schemas/EntityFacts'
+          description: The facts as stored after the call; a fact never recorded is absent.
     FilingFrequencyChangeRequest:
       type: object
       required:
