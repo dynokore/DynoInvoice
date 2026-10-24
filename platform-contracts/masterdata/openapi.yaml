@@ -1459,11 +1459,6 @@ paths:
         Console read to console-bff (INV-REQ-1290, INV-AC-9496). Lists the
         suggestions the register lookup made for counterparties, optionally for one
         counterparty and one state. An MDM-007 conflict never becomes a suggestion.
-        Paged under API-18, ascending by `suggestedAt` and then `suggestionId`
-        as the tie-breaker. `limit` defaults to 100 and is at most 500; a
-        larger value answers `400`, and so does a cursor used with other
-        filters, by another principal or after it expires. The `400` is
-        carried by the `default` error response.
       tags: [register-suggestions]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -1489,17 +1484,6 @@ paths:
             type: string
             enum: [PENDING, CONFIRMED, SUPERSEDED]
             x-extensible-enum: true
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 100
-            maximum: 500
-        - name: cursor
-          in: query
-          required: false
-          schema: { type: string }
       responses:
         '200':
           description: The suggestions.
@@ -2271,7 +2255,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RegisterSuggestion'
-        nextCursor: { type: string }
       required: [items]
   responses:
     Error:
