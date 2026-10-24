@@ -1,7 +1,7 @@
 file	pointer	relation	value	requirement
-access/openapi.yaml	/paths/~1internal~1v1~1access~1break-glass~1{unlockRef}~1sign-in/post/responses/429/headers/Retry-After/schema	equals	{"type":"integer","minimum":1,"maximum":60}	INV-REQ-896
-access/openapi.yaml	/paths/~1internal~1v1~1access~1break-glass~1{unlockRef}~1sign-in/post/responses/429/content/application~1problem+json/schema/$ref	equals	"../service-runtime/schemas/error-envelope.schema.json"	INV-REQ-896
-access/openapi.yaml	/paths/~1internal~1v1~1access~1break-glass~1{unlockRef}~1sign-in/post/x-error-codes	equals	["SRT-012"]	INV-REQ-896
-access/openapi.yaml	/paths/~1internal~1v1~1access~1break-glass/post/responses/409/$ref	equals	"#/components/responses/Error"	INV-REQ-896
-access/openapi.yaml	/components/schemas/UnlockBreakGlassRequest/required	equals	["tenantRef","approvedBy"]	INV-REQ-896
-access/openapi.yaml	/components/schemas/BreakGlassActionRequest/properties/action/enum	equals	["VIEW","READINESS","DRAIN","REPLAY"]	INV-REQ-896
+openapi.yaml	/paths/~1internal~1v1~1access~1break-glass~1{unlockRef}~1sign-in/post/responses/429/headers/Retry-After/schema	equals	{"type":"integer","minimum":1,"maximum":60}	INV-REQ-896
+openapi.yaml	/paths/~1internal~1v1~1access~1break-glass~1{unlockRef}~1sign-in/post/responses/429/content/application~1problem+json/schema/$ref	equals	"../service-runtime/schemas/error-envelope.schema.json"	INV-REQ-896
+openapi.yaml	/paths/~1internal~1v1~1access~1break-glass~1{unlockRef}~1sign-in/post/x-error-codes	equals	["SRT-012"]	INV-REQ-896
+openapi.yaml	/paths/~1internal~1v1~1access~1break-glass/post/responses/409/$ref	equals	"#/components/responses/Error"	INV-REQ-896
+openapi.yaml	/components/schemas/UnlockBreakGlassRequest/required	equals	["tenantRef","approvedBy"]	INV-REQ-896
+openapi.yaml	/components/schemas/BreakGlassActionRequest/properties/action/enum	equals	["VIEW","READINESS","DRAIN","REPLAY"]	INV-REQ-896
