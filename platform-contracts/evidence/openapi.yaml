@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -99,6 +99,7 @@ paths:
         the same Idempotency-Key (API-15, INV-Q-3571).
       tags: [certification]
       x-principal: certification
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
@@ -213,6 +214,7 @@ paths:
         `importedGaps` (INV-REQ-954, INV-AC-1046).
       tags: [lookup]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -290,6 +292,7 @@ paths:
         (INV-REQ-664).
       tags: [lookup]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -390,6 +393,7 @@ paths:
         `exportAuditPack` call made as part of offboarding.
       tags: [exports]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: [DEP-007]
@@ -428,6 +432,7 @@ paths:
         §35.11). Changes no state (INV-REQ-958).
       tags: [verification]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -470,6 +475,7 @@ paths:
         pipeline service).
       tags: [privacy]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -519,6 +525,7 @@ paths:
         service's own concern.
       tags: [retention]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-entity-ref: entityRef
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
@@ -600,6 +607,7 @@ paths:
         INV-REQ-639 behavior 5).
       tags: [retention]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -674,6 +682,7 @@ paths:
         period digest (INV-REQ-661). Changes no state.
       tags: [verification]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -709,6 +718,7 @@ paths:
         404 for an unknown id.
       tags: [lookup]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -756,6 +766,7 @@ paths:
         (INV-REQ-954).
       tags: [exports]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -796,6 +807,7 @@ paths:
         audit-logged (FR-Q.18).
       tags: [exports]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -867,6 +879,7 @@ paths:
         key.
       tags: [retention]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: [DEP-007]
@@ -945,6 +958,7 @@ paths:
         that started the deletion, and kept at least 7 days (API-17).
       tags: [retention]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -987,6 +1001,7 @@ paths:
         case mechanism as the privacy cases `getCase` reads.
       tags: [privacy]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1077,6 +1092,7 @@ paths:
         submission-svc and does not read the cutover date.
       tags: [migration]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1157,6 +1173,7 @@ paths:
         `receivedOn` returns the original case.
       tags: [privacy]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1244,6 +1261,7 @@ paths:
         exists in this version.
       tags: [privacy]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1328,6 +1346,7 @@ paths:
         `Idempotency-Key` until it lands.
       tags: [privacy]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1419,6 +1438,7 @@ paths:
         ANNOTATION chain item references by `annotationId`. It changes no state.
       tags: [privacy]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1466,6 +1486,7 @@ paths:
         never a partial figure (INV-Q-3263).
       tags: [retention]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: control-plane-svc->evidence-svc
       x-timeout: 2000
       x-error-codes: []

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: reconciliation API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contract-first source of truth for reconciliation (API-01, STK-44). The
     `reconciliation-contract` module generates its server interfaces and DTOs
@@ -85,6 +85,7 @@ paths:
         named by `amends` (INV-REQ-653, INV-REQ-655).
       tags: [returns]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [PER-014]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-651, INV-REQ-653, INV-REQ-655]
@@ -198,6 +199,7 @@ paths:
         reconciliation is against.
       tags: [reconciliation]
       x-principal: reporting
+      x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [PER-008]
       x-requirements: [INV-REQ-631, INV-REQ-632, INV-REQ-633, INV-REQ-981, INV-REQ-656, INV-REQ-657]
@@ -236,6 +238,7 @@ paths:
         queries"). Cursor pagination (API-18); no offset and no total count.
       tags: [runs]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 2000
       x-error-codes: []
@@ -279,6 +282,7 @@ paths:
       description: Run queries (services.yaml reconciliation-svc `provides`, "Run … queries").
       tags: [runs]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 2000
       x-error-codes: []
@@ -313,6 +317,7 @@ paths:
         (FR-Q.11).
       tags: [runs]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 2000
       x-error-codes: []
@@ -361,6 +366,7 @@ paths:
         as `tax.approver` does. `getWorkPaper` keeps its shape.
       tags: [runs]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 2000
       x-error-codes: []
@@ -404,6 +410,7 @@ paths:
         immutable and a further correction requires a new run.
       tags: [reconciliation]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 2000
       x-error-codes: [PER-015]
@@ -467,6 +474,7 @@ paths:
         acknowledgement where VP-40 allows.
       tags: [runs]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->reconciliation-svc
       x-timeout: 2000
       x-error-codes: []

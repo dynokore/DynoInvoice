@@ -10,3 +10,5 @@ payload/openapi.yaml
 rules/openapi.yaml
 submission/openapi.yaml
 transport/openapi.yaml
+evidence/openapi.yaml
+reconciliation/openapi.yaml
