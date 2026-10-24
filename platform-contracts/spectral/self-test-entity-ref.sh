@@ -4,24 +4,26 @@
 # fails with its own message fragment, with the look-alikes (key x-entity-refs, value 'entityRef ' and
 # 'entityref', system-flow and sequence edges, console-bff->* outside service-runtime, a staged pair that is
 # marked, a path with a trailing slash) and the (f) probes (external, http, missing, cyclic and allOf refs).
-# Every case name carries INV-AC-8515. Needs python3 + PyYAML.
+# Every case name carries INV-AC-8515. INV-T-9630 (INV-AC-9629) adds the list form: the sequence marker, the
+# array property, and the cases below named with INV-AC-9629. Needs python3 + PyYAML.
 set -u
 cd "$(dirname "$0")"
 F=fixtures/entity-ref
 failed=0
+AC=INV-AC-8515
 run() { python3 check-entity-ref.py "$F/$1" 2>&1; }
 
 expect_pass() { # case, expected output line
   out=$(run "$1"); rc=$?
-  if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — INV-AC-8515 '$1' fixture rejected:"; echo "$out"; failed=1
-  elif [ "$out" != "$2" ]; then echo "gst-ci: FAIL — INV-AC-8515 '$1' printed '$out', expected '$2'"; failed=1
-  else echo "gst-ci: INV-AC-8515 self-test '$1' passed as expected ($2)"; fi
+  if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — $AC '$1' fixture rejected:"; echo "$out"; failed=1
+  elif [ "$out" != "$2" ]; then echo "gst-ci: FAIL — $AC '$1' printed '$out', expected '$2'"; failed=1
+  else echo "gst-ci: $AC self-test '$1' passed as expected ($2)"; fi
 }
 expect_fail() { # case, expected message fragment
   out=$(run "$1"); rc=$?
-  if [ $rc -ne 1 ]; then echo "gst-ci: FAIL — INV-AC-8515 '$1' fixture exited $rc, expected 1"; failed=1
-  else case "$out" in *"$2"*) echo "gst-ci: INV-AC-8515 self-test '$1' failed as expected ($2)";;
-       *) echo "gst-ci: FAIL — INV-AC-8515 '$1' failed, but not with '$2':"; echo "$out"; failed=1;; esac; fi
+  if [ $rc -ne 1 ]; then echo "gst-ci: FAIL — $AC '$1' fixture exited $rc, expected 1"; failed=1
+  else case "$out" in *"$2"*) echo "gst-ci: $AC self-test '$1' failed as expected ($2)";;
+       *) echo "gst-ci: FAIL — $AC '$1' failed, but not with '$2':"; echo "$out"; failed=1;; esac; fi
 }
 
 # compliant trees: no-body and non-entityRef-body console-bff operations, a system-flow operation with a body
@@ -77,9 +79,28 @@ expect_fail tsv-header "entity-ref-staged.tsv: the header line must be directory
 expect_fail tsv-fields "entity-ref-operations.tsv: line 2 has 3 fields, expected 4"
 expect_fail tsv-staged-duplicate "entity-ref-staged.tsv: line 3 is a duplicate row"
 
+AC=INV-AC-9629
+# INV-AC-9629: list-valued entity references (marker sequence, array property, entityRefs candidate)
+expect_pass pass-sequence "entity-ref-check: 1 marked, 0 staged"                # INV-AC-9629 sequence marker over both properties
+expect_pass pass-list-marker "entity-ref-check: 1 marked, 0 staged"             # INV-AC-9629 marker entityRefs over an array of strings
+expect_pass pass-staged-incomplete "entity-ref-check: 1 marked, 1 staged"       # INV-AC-9629 staged: marker entityRef only, body also holds entityRefs
+expect_pass pass-lookalike-unmarked "entity-ref-check: 0 marked, 0 staged"      # INV-AC-9629 entityrefs is not a candidate
+expect_fail d-list-unmarked "(d) console-bff operation with body entityRefs has no x-entity-ref and is not staged"            # INV-AC-9629
+expect_fail d-marker-incomplete "(d) console-bff operation with body entityRef,entityRefs has an x-entity-ref that does not name every property and is not staged"  # INV-AC-9629
+expect_fail e-staged-complete "masterdata: op1: (e) staged operation is already marked"                                       # INV-AC-9629
+expect_fail a-list-items-integer "(a) request body has no top-level property 'entityRefs' with type string or array of string"  # INV-AC-9629
+expect_fail a-list-of-arrays "(a) request body has no top-level property 'entityRefs' with type string or array of string"      # INV-AC-9629
+expect_fail a-sequence-empty "(a) x-entity-ref value [] does not match"                                                         # INV-AC-9629
+expect_fail a-sequence-repeated "(a) x-entity-ref value ['entityRef', 'entityRef'] does not match"                              # INV-AC-9629
+expect_fail a-sequence-leading-space "(a) x-entity-ref value ['entityRef', ' entityRefs'] does not match"                       # INV-AC-9629
+expect_fail a-sequence-non-string "(a) x-entity-ref value ['entityRef', 5] does not match"                                      # INV-AC-9629
+expect_fail c-row-order-differs "(c) marker value 'entityRef,entityRefs' differs from the row property 'entityRefs,entityRef'" # INV-AC-9629
+expect_fail a-lookalike-list-property "(a) request body has no top-level property 'entityRefs' with type string or array of string" # INV-AC-9629
+
+AC=INV-AC-9629
 # the repository itself passes (INV-AC-8515)
 out=$(python3 check-entity-ref.py .. 2>&1); rc=$?
 if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — INV-AC-8515 repository tree rejected:"; echo "$out"; failed=1; fi
 
-[ "$failed" -eq 0 ] && echo "gst-ci: INV-AC-8515 check-entity-ref.py self-test passed."
+[ "$failed" -eq 0 ] && echo "gst-ci: INV-AC-8515 INV-AC-9629 check-entity-ref.py self-test passed."
 exit $failed

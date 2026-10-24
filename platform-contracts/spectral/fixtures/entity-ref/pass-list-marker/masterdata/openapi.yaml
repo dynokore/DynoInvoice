@@ -1,0 +1,21 @@
+openapi: 3.1.0
+paths:
+  /internal/v1/masterdata/op1:
+    post:
+      operationId: op1
+      x-sync-edge: console-bff->masterdata-svc
+      x-entity-ref: entityRefs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Req'
+components:
+  schemas:
+    Req:
+      type: object
+      properties:
+        entityRefs:
+          type: array
+          items:
+            type: string

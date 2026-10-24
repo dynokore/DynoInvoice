@@ -2,3 +2,5 @@ directory	operationId
 tenancy	offboardTenant
 tenancy	recordAppliedOperatingProfile
 tenancy	registerBusinessUnit
+notification	createWebhookSubscription
+transport	setConnectionEntities

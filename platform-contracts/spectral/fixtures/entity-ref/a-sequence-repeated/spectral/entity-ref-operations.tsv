@@ -1,0 +1,2 @@
+directory	method	path	property
+masterdata	POST	/internal/v1/masterdata/op1	entityRef,entityRef
