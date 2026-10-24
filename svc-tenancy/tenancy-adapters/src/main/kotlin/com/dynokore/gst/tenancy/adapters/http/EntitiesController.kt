@@ -1,5 +1,9 @@
 package com.dynokore.gst.tenancy.adapters.http
 
+import com.dynokore.gst.tenancy.application.election.ElectionCommands
+import com.dynokore.gst.tenancy.application.election.ElectionOutcome
+import com.dynokore.gst.tenancy.application.election.ElectionRecord
+import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.status.AssessOutcome
 import com.dynokore.gst.tenancy.application.status.AssessPhaseCommands
 import com.dynokore.gst.tenancy.application.status.EntityStatusCommands
@@ -16,16 +20,24 @@ import com.dynokore.gst.tenancy.contract.model.AssessPhaseRequest
 import com.dynokore.gst.tenancy.contract.model.BusinessUnitResponse
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
+import com.dynokore.gst.tenancy.contract.model.ElectionRequest
+import com.dynokore.gst.tenancy.contract.model.ElectionResponse
+import com.dynokore.gst.tenancy.contract.model.ElectionStatusResponse
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.EntityStatusResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
+import com.dynokore.gst.tenancy.contract.model.IssuanceModeResponse
 import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.PhaseAssessmentResponse
+import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
+import com.dynokore.gst.tenancy.contract.model.RateSourceElectionResponse
 import com.dynokore.gst.tenancy.contract.model.RegisterBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
+import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
 import com.dynokore.gst.tenancy.domain.CodeRefusal
+import com.dynokore.gst.tenancy.domain.IssuanceMode
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
@@ -34,6 +46,8 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 /**
@@ -42,6 +56,7 @@ import java.util.UUID
  * request's `tenantRef` must name the bound tenant, else the tenant is absent from the caller's scope (404).
  */
 @RestController
+@Suppress("TooManyFunctions") // one function per contract operation of the entities API
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin)
 open class EntitiesController(
     private val commands: StructureCommands,
@@ -49,6 +64,8 @@ open class EntitiesController(
     private val phaseCommands: AssessPhaseCommands,
     private val queries: StructureQueries,
     private val tenants: TenantContext,
+    private val electionCommands: ElectionCommands,
+    private val electionQueries: ElectionStatusQueries,
 ) : EntitiesApi {
     override fun createGroup(
         idempotencyKey: UUID,
@@ -177,6 +194,83 @@ open class EntitiesController(
             is AssessOutcome.Invalid -> invalid(outcome.reason)
         }
 
+    override fun setIssuanceMode(
+        entityRef: String,
+        idempotencyKey: UUID,
+        setIssuanceModeRequest: SetIssuanceModeRequest,
+    ): ResponseEntity<IssuanceModeResponse> {
+        val mode = IssuanceMode.valueOf(setIssuanceModeRequest.mode.name)
+        val outcome =
+            electionCommands.setIssuanceMode(
+                tenants.current(),
+                entityRef,
+                mode,
+                setIssuanceModeRequest.effectiveFrom,
+                setIssuanceModeRequest.secondConfirmationBy,
+            )
+        val done = elected(outcome)
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(IssuanceModeResponse(entityRef, IssuanceModeResponse.Mode.valueOf(done.value), done.effectiveFrom))
+    }
+
+    override fun recordElection(
+        entityRef: String,
+        idempotencyKey: UUID,
+        electionRequest: ElectionRequest,
+    ): ResponseEntity<ElectionResponse> {
+        val done =
+            elected(
+                electionCommands.recordElection(
+                    entityRef,
+                    electionRequest.election,
+                    electionRequest.effectiveFrom,
+                    electionRequest.approvedBy,
+                ),
+            )
+        return ResponseEntity
+            .status(
+                HttpStatus.CREATED,
+            ).body(ElectionResponse(entityRef, done.value, done.effectiveFrom))
+    }
+
+    override fun electRateSource(
+        entityRef: String,
+        idempotencyKey: UUID,
+        rateSourceElectionRequest: RateSourceElectionRequest,
+    ): ResponseEntity<RateSourceElectionResponse> {
+        val done =
+            elected(
+                electionCommands.electRateSource(
+                    entityRef,
+                    rateSourceElectionRequest.source,
+                    rateSourceElectionRequest.basis.value,
+                    rateSourceElectionRequest.effectiveFrom,
+                    rateSourceElectionRequest.approvedBy,
+                ),
+            )
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(RateSourceElectionResponse(entityRef, done.value, done.effectiveFrom))
+    }
+
+    override fun getElectionStatus(
+        entityRef: String,
+        on: LocalDate?,
+    ): ResponseEntity<ElectionStatusResponse> {
+        val report = electionQueries.status(entityRef, on ?: LocalDate.now(SINGAPORE)) ?: notFound()
+        return ResponseEntity.ok(electionStatusResponse(report))
+    }
+
+    private fun elected(outcome: ElectionOutcome): ElectionRecord =
+        when (outcome) {
+            is ElectionOutcome.Done -> outcome.election
+            ElectionOutcome.NotFound -> notFound()
+            is ElectionOutcome.Invalid -> invalid(outcome.reason)
+            is ElectionOutcome.Refused -> constraintRefused(outcome.reason)
+            is ElectionOutcome.Forbidden -> forbidden(outcome.reason)
+        }
+
     private fun boundTenant(tenantRef: String): TenantId {
         val id =
             runCatching {
@@ -198,3 +292,5 @@ open class EntitiesController(
             is StructureOutcome.Invalid -> invalid("the short code must be 1 to 10 characters of A-Z and 0-9")
         }
 }
+
+private val SINGAPORE: ZoneId = ZoneId.of("Asia/Singapore")

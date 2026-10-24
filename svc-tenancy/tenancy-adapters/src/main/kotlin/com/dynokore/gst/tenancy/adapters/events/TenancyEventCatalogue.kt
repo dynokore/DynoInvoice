@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.events
 
+import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
@@ -53,7 +54,8 @@ object TenancyEventCatalogue {
                 setOf("aggregation-svc"),
                 contentTopic = false,
             )
-        val seen = (ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE)
+        val elections = electionEvents(ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE)
+        val seen = (ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + elections.map { it.eventType })
         val platform =
             PlatformEventCatalogue.ALL
                 .filter { it.topic != null && it.eventType !in seen }
@@ -65,8 +67,19 @@ object TenancyEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + consumedDomain + platform)
+        return EventCatalogue(own + consumed + consumedDomain + elections + platform)
     }
+
+    /**
+     * The events tenancy-svc consumes for the elections (route replica, scope pack replica): configuration only, the
+     * asyncapi document of the tenancy contract is not changed (task INV-T-4927).
+     */
+    private fun electionEvents(known: Set<String>): List<CatalogueEntry> =
+        ConsumedElectionEvents.SUBSCRIPTIONS
+            .filterKeys { it !in known }
+            .map { (type, topic) -> CatalogueEntry(type, topic, setOf(producerOf(type)), contentTopic = false) }
+
+    private fun producerOf(type: String) = type.removePrefix("com.dynokore.gst.").substringBefore('.') + "-svc"
 
     /** A channel message is either inline or a `$ref` to `#/components/messages/<name>`. */
     private fun resolve(

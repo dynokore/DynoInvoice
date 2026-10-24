@@ -13,6 +13,11 @@ data class ProfileEntry(
     val effectiveDate: java.time.LocalDate,
 )
 
+/** Profile entries other than the status attributes: the effective-dated issuance mode (INV-Q-4993 B). */
+fun interface ProfileExtras {
+    fun entries(entityRef: String): List<ProfileEntry>
+}
+
 /** The node's full state after the change, the same object getEntityStructure returns (INV-Q-3324 (a)). */
 data class StructureNodeState(
     val kind: NodeType,

@@ -8,9 +8,10 @@ updateBusinessUnit	operation	INV-T-4925	done
 getEntityStructure	operation	INV-T-4925	done
 assessPhase	operation	INV-T-4926	done
 setEntityStatus	operation	INV-T-4926	done
-electRateSource	operation	INV-T-4927	pending
-recordElection	operation	INV-T-4927	pending
-setIssuanceMode	operation	INV-T-4927	pending
+electRateSource	operation	INV-T-4927	done
+recordElection	operation	INV-T-4927	done
+setIssuanceMode	operation	INV-T-4927	done
+getElectionStatus	operation	INV-T-4927	done
 changeFilingFrequency	operation	INV-T-4929	pending
 confirmPeriods	operation	INV-T-4929	pending
 recordExtension	operation	INV-T-4930	pending

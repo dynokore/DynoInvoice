@@ -13,6 +13,8 @@ dependencies {
     implementation(project(":tenancy-domain"))
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.outboxAndQueue.api)
+    implementation(libs.platform.outboxAndQueue.impl)
+    implementation(libs.platform.tenancyJooq.api)
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.serviceRuntime.api)

@@ -8,6 +8,7 @@ import com.dynokore.gst.tenancy.adapters.persistence.JooqTenantStore
 import com.dynokore.gst.tenancy.adapters.persistence.PlatformScope
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
+import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.gst.tenancy.application.structure.StructureCommands
 import com.dynokore.gst.tenancy.application.structure.StructureQueries
@@ -79,7 +80,8 @@ class UseCases {
         store: StructureStore,
         tenantStore: TenantStore,
         statuses: EntityStatusStore,
-    ): StructureQueries = StructureQueries(tx, store, tenantStore, statuses)
+        extras: ProfileExtras,
+    ): StructureQueries = StructureQueries(tx, store, tenantStore, statuses, extras)
 
     @Bean
     fun entityStatusStore(

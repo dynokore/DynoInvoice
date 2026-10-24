@@ -84,6 +84,40 @@ class EntityProfileChangedPayloadSchemaTest {
     }
 
     @Test
+    fun `the Relay to Observe event validates and the payload without changedAttributes is refused`() {
+        val later = LocalDate.of(2026, 9, 1)
+        val change =
+            EntityProfileChange(
+                tenant = UUID.fromString("0a000000-0000-4000-8000-00000000000a"),
+                entityRef = "ENT-1",
+                changedAttributes = listOf(ChangedAttribute("issuanceMode", "RELAY", "OBSERVE")),
+                effectiveDate = later,
+                node =
+                    StructureNodeState(
+                        NodeType.ENTITY,
+                        "GRP-1",
+                        false,
+                        "Acme Pte Ltd",
+                        "ACME",
+                        11,
+                        uen = "201912345K",
+                        profile =
+                            listOf(
+                                ProfileEntry("issuanceMode", "RELAY", effective),
+                                ProfileEntry("issuanceMode", "OBSERVE", later),
+                            ),
+                    ),
+            )
+        val payload = outbox.payload(change)
+        SchemaFixture.errors(schema, payload.toString()).shouldBeEmpty()
+        payload["changedAttributes"][0]["attribute"].asString() shouldBe "issuanceMode"
+        payload["node"]["profile"].size() shouldBe 2
+        payload["node"]["structureVersion"].asLong() shouldBe 11
+        payload.remove("changedAttributes")
+        SchemaFixture.errors(schema, payload.toString()).shouldNotBeEmpty()
+    }
+
+    @Test
     fun `publish appends one event of the catalogued type in the caller's transaction`() {
         outbox.publish(published.getValue("partiallyExempt"))
         recording.events.single().type shouldBe ProductEventTypes.ENTITY_PROFILE_CHANGED

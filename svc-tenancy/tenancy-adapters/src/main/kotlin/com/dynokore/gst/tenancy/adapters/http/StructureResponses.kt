@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.http
 
+import com.dynokore.gst.tenancy.application.election.ElectionStatusReport
 import com.dynokore.gst.tenancy.application.status.EntityStatusEntry
 import com.dynokore.gst.tenancy.application.status.StatusChange
 import com.dynokore.gst.tenancy.application.structure.BusinessUnitRecord
@@ -9,6 +10,8 @@ import com.dynokore.gst.tenancy.application.structure.StructureNodeState
 import com.dynokore.gst.tenancy.application.structure.StructureView
 import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.gst.tenancy.contract.model.BusinessUnitResponse
+import com.dynokore.gst.tenancy.contract.model.ElectionState
+import com.dynokore.gst.tenancy.contract.model.ElectionStatusResponse
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.EntityStatusResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
@@ -101,4 +104,22 @@ internal fun statusChangeOf(request: SetEntityStatusRequest) =
         request.irasReference,
         request.obligationStartOverride,
         request.registrationStartDate,
+    )
+
+/** The contract ElectionStatusResponse of a report (getElectionStatus). */
+internal fun electionStatusResponse(report: ElectionStatusReport) =
+    ElectionStatusResponse(
+        report.entityRef,
+        report.on,
+        report.elections.map {
+            ElectionState(
+                ElectionState.Election.valueOf(it.kind.name),
+                ElectionState.Status.valueOf(it.status.name),
+                it.value,
+                it.basis,
+                it.effectiveFrom,
+                it.setBy,
+            )
+        },
+        report.outstanding.map { ElectionStatusResponse.Outstanding.valueOf(it.name) },
     )

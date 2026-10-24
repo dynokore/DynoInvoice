@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.election.ElectionValueConstraints
 import com.dynokore.gst.tenancy.adapters.events.EntityProfileChangedOutbox
 import com.dynokore.gst.tenancy.adapters.persistence.JooqPhaseAssessmentStore
 import com.dynokore.gst.tenancy.adapters.policy.ImplementationDateConstraints
@@ -14,6 +15,7 @@ import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.status.GroupElectionReader
 import com.dynokore.gst.tenancy.application.status.ImplementationBasisReader
 import com.dynokore.gst.tenancy.application.status.PhaseAssessmentStore
+import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.ValueConstraints
@@ -60,7 +62,7 @@ class StatusUseCases {
         store: StructureStore,
         assessments: PhaseAssessmentStore,
         mapper: ObjectMapper,
-    ): ValueConstraints = ImplementationDateConstraints(store, assessments, mapper)
+    ): ValueConstraints = ElectionValueConstraints(ImplementationDateConstraints(store, assessments, mapper))
 
     @Bean
     fun assessPhaseCommands(
@@ -78,7 +80,8 @@ class StatusUseCases {
         publisher: EntityProfileChangePublisher,
         assessments: PhaseAssessmentStore,
         implementation: ImplementationBasisReader,
-    ): EntityStatusCommands = EntityStatusCommands(tx, store, statuses, publisher, assessments, implementation)
+        extras: ProfileExtras,
+    ): EntityStatusCommands = EntityStatusCommands(tx, store, statuses, publisher, assessments, implementation, extras)
 
     @Bean
     fun entityStatusQueries(

@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.application.status
 import com.dynokore.gst.tenancy.application.structure.EntityRecord
 import com.dynokore.gst.tenancy.application.structure.GroupKind
 import com.dynokore.gst.tenancy.application.structure.ProfileEntry
+import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.gst.tenancy.domain.ExcludedBusinessStatus
@@ -69,6 +70,7 @@ class EntityStatusCommands(
     private val publisher: EntityProfileChangePublisher,
     private val assessments: PhaseAssessmentStore,
     private val implementation: ImplementationBasisReader,
+    private val extras: ProfileExtras,
 ) {
     fun setEntityStatus(
         tenant: TenantId,
@@ -97,10 +99,10 @@ class EntityStatusCommands(
             structure.touchEntity(entity.ref, version)
             val updated = entity.copy(structureVersion = version)
             val profile =
-                (history + entry)
-                    .sortedBy {
-                        it.effectiveFrom
-                    }.map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) }
+                (
+                    (history + entry).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
+                        extras.entries(entity.ref)
+                ).sortedBy { it.effectiveDate }
             publisher.publish(
                 EntityProfileChange(
                     tenant.value,
@@ -246,7 +248,8 @@ class EntityStatusCommands(
         }
 
     /**
-     * The first field the caller supplied (its key is present, so it is not null) that differs from the derived [entry],
+     * The first field the caller supplied (its key is present, so it is not null) that differs from the derived
+     * [entry],
      * or null (one source, INV-Q-8733 A, INV-Q-8903 A): the contract has no defaults, so presence is the null test.
      */
     private fun suppliedDifference(

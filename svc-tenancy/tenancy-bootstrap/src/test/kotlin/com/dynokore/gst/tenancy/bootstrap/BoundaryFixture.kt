@@ -18,7 +18,7 @@ import java.util.UUID
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
     private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
-    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4926")
+    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4927")
 
     /**
      * The tables config-resolver's ConfigSchema.ddl creates (a platform library, INV-T-4926). Their `entity_id` is null

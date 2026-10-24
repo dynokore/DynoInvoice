@@ -19,6 +19,7 @@ class StructureQueries(
     private val store: StructureStore,
     private val tenants: TenantStore,
     private val statuses: EntityStatusStore,
+    private val extras: ProfileExtras,
 ) {
     /** The tenant's own ref, or null when the bound tenant has no row. */
     fun tenantRef(): String? = tx.inTransaction { tenants.current()?.ref }
@@ -36,7 +37,10 @@ class StructureQueries(
         }
 
     private fun profileOf(entity: EntityRecord) =
-        statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) }
+        (
+            statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
+                extras.entries(entity.ref)
+        ).sortedBy { it.effectiveDate }
 
     private fun groupView(
         group: GroupRecord,
