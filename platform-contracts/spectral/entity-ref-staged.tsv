@@ -1,5 +1,4 @@
 directory	operationId
-notification	createWebhookSubscription
 tenancy	offboardTenant
 tenancy	recordAppliedOperatingProfile
 tenancy	registerBusinessUnit

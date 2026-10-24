@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -607,8 +607,14 @@ paths:
         egress allow-list; a connection to any other endpoint is never opened
         (INV-AC-2670). The list is an installation setting, not an operation
         of this contract.
+
+
+        An `entityRef` outside the principal's entity set is refused with
+        `403` and the code SRT-004 before the handler runs (API-24); a request
+        without `entityRef` is the service's own concern.
       tags: [webhooks]
       x-principal: filing-workflow
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
