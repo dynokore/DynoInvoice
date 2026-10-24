@@ -90,7 +90,17 @@ class RolePermissionsTest {
                 Req("job.operate", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
                 Req("job.operate-whole-job", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
                 Req("job.operate-whole-job", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
-            )
+            ) +
+            Req("filing.confirm", PermissionKind.WRITE, "tax.approver", y, both) +
+            listOf(
+                "filing.confirm",
+                "filed-return.upload",
+                "reconciliation.run",
+                "reconciliation.annotate",
+                "reconciliation.attest",
+            ).map {
+                Req(it, PermissionKind.WRITE, "agent.operator", RoleAllowance.WITHIN_SCOPE, both)
+            }
 
     @Test
     fun `every required cell is served and every other cell of a required key is denied`() {
@@ -134,6 +144,7 @@ class RolePermissionsTest {
         assertNull(cell(saas, "tenant.admin", "user.manage2"))
         assertNull(cell(saas, "deployment.operator", "support-bundle.export"))
         assertNull(RolePermissions.kind("user.manage2"))
+        assertNull(RolePermissions.kind("filing.confirms"))
         assertNull(RolePermissions.kind(""))
         assertNull(RolePermissions.cells(saas)["x"])
     }

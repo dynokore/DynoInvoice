@@ -34,7 +34,7 @@ object RolePermissionsChecker {
             "commercial.admin" to setOf(DeploymentForm.SAAS),
         )
 
-    /** The 32 published row labels: 19 of section 22.3, 11 of its amendment table, 2 added by INV-REQ-999. Copied from Keel. */
+    /** The 34 published row labels: 19 of section 22.3, 11 of its amendment table, 2 added by INV-REQ-999, 2 of FR-AF.34 and section 31.6 (INV-T-9376). Copied from Keel. */
     val publishedRows: List<String> =
         listOf(
             "View submission status",
@@ -69,6 +69,8 @@ object RolePermissionsChecker {
             "Run a job now, pause and resume it (FR-AG.64)",
             "Import and verify a regulatory pack",
             "Arm a regulatory pack",
+            "Confirm filing — agents under FILE_GST_RETURN too (FR-AF.34)",
+            "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer",
         )
 
     /** The two keys that serve two published rows each (INV-Q-8148): the (key, row) pairs, compared by equality. */
@@ -146,6 +148,12 @@ object RolePermissionsChecker {
                 Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "job.operate-whole-job" to
                 Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "filing.confirm" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
+            "filed-return.upload" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
+            "reconciliation.run" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
+            "reconciliation.annotate" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
+            "reconciliation.attest" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
         )
 
     fun check(table: RolePermissionTable): List<String> {
@@ -181,7 +189,7 @@ object RolePermissionsChecker {
         table.permissions.groupBy { it.key }.filterValues { it.size > 1 }.keys.forEach { v += "key $it: repeated." }
         table.permissions.forEach { p ->
             if (!keyPattern.matches(p.key)) v += "key ${p.key}: does not match ${keyPattern.pattern}."
-            if (p.row !in publishedRows) v += "key ${p.key}: row '${p.row}' is not one of the 32 published labels."
+            if (p.row !in publishedRows) v += "key ${p.key}: row '${p.row}' is not one of the 34 published labels."
         }
         retentionPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }

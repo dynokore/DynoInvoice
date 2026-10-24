@@ -27,6 +27,8 @@ every row that states it. `job.operate` is the key fixed by INV-Q-3782.
 
 Two keys each serve both retention rows (INV-Q-8148): `retention.delete.request` carries the `row` "Delete data at end of retention" and `retention.delete.approve` carries "Delete data at end of retention (private form)"; the checker pins these two (key, row) pairs, and each key's cells follow both rows.
 
+The filing operations of the `FILE_GST_RETURN` scope item (FR-AF.34, INV-T-9376, INV-Q-8866 A) have five keys and two published labels. `filing.confirm` carries the label "Confirm filing — agents under FILE_GST_RETURN too (FR-AF.34)" (INV-NOTE-3 section 31.6): `tax.approver` PERMITTED, `agent.operator` WITHIN_SCOPE. `filed-return.upload`, `reconciliation.run`, `reconciliation.annotate` and `reconciliation.attest` each carry the label "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer" (the FR-AF.34 line) with `agent.operator` WITHIN_SCOPE and no other cell. A cell for `client.signatory` on `filing.confirm` is not written (INV-Q-9374).
+
 A `break-glass.unlock` cell means that the role may be one of the two persons who unlock. The pair rule (FR-AF.18, enforced by the `unlockBreakGlass` operation of access-svc and by the two-person rule of INV-NOTE-3 section 22.4) is not a catalogue field.
 
 The time-box and the customer approval of an `implementation.consultant` grant (FR-AF.30) are conditions of the grant, not cells.
@@ -40,7 +42,7 @@ The whole-job run and pause are the key `job.operate-whole-job` (INV-REQ-1138), 
 ## What the build checks (`checkRolePermissions`, wired into `check`; also run by `generateRolePermissionCatalogue`)
 
 `RolePermissionsChecker` reports: a role set that differs from the 19 names; a role whose forms differ; a key that
-breaks the pattern or repeats; a `row` outside the 32 published labels, or one of the 32 with no key; a cell that names
+breaks the pattern or repeats; a `row` outside the 34 published labels, or one of the 34 with no key; a cell that names
 a role not in the file or a form the role does not have; a repeated (role, form, key) cell; an `auditor` cell on a
 WRITE key (INV-REQ-863, FR-P.5); a (key, row) pair of the two retention keys that differs from the pinned table; and any required cell that is missing, extra or different (the table in the checker).
 

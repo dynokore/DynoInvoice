@@ -15,6 +15,10 @@
 #              DENIED (the published dash, and every case the text does not state: fail closed).
 #              The consent-item condition of the Agent scope paragraph is not a catalogue field
 #              (INV-T-4939 owns it).
+#
+# filing.confirm, filed-return.upload, reconciliation.run, reconciliation.annotate and
+# reconciliation.attest (INV-T-9376, coordinator ruling INV-Q-8866 A): the texts of record are
+# INV-NOTE-3 FR-AF.34 (the FILE_GST_RETURN scope item) and section 31.6 (row "Confirm filing").
 
 
 roles:
@@ -423,3 +427,35 @@ permissions:
     row: "Arm a regulatory pack"
     cells:
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: filing.confirm
+    kind: WRITE
+    row: "Confirm filing — agents under FILE_GST_RETURN too (FR-AF.34)"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: filed-return.upload
+    kind: WRITE
+    row: "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer"
+    cells:
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: reconciliation.run
+    kind: WRITE
+    row: "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer"
+    cells:
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: reconciliation.annotate
+    kind: WRITE
+    row: "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer"
+    cells:
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: reconciliation.attest
+    kind: WRITE
+    row: "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer"
+    cells:
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}

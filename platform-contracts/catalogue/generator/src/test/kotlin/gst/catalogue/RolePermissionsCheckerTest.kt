@@ -38,10 +38,10 @@ class RolePermissionsCheckerTest {
     }
 
     @Test
-    fun `the file has the 19 roles and the 32 published rows`() {
+    fun `the file has the 19 roles and the 34 published rows`() {
         assertEquals(19, real.roles.size)
         assertEquals(RolePermissionsChecker.publishedRows.toSet(), real.permissions.map { it.row }.toSet())
-        assertEquals(32, RolePermissionsChecker.publishedRows.toSet().size)
+        assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
     }
 
     @Test
@@ -105,7 +105,7 @@ class RolePermissionsCheckerTest {
     @Test
     fun `probe 11 a look-alike row label is reported`() {
         val table = withPermission("user.manage") { it.copy(row = it.row + "s") }
-        assertReported(table, "key user.manage", "Manage users and roless", "not one of the 32")
+        assertReported(table, "key user.manage", "Manage users and roless", "not one of the 34")
         assertReported(table, "row 'Manage users and roles': no key")
     }
 
@@ -216,5 +216,50 @@ class RolePermissionsCheckerTest {
     @Test
     fun `probe 20 a platform engineer cell on job operate is reported`() {
         assertReported(cellAdd("job.operate", "platform.engineer", DeploymentForm.SAAS), "role platform.engineer key job.operate form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 21 a changed row of filing confirm is reported`() {
+        val label = permission(real, "filing.confirm").row
+        assertReported(withPermission("filing.confirm") { it.copy(row = "$label ") }, "key filing.confirm", "not one of the 34")
+        assertReported(withPermission("filing.confirm") { it.copy(row = "Confirm filing") }, "key filing.confirm", "not one of the 34")
+    }
+
+    @Test
+    fun `probe 22 a removed agent operator PRIVATE cell of reconciliation attest is reported`() {
+        val table =
+            withPermission("reconciliation.attest") { p ->
+                p.copy(cells = p.cells.filter { !(it.role == "agent.operator" && it.form == DeploymentForm.PRIVATE) })
+            }
+        assertReported(table, "role agent.operator key reconciliation.attest form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `probe 23 extra cells on the filing keys are reported`() {
+        assertReported(cellAdd("filing.confirm", "tax.operator", DeploymentForm.SAAS), "role tax.operator key filing.confirm form SAAS", "extra")
+        assertReported(
+            cellAdd("filed-return.upload", "client.signatory", DeploymentForm.SAAS),
+            "role client.signatory key filed-return.upload form SAAS",
+            "extra",
+        )
+        assertReported(cellAdd("reconciliation.annotate", "auditor", DeploymentForm.SAAS), "key reconciliation.annotate", "auditor")
+    }
+
+    @Test
+    fun `probe 24 look-alike keys of filing confirm are reported`() {
+        listOf("filing.confirms", "Filing.confirm").forEach { name ->
+            assertReported(withPermission("filing.confirm") { it.copy(key = name) }, "key filing.confirm: missing")
+        }
+    }
+
+    @Test
+    fun `probe 25 removed reconciliation and upload keys leave the shared row without a key`() {
+        val gone = setOf("filed-return.upload", "reconciliation.run", "reconciliation.annotate", "reconciliation.attest")
+        val table = real.copy(permissions = real.permissions.filter { it.key !in gone })
+        assertReported(
+            table,
+            "row 'Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer'",
+            "no key",
+        )
     }
 }
