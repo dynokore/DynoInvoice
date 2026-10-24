@@ -1,0 +1,10 @@
+{
+  "suggestionId": "RSG-5",
+  "counterpartyRef": "CTP-118",
+  "field": "REGISTERED_NAME",
+  "registerValue": "ACME PTE. LTD.",
+  "currentValue": "Acme Pte Ltd",
+  "state": "PENDING",
+  "suggestedAt": "2026-10-24T08:00:00Z",
+  "evidenceRef": "EVD-2201"
+}

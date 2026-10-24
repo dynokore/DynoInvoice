@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -45,6 +45,10 @@ tags:
     description: Pre-go-live gap report over the counterparty masters (INV-REQ-316).
   - name: connections
     description: Connection records of the directory, the Check GST Register and the rate sources (INV-REQ-834, INV-REQ-835).
+  - name: network-registration
+    description: The entity's own registration on the SG Peppol Directory and SMP, an onboarding checklist item confirmed by lookup (INV-REQ-320).
+  - name: register-suggestions
+    description: Suggestions from the GST register lookup for counterparties, confirmed by the operator (INV-REQ-1290).
 paths:
   /internal/v1/masterdata/counterparties/resolution:
     get:
@@ -1365,6 +1369,197 @@ paths:
                   value: { connectionRef: "CON-31", externalService: "CHECK_GST_REGISTER", endpoint: "https://register.example.gov.sg/check", credentialRef: "SECRET-REG-PROD-2", environmentTag: "PRODUCTION", ownerService: "masterdata-svc" }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/entities/{entityRef}/network-registration:
+    get:
+      operationId: getNetworkRegistration
+      summary: Read the entity's own network-registration item
+      description: >-
+        Console read to console-bff (INV-REQ-320, INV-AC-9501; INV-NOTE-7
+        SCR-18.6, the `masterdata-svc` rows). Reads the stored item and makes no
+        directory call. An entity never confirmed reads state OUTSTANDING.
+      tags: [network-registration]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-320, INV-AC-9501]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "The entity exists."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read."
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: The stored network-registration item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkRegistration'
+              examples:
+                default:
+                  value: { entityRef: "E-001", state: "OUTSTANDING" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/entities/{entityRef}/network-registration/confirmations:
+    post:
+      operationId: confirmNetworkRegistration
+      summary: Confirm the entity's own network registration by lookup
+      description: >-
+        Console command to console-bff (INV-REQ-320, INV-AC-9501; INV-NOTE-7
+        SCR-18.6, the `masterdata-svc` rows). Looks up the entity's own UEN on the
+        SG Peppol Directory and SMP, bypassing the cache, and stores CONFIRMED with
+        the AP reference when found and OUTSTANDING when not found. When the
+        directory is unreachable it leaves the stored state unchanged and returns it
+        with `degradationCode` MDM-008. The System never registers the entity
+        (INV-REQ-320 must_not_happen): the registration is done through the AP or
+        IRSP, and no write call is made to the directory.
+      tags: [network-registration]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: [MDM-008]
+      x-requirements: [INV-REQ-320, INV-AC-9501]
+      x-operation:
+        role: integration.engineer
+        scope: entity
+        precondition: "The entity exists; the caller is an integration.engineer or an entity.admin (INV-NOTE-7 row SCR-18.6)."
+        reversibility: COMPENSABLE
+        repeatKey: "entityRef — a repeat looks up again and stores the newer result."
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The network-registration item after the lookup.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkRegistration'
+              examples:
+                default:
+                  value: { entityRef: "E-001", state: "CONFIRMED", apReference: "AP-7731", confirmedAt: "2026-10-24T08:00:00Z", lastCheckedAt: "2026-10-24T08:00:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/register-suggestions:
+    get:
+      operationId: listRegisterSuggestions
+      summary: List the GST register suggestions
+      description: >-
+        Console read to console-bff (INV-REQ-1290, INV-AC-9496). Lists the
+        suggestions the register lookup made for counterparties, optionally for one
+        counterparty and one state. An MDM-007 conflict never becomes a suggestion.
+      tags: [register-suggestions]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1290, INV-AC-9496]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "None."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read."
+      parameters:
+        - name: counterpartyRef
+          in: query
+          required: false
+          schema: { type: string, maxLength: 40 }
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, CONFIRMED, SUPERSEDED]
+            x-extensible-enum: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: The suggestions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterSuggestionList'
+              examples:
+                default:
+                  value: { items: [{ suggestionId: "RSG-5", counterpartyRef: "CTP-118", field: "REGISTERED_NAME", registerValue: "ACME PTE. LTD.", state: "PENDING", suggestedAt: "2026-10-24T08:00:00Z", currentValue: "Acme Pte Ltd", evidenceRef: "EVD-2201" }] }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/register-suggestions/{suggestionId}/confirmation:
+    post:
+      operationId: confirmRegisterSuggestion
+      summary: Confirm one register suggestion
+      description: >-
+        Console command to console-bff (INV-REQ-1290, INV-AC-9496). Applies the
+        register value to the counterparty with provenance and sets the suggestion
+        to CONFIRMED. Answers 404 when the suggestion is unknown and 409 when its
+        state is not PENDING. An MDM-007 conflict never becomes a suggestion, so this
+        operation never overwrites one.
+      tags: [register-suggestions]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: [MDM-007]
+      x-requirements: [INV-REQ-1290, INV-AC-9496]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "The suggestion is PENDING."
+        reversibility: UNDOABLE
+        repeatKey: "suggestionId — a repeat after the first confirmation is refused 409."
+      parameters:
+        - name: suggestionId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The suggestion, confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterSuggestion'
+              examples:
+                default:
+                  value: { suggestionId: "RSG-5", counterpartyRef: "CTP-118", field: "REGISTERED_NAME", registerValue: "ACME PTE. LTD.", state: "CONFIRMED", suggestedAt: "2026-10-24T08:00:00Z" }
+        '404':
+          description: The suggestion is unknown.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+        '409':
+          description: The suggestion's state is not PENDING.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -2019,6 +2214,60 @@ components:
         rate:
           $ref: '#/components/schemas/ExchangeRate'
       required: [register]
+    NetworkRegistration:
+      type: object
+      description: The entity's own network-registration item (INV-REQ-320). The System never registers the entity.
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        state:
+          type: string
+          enum: [OUTSTANDING, CONFIRMED]
+          x-extensible-enum: true
+        apReference:
+          type: string
+          maxLength: 64
+          description: The AP's reference; present only when state is CONFIRMED.
+        confirmedAt:
+          type: string
+          format: date-time
+          description: Present only when state is CONFIRMED.
+        lastCheckedAt: { type: string, format: date-time }
+        degradationCode:
+          type: string
+          pattern: '^[A-Z]{2,10}-[0-9]{3}$'
+          description: MDM-008 when the directory or SMP could not be reached and the stored state is returned unchanged.
+      required: [entityRef, state]
+    RegisterSuggestion:
+      type: object
+      description: A register value suggested for a counterparty, awaiting the operator's confirmation (INV-REQ-1290).
+      properties:
+        suggestionId: { type: string, maxLength: 40 }
+        counterpartyRef: { type: string, maxLength: 40 }
+        field:
+          type: string
+          enum: [REGISTERED_NAME]
+          x-extensible-enum: true
+        registerValue: { type: string, maxLength: 256 }
+        currentValue: { type: string, maxLength: 256 }
+        state:
+          type: string
+          enum: [PENDING, CONFIRMED, SUPERSEDED]
+          x-extensible-enum: true
+        suggestedAt: { type: string, format: date-time }
+        evidenceRef:
+          type: string
+          maxLength: 40
+          description: The `reference` of the `EvidenceArtefactRecorded` event of the lookup.
+      required: [suggestionId, counterpartyRef, field, registerValue, state, suggestedAt]
+    RegisterSuggestionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegisterSuggestion'
+        nextCursor: { type: string }
+      required: [items]
   responses:
     Error:
       description: Error (API-20 envelope)

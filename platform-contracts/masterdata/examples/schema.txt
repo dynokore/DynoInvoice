@@ -17,3 +17,6 @@
 ../openapi.yaml#/components/schemas/CounterpartyVersion version-*.json
 ../openapi.yaml#/components/schemas/IngestedCounterpartyRequest ingested-counterparty-request-*.json
 ../schemas/identity-triple-corrected-payload.schema.json identity-triple-corrected-*.json
+../openapi.yaml#/components/schemas/NetworkRegistration network-registration-*.json
+../openapi.yaml#/components/schemas/RegisterSuggestion register-suggestion-*.json
+../openapi.yaml#/components/schemas/RegisterSuggestionList register-suggestions-*.json

@@ -1,0 +1,6 @@
+{
+  "entityRef": "E-001",
+  "state": "OUTSTANDING",
+  "lastCheckedAt": "2026-10-23T08:00:00Z",
+  "degradationCode": "MDM-008"
+}

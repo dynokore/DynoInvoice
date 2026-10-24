@@ -23,6 +23,10 @@
 # items, ac-keys.tsv, ac_refs, given, MIGRATE (extension names, a path, a generic word or task text, not contract identifiers); the dotted paths
 # (Counterparty.address.addressLine1, ResolutionResult.findings[].code, CounterpartyHistory.items[].version, ...) are covered by the property rows
 # and the rows ResolutionFinding.code and CounterpartyVersion.version; provenance already has a row (INV-REQ-512).
+# INV-T-9661 (INV-REQ-320, 1290, 802, 1299, 1548): not rows: NONE (an issuance mode of tenancy-svc); EvidenceArtefactRecorded
+# (service-runtime's event); evidence-svc and masterdata-svc (services); integration.engineer and tax.approver (roles);
+# DEFAULT_24H_1H, SHORTER, SUGGEST_CONFIRM, AUTO_APPLY, OFF (catalogue option keys of catalogue/variation-points/variation-points.yaml,
+# set through setPolicy of service-runtime/openapi.yaml, INV-Q-9649 option A).
 identifier	kind	file	requirement
 sameGroup	property	openapi.yaml	INV-REQ-720
 sameTenant	property	openapi.yaml	INV-REQ-720
@@ -113,3 +117,17 @@ constitution	property	schemas/identity-triple-corrected-payload.schema.json	INV-
 effectiveFrom	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
 changeRef	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
 accessPointEscalation	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
+getNetworkRegistration	operation	openapi.yaml	INV-REQ-320
+confirmNetworkRegistration	operation	openapi.yaml	INV-REQ-320
+listRegisterSuggestions	operation	openapi.yaml	INV-REQ-1290
+confirmRegisterSuggestion	operation	openapi.yaml	INV-REQ-1290
+NetworkRegistration.apReference	schema_property	openapi.yaml	INV-REQ-320
+NetworkRegistration.state	schema_property	openapi.yaml	INV-REQ-320
+RegisterSuggestion.field	schema_property	openapi.yaml	INV-REQ-1290
+RegisterSuggestion.registerValue	schema_property	openapi.yaml	INV-REQ-1290
+NetworkRegistration.state.OUTSTANDING	schema_enum_value	openapi.yaml	INV-REQ-320
+NetworkRegistration.state.CONFIRMED	schema_enum_value	openapi.yaml	INV-REQ-320
+RegisterSuggestion.state.PENDING	schema_enum_value	openapi.yaml	INV-REQ-1290
+RegisterSuggestion.state.CONFIRMED	schema_enum_value	openapi.yaml	INV-REQ-1290
+RegisterSuggestion.state.SUPERSEDED	schema_enum_value	openapi.yaml	INV-REQ-1290
+RegisterSuggestion.field.REGISTERED_NAME	schema_enum_value	openapi.yaml	INV-REQ-1290
