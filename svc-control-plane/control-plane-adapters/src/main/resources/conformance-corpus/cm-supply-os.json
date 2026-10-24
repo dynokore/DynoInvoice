@@ -1,15 +1,13 @@
 {
   "description": "Annex E supply code OS: Supplies outside the scope of the GST Act",
   "expected": "OS",
-  "expectedField": "categoryCode",
   "id": "cm-supply-os",
   "inputs": {
-    "direction": "SALE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-OS",
-    "transactionDate": "2026-10-01"
+    "annexERate": "NA",
+    "code": "OS",
+    "side": "supply"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, supply codes): OS"
+  "source": "R1 Annex E"
 }

@@ -1,15 +1,12 @@
 {
-  "description": "EXCLUDED_TXN by INV-NOTE-2 section 7.3 for code DS.",
+  "description": "Standard-rated supplies: deemed supplies.",
   "expected": "EXCLUDED_TXN",
-  "expectedField": "scopeVerdict",
   "id": "sc-deemed-supply",
   "inputs": {
-    "direction": "SALE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-DS",
-    "transactionDate": "2026-10-01"
+    "category": "Standard-rated supplies: deemed supplies",
+    "side": "supply"
   },
   "period": "2026-10",
   "section": "SCOPE_MATRIX",
-  "source": "INV-NOTE-2 section 7.3: standard-rated supplies, deemed supplies; section 6.2 DS"
+  "source": "SRS 7.3 (R1 section 7.3)"
 }

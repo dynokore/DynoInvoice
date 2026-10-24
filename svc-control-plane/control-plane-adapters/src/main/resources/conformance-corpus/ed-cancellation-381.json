@@ -1,19 +1,12 @@
 {
-  "description": "Cancellation document for an earlier invoice: 381.",
+  "description": "Cancellation document mapped to document type 381.",
   "expected": "381",
-  "expectedField": "documentTypeCode",
   "id": "ed-cancellation-381",
   "inputs": {
-    "direction": "SALE",
-    "documentKind": "cancellation",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-SR",
-    "lineSign": "NEGATIVE",
-    "precedingDocumentDate": "2026-09-01",
-    "precedingDocumentNumber": "INV-ORIG-1",
-    "transactionDate": "2026-10-01"
+    "cancellation": "true",
+    "documentType": "381"
   },
   "period": "2026-10",
   "section": "EDGE_CORPUS",
-  "source": "INV-AC-1651 then: a cancellation document's document type is 381"
+  "source": "SRS 7.2 FR-3.9"
 }

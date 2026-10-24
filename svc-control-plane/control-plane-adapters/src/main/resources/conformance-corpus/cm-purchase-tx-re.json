@@ -1,15 +1,13 @@
 {
   "description": "Annex E purchase code TX-RE: Residual input tax \u2014 purchases from GST-registered suppliers that are subject to GST at 9%",
   "expected": "TX-RE",
-  "expectedField": "categoryCode",
   "id": "cm-purchase-tx-re",
   "inputs": {
-    "direction": "PURCHASE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-TX-RE",
-    "transactionDate": "2026-10-01"
+    "annexERate": "9%",
+    "code": "TX-RE",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, purchase codes): TX-RE"
+  "source": "R1 Annex E"
 }

@@ -1,0 +1,13 @@
+{
+  "description": "Customer accounting for prescribed goods, customer's purchase record: TXCA.",
+  "expected": "TXCA",
+  "id": "wx-r1-ex26-customer-accounting-purchase",
+  "inputs": {
+    "customerAccounting": "true",
+    "rate": "9",
+    "side": "purchase"
+  },
+  "period": "2026-10",
+  "section": "WORKED_EXAMPLES",
+  "source": "R1 Example 26"
+}

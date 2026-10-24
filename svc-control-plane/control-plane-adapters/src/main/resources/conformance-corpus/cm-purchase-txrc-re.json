@@ -1,15 +1,13 @@
 {
   "description": "Annex E purchase code TXRC-RE: Imported services and LVG claimable by the GST-registered customer under reverse charge th",
   "expected": "TXRC-RE",
-  "expectedField": "categoryCode",
   "id": "cm-purchase-txrc-re",
   "inputs": {
-    "direction": "PURCHASE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-TXRC-RE",
-    "transactionDate": "2026-10-01"
+    "annexERate": "9%",
+    "code": "TXRC-RE",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, purchase codes): TXRC-RE"
+  "source": "R1 Annex E"
 }

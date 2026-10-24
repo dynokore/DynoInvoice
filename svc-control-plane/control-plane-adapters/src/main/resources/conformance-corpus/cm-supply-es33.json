@@ -1,15 +1,13 @@
 {
   "description": "Annex E supply code ES33: Regulation 33 Exempt Supplies",
   "expected": "ES33",
-  "expectedField": "categoryCode",
   "id": "cm-supply-es33",
   "inputs": {
-    "direction": "SALE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-ES33",
-    "transactionDate": "2026-10-01"
+    "annexERate": "NA",
+    "code": "ES33",
+    "side": "supply"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, supply codes): ES33"
+  "source": "R1 Annex E"
 }

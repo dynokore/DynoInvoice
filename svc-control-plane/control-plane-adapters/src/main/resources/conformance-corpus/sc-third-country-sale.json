@@ -1,0 +1,12 @@
+{
+  "description": "Out-of-scope supplies: third-country sales of goods.",
+  "expected": "OUT_OF_SCOPE",
+  "id": "sc-third-country-sale",
+  "inputs": {
+    "category": "Out-of-scope supplies: third-country sales of goods",
+    "side": "supply"
+  },
+  "period": "2026-10",
+  "section": "SCOPE_MATRIX",
+  "source": "SRS 7.3 (R1 section 7.3)"
+}

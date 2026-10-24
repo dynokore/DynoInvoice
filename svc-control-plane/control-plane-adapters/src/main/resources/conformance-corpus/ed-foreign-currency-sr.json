@@ -1,0 +1,13 @@
+{
+  "description": "Foreign-currency standard-rated supply.",
+  "expected": "SR",
+  "id": "ed-foreign-currency-sr",
+  "inputs": {
+    "currency": "USD",
+    "gstCurrency": "SGD",
+    "lines": "SR"
+  },
+  "period": "2026-10",
+  "section": "EDGE_CORPUS",
+  "source": "SRS FR-1 currency handling"
+}

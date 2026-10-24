@@ -1,15 +1,13 @@
 {
   "description": "Annex E purchase code IM-N33: Import of goods with GST paid to Singapore Customs that are directly attributable to non-R",
   "expected": "IM-N33",
-  "expectedField": "categoryCode",
   "id": "cm-purchase-im-n33",
   "inputs": {
-    "direction": "PURCHASE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-IM-N33",
-    "transactionDate": "2026-10-01"
+    "annexERate": "9%",
+    "code": "IM-N33",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, purchase codes): IM-N33"
+  "source": "R1 Annex E"
 }

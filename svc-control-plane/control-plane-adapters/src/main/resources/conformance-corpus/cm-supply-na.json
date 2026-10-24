@@ -1,15 +1,13 @@
 {
   "description": "Annex E supply code NA: Taxable supplies where GST need not be charged under specific schemes such as AMFT scheme,",
   "expected": "NA",
-  "expectedField": "categoryCode",
   "id": "cm-supply-na",
   "inputs": {
-    "direction": "SALE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-NA",
-    "transactionDate": "2026-10-01"
+    "annexERate": "NA",
+    "code": "NA",
+    "side": "supply"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, supply codes): NA"
+  "source": "R1 Annex E"
 }

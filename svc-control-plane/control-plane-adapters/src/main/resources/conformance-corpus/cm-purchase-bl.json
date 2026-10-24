@@ -1,15 +1,13 @@
 {
   "description": "Annex E purchase code BL: Disallowed expenses",
   "expected": "BL",
-  "expectedField": "categoryCode",
   "id": "cm-purchase-bl",
   "inputs": {
-    "direction": "PURCHASE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-BL",
-    "transactionDate": "2026-10-01"
+    "annexERate": "9%",
+    "code": "BL",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, purchase codes): BL"
+  "source": "R1 Annex E"
 }

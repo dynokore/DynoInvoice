@@ -1,19 +1,13 @@
 {
-  "description": "Supply to an approved marine customer (credit note).",
+  "description": "Supply to an approved marine customer (credit-note).",
   "expected": "ZR",
-  "expectedField": "categoryCode",
   "id": "sm-amcs-supply-credit-note",
   "inputs": {
-    "direction": "SALE",
-    "election": "AMCS",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-ZR",
-    "lineSign": "NEGATIVE",
-    "precedingDocumentDate": "2026-09-01",
-    "precedingDocumentNumber": "INV-ORIG-1",
-    "transactionDate": "2026-10-01"
+    "documentType": "381",
+    "scheme": "amcs",
+    "side": "supply"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "INV-NOTE-2 section 14.15 table, AMCS: supplier ZR; INV-NOTE-2 section 14.1 FR-10.3: credit note codes tally with the original invoice"
+  "source": "SRS 14.19"
 }

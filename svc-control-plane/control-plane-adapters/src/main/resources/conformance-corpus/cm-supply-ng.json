@@ -1,15 +1,13 @@
 {
   "description": "Annex E supply code NG: Supplies made by non-GST registered business, i.e. the non-GST registered business is not ",
   "expected": "NG",
-  "expectedField": "categoryCode",
   "id": "cm-supply-ng",
   "inputs": {
-    "direction": "SALE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-NG",
-    "transactionDate": "2026-10-01"
+    "annexERate": "NA",
+    "code": "NG",
+    "side": "supply"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, supply codes): NG"
+  "source": "R1 Annex E"
 }

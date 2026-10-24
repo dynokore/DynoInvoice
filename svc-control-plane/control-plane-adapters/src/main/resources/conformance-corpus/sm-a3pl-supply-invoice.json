@@ -1,17 +1,13 @@
 {
   "description": "Approved 3PL supply to a specified person, GST not charged (invoice).",
   "expected": "NA",
-  "expectedField": "categoryCode",
   "id": "sm-a3pl-supply-invoice",
   "inputs": {
-    "direction": "SALE",
-    "election": "A3PL",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-NA",
-    "lineSign": "POSITIVE",
-    "transactionDate": "2026-10-01"
+    "documentType": "380",
+    "scheme": "a3pl",
+    "side": "supply"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "INV-NOTE-2 section 14.18 table: supplier NA"
+  "source": "SRS 14.18 (R11)"
 }

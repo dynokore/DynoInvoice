@@ -1,17 +1,13 @@
 {
   "description": "Approved 3PL specified-person purchase, no GST charged (invoice).",
   "expected": "TXNA",
-  "expectedField": "categoryCode",
   "id": "sm-a3pl-purchase-invoice",
   "inputs": {
-    "direction": "PURCHASE",
-    "election": "A3PL",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-TXNA",
-    "lineSign": "POSITIVE",
-    "transactionDate": "2026-10-01"
+    "documentType": "380",
+    "scheme": "a3pl",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "INV-NOTE-2 section 14.18 table: recipient TXNA"
+  "source": "SRS 14.18 (R11)"
 }

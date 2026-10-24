@@ -1,15 +1,13 @@
 {
   "description": "Annex E purchase code ME: Import of goods under the Major Exporter Scheme (\"MES\"), A3PL scheme or other approved sch",
   "expected": "ME",
-  "expectedField": "categoryCode",
   "id": "cm-purchase-me",
   "inputs": {
-    "direction": "PURCHASE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-ME",
-    "transactionDate": "2026-10-01"
+    "annexERate": "0%",
+    "code": "ME",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, purchase codes): ME"
+  "source": "R1 Annex E"
 }

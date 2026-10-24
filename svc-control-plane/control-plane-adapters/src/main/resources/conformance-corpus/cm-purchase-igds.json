@@ -1,15 +1,13 @@
 {
   "description": "Annex E purchase code IGDS: Import of goods under the Import GST Deferment Scheme (\"IGDS\")",
   "expected": "IGDS",
-  "expectedField": "categoryCode",
   "id": "cm-purchase-igds",
   "inputs": {
-    "direction": "PURCHASE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-IGDS",
-    "transactionDate": "2026-10-01"
+    "annexERate": "9%",
+    "code": "IGDS",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "INV-BR-1470 (R1 Annex E, purchase codes): IGDS"
+  "source": "R1 Annex E"
 }

@@ -1,15 +1,12 @@
 {
-  "description": "EXCLUDED_TXN by INV-NOTE-2 section 7.3 for code IM.",
+  "description": "Standard-rated purchases: import permits.",
   "expected": "EXCLUDED_TXN",
-  "expectedField": "scopeVerdict",
   "id": "sc-import-permit",
   "inputs": {
-    "direction": "PURCHASE",
-    "entityRef": "ENT-CORPUS-1",
-    "internalTaxCode": "INT-IM",
-    "transactionDate": "2026-10-01"
+    "category": "Standard-rated purchases: import permits",
+    "side": "purchase"
   },
   "period": "2026-10",
   "section": "SCOPE_MATRIX",
-  "source": "INV-NOTE-2 section 7.3: standard-rated purchases, import permits; section 6.2 IM"
+  "source": "SRS 7.3 (R1 section 7.3)"
 }
