@@ -1,5 +1,6 @@
 package com.dynokore.gst.notification.bootstrap
 
+import com.dynokore.gst.notification.adapters.events.NotificationEventCatalogue
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
@@ -34,7 +35,12 @@ class Tpl16ServiceCompositionTest {
             ).forEach { context.getBean(it.java) }
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:notification-svc"
-            catalogueTypes(context) shouldBe NotificationEvents.entries.map { it.eventType }.toSet()
+            catalogueTypes(context) shouldBe
+                NotificationEventCatalogue
+                    .load()
+                    .entries()
+                    .map { it.eventType }
+                    .toSet()
         }
     }
 

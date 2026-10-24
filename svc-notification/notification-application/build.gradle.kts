@@ -16,3 +16,8 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
 }
+
+// EventNameSourceScanTest reads the main sources of the four layers from the repository root.
+tasks.withType<Test>().configureEach {
+    systemProperty("gst.root.dir", rootProject.projectDir.path)
+}

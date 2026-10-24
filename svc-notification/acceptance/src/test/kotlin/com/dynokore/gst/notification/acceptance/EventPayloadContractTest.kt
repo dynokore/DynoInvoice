@@ -1,6 +1,5 @@
 package com.dynokore.gst.notification.acceptance
 
-import com.dynokore.gst.notification.bootstrap.NotificationEvents
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SchemaRegistryConfig
 import com.networknt.schema.SpecificationVersion
@@ -90,16 +89,6 @@ class EventPayloadContractTest {
     @Test
     fun `every sample belongs to a channel of the contract`() {
         samples.keys shouldBe channels().values.toSet()
-    }
-
-    @Test
-    fun `the events notification may emit are channels of the contract with the message name as the type`() {
-        val byAddress = channels()
-        NotificationEvents.topicByType.forEach { (type, topic) ->
-            val message = checkNotNull(byAddress[topic]) { "$topic is not a channel of the contract" }
-            val name = map(map(map(asyncapi["components"])["messages"])[message])["name"]
-            name shouldBe type
-        }
     }
 
     private companion object {

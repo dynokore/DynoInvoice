@@ -152,26 +152,26 @@ class NotificationBoundaryDbTest {
         scope.bind(TenantId(tenant), actor) { runner.inTransaction { dsl.fetchCount(Outbox.OUTBOX) } }
 
     @Test
-    fun `the emission guard rejects an event type not catalogued for notification and writes nothing`(
+    fun `the emission guard refuses what the catalogue does not list and writes nothing`(
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        shouldThrow<EmissionNotPermitted> { boundary.emit(tenant, "com.dynokore.gst.notification.Invented.v1") }
-        shouldThrow<EmissionNotPermitted> {
-            boundary.emit(
-                tenant,
-                "com.dynokore.gst.canonical.CanonicalVersionCreated.v1",
-            )
-        }
+        listOf(
+            "com.dynokore.gst.notification.ExampleHappened.v1", // the scaffold is not a catalogued event
+            "com.dynokore.gst.platform.AuditEntryRecorded.v2",
+            "com.dynokore.gst.notification.AuditEntryRecorded.v1",
+            "com.dynokore.gst.notification.Invented.v1",
+            "com.dynokore.gst.canonical.CanonicalVersionCreated.v1",
+        ).forEach { type -> shouldThrow<EmissionNotPermitted> { boundary.emit(tenant, type) } }
         boundary.outboxRows(tenant) shouldBe 0
     }
 
     @Test
-    fun `a catalogued event leaves through the outbox in the command transaction`(
+    fun `a platform event leaves through the outbox in the command transaction`(
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        NotificationEvents.entries.forEach { boundary.emit(tenant, it.eventType) }
-        boundary.outboxRows(tenant) shouldBe NotificationEvents.entries.size
+        boundary.emit(tenant, "com.dynokore.gst.platform.AuditEntryRecorded.v1")
+        boundary.outboxRows(tenant) shouldBe 1
     }
 }

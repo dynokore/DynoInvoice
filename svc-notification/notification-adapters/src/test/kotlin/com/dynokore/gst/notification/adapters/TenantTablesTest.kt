@@ -1,5 +1,6 @@
 package com.dynokore.gst.notification.adapters
 
+import com.dynokore.platform.outboxandqueue.OutboxSchema
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -9,7 +10,8 @@ import java.util.UUID
 
 /**
  * CS-19 at the database: every table of the schema is tenant data under forced RLS, or declared platform-scoped.
- * Flyway's own history table is not a table of the service.
+ * Flyway's own history table and `binding_key` (installed by the tenancy kernel's BindingKeyMigration, not by a
+ * migration of the service; not in OutboxSchema.platformScopedTables) are not tables of the service.
  */
 class TenantTablesTest {
     private class TableFacts(
@@ -25,8 +27,13 @@ class TenantTablesTest {
 
         fun finding(): String? =
             when {
-                !hasTenant && comment == "platform-scoped: no tenant data" -> null
+                !hasTenant && exempt(name, comment) -> null
                 !hasTenant -> "$name: no tenant_id and not platform-scoped"
+                else -> tenantFinding()
+            }
+
+        private fun tenantFinding(): String? =
+            when {
                 tenantNotNull && rowSecurity && forced && signedPolicy -> null
                 else -> "$name: tenant_id NOT NULL, ENABLE and FORCE ROW LEVEL SECURITY and a bound_tenant() policy"
             }
@@ -49,12 +56,51 @@ class TenantTablesTest {
     @Test
     fun `the tables of the first migration exist`() {
         (
-            setOf("webhook_subscription", "webhook_subscription_scope", "outbox") -
+            setOf(
+                "webhook_subscription",
+                "webhook_subscription_scope",
+                "outbox",
+                "work_queue",
+                "lane_rate_window",
+            ) -
                 tables().map { it.name }.toSet()
         ).shouldBeEmpty()
+        tables().map { it.name }.filter { it == "queue_item" }.shouldBeEmpty() // one queue table only (INV-Q-9743 A)
+    }
+
+    @Test
+    fun `the exemption names equal the platform-scoped tables of the outbox library`() {
+        PLATFORM_SCOPED.toSet() shouldBe
+            OutboxSchema.platformScopedTables("notification").map { it.removePrefix("notification.") }.toSet()
+    }
+
+    @Test
+    fun `the exemption needs the exact name and the comment`() {
+        exempt("lane_rate_window", COMMENT) shouldBe true
+        PLATFORM_SCOPED.forEach { exempt(it, COMMENT) shouldBe true }
+        exempt("probe_free", COMMENT) shouldBe false // the comment alone does not exempt
+        exempt("consumer_offset_x", COMMENT) shouldBe false // look-alike name
+        exempt("Consumer_Offset", COMMENT) shouldBe false
+        exempt("consumer_offset", "") shouldBe false // the name alone does not exempt
+        exempt("consumer_offset", "platform-scoped: no tenant data ") shouldBe false
     }
 
     private companion object {
+        const val COMMENT = "platform-scoped: no tenant data"
+        val PLATFORM_SCOPED =
+            listOf(
+                "consumer_offset",
+                "consumer_replay",
+                "consumer_replay_marker",
+                "consumer_source_seen",
+                "lane_rate_window",
+            )
+
+        fun exempt(
+            name: String,
+            comment: String?,
+        ): Boolean = name in PLATFORM_SCOPED && comment == COMMENT
+
         const val INSPECT =
             "select c.relname, c.relrowsecurity, c.relforcerowsecurity, " +
                 "exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' " +
@@ -66,7 +112,7 @@ class TenantTablesTest {
                 "and pg_get_expr(p.polwithcheck, p.polrelid) like '%bound_tenant()%') " +
                 "from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
                 "where n.nspname = 'notification' and c.relkind in ('r', 'p') " +
-                "and c.relname <> 'flyway_schema_history' order by 1"
+                "and c.relname not in ('flyway_schema_history', 'binding_key') order by 1"
     }
 
     private fun runtime(block: (java.sql.Connection) -> Unit) =

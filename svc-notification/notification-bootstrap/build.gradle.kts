@@ -26,6 +26,7 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.snakeyaml)
     testImplementation(project(":notification-application"))
     testImplementation(testFixtures(project(":notification-adapters")))
 }

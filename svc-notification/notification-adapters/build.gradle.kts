@@ -31,6 +31,8 @@ dependencies {
     implementation(project(":notification-contract"))
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.platform.outboxAndQueue.impl)
+    implementation(libs.platform.productRuntime.api)
+    implementation(libs.snakeyaml)
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.configResolver.impl)
     implementation(libs.platform.serviceRuntime.impl)

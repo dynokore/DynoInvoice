@@ -90,3 +90,17 @@ fun stageContracts() {
     marker.writeText(version)
 }
 stageContracts()
+
+// The contract documents ship as resources (gst/contracts/notification/...): the service builds its event catalogue
+// from the asyncapi document (NotificationEventCatalogue, INV-Q-9739 A).
+val contractResources = layout.buildDirectory.dir("contract-resources")
+val stageContractResources =
+    tasks.register<Sync>("stageContractResources") {
+        from(layout.buildDirectory.dir("contracts-repo/.bundle/notification")) {
+            include("asyncapi.yaml")
+            into("gst/contracts/notification")
+        }
+        into(contractResources)
+    }
+sourceSets.main { resources.srcDir(contractResources) }
+tasks.named("processResources") { dependsOn(stageContractResources) }

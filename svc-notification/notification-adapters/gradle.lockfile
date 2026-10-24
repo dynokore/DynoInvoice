@@ -13,6 +13,7 @@ com.dynokore.platform:config-resolver:5.0.4=compileClasspath,runtimeClasspath,te
 com.dynokore.platform:outbox-and-queue-api:6.2.1=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:outbox-and-queue:6.2.1=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:platform-libs-bom:0.103.0=bindingKernel,compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
+com.dynokore.platform:product-runtime-api:1.2.1=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:service-runtime-api:10.1.0=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:service-runtime:10.1.0=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-jooq-api:1.4.0=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
