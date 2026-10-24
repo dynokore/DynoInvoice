@@ -24,28 +24,15 @@ fun interface CallerSource {
 }
 
 /**
- * Whether [person] holds [action] (a permission key of the catalogue) for the entity in the caller's tenant (ruling
- * INV-Q-10025). An unknown person, a revoked or expired grant, a grant on another entity and a text that is not
- * exactly a person's id all answer false. An exception is treated by the caller as false (fail closed).
+ * The roles [person] holds for the entity according to the authority replica (CS-23). An unknown person, a person
+ * with no grant and a text that is not exactly a person's id all answer the empty set. An exception is treated by the
+ * caller as "cannot be proven" (fail closed).
  */
-fun interface ActionAuthority {
-    fun holds(
+fun interface RoleSource {
+    fun rolesOf(
         person: String,
         entityRef: String,
-        action: String,
-    ): Boolean
-}
-
-/**
- * Whether [person] holds the approving [role] for the entity (rulings INV-Q-9702, INV-Q-9704). The production binding
- * answers false until the owner question INV-Q-10027 is answered; an exception is treated as false (fail closed).
- */
-fun interface ApproverSource {
-    fun holds(
-        person: String,
-        entityRef: String,
-        role: String,
-    ): Boolean
+    ): Set<String>
 }
 
 /**
@@ -73,7 +60,7 @@ interface ElectionPolicyStore {
     ): List<ElectionRecord>
 
     /**
-     * Stores the election with the caller as actor and [roles] as the roles the caller is proven to hold.
+     * Stores the election with the caller as actor and [roles] as the caller's roles.
      *
      * @throws ElectionWriteRefused when the store refuses the value; nothing is stored.
      */

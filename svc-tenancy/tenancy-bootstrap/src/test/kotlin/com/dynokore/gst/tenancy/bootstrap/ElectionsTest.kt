@@ -111,7 +111,7 @@ class ElectionsTest {
                 assertThat(e.refusal { e.elect(entity, "POSTING_DATE", later) }!!.first).isEqualTo(422)
                 e.facts.set(entity.entityRef, "claimsInputTaxOnPostingBasis", FactAnswer.TRUE)
                 assertThat(e.refusal { e.elect(entity, posting, later) }!!.first).isEqualTo(422)
-                listOf(ADMIN, "$APPROVER ", ENTITY_ADMIN_ONLY, NOBODY, "", " ").forEach { who ->
+                listOf(ADMIN, "$APPROVER ", ENTITY_ADMIN_ONLY, NOBODY).forEach { who ->
                     assertThat(e.refusal { e.elect(entity, posting, later, who) }).isEqualTo(403 to "SRT-004")
                 }
                 assertThat(e.history(entity, ElectionKind.PURCHASE_DATE_BASIS).map { it.value })

@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.election
 
+import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.platform.configresolver.ConstraintVerdict
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SettingTarget
@@ -8,9 +9,9 @@ import com.dynokore.platform.configresolver.VariationPointKey
 import java.time.LocalDate
 
 /**
- * The ValueConstraints port of tenancy-svc over the election variation points: VP-22, VP-24 and VP-25 name this port
- * in the catalogue, so it must not refuse them; who may write them is decided by [ElectionPolicyWriterGuard] in front
- * of the writer (ruling INV-Q-10023), not here. VP-76 is checked by config-resolver alone (its bounds are in the
+ * The ValueConstraints port of tenancy-svc over the election variation points (ruling INV-Q-9692): VP-22, VP-23, VP-24
+ * and VP-25 are accepted only while [ElectionWriteMarker] is set for that key, i.e. from the election operations, and
+ * refused (422 POL-014) on the shared `setPolicy`. VP-76 is checked by config-resolver alone (its bounds are in the
  * catalogue); any other key goes to [others].
  */
 class ElectionValueConstraints(
@@ -22,13 +23,35 @@ class ElectionValueConstraints(
         selected: List<SelectedOption>,
         onDate: LocalDate,
     ): ConstraintVerdict? =
-        if (key in ElectionPolicyWriterGuard.ELECTION_KEYS || key == ROUNDING_BASIS) {
-            ConstraintVerdict.Accept
-        } else {
-            others.check(target, key, selected, onDate)
+        when {
+            key in ELECTION_KEYS -> {
+                if (ElectionWriteMarker.allows(key)) {
+                    ConstraintVerdict.Accept
+                } else {
+                    ConstraintVerdict.Refuse(
+                        "$key is set through the election operations of tenancy-svc, not setPolicy",
+                    )
+                }
+            }
+
+            key == ROUNDING_BASIS -> {
+                ConstraintVerdict.Accept
+            }
+
+            else -> {
+                others.check(target, key, selected, onDate)
+            }
         }
 
     companion object {
+        val ELECTION_KEYS: Set<VariationPointKey> =
+            ElectionKind.entries
+                .map {
+                    VariationPointKey(
+                        it.variationPoint,
+                    )
+                }.toSet()
+
         /** VP-76: the rounding basis, set by the shared setPolicy (role tax.approver) and read as one option. */
         val ROUNDING_BASIS = VariationPointKey("VP-76")
     }

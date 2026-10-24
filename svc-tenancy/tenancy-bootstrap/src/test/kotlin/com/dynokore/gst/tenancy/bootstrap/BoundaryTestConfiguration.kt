@@ -1,11 +1,8 @@
 package com.dynokore.gst.tenancy.bootstrap
 
-import com.dynokore.gst.tenancy.application.election.ActionAuthority
-import com.dynokore.gst.tenancy.application.election.ApproverSource
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
-import com.dynokore.gst.tenancy.domain.ElectionPermissions
-import com.dynokore.gst.tenancy.domain.ElectionRoles
+import com.dynokore.gst.tenancy.application.election.RoleSource
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
@@ -35,13 +32,11 @@ class CapturingOutboxWriter(
 
 /**
  * The people of a test: who calls, and which roles each person holds for which entity (the authority replica of the
- * service, here a table). One bean answers the caller and authority ports of the elections: the permissions follow
- * the roles as the
- * RolePermissions cells do (MANAGE: entity.admin; CONFIRM: entity.admin, tenant.admin, tax.approver).
+ * service, here a table). One bean answers both ports of the elections.
  */
 class TestPeople :
     CallerSource,
-    ActionAuthority {
+    RoleSource {
     @Volatile
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
@@ -56,29 +51,10 @@ class TestPeople :
 
     override fun actor(): String = caller
 
-    override fun holds(
+    override fun rolesOf(
         person: String,
         entityRef: String,
-        action: String,
-    ): Boolean {
-        val roles = granted[person to entityRef].orEmpty()
-        return when (action) {
-            ElectionPermissions.MANAGE -> ElectionRoles.ENTITY_ADMIN in roles
-            ElectionPermissions.CONFIRM -> roles.any { it in CONFIRMING }
-            else -> false
-        }
-    }
-
-    /** The approver port, standing in for the production binding that answers false until INV-Q-10027 is answered. */
-    fun approvers(): ApproverSource =
-        ApproverSource { person, entityRef, role ->
-            role in
-                granted[person to entityRef].orEmpty()
-        }
-
-    private companion object {
-        val CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TENANT_ADMIN, ElectionRoles.TAX_APPROVER)
-    }
+    ): Set<String> = granted[person to entityRef].orEmpty()
 }
 
 /** The entity facts of a test; a fact not set answers NOT_RECORDED, as the default binding does. */
@@ -114,10 +90,6 @@ class BoundaryTestConfiguration {
     @Bean
     @Primary
     fun testPeople(): TestPeople = TestPeople()
-
-    @Bean
-    @Primary
-    fun testApprovers(people: TestPeople): ApproverSource = people.approvers()
 
     @Bean
     @Primary
