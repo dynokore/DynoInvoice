@@ -26,8 +26,10 @@ import java.util.UUID
  * the generic validation failure, and with no override. The generated request type closes the enum, so the value is
  * refused while the body is read; this advice turns exactly that failure (the property `aggregateType` offered as a
  * JSON string) into the 422 of [Problems.renderIngestion] (INV-Q-8795 A, INV-Q-8797 A); no envelope is built here. An
- * absent `aggregateType` is the contract violation SRT-001 (400), not ING-006. Every other unreadable body, and an
- * `aggregateType` that is not a string, keeps the framework answer: the wire form of those is not ruled.
+ * absent `aggregateType`, and a present one whose JSON token is not a string (`null`, number, boolean, object, array;
+ * the token type is read from the body, never the coerced text), is the contract violation SRT-001 (400,
+ * [Problems.contractViolation]), not ING-006 (INV-Q-9338 A). Every other unreadable body keeps the framework answer:
+ * its wire form is not ruled.
  */
 @RestControllerAdvice
 class NotAggregatableAdvice {
@@ -42,7 +44,8 @@ class NotAggregatableAdvice {
         return when {
             member == null -> ResponseEntity.status(HttpStatus.BAD_REQUEST).build<Unit>()
             member.isMissingNode -> respond(Problems.contractViolation("aggregateType is required", correlationId()))
-            member.isString && AggregateIntakeCheck.check(member.asString()) is IntakeVerdict.Refused -> refused()
+            !member.isString -> respond(Problems.contractViolation("aggregateType must be a string", correlationId()))
+            AggregateIntakeCheck.check(member.asString()) is IntakeVerdict.Refused -> refused()
             else -> ResponseEntity.status(HttpStatus.BAD_REQUEST).build<Unit>()
         }
     }

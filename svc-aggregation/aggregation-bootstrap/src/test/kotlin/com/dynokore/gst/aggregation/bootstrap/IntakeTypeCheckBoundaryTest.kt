@@ -91,13 +91,25 @@ class IntakeTypeCheckBoundaryTest {
     }
 
     @Test
-    fun `INV-AC-447 a null, number, boolean, object or array aggregateType is not answered with ING-006`() {
+    fun `INV-AC-447 a null, number, boolean, object or array aggregateType is SRT-001 with 400, never ING-006`() {
         listOf("null", "5", "true", """{"a":1}""", """["POS"]""").forEach { value ->
             val response = send(raw(""""aggregateType":$value,"""))
-            // the wire form of these shapes is not ruled (reported as a gap): only "not ING-006" is pinned
-            (response.status != 422) shouldBe true
+            response.status shouldBe 400
+            response.contentType shouldBe MediaType.APPLICATION_PROBLEM_JSON_VALUE
+            response.contentAsString.isEmpty() shouldBe false
             response.contentAsString.contains("ING-006") shouldBe false
+            val problem = mapper.readTree(response.contentAsString)
+            problem.get("code").asString() shouldBe "SRT-001"
+            problem.get("status").asInt() shouldBe 400
+            problem.get("correlationId").asString() shouldBe CORRELATION
         }
+    }
+
+    @Test
+    fun `INV-AC-447 the JSON string 5 is a string outside the three and answers ING-006, unlike the number 5`() {
+        val response = call("5")
+        response.status shouldBe 422
+        response.contentAsString shouldBe ing006.body
     }
 
     @Test
