@@ -122,7 +122,8 @@ class InstallationRolesTest {
             assertThat(stored(kit, BusinessDate.today(kit.clock))).containsExactly("REGULATED_PRIVATE")
             // the tighten-only writer refuses the way back and the stored value stays
             val back = setPreset(kit.context, "user:op-1", "SAAS_STANDARD", effective.plusDays(5))
-            assertThat(back.status).describedAs(back.contentAsString).isGreaterThanOrEqualTo(400)
+            assertThat(back.status).describedAs(back.contentAsString).isEqualTo(422)
+            assertThat(back.contentAsString).contains("POL-016")
             assertThat(stored(kit, BusinessDate.today(kit.clock))).containsExactly("REGULATED_PRIVATE")
         }
 
