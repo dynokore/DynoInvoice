@@ -31,6 +31,7 @@ dependencies {
     implementation(libs.springBoot.starterJdbc)
     runtimeOnly(libs.postgresql)
 
+    testImplementation(libs.gstCatalogue)
     testImplementation(libs.springBoot.starterTest)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.flyway.core)

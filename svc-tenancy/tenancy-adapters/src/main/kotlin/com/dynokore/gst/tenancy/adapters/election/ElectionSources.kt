@@ -1,19 +1,24 @@
 package com.dynokore.gst.tenancy.adapters.election
 
 import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
+import com.dynokore.gst.tenancy.application.election.ActionAuthority
+import com.dynokore.gst.tenancy.application.election.ApproverSource
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
-import com.dynokore.gst.tenancy.application.election.RoleSource
-import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.serviceruntime.replica.AuthorityKey
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
+import com.dynokore.platform.serviceruntime.replica.DecisionSource
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
+import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
-import java.time.Instant
+import java.time.Clock
+import java.time.Duration
 
 /**
  * The default binding of the entity facts: every fact is NOT_RECORDED (owner answer INV-Q-9696 B), so
@@ -44,28 +49,43 @@ class RequestCallerSource(
 }
 
 /**
- * The roles a person holds for an entity according to the authority replica (CS-23): the actions of the person's
- * grants on the exact entity that are valid now and are election roles. Exact equality on the person's id; nothing is
- * answered for a person the replica does not hold, and an unavailable replica answers nothing (fail closed).
+ * [ActionAuthority] over the authority replica (ruling INV-Q-10025): true only when the replica decides allowed for
+ * the person (kind HUMAN), the caller's tenant, the entity and the action, with source LOCAL or FALLBACK. tenancy-svc
+ * has no access-svc fallback (`x-sync-edge` of `authorise` is `any-except:tenancy-svc->access-svc`), so beyond the lag
+ * bound, with no replica bound, or with a DEGRADED answer the person is refused (fail closed).
  */
-class AuthorityRoleSource(
+class ReplicaActionAuthority(
     private val replica: AuthorityReplica?,
     private val tenants: TenantContext,
-    private val now: () -> Instant = Instant::now,
-) : RoleSource {
-    override fun rolesOf(
+    private val clock: Clock = Clock.systemUTC(),
+    private val budget: Duration = Duration.ofSeconds(2),
+) : ActionAuthority {
+    override fun holds(
         person: String,
         entityRef: String,
-    ): Set<String> {
-        val state = replica?.grants?.peek(AuthorityKey(tenants.current(), person, entityRef)) ?: return emptySet()
-        val at = now()
-        return state.grants
-            .filter { it.isValidAt(at) && it.action in ROLES }
-            .map { it.action }
-            .toSet()
+        action: String,
+    ): Boolean {
+        val decision =
+            replica?.decide(
+                AuthorizationRequest(tenants.current(), Principal(person, PrincipalKind.HUMAN), entityRef, action),
+                Deadline.after(budget, clock),
+            ) ?: return false
+        return decision.allowed && decision.source in ANSWERED
     }
 
     private companion object {
-        val ROLES = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TENANT_ADMIN, ElectionRoles.TAX_APPROVER)
+        val ANSWERED = setOf(DecisionSource.LOCAL, DecisionSource.FALLBACK)
     }
+}
+
+/**
+ * The production [ApproverSource]: nobody holds the approving role until the owner question INV-Q-10027 is answered,
+ * so a change of VP-22, VP-23 or VP-24 is refused 403 SRT-004 there and a first election is not affected.
+ */
+class UnboundApprovers : ApproverSource {
+    override fun holds(
+        person: String,
+        entityRef: String,
+        role: String,
+    ) = false
 }

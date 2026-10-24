@@ -21,7 +21,7 @@ jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695); bumped deliberately, like platform-libs' product-runtime does.
 platformContractsBundle = "0.0.0-dev+5e3e8fd2"
-gstCatalogue = "1.14.0"
+gstCatalogue = "1.32.0"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -41,7 +41,7 @@ platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
-gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
+gstCatalogue = "1.32.0"
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
 springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }

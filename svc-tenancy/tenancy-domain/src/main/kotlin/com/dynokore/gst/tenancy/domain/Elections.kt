@@ -24,9 +24,16 @@ object ElectionRoles {
     const val ENTITY_ADMIN = "entity.admin"
     const val TENANT_ADMIN = "tenant.admin"
     const val TAX_APPROVER = "tax.approver"
+}
 
-    /** Who may give the second confirmation of an issuance mode (ruling INV-Q-9706). */
-    val CONFIRMERS: Set<String> = setOf(ENTITY_ADMIN, TENANT_ADMIN, TAX_APPROVER)
+/**
+ * The permissions the election operations ask the authority replica for (rulings INV-Q-9706, INV-Q-10025): MANAGE is
+ * held by `entity.admin` only, CONFIRM by `entity.admin`, `tenant.admin` and `tax.approver`
+ * (catalogue/role-permissions/role-permissions.yaml).
+ */
+object ElectionPermissions {
+    const val MANAGE = "entity-config.manage"
+    const val CONFIRM = "entity-config.confirm"
 }
 
 object ElectionKeys {

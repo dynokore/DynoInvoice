@@ -9,6 +9,7 @@ import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.gst.tenancy.domain.ElectionKeys
 import com.dynokore.gst.tenancy.domain.ElectionKind
+import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.IssuanceMode
@@ -60,7 +61,8 @@ class ElectionCommands(
     private val facts: EntityFactSource,
     private val routes: AccessPointRouteStore,
     private val scopePacks: ScopePackStore,
-    private val roles: RoleSource,
+    private val authority: ActionAuthority,
+    private val approvers: ApproverSource,
     private val caller: CallerSource,
 ) {
     /** Elects the Type 1A issuance mode from [effectiveFrom]; the second confirmation is required every time. */
@@ -74,14 +76,13 @@ class ElectionCommands(
         tx.inTransaction {
             val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
             val actor = caller.actor()
-            val held = rolesOf(actor, entity.ref)
-            gate(held, actor, entity.ref)?.let { return@inTransaction it }
+            gate(actor, entity.ref)?.let { return@inTransaction it }
             if (secondConfirmationBy.isNullOrEmpty()) {
                 return@inTransaction ElectionOutcome.Invalid("secondConfirmationBy is required")
             }
-            person(secondConfirmationBy, actor, entity.ref, ElectionRoles.CONFIRMERS, "confirmer")?.let {
-                return@inTransaction it
-            }
+            person(secondConfirmationBy, actor, "confirmer", entity.ref, ElectionPermissions.CONFIRM) {
+                authority.holds(secondConfirmationBy, entity.ref, ElectionPermissions.CONFIRM)
+            }?.let { return@inTransaction it }
             val before = elections.history(entity.ref, ElectionKind.ISSUANCE_MODE)
             repeated(before, mode.name, effectiveFrom)?.let { return@inTransaction it }
             if (mode == IssuanceMode.OBSERVE) {
@@ -96,7 +97,6 @@ class ElectionCommands(
                 null,
                 effectiveFrom,
                 actor,
-                held,
                 reason,
             )?.let { return@inTransaction it }
             publishIssuanceMode(tenant, entity.ref, before, mode, effectiveFrom)
@@ -120,8 +120,7 @@ class ElectionCommands(
                     )
             val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
             val actor = caller.actor()
-            val held = rolesOf(actor, entity.ref)
-            gate(held, actor, entity.ref)?.let { return@inTransaction it }
+            gate(actor, entity.ref)?.let { return@inTransaction it }
             if (election == ElectionKeys.POSTING_DATE) {
                 postingRefusal(entity.ref)?.let { return@inTransaction it }
             }
@@ -136,7 +135,6 @@ class ElectionCommands(
                 null,
                 effectiveFrom,
                 actor,
-                held,
                 electionReason(kind, actor, approvedBy),
             )?.let { return@inTransaction it }
             ElectionOutcome.Done(elections.history(entity.ref, kind).single { it.effectiveFrom == effectiveFrom })
@@ -153,8 +151,7 @@ class ElectionCommands(
         tx.inTransaction {
             val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
             val actor = caller.actor()
-            val held = rolesOf(actor, entity.ref)
-            gate(held, actor, entity.ref)?.let { return@inTransaction it }
+            gate(actor, entity.ref)?.let { return@inTransaction it }
             listedRefusal(source, basis, effectiveFrom)?.let { return@inTransaction it }
             val before = elections.history(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE)
             before
@@ -169,7 +166,6 @@ class ElectionCommands(
                 basis,
                 effectiveFrom,
                 actor,
-                held,
                 electionReason(ElectionKind.EXCHANGE_RATE_SOURCE, actor, approvedBy),
             )?.let { return@inTransaction it }
             ElectionOutcome.Done(
@@ -186,44 +182,42 @@ class ElectionCommands(
     ) = "${kind.variationPoint} election by $actor" +
         approvedBy?.takeIf { it.isNotEmpty() }?.let { ", approved by $it" }.orEmpty()
 
-    private fun rolesOf(
-        person: String,
-        entityRef: String,
-    ): Set<String> =
-        try {
-            roles.rolesOf(person, entityRef)
-        } catch (_: RuntimeException) {
-            emptySet()
-        }
-
+    /** The caller must hold `entity-config.manage` (entity.admin only) on the entity (ruling INV-Q-10025). */
     private fun gate(
-        held: Set<String>,
         actor: String,
         entityRef: String,
     ): ElectionOutcome.Forbidden? =
-        if (ElectionRoles.ENTITY_ADMIN in held) {
+        if (holds { authority.holds(actor, entityRef, ElectionPermissions.MANAGE) }) {
             null
         } else {
-            ElectionOutcome.Forbidden("$actor does not hold ${ElectionRoles.ENTITY_ADMIN} for entity $entityRef")
+            ElectionOutcome.Forbidden("$actor does not hold ${ElectionPermissions.MANAGE} for entity $entityRef")
         }
 
-    /** The second person (confirmer or approver): not the caller, holding one of [allowed] for the entity. */
+    /** A check that throws cannot prove the person holds the grant: fail closed. */
+    private fun holds(check: () -> Boolean): Boolean =
+        try {
+            check()
+        } catch (_: RuntimeException) {
+            false
+        }
+
+    /** The second person (confirmer or approver): not the caller, and proven to hold [what] by [check]. */
     private fun person(
         who: String,
         actor: String,
-        entityRef: String,
-        allowed: Set<String>,
         label: String,
+        entityRef: String,
+        what: String,
+        check: () -> Boolean,
     ): ElectionOutcome.Forbidden? =
         when {
             who == actor -> {
                 ElectionOutcome.Forbidden("the $label must be a person other than the caller")
             }
 
-            rolesOf(who, entityRef).none { it in allowed } -> {
+            !holds(check) -> {
                 ElectionOutcome.Forbidden(
-                    "the $label does not hold ${allowed.sorted().joinToString(" or ")} for entity $entityRef " +
-                        "or cannot be proven",
+                    "the $label does not hold $what for entity $entityRef or cannot be proven",
                 )
             }
 
@@ -232,7 +226,11 @@ class ElectionCommands(
             }
         }
 
-    /** A change of an election already recorded needs a tax.approver other than the caller (INV-Q-9702, INV-Q-9704). */
+    /**
+     * A change of an election already recorded needs a tax.approver other than the caller (INV-Q-9702, INV-Q-9704).
+     * An `approvedBy` that is absent is refused 422; one that is present, empty or blank included, goes to the approver
+     * check (INV-Q-10029).
+     */
     private fun approval(
         before: List<ElectionRecord>,
         approvedBy: String?,
@@ -244,15 +242,17 @@ class ElectionCommands(
                 null
             }
 
-            approvedBy.isNullOrEmpty() -> {
+            approvedBy == null -> {
                 ElectionOutcome.Refused(
-                    "a change of an election needs approvedBy, a person other than the caller who holds " +
-                        ElectionRoles.TAX_APPROVER,
+                    "a change of an election needs approval: name approvedBy, a person other than the caller who " +
+                        "holds ${ElectionRoles.TAX_APPROVER}",
                 )
             }
 
             else -> {
-                person(approvedBy, actor, entityRef, setOf(ElectionRoles.TAX_APPROVER), "approver")
+                person(approvedBy, actor, "approver", entityRef, ElectionRoles.TAX_APPROVER) {
+                    approvers.holds(approvedBy, entityRef, ElectionRoles.TAX_APPROVER)
+                }
             }
         }
 
@@ -327,7 +327,6 @@ class ElectionCommands(
         basis: String?,
         effectiveFrom: LocalDate,
         actor: String,
-        held: Set<String>,
         reason: String,
     ): ElectionOutcome? =
         try {
@@ -339,7 +338,7 @@ class ElectionCommands(
                 basis,
                 effectiveFrom,
                 actor,
-                held,
+                MANAGERS,
                 reason,
             )
             null
@@ -383,4 +382,9 @@ class ElectionCommands(
         elections
             .history(entityRef, ElectionKind.ISSUANCE_MODE)
             .map { ProfileEntry(ISSUANCE_MODE_ATTRIBUTE, it.value, it.effectiveFrom) }
+
+    private companion object {
+        /** What the writer's setting-role check is shown for a caller proven to hold `entity-config.manage`. */
+        val MANAGERS: Set<String> = setOf(ElectionRoles.ENTITY_ADMIN)
+    }
 }

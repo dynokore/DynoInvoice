@@ -1,24 +1,27 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.election.AccessPointRouteChangedHandler
-import com.dynokore.gst.tenancy.adapters.election.AuthorityRoleSource
 import com.dynokore.gst.tenancy.adapters.election.ConfigElectionPolicyStore
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
+import com.dynokore.gst.tenancy.adapters.election.ElectionPolicyWriterGuard
 import com.dynokore.gst.tenancy.adapters.election.IssuanceProfileExtras
+import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.adapters.election.RequestCallerSource
 import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
 import com.dynokore.gst.tenancy.adapters.election.RulePackStagedHandler
+import com.dynokore.gst.tenancy.adapters.election.UnboundApprovers
 import com.dynokore.gst.tenancy.adapters.election.UnrecordedEntityFacts
 import com.dynokore.gst.tenancy.adapters.persistence.JooqAccessPointRouteStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqScopePackStore
 import com.dynokore.gst.tenancy.application.election.AccessPointRouteStore
+import com.dynokore.gst.tenancy.application.election.ActionAuthority
+import com.dynokore.gst.tenancy.application.election.ApproverSource
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionGate
 import com.dynokore.gst.tenancy.application.election.ElectionPolicyStore
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
-import com.dynokore.gst.tenancy.application.election.RoleSource
 import com.dynokore.gst.tenancy.application.election.ScopePackStore
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
@@ -34,6 +37,7 @@ import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.PollResult
+import com.dynokore.platform.outboxandqueue.RebuildRequiredIncident
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
@@ -44,6 +48,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -57,6 +62,13 @@ import java.time.Clock
 @Configuration(proxyBeanMethods = false)
 @Suppress("TooManyFunctions") // the composition root of one use-case area
 class ElectionUseCases {
+    companion object {
+        /** Wraps the `PolicyWriter` bean in the [ElectionPolicyWriterGuard], so every holder of it gets the guard. */
+        @JvmStatic
+        @Bean
+        fun electionPolicyWriterGuard(): BeanPostProcessor = ElectionPolicyWriterGuardPostProcessor()
+    }
+
     @Bean
     fun electionPolicyStore(
         writer: PolicyWriter,
@@ -91,11 +103,16 @@ class ElectionUseCases {
     fun callerSource(principals: EndUserPrincipalResolver): CallerSource = RequestCallerSource(principals)
 
     @Bean
-    @ConditionalOnMissingBean(RoleSource::class)
-    fun roleSource(
+    @ConditionalOnMissingBean(ActionAuthority::class)
+    fun actionAuthority(
         replica: ObjectProvider<AuthorityReplica>,
         tenants: TenantContext,
-    ): RoleSource = AuthorityRoleSource(replica.getIfAvailable(), tenants)
+    ): ActionAuthority = ReplicaActionAuthority(replica.getIfAvailable(), tenants)
+
+    /** Nobody approves a change until the owner question INV-Q-10027 is answered; a first election is unaffected. */
+    @Bean
+    @ConditionalOnMissingBean(ApproverSource::class)
+    fun approverSource(): ApproverSource = UnboundApprovers()
 
     @Bean
     @Suppress("LongParameterList")
@@ -108,10 +125,23 @@ class ElectionUseCases {
         facts: EntityFactSource,
         routes: AccessPointRouteStore,
         scopePacks: ScopePackStore,
-        roles: RoleSource,
+        authority: ActionAuthority,
+        approvers: ApproverSource,
         caller: CallerSource,
     ): ElectionCommands =
-        ElectionCommands(tx, structure, elections, statuses, publisher, facts, routes, scopePacks, roles, caller)
+        ElectionCommands(
+            tx,
+            structure,
+            elections,
+            statuses,
+            publisher,
+            facts,
+            routes,
+            scopePacks,
+            authority,
+            approvers,
+            caller,
+        )
 
     @Bean
     fun electionStatusQueries(
@@ -124,11 +154,13 @@ class ElectionUseCases {
     @Bean
     fun electionGate(queries: ElectionStatusQueries): ElectionGate = ElectionGate(queries)
 
-    /** The incident of a consumer that needs a rebuild is logged until the incident sink of the product is bound. */
+    /**
+     * Ruling INV-Q-10031: until the product binds an incident sink, a consumer that needs a rebuild is logged at ERROR
+     * (topic and reason) and nothing else happens; the alert path is recorded in tooling/followups.md.
+     */
     @Bean
     @ConditionalOnMissingBean(RebuildRequiredSink::class)
-    fun rebuildRequiredSink(): RebuildRequiredSink =
-        RebuildRequiredSink { LoggerFactory.getLogger(ElectionUseCases::class.java).error("rebuild required: {}", it) }
+    fun rebuildRequiredSink(): RebuildRequiredSink = LoggingRebuildRequiredSink()
 
     /** One consumer per topic (service-runtime drives every InboxConsumer bean): the three election subscriptions. */
     @Bean
@@ -232,4 +264,27 @@ class LazyInboxConsumer(
     private val delegate: JdbcInboxConsumer? by lazy { deps.build(name, topic, handler) }
 
     override fun pollOnce(): PollResult = delegate?.pollOnce() ?: PollResult(0, 0, 0, 0, 0)
+}
+
+/** Applies the [ElectionPolicyWriterGuard] to every bean of type [PolicyWriter] once (ruling INV-Q-10023). */
+class ElectionPolicyWriterGuardPostProcessor : BeanPostProcessor {
+    override fun postProcessAfterInitialization(
+        bean: Any,
+        beanName: String,
+    ): Any = if (bean is PolicyWriter && bean !is ElectionPolicyWriterGuard) ElectionPolicyWriterGuard(bean) else bean
+}
+
+/** The log-only [RebuildRequiredSink] (ruling INV-Q-10031): ERROR with the topic and the reason, nothing else. */
+class LoggingRebuildRequiredSink : RebuildRequiredSink {
+    override fun raise(incident: RebuildRequiredIncident) {
+        LoggerFactory
+            .getLogger(LoggingRebuildRequiredSink::class.java)
+            .error(
+                "rebuild required: topic {}: consumer {} next offset {} is at or below purge watermark {}",
+                incident.topic,
+                incident.consumer,
+                incident.nextOffset,
+                incident.watermark,
+            )
+    }
 }

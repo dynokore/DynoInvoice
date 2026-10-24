@@ -9,6 +9,7 @@ import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.domain.ElectionKeys
 import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.platform.configresolver.Actor
+import com.dynokore.platform.configresolver.PolicyChange
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyRefusal
 import com.dynokore.platform.configresolver.PolicyRefused
@@ -26,9 +27,9 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * The marker that lets the four election variation points through the ValueConstraints port: set only around the
- * write of [ConfigElectionPolicyStore] on the current thread, so the shared `setPolicy` (which never sets it) is
- * refused for VP-22, VP-23, VP-24 and VP-25 (ruling INV-Q-9692).
+ * The request-scoped marker of the election operations: set only around the write of [ConfigElectionPolicyStore] on
+ * the current thread, for exactly that key (compared by equality, nothing normalised) and restored when the write
+ * finishes or throws.
  */
 object ElectionWriteMarker {
     private val current = ThreadLocal<VariationPointKey?>()
@@ -48,6 +49,31 @@ object ElectionWriteMarker {
 
     /** Whether a write of exactly [key] is in progress on this thread. */
     fun allows(key: VariationPointKey): Boolean = current.get() == key
+}
+
+/**
+ * The guard on the [PolicyWriter] bean (ruling INV-Q-10023): the shared `setPolicy` is refused for VP-22, VP-23, VP-24
+ * and VP-25 (422 POL-014, nothing stored, no audit entry) unless [ElectionWriteMarker] is set for that key, i.e. the
+ * write comes from an election operation. Every other key, an unknown one included, goes to [delegate] unchanged.
+ */
+class ElectionPolicyWriterGuard(
+    private val delegate: PolicyWriter,
+) : PolicyWriter by delegate {
+    override fun setPolicy(command: SetPolicyCommand): PolicyChange {
+        if (command.key in ELECTION_KEYS && !ElectionWriteMarker.allows(command.key)) {
+            throw PolicyRefused(
+                PolicyRefusal.CONSTRAINT_REFUSED,
+                command.key,
+                "${command.key} is set through the election operations of tenancy-svc, not setPolicy",
+            )
+        }
+        return delegate.setPolicy(command)
+    }
+
+    companion object {
+        val ELECTION_KEYS: Set<VariationPointKey> =
+            ElectionKind.entries.map { VariationPointKey(it.variationPoint) }.toSet()
+    }
 }
 
 /** The four elections as config-resolver stores them (rulings INV-Q-9692, INV-Q-9700). */

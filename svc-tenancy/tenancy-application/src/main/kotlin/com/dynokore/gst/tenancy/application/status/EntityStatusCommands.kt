@@ -63,6 +63,7 @@ sealed interface StatusOutcome {
  * setEntityStatus (INV-REQ-322, INV-REQ-331): stores the status attribute effective-dated with its basis, keeps the
  * earlier values, and publishes EntityProfileChanged with the node's full state in the same transaction.
  */
+@Suppress("LongParameterList")
 class EntityStatusCommands(
     private val tx: TransactionRunner,
     private val structure: StructureStore,

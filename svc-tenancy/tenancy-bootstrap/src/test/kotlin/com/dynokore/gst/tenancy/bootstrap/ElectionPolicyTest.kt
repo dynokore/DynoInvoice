@@ -1,5 +1,8 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.election.ElectionPolicyWriterGuard
+import com.dynokore.gst.tenancy.adapters.election.ElectionWriteMarker
+import com.dynokore.gst.tenancy.application.election.ElectionPolicyStore
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.domain.ElectionKind
@@ -14,15 +17,19 @@ import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SetPolicyCommand
 import com.dynokore.platform.configresolver.Strictness
+import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.configresolver.VariationPointDefinition
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.configresolver.VpStatus
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.springframework.boot.web.servlet.ServletRegistrationBean
+import org.springframework.test.util.ReflectionTestUtils
 import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 
@@ -45,7 +52,7 @@ class ElectionPolicyTest {
         }
 
     @Test
-    fun `the shared setPolicy is refused for VP-22 VP-24 and VP-25 with nothing stored`() {
+    fun `the shared setPolicy is refused for VP-22 VP-23 VP-24 and VP-25 with nothing stored and no audit entry`() {
         run { e, env ->
             env.withGroup(1) { _, group, entities ->
                 val entity = entities.single()
@@ -53,9 +60,11 @@ class ElectionPolicyTest {
                 val attempts =
                     mapOf(
                         "VP-22" to ("INVOICE_DATE" to null),
+                        "VP-23" to ("CLAIMABLE_PORTION" to null),
                         "VP-24" to ("APPROVED_SOURCE" to "{\"source\":\"MAS\",\"basis\":\"DAILY\"}"),
                         "VP-25" to ("RELAY" to null),
                     )
+                val audits = attempts.keys.associateWith { e.auditEntries(entity, it) }
                 attempts.forEach { (vp, option) ->
                     val refusal =
                         refusalOf {
@@ -70,14 +79,98 @@ class ElectionPolicyTest {
                             )
                         }
                     assertThat(refusal).describedAs(vp).isEqualTo(PolicyRefusal.CONSTRAINT_REFUSED)
+                    assertThat(e.auditEntries(entity, vp)).describedAs(vp).isEqualTo(audits.getValue(vp))
                 }
-                // VP-23 is not asserted: config-resolver asks the ValueConstraints port only for a row whose
-                // catalogue entry names a constraint and VP-23 names none, so the port cannot carry it (a gap).
-                ElectionKind.entries
-                    .filter { it.variationPoint != "VP-23" }
-                    .forEach { assertThat(e.history(entity, it)).isEmpty() }
+                ElectionKind.entries.forEach { assertThat(e.history(entity, it)).isEmpty() }
             }
         }
+    }
+
+    @Test
+    fun `the marker is for the key of the running election write only and is gone when the write ends`() {
+        run { e, env ->
+            env.withGroup(1) { _, group, entities ->
+                val entity = entities.single()
+                e.usualPeople(entity)
+
+                fun vp23() =
+                    env.setPolicy("VP-23", ScopeLevel.ENTITY, group, entity, "CLAIMABLE_PORTION", null, "entity.admin")
+                // a marker set for VP-22 does not let VP-23 through
+                assertThat(refusalOf { ElectionWriteMarker.allowing(VariationPointKey("VP-22")) { vp23() } })
+                    .isEqualTo(PolicyRefusal.CONSTRAINT_REFUSED)
+                // after an election operation finished
+                e.elect(entity, "CLAIMABLE_PORTION")
+                assertThat(refusalOf { vp23() }).isEqualTo(PolicyRefusal.CONSTRAINT_REFUSED)
+                // and after one that threw
+                runCatching { ElectionWriteMarker.allowing(VariationPointKey("VP-23")) { error("write failed") } }
+                assertThat(ElectionWriteMarker.allows(VariationPointKey("VP-23"))).isFalse()
+                assertThat(refusalOf { vp23() }).isEqualTo(PolicyRefusal.CONSTRAINT_REFUSED)
+                assertThat(e.history(entity, ElectionKind.APPORTIONMENT_MODE).map { it.setBy }).containsExactly(ADMIN)
+            }
+        }
+    }
+
+    @Test
+    fun `VP-76 passes to the writer and look-alike keys are answered by the writer or never reach the guard`() {
+        run { e, env ->
+            env.withGroup(1) { _, group, entities ->
+                val entity = entities.single()
+                e.usualPeople(entity)
+                // VP-76 reaches the writer: refused for its role, not by the guard's constraint refusal
+                assertThat(
+                    refusalOf {
+                        env.setPolicy(
+                            "VP-76",
+                            ScopeLevel.ENTITY,
+                            group,
+                            entity,
+                            "PER_LINE",
+                            null,
+                            "entity.admin",
+                        )
+                    },
+                ).isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
+                // VP-230 is not an election key: the writer answers it as an unknown variation point
+                assertThat(
+                    runCatching { env.setPolicy("VP-230", ScopeLevel.ENTITY, group, entity, "X", null, "entity.admin") }
+                        .exceptionOrNull(),
+                ).isInstanceOf(UnknownVariationPoint::class.java)
+                // vp-23 is not a variation point key at all
+                assertThat(runCatching { VariationPointKey("vp-23") }.exceptionOrNull())
+                    .isInstanceOf(IllegalArgumentException::class.java)
+            }
+        }
+    }
+
+    @Test
+    fun `the writer held by the policy command servlet and by the election store is the guard`() {
+        // the end-user principal is the one port the context runner leaves unbound; the servlet needs it to mount
+        BoundaryFixture
+            .runner()
+            .withBean(
+                EndUserPrincipalResolver::class.java,
+                { EndUserPrincipalResolver { null } },
+            ).run { context ->
+                context.startupFailure?.let { throw it }
+                val env = ProfileEnv(context)
+                assertThat(env.writer).isInstanceOf(ElectionPolicyWriterGuard::class.java)
+                val servlets =
+                    env.context
+                        .getBeansOfType(ServletRegistrationBean::class.java)
+                        .values
+                        .mapNotNull { it.servlet }
+                        .filter { it.javaClass.simpleName == "PolicyCommandServlet" }
+                assertThat(servlets).describedAs("PolicyCommandServlet registration").hasSize(1)
+                servlets.forEach { servlet ->
+                    assertThat(
+                        ReflectionTestUtils.getField(servlet, "writer"),
+                    ).isInstanceOf(ElectionPolicyWriterGuard::class.java)
+                }
+                val store = env.context.getBean(ElectionPolicyStore::class.java)
+                assertThat(
+                    ReflectionTestUtils.getField(store, "writer"),
+                ).isInstanceOf(ElectionPolicyWriterGuard::class.java)
+            }
     }
 
     @Test
