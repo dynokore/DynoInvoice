@@ -20,3 +20,7 @@
 ../openapi.yaml#/components/schemas/NetworkRegistration network-registration-*.json
 ../openapi.yaml#/components/schemas/RegisterSuggestion register-suggestion-*.json
 ../openapi.yaml#/components/schemas/RegisterSuggestionList register-suggestions-*.json
+../openapi.yaml#/components/schemas/CounterpartyImportRow import-row-*.json
+../openapi.yaml#/components/schemas/CounterpartyDryRunRequest dry-run-request-*.json
+../openapi.yaml#/components/schemas/ImportCounterpartiesRequest import-counterparties-request-*.json
+../openapi.yaml#/components/schemas/BulkResolveRequest bulk-resolve-request-*.json

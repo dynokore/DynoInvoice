@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -534,6 +534,15 @@ paths:
         API-49; INV-REQ-941 b8, INV-Q-3482), which covers a group of 2,000
         in one operation (INV-AC-1973). A request over the cap is refused
         with `413` (API-20 envelope) and changes nothing.
+
+
+        The service refuses with `400` SRT-001 and changes nothing a request
+        without `documents`, whose `docUuid` set differs from the `docUuids`
+        set, or whose items name more than one distinct `counterpartyRef`: one
+        UEN is never written across counterparties, so there is one call per
+        distinct input (INV-REQ-949 b3). The display of the distinct inputs
+        before applying belongs to the console-bff exception read model
+        (INV-REQ-949 b4, INV-AC-348).
       tags: [remediation]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -913,9 +922,13 @@ paths:
         b2, INV-AC-1880), mirroring rules `dryRun`: read-only on counterparty
         records, it returns per-row validation (UEN format, NA consistency
         per C-7, address completeness), duplicates by UEN and the change
-        preview against existing records. The request names only the input
-        (the file transfer and column mapping stay outside the contract);
-        the result is kept as the import record's dry-run result (FR-AG.57,
+        preview against existing records. The caller parses the uploaded file,
+        maps its columns and sends the mapped rows (`rows`) with the SHA-256
+        `fileHash` of the file; the service refuses a request without `rows`,
+        or with `rowCount` not equal to the number of rows, with `400` SRT-001
+        and stores nothing. The dry run keeps the rows with its result and
+        `importCounterparties` applies the stored rows of the reviewed
+        `dryRunId`; the result is kept as the import record's dry-run result (FR-AG.57,
         INV-REQ-833), and `importCounterparties` names its `dryRunId`.
 
 
@@ -936,7 +949,7 @@ paths:
       x-operation:
         role: tax.operator
         scope: tenant
-        precondition: "A counterparty import file (CSV or XLSX, column-mapped) has been uploaded; its fileHash is known (INV-REQ-830)."
+        precondition: "The caller has parsed the counterparty import file (CSV or XLSX) and holds its mapped rows and its fileHash (INV-REQ-830)."
         reversibility: UNDOABLE
         repeatKey: "Idempotency-Key — read-only on counterparty records; a repeat replays the stored result."
       parameters:
@@ -1120,7 +1133,7 @@ paths:
       x-operation:
         role: tax.operator
         scope: tenant
-        precondition: "The counterparty masters exist (INV-REQ-316)."
+        precondition: "The counterparty masters exist (INV-REQ-316). The caller holds tax.operator or tax.approver (INV-NOTE-7 row SCR-19.2)."
         reversibility: UNDOABLE
         repeatKey: "Idempotency-Key — read-only on counterparty records; a repeat replays the stored result."
       parameters:
@@ -1174,7 +1187,7 @@ paths:
       x-operation:
         role: tax.operator
         scope: tenant
-        precondition: "The gap report was started by the caller."
+        precondition: "The gap report was started by the caller. The caller holds tax.operator or tax.approver (INV-NOTE-7 row SCR-19.2)."
         reversibility: UNDOABLE
         repeatKey: "None — a read."
       parameters:
@@ -1192,6 +1205,58 @@ paths:
               examples:
                 default:
                   value: { gapReportId: "GRP-12", state: "SUCCEEDED", startedAt: "2026-03-20T03:10:00Z", completedAt: "2026-03-20T03:11:20Z", result: { rows: [], notChecked: [] } }
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/gap-reports/{gapReportId}/export:
+    get:
+      operationId: exportGapReport
+      summary: Export a gap report as a file the counterparty import accepts
+      description: >-
+        Gap report export to console-bff (INV-REQ-832, INV-AC-1881; INV-NOTE-7
+        SCR-19.4). Read-only on counterparty records. A report that is unknown,
+        another principal's, RUNNING or FAILED answers `404` (default Error
+        response, SRT-005). The export is audited.
+
+
+        The file is `text/csv`. Its first line is exactly
+        `counterpartyRef,findingClass,errorCode,uen,legalName,addressLine1,postalCode`.
+        It holds one line per `GapReport.rows` entry and one per `notChecked`
+        entry (empty `findingClass` and `errorCode`), with the counterparty's
+        current values. The last five columns equal the properties of
+        `CounterpartyImportRow` by name; `findingClass` and `errorCode` are
+        informational and are dropped when the caller maps the file for the
+        dry run (`dryRunCounterpartyImport`), which closes the loop of
+        INV-REQ-832.
+      tags: [gap-report]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-832, INV-AC-1881]
+      x-operation:
+        role: tax.operator
+        scope: tenant
+        precondition: "The gap report was started by the caller and is SUCCEEDED."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read."
+      parameters:
+        - name: gapReportId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: >-
+            The gap report file, header line
+            `counterpartyRef,findingClass,errorCode,uen,legalName,addressLine1,postalCode`,
+            one line per `rows` and per `notChecked` entry.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+              example: "counterpartyRef,findingClass,errorCode,uen,legalName,addressLine1,postalCode\nCTP-118,UEN_INVALID,MDM-003,201954321,Acme Trading Pte Ltd,1 Raffles Place,048616\n"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/connections:
@@ -1864,6 +1929,12 @@ components:
           type: string
           enum: [COUNTERPARTY, INTERNAL, MIGRATED]
           x-extensible-enum: true
+        importId:
+          type: string
+          maxLength: 40
+          description: >-
+            The `ImportRecord.importId` of the import whose apply wrote this
+            version; absent when no import wrote it (INV-REQ-833 b2).
         legalName: { type: string, maxLength: 200 }
         address:
           $ref: '#/components/schemas/CounterpartyAddress'
@@ -1966,7 +2037,27 @@ components:
               value: { type: string, maxLength: 64 }
             required: [scheme, value]
         evidenceRef: { type: string, maxLength: 64 }
+        documents:
+          type: array
+          maxItems: 5000
+          description: >-
+            The counterparty each document references, taken from the exception
+            read model of console-bff (INV-REQ-949 b4). Optional in the schema
+            only to keep the change additive (API-03). The service refuses with
+            `400` SRT-001 and changes nothing a request without `documents`,
+            whose `docUuid` set differs from the `docUuids` set, or whose items
+            name more than one distinct `counterpartyRef` (one UEN is never
+            written across counterparties; one call per distinct input,
+            INV-REQ-949 b3).
+          items:
+            $ref: '#/components/schemas/BulkResolveDocument'
       required: [errorCode, docUuids, resolvedIdentifiers, evidenceRef]
+    BulkResolveDocument:
+      type: object
+      properties:
+        docUuid: { type: string, format: uuid }
+        counterpartyRef: { type: string, maxLength: 40 }
+      required: [docUuid, counterpartyRef]
     BulkResolveResult:
       type: object
       properties:
@@ -2008,13 +2099,52 @@ components:
             not SUCCEEDED or for another fileHash is refused 422 with MDM-009
             (INV-Q-3749). Optional
             only to keep the change additive (API-03).
+        providedBy:
+          type: string
+          enum: [MIGRATED, INTERNAL]
+          description: >-
+            The declared provenance of every applied row. Optional in the
+            schema only to keep the change additive (API-03): the service
+            refuses a request without it with `400` SRT-001 and never accepts
+            `COUNTERPARTY`.
       required: [fileHash, rowCount]
+    CounterpartyImportRow:
+      type: object
+      description: >-
+        One mapped row of a counterparty import file. No property is required:
+        an incomplete row is a finding of the dry run (MDM-002, MDM-003,
+        MDM-004, MDM-006), not a contract violation.
+      properties:
+        counterpartyRef: { type: string, maxLength: 40 }
+        uen:
+          type: string
+          maxLength: 20
+          description: >-
+            The literal value `NA` is the NA classification, the free-string
+            identifier value of scheme NONE.
+        legalName: { type: string, maxLength: 200 }
+        addressLine1: { type: string, maxLength: 200 }
+        postalCode: { type: string, maxLength: 20 }
     CounterpartyDryRunRequest:
       type: object
       description: The dry run's input, as ImportCounterpartiesRequest names it (INV-Q-3466 A).
       properties:
         fileHash: { type: string, maxLength: 128 }
         rowCount: { type: integer, minimum: 0 }
+        rows:
+          type: array
+          maxItems: 5000
+          description: >-
+            The caller parses the uploaded file, maps its columns and sends the
+            mapped rows with the SHA-256 `fileHash` of the file (API-49).
+            `rows` is optional in the schema only so that the change stays
+            additive (API-03): the service refuses a request without it, or
+            with `rowCount` not equal to the number of rows, with `400`
+            SRT-001 and stores nothing. The dry run keeps the rows with its
+            result and `importCounterparties` applies the stored rows of the
+            reviewed `dryRunId`.
+          items:
+            $ref: '#/components/schemas/CounterpartyImportRow'
       required: [fileHash, rowCount]
     RejectedRow:
       type: object

@@ -1,0 +1,8 @@
+{
+  "fileHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "rowCount": 2,
+  "rows": [
+    { "counterpartyRef": "CTP-118", "uen": "201954321B", "legalName": "Acme Trading Pte Ltd", "addressLine1": "1 Raffles Place", "postalCode": "048616" },
+    { "counterpartyRef": "CTP-120", "uen": "NA", "legalName": "Overseas Supplier Ltd" }
+  ]
+}

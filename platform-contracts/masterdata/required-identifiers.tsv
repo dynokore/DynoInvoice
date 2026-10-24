@@ -29,6 +29,11 @@
 # set through setPolicy of service-runtime/openapi.yaml, INV-Q-9649 option A).
 # RegisterSuggestionList.nextCursor is a name pinned by the rulings of INV-Q-9955 and INV-Q-9973 (A), which the requirement text does not backtick;
 # the spectral rule inv-api-18-cursor-pagination does not require the property, so this row does.
+# INV-T-9807 (INV-REQ-316, 317, 830, 832, 833, INV-AC-348, 9601, 9602, 9603): not rows: GapReport, GapReportStatus, BulkResolveRequest,
+# BulkResolveResult, Counterparty, CounterpartyRequest, SubmitCounterpartyDetailsRequest, CounterpartyDryRunRequest, CounterpartyDryRunResult,
+# ImportCounterpartiesRequest, ImportResult, ImportRecord (bare schema names, the checker has no row kind for them; the scoped rows below cover
+# their new properties); GapReport.rows (covered by the row `rows`); NA (an IRAS classification); MasterDataResolved and
+# EvidenceArtefactRecorded (events; the latter is service-runtime's); tax.operator, tax.approver (roles); masterdata-svc, rules-svc (services).
 identifier	kind	file	requirement
 sameGroup	property	openapi.yaml	INV-REQ-720
 sameTenant	property	openapi.yaml	INV-REQ-720
@@ -134,3 +139,48 @@ RegisterSuggestion.state.PENDING	schema_enum_value	openapi.yaml	INV-REQ-1290
 RegisterSuggestion.state.CONFIRMED	schema_enum_value	openapi.yaml	INV-REQ-1290
 RegisterSuggestion.state.SUPERSEDED	schema_enum_value	openapi.yaml	INV-REQ-1290
 RegisterSuggestion.field.REGISTERED_NAME	schema_enum_value	openapi.yaml	INV-REQ-1290
+exportGapReport	operation	openapi.yaml	INV-REQ-832
+CounterpartyDryRunRequest.rows	schema_property	openapi.yaml	INV-REQ-830
+CounterpartyImportRow.counterpartyRef	schema_property	openapi.yaml	INV-REQ-830
+CounterpartyImportRow.uen	schema_property	openapi.yaml	INV-REQ-830
+CounterpartyImportRow.legalName	schema_property	openapi.yaml	INV-REQ-830
+CounterpartyImportRow.addressLine1	schema_property	openapi.yaml	INV-REQ-830
+CounterpartyImportRow.postalCode	schema_property	openapi.yaml	INV-REQ-830
+ImportCounterpartiesRequest.providedBy	schema_property	openapi.yaml	INV-REQ-830
+ImportCounterpartiesRequest.providedBy.MIGRATED	schema_enum_value	openapi.yaml	INV-REQ-830
+ImportCounterpartiesRequest.providedBy.INTERNAL	schema_enum_value	openapi.yaml	INV-REQ-830
+Counterparty.importId	schema_property	openapi.yaml	INV-REQ-833
+BulkResolveRequest.documents	schema_property	openapi.yaml	INV-REQ-317
+BulkResolveDocument.docUuid	schema_property	openapi.yaml	INV-REQ-317
+BulkResolveDocument.counterpartyRef	schema_property	openapi.yaml	INV-REQ-317
+counterpartyRef	property	openapi.yaml	INV-REQ-316
+errorCode	property	openapi.yaml	INV-REQ-316
+reason	property	openapi.yaml	INV-REQ-316
+uen	property	openapi.yaml	INV-REQ-317
+docUuids	property	openapi.yaml	INV-REQ-317
+resolvedIdentifiers	property	openapi.yaml	INV-REQ-317
+resolvedCount	property	openapi.yaml	INV-REQ-317
+unchangedCount	property	openapi.yaml	INV-REQ-317
+requestId	property	openapi.yaml	INV-REQ-317
+status	property	openapi.yaml	INV-REQ-317
+dryRunId	property	openapi.yaml	INV-REQ-830
+duplicates	property	openapi.yaml	INV-REQ-830
+preview	property	openapi.yaml	INV-REQ-830
+rejectedRows	property	openapi.yaml	INV-REQ-830
+rowCount	property	openapi.yaml	INV-REQ-830
+validCount	property	openapi.yaml	INV-REQ-830
+fileHash	property	openapi.yaml	INV-REQ-830
+appliedCount	property	openapi.yaml	INV-REQ-830
+failedCount	property	openapi.yaml	INV-REQ-830
+importId	property	openapi.yaml	INV-REQ-830
+actorRef	property	openapi.yaml	INV-REQ-833
+completedAt	property	openapi.yaml	INV-REQ-833
+importKind	property	openapi.yaml	INV-REQ-833
+result	property	openapi.yaml	INV-REQ-833
+startedAt	property	openapi.yaml	INV-REQ-833
+state	property	openapi.yaml	INV-REQ-833
+bulkResolveCounterparty	operation	openapi.yaml	INV-REQ-317
+dryRunCounterpartyImport	operation	openapi.yaml	INV-REQ-317
+getRegisterAndRates	operation	openapi.yaml	INV-REQ-317
+getCounterpartyImportDryRun	operation	openapi.yaml	INV-REQ-830
+getImportRecord	operation	openapi.yaml	INV-REQ-833

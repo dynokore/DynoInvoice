@@ -1,0 +1,7 @@
+{
+  "errorCode": "MDM-002",
+  "docUuids": ["3fa85f64-5717-4562-b3fc-2c963f66afa6"],
+  "resolvedIdentifiers": [{ "scheme": "UEN", "value": "201954321B" }],
+  "evidenceRef": "EVD-2201",
+  "documents": [{ "docUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6" }]
+}
