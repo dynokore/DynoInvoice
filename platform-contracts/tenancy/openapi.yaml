@@ -1044,12 +1044,6 @@ paths:
       - INV-REQ-1285
       - INV-REQ-1286
       x-error-codes: []
-      x-operation:
-        role: entity.admin
-        scope: entity
-        precondition: The entity exists in the caller's tenant.
-        reversibility: COMPENSABLE
-        repeatKey: read-only
       parameters:
       - name: entityRef
         in: path
