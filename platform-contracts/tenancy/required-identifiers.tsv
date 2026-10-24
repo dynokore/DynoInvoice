@@ -73,3 +73,16 @@ recordElection	operation	openapi.yaml	INV-REQ-2588
 recordExtension	operation	openapi.yaml	INV-REQ-2588
 recordRenditionResponsibility	operation	openapi.yaml	INV-REQ-2588
 setIssuanceMode	operation	openapi.yaml	INV-REQ-2588
+# INV-T-9710 adds the election-status rows (INV-REQ-1283).
+getElectionStatus	operation	openapi.yaml	INV-REQ-1283
+ElectionStatusResponse.elections	schema_property	openapi.yaml	INV-REQ-1283
+ElectionStatusResponse.outstanding	schema_property	openapi.yaml	INV-REQ-1283
+ElectionState.election	schema_property	openapi.yaml	INV-REQ-1283
+ElectionState.status	schema_property	openapi.yaml	INV-REQ-1283
+ElectionState.election.ISSUANCE_MODE	schema_enum_value	openapi.yaml	INV-REQ-1283
+ElectionState.election.PURCHASE_DATE_BASIS	schema_enum_value	openapi.yaml	INV-REQ-1283
+ElectionState.election.APPORTIONMENT_MODE	schema_enum_value	openapi.yaml	INV-REQ-1283
+ElectionState.election.EXCHANGE_RATE_SOURCE	schema_enum_value	openapi.yaml	INV-REQ-1283
+ElectionState.status.ELECTED	schema_enum_value	openapi.yaml	INV-REQ-1283
+ElectionState.status.OUTSTANDING	schema_enum_value	openapi.yaml	INV-REQ-1283
+ElectionState.status.NOT_REQUIRED	schema_enum_value	openapi.yaml	INV-REQ-1283

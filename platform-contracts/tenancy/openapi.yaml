@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.11.0
+  version: 1.12.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -825,7 +825,9 @@ paths:
     post:
       operationId: electRateSource
       summary: Elect the exchange-rate source and basis from a date (SDS §7, SCR-13.2)
-      description: Elect the exchange-rate source and basis from a date (SDS §7, SCR-13.2).
+      description: >-
+        Elect the exchange-rate source and basis from a date (SCR-13.2).
+        Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
       - entities
       x-principal: filing-workflow
@@ -835,7 +837,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-6.13
-      x-error-codes: []
+      x-error-codes:
+      - POL-014
       x-operation:
         role: entity.admin
         scope: entity
@@ -885,6 +888,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "422":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1021,6 +1026,81 @@ paths:
         "404":
           $ref: '#/components/responses/Error'
         default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/election-status:
+    get:
+      operationId: getElectionStatus
+      summary: Read the status of the four go-live elections of the entity
+      description: Answers, for each of the four elections (ISSUANCE_MODE, PURCHASE_DATE_BASIS, APPORTIONMENT_MODE, EXCHANGE_RATE_SOURCE), whether it is ELECTED, OUTSTANDING or NOT_REQUIRED on the date `on`, and the list of outstanding elections. The query parameter `on` defaults to the current Singapore business date.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1283
+      - INV-REQ-1284
+      - INV-REQ-1285
+      - INV-REQ-1286
+      x-error-codes: []
+      x-operation:
+        role: entity.admin
+        scope: entity
+        precondition: The entity exists in the caller's tenant.
+        reversibility: COMPENSABLE
+        repeatKey: read-only
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: "on"
+        in: query
+        required: false
+        description: The date the status is read for. Defaults to the current Singapore business date.
+        schema:
+          type: string
+          format: date
+        example: "2026-10-01"
+      responses:
+        "200":
+          description: The election status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElectionStatusResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    "on": "2026-10-01"
+                    elections:
+                    - election: PURCHASE_DATE_BASIS
+                      status: ELECTED
+                      value: POSTING_DATE
+                      effectiveFrom: "2026-10-01"
+                      setBy: identity:USR-004
+                    - election: ISSUANCE_MODE
+                      status: OUTSTANDING
+                    - election: APPORTIONMENT_MODE
+                      status: OUTSTANDING
+                    - election: EXCHANGE_RATE_SOURCE
+                      status: NOT_REQUIRED
+                    outstanding:
+                    - ISSUANCE_MODE
+                    - APPORTIONMENT_MODE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
           $ref: '#/components/responses/Error'
   /internal/v1/tenancy/licence:
     post:
@@ -1172,7 +1252,9 @@ paths:
     post:
       operationId: recordElection
       summary: Record a regulatory election with its effective date (SDS §7, SCR-16.5)
-      description: Record a regulatory election with its effective date (SDS §7, SCR-16.5).
+      description: >-
+        Record a regulatory election with its effective date (SCR-16.5). The election is one of INVOICE_DATE, POSTING_DATE, CLAIMABLE_PORTION, ENTIRE_INVOICE; any other value is 400 SRT-001.
+        Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
       - entities
       x-principal: filing-workflow
@@ -1182,7 +1264,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-6.1
-      x-error-codes: []
+      x-error-codes:
+      - POL-014
       x-operation:
         role: entity.admin
         scope: entity
@@ -1208,7 +1291,7 @@ paths:
             examples:
               default:
                 value:
-                  election: CASH_ACCOUNTING
+                  election: POSTING_DATE
                   effectiveFrom: "2026-10-01"
                   approvedBy: identity:USR-009
       responses:
@@ -1222,7 +1305,7 @@ paths:
                 default:
                   value:
                     entityRef: ENT-3F2A9C
-                    election: CASH_ACCOUNTING
+                    election: POSTING_DATE
                     effectiveFrom: "2026-10-01"
         "400":
           $ref: '#/components/responses/Error'
@@ -1231,6 +1314,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "422":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1460,8 +1545,9 @@ paths:
     post:
       operationId: setIssuanceMode
       summary: Set the entity's issuance mode from a date (SDS §7, SCR-16.6)
-      description: Relay, Observe or None. Requires a second confirmation (carried in the request). Marks
-        certification stale (DEP-006).
+      description: >-
+        Relay, Observe or None. Requires a second confirmation by a person other than the caller (carried in secondConfirmationBy, which stays required). Marks certification stale (DEP-006).
+        Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
       - entities
       x-principal: filing-workflow
@@ -1471,7 +1557,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-10.13
-      x-error-codes: []
+      x-error-codes:
+      - POL-014
       x-operation:
         role: entity.admin
         scope: entity
@@ -1520,6 +1607,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "422":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -2925,7 +3014,6 @@ components:
       - source
       - basis
       - effectiveFrom
-      - approvedBy
       properties:
         source:
           type: string
@@ -2940,6 +3028,7 @@ components:
           format: date
         approvedBy:
           type: string
+          description: Not needed on the first election of the entity; required on a change of an election already recorded, and then names a person other than the caller who holds the approving role (tax.approver).
           maxLength: 128
     RateSourceElectionResponse:
       type: object
@@ -3041,16 +3130,17 @@ components:
       required:
       - election
       - effectiveFrom
-      - approvedBy
       properties:
         election:
           type: string
           maxLength: 64
+          description: The election key, one of INVOICE_DATE, POSTING_DATE, CLAIMABLE_PORTION, ENTIRE_INVOICE. Any other value is 400 SRT-001.
         effectiveFrom:
           type: string
           format: date
         approvedBy:
           type: string
+          description: Not needed on the first election of the entity; required on a change of an election already recorded, and then names a person other than the caller who holds the approving role (tax.approver).
           maxLength: 128
     ElectionResponse:
       type: object
@@ -3068,6 +3158,71 @@ components:
         effectiveFrom:
           type: string
           format: date
+    ElectionStatusResponse:
+      type: object
+      required:
+      - entityRef
+      - on
+      - elections
+      - outstanding
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        on:
+          type: string
+          format: date
+        elections:
+          type: array
+          maxItems: 4
+          items:
+            $ref: '#/components/schemas/ElectionState'
+        outstanding:
+          type: array
+          maxItems: 4
+          items:
+            type: string
+            enum:
+            - ISSUANCE_MODE
+            - PURCHASE_DATE_BASIS
+            - APPORTIONMENT_MODE
+            - EXCHANGE_RATE_SOURCE
+            x-extensible-enum: true
+    ElectionState:
+      type: object
+      required:
+      - election
+      - status
+      properties:
+        election:
+          type: string
+          enum:
+          - ISSUANCE_MODE
+          - PURCHASE_DATE_BASIS
+          - APPORTIONMENT_MODE
+          - EXCHANGE_RATE_SOURCE
+          x-extensible-enum: true
+        status:
+          type: string
+          description: NOT_REQUIRED is reported only for an election whose entity fact is recorded false (the entity-level answers of the onboarding questionnaire, recorded by an entity-scope extension of answerQuestionnaire); an election with no recorded fact is OUTSTANDING.
+          enum:
+          - ELECTED
+          - OUTSTANDING
+          - NOT_REQUIRED
+          x-extensible-enum: true
+        value:
+          type: string
+          maxLength: 64
+          description: The elected option key; for the rate source, the source id.
+        basis:
+          type: string
+          maxLength: 40
+        effectiveFrom:
+          type: string
+          format: date
+        setBy:
+          type: string
+          maxLength: 128
     PeriodExtensionRequest:
       type: object
       required:
@@ -3291,6 +3446,7 @@ components:
           format: date
         secondConfirmationBy:
           type: string
+          description: The person giving the second confirmation, a person other than the caller. Always required, also on the first election (INV-REQ-323, INV-REQ-1286).
           maxLength: 128
     IssuanceModeResponse:
       type: object

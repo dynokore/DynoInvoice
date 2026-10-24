@@ -1,0 +1,30 @@
+{
+  "entityRef": "ENT-3F2A9C",
+  "on": "2026-10-01",
+  "elections": [
+    {
+      "election": "ISSUANCE_MODE",
+      "status": "OUTSTANDING"
+    },
+    {
+      "election": "PURCHASE_DATE_BASIS",
+      "status": "ELECTED",
+      "value": "POSTING_DATE",
+      "effectiveFrom": "2026-10-01",
+      "setBy": "identity:USR-004"
+    },
+    {
+      "election": "APPORTIONMENT_MODE",
+      "status": "OUTSTANDING"
+    },
+    {
+      "election": "EXCHANGE_RATE_SOURCE",
+      "status": "OUTSTANDING"
+    }
+  ],
+  "outstanding": [
+    "ISSUANCE_MODE",
+    "APPORTIONMENT_MODE",
+    "EXCHANGE_RATE_SOURCE"
+  ]
+}

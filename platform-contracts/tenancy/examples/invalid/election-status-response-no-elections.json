@@ -1,0 +1,10 @@
+{
+  "entityRef": "ENT-3F2A9C",
+  "on": "2026-10-01",
+  "outstanding": [
+    "ISSUANCE_MODE",
+    "PURCHASE_DATE_BASIS",
+    "APPORTIONMENT_MODE",
+    "EXCHANGE_RATE_SOURCE"
+  ]
+}

@@ -23,3 +23,4 @@
 ../openapi.yaml#/components/schemas/CloseTenantRequest close-tenant-request-*.json
 ../openapi.yaml#/components/schemas/AssessPhaseRequest assess-phase-request-*.json
 ../openapi.yaml#/components/schemas/PhaseAssessmentResponse phase-assessment-response-*.json
+../openapi.yaml#/components/schemas/ElectionStatusResponse election-status-response-*.json
