@@ -448,9 +448,13 @@ paths:
         With entityRef the call records entity-scope answers: the entity facts are kept per entity and apart
         from the tenant answers, and a repeat replaces only the facts it carries. A fact that is not carried
         stays as stored, and a fact never recorded is "not recorded", which keeps the elections it decides
-        OUTSTANDING. entityFacts without entityRef is 400 SRT-001, and an entity of another tenant is 404
-        (rules the schema language cannot express, enforced by the service). The role stays tenant.admin for
-        both scopes.
+        OUTSTANDING. entityFacts without entityRef is 400 SRT-001 (a rule the schema language cannot
+        express, enforced by the service). An entityRef outside the caller's entity set, which includes every
+        entity of another tenant, is 403 SRT-004 from the service-runtime filter before the handler runs, and
+        nothing is stored. A path tenantRef outside the caller's scope, or an entityRef that passed the filter
+        and is not an entity of the tenant in the path, is 404 SRT-005 from the service. x-error-codes stays
+        empty: the SRT codes apply to every operation served through service-runtime. The role stays
+        tenant.admin for both scopes.
       tags:
       - tenants
       x-principal: filing-workflow
