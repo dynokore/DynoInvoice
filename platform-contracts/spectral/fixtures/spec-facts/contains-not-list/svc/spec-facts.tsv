@@ -1,0 +1,2 @@
+file	pointer	relation	value	requirement
+doc.yaml	/a/scalar	contains	"text"	INV-REQ-1

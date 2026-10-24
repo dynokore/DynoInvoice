@@ -1,0 +1,13 @@
+openapi: 3.1.0
+paths:
+  /x:
+    get:
+      responses:
+        '429': {description: slow}
+a:
+  n: 60
+  s: "60"
+  one: 1
+  flag: true
+  list: [A, B]
+  scalar: text

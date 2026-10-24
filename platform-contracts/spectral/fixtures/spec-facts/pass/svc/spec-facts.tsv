@@ -1,0 +1,5 @@
+file	pointer	relation	value	requirement
+doc.yaml	/a/n	equals	60	INV-REQ-1
+doc.yaml	/a/list	contains	"B"	INV-REQ-1
+doc.yaml	/paths/~1x/get/responses/500	absent	-	INV-REQ-1
+doc.yaml	/paths/~1x/get/responses/429/description	equals	"slow"	INV-REQ-1

@@ -1,0 +1,3 @@
+file	pointer	relation	value	requirement
+schemas/break-glass-alert-raised-payload.schema.json	/required	equals	["accCode","scope","action"]	INV-REQ-897
+schemas/break-glass-alert-raised-payload.schema.json	/properties/action/enum	contains	"SIGN_IN_FAILED"	INV-REQ-897

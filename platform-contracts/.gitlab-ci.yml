@@ -184,6 +184,17 @@ contract-rules:
         python3 spectral/check-required-identifiers.py --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" .
       }
     - gst_check required-identifiers-ratchet gst_ratchet
+    # spec-facts gate (INV-T-9614, INV-Q-9610 A): the response keys, header schemas and enum lists a task states, per
+    # */spec-facts.tsv; on merge requests a row of the diff base must still be a row at the head.
+    - gst_check spec-facts-check python3 spectral/check-spec-facts.py .
+    - |
+      gst_spec_facts_ratchet() {
+        if [ "$CI_PIPELINE_SOURCE" != "merge_request_event" ]; then echo "gst-ci: the spec-facts ratchet needs a merge request; not run here"; return 0; fi
+        [ -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ] || { echo "gst-ci: CI_MERGE_REQUEST_DIFF_BASE_SHA is empty"; return 1; }
+        git cat-file -e "$CI_MERGE_REQUEST_DIFF_BASE_SHA^{commit}" 2>/dev/null || git fetch --quiet origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA" || return 1
+        python3 spectral/check-spec-facts.py --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" .
+      }
+    - gst_check spec-facts-ratchet gst_spec_facts_ratchet
     - gst_check error-code-catalogue-check python3 spectral/check-error-code-catalogue.py .
     - gst_check audited-operations-check python3 spectral/check-audited-operations.py .
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
@@ -285,6 +296,7 @@ tool-self-tests:
     - gst_check self-test-audited-operations sh spectral/self-test-audited-operations.sh
     - gst_check self-test-forbidden-properties sh spectral/self-test-forbidden-properties.sh
     - gst_check self-test-data-classification sh spectral/self-test-data-classification.sh
+    - gst_check self-test-spec-facts sh spectral/self-test-spec-facts.sh
     - gst_check catalogue-vendor-tool-tests python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py' -v
     - gst_check publish-jobs-test python3 -m unittest discover -s ci/tests -p '*_test.py' -v
     - gst_checks_done
