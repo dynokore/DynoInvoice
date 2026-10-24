@@ -1,0 +1,12 @@
+kind	id	task
+operation	uploadGstReturn	UNASSIGNED
+operation	getReconciliation	UNASSIGNED
+operation	listRuns	UNASSIGNED
+operation	getRun	UNASSIGNED
+operation	getWorkPaper	UNASSIGNED
+operation	exportWorkPaper	UNASSIGNED
+operation	annotateVariance	UNASSIGNED
+operation	attestWorkPaper	UNASSIGNED
+channel	gst.reconciliation.gst-return-recorded.v1	UNASSIGNED
+channel	gst.reconciliation.reconciliation-completed.v1	UNASSIGNED
+channel	gst.reconciliation.example-happened.v1	UNASSIGNED
