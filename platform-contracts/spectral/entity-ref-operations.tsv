@@ -7,3 +7,4 @@ tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/questionnaire-answers	enti
 tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/offboarding	entityRef
 tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/operating-profile	entityRef
 tenancy	POST	/internal/v1/tenancy/business-units	entityRef
+transport	PUT	/internal/v1/transport/connections/{connectionRef}/entities	entityRefs

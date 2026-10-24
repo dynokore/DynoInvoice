@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -528,10 +528,13 @@ paths:
         mode, or that has no issuance-mode replica row). The checks belong
         to the transport-svc task (INV-T-4983). The
         connection record also carries the elected acknowledgement route
-        (INV-REQ-1310) and the throughput ceiling (INV-REQ-1317).
+        (INV-REQ-1310) and the throughput ceiling (INV-REQ-1317). Each element of `entityRefs` outside the principal's
+        entity set is refused with `403` and the code SRT-004 before the
+        handler runs (API-24).
       tags: [administration]
       x-principal: filing-workflow
       x-caller-auth: end-user
+      x-entity-ref: entityRefs
       x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
       x-error-codes: [SUB-018, SUB-019]
