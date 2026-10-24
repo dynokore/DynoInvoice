@@ -1,0 +1,13 @@
+{
+  "gate": "SECURITY",
+  "candidateResult": "FAILED",
+  "candidateFindings": [
+    "CVE-2026-1001",
+    "CVE-2026-2002"
+  ],
+  "baselineResult": "FAILED",
+  "baselineFindings": [
+    "CVE-2026-1001"
+  ],
+  "evidenceRef": "EVD-2026-10-0007"
+}

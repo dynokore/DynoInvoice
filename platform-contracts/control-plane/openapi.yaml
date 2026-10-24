@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.6.0
+  version: 1.7.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -339,6 +339,82 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs:
+    post:
+      operationId: recordGateRun
+      summary: Record one gate result of a release train (INV-REQ-2657)
+      description: 'Records one gate result of a release train, one record per (trainVersion, gate, environment), append-only.
+        `environment` is required for the gates SCENARIOS and CERTIFICATION and absent for REGENERATION and SECURITY (the
+        service answers 422 otherwise; a conditional schema is not used). `baselineResult` and `baselineFindings` are sent
+        only for a failing gate re-run against the released version (INV-REQ-2657 behavior 4). A train already published
+        refuses a new record with 409 (INV-REQ-909 behavior 1). An unbound or missing record holds `publishTrain` back.
+        The gate values CORPUS and STAGING of `ReleaseGateResult` are not accepted: the service produces those two itself.'
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-H.10
+      x-error-codes: []
+      x-operation:
+        role: release.manager
+        scope: platform
+        precondition: None
+        reversibility: IRREVERSIBLE
+        repeatKey: (trainVersion, gate, environment) — no-op if the same record is sent again; a different result for the same key is refused with 409
+      parameters:
+      - name: trainVersion
+        in: path
+        required: true
+        description: The release train version the gate result belongs to.
+        schema:
+          type: string
+          maxLength: 32
+        example: 2026.10.0
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GateRunRequest'
+            examples:
+              default:
+                value:
+                  gate: SCENARIOS
+                  environment: SAAS
+                  candidateResult: PASSED
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GateRunResponse'
+              examples:
+                default:
+                  value:
+                    trainVersion: 2026.10.0
+                    gate: SCENARIOS
+                    environment: SAAS
+                    candidateResult: PASSED
+                    recordedByRole: release.manager
+                    recordedAt: '2026-10-12T08:45:00Z'
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        "422":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1907,6 +1983,117 @@ components:
         needsReAccreditationAssessment:
           description: Whether the train changes what accreditation covered and so needs a re-accreditation assessment (INV-REQ-1365). Absent is read as true.
           type: boolean
+    GateRunRequest:
+      type: object
+      required:
+      - gate
+      - candidateResult
+      properties:
+        gate:
+          type: string
+          enum:
+          - SCENARIOS
+          - REGENERATION
+          - SECURITY
+          - CERTIFICATION
+          x-extensible-enum: true
+        environment:
+          type: string
+          enum:
+          - SAAS
+          - PRIVATE_MINIMAL
+          x-extensible-enum: true
+        candidateResult:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          x-extensible-enum: true
+        baselineResult:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          x-extensible-enum: true
+        candidateFindings:
+          description: The finding identifiers the gate produced for the candidate (INV-AC-2658).
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            maxLength: 256
+        baselineFindings:
+          description: The finding identifiers the gate produced for the released version (INV-AC-2658).
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            maxLength: 256
+        evidenceRef:
+          description: The reference to the run's evidence.
+          type: string
+          maxLength: 256
+    GateRunResponse:
+      type: object
+      required:
+      - trainVersion
+      - gate
+      - candidateResult
+      - recordedAt
+      properties:
+        trainVersion:
+          type: string
+          maxLength: 32
+        gate:
+          type: string
+          enum:
+          - SCENARIOS
+          - REGENERATION
+          - SECURITY
+          - CERTIFICATION
+          x-extensible-enum: true
+        environment:
+          type: string
+          enum:
+          - SAAS
+          - PRIVATE_MINIMAL
+          x-extensible-enum: true
+        candidateResult:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          x-extensible-enum: true
+        baselineResult:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          x-extensible-enum: true
+        candidateFindings:
+          description: The finding identifiers the gate produced for the candidate (INV-AC-2658).
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            maxLength: 256
+        baselineFindings:
+          description: The finding identifiers the gate produced for the released version (INV-AC-2658).
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            maxLength: 256
+        evidenceRef:
+          description: The reference to the run's evidence.
+          type: string
+          maxLength: 256
+        recordedByRole:
+          type: string
+          maxLength: 64
+        recordedAt:
+          type: string
+          format: date-time
     ReleaseTrainResponse:
       type: object
       required:

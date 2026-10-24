@@ -15,3 +15,5 @@
 ../openapi.yaml#/components/schemas/TenantScheduleResponse tenant-schedule-response-*.json
 ../openapi.yaml#/components/schemas/ApproveTenantScheduleRequest approve-tenant-schedule-request-*.json
 ../openapi.yaml#/components/schemas/FirstInvitationReissueResponse first-invitation-reissue-response-*.json
+../openapi.yaml#/components/schemas/GateRunRequest gate-run-request-*.json
+../openapi.yaml#/components/schemas/GateRunResponse gate-run-response-*.json

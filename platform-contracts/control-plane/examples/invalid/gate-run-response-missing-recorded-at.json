@@ -1,0 +1,7 @@
+{
+  "trainVersion": "2026.10.0",
+  "gate": "CERTIFICATION",
+  "environment": "PRIVATE_MINIMAL",
+  "candidateResult": "PASSED",
+  "recordedByRole": "release.manager"
+}

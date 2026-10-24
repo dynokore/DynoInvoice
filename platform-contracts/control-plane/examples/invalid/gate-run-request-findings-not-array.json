@@ -1,0 +1,5 @@
+{
+  "gate": "SECURITY",
+  "candidateResult": "FAILED",
+  "candidateFindings": "CVE-2026-1001"
+}
