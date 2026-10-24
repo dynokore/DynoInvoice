@@ -1,8 +1,10 @@
 package com.dynokore.gst.tenancy.adapters.policy
 
+import com.dynokore.gst.tenancy.application.period.NonBusinessDayRuleReader
 import com.dynokore.gst.tenancy.application.status.GroupElectionReader
 import com.dynokore.gst.tenancy.application.status.ImplementationBasisReader
 import com.dynokore.gst.tenancy.application.status.ResolvedImplementation
+import com.dynokore.platform.calendarandperiods.NonBusinessDayRule
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.PolicySource
@@ -23,6 +25,11 @@ object TenancyVariationPoints {
     /** VP-64: whether a GST group transmits an excluded member's data (INV-REQ-1547). */
     val EXCLUDED_MEMBER_ELECTION = VariationPointKey("VP-64")
 
+    /** VP-62: whether a due date on a non-business day moves (INV-REQ-1323, INV-REQ-87). */
+    val NON_BUSINESS_DAY_RULE = VariationPointKey("VP-62")
+
+    const val NO_MOVE = "NO_MOVE"
+    const val NEXT_WORKING_DAY = "NEXT_WORKING_DAY"
     const val MANDATORY_DATE = "MANDATORY_DATE"
     const val EARLIER_VOLUNTARY_DATE = "EARLIER_VOLUNTARY_DATE"
     const val IRAS_COMMUNICATED_DATE = "IRAS_COMMUNICATED_DATE"
@@ -86,6 +93,26 @@ class PolicyGroupElectionReader(
             TenancyVariationPoints.TRANSMIT_AND_GO_LIVE -> true
             TenancyVariationPoints.OMIT_EXCLUDED -> false
             else -> error("VP-64 resolved to an option this service does not know: ${option.key}")
+        }
+    }
+}
+
+/** VP-62 as resolved by PolicyReader for the entity on the date (default: the due date does not move). */
+class PolicyNonBusinessDayRuleReader(
+    private val policy: PolicyReader,
+    private val tenants: TenantContext,
+) : NonBusinessDayRuleReader {
+    override fun resolve(
+        groupRef: String,
+        entityRef: String,
+        on: LocalDate,
+    ): NonBusinessDayRule {
+        val scope = PolicyScope.entity(tenants.current(), entityRef, group = groupRef)
+        val option = policy.resolve(TenancyVariationPoints.NON_BUSINESS_DAY_RULE, scope, on).selected.single()
+        return when (option.key) {
+            TenancyVariationPoints.NO_MOVE -> NonBusinessDayRule.NO_MOVE
+            TenancyVariationPoints.NEXT_WORKING_DAY -> NonBusinessDayRule.NEXT_WORKING_DAY
+            else -> error("VP-62 resolved to an option this service does not know: ${option.key}")
         }
     }
 }

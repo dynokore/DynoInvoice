@@ -218,8 +218,11 @@ object BoundaryFixture {
         WebApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
-            .withUserConfiguration(BoundaryTestConfiguration::class.java, TenancyApplication::class.java)
-            .withPropertyValues(
+            .withUserConfiguration(
+                BoundaryTestConfiguration::class.java,
+                FixtureAdapters::class.java,
+                TenancyApplication::class.java,
+            ).withPropertyValues(
                 "spring.datasource.url=${container.jdbcUrl}",
                 "spring.datasource.username=tenancy_runtime",
                 "service-runtime.workload-identity.audience=tenancy-svc",

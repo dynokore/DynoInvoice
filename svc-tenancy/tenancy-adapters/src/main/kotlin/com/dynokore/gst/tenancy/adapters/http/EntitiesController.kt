@@ -4,6 +4,7 @@ import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionOutcome
 import com.dynokore.gst.tenancy.application.election.ElectionRecord
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
+import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
 import com.dynokore.gst.tenancy.application.status.AssessOutcome
 import com.dynokore.gst.tenancy.application.status.AssessPhaseCommands
 import com.dynokore.gst.tenancy.application.status.EntityStatusCommands
@@ -62,6 +63,7 @@ open class EntitiesController(
     private val commands: StructureCommands,
     private val statusCommands: EntityStatusCommands,
     private val phaseCommands: AssessPhaseCommands,
+    private val frequencyCommands: FilingFrequencyCommands,
     private val queries: StructureQueries,
     private val tenants: TenantContext,
     private val electionCommands: ElectionCommands,
@@ -193,6 +195,18 @@ open class EntitiesController(
             AssessOutcome.NotFound -> notFound()
             is AssessOutcome.Invalid -> invalid(outcome.reason)
         }
+
+    override fun changeFilingFrequency(
+        entityRef: String,
+        idempotencyKey: UUID,
+        filingFrequencyChangeRequest: FilingFrequencyChangeRequest,
+    ): ResponseEntity<FilingFrequencyResponse> =
+        ResponseEntity.status(HttpStatus.CREATED).body(
+            frequencyOf(
+                entityRef,
+                frequencyCommands.changeFilingFrequency(entityRef, frequencyRequestOf(filingFrequencyChangeRequest)),
+            ),
+        )
 
     override fun setIssuanceMode(
         entityRef: String,

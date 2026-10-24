@@ -36,6 +36,8 @@ platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue
 platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
 platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
 platform-auditLog-impl = { module = "com.dynokore.platform:audit-log" }
+platform-calendarAndPeriods-api = { module = "com.dynokore.platform:calendar-and-periods-api" }
+platform-calendarAndPeriods-impl = { module = "com.dynokore.platform:calendar-and-periods" }
 platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }
 platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver" }
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }

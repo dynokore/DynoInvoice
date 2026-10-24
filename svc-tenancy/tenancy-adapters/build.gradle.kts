@@ -26,6 +26,7 @@ dependencies {
     implementation(project(":tenancy-application"))
     implementation(project(":tenancy-contract"))
     implementation(libs.platform.tenancyKernel.api)
+    implementation(libs.platform.calendarAndPeriods.api)
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.platform.tenancyJooq.api)
     implementation(libs.platform.outboxAndQueue.api)

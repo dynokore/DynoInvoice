@@ -5,6 +5,8 @@ dependencies {
     implementation(platform(libs.platform.bom))
     implementation(project(":tenancy-domain"))
     implementation(libs.platform.tenancyKernel.api)
+    implementation(libs.platform.calendarAndPeriods.api)
+    implementation(libs.platform.calendarAndPeriods.impl)
     implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.serviceRuntime.api)

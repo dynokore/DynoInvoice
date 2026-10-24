@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
+import com.dynokore.gst.tenancy.domain.PeriodPermissions
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
@@ -45,6 +46,9 @@ class TestPeople :
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
 
+    /** Every permission key the service asked about, in order: the keys are compared with the catalogue by equality. */
+    val asked = CopyOnWriteArrayList<String>()
+
     fun grant(
         person: String,
         entityRef: String,
@@ -60,15 +64,19 @@ class TestPeople :
         entityRef: String,
         action: String,
     ): Boolean {
+        asked += action
         val roles = granted[person to entityRef].orEmpty()
         return when (action) {
             ElectionPermissions.MANAGE -> ElectionRoles.ENTITY_ADMIN in roles
             ElectionPermissions.CONFIRM -> roles.any { it in CONFIRMING }
+            PeriodPermissions.FILING_FREQUENCY_CHANGE -> ElectionRoles.ENTITY_ADMIN in roles
+            PeriodPermissions.PERIOD_CONFIRM -> roles.any { it in PERIOD_CONFIRMING }
             else -> false
         }
     }
 
     private companion object {
+        val PERIOD_CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TAX_APPROVER)
         val CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TENANT_ADMIN, ElectionRoles.TAX_APPROVER)
     }
 }

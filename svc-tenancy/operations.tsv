@@ -12,8 +12,8 @@ electRateSource	operation	INV-T-4927	done
 recordElection	operation	INV-T-4927	done
 setIssuanceMode	operation	INV-T-4927	done
 getElectionStatus	operation	INV-T-4927	done
-changeFilingFrequency	operation	INV-T-4929	pending
-confirmPeriods	operation	INV-T-4929	pending
+changeFilingFrequency	operation	INV-T-4929	done
+confirmPeriods	operation	INV-T-4929	done
 recordExtension	operation	INV-T-4930	pending
 listPeriodRecords	operation	INV-T-4930	pending
 goLive	operation	INV-T-4931	pending
@@ -37,7 +37,7 @@ closeTenant	operation	INV-T-8179	pending
 OrganisationStructureChanged	channel	INV-T-4925	done
 ExampleHappened	channel	INV-T-4925	done
 EntityProfileChanged	channel	INV-T-4926	done
-FilingFrequencyChanged	channel	INV-T-4929	pending
+FilingFrequencyChanged	channel	INV-T-4929	done
 PeriodExtended	channel	INV-T-4930	pending
 PeriodDueDateChanged	channel	INV-T-4930	pending
 InstallationStatusChanged	channel	INV-T-4933	pending
