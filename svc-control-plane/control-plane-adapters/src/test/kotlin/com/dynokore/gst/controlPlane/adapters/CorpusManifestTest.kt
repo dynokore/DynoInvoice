@@ -36,10 +36,7 @@ class CorpusManifestTest {
         val manifest = dir.resolve(MANIFEST)
         check(Files.isRegularFile(manifest)) { "no $MANIFEST in $dir" }
         val files = json.readTree(Files.readAllBytes(manifest)).get("files")
-        return (0 until files.size()).map {
-            files.get(it).get("name").asString() to
-                files.get(it).get("sha256").asString()
-        }
+        return (0 until files.size()).map { files.get(it).get("name").asString() to files.get(it).get("sha256").asString() }
     }
 
     /** Names by equality, then each hash by equality; a failure throws. */
@@ -48,14 +45,7 @@ class CorpusManifestTest {
         val names = entries.map { it.first }
         check(names.toSet().size == names.size) { "duplicate manifest entries" }
         check(names == names.sorted()) { "manifest entries are not in the fixed (sorted) order" }
-        val onDisk =
-            Files.list(dir).use { s ->
-                s
-                    .map { it.fileName.toString() }
-                    .toList()
-                    .filter { it != MANIFEST }
-                    .toSet()
-            }
+        val onDisk = Files.list(dir).use { s -> s.map { it.fileName.toString() }.toList().filter { it != MANIFEST }.toSet() }
         check(onDisk == names.toSet()) { "files $onDisk differ from entries ${names.toSet()}" }
         entries.forEach { (name, hash) -> check(sha256(dir.resolve(name)) == hash) { "SHA-256 of $name differs" } }
     }
