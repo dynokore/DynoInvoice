@@ -1814,8 +1814,8 @@ paths:
         ACC-002, §34.6)
       description: Restricted session; raises ACC-002 and notifies security.officer. The 201 carries sessionHours,
         expiresAt and permittedActions; the resealBreakGlass 200 does not carry them. sessionHours is the VP-08 value
-        of INV-REQ-1269 (window 1 to 8 hours, default 4), and expiresAt is the unlock instant plus sessionHours hours.
-        While the identity provider is probed as available the unlock is refused with 409 unless overrideReason is IDP_PARTIAL_OUTAGE.
+        of INV-REQ-1269 (window 1 to 8 hours, default 4), and expiresAt is the unlock instant plus sessionHours hours;
+        while the identity provider is probed as available the unlock is refused with 409 unless overrideReason is IDP_PARTIAL_OUTAGE.
       tags:
       - break-glass
       x-principal: filing-workflow
