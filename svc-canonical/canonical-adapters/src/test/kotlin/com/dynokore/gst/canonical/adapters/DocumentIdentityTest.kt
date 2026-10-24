@@ -32,19 +32,23 @@ class DocumentIdentityTest {
         tenantId: UUID = tenant,
     ) = DocumentSql.runtimeRefusal(tenantId, statement)
 
+    private data class VersionValues(
+        val scope: String = "IN_SCOPE",
+        val scopePack: String? = "'s'",
+        val mdePack: String? = "null",
+        val specification: String = "PINT_SG",
+    )
+
     private fun insertVersion(
         doc: UUID,
         tenantId: UUID,
         entityId: UUID,
         partitionDate: String,
-        scope: String = "IN_SCOPE",
-        scopePack: String? = "'s'",
-        mdePack: String? = "null",
-        specification: String = "PINT_SG",
+        values: VersionValues = VersionValues(),
     ) = "insert into canonical.document_version (doc_uuid, version, tenant_id, entity_id, partition_date, canonical, " +
         "scope_verdict, scope_pack_version, mapping_pack_version, mde_pack_version, specification_version, " +
-        "created_by) values ('$doc', 1, '$tenantId', '$entityId', '$partitionDate', '{}', '$scope', $scopePack, " +
-        "'m', $mdePack, '$specification', 'svc')"
+        "created_by) values ('$doc', 1, '$tenantId', '$entityId', '$partitionDate', '{}', " +
+        "'${values.scope}', ${values.scopePack}, 'm', ${values.mdePack}, '${values.specification}', 'svc')"
 
     @Test
     fun `a second document with the same seven values and another partition_date is refused`() {
@@ -157,13 +161,13 @@ class DocumentIdentityTest {
         listOf("IN_SCOPE", "EXCLUDED_TXN", "OUT_OF_SCOPE").forEach {
             val own = UUID.randomUUID()
             DocumentSql.execute(insertDocument(docUuid = own, number = "F-$it"))
-            refusal(insertVersion(own, tenant, entity, "2026-03-15", scope = it)) shouldBe null
+            refusal(insertVersion(own, tenant, entity, "2026-03-15", VersionValues(scope = it))) shouldBe null
         }
-        refusal(insertVersion(doc, tenant, entity, "2026-03-15", scope = "SUBMITTABLE")) shouldBe "23514"
+        refusal(insertVersion(doc, tenant, entity, "2026-03-15", VersionValues(scope = "SUBMITTABLE"))) shouldBe "23514"
         listOf("PINT_SG", "SG_PEPPOL_BIS").forEach {
             val other = UUID.randomUUID()
             DocumentSql.execute(insertDocument(docUuid = other, number = "G-$it"))
-            refusal(insertVersion(other, tenant, entity, "2026-03-15", specification = it)) shouldBe null
+            refusal(insertVersion(other, tenant, entity, "2026-03-15", VersionValues(specification = it))) shouldBe null
         }
     }
 
@@ -171,10 +175,12 @@ class DocumentIdentityTest {
     fun `pack version lengths and nullability are enforced`() {
         val doc = UUID.randomUUID()
         DocumentSql.execute(insertDocument(docUuid = doc, number = "H-1"))
-        refusal(insertVersion(doc, tenant, entity, "2026-03-15", scopePack = "'${"x".repeat(33)}'")) shouldBe "22001"
-        refusal(insertVersion(doc, tenant, entity, "2026-03-15", scopePack = "null")) shouldBe "23502"
-        refusal(insertVersion(doc, tenant, entity, "2026-03-15", scopePack = "'${"x".repeat(32)}'")) shouldBe null
-        refusal(insertVersion(doc, tenant, entity, "2026-03-15", mdePack = "null")) shouldBe null
+        val pack33 = VersionValues(scopePack = "'${"x".repeat(33)}'")
+        refusal(insertVersion(doc, tenant, entity, "2026-03-15", pack33)) shouldBe "22001"
+        refusal(insertVersion(doc, tenant, entity, "2026-03-15", VersionValues(scopePack = "null"))) shouldBe "23502"
+        val pack32 = VersionValues(scopePack = "'${"x".repeat(32)}'")
+        refusal(insertVersion(doc, tenant, entity, "2026-03-15", pack32)) shouldBe null
+        refusal(insertVersion(doc, tenant, entity, "2026-03-15", VersionValues(mdePack = "null"))) shouldBe null
     }
 
     private companion object {
