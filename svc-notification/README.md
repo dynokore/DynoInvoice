@@ -2,7 +2,7 @@
 
 `notification-svc` — Telling people and systems what happened — alerts, messages and webhooks
 
-**Status:** design only; no code yet. This repository follows the design in [invoice-docs](http://registry.example.internal/invoice/invoice-docs). Change the design there first, then the code here.
+**Status:** service skeleton (INV-T-5972): five modules, schema `notification`, the contract gates and the webhook subscription scope decision `matches`. Every contract operation still answers 501 (`operations.tsv`). This repository follows the design in [invoice-docs](http://registry.example.internal/invoice/invoice-docs). Change the design there first, then the code here.
 
 | | |
 | --- | --- |
@@ -76,3 +76,19 @@ Shared L1, L2 and `product-runtime` modules come from `platform-libs` as publish
 ## Degradation
 
 Unavailable: alerts and webhooks wait in the producers' outboxes and are delivered on recovery. Readiness and the console still show the state. The outbound heartbeat of FR-H.20 belongs to the platform component observability-bundle (§18.14), not to this service, so a stopped System is still detected
+
+## Gates
+
+- `operations.tsv` lists every operationId and channel of the contract with the task that implements it (an INV-T key or `UNASSIGNED`); `done-tasks.txt` holds the keys of the done tasks, one per line.
+- `ac-keys.tsv` lists the acceptance criteria of this service's tasks; the Gradle check `acKeyCoverage` fails closed (README of svc-submission, same gate).
+
+## Dependency locking and verification
+
+Refresh after a dependency change, with an empty Gradle user home (see platform-libs README, "Dependency locking and verification"):
+
+```sh
+gradle resolveAndLockAll check bootJar -x test -x acKeyCoverage --continue \
+  --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache
+```
+
+Never pass `--dependency-verification off`; CI fails a build that does.
