@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 
 /** The probes of the key gate: each is run once, with the row it must name. */
 class AcKeyCoverageProbeTest {
-    private val table = "criterion\ttask\twave\nINV-AC-2189\tINV-T-5970\t3\nINV-AC-100\tINV-T-1\t5\n"
+    private val table = "criterion\ttask\twave\nINV-AC-2189\tINV-T-5970\t4\nINV-AC-100\tINV-T-1\t5\n"
     private val names = listOf("INV-AC-2189 grants on work_queue()", "an unrelated test()")
 
     @Test
@@ -46,5 +46,6 @@ class AcKeyCoverageProbeTest {
         AcKeyCoverage.findings(table + "INV-AC-5\tTBD\t3\n", names).shouldNotBeEmpty()
         AcKeyCoverage.findings(table + "INV-AC-2189\tINV-T-2\t3\n", names).shouldNotBeEmpty()
         AcKeyCoverage.findings(table + "INV-AC-7\tINV-T-2\tx\n", names).shouldNotBeEmpty()
+        AcKeyCoverage.findings(table + "INV-AC-8\tINV-T-2\t3\n", names).shouldBeEmpty()
     }
 }

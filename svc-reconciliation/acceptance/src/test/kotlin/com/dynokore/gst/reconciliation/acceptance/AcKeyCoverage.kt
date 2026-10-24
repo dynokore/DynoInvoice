@@ -2,16 +2,16 @@ package com.dynokore.gst.reconciliation.acceptance
 
 /**
  * The acceptance-criterion key gate (INV-T-5970), fails closed. `ac-keys.tsv` has one row per acceptance criterion
- * the tasks of this service carry: `criterion`, `task`, `wave` (a number; 3 for a criterion this service's tasks run).
+ * the tasks of this service carry: `criterion`, `task`, `wave` (a number; 4 for a criterion this service's tasks run).
  *
  * - the table is missing, empty or malformed: a finding;
- * - a row with wave 3 whose key is not a whole token of the name of at least one executed test: a finding naming
+ * - a row with wave 4 whose key is not a whole token of the name of at least one executed test: a finding naming
  *   the row;
  * - a test name that holds a key in no row, or a look-alike of a key (`INV-AC-21891`, `INV-AC-2189x`,
  *   `xINV-AC-2189`): a finding naming the test.
  */
 object AcKeyCoverage {
-    const val RUN_WAVE = 3
+    const val RUN_WAVE = 4
     private val KEY = Regex("INV-AC-[0-9]+")
     private val TASK = Regex("INV-T-[0-9]+")
     private val CANDIDATE = Regex("INV-AC-[0-9][0-9A-Za-z_]*")
