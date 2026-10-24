@@ -3162,14 +3162,14 @@ components:
       type: object
       required:
       - entityRef
-      - on
+      - "on"
       - elections
       - outstanding
       properties:
         entityRef:
           type: string
           maxLength: 64
-        on:
+        "on":
           type: string
           format: date
         elections:
