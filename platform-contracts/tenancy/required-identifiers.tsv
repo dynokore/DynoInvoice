@@ -86,3 +86,10 @@ ElectionState.election.EXCHANGE_RATE_SOURCE	schema_enum_value	openapi.yaml	INV-R
 ElectionState.status.ELECTED	schema_enum_value	openapi.yaml	INV-REQ-1283
 ElectionState.status.OUTSTANDING	schema_enum_value	openapi.yaml	INV-REQ-1283
 ElectionState.status.NOT_REQUIRED	schema_enum_value	openapi.yaml	INV-REQ-1283
+# INV-T-9735. Period generation contract: the proposal in the changeFilingFrequency response and the FREQUENCY_CHANGE kind (INV-REQ-83, 84, 708). entity.admin and tax.approver are roles; tenancy-svc is a service; confirmPeriodReassignment belongs to canonical/openapi.yaml.
+FilingFrequencyResponse.status	schema_property	openapi.yaml	INV-REQ-708
+FilingFrequencyResponse.raisedCodes	schema_property	openapi.yaml	INV-REQ-708
+FilingFrequencyResponse.confirmationPeriod	schema_property	openapi.yaml	INV-REQ-708
+FilingFrequencyResponse.status.ACTIVE	schema_enum_value	openapi.yaml	INV-REQ-708
+FilingFrequencyResponse.status.PENDING_CONFIRMATION	schema_enum_value	openapi.yaml	INV-REQ-708
+ConfirmPeriodRequest.kind.FREQUENCY_CHANGE	schema_enum_value	openapi.yaml	INV-REQ-84

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.12.0
+  version: 1.13.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -513,7 +513,13 @@ paths:
     post:
       operationId: changeFilingFrequency
       summary: Record an IRAS-approved filing-frequency change (SDS §7, SCR-16.3, FR-AA.6)
-      description: Effective-dated; computes the transitional period. Emits FilingFrequencyChanged.
+      description: >-
+        Effective-dated. When the entity has no filing-frequency history the call records its initial frequency effective
+        from effectiveFrom, which is not after the entity's GST registration start date, and raises and publishes nothing.
+        Otherwise the call records a proposal that takes effect only when confirmPeriods confirms the period named in
+        confirmationPeriod of the response; PER-004 is raised, and PER-005 where a transitional period results. A repeat
+        with the same (entityRef, effectiveFrom) and values returns the recorded response.
+        Refusals: 422 POL-014 when the owning service refuses the change or cannot check it (SRT codes are not listed in x-error-codes).
       tags:
       - entities
       x-principal: filing-workflow
@@ -523,7 +529,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-AA.6
-      x-error-codes: []
+      x-error-codes:
+      - POL-014
       x-operation:
         role: entity.admin
         scope: entity
@@ -573,13 +580,19 @@ paths:
           $ref: '#/components/responses/Error'
         "404":
           $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/tenancy/entities/{entityRef}/periods:
     post:
       operationId: confirmPeriods
       summary: Confirm an irregular period with explicit dates (SDS §7, SCR-07.2)
-      description: First, final or transitional period, proposed then confirmed with explicit dates.
+      description: >-
+        FIRST and FINAL confirm that one stored period record. TRANSITIONAL or FREQUENCY_CHANGE naming the
+        confirmationPeriod of a pending changeFilingFrequency proposal applies the change. A kind or date that differs
+        from the stored or proposed record is refused.
+        Refusals: 422 POL-014 when the kind or dates differ from the stored or proposed record (SRT codes are not listed in x-error-codes).
       tags:
       - periods
       x-principal: filing-workflow
@@ -589,9 +602,10 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-7.12
-      x-error-codes: []
+      x-error-codes:
+      - POL-014
       x-operation:
-        role: entity.admin
+        role: entity.admin, tax.approver
         scope: entity
         precondition: An irregular period (first, final or transitional) is proposed
         reversibility: COMPENSABLE
@@ -640,6 +654,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "422":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -2924,6 +2940,42 @@ components:
         effectiveFrom:
           type: string
           format: date
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - PENDING_CONFIRMATION
+          x-extensible-enum: true
+          description: ACTIVE for an initial entry; PENDING_CONFIRMATION for a proposal that takes effect only when confirmPeriods confirms confirmationPeriod.
+        raisedCodes:
+          type: array
+          items:
+            type: string
+            pattern: '^PER-00[45]$'
+          description: PER-004 always present on a proposal; PER-005 present when the change produces a transitional period. Absent on an initial entry.
+        confirmationPeriod:
+          type: object
+          required:
+          - periodRef
+          - periodStart
+          - periodEnd
+          - kind
+          properties:
+            periodRef:
+              type: string
+              maxLength: 32
+            periodStart:
+              type: string
+              format: date
+            periodEnd:
+              type: string
+              format: date
+            kind:
+              type: string
+              enum:
+              - TRANSITIONAL
+              - FREQUENCY_CHANGE
+          description: The period that confirmPeriods confirms to apply the proposal. Present exactly when status is PENDING_CONFIRMATION.
     ConfirmPeriodRequest:
       type: object
       required:
@@ -2947,6 +2999,7 @@ components:
           - FIRST
           - FINAL
           - TRANSITIONAL
+          - FREQUENCY_CHANGE
     PeriodResponse:
       type: object
       required:

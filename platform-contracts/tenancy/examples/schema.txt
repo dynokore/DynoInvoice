@@ -24,3 +24,5 @@
 ../openapi.yaml#/components/schemas/AssessPhaseRequest assess-phase-request-*.json
 ../openapi.yaml#/components/schemas/PhaseAssessmentResponse phase-assessment-response-*.json
 ../openapi.yaml#/components/schemas/ElectionStatusResponse election-status-response-*.json
+../openapi.yaml#/components/schemas/FilingFrequencyResponse filing-frequency-response-*.json
+../openapi.yaml#/components/schemas/ConfirmPeriodRequest confirm-period-request-*.json
