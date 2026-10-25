@@ -150,7 +150,10 @@ class RolePermissionsTest {
                 setOf("tax.approver"),
                 listOf(14, 15, 16, 18, 19, 20, 29, 31, 36, 37, 39, 40, 41, 42, 50, 54, 57, 59, 62, 65, 76),
             ),
-            *vpGroup(setOf("tenant.admin"), listOf(1, 2, 3, 6, 7, 9, 17, 28, 32, 33, 43, 46, 58, 64, 68, 69, 73, 81, 82)),
+            *vpGroup(
+                setOf("tenant.admin"),
+                listOf(1, 2, 3, 6, 7, 9, 17, 28, 32, 33, 43, 46, 58, 64, 68, 69, 73, 81, 82),
+            ),
             *vpGroup(setOf("integration.engineer"), listOf(26, 34, 35, 38, 47, 48, 49, 55, 56, 67, 71)),
             *vpGroup(setOf("entity.admin"), listOf(21, 22, 23, 24, 25, 27, 51, 53, 60, 61)),
             *vpGroup(setOf("platform.engineer", "deployment.operator"), listOf(66, 70, 72, 74, 75, 77, 78, 79, 80)),
