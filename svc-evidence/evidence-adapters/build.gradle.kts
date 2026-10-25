@@ -31,6 +31,7 @@ dependencies {
     implementation(project(":evidence-contract"))
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.platform.tenancyJooq.impl)
+    implementation(libs.platform.evidenceStore.impl)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.configResolver.impl)
@@ -53,6 +54,7 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.konsistRules)
+    testImplementation(libs.platform.evidenceStore.impl)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
 }

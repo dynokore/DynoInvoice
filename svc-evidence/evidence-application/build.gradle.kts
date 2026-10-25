@@ -7,6 +7,7 @@ dependencies {
     implementation(platform(libs.platform.bom))
     implementation(project(":evidence-domain"))
     implementation(libs.platform.tenancyKernel.api)
+    implementation(libs.platform.evidenceStore.api)
     implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.configResolver.api)

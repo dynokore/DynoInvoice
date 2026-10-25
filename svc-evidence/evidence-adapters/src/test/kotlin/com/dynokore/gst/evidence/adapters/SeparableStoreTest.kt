@@ -52,12 +52,18 @@ class SeparableStoreTest {
             Int::class.javaObjectType, Int::class.javaPrimitiveType -> 7
             Boolean::class.javaObjectType, Boolean::class.javaPrimitiveType -> true
             OffsetDateTime::class.java -> OffsetDateTime.of(2026, 3, 20, 10, 15, 30, 123_000_000, ZoneOffset.UTC)
+            ByteArray::class.java -> "evidence-${field.name}".toByteArray()
             java.time.LocalDate::class.java -> java.time.LocalDate.of(2026, 3, 20)
             org.jooq.JSONB::class.java -> org.jooq.JSONB.valueOf("""{"payload": "evidence"}""")
             else -> error("no sample value for ${field.name} of type $type; add it so the table is still written")
         }
 
-    private fun comparable(value: Any?): Any? = if (value is OffsetDateTime) value.toInstant() else value
+    private fun comparable(value: Any?): Any? =
+        when (value) {
+            is OffsetDateTime -> value.toInstant()
+            is ByteArray -> value.toList()
+            else -> value
+        }
 
     private fun fields(record: Record): Map<String, Any?> =
         record.fields().associate {

@@ -42,6 +42,8 @@ platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-
 platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
+platform-evidenceStore-api = { module = "com.dynokore.platform:evidence-store-api" }
+platform-evidenceStore-impl = { module = "com.dynokore.platform:evidence-store" }
 platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
 platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
 gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }

@@ -11,6 +11,7 @@
          <ignored-key id="0D49734800E3AA0C" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="0DA8A5EC02D11EAD" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="0E325BECB6962A24" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="1677D141BCF3584D" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="1983F53632921972" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="31D2D79DF7E85DD3" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="3AD93C3C677A106E" reason="Key couldn't be downloaded from any key server"/>
@@ -30,6 +31,7 @@
          <ignored-key id="689CBE64F4BC997F" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="6A0975F8B1127B83" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="734AEF3D43509290" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="84E913A8E3A748C0" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="86FDC7E2A11262CB" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="953E02E4F573B46F" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="991EFB94DB91127D" reason="Key couldn't be downloaded from any key server"/>
@@ -62,15 +64,22 @@
       </ignored-keys>
       <trusted-keys>
          <trusted-key id="015479E1055341431B4545AB72475FD306B9CAB7" group="com.googlecode.javaewah" name="JavaEWAH" version="1.2.3"/>
+         <trusted-key id="03C123038C20AAE9E286C857479D601F3A7B5C1A" group="^com[.]github[.]ajalt($|([.].*))" regex="true"/>
          <trusted-key id="077E8893A6DCC33DD4A4D5B256E73BA9A0B592D0" group="org.apache.logging.log4j"/>
          <trusted-key id="0785B3EFF60B1B1BEA94E0BB7C25280EAE63EBE5" group="^org[.]apache[.]httpcomponents($|([.].*))" regex="true"/>
          <trusted-key id="07A4FA67A8222F1B39F9EDAEF8052E4E1BD0DB31" group="^org[.]neo4j($|([.].*))" regex="true"/>
+         <trusted-key id="0B1B71E813C226033B16D8C5F0D228D8FF31B515" group="^io[.]zipkin($|([.].*))" regex="true"/>
+         <trusted-key id="0CC641C3A62453AB390066C4A41F13C999945293" group="commons-collections" name="commons-collections" version="3.2.2"/>
          <trusted-key id="0E519FB002B9DE71010C6BA9BBF5AC5A3CDBFD37" group="net.javacrumbs.shedlock"/>
          <trusted-key id="0F07D1201BDDAB67CFB84EB479752DB6C966F0B8" group="com.google.android" name="annotations" version="4.1.1.4"/>
          <trusted-key id="1452F35849B50750F6A3BBB4B54011358B352F85" group="org.hibernate.validator" name="hibernate-validator" version="9.1.3.Final"/>
+         <trusted-key id="147B691A19097624902F4EA9689CBE64F4BC997F" group="org.mockito" name="mockito-bom"/>
+         <trusted-key id="184454FAD8697760F3E00D2E4A51A45B944FFD51" group="org.apache.tika"/>
          <trusted-key id="19BEAB2D799C020F17C69126B16698A4ADF4D638" group="org.checkerframework" name="checker-qual"/>
          <trusted-key id="1A55F091AD28C07F831FA44D7905DE25C78AD456" group="com.google.protobuf"/>
          <trusted-key id="1D2C7EF8ADA0F794B58C7C63436902AF59EDF60E" group="dev.equo.ide" name="solstice" version="1.8.2"/>
+         <trusted-key id="1D85469D8559C2E1DF5F925131D2D79DF7E85DD3" group="org.jcommander" name="jcommander" version="1.85"/>
+         <trusted-key id="1F47744C9B6E14F2049C2857F1F111AF65925306" group="io.github.classgraph" name="classgraph" version="4.8.184"/>
          <trusted-key id="1F6774B9D58C5EA6BF84D534704514F6556102E5" group="io.swagger"/>
          <trusted-key id="21D09437979F5953FFEEA59C2753A900612D3FF1" group="jakarta.validation" name="jakarta.validation-api" version="3.1.1"/>
          <trusted-key id="2518174F4111F02779592A6F9757D7E7E06DD2AC" group="io.prometheus"/>
@@ -79,7 +88,16 @@
             <trusting group="^com[.]fasterxml($|([.].*))" regex="true"/>
             <trusting group="^tools[.]jackson($|([.].*))" regex="true"/>
          </trusted-key>
+         <trusted-key id="28417C95E8906D108392822354A43F3254868410" group="org.apache.artemis"/>
+         <trusted-key id="28AB6EB572779C2AD196BE22D44C1D8DB1606F22" group="com.github.joschi.jackson" name="jackson-datatype-threetenbp" version="2.18.2"/>
          <trusted-key id="29BEA2A645F2D6CED7FB12E02B172E3E156466E8" group="org.apache.maven.resolver"/>
+         <trusted-key id="2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB">
+            <trusting group="commons-beanutils"/>
+            <trusting group="commons-cli"/>
+            <trusting group="commons-io"/>
+            <trusting group="commons-logging"/>
+            <trusting group="org.apache.commons"/>
+         </trusted-key>
          <trusted-key id="2E3A1AFFE42B5F53AF19F780BCF4173966770193" group="org.jetbrains" name="annotations" version="13.0"/>
          <trusted-key id="2E92113263FC31C74CCBAAB20E91C2DE43B72BB1" group="org.ec4j.core"/>
          <trusted-key id="2FC53E6B1F681184F4CCD637F5C81DE10A0B8ECC">
@@ -92,6 +110,7 @@
          <trusted-key id="3690C240CE51B4670D30AD1C38EE757D69184620" group="org.tukaani" name="xz" version="1.9"/>
          <trusted-key id="373578B889B9D636A93509DFEC67236259ADC5BD" group="io.github.compress4j" name="compress4j" version="2.1.2"/>
          <trusted-key id="3CA154339EDB344CA831FC65FEAA650EB6DA6579" group="org.atteo"/>
+         <trusted-key id="3E61D8C230332482009D7F0EDB901B24CAD38BC4" group="^io[.]swagger($|([.].*))" regex="true"/>
          <trusted-key id="3F05DDA9F317301E927136D417A27CE7A60FF5F0" group="io.opentelemetry" name="opentelemetry-bom"/>
          <trusted-key id="4008F9DFF7DBC968F35F9E712642156411CCE8B3" group="com.vladsch.flexmark"/>
          <trusted-key id="42F1F5F3531B34660A81F7B05D95290D111CF7FF" group="com.googlecode.libphonenumber"/>
@@ -108,7 +127,12 @@
          <trusted-key id="4BDE772C338BA540E1057D0C8EA48D105232855D" group="com.github.jknack"/>
          <trusted-key id="4DB1A49729B053CAF015CEE9A6ADFC93EF34893E" group="org.hamcrest"/>
          <trusted-key id="4F7E32D440EF90A83011A8FC6425559C47CC79C4" group="javax.mail"/>
+         <trusted-key id="50A628FFAF58480736B1079FD1031D14464180E0" group="org.reactivestreams" name="reactive-streams" version="1.0.4"/>
+         <trusted-key id="517B94F8D0A46317A28D8AB30DA8A5EC02D11EAD" group="net.sf.jopt-simple" name="jopt-simple" version="5.0.4"/>
+         <trusted-key id="59A8E169739301FD48139CA00E325BECB6962A24" group="jakarta.annotation" name="jakarta.annotation-api" version="3.0.0"/>
          <trusted-key id="5CBA19E56141E78D54BF716F08A4A4958D61FC3D" group="io.kotest"/>
+         <trusted-key id="5DA0DA74CADE10E6DDE646611983F53632921972" group="io.hotmoka" name="toml4j" version="0.7.3"/>
+         <trusted-key id="5F6C2148AD4911FE308110E5F0D0AE433308B042" group="dev.detekt"/>
          <trusted-key id="5FF31904EDB5FA70567E9C1425ECEFD55FCEB2F9" group="dk.brics.automaton" name="automaton" version="1.11-8"/>
          <trusted-key id="60200AC4AE761F1614D6C46766D68DAA073BE985">
             <trusting group="ch.qos.logback"/>
@@ -118,11 +142,19 @@
          <trusted-key id="6D2AF456B8CB597387901C786F29F72839B3A8E7" group="org.jboss.logging" name="jboss-logging" version="3.6.3.Final"/>
          <trusted-key id="6D2CEFAF48CADC28E644B22BBA9255C2CA445309" group="com.samskivert" name="jmustache" version="1.16"/>
          <trusted-key id="6DD3B8C64EF75253BEB2C53AD908A43FB7EC07AC" group="jakarta.activation" name="jakarta.activation-api" version="2.1.3"/>
+         <trusted-key id="6E7F910017655622A899639EE7D88DB8427DE651">
+            <trusting group="com.github.docker-java"/>
+            <trusting group="org.testcontainers"/>
+         </trusted-key>
+         <trusted-key id="6F538074CCEBF35F28AF9B066A0975F8B1127B83" group="org.jetbrains.kotlin"/>
+         <trusted-key id="716EE302674CDBB2E660E1B44DB5EA09F2E3C800" group="^org[.]eclipse[.]jetty($|([.].*))" regex="true"/>
          <trusted-key id="7464550A61C90BA385FC97A76D9567281201E5E3" group="jakarta.servlet" name="jakarta.servlet-api" version="6.1.0"/>
+         <trusted-key id="7616EB882DAF57A11477AAF559A252FB1199D873" group="com.google.code.findbugs" name="jsr305" version="3.0.2"/>
          <trusted-key id="7C669810892CBD3148FA92995B05CCDE140C2876" group="org.eclipse.jgit"/>
          <trusted-key id="7D90CFFEC86BA5513FE48B9943C2E6B56905B362" group="com.michael-bull.kotlin-result"/>
          <trusted-key id="82F0964816AD7319CB0CCCF93EFD9D223D715E9A" group="com.nimbusds" name="nimbus-jose-jwt" version="10.9.1"/>
          <trusted-key id="84789D24DF77A32433CE1F079EB80E92EB2135B1" group="^org[.]apache($|([.].*))" regex="true"/>
+         <trusted-key id="8569C95CADC508B09FE90F3002216ED811210DAA" group="io.github.detekt.sarif4k"/>
          <trusted-key id="86C0144909739E0EE3D1B545305F296EAC47556B" group="org.postgresql" name="postgresql" version="42.7.14"/>
          <trusted-key id="8756C4F765C9AC3CB6B85D62379CE192D401AB61">
             <trusting group="com.diffplug.durian"/>
@@ -138,12 +170,14 @@
          <trusted-key id="94FAC9D5B165E80F1F2D9A103FFA7DB1EC0FF1A2" group="io.github.resilience4j"/>
          <trusted-key id="9E3044071B758EBCB7E45673700E4F39BC05364B" group="org.eclipse.platform" name="org.eclipse.osgi" version="3.24.300"/>
          <trusted-key id="A33A0B49A4C1AB590B0A4DDC1364C5E2DF3E99C5" group="org.reactivestreams" name="reactive-streams" version="1.0.3"/>
+         <trusted-key id="A59A3A16F87A0AE92F080DBFC25EC7B4882FAE47" group="org.openjdk.nashorn" name="nashorn-core" version="15.4"/>
          <trusted-key id="A7892505CF1A58076453E52D7999BEFBA1039E8B" group="net.bytebuddy"/>
          <trusted-key id="A9789342F598AD5B1175EF357EB97D110DFADD60" group="com.googlecode.concurrent-trees" name="concurrent-trees" version="2.6.1"/>
          <trusted-key id="A9C5DF4D22E99998D9875A5110C01C5A2F6059E7" group="org.apache.tomcat.embed"/>
          <trusted-key id="AA70C7C433D501636392EC02153E7A3C2B4E5118" group="org.eclipse.ee4j" name="project"/>
          <trusted-key id="AA782B04ABD9E36CF3096037B59D3D0F9F9C8684" group="org.apache.cxf"/>
          <trusted-key id="ADBC987D1A7B91DB6B0AAA81995EFBF4A3D20BEB" group="com.pinterest.ktlint"/>
+         <trusted-key id="AEB1E1AEC035C66FA39589D13EFC46EE83C40224" group="com.networknt" name="json-schema-validator" version="3.0.8"/>
          <trusted-key id="B02335AA54CCF21E52BBF9ABD9C565AA72BA2FDD" group="io.grpc"/>
          <trusted-key id="B18679A17A21DE79FF9DE8B0636D10E7975B6E6F" group="com.ethlo.time" name="itu" version="1.14.0"/>
          <trusted-key id="B41089A2DA79B0FA5810252872385FF0AF338D52">
@@ -152,7 +186,10 @@
          </trusted-key>
          <trusted-key id="BDB5FA4FE719D787FB3D3197F6D4A1D411E9D1AE" group="com.google.guava"/>
          <trusted-key id="C3259D20DAEC4ACE6D57CC83340B090F727518D8" group="com.google.j2objc" name="j2objc-annotations" version="3.1"/>
+         <trusted-key id="C668130C58722C9DC1C0FC633F1EB974E7AB9B37" group="biz.aQute.bnd" name="biz.aQute.bnd.annotation" version="7.1.0"/>
+         <trusted-key id="C6F7D1C804C821F49AF3BFC13AD93C3C677A106E" group="io.perfmark" name="perfmark-api" version="0.27.0"/>
          <trusted-key id="C7BE5BCC9FEC15518CFDA882B0F3710FA64900E7" group="com.google.code.gson"/>
+         <trusted-key id="D421D1DF4570BFB13E485D0BF95ADD0A28D2F139" group="org.projectlombok" name="lombok" version="1.18.38"/>
          <trusted-key id="D477D51812E692011DB11E66A6EA2E2BF22E0543" group="io.github.java-diff-utils"/>
          <trusted-key id="D54A395B5CF3F86EB45F6E426B1B008864323B92" group="org.antlr"/>
          <trusted-key id="DBD744ACE7ADE6AA50DD591F66B50994442D2D40" group="^com[.]squareup($|([.].*))" regex="true"/>
@@ -161,13 +198,23 @@
          <trusted-key id="E77417AC194160A3FABD04969A259C7EE636C5ED" group="com.google.errorprone"/>
          <trusted-key id="E7DC75FC24FB3C8DFE8086AD3D5839A2262CBBFB" group="org.jetbrains.kotlinx"/>
          <trusted-key id="E9AF5293C334C7C0B583227D2F45F85CDF082E68" group="org.mozilla" name="rhino" version="1.7.15.1"/>
+         <trusted-key id="EAFC1F3B2FCED6AFD046C7D5734AEF3D43509290" group="org.osgi"/>
          <trusted-key id="EE0CA873074092F806F59B65D364ABAA39A47320" group="com.google.errorprone"/>
          <trusted-key id="EF6AD6684034B0CB67A9B5714406B84C1661DCD1" group="io.r2dbc"/>
+         <trusted-key id="F3A90E6B10E809F851AB4FC54CC08E7F47C3EC76" group="com.zaxxer" name="HikariCP" version="7.0.2"/>
+         <trusted-key id="F4DD59C90148BDC52BEB90A4530AA5F25C25011F">
+            <trusting group="commons-codec"/>
+            <trusting group="commons-io"/>
+            <trusting group="commons-logging"/>
+            <trusting group="org.apache.commons"/>
+         </trusted-key>
+         <trusted-key id="FA77DCFEF2EE6EB2DEBEDD2C012579464D01C06A" group="org.apache" name="apache"/>
          <trusted-key id="FA7929F83AD44C4590F6CC6815C71C0A4E0B8EDD" group="net.java.dev.jna"/>
          <trusted-key id="FC411CD3CB7DCB0ABC9801058118B3BCDB1A5000" group="jakarta.xml.bind"/>
          <trusted-key id="FEB9209F2F2F3F4664841E55AC107B386692DADD">
             <trusting group="com.amazonaws"/>
             <trusting group="software.amazon.awssdk"/>
+            <trusting group="software.amazon.eventstream" name="eventstream" version="1.0.1"/>
          </trusted-key>
          <trusted-key id="FF6E2C001948C5F2F38B0CC385911F425EC61B51">
             <trusting group="junit"/>
@@ -363,6 +410,30 @@
          </artifact>
          <artifact name="config-resolver-api-5.0.5.pom">
             <sha256 value="c199cadcdedbf318c52f650f7a04c620875e059fe40035eb495802c2efe754be" origin="Generated by Gradle"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="crypto-api" version="1.1.1">
+         <artifact name="crypto-api-1.1.1.jar">
+            <sha256 value="e310053c6f471515d54ce9e73664463e615c7d854ec1ef74f614e52bd70b5881" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="crypto-api-1.1.1.module">
+            <sha256 value="90b01b33bacff6e6fb435a438847617a53544eb2498078b93e92fa829927dd91" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="evidence-store" version="2.0.8">
+         <artifact name="evidence-store-2.0.8.jar">
+            <sha256 value="8715f96a0d41905621ed32406a996719e98035158e3f92881173383084444e48" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="evidence-store-2.0.8.pom">
+            <sha256 value="a80b24c5ab57750b1b6e394377842d78c043d0af61e8a1493bb536f441462748" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="evidence-store-api" version="2.0.8">
+         <artifact name="evidence-store-api-2.0.8.jar">
+            <sha256 value="de75d326c1c63fa26398b222dd2e53078c8c48db3de0ccce5d67f731ef859595" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="evidence-store-api-2.0.8.module">
+            <sha256 value="eef379805d3079e1cbab13468cbf1ef24ba70f020ddfcb4af1497ba4a3a781c6" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="outbox-and-queue" version="6.2.2">
@@ -1094,6 +1165,7 @@
       </component>
       <component group="commons-codec" name="commons-codec" version="1.19.0">
          <artifact name="commons-codec-1.19.0.pom">
+            <pgp value="2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB"/>
             <sha256 value="e0f3269fa23de0c83130c5659f5f9514cc5422c0bcdf45f2eae004a78b9fca34" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
@@ -1591,12 +1663,44 @@
             <sha256 value="9843c73634e372af72f56f864fe99afeaccf5f02f0f878655208149cdb6b84d5" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
+      <component group="io.netty" name="netty-buffer" version="4.2.17.Final">
+         <artifact name="netty-buffer-4.2.17.Final.jar">
+            <sha256 value="0d249178ec0204b35a6ad3e5ac8a6c2ecb3eb496c6cdae40b8eca4fa3cb6a0c7" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-buffer-4.2.17.Final.pom">
+            <sha256 value="658f517dd49e6d39c1bed350096d781a25cc0f252d1e3e90f63a3ba0bedd2f5d" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
       <component group="io.netty" name="netty-codec" version="4.1.139.Final">
          <artifact name="netty-codec-4.1.139.Final.jar">
             <sha256 value="ad43f07219dfb757a87b9c2b4765002be478c5401971379954e3d182f285fe6b" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
          <artifact name="netty-codec-4.1.139.Final.pom">
             <sha256 value="bd646763d5c83161969abe3dbd7e7bc1d506bead1430e415ac53e6f78de438b5" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-codec" version="4.2.17.Final">
+         <artifact name="netty-codec-4.2.17.Final.jar">
+            <sha256 value="ac76f972446a2f72818441f746d0e73c58519a4687bf680d2b687d7dc5e28e2e" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-codec-4.2.17.Final.pom">
+            <sha256 value="68973de9f9591c3a99d431a9fe1d3db9389110387a42c667b8a234652feb3d91" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-codec-base" version="4.2.17.Final">
+         <artifact name="netty-codec-base-4.2.17.Final.jar">
+            <sha256 value="3b92bc3b7d231fa6f4889b2b9281cae6b634428b8121fb1b9b5fccba1543d352" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-codec-base-4.2.17.Final.pom">
+            <sha256 value="34a8f75ee8a66d574c4710ca20567887ba812cdf596954f4f838bc38c2592c8f" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-codec-compression" version="4.2.17.Final">
+         <artifact name="netty-codec-compression-4.2.17.Final.jar">
+            <sha256 value="425b287a1f36986a5c8edd76379a49decdf99d284f3454f3fa607a073bfb2c18" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-codec-compression-4.2.17.Final.pom">
+            <sha256 value="b59a1f893c07961e775800a64ee9de87a2a0ab5680e728fdbe897378bc374b7f" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
       <component group="io.netty" name="netty-codec-http" version="4.1.139.Final">
@@ -1607,12 +1711,44 @@
             <sha256 value="ef3288bcc98a8b50067cd6611bbf07d43d5f7179c7d62a987846024a6ee9f78d" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
+      <component group="io.netty" name="netty-codec-http" version="4.2.17.Final">
+         <artifact name="netty-codec-http-4.2.17.Final.jar">
+            <sha256 value="a5bde91ac82ab90579df6559c0bd7ea6ae37460e3f18116ab4122194283b3669" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-codec-http-4.2.17.Final.pom">
+            <sha256 value="b5720eea247a7b0ae932f86793c102a9e2b3423ebdd8432c28111aaca7bb9db9" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
       <component group="io.netty" name="netty-codec-http2" version="4.1.139.Final">
          <artifact name="netty-codec-http2-4.1.139.Final.jar">
             <sha256 value="4cb8bc95386112f3a9da935272781d577d9e70ca4c56cf0eef603a45e9526e02" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
          <artifact name="netty-codec-http2-4.1.139.Final.pom">
             <sha256 value="97bfaccbf4b3f66f2d6aa951aecdb16e68a58706a4464f8c5985221d1723484a" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-codec-http2" version="4.2.17.Final">
+         <artifact name="netty-codec-http2-4.2.17.Final.jar">
+            <sha256 value="450af97424cf58d2d72ad4d476d9e290f2fdf69fa181c289a6e6dd176bb86a7b" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-codec-http2-4.2.17.Final.pom">
+            <sha256 value="ffc6081e2e3e38eda69159d80bfcb31b1008c9d3a3093809e9c66792ed3316fa" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-codec-marshalling" version="4.2.17.Final">
+         <artifact name="netty-codec-marshalling-4.2.17.Final.jar">
+            <sha256 value="ee5ffed638da6b7e2b4567559bd5f78b18f635cdaa4f3b6d23aa27ccf6cb57c2" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-codec-marshalling-4.2.17.Final.pom">
+            <sha256 value="a01769cafd58588102c23ee3a634becb449d5f416693e5e6c835889a7c58c998" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-codec-protobuf" version="4.2.17.Final">
+         <artifact name="netty-codec-protobuf-4.2.17.Final.jar">
+            <sha256 value="44b2fcc4bc1d6c01edafe6ae6c8a7de7c3c5bad59697a93b6b879a45a78a5387" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-codec-protobuf-4.2.17.Final.pom">
+            <sha256 value="e4ca477a26c7880d062a61e36a37a70c8f9e6e603f008904b723e86b5b26ebe2" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
       <component group="io.netty" name="netty-codec-socks" version="4.1.139.Final">
@@ -1631,12 +1767,28 @@
             <sha256 value="b6508420e327d76208cc6320d8dd5e3257554448e9d0c134c5498ad95b0fbd2e" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
+      <component group="io.netty" name="netty-common" version="4.2.17.Final">
+         <artifact name="netty-common-4.2.17.Final.jar">
+            <sha256 value="502aae2a6680e9bca3558a3fa098f06dc4d87340b8b714e925a6d690871c092a" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-common-4.2.17.Final.pom">
+            <sha256 value="0100816f2f163d16d0c035181d6fb46d745f6deed759c25767afe61bebd785f4" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
       <component group="io.netty" name="netty-handler" version="4.1.139.Final">
          <artifact name="netty-handler-4.1.139.Final.jar">
             <sha256 value="ff85f00781b956d618b20f33da076c839a5e43e0084108b07bab0c19737168ec" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
          <artifact name="netty-handler-4.1.139.Final.pom">
             <sha256 value="b61395943557c8a334f6adee9fea912721a87a1133ea9d15db0316a9964f7f41" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-handler" version="4.2.17.Final">
+         <artifact name="netty-handler-4.2.17.Final.jar">
+            <sha256 value="4df11c7520b556c5e2c84b939182699d48fcbb09e97a6bb5e1c0b6835227d126" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-handler-4.2.17.Final.pom">
+            <sha256 value="b8f8e974cc83284f400b58f43db5d94640476012765e4e9c46f8ef14dd5c9a04" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
       <component group="io.netty" name="netty-handler-proxy" version="4.1.139.Final">
@@ -1652,12 +1804,25 @@
             <sha256 value="317741e835ed1a1abdba936f40f21795d2d404112a3d1616a507b37219949477" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
+      <component group="io.netty" name="netty-parent" version="4.2.17.Final">
+         <artifact name="netty-parent-4.2.17.Final.pom">
+            <sha256 value="04a4280978f558b4afa50adae856902ce5fcd92fa30468233ae69c664d8da367" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
       <component group="io.netty" name="netty-resolver" version="4.1.139.Final">
          <artifact name="netty-resolver-4.1.139.Final.jar">
             <sha256 value="562a5388c88325b7d6ed05e8168736871ce0e64ab01e0ce52ea7710760b9b457" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
          <artifact name="netty-resolver-4.1.139.Final.pom">
             <sha256 value="ca0d8a0f3be0067f1ac690818bd997670bae0baf6d6aa3001b197ff40f059e5a" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-resolver" version="4.2.17.Final">
+         <artifact name="netty-resolver-4.2.17.Final.jar">
+            <sha256 value="7a4b599b9c0c29a505d3b7311f142df883fb27d0f67495a7cbaf533b0e456623" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-resolver-4.2.17.Final.pom">
+            <sha256 value="cca19deede9c4bc13e0def80067c472ca1db8da26a2ce3ac650b20766a886478" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
       <component group="io.netty" name="netty-transport" version="4.1.139.Final">
@@ -1668,12 +1833,36 @@
             <sha256 value="a9177be274d8e14f38310b303410e7dff0c8ccd647b7c6bee685510a9de5cc24" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
+      <component group="io.netty" name="netty-transport" version="4.2.17.Final">
+         <artifact name="netty-transport-4.2.17.Final.jar">
+            <sha256 value="d2409ce3a735cbab4188d0ea5d82abed823a6a07a8389f49af4a9e1243a562bc" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-transport-4.2.17.Final.pom">
+            <sha256 value="992f79d9be5a15f2ef05250c457b44678da1659dea5d6fca6e25da19fb0449a2" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-transport-classes-epoll" version="4.2.17.Final">
+         <artifact name="netty-transport-classes-epoll-4.2.17.Final.jar">
+            <sha256 value="4e21d8a2e3429d9de967a716d58119f57585786bd2f7213bf5b27770425269de" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-transport-classes-epoll-4.2.17.Final.pom">
+            <sha256 value="d9a48ac00496b9b66a3bbdfc43075b8e55db70cdec9317a3455c6790436f06aa" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
       <component group="io.netty" name="netty-transport-native-unix-common" version="4.1.139.Final">
          <artifact name="netty-transport-native-unix-common-4.1.139.Final.jar">
             <sha256 value="8e660ac8a485fc8d8b47d87d04ea33d19902dc6fc5a113e9353b762188b3f333" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
          <artifact name="netty-transport-native-unix-common-4.1.139.Final.pom">
             <sha256 value="53e828cd58fe3f2e4df00d00cf75cc2bb05a9cdf2fb58b7fc30f62d13e650d5f" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="io.netty" name="netty-transport-native-unix-common" version="4.2.17.Final">
+         <artifact name="netty-transport-native-unix-common-4.2.17.Final.jar">
+            <sha256 value="e01aa467b9104de54a57c08c290f70b22e53ec97cf5583c87c112170ef5832cc" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="netty-transport-native-unix-common-4.2.17.Final.pom">
+            <sha256 value="afe43ce6d01aa3a915beffe69671496e416e19917b25f66c3e75d1f6fb5d1fd1" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
       <component group="io.opentelemetry" name="opentelemetry-bom" version="1.49.0">
@@ -2095,6 +2284,7 @@
       </component>
       <component group="org.apache.cassandra" name="java-driver-bom" version="4.19.3">
          <artifact name="java-driver-bom-4.19.3.pom">
+            <pgp value="F43BD1DCA7D5F5AFF5BBEC1EA4B9C195907CB45B"/>
             <sha256 value="3c22d6c861b59c2e44f7fe727c69d931691c6162a51294af646df2623c3e3ef0" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
@@ -2414,6 +2604,14 @@
             <sha256 value="d7b40a32f46597f371ddf555d852fa239e4f0baf9ac69fe188399d8be4ebedfe" origin="Generated by Gradle"/>
          </artifact>
       </component>
+      <component group="org.bouncycastle" name="bc-jdk18on-bom" version="1.84">
+         <artifact name="bc-jdk18on-bom-1.84.module">
+            <sha256 value="88ab8884a5e7412e98f091c146eec144d79e8f8c958f380bc2d4cd0f0ad46869" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+         <artifact name="bc-jdk18on-bom-1.84.pom">
+            <sha256 value="f0eee932bfb246b0dfbebc089261364c603dbadead18fc55fd6342c17c56f34c" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
       <component group="org.checkerframework" name="checker-qual" version="3.55.1">
          <artifact name="checker-qual-3.55.1.pom">
             <sha256 value="627d92aa92fd4d6bb8c2b56bcbb38543417f49d38b5a62fbdb4aeff551e7b760" origin="Generated by Gradle"/>
@@ -2465,6 +2663,11 @@
       <component group="org.eclipse.jetty" name="jetty-bom" version="12.1.12">
          <artifact name="jetty-bom-12.1.12.pom">
             <sha256 value="2224b2517c5a6db9bd59141d28f494179b89bb167b0aefda3c0d9fed7cdae4c3" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
+         </artifact>
+      </component>
+      <component group="org.eclipse.jetty" name="jetty-bom" version="9.4.45.v20220203">
+         <artifact name="jetty-bom-9.4.45.v20220203.pom">
+            <sha256 value="e8668b2a44e7ca63bc26bdfa2327af7e3f97f709dcbcc5e7b109d81fec3a55b6" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
       <component group="org.eclipse.jetty.ee11" name="jetty-ee11-bom" version="12.1.12">
@@ -2548,6 +2751,7 @@
       </component>
       <component group="org.infinispan" name="infinispan-bom" version="16.1.4">
          <artifact name="infinispan-bom-16.1.4.pom">
+            <pgp value="F5FEBA84EB26C56457B2CF819E31AB27445478DB"/>
             <sha256 value="aeabde04eca66e1ac30f9df3cc36c9b07a25a37c52043b33418e274ce5a23616" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>

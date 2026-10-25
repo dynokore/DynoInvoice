@@ -26,5 +26,10 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
+    testImplementation(project(":evidence-application"))
+    testImplementation(project(":evidence-domain"))
+    testImplementation(libs.platform.evidenceStore.api)
+    testImplementation(libs.platform.evidenceStore.impl)
+    testImplementation(libs.platform.outboxAndQueue.api)
     testImplementation(testFixtures(project(":evidence-adapters")))
 }
