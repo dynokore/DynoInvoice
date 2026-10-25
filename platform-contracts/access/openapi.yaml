@@ -25,7 +25,7 @@ tags:
 - name: identity-provider
   description: Identity-provider group-to-grant mapping (FR-P.12).
 - name: separation-of-duty
-  description: Sole-operator acknowledgement (FR-P.2).
+  description: 'Separation of duty: sole-operator acknowledgement and the approval and release decisions (FR-P.2).'
 - name: elevation
   description: Elevation requests, diagnostic invitations and operator sessions (FR-AF.12, FR-AF.10,
     FR-P.4).
@@ -2533,7 +2533,7 @@ paths:
       summary: Separation-of-duty decision on the approval of a mapping pack (INV-Q-10695 R3)
       description: 'The decision of the separation of duty on the approval of a mapping pack (INV-Q-10695 R3, INV-REQ-995, INV-REQ-1264, INV-REQ-1265); rules-svc refuses approvePack on a DENY. Always 200; the decision, not an HTTP error, carries a DENY. The value in force is the VP-04 value of the client entity when it is under a live agent consent that holds MAPPING_APPROVAL, otherwise the VP-03 value of the entity. STAFF_APPROVER and NON_FINANCE_OFFICER allow only a person other than the author whose covering grant has `granteeKind` STAFF. EXTERNAL_ADVISOR allows only a person other than the author whose covering grant has `granteeKind` EXTERNAL scoped to the entity. SOLE_OPERATOR_ACK lets the author approve only while the tenant''s sole-operator acknowledgement is ACTIVE, with `soleOperator` true and its reference in `soleOperatorAckRef`; a recorded acknowledgement changes nothing under another option. AGENT_SECOND_PERSON_CLIENT_ACK allows a person other than the author and leaves CLIENT_ACKNOWLEDGEMENT outstanding. AGENT_SECOND_PERSON_CLIENT_APPROVAL leaves CLIENT_APPROVAL outstanding until the client''s own approver has approved. CLIENT_APPROVER_ALONE allows only the client''s own approver. No option lets an agent person approve the pack they authored.'
       tags:
-      - consent
+      - separation-of-duty
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: any-except:tenancy-svc->access-svc
@@ -2614,7 +2614,7 @@ paths:
       summary: Decision on the release of an override (INV-Q-10695 R4)
       description: 'The decision on the release of an override (INV-Q-10695 R4, INV-REQ-1293). Always 200; the decision, not an HTTP error, carries a DENY. A code whose disposition in the error catalogue is not OVERRIDABLE, or that the catalogue does not hold, is DENY NOT_OVERRIDABLE. ONE_TAX_APPROVER releases on the first approval. SECOND_APPROVER_ABOVE_AMOUNT releases at once only when the total is not above the typed amount. SECOND_APPROVER_ALWAYS always awaits a second. A second approver is a person not among `priorApproverRef`. A request without `documentTotalSgd` under SECOND_APPROVER_ABOVE_AMOUNT is ALLOW AWAITS_SECOND_APPROVER whatever the typed amount (INV-Q-10721, fail closed); under the two other options the absence changes nothing. `documentRef`, `documentVersion` and `documentTotalSgd` are present together for a validation override and absent together for a filing-gate override; a request with some but not all of them present is 400 SRT-001 (INV-Q-10721). The same person twice is DENY SAME_PERSON_TWICE. An approver who also holds the permission `override-policy.manage` on the entity needs the ACTIVE sole-operator acknowledgement (`soleOperator` true), otherwise DENY NO_SOLE_OPERATOR_ACK.'
       tags:
-      - consent
+      - separation-of-duty
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: any-except:tenancy-svc->access-svc
@@ -2749,7 +2749,7 @@ paths:
       summary: Record whether the installation has a tax.approver distinct from the person who runs the server (INV-REQ-992)
       description: 'Only the installer workload token is admitted and any other identity gets 403 SRT-004; a call with no valid workload token is SRT-003. A later call with another value updates the fact. The closed service-runtime refusals carry their SRT codes and are not listed in x-error-codes (INV-Q-5500, ARC-19).'
       tags:
-      - grants
+      - separation-of-duty
       x-principal: workload
       x-caller-auth: service-job
       x-sync-edge: installer->access-svc
@@ -2760,7 +2760,7 @@ paths:
       x-operation:
         role: deployment.operator
         scope: installation
-        precondition: The installation is a private deployment
+        precondition: Private form
         reversibility: COMPENSABLE
         repeatKey: (installation) — a later call with another value updates the fact
       parameters:
@@ -2802,7 +2802,7 @@ paths:
       summary: Read the installation approver fact (INV-REQ-992)
       description: 'Returns the recorded fact; 404 (SRT-005) when nothing is recorded. A reader treats an installation of the private form with nothing recorded as "no distinct approver", never as true (INV-Q-10695 R5).'
       tags:
-      - grants
+      - separation-of-duty
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: any-except:tenancy-svc->access-svc
