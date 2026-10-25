@@ -155,6 +155,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [transactions]
       x-principal: ingest
+      x-degraded-allow: true
       x-principal-also: certification
       x-timeout: 3000
       x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021]
@@ -304,6 +305,7 @@ paths:
         with the sum of the tax amounts.
       tags: [batches]
       x-principal: ingest
+      x-degraded-allow: true
       x-principal-also: certification
       x-timeout: 10000
       x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021]
@@ -385,6 +387,7 @@ paths:
         (API-24), kept for at least 7 days (API-17).
       tags: [batches]
       x-principal: ingest
+      x-degraded-allow: true
       x-principal-also: certification
       x-timeout: 3000
       x-error-codes: []
@@ -441,6 +444,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [aggregates]
       x-principal: ingest
+      x-degraded-allow: true
       x-principal-also: certification
       x-timeout: 3000
       x-error-codes: [ING-006, ING-004, ING-014, ING-018, ING-021]
@@ -555,6 +559,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [issuances]
       x-principal: ingest
+      x-degraded-allow: true
       x-principal-also: certification
       x-timeout: 5000
       x-error-codes:
@@ -648,6 +653,7 @@ paths:
         (INV-AC-2060, INV-AC-1879).
       tags: [issuances]
       x-principal: ingest
+      x-degraded-allow: true
       x-principal-also: certification
       x-timeout: 300
       x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013, ING-021]
@@ -704,6 +710,7 @@ paths:
         footnote) — a separate console-bff path, not this resource.
       tags: [control-totals]
       x-principal: ingest
+      x-degraded-allow: true
       x-principal-also: certification
       x-timeout: 3000
       x-error-codes: [ING-004]
