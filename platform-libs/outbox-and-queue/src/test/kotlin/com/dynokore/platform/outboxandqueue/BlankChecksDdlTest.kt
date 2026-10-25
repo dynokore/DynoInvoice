@@ -37,4 +37,13 @@ class BlankChecksDdlTest {
         assertTrue("where consumer = v;" in byColumn)
         assertEquals(3, byColumn.split("svc.rm_view_full_sync_clear(text)").size - 1)
     }
+
+    @Test
+    fun `the outbox DDL holds no U+FEFF and spells the character as its six-character escape (INV-Q-10832)`() {
+        val ddl = OutboxSchema.ddl("svc", "svc_app", "svc_sys")
+        // Flyway's BomStrippingReader drops every U+FEFF from a script; the text must survive that unchanged.
+        assertEquals(ddl, ddl.replace("\uFEFF", ""), "the DDL holds a raw U+FEFF")
+        assertTrue(BlankText.SQL_BLANK in ddl, "the shared blank definition is absent")
+        assertTrue("\\uFEFF" in ddl, "the six-character escape is absent")
+    }
 }
