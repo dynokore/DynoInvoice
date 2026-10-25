@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     testImplementation(platform(libs.springBoot.dependencies))
+    testImplementation(project(":reconciliation-domain"))
     testImplementation(project(":reconciliation-contract"))
     testImplementation(project(":reconciliation-adapters"))
     testImplementation(libs.springBoot.starterWeb)
