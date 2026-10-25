@@ -18,33 +18,29 @@ object SgdAllocator {
         stated: StatedSgd?,
     ): SgdAllocation {
         val ordered = lines.sortedBy { it.lineNumber }
-        val reason = if (currency == SGD) null else refusal(lines, stated)
+        // the first fault in the order lines, total, rate
         return when {
             currency == SGD -> {
                 SgdAllocation.Allocated(ordered.map { SgdLine(it.lineNumber, it.taxCode, it.lineAmount, it.taxAmount) })
             }
 
-            reason != null -> {
-                SgdAllocation.NotReconcilable(reason)
+            lines.isEmpty() -> {
+                SgdAllocation.NotReconcilable(NotReconcilableReason.NO_LINES)
+            }
+
+            stated == null -> {
+                SgdAllocation.NotReconcilable(NotReconcilableReason.MISSING_SGD_TOTAL)
+            }
+
+            stated.exchangeRate.signum() <= 0 -> {
+                SgdAllocation.NotReconcilable(NotReconcilableReason.INVALID_EXCHANGE_RATE)
             }
 
             else -> {
-                SgdAllocation.Allocated(spread(ordered, stated!!))
+                SgdAllocation.Allocated(spread(ordered, stated))
             }
         }
     }
-
-    /** The first fault in the order lines, total, rate. */
-    private fun refusal(
-        lines: List<AllocationLine>,
-        stated: StatedSgd?,
-    ): NotReconcilableReason? =
-        when {
-            lines.isEmpty() -> NotReconcilableReason.NO_LINES
-            stated == null -> NotReconcilableReason.MISSING_SGD_TOTAL
-            stated.exchangeRate.signum() <= 0 -> NotReconcilableReason.INVALID_EXCHANGE_RATE
-            else -> null
-        }
 
     private fun spread(
         ordered: List<AllocationLine>,
@@ -53,8 +49,8 @@ object SgdAllocator {
         val rate = stated.exchangeRate
         val taxable = ordered.map { convert(it.lineAmount, rate) }.toMutableList()
         val tax = ordered.map { convert(it.taxAmount, rate) }.toMutableList()
-        // maxByOrNull returns the first maximum and `ordered` is by lineNumber, so a tie goes to the lowest lineNumber.
-        val target = ordered.indices.maxByOrNull { ordered[it].lineAmount.abs() }!!
+        // maxWith returns the first maximum and `ordered` is by lineNumber, so a tie goes to the lowest lineNumber.
+        val target = ordered.indices.maxWith(compareBy { ordered[it].lineAmount.abs() })
         taxable[target] += stated.totalExcludingTax - taxable.fold(BigDecimal.ZERO, BigDecimal::add)
         tax[target] += stated.totalTax - tax.fold(BigDecimal.ZERO, BigDecimal::add)
         return ordered.indices.map { SgdLine(ordered[it].lineNumber, ordered[it].taxCode, taxable[it], tax[it]) }
