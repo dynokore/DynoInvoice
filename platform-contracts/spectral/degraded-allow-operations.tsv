@@ -6,3 +6,4 @@ ingestion	POST	/v1/aggregates
 ingestion	POST	/v1/issuances
 ingestion	POST	/v1/pre-issuance-checks
 ingestion	PUT	/v1/entities/{entityRef}/periods/{periodRef}/control-totals
+transport	POST	/v1/ap/{adapterId}/notifications

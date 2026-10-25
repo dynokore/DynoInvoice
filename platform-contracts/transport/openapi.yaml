@@ -294,6 +294,7 @@ paths:
         notification ID (API-27).
       tags: [notifications]
       x-principal: ap-callback
+      x-degraded-allow: true
       x-caller-auth: end-user
       x-timeout: 10000
       x-error-codes: []
