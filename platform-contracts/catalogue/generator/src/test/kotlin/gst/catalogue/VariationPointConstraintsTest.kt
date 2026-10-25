@@ -27,7 +27,7 @@ class VariationPointConstraintsTest {
         fields: VpCatalogueFields,
     ) = ParsedVariationPoint(
         id = id, requirement = "INV-REQ-$id", revision = "r", title = "t", vpClass = VpClass.POLICY, classModifiers = emptyList(),
-        scope = listOf("entity"), owner = "svc", setBy = listOf("tax.approver"), mustBeElected = false, default = "a",
+        scope = listOf("entity"), owner = "svc", setPermission = "vp-01.set", mustBeElected = false, default = "a",
         options = listOf("a", "b"), bounds = null, status = VpStatus.AVAILABLE, statusNote = null, governs = emptyList(),
         formDependence = null, fields = fields,
     )

@@ -20,7 +20,7 @@ class NonWaivableFloorCheckerTest {
         classModifiers = modifiers,
         scope = listOf("entity"),
         owner = "o",
-        setBy = listOf("entity.admin"),
+        setPermission = "vp-01.set",
         mustBeElected = false,
         default = options.first(),
         options = options,

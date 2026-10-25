@@ -26,7 +26,7 @@ class VariationPointFieldsCheckerTest {
         classModifiers = modifiers,
         scope = listOf("entity"),
         owner = "svc",
-        setBy = listOf("tax.approver"),
+        setPermission = "vp-01.set",
         mustBeElected = mustBeElected,
         default = default,
         options = options,

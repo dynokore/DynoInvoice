@@ -14,7 +14,7 @@ class OperatingProfileCheckerTest {
         multi: Boolean = false,
     ) = ParsedVariationPoint(
         id = id, requirement = "REQ-$id", revision = "r", title = "t", vpClass = VpClass.CONTROL, classModifiers = emptyList(),
-        scope = emptyList(), owner = "o", setBy = emptyList(), mustBeElected = false, default = "d",
+        scope = emptyList(), owner = "o", setPermission = "vp-01.set", mustBeElected = false, default = "d",
         options = options.map { it.key }, bounds = null, status = status, statusNote = null, governs = emptyList(),
         formDependence = null, fields = VpCatalogueFields(listOf(ScopeLevel.ENTITY), options, multiSelect = multi),
     )

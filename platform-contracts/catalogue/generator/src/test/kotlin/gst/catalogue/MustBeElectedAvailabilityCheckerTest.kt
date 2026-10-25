@@ -19,7 +19,7 @@ class MustBeElectedAvailabilityCheckerTest {
         classModifiers = emptyList(),
         scope = listOf("tenant"),
         owner = "o",
-        setBy = listOf("tenant.admin"),
+        setPermission = "vp-01.set",
         mustBeElected = mustBeElected,
         default = if (mustBeElected) null else "d",
         options = listOf("a", "b"),

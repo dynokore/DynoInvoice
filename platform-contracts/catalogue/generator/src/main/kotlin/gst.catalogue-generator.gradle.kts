@@ -153,11 +153,15 @@ val vpGeneratedKotlinDir = layout.buildDirectory.dir("generated/gst-catalogue-vp
 val vpArtefactFile =
     layout.buildDirectory.file("generated/gst-catalogue/gst-catalogue-variation-points-$catalogueVersion.json")
 
+// INV-T-10133: the permission keys VariationPointYamlParser checks every set_permission against.
+val rolePermissionsYaml = rootProject.layout.projectDirectory.file("role-permissions/role-permissions.yaml").asFile
+
 val generateVariationPointCatalogue =
     tasks.register("generateVariationPointCatalogue") {
         group = "catalogue"
         description = "STK-61/CS-28: generates VariationPoint.kt and the catalogue artefact JSON from variation-points.yaml."
         inputs.file(vpSourceYaml)
+        inputs.file(rolePermissionsYaml)
         inputs.file(vpPendingYaml)
         outputs.dir(vpGeneratedKotlinDir)
         outputs.file(vpArtefactFile)
@@ -179,6 +183,7 @@ val checkMustBeElectedAvailability =
         group = "verification"
         description = "INV-AC-2236: every must-be-elected VP, and every one closing a named open question, is available."
         inputs.file(vpSourceYaml)
+        inputs.file(rolePermissionsYaml)
         doLast {
             val rows = VariationPointYamlParser.parse(vpSourceYaml)
             val violations = MustBeElectedAvailabilityChecker.check(rows)
@@ -197,6 +202,7 @@ val checkNonWaivableFloor =
         description = "INV-AC-1786 (checkable half): a non-waivable CONTROL has no looser option; any other CONTROL's " +
             "looser option needs a recorded acknowledgement."
         inputs.file(vpSourceYaml)
+        inputs.file(rolePermissionsYaml)
         val reportFile = layout.buildDirectory.file("reports/catalogue/non-waivable-floor.txt")
         outputs.file(reportFile)
         doLast {
@@ -236,6 +242,7 @@ val checkVariationPointFields =
         description = "INV-T-3000: every VP row carries Keel's scope levels, option keys, strictness and typed values " +
             "(INV-Q-2934, INV-Q-2936), or is retired, or names its open question in pending-fields.yaml."
         inputs.file(vpSourceYaml)
+        inputs.file(rolePermissionsYaml)
         inputs.file(vpPendingYaml)
         doLast {
             val rows = VariationPointYamlParser.parse(vpSourceYaml, vpPendingYaml)
@@ -267,7 +274,7 @@ val generateOperatingProfileCatalogue =
         group = "catalogue"
         description = "INV-T-3277: checks the vendored PRF rows against the VP and error-code catalogues and the " +
             "previous snapshot (INV-Q-3233, INV-Q-3283, INV-Q-3285), then generates OperatingProfile.kt."
-        inputs.files(profileSourceYaml, profilePendingYaml, vpSourceYaml, vpPendingYaml, sourceYaml)
+        inputs.files(profileSourceYaml, profilePendingYaml, vpSourceYaml, vpPendingYaml, rolePermissionsYaml, sourceYaml)
         inputs.files(fileTree(profilePreviousYaml.parentFile) { include(profilePreviousYaml.name) })
         outputs.dir(profileGeneratedKotlinDir)
         doLast {
@@ -306,7 +313,6 @@ val generateOperatingProfileCatalogue =
 
 // --- RolePermission (INV-T-7987) --------------------------------------------------
 
-val rolePermissionsYaml = rootProject.layout.projectDirectory.file("role-permissions/role-permissions.yaml").asFile
 val rolePermissionsGeneratedKotlinDir = layout.buildDirectory.dir("generated/gst-catalogue-role-permissions/kotlin")
 
 val generateRolePermissionCatalogue =
