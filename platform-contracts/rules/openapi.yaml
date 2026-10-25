@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -947,6 +947,11 @@ paths:
         `sgdValuesAbsent`, and `valuesAbsentCount` counts those documents.
 
 
+        Totals by supply type (INV-Q-10703 B'): `supplyTypeTotals` is present
+        next to `changeTypeTotals` on every `result` of `getDryRun` and on the
+        `200` answer of `dryRun`; see `DryRunResult.supplyTypeTotals`.
+
+
         Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): a dry run
         finished within x-timeout returns `200` with `DryRunResult`; one
         that is not returns `202` with `Location` and `Retry-After` pointing
@@ -1014,6 +1019,15 @@ paths:
                         documentCount: 0
                         taxableValue: "0.00"
                         gstValue: "0.00"
+                    supplyTypeTotals:
+                      - supplyType: "STANDARD_RATED"
+                        documentCount: 3
+                        taxableValue: "3000.00"
+                        gstValue: "270.00"
+                      - supplyType: "ZERO_RATED"
+                        documentCount: 1
+                        taxableValue: "500.00"
+                        gstValue: "0.00"
         '202':
           description: >-
             The dry run did not finish within x-timeout and continues
@@ -1068,6 +1082,11 @@ paths:
         `changedCount`; `taxableValue` and `gstValue` are sums over the
         documents of that type that leave out each document flagged
         `sgdValuesAbsent`, and `valuesAbsentCount` counts those documents.
+
+
+        Totals by supply type (INV-Q-10703 B'): `supplyTypeTotals` is present
+        next to `changeTypeTotals` on every `result` of `getDryRun` and on the
+        `200` answer of `dryRun`; see `DryRunResult.supplyTypeTotals`.
       tags: [mapping-packs, regulatory-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -1121,6 +1140,15 @@ paths:
                         - changeType: "NEWLY_ACCEPTED"
                           documentCount: 0
                           taxableValue: "0.00"
+                          gstValue: "0.00"
+                      supplyTypeTotals:
+                        - supplyType: "STANDARD_RATED"
+                          documentCount: 3
+                          taxableValue: "3000.00"
+                          gstValue: "270.00"
+                        - supplyType: "ZERO_RATED"
+                          documentCount: 1
+                          taxableValue: "500.00"
                           gstValue: "0.00"
         default:
           $ref: '#/components/responses/Error'
@@ -1553,6 +1581,14 @@ components:
                 format: decimal
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: Money as a decimal string (API-12).
+              supplyType:
+                type: string
+                enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
+                x-extensible-enum: true
+                description: >-
+                  GST supply type of the document, as the sample page stated it
+                  (`PackDryRunSampleRecorded`, INV-T-10746); the producer sets it
+                  on every item it writes (INV-Q-10703 B').
             required: [docUuid, oldCategoryCode, newCategoryCode, taxableValue, gstValue]
         changeTypeTotals:
           type: array
@@ -1581,7 +1617,56 @@ components:
             `changedCount`; `taxableValue` and `gstValue` are sums over the
             documents of that type that leave out each document flagged
             `sgdValuesAbsent`, and `valuesAbsentCount` counts those documents.
+        supplyTypeTotals:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/DryRunSupplyTypeTotal'
+          description: >-
+            Summary by GST supply type (INV-REQ-997, INV-Q-10703 B'). These rules
+            are enforced by the producer (rules-svc) and are not expressible in
+            the schema: the array holds one item for each supply type that has at
+            least one changed document and none for any other type, so a delta
+            that changes no document gives an empty array; a changed document is
+            one defined as in `changeTypeTotals`; the `documentCount` values add
+            up to `changedCount`; `taxableValue` and `gstValue` are the sums over
+            the changed documents of that type that leave out each document
+            flagged `sgdValuesAbsent`, and `valuesAbsentCount` counts those
+            documents; the items come in the order STANDARD_RATED, ZERO_RATED,
+            EXEMPT, OUT_OF_SCOPE, IMPORTS and then any other member in ascending
+            order of its string. It is present on every `result` of `getDryRun`
+            and on the `200` answer of `dryRun`, and is optional in the schema so
+            that a 1.7 body stays valid.
       required: [packRef, changedCount]
+    DryRunSupplyTypeTotal:
+      type: object
+      description: >-
+        Total of one GST supply type in a dry-run result (INV-REQ-997,
+        INV-Q-10703 B'). The producer enforces the sums, see
+        `DryRunResult.supplyTypeTotals`.
+      properties:
+        supplyType:
+          type: string
+          enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
+          x-extensible-enum: true
+        documentCount:
+          type: integer
+          minimum: 1
+        taxableValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        gstValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        valuesAbsentCount:
+          type: integer
+          minimum: 0
+          description: Number of documents of this supply type flagged `sgdValuesAbsent`, left out of both sums.
+      required: [supplyType, documentCount, taxableValue, gstValue]
     DryRunChangeTypeTotal:
       type: object
       description: >-

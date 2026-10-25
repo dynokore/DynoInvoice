@@ -21,6 +21,7 @@
 #   INV-T-7229 (INV-REQ-654): `return-mapping` is a pack type value of RulePackStaged (rule-pack-staged-payload.schema.json), not a property of the contents schema; `source_class` is the snake_case name of the requirement (API-09), carried as sourceClass; `tax.approver` is a role.
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 #   INV-T-6503 (INV-REQ-658, 493, 496, 504, 738, INV-AC-1717, 513, 514, 1510, 761): `tax.approver` is a role; `DS`, `OS`, `SRRC` and `SR` are IRAS category codes, seed content, not elements of the Scope pack contents schema; `sameGroup` and `sameTenant` are counterparty flags of the rules and masterdata contracts, not elements of this schema.
+#   INV-T-10747 (INV-REQ-997): the backticked names of INV-REQ-997 (`acknowledgeMapping`, `authorise`) are operations of the access contract and not rows of this file.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
 documentKind	property	openapi.yaml	INV-REQ-371
@@ -318,3 +319,11 @@ armRegulatoryPack	operation	openapi.yaml	INV-REQ-2588
 importMappingSpreadsheet	operation	openapi.yaml	INV-REQ-2588
 evaluateDocument.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
 evaluatePreIssuanceDraft.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
+supplyType	property	openapi.yaml	INV-Q-10703
+supplyTypeTotals	property	openapi.yaml	INV-Q-10703
+DryRunSupplyTypeTotal.supplyType	schema_property	openapi.yaml	INV-Q-10703
+STANDARD_RATED	enum_value	openapi.yaml	INV-Q-10703
+ZERO_RATED	enum_value	openapi.yaml	INV-Q-10703
+EXEMPT	enum_value	openapi.yaml	INV-Q-10703
+OUT_OF_SCOPE	enum_value	openapi.yaml	INV-Q-10703
+IMPORTS	enum_value	openapi.yaml	INV-Q-10703

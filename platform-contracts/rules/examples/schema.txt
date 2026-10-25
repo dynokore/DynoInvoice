@@ -17,3 +17,4 @@
 ../schemas/scenario-pack-handlers.schema.json scenario-pack-handlers-*.json
 ../schemas/scope-pack-contents.schema.json scope-pack-contents-*.json
 ../schemas/return-mapping-pack-contents.schema.json return-mapping-pack-contents-*.json
+../openapi.yaml#/components/schemas/DryRunSupplyTypeTotal dry-run-supply-type-total-*.json
