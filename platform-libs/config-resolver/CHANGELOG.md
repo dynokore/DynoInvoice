@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [5.0.9] - 2026-10-26
+### Changed
+- Generated SQL changes in text only (the blank set does not change; INV-Q-10832, INV-Q-10848, INV-T-10836): the `BlankText` constants of tenancy-kernel 4.1.1 are written with ASCII escapes and Kotlin inlines them at this module's compile time.
+
 ## [5.0.8] - 2026-10-25
 ### Changed
 - Metadata-only release (INV-T-9356, G-DVS): depends on `outbox-and-queue 6.5.0`, whose published module metadata changed; no code change.

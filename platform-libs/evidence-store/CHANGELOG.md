@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.9] - 2026-10-26
+### Changed
+- Metadata-only release (INV-Q-10832, INV-Q-10848, INV-T-10836, G-DVS): depends on `tenancy-kernel 4.1.1`, `audit-log 4.0.12`, `config-resolver 5.0.9`, `outbox-and-queue 6.5.1` and `rulepack-kernel 4.1.1`, whose published bytes changed; no code or API change.
+
 ## [2.0.8] - 2026-10-20
 ### Changed
 - Metadata-only release (INV-T-7520, G-DVS): depends on `tenancy-kernel 4.1.0`, whose published module metadata changed; no code change.

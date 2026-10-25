@@ -45,6 +45,26 @@ class BlankTextTest {
         }
     }
 
+    @Test
+    fun `SQL_BLANK is the exact escaped string`() {
+        // Each \\uXXXX below is the six characters backslash, u and four upper-case hex digits (INV-Q-10832).
+        val expected =
+            "^[\\u0001-\\u001F\\u007F-\\u009F \\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]*\$"
+        assertEquals(expected, BlankText.SQL_BLANK)
+        assertEquals("[\\u0001-\\u001F\\u007F-\\u009F]", BlankText.SQL_CONTROL)
+        assertEquals(BlankText.SQL_BLANK + "|" + BlankText.SQL_CONTROL, BlankText.SQL_NOT_ACTOR)
+    }
+
+    @Test
+    fun `the three SQL constants hold printable ASCII only`() {
+        val offending =
+            listOf(BlankText.SQL_BLANK, BlankText.SQL_CONTROL, BlankText.SQL_NOT_ACTOR)
+                .flatMap { it.codePoints().toArray().toList() }
+                .filter { it !in 0x20..0x7E }
+                .distinct()
+        assertEquals(emptyList<String>(), offending.map(::hex))
+    }
+
     private fun text(cp: Int) = String(Character.toChars(cp))
 
     private fun hex(cp: Int) = "U+%04X".format(Locale.ROOT, cp)

@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.1.1] - 2026-10-26
+### Fixed
+- The blank-set regex of `BlankText.SQL_BLANK` is written with printable ASCII only (INV-T-10836; INV-Q-10832 (A), INV-Q-10848; INV-AC-10840): the characters U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF are now the six-character escapes `\uXXXX` that PostgreSQL and `java.util.regex` read as the code point. Flyway 12.4.0 drops U+FEFF from a migration script, so a database built from the generated SQL lacked it in the blank check class. The blank set does not change.
+- Release (INV-Q-10848, INV-T-10836): the compiled constant changes on purpose, and the generated SQL of the modules that splice it (audit-log, config-resolver, outbox-and-queue, rulepack-kernel) changes in text only; those modules take their PATCH steps in this same release (INV-T-10836; INV-Q-10848 A) because Kotlin inlines the constant at their compile time; INV-T-10837, INV-T-10838 and INV-T-10839 add their rendered-DDL tests only, with no release. The clause of INV-T-4708 that BlankText's compiled constant is identical concerned that task's own source escapes and is superseded by INV-Q-10832.
+
 ## [4.1.0] - 2026-10-20
 ### Added
 - Signed entity set (INV-T-7520; INV-Q-7453 (B); INV-REQ-866, INV-AC-1912): `app.binding_sig` may carry a fifth field, the entity set of the acting principal, signed with the tenant, the actor and the expiry (README.md "Signed binding"); `BindingSignature.sign(..., entities)`, `BoundEntitySource` and `TransactionRunnerImpl(..., entities)` (default none: the four-field form, unchanged).

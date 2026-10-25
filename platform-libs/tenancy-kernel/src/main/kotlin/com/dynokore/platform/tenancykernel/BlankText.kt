@@ -22,9 +22,10 @@ package com.dynokore.platform.tenancykernel
 object BlankText {
     /** Matches a blank value: empty, or only the code points of the blank set. */
     const val SQL_BLANK =
-        // A plain string, not a raw one: \\uXXXX is the regex escape (kept as text), \uXXXX is the code point itself,
-        // so the compiled constant holds the same characters as before the literals were escaped (INV-T-4708).
-        "^[\\u0001-\\u001F\\u007F-\\u009F \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*\$"
+        // A plain string, not a raw one: \\uXXXX is the regex escape (kept as text) and every character is printable
+        // ASCII, so a tool that rewrites the text (Flyway drops U+FEFF from a script) cannot change the set
+        // (INV-Q-10832).
+        "^[\\u0001-\\u001F\\u007F-\\u009F \\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]*\$"
 
     /** Matches a value that holds an ISO control character anywhere (U+0001-U+001F, U+007F-U+009F). */
     const val SQL_CONTROL = """[\u0001-\u001F\u007F-\u009F]"""

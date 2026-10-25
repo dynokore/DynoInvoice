@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.5.1] - 2026-10-26
+### Changed
+- Generated SQL changes in text only (the blank set does not change; INV-Q-10832, INV-Q-10848, INV-T-10836): the `BlankText` constants of tenancy-kernel 4.1.1 are written with ASCII escapes and Kotlin inlines them at this module's compile time.
+
 ## [6.5.0] - 2026-10-25
 ### Added
 - `Envelope` platform class gains `AuthorityChanged` as its last member; with `PlatformEventCatalogue` in `product-runtime` it is the platform event `com.dynokore.gst.platform.AuthorityChanged.v1` (INV-Q-9229, INV-T-9356).

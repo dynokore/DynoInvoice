@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.1.1] - 2026-10-26
+### Changed
+- Generated SQL changes in text only (the blank set does not change; INV-Q-10832, INV-Q-10848, INV-T-10836): the `BlankText` constants of tenancy-kernel 4.1.1 are written with ASCII escapes and Kotlin inlines them at this module's compile time.
+
 ## [4.1.0] - 2026-10-22
 ### Added
 - `VerifiedPack` (private constructor, factory `VerifiedPack.of(Verified, PackArtefact, TenantId?)`) and `PackRegistry.register(VerifiedPack)`, whose default calls `register(PackVersion)`; `FenceParticipant.onArmed` now registers through it, so a registry that persists receives the signed artefact and the trust anchor label (INV-Q-8206, INV-T-8211). Additive.
