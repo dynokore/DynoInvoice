@@ -1072,3 +1072,9 @@ permissions:
     cells:
       - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
       - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: election-change.approve
+    kind: WRITE
+    row: "Manage entity registry, identity triple, elections, issuance mode, trigger waivers, go-live, suspension, deregistration, offboarding"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}

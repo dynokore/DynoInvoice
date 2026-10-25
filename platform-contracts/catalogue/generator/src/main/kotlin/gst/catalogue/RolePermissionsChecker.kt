@@ -275,6 +275,7 @@ object RolePermissionsChecker {
             "vp-62.acknowledge.tax-approver" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
             "vp-62.acknowledge.client-signatory" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
             "authority-incarnation.bump" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "election-change.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
         )
 
     fun check(

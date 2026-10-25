@@ -539,4 +539,37 @@ class RolePermissionsCheckerTest {
             assertTrue(v.any { "row '$label' is neither one of the 34 published labels nor one of the added labels." in it }, "$v")
         }
     }
+
+    private val eca = "election-change.approve"
+
+    @Test
+    fun `election-change approve carries the entity-config manage row and its two cells`() {
+        assertEquals(permission(real, "entity-config.manage").row, permission(real, eca).row)
+        assertEquals(PermissionKind.WRITE, permission(real, eca).kind)
+        assertEquals(
+            setOf(Triple("tax.approver", DeploymentForm.SAAS, RoleAllowance.PERMITTED), Triple("tax.approver", DeploymentForm.PRIVATE, RoleAllowance.PERMITTED)),
+            permission(real, eca).cells.map { Triple(it.role, it.form, it.allowance) }.toSet(),
+        )
+        assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
+    }
+
+    @Test
+    fun `probe election-change approve cells and rows changed alone are each reported`() {
+        listOf("entity.admin", "tenant.admin").forEach { r ->
+            assertReported(cellAdd(eca, r, DeploymentForm.SAAS), "role $r key $eca form SAAS", "extra")
+        }
+        assertReported(cellRemove(eca, "tax.approver", DeploymentForm.PRIVATE), "role tax.approver key $eca form PRIVATE")
+        assertReported(withPermission(eca) { p -> p.copy(cells = p.cells.map { if (it.form == DeploymentForm.SAAS) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it }) }, eca)
+        assertReported(cellAdd(eca, "auditor", DeploymentForm.SAAS), "key $eca")
+        assertReported(withPermission(eca) { it.copy(row = it.row + " ") }, "key $eca")
+        assertReported(withPermission(eca) { it.copy(row = "Administer override policy") }, "key $eca")
+    }
+
+    @Test
+    fun `probe election-change approve renamed or removed is reported missing`() {
+        listOf("$eca ", "election-change.approver", "election-changes.approve", "Election-change.approve").forEach { name ->
+            assertReported(withPermission(eca) { it.copy(key = name) }, "key $eca: missing")
+        }
+        assertReported(real.copy(permissions = real.permissions.filterNot { it.key == eca }), "key $eca: missing")
+    }
 }

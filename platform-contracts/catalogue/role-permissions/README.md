@@ -43,6 +43,8 @@ The six operation keys (INV-T-10134, INV-Q-10127 A) are all WRITE: `filing-frequ
 
 The fourteen keys of INV-T-10149 (INV-Q-10140 C, INV-Q-10142 A) are all WRITE. Thirteen carry the row "Acknowledge a control relaxation", one key per accountable role so that VP-59 and VP-62 stay two distinct persons: `vp-03.acknowledge`, `vp-07.acknowledge`, `vp-40.acknowledge`, `vp-44.acknowledge`, `vp-81.acknowledge` (tenant.admin), `vp-13.acknowledge` (client.signatory, WITHIN_SCOPE), `vp-50.acknowledge` (tax.approver), `vp-61.acknowledge` (entity.admin), `vp-66.acknowledge` (security.officer in SAAS, tax.approver in PRIVATE), `vp-59.acknowledge.tax-approver` and `vp-62.acknowledge.tax-approver` (tax.approver), `vp-59.acknowledge.client-signatory` and `vp-62.acknowledge.client-signatory` (client.signatory, WITHIN_SCOPE). The fourteenth, `authority-incarnation.bump`, has the row "Run the authority incarnation command" (platform.engineer in SAAS, deployment.operator in PRIVATE).
 
+The key `election-change.approve` (INV-T-10123, INV-Q-10027) is held by `tax.approver` only and is checked with the person-differs rule of INV-Q-9704 by the service, not by the catalogue.
+
 The whole-job run and pause are the key `job.operate-whole-job` (INV-REQ-1138), with the `row` of `job.operate`; `job.operate` has no cell for `platform.engineer`.
 
 ## What the build checks (`checkRolePermissions`, wired into `check`; also run by `generateRolePermissionCatalogue`)

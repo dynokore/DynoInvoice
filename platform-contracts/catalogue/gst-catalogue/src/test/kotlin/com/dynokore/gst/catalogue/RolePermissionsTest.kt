@@ -117,6 +117,7 @@ class RolePermissionsTest {
                 Req("vp-62.acknowledge.client-signatory", PermissionKind.WRITE, "client.signatory", ws, both),
                 Req("authority-incarnation.bump", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
                 Req("authority-incarnation.bump", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
+                Req("election-change.approve", PermissionKind.WRITE, "tax.approver", y, both),
             ) +
             listOf(
                 "filing.confirm",
@@ -189,6 +190,22 @@ class RolePermissionsTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `election-change approve is WRITE and held by tax approver only in both forms`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("election-change.approve"))
+        both.forEach { form ->
+            val holders =
+                RolePermissions
+                    .cells(form)
+                    .filter { (_, perms) -> perms["election-change.approve"] == y }
+                    .keys
+            assertEquals(setOf("tax.approver"), holders, "$form")
+        }
+        assertNull(RolePermissions.kind("election-change.manage"))
+        assertNull(RolePermissions.kind("election-change.approve "))
+        assertNull(RolePermissions.kind("entity-config.approve"))
     }
 
     @Test
