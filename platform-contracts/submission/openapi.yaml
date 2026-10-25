@@ -187,6 +187,7 @@ paths:
         deleteAtRetentionEnd.
       tags: [readiness]
       x-principal: filing-workflow
+      x-degraded-allow: true
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [SRT-004]
@@ -362,6 +363,7 @@ paths:
         refused for readiness (INV-REQ-72, INV-Q-6737).
       tags: [readiness]
       x-principal: filing-workflow
+      x-degraded-allow: true
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [PER-001]
