@@ -11,3 +11,12 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.konsistRules)
 }
+
+// CreditNoteOrderingTest reads lifecycle-states.schema.json from the contract bundle that submission-contract stages.
+tasks.withType<Test>().configureEach {
+    val contractDir =
+        project(":submission-contract").layout.buildDirectory.dir(
+            "contracts-repo/platform-contracts/submission/${libs.versions.platformContractsBundle.get()}",
+        )
+    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
+}
