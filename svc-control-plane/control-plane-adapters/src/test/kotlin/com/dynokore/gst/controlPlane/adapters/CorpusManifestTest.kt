@@ -10,6 +10,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.MessageDigest
+import java.util.Locale
 
 /**
  * The golden-document corpus of INV-REQ-2660 (INV-Q-9781 A), criterion INV-AC-9790 (manifest part): one JSON file per
@@ -32,7 +33,9 @@ class CorpusManifestTest {
     }
 
     private fun sha256(file: Path): String =
-        MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)).joinToString("") { "%02x".format(it) }
+        MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)).joinToString("") {
+            String.format(Locale.ROOT, "%02x", it)
+        }
 
     private fun items(node: JsonNode): List<JsonNode> = (0 until node.size()).map { node.get(it) }
 
@@ -110,8 +113,8 @@ class CorpusManifestTest {
         val expected = field(doc, "expected")
         val valueSet = checkNotNull(VALUE_SETS[expectedField]) { "$name: expectedField $expectedField" }
         check(expected in valueSet) { "$name: expected $expected is not a $expectedField value" }
-        val inputs = doc.get("inputs")
-        check(inputs != null && inputs.isObject) { "$name: inputs is not an object" }
+        val inputs = checkNotNull(doc.get("inputs")) { "$name: no inputs" }
+        check(inputs.isObject) { "$name: inputs is not an object" }
         keys(inputs).forEach {
             check(it in REQUEST_PROPERTIES) { "$name: inputs key $it is not a property of EvaluateDocumentRequest" }
         }
@@ -155,7 +158,7 @@ class CorpusManifestTest {
     private fun docNamed(prefix: String): String = entries(corpusDir()).map { it.first }.first { it.startsWith(prefix) }
 
     @Test
-    fun `INV-AC-9790 the committed corpus equals its manifest and every document is valid`() {
+    fun `the committed corpus equals its manifest and every document is valid`() {
         verify(corpusDir())
     }
 
