@@ -64,7 +64,7 @@ class CorpusManifestTest {
         return v.asString()
     }
 
-    /** Names by equality, each hash by equality, entries in sorted order, then every golden document and the fixture. */
+    /** Names, hashes and sorted order by equality, then every golden document and the fixture. */
     private fun verify(dir: Path) {
         val entries = entries(dir)
         val names = entries.map { it.first }
@@ -128,7 +128,7 @@ class CorpusManifestTest {
         return section
     }
 
-    /** Edits one file, then rewrites manifest.json so the hashes match: the probe tests the content check, not the hash. */
+    /** Edits one file and rewrites manifest.json to match, so the probe tests the content check, not the hash. */
     private fun mutateDoc(
         dir: Path,
         name: String,
@@ -316,7 +316,7 @@ class CorpusManifestTest {
 
         val SECTIONS = setOf("WORKED_EXAMPLES", "SCENARIO_MATRIX", "SCOPE_MATRIX", "CODE_MATRIX", "EDGE_CORPUS")
 
-        /** Property names of EvaluateDocumentRequest, platform-contracts origin/main 17808f9b140f67dad875f588daa6a6e77688235f. */
+        /** EvaluateDocumentRequest properties, platform-contracts 17808f9b140f67dad875f588daa6a6e77688235f. */
         val REQUEST_PROPERTIES =
             setOf(
                 "entityRef",
@@ -374,7 +374,7 @@ class CorpusManifestTest {
                 "ZR",
             )
 
-        /** The value sets of EvaluationResult, rules/openapi.yaml of platform-contracts origin/main 17808f9b140f67dad875f588daa6a6e77688235f. */
+        /** EvaluationResult value sets, platform-contracts origin/main 17808f9b140f67dad875f588daa6a6e77688235f. */
         val VALUE_SETS =
             mapOf(
                 "categoryCode" to CATEGORY_CODES,
