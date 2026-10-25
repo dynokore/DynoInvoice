@@ -11,7 +11,7 @@ import com.dynokore.gst.reconciliation.domain.variance.VarianceClass.TIMING_DIFF
 
 /** Derivation and assignment rules of [VarianceClass] (INV-Q-7237 A). Pure: no I/O, no clock. */
 object VarianceClasses {
-    /** Classes derived from a document version; a person cannot assign them (except OUTSIDE_BY_RULE, also assignable). */
+    /** Classes derived from a document version (OUTSIDE_BY_RULE is also assignable by a person). */
     val derived: Set<VarianceClass> = setOf(EXCLUDED_TXN, PRE_OBLIGATION, OUTSIDE_BY_RULE, BUYER_REJECTED)
 
     /** Classes a person may assign through annotateVariance. */

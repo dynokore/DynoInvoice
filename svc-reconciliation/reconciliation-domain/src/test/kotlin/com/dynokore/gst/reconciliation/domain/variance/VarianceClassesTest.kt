@@ -36,7 +36,7 @@ class VarianceClassesTest {
     }
 
     @Test
-    fun `INV-AC-678 January and February documents of an entity starting 1 March derive PRE_OBLIGATION`() {
+    fun `INV-AC-678 January and February documents of an entity starting 1 March are PRE_OBLIGATION`() {
         val january = DocumentFacts("PRE_OBLIGATION", null)
         val february = DocumentFacts("PRE_OBLIGATION", null)
         VarianceClasses.derive(january) shouldBe PRE_OBLIGATION
@@ -76,13 +76,15 @@ class VarianceClassesTest {
     fun `derive OUT_OF_SCOPE gives OUTSIDE_BY_RULE`() = derive("OUT_OF_SCOPE") shouldBe OUTSIDE_BY_RULE
 
     @Test
-    fun `derive NOT_SUBMITTABLE with BUYER_REJECTED`() = derive("NOT_SUBMITTABLE", "BUYER_REJECTED") shouldBe BUYER_REJECTED
+    fun `derive NOT_SUBMITTABLE with BUYER_REJECTED`() =
+        derive("NOT_SUBMITTABLE", "BUYER_REJECTED") shouldBe BUYER_REJECTED
 
     @Test
     fun `derive NOT_SUBMITTABLE with no reason is null`() = derive("NOT_SUBMITTABLE") shouldBe null
 
     @Test
-    fun `derive NOT_SUBMITTABLE with ISSUANCE_REFUSED is null`() = derive("NOT_SUBMITTABLE", "ISSUANCE_REFUSED") shouldBe null
+    fun `derive NOT_SUBMITTABLE with ISSUANCE_REFUSED is null`() =
+        derive("NOT_SUBMITTABLE", "ISSUANCE_REFUSED") shouldBe null
 
     @Test
     fun `derive NOT_SUBMITTABLE with NETTED_INTO_REVISION is null`() =
@@ -127,7 +129,17 @@ class VarianceClassesTest {
 
     @Test
     fun `derive never returns UNEXPLAINED or an assignable-only class`() {
-        val verdicts = listOf(null, "", "SUBMITTABLE", "NOT_SUBMITTABLE", "PRE_OBLIGATION", "IN_SCOPE", "OUT_OF_SCOPE", "EXCLUDED_TXN")
+        val verdicts =
+            listOf(
+                null,
+                "",
+                "SUBMITTABLE",
+                "NOT_SUBMITTABLE",
+                "PRE_OBLIGATION",
+                "IN_SCOPE",
+                "OUT_OF_SCOPE",
+                "EXCLUDED_TXN",
+            )
         val reasons = listOf(null, "", "BUYER_REJECTED", "ISSUANCE_REFUSED", "NETTED_INTO_REVISION", "UNEXPLAINED")
         val results = verdicts.flatMap { v -> reasons.map { r -> derive(v, r) } }.filterNotNull().toSet()
         (results - VarianceClasses.derived) shouldBe emptySet()
@@ -141,7 +153,7 @@ class VarianceClassesTest {
     }
 
     @Test
-    fun `parseAssignable refuses derived classes, UNEXPLAINED, look-alikes, empty and null`() {
+    fun `parseAssignable refuses derived classes, UNEXPLAINED, look-alikes, empty, null`() {
         listOf(
             "EXCLUDED_TXN",
             "PRE_OBLIGATION",
@@ -158,10 +170,16 @@ class VarianceClassesTest {
     }
 
     @Test
-    fun `the derived and assignable sets are exactly as stated and their union is the vocabulary without UNEXPLAINED`() {
+    fun `the derived and assignable sets are exactly as stated and their union is the vocabulary`() {
         VarianceClasses.derived shouldBe setOf(EXCLUDED_TXN, PRE_OBLIGATION, OUTSIDE_BY_RULE, BUYER_REJECTED)
         VarianceClasses.assignable shouldBe
-            setOf(TIMING_DIFFERENCE, NO_INVOICE_REQUIRED, INPUT_TAX_NOT_CLAIMED, ERROR_CORRECTED_VIA_F5, OUTSIDE_BY_RULE)
+            setOf(
+                TIMING_DIFFERENCE,
+                NO_INVOICE_REQUIRED,
+                INPUT_TAX_NOT_CLAIMED,
+                ERROR_CORRECTED_VIA_F5,
+                OUTSIDE_BY_RULE,
+            )
         (VarianceClasses.derived + VarianceClasses.assignable) shouldBe (VarianceClass.entries.toSet() - UNEXPLAINED)
     }
 }
