@@ -44,7 +44,10 @@ designed but not built yet.
   `DynoKore Team`.
 - **Traceability.** Every change traces back to a task, its requirements and
   acceptance criteria, the review and any human decision, all recorded in
-  Keel. A public view of this record is being built.
+  Keel. A public view of this record is being built; until then,
+  [How DynoInvoice is built, commit by commit](https://dynokore.com/work/dynoinvoice/traces/)
+  shows how to read a commit and traces eight examples from requirement to
+  merged code.
 
 ## Building
 
