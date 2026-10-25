@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(7, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(9, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -354,9 +354,12 @@ class RolePermissionsCheckerTest {
         )
 
     @Test
-    fun `the six operation keys carry their labels and addedRows holds the seven labels`() {
+    fun `the six operation keys carry their labels and addedRows holds its labels`() {
         opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
-        assertEquals(setOf("Set a variation point") + opLabels.values, RolePermissionsChecker.addedRows.toSet())
+        assertEquals(
+            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command") + opLabels.values,
+            RolePermissionsChecker.addedRows.toSet(),
+        )
     }
 
     @Test
@@ -412,6 +415,123 @@ class RolePermissionsCheckerTest {
         opLabels.forEach { (k, label) ->
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $k: row '$label' is neither one of the 34 published labels nor one of the added labels." == it }, "$v")
+        }
+    }
+
+    private val ackLabel = "Acknowledge a control relaxation"
+    private val bumpLabel = "Run the authority incarnation command"
+    private val ackKeys =
+        listOf("03", "07", "13", "40", "44", "50", "61", "66", "81").map { "vp-$it.acknowledge" } +
+            listOf("59", "62").flatMap { n -> listOf("tax-approver", "client-signatory").map { "vp-$n.acknowledge.$it" } }
+
+    private fun cellRemove(
+        key: String,
+        role: String,
+        form: DeploymentForm,
+    ) = withPermission(key) { p -> p.copy(cells = p.cells.filterNot { it.role == role && it.form == form }) }
+
+    private fun assertFails(
+        table: RolePermissionTable,
+        key: String,
+    ) {
+        val v = RolePermissionsChecker.check(table)
+        assertTrue(v.any { key in it }, "no violation names $key: $v")
+    }
+
+    @Test
+    fun `the thirteen acknowledge keys and the bump key carry their labels and addedRows holds the nine labels`() {
+        assertEquals(13, ackKeys.size)
+        ackKeys.forEach { assertEquals(ackLabel, permission(real, it).row, it) }
+        assertEquals(bumpLabel, permission(real, "authority-incarnation.bump").row)
+        assertEquals(
+            setOf(
+                "Set a variation point",
+                "Change the filing frequency of an entity",
+                "Confirm filing periods of an entity",
+                "Withdraw a submission",
+                "Record an accreditation",
+                "Conclude an accreditation task",
+                "Approve a tenant schedule",
+                ackLabel,
+                bumpLabel,
+            ),
+            RolePermissionsChecker.addedRows.toSet(),
+        )
+        assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
+    }
+
+    @Test
+    fun `probe 46 tax approver PRIVATE cell removed from vp-66 acknowledge is reported`() {
+        assertReported(cellRemove("vp-66.acknowledge", "tax.approver", DeploymentForm.PRIVATE), "role tax.approver key vp-66.acknowledge form PRIVATE")
+    }
+
+    @Test
+    fun `probe 47 security officer PRIVATE cell added to vp-66 acknowledge is reported`() {
+        assertReported(cellAdd("vp-66.acknowledge", "security.officer", DeploymentForm.PRIVATE), "role security.officer key vp-66.acknowledge form PRIVATE", "extra")
+    }
+
+    @Test
+    fun `probe 48 tax approver added to the client signatory acknowledge of VP-59 and VP-62 is reported`() {
+        listOf("vp-59", "vp-62").forEach { vp ->
+            DeploymentForm.entries.forEach {
+                assertReported(cellAdd("$vp.acknowledge.client-signatory", "tax.approver", it), "role tax.approver key $vp.acknowledge.client-signatory form $it", "extra")
+            }
+        }
+    }
+
+    @Test
+    fun `probe 49 client signatory added to the tax approver acknowledge of VP-59 and VP-62 is reported`() {
+        listOf("vp-59", "vp-62").forEach { vp ->
+            DeploymentForm.entries.forEach {
+                assertReported(
+                    cellAdd("$vp.acknowledge.tax-approver", "client.signatory", it, RoleAllowance.WITHIN_SCOPE),
+                    "role client.signatory key $vp.acknowledge.tax-approver form $it",
+                    "extra",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `probe 50 an extra or look-alike acknowledge key is reported`() {
+        listOf("vp-59.acknowledge", "vp-60.acknowledge", "vp-61.acknowledge.entity-admin", "authority-incarnation.bumps").forEach { name ->
+            val extra = permission(real, "vp-61.acknowledge").copy(key = name)
+            assertFails(real.copy(permissions = real.permissions + extra), name)
+            assertFails(real.copy(permissions = real.permissions + extra.copy(row = "Withdraw a submission")), name)
+        }
+    }
+
+    @Test
+    fun `probe 51 renamed acknowledge and bump keys are reported missing`() {
+        val names = ackKeys + "authority-incarnation.bump"
+        names.forEach { k ->
+            listOf("$k ", "${k}s").forEach { name ->
+                assertReported(withPermission(k) { it.copy(key = name) }, "key $k: missing")
+            }
+        }
+        listOf("vp-59.acknowledge.tax-approver " to "vp-59.acknowledge.tax-approver", "vp-59.acknowledge.tax_approver" to "vp-59.acknowledge.tax-approver").forEach { (name, k) ->
+            assertReported(withPermission(k) { it.copy(key = name) }, "key $k: missing")
+        }
+    }
+
+    @Test
+    fun `probe 52 a SAAS cell for deployment operator or a PRIVATE cell for platform engineer on the bump key is reported`() {
+        assertReported(cellAdd("authority-incarnation.bump", "deployment.operator", DeploymentForm.SAAS), "authority-incarnation.bump")
+        assertReported(cellAdd("authority-incarnation.bump", "platform.engineer", DeploymentForm.PRIVATE), "authority-incarnation.bump")
+    }
+
+    @Test
+    fun `probe 53 look-alike labels on an acknowledge key each fail`() {
+        listOf("$ackLabel ", "acknowledge a control relaxation").forEach { label ->
+            assertReported(withPermission("vp-03.acknowledge") { it.copy(row = label) }, "key vp-03.acknowledge", "neither one of the 34 published labels nor one of the added labels")
+        }
+    }
+
+    @Test
+    fun `probe 54 each new label removed from addedRows while its keys stay fails`() {
+        listOf(ackLabel, bumpLabel).forEach { label ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "row '$label' is neither one of the 34 published labels nor one of the added labels." in it }, "$v")
         }
     }
 }

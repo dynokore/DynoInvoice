@@ -981,3 +981,87 @@ permissions:
     row: "Approve a tenant schedule"
     cells:
       - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: vp-03.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-07.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-40.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-44.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-81.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-13.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-50.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-61.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-66.acknowledge
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-59.acknowledge.tax-approver
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-59.acknowledge.client-signatory
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-62.acknowledge.tax-approver
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-62.acknowledge.client-signatory
+    kind: WRITE
+    row: "Acknowledge a control relaxation"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: authority-incarnation.bump
+    kind: WRITE
+    row: "Run the authority incarnation command"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}

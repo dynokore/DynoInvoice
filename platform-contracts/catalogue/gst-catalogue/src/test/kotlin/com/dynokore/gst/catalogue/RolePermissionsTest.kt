@@ -12,6 +12,7 @@ class RolePermissionsTest {
     private val privateForm = DeploymentForm.PRIVATE
     private val both = listOf(saas, privateForm)
     private val y = RoleAllowance.PERMITTED
+    private val ws = RoleAllowance.WITHIN_SCOPE
 
     private fun cell(
         form: DeploymentForm,
@@ -100,6 +101,22 @@ class RolePermissionsTest {
                 Req("accreditation.record", PermissionKind.WRITE, "release.manager", y, listOf(saas)),
                 Req("accreditation.conclude", PermissionKind.WRITE, "release.manager", y, listOf(saas)),
                 Req("tenant-schedule.approve", PermissionKind.WRITE, "commercial.admin", y, listOf(saas)),
+                Req("vp-03.acknowledge", PermissionKind.WRITE, "tenant.admin", y, both),
+                Req("vp-07.acknowledge", PermissionKind.WRITE, "tenant.admin", y, both),
+                Req("vp-40.acknowledge", PermissionKind.WRITE, "tenant.admin", y, both),
+                Req("vp-44.acknowledge", PermissionKind.WRITE, "tenant.admin", y, both),
+                Req("vp-81.acknowledge", PermissionKind.WRITE, "tenant.admin", y, both),
+                Req("vp-13.acknowledge", PermissionKind.WRITE, "client.signatory", ws, both),
+                Req("vp-50.acknowledge", PermissionKind.WRITE, "tax.approver", y, both),
+                Req("vp-61.acknowledge", PermissionKind.WRITE, "entity.admin", y, both),
+                Req("vp-66.acknowledge", PermissionKind.WRITE, "security.officer", y, listOf(saas)),
+                Req("vp-66.acknowledge", PermissionKind.WRITE, "tax.approver", y, listOf(privateForm)),
+                Req("vp-59.acknowledge.tax-approver", PermissionKind.WRITE, "tax.approver", y, both),
+                Req("vp-59.acknowledge.client-signatory", PermissionKind.WRITE, "client.signatory", ws, both),
+                Req("vp-62.acknowledge.tax-approver", PermissionKind.WRITE, "tax.approver", y, both),
+                Req("vp-62.acknowledge.client-signatory", PermissionKind.WRITE, "client.signatory", ws, both),
+                Req("authority-incarnation.bump", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
+                Req("authority-incarnation.bump", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
             ) +
             listOf(
                 "filing.confirm",

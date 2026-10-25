@@ -80,7 +80,7 @@ object RolePermissionsChecker {
             "retention.delete.approve" to "Delete data at end of retention (private form)",
         )
 
-    /** Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends the other six. */
+    /** Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two. */
     val addedRows: List<String> =
         listOf(
             "Set a variation point",
@@ -90,7 +90,14 @@ object RolePermissionsChecker {
             "Record an accreditation",
             "Conclude an accreditation task",
             "Approve a tenant schedule",
+            "Acknowledge a control relaxation",
+            "Run the authority incarnation command",
         )
+
+    /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
+    private val closedRows: Set<String> = setOf("Acknowledge a control relaxation", "Run the authority incarnation command")
+
+    private val closedKeyPattern = Regex("^vp-[0-9]+\\.acknowledge|^authority-incarnation\\.")
 
     /** A required key: its kind and exact cells. */
     data class Required(
@@ -253,6 +260,20 @@ object RolePermissionsChecker {
             "accreditation.record" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "release.manager")),
             "accreditation.conclude" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "release.manager")),
             "tenant-schedule.approve" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "commercial.admin")),
+            "vp-03.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-07.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-40.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-44.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-81.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-13.acknowledge" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "vp-50.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-61.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-66.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "security.officer") + cells(permitted, privateForm, "tax.approver")),
+            "vp-59.acknowledge.tax-approver" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-59.acknowledge.client-signatory" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "vp-62.acknowledge.tax-approver" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-62.acknowledge.client-signatory" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "authority-incarnation.bump" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
         )
 
     fun check(
@@ -294,6 +315,13 @@ object RolePermissionsChecker {
             if (!keyPattern.matches(p.key)) v += "key ${p.key}: does not match ${keyPattern.pattern}."
             if (p.row !in publishedRows && p.row !in added) {
                 v += "key ${p.key}: row '${p.row}' is neither one of the 34 published labels nor one of the added labels."
+            }
+        }
+        table.permissions.forEach { p ->
+            val closedRow = p.row in closedRows
+            val closedName = closedKeyPattern.containsMatchIn(p.key)
+            if ((closedRow || closedName) && p.key !in required) {
+                v += "key ${p.key}: not one of the keys the criteria require for the acknowledge and incarnation families (INV-T-10149)."
             }
         }
         retentionPairs.forEach { (key, row) ->

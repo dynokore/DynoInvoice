@@ -41,12 +41,14 @@ The variation-point setting keys (INV-T-10132, INV-Q-10127 A) are the family `vp
 
 The six operation keys (INV-T-10134, INV-Q-10127 A) are all WRITE: `filing-frequency.change` (row "Change the filing frequency of an entity"; entity.admin), `period.confirm` ("Confirm filing periods of an entity"; entity.admin, tax.approver), `submission.withdraw` ("Withdraw a submission"; tax.approver), `accreditation.record` ("Record an accreditation"; release.manager, SAAS), `accreditation.conclude` ("Conclude an accreditation task"; release.manager, SAAS) and `tenant-schedule.approve` ("Approve a tenant schedule"; commercial.admin, SAAS). Roles with no form named hold the cell in both forms.
 
+The fourteen keys of INV-T-10149 (INV-Q-10140 C, INV-Q-10142 A) are all WRITE. Thirteen carry the row "Acknowledge a control relaxation", one key per accountable role so that VP-59 and VP-62 stay two distinct persons: `vp-03.acknowledge`, `vp-07.acknowledge`, `vp-40.acknowledge`, `vp-44.acknowledge`, `vp-81.acknowledge` (tenant.admin), `vp-13.acknowledge` (client.signatory, WITHIN_SCOPE), `vp-50.acknowledge` (tax.approver), `vp-61.acknowledge` (entity.admin), `vp-66.acknowledge` (security.officer in SAAS, tax.approver in PRIVATE), `vp-59.acknowledge.tax-approver` and `vp-62.acknowledge.tax-approver` (tax.approver), `vp-59.acknowledge.client-signatory` and `vp-62.acknowledge.client-signatory` (client.signatory, WITHIN_SCOPE). The fourteenth, `authority-incarnation.bump`, has the row "Run the authority incarnation command" (platform.engineer in SAAS, deployment.operator in PRIVATE).
+
 The whole-job run and pause are the key `job.operate-whole-job` (INV-REQ-1138), with the `row` of `job.operate`; `job.operate` has no cell for `platform.engineer`.
 
 ## What the build checks (`checkRolePermissions`, wired into `check`; also run by `generateRolePermissionCatalogue`)
 
 `RolePermissionsChecker` reports: a role set that differs from the 19 names; a role whose forms differ; a key that
-breaks the pattern or repeats; a `row` that is neither one of the 34 published labels nor one of the added labels of `addedRows` (the first seven labels of section 2 of INV-NOTE-10136; the text of record of the added labels is INV-NOTE-10136), or a label of either list with no key; a cell that names
+breaks the pattern or repeats; a `row` that is neither one of the 34 published labels nor one of the added labels of `addedRows` (the nine labels of section 2 of INV-NOTE-10136; the text of record of the added labels is INV-NOTE-10136), or a label of either list with no key; a cell that names
 a role not in the file or a form the role does not have; a repeated (role, form, key) cell; an `auditor` cell on a
 WRITE key (INV-REQ-863, FR-P.5); a (key, row) pair of the two retention keys that differs from the pinned table; and any required cell that is missing, extra or different (the table in the checker).
 
