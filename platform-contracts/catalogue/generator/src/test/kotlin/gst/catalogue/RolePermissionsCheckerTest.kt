@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(1, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(7, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -341,5 +341,77 @@ class RolePermissionsCheckerTest {
     fun `probe 36 the 81 keys removed while the label stays in addedRows fails with the second message`() {
         val table = real.copy(permissions = real.permissions - vpKeys().toSet())
         assertReported(table, "row '$vpLabel': no key transcribes it.")
+    }
+
+    private val opLabels =
+        mapOf(
+            "filing-frequency.change" to "Change the filing frequency of an entity",
+            "period.confirm" to "Confirm filing periods of an entity",
+            "submission.withdraw" to "Withdraw a submission",
+            "accreditation.record" to "Record an accreditation",
+            "accreditation.conclude" to "Conclude an accreditation task",
+            "tenant-schedule.approve" to "Approve a tenant schedule",
+        )
+
+    @Test
+    fun `the six operation keys carry their labels and addedRows holds the seven labels`() {
+        opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
+        assertEquals(setOf("Set a variation point") + opLabels.values, RolePermissionsChecker.addedRows.toSet())
+    }
+
+    @Test
+    fun `probe 37 tenant admin added to period confirm is reported`() {
+        assertReported(cellAdd("period.confirm", "tenant.admin", DeploymentForm.SAAS), "role tenant.admin key period.confirm form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 38 tax approver added to filing-frequency change is reported`() {
+        assertReported(cellAdd("filing-frequency.change", "tax.approver", DeploymentForm.PRIVATE), "role tax.approver key filing-frequency.change form PRIVATE", "extra")
+    }
+
+    @Test
+    fun `probe 39 a PRIVATE cell for release manager on accreditation keys is reported`() {
+        listOf("accreditation.record", "accreditation.conclude").forEach {
+            assertReported(cellAdd(it, "release.manager", DeploymentForm.PRIVATE), "role release.manager key $it form PRIVATE")
+        }
+    }
+
+    @Test
+    fun `probe 40 commercial admin added to accreditation record is reported`() {
+        assertReported(cellAdd("accreditation.record", "commercial.admin", DeploymentForm.SAAS), "role commercial.admin key accreditation.record form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 41 renamed operation keys are reported missing`() {
+        opLabels.keys.forEach { k ->
+            listOf("$k ", "${k}s", k.replaceFirstChar { it.uppercase() }).forEach { name ->
+                assertReported(withPermission(k) { it.copy(key = name) }, "key $k: missing")
+            }
+        }
+    }
+
+    @Test
+    fun `probe 42 an auditor cell on each operation key is reported`() {
+        opLabels.keys.forEach { assertReported(cellAdd(it, "auditor", DeploymentForm.SAAS), "role auditor key $it form SAAS") }
+    }
+
+    @Test
+    fun `probe 43 each removed operation key is reported`() {
+        opLabels.keys.forEach { k -> assertReported(real.copy(permissions = real.permissions.filter { it.key != k }), "key $k: missing") }
+    }
+
+    @Test
+    fun `probe 44 look-alike labels on period confirm each fail`() {
+        listOf("Confirm filing periods of an entity ", "Confirm filing period of an entity", "confirm filing periods of an entity").forEach { label ->
+            assertReported(withPermission("period.confirm") { it.copy(row = label) }, "key period.confirm", "neither one of the 34 published labels nor one of the added labels")
+        }
+    }
+
+    @Test
+    fun `probe 45 each operation label removed from addedRows while its key stays fails`() {
+        opLabels.forEach { (k, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $k: row '$label' is neither one of the 34 published labels nor one of the added labels." == it }, "$v")
+        }
     }
 }

@@ -93,6 +93,15 @@ class RolePermissionsTest {
             ) +
             Req("filing.confirm", PermissionKind.WRITE, "tax.approver", y, both) +
             listOf(
+                Req("filing-frequency.change", PermissionKind.WRITE, "entity.admin", y, both),
+                Req("period.confirm", PermissionKind.WRITE, "entity.admin", y, both),
+                Req("period.confirm", PermissionKind.WRITE, "tax.approver", y, both),
+                Req("submission.withdraw", PermissionKind.WRITE, "tax.approver", y, both),
+                Req("accreditation.record", PermissionKind.WRITE, "release.manager", y, listOf(saas)),
+                Req("accreditation.conclude", PermissionKind.WRITE, "release.manager", y, listOf(saas)),
+                Req("tenant-schedule.approve", PermissionKind.WRITE, "commercial.admin", y, listOf(saas)),
+            ) +
+            listOf(
                 "filing.confirm",
                 "filed-return.upload",
                 "reconciliation.run",

@@ -946,3 +946,38 @@ permissions:
     cells:
       - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
       - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: filing-frequency.change
+    kind: WRITE
+    row: "Change the filing frequency of an entity"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: period.confirm
+    kind: WRITE
+    row: "Confirm filing periods of an entity"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: submission.withdraw
+    kind: WRITE
+    row: "Withdraw a submission"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: accreditation.record
+    kind: WRITE
+    row: "Record an accreditation"
+    cells:
+      - {role: release.manager, form: SAAS, allowance: PERMITTED}
+  - key: accreditation.conclude
+    kind: WRITE
+    row: "Conclude an accreditation task"
+    cells:
+      - {role: release.manager, form: SAAS, allowance: PERMITTED}
+  - key: tenant-schedule.approve
+    kind: WRITE
+    row: "Approve a tenant schedule"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}

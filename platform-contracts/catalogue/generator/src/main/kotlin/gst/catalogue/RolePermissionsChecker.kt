@@ -81,7 +81,16 @@ object RolePermissionsChecker {
         )
 
     /** Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends the other six. */
-    val addedRows: List<String> = listOf("Set a variation point")
+    val addedRows: List<String> =
+        listOf(
+            "Set a variation point",
+            "Change the filing frequency of an entity",
+            "Confirm filing periods of an entity",
+            "Withdraw a submission",
+            "Record an accreditation",
+            "Conclude an accreditation task",
+            "Approve a tenant schedule",
+        )
 
     /** A required key: its kind and exact cells. */
     data class Required(
@@ -238,6 +247,12 @@ object RolePermissionsChecker {
             "vp-79.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "vp-80.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "vp-81.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "filing-frequency.change" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "period.confirm" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin", "tax.approver")),
+            "submission.withdraw" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "accreditation.record" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "release.manager")),
+            "accreditation.conclude" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "release.manager")),
+            "tenant-schedule.approve" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "commercial.admin")),
         )
 
     fun check(
