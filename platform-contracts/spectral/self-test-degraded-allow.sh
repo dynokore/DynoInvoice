@@ -14,7 +14,7 @@ OP_INT="canonical POST /internal/v1/canonical/documents"
 ROW_OK="ingestion	POST	/v1/transactions"
 TSV=spectral/degraded-allow-operations.tsv
 
-fresh() { rm -rf "$TMP/t"; mkdir -p "$TMP/t/spectral"; for f in "$SRC"/*/openapi.yaml; do d=$(basename "$(dirname "$f")"); mkdir "$TMP/t/$d"; cp "$f" "$TMP/t/$d/"; done; cp "$SRC/$TSV" "$TMP/t/$TSV"; }
+fresh() { rm -rf "$TMP/t"; mkdir -p "$TMP/t/spectral"; for f in "$SRC"/*/openapi.yaml; do d=$(basename "$(dirname "$f")"); mkdir "$TMP/t/$d"; cp "$f" "$TMP/t/$d/"; done; printf 'directory\tmethod\tpath\n' > "$TMP/t/$TSV"; sed -i '/^      x-degraded-allow: true$/d' "$TMP"/t/*/openapi.yaml; if grep -q 'x-degraded-allow' "$TMP"/t/*/openapi.yaml; then echo "gst-ci: FAIL — INV-AC-9075 the baseline tree still carries a marker"; failed=1; fi; }
 # mark <dir> <METHOD> <path> <yaml value> [principal]: put x-degraded-allow into that operation of the temp tree
 mark() { python3 -I - "$TMP/t" "$@" <<'PY'
 import sys
