@@ -6,6 +6,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicLong
 
 /** Who is acting. Only [MACHINE] keeps working when no decision can be had (INV-REQ-1201 behaviours #4 and #5). */
 enum class PrincipalKind { HUMAN, CONSENT_AGENT, MACHINE }
@@ -254,6 +255,8 @@ fun interface AuthorityFallback : ReplicaFallback<AuthorizationRequest, Authorit
  * One access-svc operator-session signing key (platform-contracts access
  * `operator-session-keys-changed-payload.schema.json`): [publicKey] is the DER X.509 SubjectPublicKeyInfo in
  * standard base64, [alg] the JWS algorithm tokens signed with it name. Usable from [validFrom] until [validUntil].
+ * [use] is the item's wire `use` string, kept raw: `OPERATOR_SESSION` or absent is an operator-session key,
+ * `MACHINE_ACCESS` a machine-access key, anything else drops the item (coordinator ruling INV-Q-9028 A).
  */
 data class OperatorSessionKey(
     val kid: String,
@@ -261,6 +264,7 @@ data class OperatorSessionKey(
     val publicKey: String,
     val validFrom: Instant,
     val validUntil: Instant,
+    val use: String? = null,
 ) {
     fun isValidAt(at: Instant): Boolean = !at.isBefore(validFrom) && at.isBefore(validUntil)
 }
@@ -273,23 +277,97 @@ data class OperatorSessionKeysChanged(
     val keys: List<OperatorSessionKey>,
 )
 
+/** Which key set an item belongs to (coordinator ruling INV-Q-9028 A). */
+enum class KeyUse { OPERATOR_SESSION, MACHINE_ACCESS }
+
 /**
- * The operator-session signing keys the authority replica holds, from `OperatorSessionKeysChanged` (coordinator
- * rulings INV-Q-4162, INV-Q-4171). Each event carries the whole set and replaces the one held.
+ * The two key sets the authority replica holds from `OperatorSessionKeysChanged` (coordinator rulings INV-Q-4162,
+ * INV-Q-4171, INV-Q-9028 A). Each event carries the whole of both sets and replaces them. An item's `use` is
+ * matched by exact string equality: `MACHINE_ACCESS` is a machine key, `OPERATOR_SESSION` or an absent `use` an
+ * operator-session key, any other string drops the item, logging its kid and counting it. A kid published under
+ * both uses drops both of its items and counts a refused publication. A key is in exactly one set.
  */
-class OperatorSessionKeys(
+class AuthorityKeySets(
     private val clock: Clock,
 ) {
-    @Volatile private var held: List<OperatorSessionKey> = emptyList()
+    private class Held(
+        val operator: List<OperatorSessionKey>,
+        val machine: List<OperatorSessionKey>,
+    )
+
+    @Volatile private var held = Held(emptyList(), emptyList())
+    private val dropped = AtomicLong()
+    private val refused = AtomicLong()
+
+    /** Items dropped for an unrecognised `use` or a kid published under both uses. */
+    val droppedItems: Long get() = dropped.get()
+
+    /** Kids refused because the same event gave them under both uses. */
+    val refusedPublications: Long get() = refused.get()
+
+    /** The operator-session set. */
+    val operator = KeySet(KeyUse.OPERATOR_SESSION)
+
+    /** The machine-access set; empty until a machine key is published, so a verifier on it refuses (fail closed). */
+    val machine = KeySet(KeyUse.MACHINE_ACCESS)
 
     fun accept(event: OperatorSessionKeysChanged) {
-        held = event.keys.toList()
+        val operatorItems = mutableListOf<OperatorSessionKey>()
+        val machineItems = mutableListOf<OperatorSessionKey>()
+        for (key in event.keys) {
+            when (key.use) {
+                null, OPERATOR_SESSION_USE -> {
+                    operatorItems += key
+                }
+
+                MACHINE_ACCESS_USE -> {
+                    machineItems += key
+                }
+
+                else -> {
+                    dropped.incrementAndGet()
+                    LOG.log(
+                        System.Logger.Level.WARNING,
+                        "operator-session key item dropped, unrecognised use, kid={0}",
+                        key.kid,
+                    )
+                }
+            }
+        }
+        val both =
+            operatorItems.mapTo(mutableSetOf()) { it.kid } intersect machineItems.mapTo(mutableSetOf()) { it.kid }
+        for (kid in both) {
+            refused.incrementAndGet()
+            LOG.log(System.Logger.Level.WARNING, "key publication refused, kid under both uses, kid={0}", kid)
+        }
+        dropped.addAndGet(
+            (operatorItems.count { it.kid in both } + machineItems.count { it.kid in both }).toLong(),
+        )
+        held =
+            Held(
+                operatorItems.filter { it.kid !in both },
+                machineItems.filter { it.kid !in both },
+            )
     }
 
-    /** The held key [kid] when it is valid now; null otherwise, so the token is refused (fail closed, INV-Q-4162). */
-    fun valid(kid: String): OperatorSessionKey? {
-        val now = clock.instant()
-        return held.firstOrNull { it.kid == kid && it.isValidAt(now) }
+    /** One of the two sets, answering [valid]. [accept] feeds both sets, since one event carries both. */
+    inner class KeySet internal constructor(
+        private val use: KeyUse,
+    ) {
+        fun accept(event: OperatorSessionKeysChanged) = this@AuthorityKeySets.accept(event)
+
+        /** The held key [kid] when valid now; null otherwise, so the token is refused (fail closed, INV-Q-4162). */
+        fun valid(kid: String): OperatorSessionKey? {
+            val now = clock.instant()
+            val keys = if (use == KeyUse.OPERATOR_SESSION) held.operator else held.machine
+            return keys.firstOrNull { it.kid == kid && it.isValidAt(now) }
+        }
+    }
+
+    private companion object {
+        const val OPERATOR_SESSION_USE = "OPERATOR_SESSION"
+        const val MACHINE_ACCESS_USE = "MACHINE_ACCESS"
+        val LOG: System.Logger = System.getLogger(AuthorityKeySets::class.java.name)
     }
 }
 
@@ -344,8 +422,14 @@ class AuthorityReplica(
     val principals =
         EventFedReplica<PrincipalKey, PrincipalRevocation>("authority-principal", clock, lagBound, tracker = tracker)
 
+    /** Both key sets, fed by one `OperatorSessionKeysChanged` (INV-Q-4162, INV-Q-4171, INV-Q-9028 A). */
+    val keySets = AuthorityKeySets(clock)
+
     /** access-svc's operator-session signing keys (INV-Q-4162, INV-Q-4171). */
-    val operatorSessionKeys = OperatorSessionKeys(clock)
+    val operatorSessionKeys = keySets.operator
+
+    /** The machine-access signing keys; a key is in exactly one of the two sets (INV-Q-9028 A). */
+    val machineAccessKeys = keySets.machine
 
     fun decide(
         request: AuthorizationRequest,

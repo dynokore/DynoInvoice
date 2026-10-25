@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.10.0] - 2026-10-25
+### Added
+- `AuthorityReplica.machineAccessKeys` beside `operatorSessionKeys`: the replica keeps the two key sets apart (`AuthorityKeySets`). A key item's `use` `MACHINE_ACCESS` is a machine key, `OPERATOR_SESSION` or an absent `use` an operator-session key, any other string drops the item (kid logged, counted); a kid under both uses drops both items and counts a refused publication; an operator-session token is verified only against the operator-session set. `OperatorSessionKey.use` is new; `OperatorSessionKeys` is replaced by `AuthorityKeySets.KeySet` (coordinator ruling INV-Q-9028 A; INV-T-9154; INV-AC-9147).
+
 ## [10.9.1] - 2026-10-24
 ### Changed
 - Metadata-only release (INV-T-9055, G-DVS): depends on `outbox-and-queue 6.4.0`, whose published module metadata changed; no code change.
