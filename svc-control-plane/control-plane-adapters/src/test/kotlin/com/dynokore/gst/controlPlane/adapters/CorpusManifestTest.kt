@@ -121,8 +121,10 @@ class CorpusManifestTest {
         entityRefs += field(inputs, "entityRef")
         field(inputs, "transactionDate")
         val internalTaxCode = field(inputs, "internalTaxCode")
-        val mapped = fixture.get(internalTaxCode)
-        check(mapped != null) { "$name: internalTaxCode $internalTaxCode has no fixture entry" }
+        val mapped =
+            checkNotNull(
+                fixture.get(internalTaxCode),
+            ) { "$name: internalTaxCode $internalTaxCode has no fixture entry" }
         if (expectedField == "categoryCode") {
             check(
                 mapped.asString() == expected,
