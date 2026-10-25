@@ -1,0 +1,9 @@
+{
+  "suggestionId": "RSG-6",
+  "counterpartyRef": "CTP-204",
+  "field": "GSTN",
+  "registerValue": "M2-1234567-8",
+  "state": "PENDING",
+  "suggestedAt": "2026-10-24T09:00:00Z",
+  "evidenceRef": "EVD-2202"
+}

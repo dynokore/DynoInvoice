@@ -139,6 +139,7 @@ RegisterSuggestion.state.PENDING	schema_enum_value	openapi.yaml	INV-REQ-1290
 RegisterSuggestion.state.CONFIRMED	schema_enum_value	openapi.yaml	INV-REQ-1290
 RegisterSuggestion.state.SUPERSEDED	schema_enum_value	openapi.yaml	INV-REQ-1290
 RegisterSuggestion.field.REGISTERED_NAME	schema_enum_value	openapi.yaml	INV-REQ-1290
+RegisterSuggestion.field.GSTN	schema_enum_value	openapi.yaml	INV-REQ-1290
 exportGapReport	operation	openapi.yaml	INV-REQ-832
 CounterpartyDryRunRequest.rows	schema_property	openapi.yaml	INV-REQ-830
 CounterpartyImportRow.counterpartyRef	schema_property	openapi.yaml	INV-REQ-830

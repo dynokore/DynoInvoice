@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -1586,7 +1586,10 @@ paths:
         register value to the counterparty with provenance and sets the suggestion
         to CONFIRMED. Answers 404 when the suggestion is unknown and 409 when its
         state is not PENDING. An MDM-007 conflict never becomes a suggestion, so this
-        operation never overwrites one.
+        operation never overwrites one. For field `GSTN` it writes an identifier
+        with scheme `GSTN` and provenance `INTERNAL` whose `evidenceRef` is the
+        lookup record, and it answers `409` with `MDM-007` and writes nothing when
+        the counterparty now holds a GSTN that differs from the suggested one.
       tags: [register-suggestions]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -1623,7 +1626,7 @@ paths:
               schema:
                 $ref: '../service-runtime/schemas/error-envelope.schema.json'
         '409':
-          description: The suggestion's state is not PENDING.
+          description: The suggestion's state is not PENDING, or the counterparty now holds a different GSTN (MDM-007).
           content:
             application/problem+json:
               schema:
@@ -2380,8 +2383,13 @@ components:
         counterpartyRef: { type: string, maxLength: 40 }
         field:
           type: string
-          enum: [REGISTERED_NAME]
+          enum: [REGISTERED_NAME, GSTN]
           x-extensible-enum: true
+          description: >-
+            The counterparty field the register value is for. `REGISTERED_NAME` is
+            the legal name the register holds. `GSTN` is the GST registration number
+            the register holds for a counterparty that has none. `currentValue` is
+            absent for `GSTN`.
         registerValue: { type: string, maxLength: 256 }
         currentValue: { type: string, maxLength: 256 }
         state:
