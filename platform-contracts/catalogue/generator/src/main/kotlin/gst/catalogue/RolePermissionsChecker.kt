@@ -73,6 +73,10 @@ object RolePermissionsChecker {
             "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer",
         )
 
+    /** The published row `election-change.approve` transcribes, the row of `entity-config.manage` (INV-T-10123). */
+    const val electionChangeRow: String =
+        "Manage entity registry, identity triple, elections, issuance mode, trigger waivers, go-live, suspension, deregistration, offboarding"
+
     /** The two keys that serve two published rows each (INV-Q-8148): the (key, row) pairs, compared by equality. */
     val retentionPairs: Map<String, String> =
         mapOf(
@@ -329,6 +333,9 @@ object RolePermissionsChecker {
         retentionPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
             if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (retention keys ${retentionPairs.keys.joinToString()})."
+        }
+        table.permissions.firstOrNull { it.key == "election-change.approve" }?.let { p ->
+            if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123)."
         }
         val used = table.permissions.map { it.row }.toSet()
         (publishedRows + added).filter { it !in used }.forEach { v += "row '$it': no key transcribes it." }
