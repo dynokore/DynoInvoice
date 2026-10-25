@@ -80,6 +80,9 @@ object RolePermissionsChecker {
             "retention.delete.approve" to "Delete data at end of retention (private form)",
         )
 
+    /** Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends the other six. */
+    val addedRows: List<String> = listOf("Set a variation point")
+
     /** A required key: its kind and exact cells. */
     data class Required(
         val kind: PermissionKind,
@@ -154,12 +157,96 @@ object RolePermissionsChecker {
             "reconciliation.run" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
             "reconciliation.annotate" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
             "reconciliation.attest" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
+            "vp-01.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-02.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-03.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-04.set" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "vp-05.set" to Required(PermissionKind.WRITE, cells(permitted, both, "security.officer")),
+            "vp-06.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-07.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-08.set" to Required(PermissionKind.WRITE, cells(permitted, both, "security.officer")),
+            "vp-09.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-10.set" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "vp-11.set" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "vp-12.set" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "vp-13.set" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
+            "vp-14.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-15.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-16.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-17.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-18.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-19.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-20.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-21.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-22.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-23.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-24.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-25.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-26.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-27.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-28.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-29.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-30.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
+            "vp-31.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-32.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-33.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-34.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-35.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-36.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-37.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-38.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-39.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-40.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-41.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-42.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-43.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-44.set" to Required(PermissionKind.WRITE, cells(permitted, both, "security.officer")),
+            "vp-45.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "commercial.admin")),
+            "vp-46.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-47.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-48.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-49.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-50.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-51.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-52.set" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
+            "vp-53.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-54.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-55.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-56.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-57.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-58.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-59.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-60.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-61.set" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "vp-62.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-63.set" to Required(PermissionKind.WRITE, cells(permitted, both, "security.officer")),
+            "vp-64.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-65.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-66.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-67.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-68.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-69.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-70.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-71.set" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "vp-72.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-73.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-74.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-75.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-76.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "vp-77.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-78.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-79.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-80.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-81.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
         )
 
-    fun check(table: RolePermissionTable): List<String> {
+    fun check(
+        table: RolePermissionTable,
+        added: List<String> = addedRows,
+    ): List<String> {
         val v = mutableListOf<String>()
         checkRoles(table, v)
-        checkKeysAndRows(table, v)
+        checkKeysAndRows(table, added, v)
         checkCells(table, v)
         checkRequired(table, v)
         return v
@@ -184,19 +271,22 @@ object RolePermissionsChecker {
 
     private fun checkKeysAndRows(
         table: RolePermissionTable,
+        added: List<String>,
         v: MutableList<String>,
     ) {
         table.permissions.groupBy { it.key }.filterValues { it.size > 1 }.keys.forEach { v += "key $it: repeated." }
         table.permissions.forEach { p ->
             if (!keyPattern.matches(p.key)) v += "key ${p.key}: does not match ${keyPattern.pattern}."
-            if (p.row !in publishedRows) v += "key ${p.key}: row '${p.row}' is not one of the 34 published labels."
+            if (p.row !in publishedRows && p.row !in added) {
+                v += "key ${p.key}: row '${p.row}' is neither one of the 34 published labels nor one of the added labels."
+            }
         }
         retentionPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
             if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (retention keys ${retentionPairs.keys.joinToString()})."
         }
         val used = table.permissions.map { it.row }.toSet()
-        publishedRows.filter { it !in used }.forEach { v += "row '$it': no key transcribes it." }
+        (publishedRows + added).filter { it !in used }.forEach { v += "row '$it': no key transcribes it." }
     }
 
     private fun checkCells(

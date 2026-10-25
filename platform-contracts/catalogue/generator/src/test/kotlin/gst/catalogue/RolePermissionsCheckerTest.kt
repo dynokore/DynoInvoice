@@ -40,8 +40,13 @@ class RolePermissionsCheckerTest {
     @Test
     fun `the file has the 19 roles and the 34 published rows`() {
         assertEquals(19, real.roles.size)
-        assertEquals(RolePermissionsChecker.publishedRows.toSet(), real.permissions.map { it.row }.toSet())
+        assertEquals(
+            (RolePermissionsChecker.publishedRows + RolePermissionsChecker.addedRows).toSet(),
+            real.permissions.map { it.row }.toSet(),
+        )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
+        assertEquals(1, RolePermissionsChecker.addedRows.toSet().size)
+        assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
     @Test
@@ -105,7 +110,7 @@ class RolePermissionsCheckerTest {
     @Test
     fun `probe 11 a look-alike row label is reported`() {
         val table = withPermission("user.manage") { it.copy(row = it.row + "s") }
-        assertReported(table, "key user.manage", "Manage users and roless", "not one of the 34")
+        assertReported(table, "key user.manage", "Manage users and roless", "neither one of the 34")
         assertReported(table, "row 'Manage users and roles': no key")
     }
 
@@ -221,8 +226,8 @@ class RolePermissionsCheckerTest {
     @Test
     fun `probe 21 a changed row of filing confirm is reported`() {
         val label = permission(real, "filing.confirm").row
-        assertReported(withPermission("filing.confirm") { it.copy(row = "$label ") }, "key filing.confirm", "not one of the 34")
-        assertReported(withPermission("filing.confirm") { it.copy(row = "Confirm filing") }, "key filing.confirm", "not one of the 34")
+        assertReported(withPermission("filing.confirm") { it.copy(row = "$label ") }, "key filing.confirm", "neither one of the 34")
+        assertReported(withPermission("filing.confirm") { it.copy(row = "Confirm filing") }, "key filing.confirm", "neither one of the 34")
     }
 
     @Test
@@ -261,5 +266,80 @@ class RolePermissionsCheckerTest {
             "row 'Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer'",
             "no key",
         )
+    }
+
+    private val vpLabel = "Set a variation point"
+
+    private fun vpKeys() = real.permissions.filter { Regex("vp-\\d\\d\\.set").matches(it.key) }
+
+    @Test
+    fun `probe 26 the file has the 81 vp keys, each WRITE with the added row`() {
+        assertEquals((1..81).map { "vp-%02d.set".format(it) }, vpKeys().map { it.key })
+        assertTrue(vpKeys().all { it.kind == PermissionKind.WRITE && it.row == vpLabel })
+    }
+
+    @Test
+    fun `probe 27 a tax approver cell added to vp-01 set is reported`() {
+        assertReported(cellAdd("vp-01.set", "tax.approver", DeploymentForm.SAAS), "role tax.approver key vp-01.set form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 28 a removed holder cell of vp-01 set is reported`() {
+        val table = withPermission("vp-01.set") { p -> p.copy(cells = p.cells.filter { it.form != DeploymentForm.PRIVATE }) }
+        assertReported(table, "role tenant.admin key vp-01.set form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `probe 29 vp-21 set given the holders of vp-01 set is reported, and the reverse`() {
+        // vp-21 and vp-22 have the same holder (entity.admin), so the look-alike swap uses vp-01 (tenant.admin).
+        val tenant = permission(real, "vp-01.set").cells
+        val entity = permission(real, "vp-21.set").cells
+        val a = withPermission("vp-21.set") { it.copy(cells = tenant) }
+        assertReported(a, "role tenant.admin key vp-21.set", "extra")
+        assertReported(a, "role entity.admin key vp-21.set", "missing")
+        val b = withPermission("vp-01.set") { it.copy(cells = entity) }
+        assertReported(b, "role entity.admin key vp-01.set", "extra")
+        assertReported(b, "role tenant.admin key vp-01.set", "missing")
+    }
+
+    @Test
+    fun `probe 30 look-alike vp keys are reported as missing`() {
+        listOf("vp-01.set ", "vp-1.set", "VP-01.set", "vp-01.sets").forEach { name ->
+            assertReported(withPermission("vp-01.set") { it.copy(key = name) }, "key vp-01.set: missing")
+        }
+    }
+
+    @Test
+    fun `probe 31 an auditor cell on vp-01 set is reported`() {
+        assertReported(cellAdd("vp-01.set", "auditor", DeploymentForm.SAAS), "role auditor key vp-01.set form SAAS")
+    }
+
+    @Test
+    fun `probe 32 a PRIVATE cell for platform engineer on vp-66 set is reported`() {
+        assertReported(cellAdd("vp-66.set", "platform.engineer", DeploymentForm.PRIVATE), "role platform.engineer key vp-66.set form PRIVATE")
+    }
+
+    @Test
+    fun `probe 33 a removed vp-81 set is reported`() {
+        assertReported(real.copy(permissions = real.permissions.filter { it.key != "vp-81.set" }), "key vp-81.set: missing")
+    }
+
+    @Test
+    fun `probe 34 look-alike labels on vp-01 set each fail`() {
+        listOf("$vpLabel ", "Set a Variation Point", "Set variation point").forEach { label ->
+            assertReported(withPermission("vp-01.set") { it.copy(row = label) }, "key vp-01.set", "neither one of the 34 published labels nor one of the added labels")
+        }
+    }
+
+    @Test
+    fun `probe 35 the label removed from addedRows while the keys keep it fails with the first message`() {
+        val v = RolePermissionsChecker.check(real, added = emptyList())
+        assertTrue(v.any { "key vp-01.set: row '$vpLabel' is neither one of the 34 published labels nor one of the added labels." == it }, "$v")
+    }
+
+    @Test
+    fun `probe 36 the 81 keys removed while the label stays in addedRows fails with the second message`() {
+        val table = real.copy(permissions = real.permissions - vpKeys().toSet())
+        assertReported(table, "row '$vpLabel': no key transcribes it.")
     }
 }

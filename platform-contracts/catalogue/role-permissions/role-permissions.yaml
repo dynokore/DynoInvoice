@@ -2,7 +2,7 @@
 #
 # Hand-edited in this repository: there is no vendoring script. The text of record is the Keel note
 # INV-NOTE-3 section 22.2 (role catalogue) and section 22.3 (permission matrix, with its amendment
-# table of 24 Sep 2026) and requirements INV-REQ-999 (private form: import, verify and arm a
+# table of 24 Sep 2026), plus INV-NOTE-10136 (rows added by INV-Q-10127) and requirements INV-REQ-999 (private form: import, verify and arm a
 # regulatory pack), INV-REQ-896 (FR-AF.18, break-glass unlock) and INV-REQ-1138 (FR-AG.64, whole-job
 # run and pause). README.md says how the keys are named and how a change is made.
 #
@@ -19,6 +19,9 @@
 # filing.confirm, filed-return.upload, reconciliation.run, reconciliation.annotate and
 # reconciliation.attest (INV-T-9376, coordinator ruling INV-Q-8866 A): the texts of record are
 # INV-NOTE-3 FR-AF.34 (the FILE_GST_RETURN scope item) and section 31.6 (row "Confirm filing").
+#
+# vp-01.set to vp-81.set (INV-T-10132, INV-Q-10127 A): one key per variation point, row "Set a variation point"
+# of INV-NOTE-10136; the holders of vp-NN.set are the set_by roles of VP-NN.
 
 
 roles:
@@ -459,3 +462,487 @@ permissions:
     cells:
       - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
       - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-01.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-02.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-03.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-04.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-05.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-06.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-07.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-08.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-09.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-10.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-11.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-12.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-13.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: client.signatory, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: client.signatory, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: vp-14.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-15.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-16.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-17.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-18.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-19.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-20.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-21.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-22.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-23.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-24.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-25.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-26.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-27.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-28.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-29.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-30.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-31.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-32.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-33.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-34.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-35.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-36.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-37.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-38.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-39.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-40.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-41.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-42.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-43.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-44.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-45.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: vp-46.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-47.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-48.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-49.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-50.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-51.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-52.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-53.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-54.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-55.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-56.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-57.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-58.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-59.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-60.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-61.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-62.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-63.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-64.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-65.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-66.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-67.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-68.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-69.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-70.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-71.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-72.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-73.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-74.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-75.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-76.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-77.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-78.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-79.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-80.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-81.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
