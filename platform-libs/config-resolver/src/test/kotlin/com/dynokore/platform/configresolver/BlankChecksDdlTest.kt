@@ -4,6 +4,7 @@ import com.dynokore.platform.configresolver.ConfigSchema.EventMode
 import com.dynokore.platform.tenancykernel.BlankText
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 
@@ -28,5 +29,15 @@ class BlankChecksDdlTest {
         listOf("instance_id", "correlation_id", "causation_id").forEach {
             assertEquals(1, ddl.split("or (v_row.staged ->> '$it') ~ $blank").size - 1, it)
         }
+    }
+
+    @ParameterizedTest
+    @EnumSource(EventMode::class)
+    fun `the rendered DDL holds no U+FEFF and spells it as an escape`(mode: EventMode) {
+        // Flyway's BomStrippingReader drops every U+FEFF from a script; the text must be unchanged by that.
+        val ddl = ConfigSchema.ddl("svc", "config_app", "config_sys", mode)
+        assertEquals(ddl, ddl.replace("\uFEFF", ""))
+        assertTrue(ddl.contains(BlankText.SQL_BLANK))
+        assertTrue(ddl.contains("\\uFEFF"))
     }
 }

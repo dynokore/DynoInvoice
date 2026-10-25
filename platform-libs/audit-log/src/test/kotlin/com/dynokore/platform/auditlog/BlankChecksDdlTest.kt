@@ -3,6 +3,7 @@ package com.dynokore.platform.auditlog
 import com.dynokore.platform.tenancykernel.BlankText
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /** The rendered DDL has no `btrim`/`trim` blank check left; each check uses the shared definition (INV-T-4616). */
@@ -38,5 +39,13 @@ class BlankChecksDdlTest {
         listOf("p_reason", "p_subject", "p_instance_id", "p_correlation_id", "p_causation_id").forEach {
             assertEquals(1, ddl.split("$it is null or $it ~ $blank").size - 1, it)
         }
+    }
+
+    @Test
+    fun `the rendered DDL holds no U+FEFF and spells it as an escape`() {
+        // Flyway's BomStrippingReader drops every U+FEFF from a script; the text must be unchanged by that.
+        assertEquals(ddl, ddl.replace("\uFEFF", ""))
+        assertTrue(ddl.contains(BlankText.SQL_BLANK))
+        assertTrue(ddl.contains("\\uFEFF"))
     }
 }
