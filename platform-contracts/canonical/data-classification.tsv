@@ -132,3 +132,4 @@ openapi.yaml	RecordDocumentRequest.invoiceNote	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.documentDate	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.invoiceNote	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.identityTriple	IDENTIFYING
+schemas/canonical-version-created-payload.schema.json	canonicalDocument.supplyType	NONE

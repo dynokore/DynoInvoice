@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)

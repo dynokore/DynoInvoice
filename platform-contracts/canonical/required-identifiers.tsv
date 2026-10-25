@@ -5,6 +5,7 @@
 # INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` already has rows above; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
 # INV-T-6645. Rows for INV-REQ-693 (read from Keel). Its backticked `SR` is an IRAS category code, seed content, not an identifier of this contract.
 # INV-T-6995. Rows for INV-REQ-415, 408, 373, 319, 406 and INV-REQ-411 (read from Keel). networkIssuance, networkReceipt, issuedDocUuid, apMessageId, handoffAt and customizationId already have rows above. NETWORK_ISSUED is a lifecycle state of the submission contract (submission/schemas/lifecycle-states.schema.json); submission-svc, canonical-svc and payload-svc are services; integration.engineer is a role; TX and SR are IRAS category codes (seed content): none is an element of this contract.
+# INV-T-10746. Rows for INV-REQ-997 and the owner answer INV-Q-10703 (B'). The backticked `acknowledgeMapping` and `authorise` of INV-REQ-997 are operations of the access contract and not rows of this file; INV-AC-1976 and INV-AC-9558 name no backticked identifier.
 identifier	kind	file	requirement
 docUuidSource	property	openapi.yaml	INV-REQ-431
 direction	property	openapi.yaml	INV-REQ-431
@@ -158,3 +159,9 @@ notSubmittableReason	property	schemas/canonical-version-created-payload.schema.j
 BUYER_REJECTED	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-632
 ISSUANCE_REFUSED	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-632
 NETTED_INTO_REVISION	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-632
+supplyType	property	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
+STANDARD_RATED	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
+ZERO_RATED	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
+EXEMPT	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
+OUT_OF_SCOPE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
+IMPORTS	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703

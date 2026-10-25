@@ -2,6 +2,7 @@
 # INV-T-5179. Identifiers in backticks in the published behavior and intent of INV-REQ-1243 (setPolicy) and INV-REQ-1244
 # (acknowledgeControlRelaxation), and the fields the INV-Q-5172 ruling fixes for them (tooling/setpolicy-contract-gap.md).
 # Not listed here: tenant, actor and roles (never request fields, CS-23); entityRef (already in this file).
+# INV-T-10746. Rows for INV-REQ-997 and the owner answer INV-Q-10703 (B'). The backticked `acknowledgeMapping` and `authorise` of INV-REQ-997 are operations of the access contract and not rows of this file; INV-AC-1976 and INV-AC-9558 name no backticked identifier.
 identifier	kind	file	requirement
 setPolicy	operation	openapi.yaml	INV-REQ-1243
 acknowledgeControlRelaxation	operation	openapi.yaml	INV-REQ-1244
@@ -82,3 +83,9 @@ DRAIN	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-89
 REPLAY	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
 overrideReason	property	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-896
 SIGN_IN_FAILED	enum_value	schemas/break-glass-alert-raised-payload.schema.json	INV-REQ-897
+supplyType	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
+STANDARD_RATED	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
+ZERO_RATED	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
+EXEMPT	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
+OUT_OF_SCOPE	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
+IMPORTS	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
