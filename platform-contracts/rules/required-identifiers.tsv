@@ -316,3 +316,5 @@ acceptSourceClassEntry	operation	openapi.yaml	INV-REQ-2588
 activateMappingPack	operation	openapi.yaml	INV-REQ-2588
 armRegulatoryPack	operation	openapi.yaml	INV-REQ-2588
 importMappingSpreadsheet	operation	openapi.yaml	INV-REQ-2588
+evaluateDocument.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
+evaluatePreIssuanceDraft.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
