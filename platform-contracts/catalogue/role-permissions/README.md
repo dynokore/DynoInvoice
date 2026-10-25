@@ -37,7 +37,7 @@ The time-box and the customer approval of an `implementation.consultant` grant (
 
 Usage and plan are SAAS (`usage.view`, `plan.view`) and licence status is PRIVATE (`licence-status.view`) (FR-AF.29).
 
-The variation-point setting keys (INV-T-10132, INV-Q-10127 A) are the family `vp-NN.set`, NN the two digits of `VP-NN`, `vp-01.set` to `vp-81.set`, all WRITE with the row label "Set a variation point" (INV-NOTE-10136). The holders of each key equal the `set_by` of its variation point on the day the task merged; `client.signatory` cells are WITHIN_SCOPE, every other cell PERMITTED, in every form the role exists in.
+The variation-point setting keys (INV-T-10132, INV-Q-10127 A) are the family `vp-NN.set`, NN the two digits of `VP-NN`, `vp-01.set` to `vp-82.set` (`vp-82.set` was added by INV-T-10283, INV-Q-10280 A), all WRITE with the row label "Set a variation point" (INV-NOTE-10136). The holders of each key equal the `set_by` of its variation point on the day the task merged; `client.signatory` cells are WITHIN_SCOPE, every other cell PERMITTED, in every form the role exists in.
 
 The six operation keys (INV-T-10134, INV-Q-10127 A) are all WRITE: `filing-frequency.change` (row "Change the filing frequency of an entity"; entity.admin), `period.confirm` ("Confirm filing periods of an entity"; entity.admin, tax.approver), `submission.withdraw` ("Withdraw a submission"; tax.approver), `accreditation.record` ("Record an accreditation"; release.manager, SAAS), `accreditation.conclude` ("Conclude an accreditation task"; release.manager, SAAS) and `tenant-schedule.approve` ("Approve a tenant schedule"; commercial.admin, SAAS). Roles with no form named hold the cell in both forms.
 

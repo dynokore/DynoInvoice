@@ -254,6 +254,7 @@ object RolePermissionsChecker {
             "vp-79.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "vp-80.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "vp-81.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-82.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "filing-frequency.change" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
             "period.confirm" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin", "tax.approver")),
             "submission.withdraw" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),

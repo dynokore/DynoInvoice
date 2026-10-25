@@ -273,8 +273,8 @@ class RolePermissionsCheckerTest {
     private fun vpKeys() = real.permissions.filter { Regex("vp-\\d\\d\\.set").matches(it.key) }
 
     @Test
-    fun `probe 26 the file has the 81 vp keys, each WRITE with the added row`() {
-        assertEquals((1..81).map { "vp-%02d.set".format(it) }, vpKeys().map { it.key })
+    fun `probe 26 the file has the 82 vp keys, each WRITE with the added row`() {
+        assertEquals((1..82).map { "vp-%02d.set".format(it) }, vpKeys().map { it.key })
         assertTrue(vpKeys().all { it.kind == PermissionKind.WRITE && it.row == vpLabel })
     }
 
@@ -335,6 +335,11 @@ class RolePermissionsCheckerTest {
     fun `probe 35 the label removed from addedRows while the keys keep it fails with the first message`() {
         val v = RolePermissionsChecker.check(real, added = emptyList())
         assertTrue(v.any { "key vp-01.set: row '$vpLabel' is neither one of the 34 published labels nor one of the added labels." == it }, "$v")
+    }
+
+    @Test
+    fun `probe 82 a removed vp-82 set is reported`() {
+        assertReported(real.copy(permissions = real.permissions.filter { it.key != "vp-82.set" }), "key vp-82.set: missing")
     }
 
     @Test
