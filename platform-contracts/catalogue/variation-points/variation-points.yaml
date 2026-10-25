@@ -1249,7 +1249,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1292; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-32
   requirement: INV-REQ-1293
-  revision: 860ee21e-1fbf-4b81-beea-b68d31947cdb
+  revision: 1a96ca6e-92f6-491d-81a1-3c519cf9d1f5
   title: "An override is approved by one tax.approver by default, or also by a second approver above an amount or always; overridable codes only"
   class: CONTROL
   class_modifiers:
@@ -1265,7 +1265,7 @@ variation_points:
     - "a second approver above a stated amount"
     - "a second approver always"
   bounds: "OVERRIDABLE codes only, per document and version (INV-REQ-1180)"
-  status: planned
+  status: available
   status_note: null
   governs:
     - "INV-REQ-500"
