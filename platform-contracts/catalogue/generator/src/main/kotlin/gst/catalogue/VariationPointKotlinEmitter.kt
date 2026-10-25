@@ -48,10 +48,10 @@ object VariationPointKotlinEmitter {
             emitFieldTypes()
             appendLine("/**")
             appendLine(" * Every GST InvoiceNow variation point (STK-61): its class, options, default (or")
-            appendLine(" * must-be-elected), bounds, setting role, scope levels, owning service, status and")
+            appendLine(" * must-be-elected), bounds, setting permission, scope levels, owning service, status and")
             appendLine(" * the requirements it governs (INV-REQ-1239). One tenant's behaviour differs from")
             appendLine(" * another's only through the value of a variation point (behaviour #2); a value")
-            appendLine(" * outside [options]/[bounds], or set by anyone other than [setBy], is refused")
+            appendLine(" * outside [options]/[bounds], or set by a user who does not hold [setPermission], is refused")
             appendLine(" * (behaviour #3). Only [VpStatus.AVAILABLE] offers every option; [VpStatus.PLANNED]")
             appendLine(" * behaves as [default] until scenarios cover the options; [VpStatus.RETIRED] is")
             appendLine(" * never offered (INV-REQ-1251).")
@@ -72,7 +72,7 @@ object VariationPointKotlinEmitter {
             appendLine("    val classModifiers: List<VpClassModifier>,")
             appendLine("    val scope: List<String>,")
             appendLine("    val owner: String,")
-            appendLine("    val setBy: List<String>,")
+            appendLine("    val setPermission: String,")
             appendLine("    val mustBeElected: Boolean,")
             appendLine("    val default: String?,")
             appendLine("    val options: List<String>,")
@@ -349,7 +349,7 @@ object VariationPointKotlinEmitter {
             "$modifiersLiteral, " +
             "${row.scope.kotlinListLiteral()}, " +
             "${row.owner.kotlinStringLiteralBody()}, " +
-            "${row.setBy.kotlinListLiteral()}, " +
+            "${row.setPermission.kotlinStringLiteralBody()}, " +
             "${row.mustBeElected}, " +
             "${row.default.kotlinNullableStringLiteral()}, " +
             "${row.options.kotlinListLiteral()}, " +

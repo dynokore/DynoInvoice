@@ -55,7 +55,7 @@ data class ParsedVariationPoint(
     val classModifiers: List<VpClassModifier>,
     val scope: List<String>,
     val owner: String,
-    val setBy: List<String>,
+    val setPermission: String,
     val mustBeElected: Boolean,
     val default: String?,
     val options: List<String>,

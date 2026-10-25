@@ -41,13 +41,12 @@ object VariationPointCatalogueArtefact {
         val formDependence = row.formDependence?.jsonString() ?: "null"
         val modifiers = row.classModifiers.joinToString(", ") { "\"$it\"" }
         val scope = row.scope.joinToString(", ") { it.jsonString() }
-        val setBy = row.setBy.joinToString(", ") { it.jsonString() }
         val options = row.options.joinToString(", ") { it.jsonString() }
         val governs = row.governs.joinToString(", ") { it.jsonString() }
         return "{ \"id\": ${row.id.jsonString()}, \"requirement\": ${row.requirement.jsonString()}, " +
             "\"revision\": ${row.revision.jsonString()}, \"title\": ${row.title.jsonString()}, " +
             "\"class\": \"${row.vpClass}\", \"classModifiers\": [$modifiers], " +
-            "\"scope\": [$scope], \"owner\": ${row.owner.jsonString()}, \"setBy\": [$setBy], " +
+            "\"scope\": [$scope], \"owner\": ${row.owner.jsonString()}, \"setPermission\": ${row.setPermission.jsonString()}, " +
             "\"mustBeElected\": ${row.mustBeElected}, \"default\": $default, \"options\": [$options], " +
             "\"bounds\": $bounds, \"status\": \"${row.status}\", \"statusNote\": $statusNote, " +
             "\"governs\": [$governs], \"formDependence\": $formDependence, " +

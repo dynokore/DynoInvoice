@@ -57,7 +57,7 @@ class RealVariationPointCatalogueSelfTest {
         val vp81 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-81" }
         assertEquals("INV-REQ-8287", vp81.requirement)
         assertEquals(VpStatus.PLANNED, vp81.status)
-        assertEquals(listOf("tenant.admin"), vp81.setBy)
+        assertEquals("vp-81.set", vp81.setPermission)
         val fields = vp81.fields!!
         assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
         assertEquals(listOf("ONE_HOLDER_WITHDRAW_BLOCKED", "ONE_HOLDER", "ANY_NUMBER"), fields.options.map { it.key })
@@ -165,5 +165,17 @@ class RealVariationPointCatalogueSelfTest {
         }
         assertTrue(source.count { it == '{' } == source.count { it == '}' })
         assertTrue(source.count { it == '(' } == source.count { it == ')' })
+    }
+
+    @Test
+    fun `INV-T-10133 every row sets through its own vp-NN set key, one row per group of INV-T-10132 and VP-82`() {
+        val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
+        assertEquals(82, rows.size)
+        rows.values.forEach { assertEquals(it.id.lowercase() + ".set", it.setPermission) }
+        assertEquals("vp-82.set", rows.getValue("VP-82").setPermission)
+        assertEquals(setOf(VpClass.POLICY, VpClass.PARAMETER, VpClass.CONTROL), rows.values.map { it.vpClass }.toSet())
+        assertEquals("vp-27.set", rows.getValue("VP-27").setPermission) // retired row, key supplied by check-drift.py
+        assertTrue(!VariationPointCatalogueArtefact.render(rows.values.toList(), "1.1.0").contains("setBy"))
+        assertTrue(!VariationPointKotlinEmitter.emit("com.dynokore.gst.catalogue", rows.values.toList()).contains("setBy"))
     }
 }

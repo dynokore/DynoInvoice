@@ -17,6 +17,11 @@ Usage:
     source ~/projects/invoice/tooling/k.sh
     python3 catalogue/variation-points/check-drift.py [--write] [path/to/variation-points.yaml]
 
+Setting permission (INV-T-10133, INV-Q-10127 A): each row's `set_permission` is
+io_contract.set_permission (the permission key that sets the variation point; it replaced `set_by`).
+A missing or empty value exits 2 naming the row and writes nothing, except VP-27 (retired
+requirement), whose key RETIRED_SET_PERMISSION supplies.
+
 --write (INV-T-3000) re-vendors: it rewrites everything below the file's header from
 live Keel instead of diffing. Each row's `catalogue` block (scope levels, option keys,
 per-option strictness, typed values, INV-Q-2934, INV-Q-2936) is io_contract.catalogue,
@@ -74,6 +79,33 @@ where e.project_id = (select id from project where code = 'INV')
 """
 
 VP_ID = re.compile(r"^VP-\d+$")
+
+# INV-T-10133: the requirement of VP-27 (INV-REQ-1288) is retired and cannot be revised, so its
+# io_contract has no set_permission; this is the one row whose key the tool supplies. Compared with
+# the row id by equality; a published value that differs from the constant is an error.
+RETIRED_SET_PERMISSION = {"VP-27": "vp-27.set"}
+
+
+class SetPermissionError(Exception):
+    """A row has no usable io_contract.set_permission (INV-T-10133); nothing is written."""
+
+
+def resolve_set_permissions(rows: list[dict]) -> list[dict]:
+    """Return [rows] with io.set_permission set on every row, or raise SetPermissionError naming the row."""
+    out = []
+    for d in rows:
+        vp_id = d["src"][0]
+        io = dict(d["io"] or {})
+        published = io.get("set_permission")
+        fixed = RETIRED_SET_PERMISSION.get(vp_id)
+        if fixed is not None:
+            if published is not None and published != fixed:
+                raise SetPermissionError(f"{vp_id}: published set_permission {published!r} differs from {fixed!r}")
+            io["set_permission"] = fixed
+        elif not isinstance(published, str) or not published:
+            raise SetPermissionError(f"{vp_id}: io_contract has no set_permission")
+        out.append({**d, "io": io})
+    return out
 
 
 class DerivationError(Exception):
@@ -281,7 +313,7 @@ def render_body(rows: list[dict]) -> str:
         lines.append(f"  class_modifiers:{yaml_list(modifiers, 4)}")
         lines.append(f"  scope:{yaml_list(io.get('scope') or [], 4)}")
         lines.append(f"  owner: {io.get('owner')}")
-        lines.append(f"  set_by:{yaml_list(io.get('set_by') or [], 4)}")
+        lines.append(f"  set_permission: {yaml_str(io['set_permission'])}")
         lines.append(f"  must_be_elected: {'true' if must_be_elected else 'false'}")
         lines.append(f"  default: {yaml_str(default_val)}")
         lines.append(f"  options:{yaml_list(io.get('options') or [], 4)}")
@@ -316,6 +348,11 @@ def main() -> int:
         rows = rows + derive_parameter_rows(rows, fetch_published)
     except DerivationError as e:
         print(f"check-drift: cannot derive installation-parameter rows (INV-Q-3202, P57): {e}", file=sys.stderr)
+        return 2
+    try:
+        rows = resolve_set_permissions(rows)
+    except SetPermissionError as e:
+        print(f"check-drift: {e} (INV-T-10133)", file=sys.stderr)
         return 2
     fresh_body = render_body(rows)
     old_body = committed_body(vendored_text)

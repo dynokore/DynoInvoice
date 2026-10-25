@@ -14,3 +14,9 @@ role, scope, owner, status, form-dependence — is generated (INV-T-2852 / T8) f
 requirements — see that file's own header for why, unlike `error-codes.yaml`, there
 is no invoice-docs file to vendor from instead), never edited by hand. See
 `variation-points/README.md` for the re-vendor procedure and its drift-check tool.
+
+## Versioning
+
+`gradle.properties` is the one place the version of `gst-catalogue` is declared (`gstCatalogueVersion`).
+Removal or rename of a published field or key of the catalogue (an `ErrorCode` member, a `VariationPoint` member, a field of a generated JSON artefact, a permission key) is a major step of `gstCatalogueVersion`.
+An additive change is a minor step of `gstCatalogueVersion`.
