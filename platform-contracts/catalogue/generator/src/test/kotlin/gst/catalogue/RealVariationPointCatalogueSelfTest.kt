@@ -81,6 +81,23 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-T-10183 VP-29, VP-38 and VP-65 are available with the ruled option keys in order`() {
+        val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
+        val expected =
+            mapOf(
+                "VP-29" to ("INV-REQ-1290" to listOf("SUGGEST_CONFIRM", "AUTO_APPLY", "OFF")),
+                "VP-38" to ("INV-REQ-1299" to listOf("DEFAULT_24H_1H", "SHORTER")),
+                "VP-65" to ("INV-REQ-1548" to listOf("DEFAULT_24H_1H", "SHORTER")),
+            )
+        expected.forEach { (id, want) ->
+            val row = rows.getValue(id)
+            assertEquals(want.first, row.requirement, id)
+            assertEquals(VpStatus.AVAILABLE, row.status, id)
+            assertEquals(want.second, row.fields!!.options.map { it.key }, id)
+        }
+    }
+
+    @Test
     fun `INV-T-3148 every LOOSER option carries the ruled acknowledgers`() {
         val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
         val looser =
