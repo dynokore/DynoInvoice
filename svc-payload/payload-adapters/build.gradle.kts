@@ -34,6 +34,8 @@ dependencies {
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.configResolver.impl)
     implementation(libs.platform.serviceRuntime.impl)
+    implementation(libs.platform.integrationCanon.impl)
+    implementation(libs.saxon.he)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)

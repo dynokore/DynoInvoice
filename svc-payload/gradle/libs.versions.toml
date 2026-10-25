@@ -26,6 +26,10 @@ tomcat = "11.0.25"
 jsonSchemaValidator = "3.0.8"
 # The generated server interfaces annotate with swagger (the version codegen-self-test pins).
 swaggerAnnotations = "2.2.55"
+# integration-canon impl half (INV-T-7076, INV-Q-7068 A): the Schematron runner publishes no POM dependency list, so the consumer
+# declares Saxon-HE itself, at the patch of the platform-libs catalogue.
+integrationCanon = "1.2.0"
+saxon = "12.10"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -42,6 +46,7 @@ platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-
 platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
+platform-integrationCanon-impl = { module = "com.dynokore.platform:integration-canon", version.ref = "integrationCanon" }
 platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
 platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
 gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
@@ -75,3 +80,4 @@ jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
 jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
+saxon-he = { module = "net.sf.saxon:Saxon-HE", version.ref = "saxon" }
