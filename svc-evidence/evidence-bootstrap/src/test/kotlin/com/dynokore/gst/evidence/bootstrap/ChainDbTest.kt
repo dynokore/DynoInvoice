@@ -138,7 +138,7 @@ class ChainDbTest {
     }
 
     @Test
-    fun `INV-AC-7215 a canonical version event stores one locator, a repeat stores nothing`(
+    fun `a canonical version event handled directly stores one locator, a repeat stores nothing`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         tx(tenant) { handler.handle(created(tenant, "ev-1")) } shouldBe HandleOutcome.APPLIED
@@ -235,17 +235,17 @@ class ChainDbTest {
     }
 
     @Test
-    fun `an audit entry goes to the audit_log chain of its entity or of TENANT and a redelivery appends nothing more`(
+    fun `an audit entry goes to the audit_log chain of its key, the tenant-wide one included, once`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         val entityKey = AuditChainKey.of("ENT-3F2A9C", Instant.parse("2026-10-31T23:59:59Z"))
-        val tenantKey = AuditChainKey.of(null, Instant.parse("2026-11-01T00:00:00Z"))
+        val tenantKey = AuditChainKey.of(EventEntityRef.TENANT_WIDE.value, Instant.parse("2026-11-01T00:00:00Z"))
         repeat(2) {
             tx(tenant) { appender.appendAudit(tenant, entityKey, "au-1", """{"a":1}""".toByteArray(), at) }
             tx(tenant) { appender.appendAudit(tenant, tenantKey, "au-2", """{"a":2}""".toByteArray(), at) }
         }
         chain(tenant, RecordKind.AUDIT_LOG, "ENT-3F2A9C", "AUDIT-2026-10").size shouldBe 1
-        chain(tenant, RecordKind.AUDIT_LOG, "TENANT", "AUDIT-2026-11").size shouldBe 1
+        chain(tenant, RecordKind.AUDIT_LOG, EventEntityRef.TENANT_WIDE.value, "AUDIT-2026-11").size shouldBe 1
         applied(tenant, "au-1") shouldBe 1
         tx(tenant) {
             dsl

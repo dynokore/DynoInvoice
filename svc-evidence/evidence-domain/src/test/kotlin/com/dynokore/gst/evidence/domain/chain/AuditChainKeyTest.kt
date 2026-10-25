@@ -21,12 +21,10 @@ class AuditChainKeyTest {
     }
 
     @Test
-    fun `no entity reference gives the entity TENANT`() {
-        AuditChainKey.of(null, Instant.parse("2026-10-05T00:00:00Z")).entityRef shouldBe "TENANT"
-    }
-
-    @Test
-    fun `an entity reference is kept as given, a lower case look-alike of TENANT included`() {
+    fun `an entity reference is kept as given, the nil UUID and the texts TENANT and tenant included`() {
+        val nil = "00000000-0000-0000-0000-000000000000"
+        AuditChainKey.of(nil, Instant.EPOCH).entityRef shouldBe nil
+        AuditChainKey.of("TENANT", Instant.EPOCH).entityRef shouldBe "TENANT"
         AuditChainKey.of("ENT-3F2A9C", Instant.EPOCH).entityRef shouldBe "ENT-3F2A9C"
         AuditChainKey.of("tenant", Instant.EPOCH).entityRef shouldBe "tenant"
         AuditChainKey.of("TENANT ", Instant.EPOCH).entityRef shouldBe "TENANT "

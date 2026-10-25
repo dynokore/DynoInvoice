@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.CurrentConnection
@@ -33,6 +34,16 @@ class Tpl16ServiceCompositionTest {
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:evidence-svc"
             catalogueTypes(context) shouldBe EvidenceEvents.entries.map { it.eventType }.toSet()
+        }
+    }
+
+    @Test
+    fun `the context holds the consumer of CanonicalVersionCreated next to the consumers of product-runtime`(
+        @TempDir dir: Path,
+    ) {
+        EvidenceContext.offline(dir).run { context ->
+            context.startupFailure shouldBe null
+            context.getBeanNamesForType(InboxConsumer::class.java).toList().contains("locatorConsumer") shouldBe true
         }
     }
 

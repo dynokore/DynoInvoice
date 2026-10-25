@@ -43,20 +43,34 @@ class SeparableStoreTest {
             block(connection).also { connection.commit() }
         }
 
+    /** The columns the generator constrains to a closed set of texts (check constraints of the consumer side). */
+    private val constrained = mapOf("event_dead_letter.status" to "OPEN", "consumer_replay.mode" to "SCOPE")
+
+    private val byType: Map<Class<*>, (TableField<*, *>) -> Any> =
+        mapOf(
+            UUID::class.java to { f -> if (f.name == "tenant_id") tenant else UUID.randomUUID() },
+            String::class.java to { f -> "evidence-${f.name}" },
+            Long::class.javaObjectType to { _ -> 42L },
+            Long::class.javaPrimitiveType!! to { _ -> 42L },
+            Int::class.javaObjectType to { _ -> 7 },
+            Int::class.javaPrimitiveType!! to { _ -> 7 },
+            Boolean::class.javaObjectType to { _ -> true },
+            Boolean::class.javaPrimitiveType!! to { _ -> true },
+            OffsetDateTime::class.java to
+                { _ -> OffsetDateTime.of(2026, 3, 20, 10, 15, 30, 123_000_000, ZoneOffset.UTC) },
+            Array<String>::class.java to { f -> arrayOf("evidence-${f.name}") },
+            ByteArray::class.java to { f -> "evidence-${f.name}".toByteArray() },
+            java.time.LocalDate::class.java to { _ -> java.time.LocalDate.of(2026, 3, 20) },
+            org.jooq.JSONB::class.java to { _ -> org.jooq.JSONB.valueOf("""{"payload": "evidence"}""") },
+        )
+
     /** A value for a column from its Java type; a type this file does not know fails the test, never skips it. */
     private fun sample(field: TableField<*, *>): Any =
-        when (val type = field.dataType.type) {
-            UUID::class.java -> if (field.name == "tenant_id") tenant else UUID.randomUUID()
-            String::class.java -> "evidence-${field.name}"
-            Long::class.javaObjectType, Long::class.javaPrimitiveType -> 42L
-            Int::class.javaObjectType, Int::class.javaPrimitiveType -> 7
-            Boolean::class.javaObjectType, Boolean::class.javaPrimitiveType -> true
-            OffsetDateTime::class.java -> OffsetDateTime.of(2026, 3, 20, 10, 15, 30, 123_000_000, ZoneOffset.UTC)
-            ByteArray::class.java -> "evidence-${field.name}".toByteArray()
-            java.time.LocalDate::class.java -> java.time.LocalDate.of(2026, 3, 20)
-            org.jooq.JSONB::class.java -> org.jooq.JSONB.valueOf("""{"payload": "evidence"}""")
-            else -> error("no sample value for ${field.name} of type $type; add it so the table is still written")
-        }
+        constrained["${field.table?.name}.${field.name}"]
+            ?: byType[field.dataType.type]?.invoke(field)
+            ?: error(
+                "no sample value for ${field.name} of type ${field.dataType.type}; add one",
+            )
 
     private fun comparable(value: Any?): Any? =
         when (value) {
@@ -90,12 +104,7 @@ class SeparableStoreTest {
         EvidenceDb.withScratchDatabase(foreign) { url ->
             // the number of tables written equals the number of tables the migrations create in schema evidence
             written.map { it.name }.toSet() shouldBe tablesInCatalogue(url)
-            val before =
-                bound(url) { connection ->
-                    val dsl = DSL.using(connection, SQLDialect.POSTGRES)
-                    val identity = identityColumns(dsl)
-                    written.associate { table -> table.name to insertOne(dsl, table, identity) }
-                }
+            val before = writeEveryTable(url)
             val operational =
                 EvidenceDb.superuserOf(url).use { connection ->
                     DSL
@@ -124,6 +133,30 @@ class SeparableStoreTest {
             after.keys shouldBe written.map { it.name }.toSet()
         }
     }
+
+    /** One row in every table: by the runtime login where it may insert, else by the owner of the schema. */
+    private fun writeEveryTable(url: String): Map<String, Record> =
+        bound(url) { connection ->
+            val dsl = DSL.using(connection, SQLDialect.POSTGRES)
+            val identity = identityColumns(dsl)
+            EvidenceDb.superuserOf(url).use { superuser ->
+                val owner = DSL.using(superuser, SQLDialect.POSTGRES)
+                // the dead letters are written through a sys function, never by the runtime login itself
+                written.associate { table ->
+                    table.name to insertOne(if (runtimeMayInsert(dsl, table)) dsl else owner, table, identity)
+                }
+            }
+        }
+
+    private fun runtimeMayInsert(
+        dsl: org.jooq.DSLContext,
+        table: Table<*>,
+    ): Boolean =
+        dsl.fetchValue(
+            "select has_table_privilege(?, ?, 'INSERT')",
+            EvidenceDb.RUNTIME,
+            "${EvidenceDb.SCHEMA}.${table.name}",
+        ) as Boolean
 
     /** `table.column` of the identity columns, from the catalogue (the generated code does not mark them). */
     private fun identityColumns(dsl: org.jooq.DSLContext): Set<String> =

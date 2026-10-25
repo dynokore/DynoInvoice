@@ -1,9 +1,11 @@
 package com.dynokore.gst.evidence.adapters.persistence
 
+import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.evidence.application.chain.LocatorRecorder
 import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
+import com.dynokore.platform.outboxandqueue.EventHandler
 import org.jooq.DSLContext
 import java.time.Clock
 
@@ -27,4 +29,10 @@ object ChainWiring {
         dsl: DSLContext,
         clock: Clock = Clock.systemUTC(),
     ): LocatorRecorder = LocatorRecorder(JooqLocatorStore(dsl), recordAppender(dsl, clock), clock)
+
+    /** The handler of `CanonicalVersionCreated`, to run inside the inbox consumer's transaction. */
+    fun locatorHandler(
+        dsl: DSLContext,
+        clock: Clock = Clock.systemUTC(),
+    ): EventHandler = CanonicalVersionCreatedHandler(locatorRecorder(dsl, clock))
 }
