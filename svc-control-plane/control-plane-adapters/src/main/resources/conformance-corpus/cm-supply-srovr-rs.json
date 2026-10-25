@@ -1,0 +1,15 @@
+{
+  "description": "Annex E supply code SROVR-RS: Supply of remote services accountable by the electronic marketplace on behalf of third-par",
+  "expected": "SROVR-RS",
+  "expectedField": "categoryCode",
+  "id": "cm-supply-srovr-rs",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SROVR-RS",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "CODE_MATRIX",
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): SROVR-RS"
+}

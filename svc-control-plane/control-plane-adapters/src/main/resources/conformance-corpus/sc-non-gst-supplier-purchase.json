@@ -1,0 +1,15 @@
+{
+  "description": "OUT_OF_SCOPE by INV-NOTE-2 section 7.3 for code NR.",
+  "expected": "OUT_OF_SCOPE",
+  "expectedField": "scopeVerdict",
+  "id": "sc-non-gst-supplier-purchase",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-NR",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCOPE_MATRIX",
+  "source": "INV-NOTE-2 section 7.3: purchases from non-GST-registered suppliers; section 6.2 NR"
+}

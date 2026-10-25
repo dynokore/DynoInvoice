@@ -1,0 +1,324 @@
+{
+  "files": [
+    {
+      "name": "cm-purchase-bl.json",
+      "sha256": "a281596a5214c2d118a5660b0af12f5e73bc1f8e1d2b84f65a308e1f528306bc"
+    },
+    {
+      "name": "cm-purchase-ep.json",
+      "sha256": "a0a73b4a024387af921049d78b1197cbd65b759fd4c5a9d19031b4b6ad8a87c1"
+    },
+    {
+      "name": "cm-purchase-igds.json",
+      "sha256": "5338fe7a8695df736f435a70477e52f1bac8c3c145247e01044d4b8cbe32fb28"
+    },
+    {
+      "name": "cm-purchase-im-ess.json",
+      "sha256": "deaae2ba06a77c74e788d6e77c2a4baded2bc7c5a7d4d5b05da07afa555d3453"
+    },
+    {
+      "name": "cm-purchase-im-n33.json",
+      "sha256": "46b726729e101961222c23831c6b05c74a8c2ac918014c4ed4cfd50f03dbd8ce"
+    },
+    {
+      "name": "cm-purchase-im-re.json",
+      "sha256": "e15ebb2033ea7182ce94fbbee04b0d89391c149fa0e9d42087ff387c01bc9783"
+    },
+    {
+      "name": "cm-purchase-im.json",
+      "sha256": "206834a1ca87bd26138760bffb2d727104d898ba9e6f6d16485d2bb4442b1303"
+    },
+    {
+      "name": "cm-purchase-me.json",
+      "sha256": "0221bb20a798beba046e7996d5f14aa685dddd182fedf9f3d0f73ab2e57ab517"
+    },
+    {
+      "name": "cm-purchase-nr.json",
+      "sha256": "44663108e64b7e9b5687943aa3a171cf7cbb184069ace1dff7f052fa5eb1ee3c"
+    },
+    {
+      "name": "cm-purchase-op.json",
+      "sha256": "3c1b604a07ebe2cdf2597b1e283c6ca708a59978e475cf3af624f9d0ade16e84"
+    },
+    {
+      "name": "cm-purchase-tx-ess.json",
+      "sha256": "fab0c3118cb447abc07bede6ea7d6908dd075cdb8977c2629ae8d391fa6fab66"
+    },
+    {
+      "name": "cm-purchase-tx-n33.json",
+      "sha256": "328a483e292d57d1d7a09d455f08165b2b932e57a49222de64f5107c7c4c9c0f"
+    },
+    {
+      "name": "cm-purchase-tx-re.json",
+      "sha256": "dc4a67852cd20bf396ab68a61d41bc5de3dace84c7728cc3bb1538ff42dddac8"
+    },
+    {
+      "name": "cm-purchase-tx.json",
+      "sha256": "9ee2fa0d49ea00352a5e9ef35bc9e70e0ef755b800e690b6e78af733db6572ac"
+    },
+    {
+      "name": "cm-purchase-txca.json",
+      "sha256": "4e90abd3e1cf46f281071c344acbd38d9637b27ac2041a3067780cea36fd1b2e"
+    },
+    {
+      "name": "cm-purchase-txna.json",
+      "sha256": "896c93e5d81958646417d7b1b734a840e090fa3269c04d518e8e70e5efaa2f3d"
+    },
+    {
+      "name": "cm-purchase-txrc-ess.json",
+      "sha256": "3998948b42c1a53b18af8e239a3f462f439367c5cb9a27341546265f9d64ea24"
+    },
+    {
+      "name": "cm-purchase-txrc-n33.json",
+      "sha256": "8f7c92edd81a6bd445026399f79e8ebe44bf9071630b77d53988fd6679034619"
+    },
+    {
+      "name": "cm-purchase-txrc-re.json",
+      "sha256": "48b89f328ac492d2b276aff431d7bf5c857164f70f0a74f0339620be1808bbc9"
+    },
+    {
+      "name": "cm-purchase-txrc-ts.json",
+      "sha256": "8f0ac4d5a9497b6997e771f4529ab440b7e6539df65f7340d4e9880cec9f0b7d"
+    },
+    {
+      "name": "cm-purchase-zp.json",
+      "sha256": "b586a511634eb7869b436d9eb13317aad3850d80b5133e2fd2deb8ef6ab49508"
+    },
+    {
+      "name": "cm-supply-ds.json",
+      "sha256": "2ef02cbd98489c84b92158d453cd76cc608e14603c8587911df67168712b3cdc"
+    },
+    {
+      "name": "cm-supply-es33.json",
+      "sha256": "d2988911d128d096abf6570a59b7e89827bff3e80b65e2aa4b72b3bd6293b39d"
+    },
+    {
+      "name": "cm-supply-esn33.json",
+      "sha256": "b64c68b3241077d6bc656e4c01da76f2d44093c4f8f9bf9b03832181ecc55edb"
+    },
+    {
+      "name": "cm-supply-na.json",
+      "sha256": "5c5f892d0da8e2fe36071ef69fcfdbb3670e3f231f541f2b981321ecd359e576"
+    },
+    {
+      "name": "cm-supply-ng.json",
+      "sha256": "0dcfc8e3c105ce5df610b514bbdf5af9ef5b126c08ba0f1c60d372856bfeb1ac"
+    },
+    {
+      "name": "cm-supply-os.json",
+      "sha256": "0c3de2f58fe5aa0d531c95fcfed718276d23754d12eb370180437ad4a7a69550"
+    },
+    {
+      "name": "cm-supply-sr.json",
+      "sha256": "ac046d59c9dded7cf5fd99e9831fc0a217827726e0bc22c46b87db0291d043d8"
+    },
+    {
+      "name": "cm-supply-srca-c.json",
+      "sha256": "1f173ce9298f26fa0ed350b78f82c5947338e798f95c7c29ace4d23e7165a87c"
+    },
+    {
+      "name": "cm-supply-srca-s.json",
+      "sha256": "d229146761b1af06b4ffc7b15f2a67d9e63d241867b8aaac8f172a2a53b75a0d"
+    },
+    {
+      "name": "cm-supply-srlvg.json",
+      "sha256": "18028cff9636e8e7e300f28444ff867c7ba1b8abad8d9c4c49267d3e0090e5f4"
+    },
+    {
+      "name": "cm-supply-srovr-lvg.json",
+      "sha256": "0e60746dafe2b42df74b026359ed3ee80fbbe1b1361791ee147283825f8d61e6"
+    },
+    {
+      "name": "cm-supply-srovr-rs.json",
+      "sha256": "ba2be98be8dfd79570dda0459a01b1c48b1f1c2e9dae605b7eb8d739eb3ade44"
+    },
+    {
+      "name": "cm-supply-srrc.json",
+      "sha256": "68417a151f2fcbbb40b332dd0503f03fb745080de1ea74de39e1d22a05a1c3a1"
+    },
+    {
+      "name": "cm-supply-zr.json",
+      "sha256": "b6e4701a5d12bd476c5dc7755f2ed82c323c59af3d6b61be6341d746ab5a3617"
+    },
+    {
+      "name": "ed-aggregate-pcp-tx.json",
+      "sha256": "d3369a88a47c75e00964de355f17266942629a797cd0d57b9f6c2c03cf4c6c3d"
+    },
+    {
+      "name": "ed-aggregate-pos-sr.json",
+      "sha256": "8e9eba777ed5c28427b4d4d7421d4d15e520b22b64bc4d5cf98f8d67d8456384"
+    },
+    {
+      "name": "ed-cancellation-381.json",
+      "sha256": "aaa6c6fe7d2d0ac473d0460c4c1ee28f18e7bd5b9e15f64d3e1ba3d32609cad7"
+    },
+    {
+      "name": "ed-foreign-currency-zr-export.json",
+      "sha256": "1ade0c229ffb832bc6ef88a4b20919073808c55641803ec6d74d2ea58c3b044c"
+    },
+    {
+      "name": "ed-mixed-codes-line1-sr.json",
+      "sha256": "bfcd8f0339f0ac9eb8bd5e701b26e247f3db969133b787ebd33eb1486ffe0ccb"
+    },
+    {
+      "name": "ed-mixed-codes-line2-sr.json",
+      "sha256": "f891bc2f3469fd0964e6d2f536b649d9d46f9dfd71dd10b3691229cad50d8e86"
+    },
+    {
+      "name": "ed-mixed-codes-line3-zr.json",
+      "sha256": "90a65c7e918359c1c076d94e427bcfb8ef4ff525f9e10948db5a09d5d587f609"
+    },
+    {
+      "name": "ed-mixed-scope-deposit-line.json",
+      "sha256": "042bd20d3ee557000ca998d5f93c51d67a70b650244f8a48341c0825ec772b87"
+    },
+    {
+      "name": "ed-mixed-scope-rental-line.json",
+      "sha256": "f5a506403a3c3a38314ef9410bfe71d1beeb13b6770470c8b4cf58cc8a34456e"
+    },
+    {
+      "name": "mapping-fixture.json",
+      "sha256": "68f03e2f52b370614641cf1736ddab03840f2e7af3175269b5bc61315721b0c9"
+    },
+    {
+      "name": "sc-blocked-input-tax.json",
+      "sha256": "d153c5138e5948e65ac87b6b9ed19d66934cf42b62a141a91dc4588a82c296d9"
+    },
+    {
+      "name": "sc-deemed-supply.json",
+      "sha256": "2e6252f5b0bcee7a3878cef1b75a7401b74e8705ac7fb39487102e6dc97f1c11"
+    },
+    {
+      "name": "sc-exempt-purchase.json",
+      "sha256": "e69b32c28847c15a4e5fd5462f7df10d4d2fb53fc591085518263b9de98a5668"
+    },
+    {
+      "name": "sc-import-permit.json",
+      "sha256": "3ec77f6c3723ea3a1d56236da08c317afc7a43e249d806584d2840a8f6ead6bc"
+    },
+    {
+      "name": "sc-non-gst-supplier-purchase.json",
+      "sha256": "48d79d81c0585f9dd39959e7bcca8c33a3ebb6ba56e0036cec8f64181f25738d"
+    },
+    {
+      "name": "sc-out-of-scope-registered-supplier.json",
+      "sha256": "226aa1fcbbd044a5a292acc0dd45a5de089f51f3899ed3ced4a53047fa12c121"
+    },
+    {
+      "name": "sc-outside-gst-act-supply.json",
+      "sha256": "559d982296bff886c12417ef773e864d404df6499ee371cad19fd00981ac43bf"
+    },
+    {
+      "name": "sc-reverse-charge-purchase.json",
+      "sha256": "04de2c9b0c2e753995ab426f4fffd73fcc6d0bc6e6b240616a9b28a537150563"
+    },
+    {
+      "name": "sc-reverse-charge-supply.json",
+      "sha256": "97729ddef9e0b05a0813380b4dd3afa55d1d7a1b0d064e7d160144962c3fc5d9"
+    },
+    {
+      "name": "sm-a3pl-purchase-credit-note.json",
+      "sha256": "1a519d87c0f65ce4b1cad32eac663f669813d83312cf816f41b6fdf6e58e324c"
+    },
+    {
+      "name": "sm-a3pl-purchase-invoice.json",
+      "sha256": "2ebdd4177668a5adf7f9cea4e112891db61adb26ef9b6958aa83221c0255020a"
+    },
+    {
+      "name": "sm-a3pl-supply-credit-note.json",
+      "sha256": "3d7251a9aad00ac5a1b4085988342f91b5beafcf6494bf2d5832a49ba7ecaffc"
+    },
+    {
+      "name": "sm-a3pl-supply-invoice.json",
+      "sha256": "bec252159ee4b1ce009b366df6908a2d25b35dc08c7e913308b6ea9f21025211"
+    },
+    {
+      "name": "sm-amcs-purchase-credit-note.json",
+      "sha256": "48550889fb70bdf38f2c2aca8e16a34aab9c2c1722eefc8f26dbb2a4c9c65fbb"
+    },
+    {
+      "name": "sm-amcs-purchase-invoice.json",
+      "sha256": "6199e17b7edbf702dc354cf81c698408c2c44deb5e8ecae9e930230bf62a9fe7"
+    },
+    {
+      "name": "sm-amcs-supply-credit-note.json",
+      "sha256": "a766a64f2a415a96d4aebd38eeaac5a1b58be24176c8d14e91ea8858105ce715"
+    },
+    {
+      "name": "sm-amcs-supply-invoice.json",
+      "sha256": "edc8005b87b4aa1280a95939baed2c74952e3eb24cbf04d9f8c819b62171c48a"
+    },
+    {
+      "name": "sm-arcs-purchase-credit-note.json",
+      "sha256": "0154015d09a114b399163468369be16eb99dfd94850ad7440cc09c3fa9a948de"
+    },
+    {
+      "name": "sm-arcs-purchase-invoice.json",
+      "sha256": "a26bd4bbb85d80af1e71262ad5e0f002a35bdb370d1f78cf32e71eb1ae11a968"
+    },
+    {
+      "name": "sm-arcs-supply-credit-note.json",
+      "sha256": "4bfa8429da541e038534733443c3bfa6cad4deacab6b633abd22ba33c3f8e032"
+    },
+    {
+      "name": "sm-arcs-supply-invoice.json",
+      "sha256": "cb3fb57fe259636eace29a26501051c95a7858aae389fc2806292324a8552b1d"
+    },
+    {
+      "name": "sm-ca-purchase-credit-note.json",
+      "sha256": "8422eb62f6a6d2d610a1bc9c5bc5e104526f50a1d34f72ebc8e7ac4cd9f234dd"
+    },
+    {
+      "name": "sm-ca-purchase-invoice.json",
+      "sha256": "d7aa6d6ad1b332871d892a6eac643ed7056ea68af283a54c0460070383679324"
+    },
+    {
+      "name": "sm-ca-supply-credit-note.json",
+      "sha256": "4589a42efdf91106080da29e47e219eb48625be50c0cfb32f36d010af5347ca2"
+    },
+    {
+      "name": "sm-ca-supply-invoice.json",
+      "sha256": "fc89123c539c093cb40e843ee9dbca9994f437ea329538f30bff5efc7c3b3db5"
+    },
+    {
+      "name": "sm-standard-purchase-credit-note.json",
+      "sha256": "304d18fee0c6b3c14acc9b408b827db83d10eefcc8a0824a681916c8475d223a"
+    },
+    {
+      "name": "sm-standard-purchase-invoice.json",
+      "sha256": "a9e5fe57c113f308371f95ea6ae044c9cd387db932ad538e38fc0c8000e88f99"
+    },
+    {
+      "name": "sm-standard-supply-credit-note.json",
+      "sha256": "452003392ecef2d5709d9a6a44d405eab3dca359bb9184aa9b85440d7413017d"
+    },
+    {
+      "name": "sm-standard-supply-invoice.json",
+      "sha256": "c386d277ef8b2dd5153101eb7e8b710eee964faac469a01c6090ff538b4364f7"
+    },
+    {
+      "name": "sm-sws-supply-credit-note.json",
+      "sha256": "4b9090af2c675495ad7025c4ae4a8f6eb434b5d72cd87c35ae1dd0508ab537bc"
+    },
+    {
+      "name": "sm-sws-supply-invoice.json",
+      "sha256": "b283cec97a5c2af3c5e29d22baa2a24db15b89bb8e0988a26605afd39ac5e482"
+    },
+    {
+      "name": "wx-r1-ex25-dd-purchase.json",
+      "sha256": "0ae29f0a129e99abac7e3f0097992a47832e7699065755991f7feb33f3bce590"
+    },
+    {
+      "name": "wx-r1-ex25-ee-supply.json",
+      "sha256": "74485dc32b76c52a510708de465a6242a132bf9d324eb142f06b59a21d9f71c0"
+    },
+    {
+      "name": "wx-r1-ex26-customer-purchase.json",
+      "sha256": "2258c9684aff1ac2543d20d2c73d1229e03ed81562654eb15caab0fb8fb3d9ca"
+    },
+    {
+      "name": "wx-r1-ex26-supplier-sale.json",
+      "sha256": "ee11b66c860be00c3cdf5bc538e65fc2b1de409dc83e055fb7e26e776f24b342"
+    }
+  ]
+}

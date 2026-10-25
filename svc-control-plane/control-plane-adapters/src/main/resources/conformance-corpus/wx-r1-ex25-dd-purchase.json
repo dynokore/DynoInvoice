@@ -1,0 +1,15 @@
+{
+  "description": "R1 Example 25, Company DD, customer-cum-issuer: self-billed purchase, TX.",
+  "expected": "TX",
+  "expectedField": "categoryCode",
+  "id": "wx-r1-ex25-dd-purchase",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TX",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "WORKED_EXAMPLES",
+  "source": "INV-NOTE-2 section 25.1 (R1 Example 25); INV-REQ-415 table: customer-cum-issuer, purchase code TX"
+}

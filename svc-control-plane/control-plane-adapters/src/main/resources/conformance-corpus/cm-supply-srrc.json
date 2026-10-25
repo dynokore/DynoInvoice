@@ -1,0 +1,15 @@
+{
+  "description": "Annex E supply code SRRC: Imported services and LVG accountable by the GST-registered customer under reverse charge",
+  "expected": "SRRC",
+  "expectedField": "categoryCode",
+  "id": "cm-supply-srrc",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRRC",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "CODE_MATRIX",
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): SRRC"
+}

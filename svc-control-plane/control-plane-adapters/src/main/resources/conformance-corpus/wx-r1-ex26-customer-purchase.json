@@ -1,0 +1,15 @@
+{
+  "description": "R1 Example 26, customer purchase under customer accounting: TXCA.",
+  "expected": "TXCA",
+  "expectedField": "categoryCode",
+  "id": "wx-r1-ex26-customer-purchase",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TXCA",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "WORKED_EXAMPLES",
+  "source": "INV-REQ-495 (R1 Example 26): customer side uses TXCA; INV-BR-1741 statement: Customer TXCA"
+}

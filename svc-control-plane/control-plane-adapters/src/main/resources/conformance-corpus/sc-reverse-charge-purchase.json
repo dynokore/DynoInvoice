@@ -1,0 +1,15 @@
+{
+  "description": "EXCLUDED_TXN by INV-NOTE-2 section 7.3 for code TXRC-TS.",
+  "expected": "EXCLUDED_TXN",
+  "expectedField": "scopeVerdict",
+  "id": "sc-reverse-charge-purchase",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TXRC-TS",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCOPE_MATRIX",
+  "source": "INV-NOTE-2 section 7.3: reverse charge purchases with input tax entitlement; section 6.2 TXRC-TS"
+}

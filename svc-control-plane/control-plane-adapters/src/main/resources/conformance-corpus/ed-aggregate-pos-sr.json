@@ -1,0 +1,15 @@
+{
+  "description": "POS aggregate (Type 2): SR.",
+  "expected": "SR",
+  "expectedField": "categoryCode",
+  "id": "ed-aggregate-pos-sr",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SR",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "EDGE_CORPUS",
+  "source": "INV-BR-1429 statement: category code SR for POS and STI supplies"
+}

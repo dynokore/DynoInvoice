@@ -1,0 +1,15 @@
+{
+  "description": "Annex E purchase code IM: Import of goods (9% GST paid to Singapore Customs on the import of goods into Singapore)",
+  "expected": "IM",
+  "expectedField": "categoryCode",
+  "id": "cm-purchase-im",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-IM",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "CODE_MATRIX",
+  "source": "INV-BR-1470 (R1 Annex E, purchase codes): IM"
+}

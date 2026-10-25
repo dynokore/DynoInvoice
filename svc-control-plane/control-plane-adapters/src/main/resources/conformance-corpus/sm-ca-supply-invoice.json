@@ -1,0 +1,17 @@
+{
+  "description": "Customer accounting supply by the supplier (invoice).",
+  "expected": "SRCA-S",
+  "expectedField": "categoryCode",
+  "id": "sm-ca-supply-invoice",
+  "inputs": {
+    "direction": "SALE",
+    "election": "CA",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRCA-S",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCENARIO_MATRIX",
+  "source": "INV-BR-1741 statement: Supplier SRCA-S"
+}

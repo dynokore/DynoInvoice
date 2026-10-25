@@ -1,0 +1,17 @@
+{
+  "description": "Supply to an approved marine customer (invoice).",
+  "expected": "ZR",
+  "expectedField": "categoryCode",
+  "id": "sm-amcs-supply-invoice",
+  "inputs": {
+    "direction": "SALE",
+    "election": "AMCS",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-ZR",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCENARIO_MATRIX",
+  "source": "INV-NOTE-2 section 14.15 table, AMCS: supplier ZR"
+}

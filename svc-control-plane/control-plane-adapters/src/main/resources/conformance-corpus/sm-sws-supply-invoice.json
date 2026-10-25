@@ -1,0 +1,17 @@
+{
+  "description": "Specialised warehouse scheme supply (invoice).",
+  "expected": "ZR",
+  "expectedField": "categoryCode",
+  "id": "sm-sws-supply-invoice",
+  "inputs": {
+    "direction": "SALE",
+    "election": "SWS",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-ZR",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCENARIO_MATRIX",
+  "source": "INV-NOTE-2 section 14.15 table, SWS: ordinary zero-rated supplies ZR"
+}

@@ -1,0 +1,15 @@
+{
+  "description": "Annex E supply code SRCA-S: Customer accounting supply made by supplier",
+  "expected": "SRCA-S",
+  "expectedField": "categoryCode",
+  "id": "cm-supply-srca-s",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRCA-S",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "CODE_MATRIX",
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): SRCA-S"
+}

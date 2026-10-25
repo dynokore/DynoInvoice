@@ -1,0 +1,15 @@
+{
+  "description": "Annex E supply code DS: Deemed supplies",
+  "expected": "DS",
+  "expectedField": "categoryCode",
+  "id": "cm-supply-ds",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-DS",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "CODE_MATRIX",
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): DS"
+}

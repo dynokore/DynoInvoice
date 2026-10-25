@@ -1,0 +1,17 @@
+{
+  "description": "Customer accounting purchase (invoice).",
+  "expected": "TXCA",
+  "expectedField": "categoryCode",
+  "id": "sm-ca-purchase-invoice",
+  "inputs": {
+    "direction": "PURCHASE",
+    "election": "CA",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TXCA",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCENARIO_MATRIX",
+  "source": "INV-BR-1741 statement: Customer TXCA"
+}

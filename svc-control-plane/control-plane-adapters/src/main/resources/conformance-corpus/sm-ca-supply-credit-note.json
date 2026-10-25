@@ -1,0 +1,19 @@
+{
+  "description": "Customer accounting supply by the supplier (credit note).",
+  "expected": "SRCA-S",
+  "expectedField": "categoryCode",
+  "id": "sm-ca-supply-credit-note",
+  "inputs": {
+    "direction": "SALE",
+    "election": "CA",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRCA-S",
+    "lineSign": "NEGATIVE",
+    "precedingDocumentDate": "2026-09-01",
+    "precedingDocumentNumber": "INV-ORIG-1",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCENARIO_MATRIX",
+  "source": "INV-BR-1741 statement: Supplier SRCA-S; INV-NOTE-2 section 14.1 FR-10.3: credit note codes tally with the original invoice"
+}

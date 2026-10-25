@@ -1,0 +1,17 @@
+{
+  "description": "Approved marine customer purchase (invoice).",
+  "expected": "ZP",
+  "expectedField": "categoryCode",
+  "id": "sm-amcs-purchase-invoice",
+  "inputs": {
+    "direction": "PURCHASE",
+    "election": "AMCS",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-ZP",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCENARIO_MATRIX",
+  "source": "INV-NOTE-2 section 14.15 table, AMCS: customer ZP"
+}

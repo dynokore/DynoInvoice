@@ -1,0 +1,15 @@
+{
+  "description": "Annex E purchase code IM-ESS: Import of goods with GST paid to Singapore Customs that are directly attributable to Regul",
+  "expected": "IM-ESS",
+  "expectedField": "categoryCode",
+  "id": "cm-purchase-im-ess",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-IM-ESS",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "CODE_MATRIX",
+  "source": "INV-BR-1470 (R1 Annex E, purchase codes): IM-ESS"
+}

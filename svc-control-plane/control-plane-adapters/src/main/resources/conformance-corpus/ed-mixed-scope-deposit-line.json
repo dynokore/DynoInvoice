@@ -1,0 +1,15 @@
+{
+  "description": "Mixed scope, deposit line: OUT_OF_SCOPE.",
+  "expected": "OUT_OF_SCOPE",
+  "expectedField": "scopeVerdict",
+  "id": "ed-mixed-scope-deposit-line",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-OS",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "EDGE_CORPUS",
+  "source": "INV-NOTE-2 scenario T-10 (R1 refundable security deposit); INV-REQ-374 behavior 1"
+}

@@ -1,0 +1,15 @@
+{
+  "description": "OUT_OF_SCOPE by INV-NOTE-2 section 7.3 for code OP.",
+  "expected": "OUT_OF_SCOPE",
+  "expectedField": "scopeVerdict",
+  "id": "sc-out-of-scope-registered-supplier",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-OP",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCOPE_MATRIX",
+  "source": "INV-NOTE-2 section 7.3: out-of-scope purchases from GST-registered suppliers; section 6.2 OP"
+}

@@ -1,0 +1,15 @@
+{
+  "description": "OUT_OF_SCOPE by INV-NOTE-2 section 7.3 for code BL.",
+  "expected": "OUT_OF_SCOPE",
+  "expectedField": "scopeVerdict",
+  "id": "sc-blocked-input-tax",
+  "inputs": {
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-BL",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCOPE_MATRIX",
+  "source": "INV-NOTE-2 section 7.3: input tax blocked; section 6.2 BL"
+}

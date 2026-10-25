@@ -1,0 +1,15 @@
+{
+  "description": "EXCLUDED_TXN by INV-NOTE-2 section 7.3 for code SRRC.",
+  "expected": "EXCLUDED_TXN",
+  "expectedField": "scopeVerdict",
+  "id": "sc-reverse-charge-supply",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRRC",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCOPE_MATRIX",
+  "source": "INV-NOTE-2 section 7.3: reverse charge supplies; section 6.2 SRRC"
+}
