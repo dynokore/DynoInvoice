@@ -43,6 +43,7 @@ NOT_END_USER = {
         "getVerificationKeys": "service-job",  # workload verification keys
         "getRevocationList": "service-job",  # workload revocation list
         "provisionInstallationFirstAdministrator": "service-job",  # installer, workload only
+        "recordInstallationApproverFact": "service-job",  # installer, workload only
         "authenticatePrincipal": "service-job",  # API gateway, workload
         "issueAccessToken": "service-job",  # API gateway, workload token
     },
