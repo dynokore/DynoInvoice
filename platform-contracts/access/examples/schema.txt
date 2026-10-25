@@ -27,3 +27,7 @@
 ../openapi.yaml#/components/schemas/AcceptFirstAdministratorInvitationResponse accept-first-administrator-invitation-response-*.json
 ../schemas/authority-head-observed-payload.schema.json authority-head-observed-*.json
 ../schemas/operator-session-keys-changed-payload.schema.json operator-session-keys-changed-*.json
+../openapi.yaml#/components/schemas/PackApprovalDecision pack-approval-decision-*.json
+../openapi.yaml#/components/schemas/OverrideReleaseDecision override-release-decision-*.json
+../openapi.yaml#/components/schemas/InstallationApproverFact installation-approver-fact-state-*.json
+../openapi.yaml#/components/schemas/InstallationApproverFactRequest installation-approver-fact-request-*.json

@@ -120,3 +120,9 @@ OPERATOR_SESSION	enum_value	schemas/operator-session-keys-changed-payload.schema
 MACHINE_ACCESS	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
 UnlockBreakGlassRequest.overrideReason	schema_property	openapi.yaml	INV-REQ-896
 IDP_PARTIAL_OUTAGE	enum_value	openapi.yaml	INV-REQ-896
+# INV-T-10697. INV-REQ-860, 992, 995, 996, 1264, 1265, 1293: the backticked names tax.approver, tenant.admin, agent.operator and client.signatory are roles, and approvePack is an operation of rules/openapi.yaml that the rules contract task INV-T-10698 and the done task INV-T-4911 own, so they are not rows.
+decidePackApproval	operation	openapi.yaml	INV-REQ-995
+decideOverrideRelease	operation	openapi.yaml	INV-REQ-1293
+getMappingAcknowledgement	operation	openapi.yaml	INV-REQ-996
+recordInstallationApproverFact	operation	openapi.yaml	INV-REQ-992
+getInstallationApproverFact	operation	openapi.yaml	INV-REQ-992

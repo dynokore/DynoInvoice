@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.13.0
+  version: 1.14.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `authenticatePrincipal`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
@@ -247,7 +247,7 @@ paths:
       summary: Grant a role x scope x validity, inviting the identity if it does not yet exist (SDS §7,
         SCR-24.1/24.2/24.4, §31.2)
       description: Covers grantRole, inviteUser and inviteExternalIdentity (cross-tenant, FR-AF.20) —
-        one shape, discriminated by granteeKind. Emits AuthorityChanged.
+        one shape, discriminated by granteeKind. Emits AuthorityChanged. A grant that would give one person both `tenant.admin` and `tax.approver` is refused with 403 SRT-004 unless the tenant's sole-operator acknowledgement is recorded (INV-REQ-860).
       tags:
       - grants
       x-principal: filing-workflow
@@ -2527,6 +2527,311 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/access/pack-approval-decision:
+    get:
+      operationId: decidePackApproval
+      summary: Separation-of-duty decision on the approval of a mapping pack (INV-Q-10695 R3)
+      description: 'The decision of the separation of duty on the approval of a mapping pack (INV-Q-10695 R3, INV-REQ-995, INV-REQ-1264, INV-REQ-1265); rules-svc refuses approvePack on a DENY. Always 200; the decision, not an HTTP error, carries a DENY. The value in force is the VP-04 value of the client entity when it is under a live agent consent that holds MAPPING_APPROVAL, otherwise the VP-03 value of the entity. STAFF_APPROVER and NON_FINANCE_OFFICER allow only a person other than the author whose covering grant has `granteeKind` STAFF. EXTERNAL_ADVISOR allows only a person other than the author whose covering grant has `granteeKind` EXTERNAL scoped to the entity. SOLE_OPERATOR_ACK lets the author approve only while the tenant''s sole-operator acknowledgement is ACTIVE, with `soleOperator` true and its reference in `soleOperatorAckRef`; a recorded acknowledgement changes nothing under another option. AGENT_SECOND_PERSON_CLIENT_ACK allows a person other than the author and leaves CLIENT_ACKNOWLEDGEMENT outstanding. AGENT_SECOND_PERSON_CLIENT_APPROVAL leaves CLIENT_APPROVAL outstanding until the client''s own approver has approved. CLIENT_APPROVER_ALONE allows only the client''s own approver. No option lets an agent person approve the pack they authored.'
+      tags:
+      - consent
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: any-except:tenancy-svc->access-svc
+      x-timeout: 500
+      x-requirements:
+      - FR-AC.1
+      - FR-P.2
+      - FR-AB.15
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: packRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 40
+      - name: packVersion
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 16
+      - name: authorRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: approverRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: priorApproverRef
+        in: query
+        required: false
+        schema:
+          type: array
+          maxItems: 4
+          items:
+            type: string
+            maxLength: 64
+      responses:
+        "200":
+          description: Decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackApprovalDecision'
+              examples:
+                default:
+                  value:
+                    decision: ALLOW
+                    soleOperator: false
+                    outstanding:
+                    - CLIENT_ACKNOWLEDGEMENT
+                    option: AGENT_SECOND_PERSON_CLIENT_ACK
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/override-release-decision:
+    get:
+      operationId: decideOverrideRelease
+      summary: Decision on the release of an override (INV-Q-10695 R4)
+      description: 'The decision on the release of an override (INV-Q-10695 R4, INV-REQ-1293). Always 200; the decision, not an HTTP error, carries a DENY. A code whose disposition in the error catalogue is not OVERRIDABLE, or that the catalogue does not hold, is DENY NOT_OVERRIDABLE. ONE_TAX_APPROVER releases on the first approval. SECOND_APPROVER_ABOVE_AMOUNT releases at once only when the total is not above the typed amount. SECOND_APPROVER_ALWAYS always awaits a second. A second approver is a person not among `priorApproverRef`. A request without `documentTotalSgd` under SECOND_APPROVER_ABOVE_AMOUNT is ALLOW AWAITS_SECOND_APPROVER whatever the typed amount (INV-Q-10721, fail closed); under the two other options the absence changes nothing. `documentRef`, `documentVersion` and `documentTotalSgd` are present together for a validation override and absent together for a filing-gate override; a request with some but not all of them present is 400 SRT-001 (INV-Q-10721). The same person twice is DENY SAME_PERSON_TWICE. An approver who also holds the permission `override-policy.manage` on the entity needs the ACTIVE sole-operator acknowledgement (`soleOperator` true), otherwise DENY NO_SOLE_OPERATOR_ACK.'
+      tags:
+      - consent
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: any-except:tenancy-svc->access-svc
+      x-timeout: 500
+      x-requirements:
+      - FR-AC.1
+      - INV-REQ-1293
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: errorCode
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 16
+      - name: documentRef
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 64
+      - name: documentVersion
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+      - name: documentTotalSgd
+        in: query
+        required: false
+        description: The total of the document version in SGD including GST.
+        schema:
+          $ref: '#/components/schemas/Money'
+      - name: approverRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      - name: priorApproverRef
+        in: query
+        required: false
+        schema:
+          type: array
+          maxItems: 4
+          items:
+            type: string
+            maxLength: 64
+      responses:
+        "200":
+          description: Decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverrideReleaseDecision'
+              examples:
+                default:
+                  value:
+                    decision: ALLOW
+                    soleOperator: false
+                    outcome: AWAITS_SECOND_APPROVER
+                    option: SECOND_APPROVER_ALWAYS
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/mapping-acknowledgement:
+    get:
+      operationId: getMappingAcknowledgement
+      summary: Read the client acknowledgement recorded for a pack version and client (INV-REQ-996)
+      description: 'Returns the acknowledgement recorded by `acknowledgeMapping` for the pair; 404 (SRT-005) when none is recorded.'
+      tags:
+      - consent
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: any-except:tenancy-svc->access-svc
+      x-timeout: 500
+      x-requirements:
+      - FR-AC.1
+      x-error-codes: []
+      parameters:
+      - name: packVersion
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 16
+      - name: clientRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      responses:
+        "200":
+          description: The recorded acknowledgement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgeMappingResponse'
+              examples:
+                default:
+                  value:
+                    packVersion: '2026.3'
+                    clientRef: CLI-2201
+                    acknowledgedAt: "2026-09-27T02:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/installation/approver-fact:
+    put:
+      operationId: recordInstallationApproverFact
+      summary: Record whether the installation has a tax.approver distinct from the person who runs the server (INV-REQ-992)
+      description: 'Only the installer workload token is admitted and any other identity gets 403 SRT-004; a call with no valid workload token is SRT-003. A later call with another value updates the fact. The closed service-runtime refusals carry their SRT codes and are not listed in x-error-codes (INV-Q-5500, ARC-19).'
+      tags:
+      - grants
+      x-principal: workload
+      x-caller-auth: service-job
+      x-sync-edge: installer->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-992
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: The installation is a private deployment
+        reversibility: COMPENSABLE
+        repeatKey: (installation) — a later call with another value updates the fact
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallationApproverFactRequest'
+            examples:
+              default:
+                value:
+                  distinctTaxApprover: false
+      responses:
+        "200":
+          description: The recorded fact
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationApproverFact'
+              examples:
+                default:
+                  value:
+                    distinctTaxApprover: false
+                    recordedAt: "2026-10-25T08:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getInstallationApproverFact
+      summary: Read the installation approver fact (INV-REQ-992)
+      description: 'Returns the recorded fact; 404 (SRT-005) when nothing is recorded. A reader treats an installation of the private form with nothing recorded as "no distinct approver", never as true (INV-Q-10695 R5).'
+      tags:
+      - grants
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: any-except:tenancy-svc->access-svc
+      x-timeout: 500
+      x-requirements:
+      - INV-REQ-992
+      x-error-codes: []
+      responses:
+        "200":
+          description: The recorded fact
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationApproverFact'
+              examples:
+                default:
+                  value:
+                    distinctTaxApprover: false
+                    recordedAt: "2026-10-25T08:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -3788,6 +4093,112 @@ components:
           - TENANT_PRECEDENCE
           - ROLE_ORDER_PRESET
           x-extensible-enum: true
+    Money:
+      type: string
+      format: decimal
+      pattern: ^-?\d{1,17}(\.\d{1,2})?$
+      description: Money as a decimal string, SGD (API-12).
+    PackApprovalDecision:
+      type: object
+      required:
+      - decision
+      - soleOperator
+      - outstanding
+      properties:
+        decision:
+          type: string
+          enum:
+          - ALLOW
+          - DENY
+        soleOperator:
+          type: boolean
+        outstanding:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+            - CLIENT_ACKNOWLEDGEMENT
+            - CLIENT_APPROVAL
+            x-extensible-enum: true
+        reasonCode:
+          type: string
+          enum:
+          - AUTHOR_IS_APPROVER
+          - NOT_STAFF
+          - NOT_EXTERNAL
+          - NO_SOLE_OPERATOR_ACK
+          - NOT_AGENT_SECOND_PERSON
+          - NOT_CLIENT_APPROVER
+          x-extensible-enum: true
+        option:
+          type: string
+          enum:
+          - STAFF_APPROVER
+          - EXTERNAL_ADVISOR
+          - NON_FINANCE_OFFICER
+          - SOLE_OPERATOR_ACK
+          - AGENT_SECOND_PERSON_CLIENT_ACK
+          - AGENT_SECOND_PERSON_CLIENT_APPROVAL
+          - CLIENT_APPROVER_ALONE
+          x-extensible-enum: true
+        soleOperatorAckRef:
+          type: string
+          maxLength: 64
+    OverrideReleaseDecision:
+      type: object
+      required:
+      - decision
+      - soleOperator
+      properties:
+        decision:
+          type: string
+          enum:
+          - ALLOW
+          - DENY
+        soleOperator:
+          type: boolean
+        outcome:
+          type: string
+          enum:
+          - RELEASED
+          - AWAITS_SECOND_APPROVER
+          x-extensible-enum: true
+        reasonCode:
+          type: string
+          enum:
+          - NOT_OVERRIDABLE
+          - SAME_PERSON_TWICE
+          - NO_SOLE_OPERATOR_ACK
+          x-extensible-enum: true
+        option:
+          type: string
+          enum:
+          - ONE_TAX_APPROVER
+          - SECOND_APPROVER_ABOVE_AMOUNT
+          - SECOND_APPROVER_ALWAYS
+          x-extensible-enum: true
+        soleOperatorAckRef:
+          type: string
+          maxLength: 64
+    InstallationApproverFactRequest:
+      type: object
+      required:
+      - distinctTaxApprover
+      properties:
+        distinctTaxApprover:
+          type: boolean
+    InstallationApproverFact:
+      type: object
+      required:
+      - distinctTaxApprover
+      - recordedAt
+      properties:
+        distinctTaxApprover:
+          type: boolean
+        recordedAt:
+          type: string
+          format: date-time
   responses:
     Error:
       description: Error (API-20 envelope)
