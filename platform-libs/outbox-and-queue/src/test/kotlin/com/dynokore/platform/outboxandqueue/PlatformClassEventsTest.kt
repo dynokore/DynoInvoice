@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
 
-/** The twelve platform events of INV-REQ-1226 b1 (INV-Q-7336, INV-Q-8839): a closed set of exact names. */
+/** The platform events of INV-REQ-1226 b1 (INV-Q-7336, INV-Q-8839): a closed set of exact names. */
 class PlatformClassEventsTest {
     private val json = EnvelopeJson()
     private val tenant = TenantId(UUID.randomUUID())
@@ -27,6 +27,7 @@ class PlatformClassEventsTest {
             "PrivacyNoticeDue",
             "AccreditationAlertRaised",
             "BreakGlassAlertRaised",
+            "AuthorityChanged",
         )
     private val refused =
         listOf(
@@ -38,6 +39,10 @@ class PlatformClassEventsTest {
             "com.dynokore.gst.platform.BreakGlassAlertRaisedX.v1",
             "com.dynokore.gst.platform.breakGlassAlertRaised.v1",
             "com.dynokore.gst.evidence.BreakGlassAlertRaised.v1",
+            "com.dynokore.gst.access.AuthorityChanged.v1",
+            "com.dynokore.gst.platform.AuthorityChangedX.v1",
+            "com.dynokore.gst.platform.authorityChanged.v1",
+            "com.dynokore.gst.evidence.AuthorityChanged.v1",
         )
 
     private fun envelope(
@@ -81,8 +86,43 @@ class PlatformClassEventsTest {
 
     @Test
     fun `INV-AC-8821 BreakGlassAlertRaised look-alike, case and other-package types are refused`() {
-        refused.takeLast(4).forEach {
+        refused.subList(4, 8).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-9359 AuthorityChanged is tenant-wide for a real tenant and reads back tenant-wide`() {
+        val e = envelope("com.dynokore.gst.platform.AuthorityChanged.v1", tenant, EntityRef.TENANT_WIDE)
+        val text = json.write(e)
+        assertFalse(text.contains("entityref"), text)
+        assertTrue(text.contains("tenantid"), text)
+        assertEquals(e, json.read(text))
+        assertEquals(EntityRef.TENANT_WIDE, json.read(text).entity)
+    }
+
+    @Test
+    fun `INV-AC-9359 AuthorityChanged under the platform tenant reads back as the platform pair`() {
+        val e = envelope("com.dynokore.gst.platform.AuthorityChanged.v1", TenantId.PLATFORM, EntityRef.PLATFORM)
+        val text = json.write(e)
+        assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+        val back = json.read(text)
+        assertEquals(TenantId.PLATFORM, back.tenant)
+        assertEquals(EntityRef.PLATFORM, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-9359 AuthorityChanged old access type, look-alike, case and other-package types are refused`() {
+        val types = refused.takeLast(4)
+        types.forEach {
+            assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+        types.forEach {
+            assertThrows(
+                IllegalArgumentException::class.java,
+                { envelope(it, TenantId.PLATFORM, EntityRef.PLATFORM) },
+                it,
+            )
         }
     }
 
@@ -116,7 +156,7 @@ class PlatformClassEventsTest {
     }
 
     @Test
-    fun `isPlatformType is true for exactly the twelve platform types and false for the refusal types`() {
+    fun `isPlatformType is true for exactly the platform types and false for the refusal types`() {
         names.forEach { assertTrue(Envelope.isPlatformType("com.dynokore.gst.platform.$it.v1"), it) }
         refused.forEach { assertFalse(Envelope.isPlatformType(it), it) }
     }

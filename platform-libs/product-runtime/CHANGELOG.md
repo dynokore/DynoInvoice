@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-25
+### Added
+- `PlatformEventCatalogue.AUTHORITY_CHANGED` (`gst.platform.authority-changed.v1`), last in `ALL`; the authority replica feed and `AuthorityFeedHandler.decode` take their type and topic from it and refuse `com.dynokore.gst.access.AuthorityChanged.v1`. `ProductEventTypes.AUTHORITY_CHANGED` and `AUTHORITY_CHANGED_TOPIC` stay, deprecated at level ERROR (INV-Q-9229, INV-T-9356). Needs `outbox-and-queue 6.5.0`.
+
 ## [1.3.5] - 2026-10-25
 ### Changed
 - Metadata-only release (INV-T-9154, G-DVS): depends on `service-runtime 10.10.0`, whose published module metadata changed; no code change.

@@ -7,7 +7,7 @@ import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -35,7 +35,7 @@ class AuthorityFeedHandler(
 
     /** The service-runtime event for [event]; throws [ContractViolation] when it does not meet the contract. */
     fun decode(event: Envelope): AuthorityChanged {
-        if (event.type != ProductEventTypes.AUTHORITY_CHANGED) {
+        if (event.type != PlatformEventCatalogue.AUTHORITY_CHANGED.eventType) {
             throw ContractViolation("the authority feed takes no ${event.type}")
         }
         val payload = ContractJson.read(event.dataJson, AuthorityChangedPayload::class.java)

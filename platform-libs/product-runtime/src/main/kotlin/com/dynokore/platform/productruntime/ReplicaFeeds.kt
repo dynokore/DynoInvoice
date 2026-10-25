@@ -43,8 +43,8 @@ object ReplicaFeeds {
                 TENANCY_SVC,
             ),
             ReplicaFeed(
-                ProductEventTypes.AUTHORITY_CHANGED,
-                ProductEventTypes.AUTHORITY_CHANGED_TOPIC,
+                PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
+                requireNotNull(PlatformEventCatalogue.AUTHORITY_CHANGED.topic),
                 ReplicaKind.AUTHORITY,
                 ACCESS_SVC,
             ),

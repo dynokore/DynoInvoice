@@ -4,9 +4,19 @@ package com.dynokore.platform.productruntime
 object ProductEventTypes {
     const val ORGANISATION_STRUCTURE_CHANGED = "com.dynokore.gst.tenancy.OrganisationStructureChanged.v1"
     const val ENTITY_PROFILE_CHANGED = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
+
+    @Deprecated(
+        "nobody publishes the access type; use PlatformEventCatalogue.AUTHORITY_CHANGED.eventType (INV-Q-9229)",
+        level = DeprecationLevel.ERROR,
+    )
     const val AUTHORITY_CHANGED = "com.dynokore.gst.access.AuthorityChanged.v1"
 
     const val ORGANISATION_STRUCTURE_CHANGED_TOPIC = "gst.tenancy.organisation-structure-changed.v1"
     const val ENTITY_PROFILE_CHANGED_TOPIC = "gst.tenancy.entity-profile-changed.v1"
+
+    @Deprecated(
+        "nobody publishes the access topic; use PlatformEventCatalogue.AUTHORITY_CHANGED.topic (INV-Q-9229)",
+        level = DeprecationLevel.ERROR,
+    )
     const val AUTHORITY_CHANGED_TOPIC = "gst.access.authority-changed.v1"
 }

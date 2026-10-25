@@ -11,7 +11,9 @@ class ProductConfigurationTest {
         ReplicaFeeds.of(ReplicaKind.STRUCTURE).map { it.eventType } shouldContainExactly
             listOf(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, ProductEventTypes.ENTITY_PROFILE_CHANGED)
         ReplicaFeeds.of(ReplicaKind.STRUCTURE).map { it.fallbackService }.toSet() shouldBe setOf("tenancy-svc")
-        ReplicaFeeds.of(ReplicaKind.AUTHORITY).single().eventType shouldBe ProductEventTypes.AUTHORITY_CHANGED
+        ReplicaFeeds.of(ReplicaKind.AUTHORITY).single().eventType shouldBe
+            PlatformEventCatalogue.AUTHORITY_CHANGED.eventType
+        ReplicaFeeds.of(ReplicaKind.AUTHORITY).single().topic shouldBe "gst.platform.authority-changed.v1"
         ReplicaFeeds.of(ReplicaKind.AUTHORITY).single().fallbackService shouldBe "access-svc"
         val policy = ReplicaFeeds.of(ReplicaKind.POLICY).single()
         policy.eventType shouldBe "com.dynokore.gst.platform.PolicyChanged.v1"
@@ -21,7 +23,7 @@ class ProductConfigurationTest {
     }
 
     @Test
-    fun `the platform-event catalogue is the twelve platform events of INV-REQ-1226 b1`() {
+    fun `the platform-event catalogue is the platform events of INV-REQ-1226 b1`() {
         PlatformEventCatalogue.ALL.map { it.name } shouldContainExactly
             listOf(
                 "AuditEntryRecorded",
@@ -36,6 +38,7 @@ class ProductConfigurationTest {
                 "PrivacyNoticeDue",
                 "AccreditationAlertRaised",
                 "BreakGlassAlertRaised",
+                "AuthorityChanged",
             )
         PlatformEventCatalogue.PRIVACY_NOTICE_DUE.topic shouldBe "gst.platform.privacy-notice-due.v1"
         PlatformEventCatalogue.ACCREDITATION_ALERT_RAISED.topic shouldBe "gst.platform.accreditation-alert-raised.v1"
@@ -49,7 +52,11 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
-        PlatformEventCatalogue.isPlatform(ProductEventTypes.AUTHORITY_CHANGED) shouldBe false
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.AUTHORITY_CHANGED
+        PlatformEventCatalogue.AUTHORITY_CHANGED.topic shouldBe "gst.platform.authority-changed.v1"
+        PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.access.AuthorityChanged.v1") shouldBe false
     }
 
     @Test

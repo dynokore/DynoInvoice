@@ -10,7 +10,7 @@ import au.com.dius.pact.core.model.V4Interaction
 import au.com.dius.pact.core.model.V4Pact
 import au.com.dius.pact.core.model.annotations.Pact
 import com.dynokore.platform.contracttests.Contracts
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
@@ -45,7 +45,12 @@ class AccessEventsPactTest {
             .given("P-1 was granted approve on entity E-001")
             .expectsToReceive("an AuthorityChanged carrying the principal's grant set for an entity")
             .withContent(
-                Contracts.envelope(ProductEventTypes.AUTHORITY_CHANGED, SOURCE, entity = true, docSequence = true) {
+                Contracts.envelope(
+                    PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
+                    SOURCE,
+                    entity = true,
+                    docSequence = true,
+                ) {
                     stringMatcher("changeKind", "^GRANT$", "GRANT")
                     stringType("principalRef", "P-1")
                     integerType("authorityVersion", 4L)
@@ -68,7 +73,12 @@ class AccessEventsPactTest {
             .given("agent P-9 holds a live consent for client entity C-7")
             .expectsToReceive("an AuthorityChanged carrying an agent consent's coverage")
             .withContent(
-                Contracts.envelope(ProductEventTypes.AUTHORITY_CHANGED, SOURCE, entity = true, docSequence = true) {
+                Contracts.envelope(
+                    PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
+                    SOURCE,
+                    entity = true,
+                    docSequence = true,
+                ) {
                     stringMatcher("changeKind", "^CONSENT$", "CONSENT")
                     stringType("principalRef", "P-9")
                     integerType("authorityVersion", 2L)
@@ -106,6 +116,22 @@ class AccessEventsPactTest {
         record.clientEntityRef shouldBe "C-7"
         record.state shouldBe ConsentState.LIVE
         record.scopeItems shouldBe setOf(ConsentScopeItem.SUBMIT_INVOICE_DATA)
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "grantSet")
+    fun `INV-AC-9359 the grant set message carries the platform type`(
+        messages: List<V4Interaction.AsynchronousMessage>,
+    ) {
+        Contracts.envelopes.read(Contracts.text(messages.single())).type shouldBe
+            "com.dynokore.gst.platform.AuthorityChanged.v1"
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "consent")
+    fun `INV-AC-9359 the consent message carries the platform type`(messages: List<V4Interaction.AsynchronousMessage>) {
+        Contracts.envelopes.read(Contracts.text(messages.single())).type shouldBe
+            "com.dynokore.gst.platform.AuthorityChanged.v1"
     }
 
     private companion object {

@@ -178,7 +178,7 @@ class ContractTest {
             conforms(json, schema)
             handler
                 .decode(
-                    envelope(ProductEventTypes.AUTHORITY_CHANGED, json.toString()),
+                    envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, json.toString()),
                 ).record
                 .shouldBeInstanceOf<AuthorityRecord>()
         }

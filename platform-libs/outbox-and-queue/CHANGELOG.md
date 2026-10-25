@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.5.0] - 2026-10-25
+### Added
+- `Envelope` platform class gains `AuthorityChanged` as its last member; with `PlatformEventCatalogue` in `product-runtime` it is the platform event `com.dynokore.gst.platform.AuthorityChanged.v1` (INV-Q-9229, INV-T-9356).
+
 ## [6.4.0] - 2026-10-24
 ### Added
 - `ReplayCompletionListener`; `JdbcReplayIntake` takes an optional listener and calls it once per completed replay with the replay id, consumer and closed topics, after the incidents are closed; a throwing listener is logged and does not undo the completion (INV-Q-9047 A, INV-T-9055).

@@ -102,12 +102,12 @@ class FeedHandlersTest {
     fun `AuthorityChanged feeds the grant set, the consent coverage and the principal record`() {
         val replica = AuthorityReplica(CLOCK)
         val handler = AuthorityFeedHandler(replica)
-        val grantEvent = handler.decode(envelope(ProductEventTypes.AUTHORITY_CHANGED, grants))
+        val grantEvent = handler.decode(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, grants))
         grantEvent.authorityVersion shouldBe 7
         val record = grantEvent.record.shouldBeInstanceOf<AuthorityRecord.GrantRecord>()
         record.grants.single().scopeLevel shouldBe ScopeLevel.ENTITY
         record.grants.single().periodTo shouldBe LocalDate.parse("2026-09-30")
-        handler.handle(envelope(ProductEventTypes.AUTHORITY_CHANGED, grants))
+        handler.handle(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, grants))
         replica.grants.peek(AuthorityKey(TENANT, "P-1", "E-001")).shouldBeInstanceOf<Any>()
 
         val consent =
@@ -115,7 +115,7 @@ class FeedHandlersTest {
             |"consentRecord":{"clientEntityRef":"E-001","state":"LIVE","scopeItems":["${firstScopeItem()}"],
             |"validFrom":"2026-10-01T00:00:00Z"}}
             """.trimMargin()
-        handler.handle(envelope(ProductEventTypes.AUTHORITY_CHANGED, consent))
+        handler.handle(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, consent))
         replica.consents.peek(ConsentKey(TENANT, "E-001"))?.state shouldBe ConsentState.LIVE
 
         val revoked =
@@ -123,7 +123,7 @@ class FeedHandlersTest {
             |"principalRecord":{"state":"REVOKED"}}
             """.trimMargin()
         handler
-            .decode(envelope(ProductEventTypes.AUTHORITY_CHANGED, revoked))
+            .decode(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, revoked))
             .record
             .shouldBeInstanceOf<AuthorityRecord.PrincipalRecord>()
     }
@@ -137,9 +137,23 @@ class FeedHandlersTest {
     fun `an AuthorityChanged without a record passes no record, one with two records is a ContractViolation`() {
         val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK))
         val bare = """{"changeKind":"REVOCATION","principalRef":"P-1","authorityVersion":3}"""
-        handler.decode(envelope(ProductEventTypes.AUTHORITY_CHANGED, bare)).record.shouldBeNull()
+        handler.decode(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, bare)).record.shouldBeNull()
         val two =
             grants.dropLast(1) + ""","principalRecord":{"state":"REVOKED"}}"""
-        assertThrows<ContractViolation> { handler.decode(envelope(ProductEventTypes.AUTHORITY_CHANGED, two)) }
+        assertThrows<ContractViolation> {
+            handler.decode(
+                envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, two),
+            )
+        }
+    }
+
+    @Test
+    fun `INV-AC-9359 the old access type is a ContractViolation, the platform type is decoded`() {
+        val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK))
+        val bare = """{"changeKind":"REVOCATION","principalRef":"P-1","authorityVersion":3}"""
+        assertThrows<ContractViolation> {
+            handler.decode(envelope("com.dynokore.gst.access.AuthorityChanged.v1", bare))
+        }
+        handler.decode(envelope("com.dynokore.gst.platform.AuthorityChanged.v1", bare)).record.shouldBeNull()
     }
 }

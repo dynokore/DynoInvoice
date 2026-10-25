@@ -38,6 +38,7 @@ object PlatformEventCatalogue {
     val PRIVACY_NOTICE_DUE = fixed("PrivacyNoticeDue", "privacy-notice-due")
     val ACCREDITATION_ALERT_RAISED = fixed("AccreditationAlertRaised", "accreditation-alert-raised")
     val BREAK_GLASS_ALERT_RAISED = fixed("BreakGlassAlertRaised", "break-glass-alert-raised")
+    val AUTHORITY_CHANGED = fixed("AuthorityChanged", "authority-changed")
 
     /** Every platform event, in INV-REQ-1226 b1's order. */
     val ALL: List<PlatformEvent> =
@@ -54,6 +55,7 @@ object PlatformEventCatalogue {
             PRIVACY_NOTICE_DUE,
             ACCREDITATION_ALERT_RAISED,
             BREAK_GLASS_ALERT_RAISED,
+            AUTHORITY_CHANGED,
         )
 
     /** True when [eventType] is a platform event. */
