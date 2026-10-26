@@ -40,7 +40,8 @@ class FilerOfRecordTest {
 
     @Test
     fun `INV-AC-10444 the members are exactly the VP-11 option keys`() {
-        FilerOption.entries.map { it.name } shouldContainExactlyInAnyOrder listOf("DERIVED", "ALWAYS_CLIENT", "EITHER_PARTY")
+        FilerOption.entries.map { it.name } shouldContainExactlyInAnyOrder
+            listOf("DERIVED", "ALWAYS_CLIENT", "EITHER_PARTY")
     }
 
     @Test
