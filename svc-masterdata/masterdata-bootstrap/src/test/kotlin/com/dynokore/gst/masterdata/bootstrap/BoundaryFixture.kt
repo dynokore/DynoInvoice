@@ -11,6 +11,7 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.flywaydb.core.Flyway
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.context.annotation.Bean
@@ -130,15 +131,7 @@ object BoundaryFixture {
             val script = connection.createStatement()
             runFile(provisioning)
             runFile(bindingFunctions())
-            Files.list(migrationsDir).use { files ->
-                files
-                    .filter {
-                        it.fileName.toString().endsWith(
-                            ".sql",
-                        )
-                    }.sorted()
-                    .forEach { runFile(it) }
-            }
+            migrate()
             script.execute("ALTER ROLE masterdata_runtime LOGIN PASSWORD '$RUNTIME_PASSWORD'")
             val database = SqlIdentifier.require(container.databaseName, "database")
             script.execute("GRANT CONNECT ON DATABASE $database TO masterdata_runtime")
@@ -148,6 +141,24 @@ object BoundaryFixture {
                 "INSERT INTO masterdata.binding_key (slot, secret) VALUES ('current', convert_to('$key', 'UTF8'))",
             )
         }
+    }
+
+    /**
+     * The migration files applied by Flyway as the superuser of the container, the tool production uses (twelve-factor
+     * dev/prod parity, INV-T-10865): a psql run would keep a raw U+FEFF that Flyway drops. The binding functions the
+     * installer left in the schema are baselined at 0, so V1 still runs.
+     */
+    private fun migrate() {
+        Flyway
+            .configure()
+            .dataSource(container.jdbcUrl, container.username, container.password)
+            .schemas("masterdata")
+            .defaultSchema("masterdata")
+            .locations("filesystem:" + migrationsDir.toAbsolutePath().normalize())
+            .baselineOnMigrate(true)
+            .baselineVersion("0")
+            .load()
+            .migrate()
     }
 
     /**

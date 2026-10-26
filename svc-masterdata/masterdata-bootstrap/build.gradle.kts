@@ -32,6 +32,8 @@ dependencies {
     testImplementation(libs.springBoot.starterTest)
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.flyway.core)
+    testImplementation(libs.flyway.databasePostgresql)
     testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.platform.productRuntime.impl)
     testImplementation(platform(libs.junit.bom))
