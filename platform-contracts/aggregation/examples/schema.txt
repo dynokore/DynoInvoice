@@ -1,3 +1,4 @@
 ../openapi.yaml#/components/schemas/AggregationBatchRequest aggregation-batch-request-*.json
 ../openapi.yaml#/components/schemas/AggregationReceipt aggregation-receipt-*.json
 ../openapi.yaml#/components/schemas/UnderlyingTransactionPage underlying-transaction-page-*.json
+../schemas/short-code-used-payload.schema.json short-code-used-payload-*.json

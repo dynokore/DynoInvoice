@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: aggregation events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event aggregation produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -35,6 +35,11 @@ channels:
     messages:
       AggregateWindowChanged:
         $ref: '#/components/messages/AggregateWindowChanged'
+  aggregationShortCodeUsed:
+    address: 'gst.aggregation.short-code-used.v1'
+    messages:
+      ShortCodeUsed:
+        $ref: '#/components/messages/ShortCodeUsed'
   aggregationExampleHappened:
     address: 'gst.aggregation.example-happened.v1'
     messages:
@@ -56,6 +61,13 @@ operations:
       $ref: '#/channels/aggregationAggregateWindowChanged'
     messages:
       - $ref: '#/channels/aggregationAggregateWindowChanged/messages/AggregateWindowChanged'
+  publishShortCodeUsed:
+    action: send
+    description: ShortCodeUsed — catalogued in model/architecture/events.yaml (§19.8).
+    channel:
+      $ref: '#/channels/aggregationShortCodeUsed'
+    messages:
+      - $ref: '#/channels/aggregationShortCodeUsed/messages/ShortCodeUsed'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -95,6 +107,19 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/aggregate-window-changed-payload.schema.json'
+    ShortCodeUsed:
+      name: com.dynokore.gst.aggregation.ShortCodeUsed.v1
+      title: ShortCodeUsed
+      summary: ShortCodeUsed — catalogued in model/architecture/events.yaml (§19.8).
+      description: >-
+        Catalogued event ShortCodeUsed (model/architecture/events.yaml, INV-NOTE-3 §19.8,
+        INV-REQ-436; class: domain). Emitted by: aggregation-svc. Consumed by: tenancy-svc.
+        Delivery: At-least-once. Payload (catalogue text): code, nodeKind (ENTITY or BUSINESS_UNIT),
+        nodeRef (the entityRef or businessUnitRef that holds the code), aggregateId, documentNumber.
+        Emitted by aggregation-svc once per tenant and code, at the first aggregate number that carries the code, in the transaction that stores the aggregate; tenancy-svc then sets the flag used_in_aggregate_number once, so the code can no longer change (INV-REQ-436 item 3, INV-AC-2779, INV-Q-11266). Authored by INV-T-11277.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/short-code-used-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.aggregation.ExampleHappened.v1
       title: ExampleHappened

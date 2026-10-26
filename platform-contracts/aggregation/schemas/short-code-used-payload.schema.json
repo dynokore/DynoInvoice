@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/aggregation/schemas/short-code-used-payload.schema.json",
+  "title": "ShortCodeUsedPayload",
+  "description": "Payload of the ShortCodeUsed event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain; INV-Q-11266). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "The registered short code that has just been used in an aggregate number.",
+      "pattern": "^[A-Z0-9]{1,10}$"
+    },
+    "nodeKind": {
+      "type": "string",
+      "description": "Whether the code belongs to an entity or a business unit.",
+      "enum": [
+        "ENTITY",
+        "BUSINESS_UNIT"
+      ]
+    },
+    "nodeRef": {
+      "type": "string",
+      "description": "The entityRef or businessUnitRef that holds the code.",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "aggregateId": {
+      "type": "string",
+      "description": "The aggregate whose number first carried the code.",
+      "minLength": 1
+    },
+    "documentNumber": {
+      "type": "string",
+      "description": "The document number of that aggregate (AGG-{entity}-{type}-{businessUnit}-{periodEnd}-{seq}).",
+      "minLength": 1,
+      "maxLength": 64
+    }
+  },
+  "required": [
+    "code",
+    "nodeKind",
+    "nodeRef",
+    "aggregateId",
+    "documentNumber"
+  ],
+  "additionalProperties": true
+}
