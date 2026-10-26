@@ -269,7 +269,7 @@ class CalendarSeedNoCodeConstantTest {
     }
 
     @Test
-    fun `INV-AC-1727 the added-file probe fails for a file added under src main kotlin or java and passes look-alikes`() {
+    fun `INV-AC-1727 the added-file probe fails for files added under src main kotlin or java`() {
         CalendarAddedMainSources.offending(
             listOf(
                 "control-plane-adapters/src/main/kotlin/p/A.kt",
@@ -278,7 +278,8 @@ class CalendarSeedNoCodeConstantTest {
                 "control-plane-adapters/src/test/kotlin/p/C.kt",
                 "control-plane-adapters/src/mainx/kotlin/p/D.kt",
             ),
-        ) shouldBe listOf("control-plane-adapters/src/main/kotlin/p/A.kt", "control-plane-domain/src/main/java/p/B.java")
+        ) shouldBe
+            listOf("control-plane-adapters/src/main/kotlin/p/A.kt", "control-plane-domain/src/main/java/p/B.java")
     }
 
     @Test
