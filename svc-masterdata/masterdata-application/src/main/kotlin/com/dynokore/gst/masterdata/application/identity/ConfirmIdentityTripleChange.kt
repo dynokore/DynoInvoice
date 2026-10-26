@@ -52,8 +52,7 @@ class ConfirmIdentityTripleChange(
     private val triples: TripleRepository,
     private val policy: ConfirmerPolicy,
     private val roles: ConfirmerRoles,
-    private val clock: Clock,
-    private val corrections: IdentityTripleCorrectedPublisher,
+    private val corrections: BackdatedCorrections,
 ) {
     fun handle(command: ConfirmCommand): ConfirmOutcome =
         tx.inTransaction {
@@ -72,22 +71,32 @@ class ConfirmIdentityTripleChange(
                 ) {
                     ConfirmOutcome.NotPending
                 } else {
-                    val today = LocalDate.now(clock.withZone(ZoneOffset.UTC))
-                    val correction = isCorrection(change, today)
+                    val correction = corrections.isCorrection(change)
                     triples.save(change.version, change.proposedBy, command.confirmer, role.wire)
                     if (correction) corrections.publish(change)
                     ConfirmOutcome.Confirmed(change.version)
                 }
             }
         }
+}
 
-    /** Read before the save: a stored version on or before [today] must already exist for the same constitution. */
-    private fun isCorrection(
-        change: PendingChange,
-        today: LocalDate,
-    ): Boolean =
-        change.version.effectiveFrom.isBefore(today) &&
+/**
+ * INV-REQ-1006, INV-Q-7876 A: a change whose effective date is earlier than the date of the confirmation (the clock's
+ * date in UTC), and which replaces a version already in force on that date, is a correction of the past.
+ */
+class BackdatedCorrections(
+    private val triples: TripleRepository,
+    private val clock: Clock,
+    private val publisher: IdentityTripleCorrectedPublisher,
+) {
+    /** Read before the save: a stored version on or before today must already exist for the same constitution. */
+    fun isCorrection(change: PendingChange): Boolean {
+        val today = LocalDate.now(clock.withZone(ZoneOffset.UTC))
+        return change.version.effectiveFrom.isBefore(today) &&
             triples
                 .versions(change.version.entity, change.version.constitution)
                 .any { !it.effectiveFrom.isAfter(today) }
+    }
+
+    fun publish(change: PendingChange) = publisher.publish(change)
 }

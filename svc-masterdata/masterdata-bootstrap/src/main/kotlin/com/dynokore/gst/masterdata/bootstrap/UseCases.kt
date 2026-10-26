@@ -11,10 +11,10 @@ import com.dynokore.gst.masterdata.application.counterparty.ReadCounterpartyHist
 import com.dynokore.gst.masterdata.application.counterparty.RecordCounterparty
 import com.dynokore.gst.masterdata.application.counterparty.ResolveCounterparty
 import com.dynokore.gst.masterdata.application.counterparty.StructureNodeRepository
+import com.dynokore.gst.masterdata.application.identity.BackdatedCorrections
 import com.dynokore.gst.masterdata.application.identity.ConfirmIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
 import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
-import com.dynokore.gst.masterdata.application.identity.IdentityTripleCorrectedPublisher
 import com.dynokore.gst.masterdata.application.identity.PendingChangeRepository
 import com.dynokore.gst.masterdata.application.identity.ProposeIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple
@@ -62,9 +62,8 @@ class UseCases {
         triples: TripleRepository,
         policy: ConfirmerPolicy,
         roles: ConfirmerRoles,
-        clock: Clock,
-        corrections: IdentityTripleCorrectedPublisher,
-    ) = ConfirmIdentityTripleChange(tx, changes, triples, policy, roles, clock, corrections)
+        corrections: BackdatedCorrections,
+    ) = ConfirmIdentityTripleChange(tx, changes, triples, policy, roles, corrections)
 
     @Bean
     fun counterpartyRepository(
