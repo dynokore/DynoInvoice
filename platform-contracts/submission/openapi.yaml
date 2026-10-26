@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -33,6 +33,11 @@ info:
     1.7.0 declares the refusals of withdrawSubmission (400 SRT-001, 403
     SRT-004, 404 SRT-005, 409 SUB-021; INV-REQ-568, INV-REQ-581, INV-Q-6942);
     it is additive.
+    1.10.0 adds the second-approver wait of a filing-gate override: the
+    response 202 PendingFilingGateOverride and 403 of overrideFilingGate, and
+    the internal operations approveFilingGateOverride and
+    getFilingGateOverrides (INV-REQ-1293, INV-REQ-72, INV-Q-10691); it is
+    additive.
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -955,8 +960,16 @@ paths:
         READY or NOT_READY, makes an earlier override unusable.
 
 
-        Who approves (a second approver, VP-32) is INV-REQ-1293 and is not
-        decided here.
+        The call asks access-svc (`decideOverrideRelease`, without document
+        reference, version or total). Where the entity's VP-32 value needs a
+        second approver the answer is `202` with a `PendingFilingGateOverride`
+        and nothing is released: `confirmFiling` and
+        `ReadinessStatus.filingOverride` see only a released override. A
+        later readiness check makes a pending override unusable as it makes
+        a released one unusable. A decision other than release is `403`
+        (SRT-004). The caller's right is the permission `validation.override`
+        on the entity, decided per request, never a role name
+        (INV-REQ-1293, INV-Q-10691).
       tags: [readiness]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -1005,11 +1018,145 @@ paths:
                     reason: "Two held documents are being corrected by the supplier; filing on the due date."
                     overriddenBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
                     overriddenAt: "2026-04-28T08:55:00Z"
+        '202':
+          description: >-
+            A second approver is needed (VP-32); the override waits and
+            nothing is released.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingFilingGateOverride'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    checkId: "chk-2026Q1-0001"
+                    reason: "Two held documents are being corrected by the supplier; filing on the due date."
+                    requestedBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
+                    requestedAt: "2026-04-28T08:55:00Z"
+                    status: "PENDING"
         '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          description: SRT-004 — the decision is not release; nothing is recorded.
           $ref: '#/components/responses/Error'
         '404':
           $ref: '#/components/responses/Error'
         '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getFilingGateOverrides
+      summary: List the filing-gate overrides of a period
+      description: >-
+        The overrides of the period, pending, released and superseded, as the
+        second-approver wait shows them (INV-REQ-1293, INV-REQ-72). The
+        caller holds the permission `validation.override` on the entity,
+        decided per request. The list is paged by cursor (`limit`, `cursor`,
+        `nextCursor`, API-18). A list across periods is not offered.
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1293, INV-REQ-72]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The overrides of the period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilingGateOverrideList'
+              examples:
+                default:
+                  value:
+                    items:
+                      - checkId: "chk-2026Q1-0001"
+                        reason: "Two held documents are being corrected by the supplier; filing on the due date."
+                        status: "PENDING"
+                        requestedBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
+                        requestedAt: "2026-04-28T08:55:00Z"
+        '404':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides/{checkId}/approval:
+    post:
+      operationId: approveFilingGateOverride
+      summary: Approve a pending filing-gate override as the second approver
+      description: >-
+        Releases the pending override of the check (INV-REQ-1293, INV-REQ-72,
+        INV-REQ-500). `overriddenBy` of the answer is the user ID of the
+        approver whose approval released it. Of two approvals of the same
+        pending override at the same moment one is answered `201` and the
+        other `404`; the override is released once. `403` is SRT-004, `404`
+        is SRT-005 (none pending for the check, or one already released) and
+        `409` is SRT-008 (the check is no longer the latest of the period).
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1293, INV-REQ-72, INV-REQ-500]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: >-
+          A PENDING override exists for the check and the check is still the
+          latest check of the period.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (entityRef, periodRef, checkId)
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - $ref: '#/components/parameters/CheckId'
+      responses:
+        '201':
+          description: The override is released.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilingGateOverride'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    periodRef: "2026-Q1"
+                    checkId: "chk-2026Q1-0001"
+                    verdict: "NOT_READY"
+                    reason: "Two held documents are being corrected by the supplier; filing on the due date."
+                    overriddenBy: "8c2e1d4f-3a5b-4f66-8b4f-1d2e3f4a5b6c"
+                    overriddenAt: "2026-04-28T09:10:00Z"
+        '403':
+          description: SRT-004 — the caller may not approve.
+          $ref: '#/components/responses/Error'
+        '404':
+          description: SRT-005 — none pending for the check, or one already released.
+          $ref: '#/components/responses/Error'
+        '409':
+          description: SRT-008 — the check is no longer the latest of the period.
           $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
@@ -1139,6 +1286,13 @@ components:
         type: string
         maxLength: 20
         description: Opaque, calendar-issued (API-11); clients never construct it.
+    CheckId:
+      name: checkId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
     DocUuid:
       name: docUuid
       in: path
@@ -1425,6 +1579,70 @@ components:
           type: string
           format: date-time
       required: [entityRef, periodRef, checkId, verdict, reason, overriddenBy, overriddenAt]
+    PendingFilingGateOverride:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+        checkId:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        requestedBy:
+          type: string
+          maxLength: 64
+          description: The user ID of the first approver, never a role.
+        requestedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [PENDING]
+          x-extensible-enum: true
+      required: [entityRef, periodRef, checkId, reason, requestedBy, requestedAt, status]
+    FilingGateOverrideEntry:
+      type: object
+      properties:
+        checkId:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        status:
+          type: string
+          enum: [PENDING, RELEASED, SUPERSEDED]
+          x-extensible-enum: true
+        requestedBy:
+          type: string
+          maxLength: 64
+        requestedAt:
+          type: string
+          format: date-time
+        releasedBy:
+          type: string
+          maxLength: 64
+        releasedAt:
+          type: string
+          format: date-time
+      required: [checkId, reason, status, requestedBy, requestedAt]
+    FilingGateOverrideList:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/FilingGateOverrideEntry'
+        nextCursor:
+          type: string
+      required: [items]
     EntityFinding:
       type: object
       properties:
