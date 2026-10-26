@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -111,8 +111,8 @@ components:
       title: AuthorityChanged
       summary: AuthorityChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
-        Catalogued event AuthorityChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: access-svc. Consumed by: aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Delivery:
+        Deprecated: superseded by com.dynokore.gst.platform.AuthorityChanged.v1 on gst.platform.authority-changed.v1 (INV-Q-9229 A); access-svc stops publishing it when the publisher task INV-T-9234 merges; the declaration stays because removing a declared message is a breaking change that the asyncapi gate refuses and the repository has no exception line for it. Catalogued event AuthorityChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
+        class: domain). Emitted by: access-svc. Consumed by: none. Delivery:
         At-least-once. Payload (catalogue text): grant, consent, principal or revocation change, with
         validity and a monotonic authority version. Authored by INV-T-2853 (T9). INV-T-3298
         (INV-API-3325, INV-Q-3322 (b), INV-Q-3339) adds, additively, one record per event: a
