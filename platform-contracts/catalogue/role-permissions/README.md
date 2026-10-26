@@ -50,7 +50,7 @@ The whole-job run and pause are the key `job.operate-whole-job` (INV-REQ-1138), 
 ## What the build checks (`checkRolePermissions`, wired into `check`; also run by `generateRolePermissionCatalogue`)
 
 `RolePermissionsChecker` reports: a role set that differs from the 19 names; a role whose forms differ; a key that
-breaks the pattern or repeats; a `row` that is neither one of the 34 published labels nor one of the added labels of `addedRows` (the nine labels of section 2 of INV-NOTE-10136; the text of record of the added labels is INV-NOTE-10136), or a label of either list with no key; a cell that names
+breaks the pattern or repeats; a `row` that is neither one of the 34 published labels nor one of the added labels of `addedRows` (the nine labels of section 2 of INV-NOTE-10136 and the two labels "Author a regulatory pack" and "Approve a regulatory pack" of INV-Q-9779 A; the text of record of the nine is INV-NOTE-10136), or a label of either list with no key; a cell that names
 a role not in the file or a form the role does not have; a repeated (role, form, key) cell; an `auditor` cell on a
 WRITE key (INV-REQ-863, FR-P.5); a (key, row) pair of the two retention keys that differs from the pinned table; and any required cell that is missing, extra or different (the table in the checker).
 
@@ -58,3 +58,5 @@ WRITE key (INV-REQ-863, FR-P.5); a (key, row) pair of the two retention keys tha
 
 A new key is a minor step of `gstCatalogueVersion` in `../gradle.properties`, with a comment line naming the task and
 ruling. A changed cell of an existing key needs a Keel ruling first; the reviewer compares the cells with INV-NOTE-3.
+
+The keys `regulatory-pack.author` (held by `regulatory.author`) and `regulatory-pack.approve` (held by `regulatory.approver`), both WRITE, PERMITTED in SAAS and PRIVATE, were added by INV-T-9864 under coordinator ruling INV-Q-9779 A; their two row labels are in `addedRows`.

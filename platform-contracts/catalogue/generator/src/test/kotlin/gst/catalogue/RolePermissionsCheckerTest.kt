@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(9, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(11, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -362,7 +362,7 @@ class RolePermissionsCheckerTest {
     fun `the six operation keys carry their labels and addedRows holds its labels`() {
         opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
         assertEquals(
-            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command") + opLabels.values,
+            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values,
             RolePermissionsChecker.addedRows.toSet(),
         )
     }
@@ -459,6 +459,8 @@ class RolePermissionsCheckerTest {
                 "Approve a tenant schedule",
                 ackLabel,
                 bumpLabel,
+                "Author a regulatory pack",
+                "Approve a regulatory pack",
             ),
             RolePermissionsChecker.addedRows.toSet(),
         )
@@ -571,5 +573,51 @@ class RolePermissionsCheckerTest {
             assertReported(withPermission(eca) { it.copy(key = name) }, "key $eca: missing")
         }
         assertReported(real.copy(permissions = real.permissions.filterNot { it.key == eca }), "key $eca: missing")
+    }
+
+    @Test
+    fun `probe 50 the approve row changed to a look-alike is reported and the true label has no key`() {
+        val t = withPermission("regulatory-pack.approve") { it.copy(row = "Approve a regulatory packs") }
+        assertReported(t, "key regulatory-pack.approve", "Approve a regulatory packs", "neither one of the 34")
+        assertReported(t, "row 'Approve a regulatory pack'", "no key")
+    }
+
+    @Test
+    fun `probe 51 the author row changed to a look-alike is reported and the true label has no key`() {
+        val t = withPermission("regulatory-pack.author") { it.copy(row = "Author regulatory pack") }
+        assertReported(t, "key regulatory-pack.author", "Author regulatory pack", "neither one of the 34")
+        assertReported(t, "row 'Author a regulatory pack'", "no key")
+    }
+
+    @Test
+    fun `probe 52 the approve label with a trailing space is reported`() {
+        assertReported(withPermission("regulatory-pack.approve") { it.copy(row = "Approve a regulatory pack ") }, "key regulatory-pack.approve", "neither one of the 34")
+    }
+
+    @Test
+    fun `probe 53 a regulatory author cell added to approve is reported`() {
+        assertReported(cellAdd("regulatory-pack.approve", "regulatory.author", DeploymentForm.SAAS), "role regulatory.author key regulatory-pack.approve form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 54 the PRIVATE cell of the regulatory approver removed from approve is reported`() {
+        assertReported(cellRemove("regulatory-pack.approve", "regulatory.approver", DeploymentForm.PRIVATE), "role regulatory.approver key regulatory-pack.approve form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `probe 55 the author key removed is reported as a missing key and as a label with no key`() {
+        val t = real.copy(permissions = real.permissions.filterNot { it.key == "regulatory-pack.author" })
+        assertReported(t, "key regulatory-pack.author: missing")
+        assertReported(t, "row 'Author a regulatory pack'", "no key")
+    }
+
+    @Test
+    fun `probe 56 the author key spelled authorize is reported`() {
+        assertReported(withPermission("regulatory-pack.author") { it.copy(key = "regulatory-pack.authorize") }, "key regulatory-pack.author: missing")
+    }
+
+    @Test
+    fun `probe 57 the kind of approve set to READ is reported`() {
+        assertReported(withPermission("regulatory-pack.approve") { it.copy(kind = PermissionKind.READ) }, "key regulatory-pack.approve: kind READ")
     }
 }

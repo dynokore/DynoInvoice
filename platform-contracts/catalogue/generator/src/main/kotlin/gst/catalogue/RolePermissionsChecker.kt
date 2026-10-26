@@ -2,7 +2,7 @@ package gst.catalogue
 
 /**
  * Checks `role-permissions.yaml` (INV-T-7987, INV-Q-7979 A) against the text of record: the 19 roles of INV-NOTE-3
- * section 22.2, their deployment forms (INV-REQ-876, INV-REQ-888), the 32 published row labels of section 22.3, its
+ * section 22.2, their deployment forms (INV-REQ-876, INV-REQ-888), the 34 published row labels of section 22.3, its
  * amendment table and INV-REQ-999, and the cells the criteria assert. It reads the table only, no network. Every
  * violation names the role, key and form it is about.
  */
@@ -84,7 +84,10 @@ object RolePermissionsChecker {
             "retention.delete.approve" to "Delete data at end of retention (private form)",
         )
 
-    /** Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two. */
+    /**
+     * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
+     * INV-T-9864 appends two (INV-Q-9779 A).
+     */
     val addedRows: List<String> =
         listOf(
             "Set a variation point",
@@ -96,6 +99,8 @@ object RolePermissionsChecker {
             "Approve a tenant schedule",
             "Acknowledge a control relaxation",
             "Run the authority incarnation command",
+            "Author a regulatory pack",
+            "Approve a regulatory pack",
         )
 
     /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
@@ -139,6 +144,8 @@ object RolePermissionsChecker {
             "regulatory-pack.import-verify" to
                 Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator", "tax.approver")),
             "regulatory-pack.arm" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "tax.approver")),
+            "regulatory-pack.author" to Required(PermissionKind.WRITE, cells(permitted, both, "regulatory.author")),
+            "regulatory-pack.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "regulatory.approver")),
             "regulatory-pack.activate" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer")),
             "retention.delete.request" to
                 Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),

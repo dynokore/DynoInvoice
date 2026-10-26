@@ -118,6 +118,8 @@ class RolePermissionsTest {
                 Req("authority-incarnation.bump", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
                 Req("authority-incarnation.bump", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
                 Req("election-change.approve", PermissionKind.WRITE, "tax.approver", y, both),
+                Req("regulatory-pack.author", PermissionKind.WRITE, "regulatory.author", y, both),
+                Req("regulatory-pack.approve", PermissionKind.WRITE, "regulatory.approver", y, both),
             ) +
             listOf(
                 "filing.confirm",

@@ -431,6 +431,18 @@ permissions:
     row: "Arm a regulatory pack"
     cells:
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.author
+    kind: WRITE
+    row: "Author a regulatory pack"
+    cells:
+      - {role: regulatory.author, form: SAAS, allowance: PERMITTED}
+      - {role: regulatory.author, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.approve
+    kind: WRITE
+    row: "Approve a regulatory pack"
+    cells:
+      - {role: regulatory.approver, form: SAAS, allowance: PERMITTED}
+      - {role: regulatory.approver, form: PRIVATE, allowance: PERMITTED}
   - key: filing.confirm
     kind: WRITE
     row: "Confirm filing — agents under FILE_GST_RETURN too (FR-AF.34)"

@@ -338,7 +338,7 @@ val generateRolePermissionCatalogue =
 val checkRolePermissions =
     tasks.register("checkRolePermissions") {
         group = "verification"
-        description = "INV-T-7987: the role-by-permission table has the 19 roles, their forms, the 32 published rows and the " +
+        description = "INV-T-7987: the role-by-permission table has the 19 roles, their forms, the 34 published rows, the added rows and the " +
             "required cells (INV-NOTE-3 sections 22.2 and 22.3, INV-REQ-999)."
         inputs.file(rolePermissionsYaml)
         doLast {
