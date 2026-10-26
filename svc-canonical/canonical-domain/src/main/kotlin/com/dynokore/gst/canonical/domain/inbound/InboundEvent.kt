@@ -30,7 +30,7 @@ data class InboundEvent(
     val buyerDisposition: BuyerDisposition? = null,
 )
 
-/** An already recorded document a lookup returned; [recordedSupplierDocUuid] is the supplier UUID bound to it, if any. */
+/** A recorded document a lookup returned; [recordedSupplierDocUuid] is the supplier UUID bound to it, if any. */
 data class Existing(
     val docUuid: UUID,
     val recordedSupplierDocUuid: UUID?,

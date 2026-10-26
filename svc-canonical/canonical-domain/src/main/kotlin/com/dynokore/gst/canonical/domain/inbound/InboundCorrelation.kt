@@ -36,10 +36,19 @@ object InboundCorrelation {
         uuidHits: List<Existing>,
         fallbackHits: List<Existing>,
         rule: InboundDocUuidRule,
-    ): CorrelationDecision {
-        if (uuidHits.size == 1) return NewVersionOf(uuidHits.single().docUuid, BindVia.UUID_KEY)
-        if (uuidHits.size > 1) return HoldAmbiguous(HoldReason.MULTIPLE_MATCH, uuidHits.map { it.docUuid })
-        return when (fallbackHits.size) {
+    ): CorrelationDecision =
+        when {
+            uuidHits.size == 1 -> NewVersionOf(uuidHits.single().docUuid, BindVia.UUID_KEY)
+            uuidHits.size > 1 -> HoldAmbiguous(HoldReason.MULTIPLE_MATCH, uuidHits.map { it.docUuid })
+            else -> decideByFallback(event, fallbackHits, rule)
+        }
+
+    private fun decideByFallback(
+        event: InboundEvent,
+        fallbackHits: List<Existing>,
+        rule: InboundDocUuidRule,
+    ): CorrelationDecision =
+        when (fallbackHits.size) {
             0 -> {
                 create(event, rule)
             }
@@ -58,7 +67,6 @@ object InboundCorrelation {
                 HoldAmbiguous(HoldReason.MULTIPLE_MATCH, fallbackHits.map { it.docUuid })
             }
         }
-    }
 
     private fun create(
         event: InboundEvent,

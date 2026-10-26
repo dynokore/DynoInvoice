@@ -22,9 +22,12 @@ data class FallbackKey(
 /** Key builders of INV-REQ-429. Pure; nothing but the event is read. */
 object InboundKeys {
     fun uuidKey(event: InboundEvent): UuidKey? {
-        if (event.kind != InboundKind.RECEIPT) return null
-        val uuid = event.supplierDocUuid ?: return null
-        return UuidKey(event.entityId, event.supplierEndpointId, uuid)
+        val uuid = event.supplierDocUuid
+        return if (event.kind == InboundKind.RECEIPT && uuid != null) {
+            UuidKey(event.entityId, event.supplierEndpointId, uuid)
+        } else {
+            null
+        }
     }
 
     fun fallbackKey(event: InboundEvent): FallbackKey? {
@@ -41,5 +44,5 @@ object InboundKeys {
 
     /** Trimmed and lower-cased with ASCII rules (no locale or Unicode case folding). */
     private fun ascii(value: String): String =
-        buildString(value.length) { value.trim().forEach { append(if (it in 'A'..'Z') it + 32 else it) } }
+        buildString(value.length) { value.trim().forEach { append(if (it in 'A'..'Z') it.lowercaseChar() else it) } }
 }
