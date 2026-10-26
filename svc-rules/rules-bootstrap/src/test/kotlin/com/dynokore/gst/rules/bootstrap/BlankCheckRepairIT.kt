@@ -76,7 +76,7 @@ class BlankCheckRepairIT {
         require(start >= 0) { "no function ${fn.name}" }
         val end = text.indexOf(fn.end, start)
         require(end >= 0) { "the group of ${fn.name} has no end" }
-        return text.substring(start, end + fn.end.length) + "\n" + (fn.tail ?: "")
+        return text.substring(start, end + fn.end.length) + "\n" + fn.tail.orEmpty()
     }
 
     private data class Facts(
