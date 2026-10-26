@@ -1,5 +1,6 @@
 package com.dynokore.gst.canonical.adapters
 
+import com.dynokore.gst.canonical.application.document.VersionKey
 import com.dynokore.gst.canonical.domain.document.CanonicalShapeException
 import com.dynokore.gst.canonical.domain.document.SubtotalCoverageViolation
 import io.kotest.assertions.throwables.shouldThrow
@@ -276,6 +277,29 @@ class DerivedTablesTest {
         val before = snapshot()
         val report = kit.asTenant(tenant) { kit.rebuilds.rebuildAllDerived(tenant) }
         report.rejected.keys.map { it.docUuid to it.version } shouldBe listOf(odd.docUuid to 2)
+        snapshot() shouldBe before
+    }
+
+    @Test
+    fun `rebuild of all reports every rejected version in key order and rebuilds the rest`() {
+        val seeded = seed()
+        val first = UUID.fromString("00000000-0000-0000-0000-000000000001")
+        val last = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff")
+        kit.insert(DocumentKit.document(tenant, entity, day, docUuid = first))
+        kit.insert(DocumentKit.document(tenant, entity, day, docUuid = last))
+        val noParties = """{"lines":{"value":[],"classification":"content"}}"""
+        val bad = canonical(listOf(Line("SR", "10", "1")), listOf(Line("SR", "10", "1"), Line("ZR", "5", "0")))
+        DocumentSql.execute(
+            "update canonical.document_version set canonical = '$noParties'::jsonb where doc_uuid = '$first'",
+        )
+        DocumentSql.execute(
+            "update canonical.document_version set canonical = '$bad'::jsonb where doc_uuid = '$last'",
+        )
+        val before = snapshot()
+        val report = kit.asTenant(tenant) { kit.rebuilds.rebuildAllDerived(tenant) }
+        report.rejected.keys.toList() shouldBe listOf(VersionKey(first, 1), VersionKey(last, 1))
+        report.rejected.getValue(VersionKey(last, 1)) shouldContain "C-6"
+        report.rebuilt.toSet() shouldBe seeded.flatMap { doc -> (1..3).map { VersionKey(doc, it) } }.toSet()
         snapshot() shouldBe before
     }
 
