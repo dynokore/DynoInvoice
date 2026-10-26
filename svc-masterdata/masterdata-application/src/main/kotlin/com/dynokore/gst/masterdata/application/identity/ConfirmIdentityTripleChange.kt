@@ -50,8 +50,7 @@ class ConfirmIdentityTripleChange(
     private val tx: TransactionRunner,
     private val changes: PendingChangeRepository,
     private val triples: TripleRepository,
-    private val policy: ConfirmerPolicy,
-    private val roles: ConfirmerRoles,
+    private val authority: ConfirmerAuthority,
     private val corrections: BackdatedCorrections,
 ) {
     fun handle(command: ConfirmCommand): ConfirmOutcome =
@@ -60,8 +59,8 @@ class ConfirmIdentityTripleChange(
             if (change == null) {
                 ConfirmOutcome.UnknownChange
             } else {
-                val held = roles.rolesOf(command.confirmer, command.entity)
-                val allowed = policy.confirmers()
+                val held = authority.rolesOf(command.confirmer, command.entity)
+                val allowed = authority.confirmers()
                 val refusal = ConfirmationRule.check(change.proposedBy, command.confirmer, held, allowed)
                 val role = ConfirmationRule.roleOf(held, allowed)
                 if (refusal != null || role == null) {
@@ -99,4 +98,17 @@ class BackdatedCorrections(
     }
 
     fun publish(change: PendingChange) = publisher.publish(change)
+}
+
+/** Who may confirm: the tenant's confirmer set and the roles a subject holds at an entity, read together. */
+class ConfirmerAuthority(
+    private val policy: ConfirmerPolicy,
+    private val roles: ConfirmerRoles,
+) {
+    fun confirmers() = policy.confirmers()
+
+    fun rolesOf(
+        subject: PersonRef,
+        entity: EntityRef,
+    ) = roles.rolesOf(subject, entity)
 }

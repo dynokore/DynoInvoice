@@ -6,6 +6,7 @@ import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
 import com.dynokore.gst.masterdata.adapters.persistence.jooq.Masterdata
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
 import com.dynokore.gst.masterdata.application.identity.BackdatedCorrections
+import com.dynokore.gst.masterdata.application.identity.ConfirmerAuthority
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
 import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleCorrectedPublisher
@@ -54,6 +55,12 @@ class ServiceDefaults {
         clock: Clock,
         publisher: IdentityTripleCorrectedPublisher,
     ) = BackdatedCorrections(triples, clock, publisher)
+
+    @Bean
+    fun confirmerAuthority(
+        policy: ConfirmerPolicy,
+        roles: ConfirmerRoles,
+    ) = ConfirmerAuthority(policy, roles)
 
     /**
      * The confirmer set. While VP-09 is `planned` the port holds exactly {entity.admin, tenant.admin, tax.approver}
