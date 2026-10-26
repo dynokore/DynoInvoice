@@ -32,10 +32,15 @@ dependencies {
     runtimeOnly(libs.flyway.databasePostgresql)
     implementation(libs.jooq)
     implementation(libs.platform.crypto.api)
+    // EntityRef and TenantId, the parameter types of JobCommandAuthorizer
+    implementation(libs.platform.outboxAndQueue.api)
+    implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.rulepackKernel.api)
     // the BouncyCastleCms bean of service-runtime's CryptoWiring (DetachedSigner)
     runtimeOnly(libs.platform.crypto)
-    // the LocalAuditWriter bean of service-runtime's AuditLogWiring (a service without an outbox, INV-Q-2958)
+    // the OutboxWriter and the relay of service-runtime's OutboxAndQueueWiring, and the tables the job runtime writes its events to
+    runtimeOnly(libs.platform.outboxAndQueue)
+    // the OutboxAuditWriter bean of service-runtime's AuditLogWiring (the service has an OutboxWriter, so it binds the outbox audit writer)
     runtimeOnly(libs.platform.auditLog)
     // the platform-scoped tables of config-resolver's ConfigSchema, read by service-runtime's TenancyJooqWiring
     runtimeOnly(libs.platform.configResolver)

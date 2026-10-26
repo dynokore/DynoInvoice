@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.adapters
 
 import com.dynokore.platform.tenancyjooq.TenancyProbe
+import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
@@ -53,11 +54,26 @@ object PostgresDb {
                     .toList()
             }
         return listOf(Files.readString(sql.resolve("roles.sql")), Files.readString(sql.resolve("schema.sql")))
+            .plus(bindingFunctions())
             .plus("SET ROLE controlplane_migrate;")
             .plus(migrations)
             .plus("RESET ROLE;")
             .joinToString("\n")
     }
+
+    /**
+     * The signed-binding functions of tenancy-kernel, which the tenant policy of the outbox and idempotency tables names.
+     * Provisioning installs them as controlplane_sys before the migration Job runs (INV-T-4156, TPL-12); the schema
+     * is owned by controlplane_migrate, so sys gets CREATE on it for this one statement group only.
+     */
+    private fun bindingFunctions(): String =
+        listOf(
+            "GRANT USAGE, CREATE ON SCHEMA controlplane TO controlplane_sys;",
+            "SET ROLE controlplane_sys;",
+            BindingKeyMigration.ddl("controlplane", "controlplane_sys", RUNTIME_LOGIN),
+            "RESET ROLE;",
+            "REVOKE CREATE ON SCHEMA controlplane FROM controlplane_sys;",
+        ).joinToString("\n")
 
     /** The runtime login's data source: every statement of the service under test runs on it. */
     val runtimeDataSource: DataSource =
@@ -66,6 +82,20 @@ object PostgresDb {
             user = RUNTIME_LOGIN
             password = RUNTIME_PASSWORD
         }
+
+    /**
+     * The migration login, which owns the schema: information_schema lists a table only to a login with a privilege on it,
+     * and the runtime login holds none on a table it reaches through a definer function only (job_retention).
+     */
+    fun ownerDsl(): DSLContext =
+        DSL.using(
+            PGSimpleDataSource().apply {
+                setUrl(container.jdbcUrl)
+                user = "controlplane_migrate"
+                password = "controlplane_migrate_pw"
+            },
+            SQLDialect.POSTGRES,
+        )
 
     /** The catalog and grant probe of TPL-14, on the runtime login. */
     val probe: TenancyProbe by lazy { TenancyProbe.connect(container.jdbcUrl, RUNTIME_LOGIN, RUNTIME_PASSWORD) }

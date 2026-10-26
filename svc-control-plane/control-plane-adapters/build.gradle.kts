@@ -69,6 +69,8 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.rulepackKernel.impl)
     testImplementation(libs.platform.crypto)
+    // OutboxSchema (outbox-and-queue impl) and JobSchema, IdempotencySchema (service-runtime impl): the DDL the migrations equal
+    testImplementation(libs.platform.outboxAndQueue)
     testImplementation(libs.snakeyaml)
     testImplementation(testFixtures(project))
 
@@ -90,6 +92,8 @@ dependencies {
         capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
     }
     integrationTestImplementation(libs.platform.crypto)
+    // BindingKeyMigration: the harness installs the signed-binding functions the tenant policy of the outbox names
+    integrationTestImplementation(libs.platform.tenancyKernel)
 }
 
 // The feed index schema of the pinned platform-contracts release, staged by control-plane-contract, is a classpath
@@ -130,6 +134,8 @@ tasks.withType<Test> {
             .dir("src/main/resources/db/migration")
             .asFile.path,
     )
+    // the tests read the migration files by path: a changed file must re-run them
+    inputs.dir(layout.projectDirectory.dir("src/main/resources/db/migration")).withPropertyName("migrations")
 }
 
 val integrationTest =
