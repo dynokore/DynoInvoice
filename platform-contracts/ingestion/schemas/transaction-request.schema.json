@@ -185,7 +185,26 @@
           }
         },
         "providedBy": { "type": "string", "enum": ["COUNTERPARTY", "INTERNAL"] },
-        "evidenceRef": { "type": "string", "maxLength": 256 }
+        "evidenceRef": { "type": "string", "maxLength": 256 },
+        "approvedSchemes": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "properties": {
+              "scheme": { "type": "string", "maxLength": 20 },
+              "effectiveFrom": { "type": "string", "format": "date" },
+              "effectiveTo": { "type": "string", "format": "date" },
+              "evidenceRef": { "type": "string", "maxLength": 256 }
+            },
+            "required": ["scheme", "effectiveFrom"]
+          },
+          "description": "The counterparty's approved scheme status items (INV-REQ-2445, INV-REQ-2433), effective-dated; canonical-svc passes them to masterdata-svc, which stores them with provenance. Never inferred from the document."
+        },
+        "arcsGstChargeAgreed": {
+          "type": "boolean",
+          "description": "Whether the counterparty agreed to the GST charge under the Approved Refund Collection Scheme (INV-REQ-2446)."
+        }
       }
     },
     "line": {

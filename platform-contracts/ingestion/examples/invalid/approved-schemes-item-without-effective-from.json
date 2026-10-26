@@ -1,0 +1,40 @@
+{
+  "entityRef": "E-001",
+  "sourceSystem": "erp-acme",
+  "sourceKey": "INV-2026-000123",
+  "sourceRevision": 1,
+  "documentFunction": "INVOICE",
+  "transactionDate": "2026-03-20",
+  "currency": "SGD",
+  "counterparty": {
+    "supplier": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201912345A"
+    },
+    "buyer": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201954321B",
+      "approvedSchemes": [
+        {
+          "scheme": "GIRO"
+        }
+      ]
+    }
+  },
+  "lines": [
+    {
+      "lineNumber": 1,
+      "description": "Consulting services",
+      "quantity": 1,
+      "unitPrice": "1000.00",
+      "lineAmount": "1000.00",
+      "taxCode": "SR",
+      "taxAmount": "90.00"
+    }
+  ],
+  "declaredTotals": {
+    "totalExcludingTax": "1000.00",
+    "totalTax": "90.00",
+    "totalIncludingTax": "1090.00"
+  }
+}
