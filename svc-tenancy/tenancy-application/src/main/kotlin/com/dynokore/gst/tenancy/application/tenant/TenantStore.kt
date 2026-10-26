@@ -13,6 +13,7 @@ data class TenantRecord(
     val contractReference: String,
     val structureVersion: Long = 1,
     val retired: Boolean = false,
+    val dataRegion: String? = null,
 )
 
 /** What the tenant-creating function answered (INV-Q-7468 A). */

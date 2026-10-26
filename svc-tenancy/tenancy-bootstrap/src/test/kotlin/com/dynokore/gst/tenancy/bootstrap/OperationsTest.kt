@@ -115,6 +115,108 @@ class OperationsTest {
         return (thrown as ApiRefusal).code
     }
 
+    private fun storedRegionOf(contract: String): List<String?> =
+        BoundaryFixture.asSuperuser { connection ->
+            connection
+                .prepareStatement("select data_region from tenancy.tenant where contract_reference = ?")
+                .use { statement ->
+                    statement.setString(1, contract)
+                    statement.executeQuery().use { rows ->
+                        val values = mutableListOf<String?>()
+                        while (rows.next()) values.add(rows.getString(1))
+                        values
+                    }
+                }
+        }
+
+    private fun regionRows(contract: String): Int =
+        BoundaryFixture.asSuperuser { connection ->
+            connection
+                .prepareStatement("select count(*) from tenancy.tenant where contract_reference = ?")
+                .use { statement ->
+                    statement.setString(1, contract)
+                    statement.executeQuery().use { rows ->
+                        rows.next()
+                        rows.getInt(1)
+                    }
+                }
+        }
+
+    @Test
+    fun `INV-AC-1331 INV-AC-8572 createTenant with dataRegion SG answers it and stores it`() {
+        run { env ->
+            val contract = "C-${UUID.randomUUID()}"
+            val response =
+                env.tenantsApi.createTenant(
+                    UUID.randomUUID(),
+                    CreateTenantRequest(contract, "Tenant", "PLAN-A", dataRegion = "SG"),
+                )
+            assertThat(response.statusCode.value()).isEqualTo(201)
+            assertThat(response.body!!.dataRegion).isEqualTo("SG")
+            assertThat(storedRegionOf(contract)).containsExactly("SG")
+        }
+    }
+
+    @Test
+    fun `createTenant without dataRegion answers none and stores NULL`() {
+        run { env ->
+            val contract = "C-${UUID.randomUUID()}"
+            val response =
+                env.tenantsApi.createTenant(
+                    UUID.randomUUID(),
+                    CreateTenantRequest(contract, "Tenant", "PLAN-A"),
+                )
+            assertThat(response.statusCode.value()).isEqualTo(201)
+            assertThat(response.body!!.dataRegion).isNull()
+            assertThat(storedRegionOf(contract)).containsExactly(null as String?)
+        }
+    }
+
+    @Test
+    fun `createTenant stores a dataRegion of 64 characters and refuses one of 65 with no row`() {
+        run { env ->
+            val ok = "C-${UUID.randomUUID()}"
+            val region64 = "r".repeat(64)
+            val stored =
+                env.tenantsApi.createTenant(
+                    UUID.randomUUID(),
+                    CreateTenantRequest(ok, "Tenant", "PLAN-A", dataRegion = region64),
+                )
+            assertThat(stored.body!!.dataRegion).isEqualTo(region64)
+            assertThat(storedRegionOf(ok)).containsExactly(region64)
+            val bad = "C-${UUID.randomUUID()}"
+            assertThat(
+                refusal {
+                    env.tenantsApi.createTenant(
+                        UUID.randomUUID(),
+                        CreateTenantRequest(bad, "Tenant", "PLAN-A", dataRegion = "r".repeat(65)),
+                    )
+                },
+            ).isEqualTo(ClosedErrorCode.CONTRACT_VIOLATION)
+            assertThat(regionRows(bad)).isZero()
+        }
+    }
+
+    @Test
+    fun `createTenant repeated with another dataRegion returns the original body and keeps the stored region`() {
+        run { env ->
+            val contract = "C-${UUID.randomUUID()}"
+            val first =
+                env.tenantsApi.createTenant(
+                    UUID.randomUUID(),
+                    CreateTenantRequest(contract, "Tenant", "PLAN-A", dataRegion = "SG"),
+                )
+            val again =
+                env.tenantsApi.createTenant(
+                    UUID.randomUUID(),
+                    CreateTenantRequest(contract, "Tenant", "PLAN-A", dataRegion = "EU"),
+                )
+            assertThat(again.body).isEqualTo(first.body)
+            assertThat(again.body!!.dataRegion).isEqualTo("SG")
+            assertThat(storedRegionOf(contract)).containsExactly("SG")
+        }
+    }
+
     @Test
     fun `createTenant records the tenant once and a repeat of the same contract returns it`() {
         run { env ->

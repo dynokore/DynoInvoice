@@ -44,6 +44,7 @@ open class TenantsController(
                 createTenantRequest.legalName,
                 createTenantRequest.planRef,
                 createTenantRequest.contractReference,
+                dataRegion = createTenantRequest.dataRegion,
             )
         val stored =
             try {
@@ -66,9 +67,9 @@ open class TenantsController(
             } catch (e: TenantRefused) {
                 if (e.invalid) invalid("the tenant is refused") else throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
             }
-        return ResponseEntity
-            .status(
-                HttpStatus.CREATED,
-            ).body(TenantResponse(stored.ref, stored.legalName, stored.planRef))
+        return ResponseEntity.status(HttpStatus.CREATED).body(response(stored))
     }
+
+    private fun response(stored: TenantRecord) =
+        TenantResponse(stored.ref, stored.legalName, stored.planRef, stored.dataRegion)
 }

@@ -33,6 +33,7 @@ class JooqTenantStore(
                 DSL.`val`(tenant.planRef),
                 DSL.`val`(tenant.contractReference),
                 DSL.`val`(null, SQLDataType.UUID),
+                DSL.`val`(tenant.dataRegion, SQLDataType.CLOB),
             )
         val answer: JSONB =
             refusedAsException {
@@ -61,6 +62,7 @@ class JooqTenantStore(
                 it.contractReference.column("contract_reference"),
                 it.structureVersion.column("structure_version"),
                 it.retired.column("retired"),
+                it.dataRegion,
             )
         }
 
@@ -72,6 +74,7 @@ class JooqTenantStore(
             json.get("planRef").asString(),
             json.get("contractReference").asString(),
             json.get("structureVersion").asLong(),
+            dataRegion = json.get("dataRegion")?.asString(),
         )
 
     /** SQLSTATE 22023 (an argument is refused) and 42501 (the binding is refused) are the function's two refusals. */
