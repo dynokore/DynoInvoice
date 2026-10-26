@@ -12,11 +12,19 @@ dependencies {
     testImplementation(libs.platform.konsistRules)
 }
 
-// CreditNoteOrderingTest reads lifecycle-states.schema.json from the contract bundle that submission-contract stages.
+// ScopeAgreementTest reads canonical/openapi.yaml of the same bundle. CreditNoteOrderingTest reads lifecycle-states.schema.json from the contract bundle that submission-contract stages.
 tasks.withType<Test>().configureEach {
     val contractDir =
         project(":submission-contract").layout.buildDirectory.dir(
             "contracts-repo/platform-contracts/submission/${libs.versions.platformContractsBundle.get()}",
         )
     systemProperty("gst.contract.dir", contractDir.get().asFile.path)
+    systemProperty(
+        "gst.canonical.openapi",
+        project(":submission-contract")
+            .layout.buildDirectory
+            .file("contracts-repo/canonical/openapi.yaml")
+            .get()
+            .asFile.path,
+    )
 }

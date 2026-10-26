@@ -1,6 +1,7 @@
 // submission-contract (TPL-01, TPL-13): the Spring server interfaces and DTOs generated from
 // platform-contracts/submission/openapi.yaml (STK-46). asyncapi.yaml and schemas/ are staged from the same
-// pinned bundle for the operations gate and the payload tests of submission-adapters.
+// pinned bundle for the operations gate and the payload tests of submission-adapters. canonical/openapi.yaml is staged
+// for the enum-parity test of submission-domain.
 plugins {
     id("gst.contract-server")
 }
@@ -40,13 +41,17 @@ fun stageContracts() {
             .get()
             .asFile
     val marker = File(root, ".bundle-version")
-    if (marker.isFile && marker.readText() == version) return
+    if (marker.isFile && marker.readText() == version && File(root, "canonical/openapi.yaml").isFile) return
     root.deleteRecursively()
     val unpacked = File(root, ".bundle")
     copy {
         from(zipTree(contractsBundle.singleFile))
         into(unpacked)
     }
+    // The canonical contract's enums are read by the scope tests of submission-domain (INV-T-6630).
+    val canonicalOpenApi = File(unpacked, "canonical/openapi.yaml")
+    check(canonicalOpenApi.isFile) { "the platform-contracts bundle $version has no canonical/openapi.yaml" }
+    canonicalOpenApi.copyTo(File(root, "canonical/openapi.yaml"), overwrite = true)
     val svc = "submission"
     val moduleDir = File(root, "platform-contracts/$svc")
     val svcDir = File(unpacked, svc)
