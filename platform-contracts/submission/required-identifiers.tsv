@@ -10,7 +10,7 @@
 # the check; the contract operations that run it are getReadiness and drainPeriod, so it has no row. Below, the rows for the backticked
 # properties and operation, then the operation and the fields the requirements and the coordinator rulings (INV-Q-5948, INV-Q-5950)
 # name in plain text, one row per identifier, under the first requirement that names it.
-# INV-T-10712 (INV-Q-10691 A). Backticked names of INV-REQ-1293, INV-REQ-72 and INV-REQ-500 that are not rows: `tax.approver` and `access-svc` (role and service), `AuthorityReplica.decide` and `validation.override` (library method and catalogue key; the service task INV-T-10714 owns them), `tenant.admin` (role), `authorise`, `recordSoleOperator`, `withdrawSoleOperatorAcknowledgement`, `setPolicy` and `acknowledgeControlRelaxation` (operations of the access and service-runtime contracts), `OVERRIDABLE` (a disposition value), `filing-workflow` (a principal value), and the names of INV-REQ-72 `GateMode`, `CheckVerdict`, `LatestCheck`, `FilingGate.decide`, `FilingGate.canOverride`, `REFUSAL_CODE`, `NO_BLOCK_CODE`, `STALE_CODE`, `Proceed`, `Refuse`, `Allowed`, `NoBlock`, `Stale`, `canOverride`, `decide`, `gate`, `latestCheck` and `submission-domain` (code names that INV-T-6741 owns). `confirmFiling`, `overrideFilingGate`, `filingOverride`, `ReadinessStatus.filingOverride` and `checkId` are rows already.
+# INV-T-10712 (INV-Q-10691 A). The three schema names PendingFilingGateOverride, FilingGateOverrideList and FilingGateOverrideEntry are pinned through the schema_property rows below because the checker has no schema-name kind (a new kind is a separate tool task, INV-Q-11149 A). Backticked names of INV-REQ-1293, INV-REQ-72 and INV-REQ-500 that are not rows: `tax.approver` and `access-svc` (role and service), `AuthorityReplica.decide` and `validation.override` (library method and catalogue key; the service task INV-T-10714 owns them), `tenant.admin` (role), `authorise`, `recordSoleOperator`, `withdrawSoleOperatorAcknowledgement`, `setPolicy` and `acknowledgeControlRelaxation` (operations of the access and service-runtime contracts), `OVERRIDABLE` (a disposition value), `filing-workflow` (a principal value), and the names of INV-REQ-72 `GateMode`, `CheckVerdict`, `LatestCheck`, `FilingGate.decide`, `FilingGate.canOverride`, `REFUSAL_CODE`, `NO_BLOCK_CODE`, `STALE_CODE`, `Proceed`, `Refuse`, `Allowed`, `NoBlock`, `Stale`, `canOverride`, `decide`, `gate`, `latestCheck` and `submission-domain` (code names that INV-T-6741 owns). `confirmFiling`, `overrideFilingGate`, `filingOverride`, `ReadinessStatus.filingOverride` and `checkId` are rows already.
 identifier	kind	file	requirement
 listSubmissions	operation	openapi.yaml	INV-REQ-979
 getSubmissionSummary	operation	openapi.yaml	INV-REQ-977
@@ -122,3 +122,19 @@ ResolveAmendmentHoldRequest.evidenceRef	schema_property	openapi.yaml	INV-REQ-258
 AmendmentHoldResolution.holdReleased	schema_property	openapi.yaml	INV-REQ-2588
 approveFilingGateOverride	operation	openapi.yaml	INV-REQ-1293
 getFilingGateOverrides	operation	openapi.yaml	INV-REQ-1293
+PendingFilingGateOverride.entityRef	schema_property	openapi.yaml	INV-REQ-1293
+PendingFilingGateOverride.periodRef	schema_property	openapi.yaml	INV-REQ-1293
+PendingFilingGateOverride.checkId	schema_property	openapi.yaml	INV-REQ-1293
+PendingFilingGateOverride.reason	schema_property	openapi.yaml	INV-REQ-1293
+PendingFilingGateOverride.requestedBy	schema_property	openapi.yaml	INV-REQ-1293
+PendingFilingGateOverride.requestedAt	schema_property	openapi.yaml	INV-REQ-1293
+PendingFilingGateOverride.status	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideList.items	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideList.nextCursor	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideEntry.checkId	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideEntry.reason	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideEntry.status	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideEntry.requestedBy	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideEntry.requestedAt	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideEntry.releasedBy	schema_property	openapi.yaml	INV-REQ-1293
+FilingGateOverrideEntry.releasedAt	schema_property	openapi.yaml	INV-REQ-1293
