@@ -90,3 +90,15 @@ fun stageContracts() {
     marker.writeText(version)
 }
 stageContracts()
+
+// The pinned openapi.yaml is shipped as the resource gst/contracts/ingestion/openapi.yaml so that tests read the
+// contract's x-error-codes from the classpath (INV-T-5968, relay-code test).
+val stageContractResource by tasks.registering(Sync::class) {
+    val version = libs.versions.platformContractsBundle.get()
+    from(layout.buildDirectory.file("contracts-repo/platform-contracts/ingestion/$version/openapi.yaml"))
+    into(layout.buildDirectory.dir("contract-resources/gst/contracts/ingestion"))
+}
+sourceSets.main {
+    resources.srcDir(layout.buildDirectory.dir("contract-resources"))
+}
+tasks.named("processResources") { dependsOn(stageContractResource) }

@@ -44,7 +44,7 @@ class RecordTransactionTest {
                 }
 
                 else -> {
-                    CanonicalAnswer.Rejected("ING-002")
+                    CanonicalAnswer.Rejected("ING-002", 409)
                 }
             }
         }
@@ -106,5 +106,23 @@ class RecordTransactionTest {
             RecordingOutcome.New(docUuid)
         RecordTransaction { CanonicalAnswer.Created(docUuid, 2) }.execute(command("K", 2)) shouldBe
             RecordingOutcome.Amend(docUuid, 2)
+    }
+
+    @Test
+    fun `INV-AC-1862 a document held on MDM-001 is answered 202 with the Doc UUID, version and reason`() {
+        val docUuid = UUID.randomUUID()
+        val outcome =
+            RecordTransaction { CanonicalAnswer.Held(docUuid, 1, listOf("MDM-001")) }.execute(command("K", 1))
+        outcome shouldBe RecordingOutcome.Held(docUuid, 1, listOf("MDM-001"))
+        outcome.httpStatus shouldBe 202
+    }
+
+    @Test
+    fun `INV-AC-2519 a blocked document is answered 202 with the block reason RUL-001`() {
+        val docUuid = UUID.randomUUID()
+        val outcome =
+            RecordTransaction { CanonicalAnswer.Held(docUuid, 1, listOf("RUL-001")) }.execute(command("K", 1))
+        outcome shouldBe RecordingOutcome.Held(docUuid, 1, listOf("RUL-001"))
+        outcome.httpStatus shouldBe 202
     }
 }

@@ -6,6 +6,7 @@ plugins {
 dependencies {
     testImplementation(platform(libs.springBoot.dependencies))
     testImplementation(project(":ingestion-contract"))
+    testImplementation(project(":ingestion-domain"))
     testImplementation(project(":ingestion-adapters"))
     testImplementation(libs.springBoot.starterWeb)
     testImplementation(libs.snakeyaml)
