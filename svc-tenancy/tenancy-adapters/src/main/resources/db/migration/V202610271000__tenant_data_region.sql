@@ -1,4 +1,4 @@
--- V202610270850: the optional data region of a tenant (INV-Q-8675 A, INV-REQ-1386, INV-AC-1331, INV-AC-8572). A new
+-- V202610271000: the optional data region of a tenant (INV-Q-8675 A, INV-REQ-1386, INV-AC-1331, INV-AC-8572). A new
 -- nullable column, and create_tenant replaced by the same function with one more trailing argument that stores it; a
 -- repeat of the same tenant and contract answers the original row, so the original region. Run by tenancy_migrate.
 SET lock_timeout = '5s';

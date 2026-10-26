@@ -95,19 +95,31 @@ class BlankCheckRepairMigrationTest {
     }
 
     @Test
-    fun `the file name is the CS-19 name and its version is the greatest in the directory`() {
+    fun `the repair is present at its exact version, no version repeats and the name pattern holds`() {
         val directory = Path.of(checkNotNull(javaClass.classLoader.getResource("db/migration")).toURI())
-        val versions =
+        val names =
             Files
                 .list(directory)
                 .use { stream ->
                     stream.map { it.fileName.toString() }.filter { it.endsWith(".sql") }.toList()
-                }.associateBy { Regex("""^V(\d+)__""").find(it)!!.groupValues[1].toLong() }
-        assertEquals(file, versions[versions.keys.max()])
+                }
+        val versions = names.map { Regex("""^V(\d+)__""").find(it)!!.groupValues[1].toLong() }
+        assertEquals(names.size, versions.toSet().size, "a version is repeated")
+        assertEquals(1, names.count { it == file }, "the repair is present at its exact name")
+        assertEquals(REPAIR_VERSION, versions[names.indexOf(file)], "the repair keeps its version")
         assertTrue(Regex("""^V\d{12}__[a-z]+(_[a-z]+)*\.sql$""").matches(file))
     }
 
+    @Test
+    fun `the repair sorts after the two migrations that build the blank checks`() {
+        fun version(name: String) = Regex("""^V(\d+)__""").find(name)!!.groupValues[1].toLong()
+        listOf("V202610190930__create_outbox.sql", "V202610221050__create_config_resolver.sql").forEach { builder ->
+            assertTrue(version(file) > version(builder), "$file sorts after $builder")
+        }
+    }
+
     private companion object {
+        const val REPAIR_VERSION = 202610270900L
         const val FEFF_CODE = 0xFEFF
         const val GROUP_END = "revoke create on schema tenancy from tenancy_sys;"
         const val OUTBOX = "outbox"

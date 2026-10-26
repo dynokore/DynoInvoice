@@ -40,3 +40,5 @@ FilingFrequencyChanged	channel	INV-T-4929	pending
 PeriodExtended	channel	INV-T-4930	pending
 PeriodDueDateChanged	channel	INV-T-4930	pending
 InstallationStatusChanged	channel	INV-T-4933	pending
+approveElectionChange	operation	INV-T-10125	pending
+getElectionStatus	operation	INV-T-4927	pending
