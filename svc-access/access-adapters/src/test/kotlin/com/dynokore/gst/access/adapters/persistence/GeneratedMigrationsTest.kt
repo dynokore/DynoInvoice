@@ -7,6 +7,7 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.Locale
 
 /**
  * The migrations that hold platform-generated DDL are exactly what the pinned platform modules generate: an upgrade of
@@ -34,7 +35,7 @@ class GeneratedMigrationsTest {
      */
     private fun escapeBlankCodePoints(text: String): String =
         BLANK_CODE_POINTS.fold(text) { acc, cp ->
-            acc.replace(String(Character.toChars(cp)), "\\u" + "%04X".format(cp))
+            acc.replace(String(Character.toChars(cp)), "\\u" + "%04X".format(Locale.ROOT, cp))
         }
 
     @Test
