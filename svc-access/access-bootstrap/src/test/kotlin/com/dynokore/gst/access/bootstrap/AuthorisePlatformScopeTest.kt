@@ -15,8 +15,8 @@ import java.util.UUID
 
 /**
  * INV-AC-9789 (INV-REQ-862 behaviours 4 and 5, INV-Q-8687 A): `authorise` with the scope `platform` reads the
- * operator-role grants of the platform tenant. Rows are inserted as the migration login (no seed row exists), and no row
- * of access.role_grant or access.identity changes in any call.
+ * operator-role grants of the platform tenant. Rows are inserted as the migration login (no seed row exists), and no
+ * row of access.role_grant or access.identity changes in any call.
  */
 class AuthorisePlatformScopeTest {
     private val platform = "ffffffff-ffff-ffff-ffff-ffffffffffff"
