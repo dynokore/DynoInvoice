@@ -3,6 +3,7 @@ package com.dynokore.gst.access.adapters.persistence
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.REVOCATION_ENTRY
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.REVOCATION_HEAD
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.VERIFICATION_KEY
+import com.dynokore.gst.access.application.authorise.PlatformRead
 import com.dynokore.gst.access.application.keys.EntryPosition
 import com.dynokore.gst.access.application.keys.RevocationStore
 import com.dynokore.gst.access.application.keys.VerificationKeyStore
@@ -24,8 +25,8 @@ class PlatformReads(
     private val tenants: PlatformTenantBinding,
     private val tx: TransactionRunner,
     private val actor: String,
-) {
-    fun <T> read(block: () -> T): T = tenants.bindPlatform(actor) { tx.inTransaction(block) }
+) : PlatformRead {
+    override fun <T> read(block: () -> T): T = tenants.bindPlatform(actor) { tx.inTransaction(block) }
 }
 
 class JooqRevocationStore(

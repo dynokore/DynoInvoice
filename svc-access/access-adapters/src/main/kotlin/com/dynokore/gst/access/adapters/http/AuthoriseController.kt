@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.http
 
 import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.authorise.AuthorisePlatform
 import com.dynokore.gst.access.application.authorise.MachineAuthorise
 import com.dynokore.gst.access.application.authorise.MachineDecision
 import com.dynokore.gst.access.application.keys.RevocationList
@@ -33,6 +34,7 @@ import java.util.Base64
 // template)
 open class AuthoriseController(
     private val authorise: Authorise,
+    private val platform: AuthorisePlatform,
     private val machine: MachineAuthorise,
     private val keys: VerificationKeys,
     private val revocations: RevocationList,
@@ -78,14 +80,17 @@ open class AuthoriseController(
         permission: String,
         scope: String,
     ): Decision {
-        val target = targetOf(scope)
+        // the scope is compared by equality or by the `entity:` prefix; every other value reads no grant
+        val onPlatform = scope == PLATFORM_SCOPE
+        val target = if (onPlatform) null else targetOf(scope)
         val principal = runCatching { IdentityRef(principalRef) }.getOrNull()
         val asked = runCatching { Permission(permission) }.getOrNull()
         return when {
-            target == null -> Decision.Deny(BAD_SCOPE)
+            target == null && !onPlatform -> Decision.Deny(BAD_SCOPE)
             principal == null -> Decision.Deny(BAD_PRINCIPAL)
             asked == null -> Decision.Deny(BAD_PERMISSION)
-            else -> authorise.handle(principal, asked, target)
+            onPlatform -> platform.handle(principal, asked)
+            else -> authorise.handle(principal, asked, checkNotNull(target))
         }
     }
 
@@ -158,6 +163,7 @@ open class AuthoriseController(
 
     private companion object {
         const val ENTITY_PREFIX = "entity:"
+        const val PLATFORM_SCOPE = "platform"
         const val PRINCIPAL_PREFIX = "PRN-"
         const val BAD_SCOPE = "BAD_SCOPE"
         const val BAD_PRINCIPAL = "BAD_PRINCIPAL"

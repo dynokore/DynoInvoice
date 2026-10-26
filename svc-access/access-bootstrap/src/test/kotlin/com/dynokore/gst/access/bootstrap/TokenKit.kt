@@ -6,6 +6,7 @@ import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.access.adapters.http.AuthoriseController
 import com.dynokore.gst.access.adapters.http.GatewayCaller
 import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.authorise.AuthorisePlatform
 import com.dynokore.gst.access.application.authorise.MachineAuthorise
 import com.dynokore.gst.access.application.keys.RevocationList
 import com.dynokore.gst.access.application.keys.VerificationKeys
@@ -36,6 +37,7 @@ class TokenKit(
     val keys: AuthoriseController =
         AuthoriseController(
             context.getBean(Authorise::class.java),
+            context.getBean(AuthorisePlatform::class.java),
             context.getBean(MachineAuthorise::class.java),
             context.getBean(VerificationKeys::class.java),
             context.getBean(RevocationList::class.java),
