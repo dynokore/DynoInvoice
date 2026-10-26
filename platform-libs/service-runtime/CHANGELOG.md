@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.11.0] - 2026-10-27
+### Added
+- `ReplicaColdStartSync` requests the authority replica's FULL_SYNC from `access-svc` at start-up through the shared start path of `rebuildConsumer` (actor `system:replica-cold-start`, no operator check, no 'rebuild required' state), and exposes `isOwnReplay` (INV-T-9057, INV-Q-9047 A). It passes only the empty clear `ReadModelClear("access-svc", [])`, never the service's own clears (INV-Q-11157 A), and re-checks every `recheckInterval` (default 30 s) as a `SmartLifecycle` on one virtual thread `replica-cold-start-recheck` (INV-Q-11159 A). `rebuildConsumer` behaves as before.
+
 ## [10.10.3] - 2026-10-26
 ### Changed
 - Metadata-only release (INV-T-11066, INV-Q-11056, G-DVS): depends on `tenancy-kernel 4.2.0`, whose published module metadata changed; no code change.

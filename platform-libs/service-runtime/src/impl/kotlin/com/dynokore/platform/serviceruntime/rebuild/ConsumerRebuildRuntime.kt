@@ -3,7 +3,9 @@ package com.dynokore.platform.serviceruntime.rebuild
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
+import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
+import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventContext
@@ -100,6 +102,7 @@ class ConsumerRebuildRuntime
         }
 
         private val appSide = Side(scope, outbox, audit)
+        private val operatorStart = StartRule(requireBehind = true, clears = fullSync?.clears) { null }
         private val json = ReplayJson()
         private val mapper = ObjectMapper()
 
@@ -113,19 +116,69 @@ class ConsumerRebuildRuntime
                     request.actor,
                 ) -> RebuildOutcome.Refused(RebuildErrorCode.ROLE_NOT_PERMITTED)
 
-                else -> rebuild(request, subscription.consumer, entry)
+                else -> rebuild(request, subscription.consumer, entry, operatorStart)
             }
         }
+
+        /**
+         * The start-up full sync of the authority replica (INV-Q-9047 A): the same start path as [rebuildConsumer]
+         * (head move, `ReplayRequested` and `AuditEntryRecorded` in one transaction, the repeat rule), but with no
+         * platform-operator check and without the 'rebuild required' state, because a replica starts empty after every
+         * restart. The audit entry's actor is [COLD_START_ACTOR] and its reason the replay id. The replica's read
+         * model is in memory, so the clear of its pair ([ACCESS_PRODUCER]) names no table and clears nothing.
+         * [TOPIC_NOT_CONSUMED] is the only refusal.
+         */
+        internal fun requestColdStartFullSync(
+            topic: String,
+            correlation: CorrelationId,
+            causation: CausationId,
+        ): RebuildOutcome {
+            val subscription = subscriptions.firstOrNull { it.topic == topic }
+            val entry = subscription?.let { catalogue.topic(topic) }
+            if (subscription == null ||
+                entry == null
+            ) {
+                return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
+            }
+            val request =
+                RebuildConsumerRequest(
+                    COLD_START_ACTOR,
+                    topic,
+                    ReplayMode.FULL_SYNC,
+                    null,
+                    UUID.randomUUID(),
+                    null,
+                    correlation,
+                    causation,
+                )
+            // INV-Q-11157 A: exactly this one clear, never the service's own fullSync.clears (even when they name
+            // access-svc): the replica is in memory and empty at start, so no table is cleared.
+            val clears = listOf(ReadModelClear(ACCESS_PRODUCER, emptyList()))
+            return rebuild(
+                request,
+                subscription.consumer,
+                entry,
+                StartRule(requireBehind = false, clears = clears) { it.toString() },
+            )
+        }
+
+        /** How a start differs between the operator's call and the cold start. */
+        private class StartRule(
+            val requireBehind: Boolean,
+            val clears: List<ReadModelClear>?,
+            val reasonOf: (UUID) -> String?,
+        )
 
         private fun rebuild(
             request: RebuildConsumerRequest,
             consumer: String,
             entry: CatalogueEntry,
+            rule: StartRule,
         ): RebuildOutcome {
             val (producers, side) =
                 if (request.mode == ReplayMode.FULL_SYNC) {
                     val closed = fullSyncAddressees(consumer, entry.producers)
-                    check(fullSync?.clears?.map { it.producer }?.containsAll(closed) == true) {
+                    check(rule.clears?.map { it.producer }?.containsAll(closed) == true) {
                         "a full sync from $closed needs the service's read-model clear for each (ReadModelClear)"
                     }
                     closed to appSide
@@ -134,7 +187,7 @@ class ConsumerRebuildRuntime
                 }
             repeat(ATTEMPTS) {
                 try {
-                    return side.platformTransaction(request.actor) { decide(side, request, consumer, producers) }
+                    return side.platformTransaction(request.actor) { decide(side, request, consumer, producers, rule) }
                 } catch (expected: Exception) {
                     // A concurrent call for the pair committed its pending replay first (unique index): read it again.
                     if (errors.sqlStateOf(expected) != UNIQUE_VIOLATION) throw expected
@@ -179,10 +232,11 @@ class ConsumerRebuildRuntime
             request: RebuildConsumerRequest,
             consumer: String,
             producers: List<String>,
+            rule: StartRule,
         ): RebuildOutcome =
             repeatOrConflict(side, request, consumer, producers)
-                ?: if (side.replay.isBehind(consumer, request.topic)) {
-                    start(side, request, consumer, producers)
+                ?: if (!rule.requireBehind || side.replay.isBehind(consumer, request.topic)) {
+                    start(side, request, consumer, producers, rule)
                 } else {
                     RebuildOutcome.Refused(RebuildErrorCode.NOT_REBUILD_REQUIRED)
                 }
@@ -192,6 +246,7 @@ class ConsumerRebuildRuntime
             request: RebuildConsumerRequest,
             consumer: String,
             producers: List<String>,
+            rule: StartRule,
         ): RebuildOutcome {
             val replayId = UUID.randomUUID()
             val requests = producers.map { ReplayRequest(replayId, it, request.mode, request.scope) }
@@ -203,7 +258,7 @@ class ConsumerRebuildRuntime
                             .filter { e ->
                                 e.producers.any { it in producers }
                             }.map { it.topic }
-                    val clears = fullSync?.clears.orEmpty().filter { it.producer in producers }
+                    val clears = rule.clears.orEmpty().filter { it.producer in producers }
                     side.replay.fullSync(consumer, topics, requests, clears, request.correlation, request.causation)
                 } else {
                     side.replay.request(
@@ -214,7 +269,10 @@ class ConsumerRebuildRuntime
                         request.causation,
                     )
                 }
-            side.audit.record(auditEntry(request, producers, moved), context(replayId, request))
+            side.audit.record(
+                auditEntry(request, producers, moved, rule.reasonOf(replayId)),
+                context(replayId, request),
+            )
             val pending =
                 side.replay.pending(consumer, producers.first()) ?: error("the pending replay was just written")
             return RebuildOutcome.Done(state(pending, request.topic, producers, repeat = false), created = true)
@@ -272,6 +330,7 @@ class ConsumerRebuildRuntime
             request: RebuildConsumerRequest,
             producers: List<String>,
             moved: List<MovedPosition>,
+            reason: String?,
         ): AuditEntry {
             val scopeNode = mapper.createObjectNode()
             scopeNode.put("consumerService", service)
@@ -287,7 +346,7 @@ class ConsumerRebuildRuntime
                 actor = request.actor,
                 action = OPERATION,
                 scope = mapper.writeValueAsString(scopeNode),
-                reason = request.reason ?: "Idempotency-Key ${request.idempotencyKey}",
+                reason = reason ?: request.reason ?: "Idempotency-Key ${request.idempotencyKey}",
                 priorStateJson = mapper.writeValueAsString(prior),
             )
         }
@@ -308,6 +367,8 @@ class ConsumerRebuildRuntime
 
         private companion object {
             const val OPERATION = "rebuildConsumer"
+            const val COLD_START_ACTOR = "system:replica-cold-start"
+            const val ACCESS_PRODUCER = "access-svc"
             const val UNIQUE_VIOLATION = "23505"
             const val ATTEMPTS = 3
         }
