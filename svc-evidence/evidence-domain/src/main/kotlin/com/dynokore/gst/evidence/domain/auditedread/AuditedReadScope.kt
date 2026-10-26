@@ -9,6 +9,13 @@ import java.util.UUID
 object AuditedReadScope {
     const val ACK_ID_MAX_LENGTH = 100
     private const val HEX = "0123456789ABCDEF"
+    private const val BYTE_MASK = 0xFF
+    private const val NIBBLE = 4
+    private const val NIBBLE_MASK = 0x0F
+
+    /** RFC 3986 unreserved characters: A-Z a-z 0-9 - . _ ~ (all ASCII). */
+    private val UNRESERVED: Set<Int> =
+        (('A'..'Z') + ('a'..'z') + ('0'..'9') + listOf('-', '.', '_', '~')).map { it.code }.toSet()
 
     fun entryOf(call: AuditedCall): AuditedReadEntry =
         when (call) {
@@ -62,14 +69,11 @@ object AuditedReadScope {
         require(value.isNotBlank()) { "$name must not be blank" }
         val out = StringBuilder()
         for (byte in value.toByteArray(Charsets.UTF_8)) {
-            val b = byte.toInt() and 0xFF
-            val c = b.toChar()
-            if (b < 0x80 &&
-                (c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c == '-' || c == '.' || c == '_' || c == '~')
-            ) {
-                out.append(c)
+            val b = byte.toInt() and BYTE_MASK
+            if (b in UNRESERVED) {
+                out.append(b.toChar())
             } else {
-                out.append('%').append(HEX[b shr 4]).append(HEX[b and 0x0F])
+                out.append('%').append(HEX[b shr NIBBLE]).append(HEX[b and NIBBLE_MASK])
             }
         }
         return out.toString()

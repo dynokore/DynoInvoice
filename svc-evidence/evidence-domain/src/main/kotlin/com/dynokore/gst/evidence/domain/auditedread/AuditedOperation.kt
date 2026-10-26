@@ -13,7 +13,7 @@ enum class AuditedOperation(
     GET_AUDIT_PACK_EXPORT("getAuditPackExport"),
 }
 
-/** The search parameters of `reverseLookup` that enter the scope, in the order of the scope text; never `limit` or `cursor`. */
+/** The search parameters of `reverseLookup` in the order of the scope text; never `limit` or `cursor`. */
 enum class ReverseLookupParameter(
     val parameterName: String,
 ) {
