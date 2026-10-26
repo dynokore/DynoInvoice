@@ -126,7 +126,7 @@ class PlatformGrantWriteSurfaceTest {
     private fun refusalCode(block: () -> Any?): ClosedErrorCode? =
         (runCatching { block() }.exceptionOrNull() as? ApiRefusal)?.code
 
-    /** Every writer of role_grant, each called with every operator role it takes (the revoke and the unmap take none). */
+    /** Every writer of role_grant, called once per operator role it takes (revoke and unmap take none). */
     private fun writerCalls(
         context: AssertableWebApplicationContext,
         suffix: String,
