@@ -1,4 +1,5 @@
 -- V202610210830__create_idempotency.sql: platform-generated DDL (TPL-12); regenerate with GeneratedMigrationsTest, never edit by hand.
+-- Generated: service-runtime's IdempotencySchema.ddl("controlplane", "controlplane_runtime", "controlplane_sys") of the platform-libs-bom 0.103.0 train.
 create table controlplane.idempotency_key (
     tenant_id uuid not null,
     principal text not null,

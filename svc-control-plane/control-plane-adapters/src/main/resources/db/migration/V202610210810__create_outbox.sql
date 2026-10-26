@@ -1,4 +1,5 @@
 -- V202610210810__create_outbox.sql: platform-generated DDL (TPL-12); regenerate with GeneratedMigrationsTest, never edit by hand.
+-- Generated: outbox-and-queue's OutboxSchema.ddl("controlplane", "controlplane_runtime", "controlplane_sys") of the platform-libs-bom 0.103.0 train.
 create table controlplane.outbox (
     seq bigint generated always as identity primary key,
     id text not null unique,

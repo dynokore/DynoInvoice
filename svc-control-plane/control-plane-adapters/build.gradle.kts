@@ -82,6 +82,14 @@ dependencies {
     testFixturesImplementation(project(":control-plane-application"))
     testFixturesImplementation(libs.bouncycastle.bcprov)
     testFixturesImplementation(libs.bouncycastle.bcpkix)
+    // PostgresDb, the integration-test harness that control-plane-bootstrap's integrationTest reuses (INV-Q-10926 A)
+    testFixturesImplementation(libs.testcontainers.postgresql)
+    testFixturesImplementation(libs.jooq)
+    testFixturesImplementation(libs.postgresql)
+    testFixturesImplementation(libs.platform.tenancyKernel)
+    testFixturesImplementation(libs.platform.tenancyJooq.api) {
+        capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
+    }
 
     integrationTestImplementation(testFixtures(project))
     integrationTestImplementation(libs.testcontainers.postgresql)

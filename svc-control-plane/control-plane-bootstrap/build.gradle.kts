@@ -15,6 +15,20 @@ plugins {
     id("org.springframework.boot")
 }
 
+sourceSets {
+    create("integrationTest") {
+        compileClasspath += sourceSets["main"].output + sourceSets["test"].output + configurations["testCompileClasspath"]
+        runtimeClasspath += output + compileClasspath + configurations["testRuntimeClasspath"]
+    }
+}
+
+val integrationTestImplementation: Configuration by configurations.getting {
+    extendsFrom(configurations["testImplementation"])
+}
+val integrationTestRuntimeOnly: Configuration by configurations.getting {
+    extendsFrom(configurations["testRuntimeOnly"])
+}
+
 dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
@@ -35,6 +49,7 @@ dependencies {
     // EntityRef and TenantId, the parameter types of JobCommandAuthorizer
     implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.platform.tenancyKernel.api)
+    implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.rulepackKernel.api)
     // the BouncyCastleCms bean of service-runtime's CryptoWiring (DetachedSigner)
     runtimeOnly(libs.platform.crypto)
@@ -53,6 +68,40 @@ dependencies {
     testImplementation(libs.springBoot.test)
     // AssertableApplicationContext, the result type of ApplicationContextRunner.run, names AssertJ in its supertypes
     testImplementation(libs.assertj.core)
+    // AuditWriter and OutboxAuditWriter, named by the composition test
+    testImplementation(libs.platform.auditLog.api)
+    testImplementation(libs.platform.auditLog)
+
+    // JobRuntimeIT runs the composition over the harness of control-plane-adapters (INV-Q-10926 A)
+    integrationTestImplementation(testFixtures(project(":control-plane-adapters")))
+    integrationTestImplementation(libs.jooq)
+    integrationTestImplementation(libs.postgresql)
+    integrationTestImplementation(libs.platform.productRuntime.api)
+    integrationTestImplementation(libs.platform.tenancyKernel)
 }
 
 tasks.withType<Test> { useJUnitPlatform() }
+
+val integrationTest =
+    tasks.register<Test>("integrationTest") {
+        group = "verification"
+        description = "STK-39: the job runtime of the composition against PostgreSQL in Testcontainers, as the runtime login (CS-19)."
+        testClassesDirs = sourceSets["integrationTest"].output.classesDirs
+        classpath = sourceSets["integrationTest"].runtimeClasspath
+        shouldRunAfter(tasks.named("test"))
+        systemProperty("gst.pg.image", System.getProperty("gst.pg.image") ?: "postgres:18")
+        systemProperty(
+            "gst.sql.dir",
+            rootProject.layout.projectDirectory
+                .dir("control-plane-adapters/src/integrationTest/resources")
+                .asFile.path,
+        )
+        systemProperty(
+            "gst.migrations.dir",
+            rootProject.layout.projectDirectory
+                .dir("control-plane-adapters/src/main/resources/db/migration")
+                .asFile.path,
+        )
+    }
+
+tasks.named("check") { dependsOn(integrationTest) }

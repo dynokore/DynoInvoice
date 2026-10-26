@@ -1,4 +1,5 @@
 -- V202610210820__create_job_tables.sql: platform-generated DDL (TPL-12); regenerate with GeneratedMigrationsTest, never edit by hand.
+-- Generated: service-runtime's JobSchema.ddl("controlplane", "controlplane_runtime", "controlplane_sys") of the platform-libs-bom 0.103.0 train.
 create table controlplane.shedlock (
     name varchar(255) not null primary key,
     lock_until timestamp not null,
