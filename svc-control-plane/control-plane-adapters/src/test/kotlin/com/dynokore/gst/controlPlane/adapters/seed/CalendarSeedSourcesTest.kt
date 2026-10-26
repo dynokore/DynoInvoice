@@ -93,7 +93,7 @@ class CalendarSeedSourcesTest {
     private fun named(
         problems: List<String>,
         path: String,
-    ) = problems.filter { it.startsWith("$path:") }.isNotEmpty() shouldBe true
+    ) = problems.any { it.startsWith("$path:") } shouldBe true
 
     @Test
     fun `INV-AC-1727 the shipped sources table covers every leaf and passes every check`() {

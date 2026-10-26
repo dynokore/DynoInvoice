@@ -45,19 +45,22 @@ class CalendarSeedSchemaTest {
                         pack
                             .path("alertThresholds")
                             .properties()
-                            .map { it.key }
+                            .map { entry -> entry.key }
                             .toSet() != frequencies
                     },
             ) +
             pack.path("alertThresholds").properties().mapNotNull { (freq, list) ->
                 "alertThresholds/$freq do not fall strictly".takeIf {
-                    list.items().map { it.asInt() }.zipWithNext().any {
-                        it.first <=
-                            it.second
-                    }
+                    !fallsStrictly(
+                        list.items().map { day ->
+                            day.asInt()
+                        },
+                    )
                 }
             }
     }
+
+    private fun fallsStrictly(days: List<Int>) = days.zipWithNext().all { (first, second) -> first > second }
 
     private fun windowProblems(
         freq: String,
