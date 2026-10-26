@@ -71,7 +71,7 @@ class CreateDocumentVersion(
  * Rebuilds the derived tables from the canonical JSONB (INV-REQ-2572). Each version is its own transaction; a version
  * that violates C-6 or the canonical shape is reported and none of its rows is written or deleted.
  */
-class RebuildDerived(
+class DerivedTablesRebuild(
     private val store: DocumentStore,
     private val transaction: TransactionRunner,
 ) {
