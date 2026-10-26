@@ -1,0 +1,16 @@
+{
+  "changeKind": "ROLE_GRANT",
+  "principalRef": "PRN-8C41",
+  "authorityVersion": 90413,
+  "roleGrantRecord": {
+    "grantRef": "GRT-0004",
+    "role": "external.auditor",
+    "state": "ACTIVE",
+    "scopeLevel": "ENTITY_PERIOD",
+    "scopeRef": "ENT-3F2A9C",
+    "validFrom": "2027-01-15T00:00:00Z",
+    "periodFrom": "2027-01-01",
+    "periodTo": "2027-06-30",
+    "validUntil": "2027-09-30T23:59:59Z"
+  }
+}

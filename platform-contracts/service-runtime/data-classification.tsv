@@ -37,3 +37,4 @@ schemas/break-glass-session-changed-payload.schema.json	tenantRef	NONE
 schemas/break-glass-session-changed-payload.schema.json	status	NONE
 schemas/break-glass-session-changed-payload.schema.json	expiresAt	NONE
 schemas/break-glass-session-changed-payload.schema.json	approvedBy	IDENTIFYING
+schemas/authority-changed-payload.schema.json	roleGrantRecord	NONE

@@ -1,0 +1,13 @@
+{
+  "changeKind": "ROLE_GRANT",
+  "principalRef": "PRN-8C41",
+  "authorityVersion": 90413,
+  "roleGrantRecord": {
+    "grantRef": "GRT-0006",
+    "role": "agent.filer",
+    "state": "ACTIVE",
+    "scopeLevel": "CLIENT_ENTITY",
+    "scopeRef": "CLE-4410",
+    "validFrom": "2026-11-01T00:00:00Z"
+  }
+}

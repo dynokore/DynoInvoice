@@ -1,0 +1,12 @@
+{
+  "changeKind": "ROLE_GRANT",
+  "principalRef": "PRN-8C41",
+  "authorityVersion": 90413,
+  "roleGrantRecord": {
+    "grantRef": "GRT-0002",
+    "role": "platform.operator",
+    "state": "ACTIVE",
+    "scopeLevel": "INSTALLATION",
+    "validFrom": "2026-11-01T00:00:00Z"
+  }
+}

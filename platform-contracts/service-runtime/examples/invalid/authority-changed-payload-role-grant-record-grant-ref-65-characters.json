@@ -1,0 +1,13 @@
+{
+  "changeKind": "ROLE_GRANT",
+  "principalRef": "PRN-8C41",
+  "authorityVersion": 90413,
+  "roleGrantRecord": {
+    "grantRef": "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+    "role": "tenant.admin",
+    "state": "ACTIVE",
+    "scopeLevel": "TENANT",
+    "scopeRef": "TEN-7B1004",
+    "validFrom": "2026-11-01T00:00:00Z"
+  }
+}

@@ -95,3 +95,9 @@ expiresAt	property	schemas/break-glass-session-changed-payload.schema.json	INV-R
 approvedBy	property	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
 OPEN	enum_value	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
 SEALED	enum_value	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
+# INV-T-9231. The role grant record of AuthorityChanged (INV-Q-8972 A).
+ROLE_GRANT	enum_value	schemas/authority-changed-payload.schema.json	INV-REQ-864
+roleGrantRecord	property	schemas/authority-changed-payload.schema.json	INV-REQ-864
+grantRef	property	schemas/authority-changed-payload.schema.json	INV-REQ-864
+INSTALLATION	enum_value	schemas/authority-changed-payload.schema.json	INV-REQ-864
+CLIENT_ENTITY	enum_value	schemas/authority-changed-payload.schema.json	INV-REQ-864

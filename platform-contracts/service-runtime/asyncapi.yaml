@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -332,7 +332,7 @@ components:
       summary: AuthorityChanged
       description: >-
         A grant, consent, principal or revocation change of authority, with its validity and a monotonic
-        authority version (INV-REQ-1201, INV-REQ-815, INV-Q-9229 A). Class: platform. Written with a real
+        authority version (INV-REQ-1201, INV-REQ-815, INV-Q-9229 A). A role grant record (changeKind ROLE_GRANT) is one grant of a role, carried once (INV-REQ-864, INV-Q-8972 A); CloudEvents subject of a role grant record is principalRef/grantRef. Class: platform. Written with a real
         tenant and the tenant-wide entity, and a grant at INSTALLATION scope under the platform tenant with
         no tenant and no entity (INV-Q-9229 A). Emitted by: access-svc. Consumed by: aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Delivery:
         At-least-once. Every service's authority replica is fed from this topic (INV-REQ-1201, INV-ADR-284).

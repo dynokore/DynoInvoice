@@ -2,17 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/authority-changed-payload.schema.json",
   "title": "AuthorityChangedPayload",
-  "description": "Payload of the AuthorityChanged platform event, whose schema service-runtime owns (INV-REQ-1226, INV-Q-9229 A); access-svc emits it. Moved by copy from access/schemas/authority-changed-payload.schema.json (INV-T-9355); the properties are the same. Class: platform. Payload of the AuthorityChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9); grant, consent and principal records added by INV-T-3298 (INV-API-3325, INV-Q-3322 (b), INV-Q-3339). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required. One event carries exactly one record: a grantRecord (changeKind GRANT), a consentRecord (changeKind CONSENT) or a principalRecord (changeKind PRINCIPAL, a deletion, or REVOCATION; INV-Q-3702), each keyed on its own and versioned by this event's authorityVersion. access-svc never emits an event without a record; an event that carries none of the three (a 1.0-shaped or faulty event) has no grant state: an authority replica drops what it holds for that principal and denies, never keeps it, so a revoke can never be lost (INV-REQ-1214). principalKind is never on the wire: the replica takes it from the propagated token (INV-REQ-1202 b2, INV-Q-3259).",
+  "description": "Payload of the AuthorityChanged platform event, whose schema service-runtime owns (INV-REQ-1226, INV-Q-9229 A); access-svc emits it. Moved by copy from access/schemas/authority-changed-payload.schema.json (INV-T-9355); the properties are the same. Class: platform. Payload of the AuthorityChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9); grant, consent and principal records added by INV-T-3298 (INV-API-3325, INV-Q-3322 (b), INV-Q-3339). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required. One event carries exactly one record: a grantRecord (changeKind GRANT), a consentRecord (changeKind CONSENT), a principalRecord (changeKind PRINCIPAL, a deletion, or REVOCATION; INV-Q-3702) or a roleGrantRecord (changeKind ROLE_GRANT, keyed on (tenant, principalRef, grantRef) and versioned by this event's authorityVersion), each keyed on its own and versioned by this event's authorityVersion. access-svc never emits an event without a record; an event that carries none of the four (a 1.0-shaped or faulty event) has no grant state: an authority replica drops what it holds for that principal and denies, never keeps it, so a revoke can never be lost (INV-REQ-1214). principalKind is never on the wire: the replica takes it from the propagated token (INV-REQ-1202 b2, INV-Q-3259). A role grant is carried once, as the grant, and never expanded to entities or to actions: a replica resolves the covered entities from its structure replica and the permitted actions from the permission matrix of the gst-catalogue (INV-REQ-864, INV-Q-8972 A). The record of an INSTALLATION grant has no scopeRef; the tenant and the entity of the envelope are fixed by the ruling of INV-Q-9229 A and not by this schema: a real tenant and the tenant-wide entity for every scope level but INSTALLATION, the platform tenant and the platform entity for INSTALLATION. The tombstone of a REMOVED grant is kept for a time-to-live longer than the event-log retention.",
   "type": "object",
   "properties": {
     "changeKind": {
       "type": "string",
-      "description": "What kind of authority change this is. Every event carries exactly one record (INV-Q-3702): GRANT a grantRecord, CONSENT a consentRecord, PRINCIPAL (a deletion, only) the principalRecord DELETED, REVOCATION the principalRecord REVOKED. A principal change that removes all of the principal's authority without deleting it (deactivation, suspension) is a REVOCATION; a reactivation re-emits the principal's current grant records with higher versions; a principal change that leaves its authority unchanged (creation before any grant, name or contact change, credential rotation) emits no AuthorityChanged.",
+      "description": "What kind of authority change this is. Every event carries exactly one record (INV-Q-3702): GRANT a grantRecord, CONSENT a consentRecord, PRINCIPAL (a deletion, only) the principalRecord DELETED, REVOCATION the principalRecord REVOKED. A principal change that removes all of the principal's authority without deleting it (deactivation, suspension) is a REVOCATION; a reactivation re-emits the principal's current grant records with higher versions; a principal change that leaves its authority unchanged (creation before any grant, name or contact change, credential rotation) emits no AuthorityChanged. ROLE_GRANT carries a roleGrantRecord: one role grant of one principal, keyed on grantRef.",
       "enum": [
         "GRANT",
         "CONSENT",
         "PRINCIPAL",
-        "REVOCATION"
+        "REVOCATION",
+        "ROLE_GRANT"
       ]
     },
     "principalRef": {
@@ -46,7 +47,7 @@
     },
     "grantRecord": {
       "type": "object",
-      "description": "Present when changeKind is GRANT: the full grant state, after the change, of one (tenant, principalRef, entityRef), replacing whole whatever a replica holds for that key (INV-Q-3322 (b), INV-REQ-864). The tenant is the envelope's tenantid (API-40). Tenant and group grants are expanded by access-svc into one grant record per entity under the scope, and re-emitted when an entity is created, moved or retired under it; a replica never resolves a scope through its structure replica. A change touching N entities emits N events in one outbox transaction.",
+      "description": "Deprecated: access-svc stops publishing it when the publisher task INV-T-9234 merges; a replica built for `roleGrantRecord` neither reads nor drops it. Present when changeKind is GRANT: the full grant state, after the change, of one (tenant, principalRef, entityRef), replacing whole whatever a replica holds for that key (INV-Q-3322 (b), INV-REQ-864). The tenant is the envelope's tenantid (API-40). Tenant and group grants are expanded by access-svc into one grant record per entity under the scope, and re-emitted when an entity is created, moved or retired under it; a replica never resolves a scope through its structure replica. A change touching N entities emits N events in one outbox transaction.",
       "properties": {
         "entityRef": {
           "type": "string",
@@ -196,6 +197,78 @@
       },
       "required": [
         "state"
+      ],
+      "additionalProperties": true
+    },
+    "roleGrantRecord": {
+      "type": "object",
+      "description": "Present when changeKind is ROLE_GRANT: one role grant of one principal, keyed (tenant, principalRef, grantRef) and versioned by this event's authorityVersion (INV-REQ-864 b1, b2, INV-Q-8972 A). The grant is carried once and never expanded to entities or actions: a replica resolves the covered entities from its structure replica and the permitted actions from the permission matrix of the gst-catalogue. An INSTALLATION grant has no scopeRef.",
+      "properties": {
+        "grantRef": {
+          "type": "string",
+          "description": "The access-svc identifier of the grant, the key of the record inside (tenant, principalRef).",
+          "maxLength": 64
+        },
+        "role": {
+          "type": "string",
+          "description": "The role key as in the role-by-permission table of the gst-catalogue, for example tenant.admin.",
+          "maxLength": 100
+        },
+        "state": {
+          "type": "string",
+          "description": "ACTIVE replaces whole what a replica holds for the key; REMOVED is the removal that a replica keeps as a tombstone with its authorityVersion until its tombstone time-to-live, which is longer than the event-log retention. Fail-closed: a replica treats any value it does not recognise as REMOVED.",
+          "enum": [
+            "ACTIVE",
+            "REMOVED"
+          ],
+          "x-extensible-enum": true
+        },
+        "scopeLevel": {
+          "type": "string",
+          "description": "The scope level of the grant (INV-REQ-864 b1): TENANT, INSTALLATION, GROUP, ENTITY, ENTITY_PERIOD, CONSENT or CLIENT_ENTITY. Fail-closed: a replica matches nothing for a value it does not recognise and never reads it as a plain ENTITY grant. ENTITY covers every period; ENTITY_PERIOD covers only periodFrom..periodTo; CONSENT needs, in addition, a live consentRecord (INV-REQ-865).",
+          "enum": [
+            "TENANT",
+            "INSTALLATION",
+            "GROUP",
+            "ENTITY",
+            "ENTITY_PERIOD",
+            "CONSENT",
+            "CLIENT_ENTITY"
+          ],
+          "x-extensible-enum": true
+        },
+        "scopeRef": {
+          "type": "string",
+          "description": "The tenant, group, entity, client entity or consent the grant was made on; absent exactly when scopeLevel is INSTALLATION.",
+          "maxLength": 64
+        },
+        "validFrom": {
+          "type": "string",
+          "description": "Start of the grant's validity window.",
+          "format": "date-time"
+        },
+        "validUntil": {
+          "type": "string",
+          "description": "End of the grant's validity window, absent when open-ended.",
+          "format": "date-time"
+        },
+        "periodFrom": {
+          "type": "string",
+          "description": "ENTITY_PERIOD only, and then always present: first day of the first granted GST accounting period. A date, never a period name, since the filing frequency can change (INV-Q-3339, INV-AC-1911). An ENTITY_PERIOD grant without periodFrom and periodTo matches nothing.",
+          "format": "date"
+        },
+        "periodTo": {
+          "type": "string",
+          "description": "ENTITY_PERIOD only, and then always present: last day of the last granted GST accounting period. A request matches only when its whole period lies inside periodFrom..periodTo, independently of the validity window.",
+          "format": "date"
+        }
+      },
+      "required": [
+        "grantRef",
+        "role",
+        "state",
+        "scopeLevel",
+        "validFrom"
       ],
       "additionalProperties": true
     }
