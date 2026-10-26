@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.5.2] - 2026-10-26
+### Changed
+- Metadata-only release (INV-T-11066, INV-Q-11056, G-DVS): depends on `tenancy-kernel 4.2.0`, whose published module metadata changed; no code change.
+
 ## [6.5.1] - 2026-10-26
 ### Changed
 - Generated SQL changes in text only (the blank set does not change; INV-Q-10832, INV-Q-10848, INV-T-10836): the `BlankText` constants of tenancy-kernel 4.1.1 are written with ASCII escapes and Kotlin inlines them at this module's compile time.

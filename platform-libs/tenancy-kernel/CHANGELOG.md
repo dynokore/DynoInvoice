@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-10-26
+### Added
+- `TransactionRunner.afterCommit(action)` (INV-T-11066; INV-Q-11056 (A); INV-REQ-1384): the action runs once, in registration order, after the outermost transaction committed and its connection closed; no action runs on rollback or a failed commit; with no open transaction the call throws `IllegalStateException`. The member has a default body that throws `UnsupportedOperationException` naming the runner's class, so existing implementors still compile (MINOR). `TransactionRunnerImpl` implements it (README.md "Transaction binding").
+
 ## [4.1.1] - 2026-10-26
 ### Fixed
 - The blank-set regex of `BlankText.SQL_BLANK` is written with printable ASCII only (INV-T-10836; INV-Q-10832 (A), INV-Q-10848; INV-AC-10840): the characters U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF are now the six-character escapes `\uXXXX` that PostgreSQL and `java.util.regex` read as the code point. Flyway 12.4.0 drops U+FEFF from a migration script, so a database built from the generated SQL lacked it in the blank check class. The blank set does not change.

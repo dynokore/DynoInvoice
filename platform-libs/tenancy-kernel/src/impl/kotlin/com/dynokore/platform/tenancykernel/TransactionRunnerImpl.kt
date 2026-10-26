@@ -61,7 +61,10 @@ class TransactionRunnerImpl
             val connection: Connection,
             val tenant: TenantId,
             val actor: String,
-        )
+        ) {
+            /** The actions of [afterCommit], held by this transaction and touched only by its thread. */
+            val afterCommit = mutableListOf<() -> Unit>()
+        }
 
         private val open = ThreadLocal<Open>()
 
@@ -88,12 +91,15 @@ class TransactionRunnerImpl
 
             val signature = signedBinding(tenant, actor)
             val connection = dataSource.connection
+            val transaction: Open
+            val result: T
             try {
                 connection.autoCommit = false
                 bindSettings(connection, tenant, actor, signature)
-                open.set(Open(connection, tenant, actor))
+                transaction = Open(connection, tenant, actor)
+                open.set(transaction)
 
-                val result =
+                result =
                     try {
                         block()
                     } catch (expected: Throwable) {
@@ -101,10 +107,32 @@ class TransactionRunnerImpl
                         throw expected
                     }
                 connection.commit()
-                return result
             } finally {
                 open.remove()
                 connection.close() // TenantAwareDataSource: RESET app.tenant_id and app.actor, then back to the pool
+            }
+            runAfterCommit(transaction.afterCommit)
+            return result
+        }
+
+        override fun afterCommit(action: () -> Unit) {
+            val transaction =
+                checkNotNull(open.get()) {
+                    "afterCommit needs an open transaction on this thread (INV-Q-11056): no action is registered."
+                }
+            transaction.afterCommit += action
+        }
+
+        /** Runs each action once, in order, after the transaction ended; an `Exception` of one never reaches the caller. */
+        private fun runAfterCommit(actions: List<() -> Unit>) {
+            for (action in actions) {
+                try {
+                    action()
+                } catch (failure: Exception) {
+                    System
+                        .getLogger(TransactionRunnerImpl::class.java.name)
+                        .log(System.Logger.Level.ERROR, "An afterCommit action failed (INV-Q-11056)", failure)
+                }
             }
         }
 

@@ -38,4 +38,20 @@ interface TransactionRunner {
      * fewer, the inner checkout is refused with [LaneRefusedException].
      */
     fun <T> outsideOpenTransaction(block: () -> T): T = block()
+
+    /**
+     * Registers [action] to run once after the outermost transaction of the calling thread has committed and its
+     * connection has been closed (INV-T-11066, INV-Q-11056). Actions run in registration order on the thread that
+     * called the outermost [inTransaction]. If the block or the commit throws, no action runs. An action that throws
+     * an `Exception` does not stop the later actions and does not change what [inTransaction] returns or throws.
+     * With no transaction open on the calling thread, also inside [outsideOpenTransaction], it throws
+     * `IllegalStateException` and registers nothing.
+     *
+     * A runner that cannot honour the hook must not run the action at once or drop it: the default body throws
+     * `UnsupportedOperationException` naming the runner's class.
+     */
+    fun afterCommit(action: () -> Unit): Unit =
+        throw UnsupportedOperationException(
+            "${javaClass.name} does not support afterCommit: it cannot run an action after the commit (INV-Q-11056).",
+        )
 }
