@@ -28,25 +28,48 @@ class CalendarSeedSourcesTest {
             for (name in listOf("pinnedRule", "transition")) {
                 if (root.has(name)) problems += "/$name: contents.json holds $name, which stays absent"
             }
-            val byPath = rows.groupBy { it.path }
-            for ((path, value) in leaves) {
-                val own = byPath[path].orEmpty()
-                if (own.isEmpty()) problems += "$path: the leaf has no row in sources.tsv"
-                if (own.size > 1) problems += "$path: ${own.size} rows in sources.tsv"
-                own.firstOrNull()?.let { if (it.value != value) problems += "$path: the row value ${it.value} is not the leaf $value" }
-            }
-            for (row in rows) {
-                val p = row.path
-                if (p !in leaves) problems += "$p: the row names a path that contents.json does not hold"
-                if (row.citation.isBlank()) problems += "$p: the citation is empty"
-                if (row.kind !in KINDS) problems += "$p: source kind '${row.kind}' is not REQUIREMENT or LAW"
-                if (row.sourceClass !in CLASSES) problems += "$p: source class '${row.sourceClass}' is not PRIMARY, SECONDARY or INFERRED"
-                if (row.kind == "REQUIREMENT" && !KEEL_KEY.matches(row.citation)) {
-                    problems += "$p: the REQUIREMENT citation '${row.citation}' is not a Keel key INV-AC-n or INV-REQ-n"
-                }
-                if (row.kind == "LAW" && !DATE.matches(row.retrievedOn)) problems += "$p: the LAW row has no retrieval date"
-            }
+            problems += leafProblems(leaves, rows)
+            rows.forEach { problems += rowProblems(it, it.path in leaves) }
             return problems
+        }
+
+        private fun leafProblems(
+            leaves: Map<String, String>,
+            rows: List<SourceRow>,
+        ): List<String> {
+            val byPath = rows.groupBy { it.path }
+            return leaves.flatMap { (path, value) ->
+                val own = byPath[path].orEmpty()
+                listOfNotNull(
+                    "$path: the leaf has no row in sources.tsv".takeIf { own.isEmpty() },
+                    "$path: ${own.size} rows in sources.tsv".takeIf { own.size > 1 },
+                    own
+                        .firstOrNull()
+                        ?.takeIf {
+                            it.value != value
+                        }?.let { "$path: the row value ${it.value} is not the leaf $value" },
+                )
+            }
+        }
+
+        private fun rowProblems(
+            row: SourceRow,
+            known: Boolean,
+        ): List<String> {
+            val p = row.path
+            val requirement = row.kind == "REQUIREMENT"
+            return listOfNotNull(
+                "$p: the row names a path that contents.json does not hold".takeIf { !known },
+                "$p: the citation is empty".takeIf { row.citation.isBlank() },
+                "$p: source kind '${row.kind}' is not REQUIREMENT or LAW".takeIf { row.kind !in KINDS },
+                "$p: source class '${row.sourceClass}' is not PRIMARY, SECONDARY or INFERRED".takeIf {
+                    row.sourceClass !in
+                        CLASSES
+                },
+                "$p: the REQUIREMENT citation '${row.citation}' is not a Keel key INV-AC-n or INV-REQ-n"
+                    .takeIf { requirement && !KEEL_KEY.matches(row.citation) },
+                "$p: the LAW row has no retrieval date".takeIf { row.kind == "LAW" && !DATE.matches(row.retrievedOn) },
+            )
         }
 
         fun withContents(edit: (ObjectNode) -> Unit): String {
@@ -122,7 +145,10 @@ class CalendarSeedSourcesTest {
     @Test
     fun `INV-AC-1727 probe a row for a path contents does not hold fails naming the path`() {
         val extra = "/holidays/99\t\"2027-06-15\"\tLAW\tPRIMARY\tMOM\t2026-10-26"
-        named(violations(CalendarSeedFiles.contents, CalendarSeedFiles.sources.trimEnd('\n') + "\n" + extra + "\n"), "/holidays/99")
+        named(
+            violations(CalendarSeedFiles.contents, CalendarSeedFiles.sources.trimEnd('\n') + "\n" + extra + "\n"),
+            "/holidays/99",
+        )
     }
 
     @Test

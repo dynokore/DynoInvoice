@@ -3,6 +3,7 @@ package com.dynokore.gst.controlPlane.adapters.seed
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.node.ArrayNode
 import tools.jackson.databind.node.ObjectNode
 
@@ -27,39 +28,60 @@ class CalendarSeedEntrySourcesTest {
             val authored =
                 entries.mapValues { (key, paths) ->
                     val own = paths.mapNotNull { rows[it] }
-                    val shapes = own.map { listOf(it.kind, it.sourceClass, it.citation, it.retrievedOn) }.toSet()
-                    if (shapes.size > 1) problems += "$key: its leaves differ in kind, class, citation or retrieved-on in sources.tsv"
+                    if (own.map { listOf(it.kind, it.sourceClass, it.citation, it.retrievedOn) }.toSet().size > 1) {
+                        problems += "$key: its leaves differ in kind, class, citation or retrieved-on in sources.tsv"
+                    }
                     own.firstOrNull()
                 }
             val counts = LinkedHashMap<String, Int>()
             for (row in root.path("entrySources")) {
                 val key = CalendarSeedFiles.entryOfRow(row)
-                if (key == null) {
-                    problems += "invalid row: the entrySources row $row names no entry"
-                    continue
-                }
-                counts.merge(key, 1, Int::plus)
-                if (key !in entries) {
-                    problems += "$key: the entrySources row names an entry that contents.json does not hold"
-                    continue
-                }
-                val source = authored[key] ?: continue
-                if (row.path("sourceClass").asString() != source.sourceClass) {
-                    problems += "$key: the row class '${row.path("sourceClass").asString()}' differs from sources.tsv '${source.sourceClass}'"
-                }
-                if (row.path("sourceReference").asString() != source.citation) {
-                    problems += "$key: the row reference differs from the citation in sources.tsv"
-                }
+                if (key == null) problems += "invalid row: the entrySources row $row names no entry"
+                if (key != null) counts.merge(key, 1, Int::plus)
+                if (key != null) problems += rowProblems(key, row, key in entries, authored[key])
             }
-            for (key in entries.keys) {
-                when (counts[key] ?: 0) {
-                    0 -> problems += "$key: the entry has no row in entrySources"
-                    1 -> {}
-                    else -> problems += "$key: the entry has ${counts[key]} rows in entrySources"
-                }
-            }
+            problems += countProblems(entries.keys, counts)
             return problems
         }
+
+        private fun rowProblems(
+            key: String,
+            row: JsonNode,
+            held: Boolean,
+            source: SourceRow?,
+        ): List<String> =
+            when {
+                !held -> {
+                    listOf("$key: the entrySources row names an entry that contents.json does not hold")
+                }
+
+                source == null -> {
+                    emptyList()
+                }
+
+                else -> {
+                    listOfNotNull(
+                        "$key: the row class '${row.path(
+                            "sourceClass",
+                        ).asString()}' differs from sources.tsv '${source.sourceClass}'"
+                            .takeIf { row.path("sourceClass").asString() != source.sourceClass },
+                        "$key: the row reference differs from the citation in sources.tsv"
+                            .takeIf { row.path("sourceReference").asString() != source.citation },
+                    )
+                }
+            }
+
+        private fun countProblems(
+            keys: Set<String>,
+            counts: Map<String, Int>,
+        ): List<String> =
+            keys.mapNotNull { key ->
+                when (val n = counts[key] ?: 0) {
+                    0 -> "$key: the entry has no row in entrySources"
+                    1 -> null
+                    else -> "$key: the entry has $n rows in entrySources"
+                }
+            }
 
         private fun rows(root: ObjectNode) = root.get("entrySources") as ArrayNode
 
@@ -73,7 +95,10 @@ class CalendarSeedEntrySourcesTest {
             rows: ArrayNode,
             section: String,
             date: String? = null,
-        ) = rows.indexOfFirst { it.path("section").asString() == section && (date == null || it.path("date").asString() == date) }
+        ) = rows.indexOfFirst {
+            it.path("section").asString() == section &&
+                (date == null || it.path("date").asString() == date)
+        }
     }
 
     private fun failsNaming(
@@ -98,12 +123,23 @@ class CalendarSeedEntrySourcesTest {
 
     @Test
     fun `INV-AC-1727 probe a changed class fails naming the entry`() {
-        failsNaming(mutated { (it.get(rowOf(it, "finalReturnForm")) as ObjectNode).put("sourceClass", "PRIMARY") }, "finalReturnForm")
+        failsNaming(
+            mutated {
+                (it.get(rowOf(it, "finalReturnForm")) as ObjectNode).put("sourceClass", "PRIMARY")
+            },
+            "finalReturnForm",
+        )
     }
 
     @Test
     fun `INV-AC-1727 probe the citation of one leaf of a window only fails naming the entry`() {
-        val tsv = CalendarSeedSourcesTest.withRow("/windows/MONTHLY/3/end") { it.toMutableList().also { c -> c[4] = "INV-AC-113" } }
+        val tsv =
+            CalendarSeedSourcesTest.withRow("/windows/MONTHLY/3/end") {
+                it.toMutableList().also { c ->
+                    c[4] =
+                        "INV-AC-113"
+                }
+            }
         violations(CalendarSeedFiles.contents, tsv).any { it.startsWith("windows/MONTHLY/2025-04-01:") } shouldBe true
     }
 
@@ -131,7 +167,13 @@ class CalendarSeedEntrySourcesTest {
 
     @Test
     fun `INV-AC-1727 look-alike rows in the other order of the array pass`() {
-        val reversed = mutated { rows -> rows.items().reversed().let { r -> rows.removeAll(); r.forEach { rows.add(it) } } }
+        val reversed =
+            mutated { rows ->
+                rows.items().reversed().let { r ->
+                    rows.removeAll()
+                    r.forEach { rows.add(it) }
+                }
+            }
         violations(reversed, CalendarSeedFiles.sources).shouldBeEmpty()
     }
 }

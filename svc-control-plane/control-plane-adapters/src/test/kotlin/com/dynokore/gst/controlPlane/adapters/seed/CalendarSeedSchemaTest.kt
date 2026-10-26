@@ -28,28 +28,58 @@ class CalendarSeedSchemaTest {
             .map { it.message }
 
     private fun decoderRules(pack: JsonNode): List<String> {
-        val problems = ArrayList<String>()
-        val forms = pack.path("dueRules").properties().map { it.key }.toSet()
+        val forms =
+            pack
+                .path("dueRules")
+                .properties()
+                .map { it.key }
+                .toSet()
         val windows = pack.path("windows")
-        for ((freq, list) in windows.properties()) {
-            val spans = list.items().map { LocalDate.parse(it.path("start").asString()) to LocalDate.parse(it.path("end").asString()) }
-            spans.forEach { if (it.second.isBefore(it.first)) problems += "windows/$freq: a window ends before it starts" }
-            spans.sortedBy { it.first }.zipWithNext().forEach {
-                if (!it.second.first.isAfter(it.first.second)) problems += "windows/$freq: windows overlap at ${it.second.first}"
-            }
-            list.items().forEach { if (it.path("returnForm").asString() !in forms) problems += "windows/$freq: a return form has no due rule" }
-        }
-        if (pack.path("finalReturnForm").asString() !in forms) problems += "finalReturnForm has no due rule"
-        if (pack.path("weekend").size() >= 7) problems += "weekend holds every day of the week"
         val frequencies = windows.properties().map { it.key }.toSet()
-        if (pack.path("alertThresholds").properties().map { it.key }.toSet() != frequencies) {
-            problems += "alertThresholds keys differ from the frequency keys of windows"
-        }
-        for ((freq, list) in pack.path("alertThresholds").properties()) {
-            val days = list.items().map { it.asInt() }
-            if (days.zipWithNext().any { it.first <= it.second }) problems += "alertThresholds/$freq do not fall strictly"
-        }
-        return problems
+        return windows.properties().flatMap { windowProblems(it.key, it.value.items(), forms) } +
+            listOfNotNull(
+                "finalReturnForm has no due rule".takeIf { pack.path("finalReturnForm").asString() !in forms },
+                "weekend holds every day of the week".takeIf { pack.path("weekend").size() >= 7 },
+                "alertThresholds keys differ from the frequency keys of windows"
+                    .takeIf {
+                        pack
+                            .path("alertThresholds")
+                            .properties()
+                            .map { it.key }
+                            .toSet() != frequencies
+                    },
+            ) +
+            pack.path("alertThresholds").properties().mapNotNull { (freq, list) ->
+                "alertThresholds/$freq do not fall strictly".takeIf {
+                    list.items().map { it.asInt() }.zipWithNext().any {
+                        it.first <=
+                            it.second
+                    }
+                }
+            }
+    }
+
+    private fun windowProblems(
+        freq: String,
+        list: List<JsonNode>,
+        forms: Set<String>,
+    ): List<String> {
+        val spans =
+            list.map {
+                LocalDate.parse(it.path("start").asString()) to
+                    LocalDate.parse(it.path("end").asString())
+            }
+        return spans.filter { it.second.isBefore(it.first) }.map { "windows/$freq: a window ends before it starts" } +
+            spans.sortedBy { it.first }.zipWithNext().filter { !it.second.first.isAfter(it.first.second) }.map {
+                "windows/$freq: windows overlap at ${it.second.first}"
+            } +
+            list
+                .filter {
+                    it
+                        .path(
+                            "returnForm",
+                        ).asString() !in forms
+                }.map { "windows/$freq: a return form has no due rule" }
     }
 
     @Test
@@ -75,7 +105,11 @@ class CalendarSeedSchemaTest {
         holidays.isEmpty() shouldBe false
         holidays.toSet().size shouldBe holidays.size
         holidays.forEach { LocalDate.parse(it) }
-        root.path("windows").properties().map { it.key }.toSet() shouldBe setOf("QUARTERLY", "MONTHLY")
+        root
+            .path("windows")
+            .properties()
+            .map { it.key }
+            .toSet() shouldBe setOf("QUARTERLY", "MONTHLY")
     }
 
     @Test

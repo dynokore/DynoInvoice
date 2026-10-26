@@ -28,10 +28,13 @@ class CalendarSeedAuthoringIT {
     private val mapper = JsonMapper.builder().build()
     private val flow = PackReleaseFlow()
     private val request = RequestContext("corr-seed", "cause-seed")
-    private val author = AuthorRegulatoryPack(flow.packs, OperatorRoles { actor, role -> actor == "alice" && role == OperatorRole.AUTHOR })
+    private val roles = OperatorRoles { actor, role -> actor == "alice" && role == OperatorRole.AUTHOR }
+    private val author = AuthorRegulatoryPack(flow.packs, roles)
 
-    private fun seed(): String =
-        checkNotNull(CalendarSeedAuthoringIT::class.java.classLoader.getResource("packs/calendar/sg-gst/contents.json")).readText()
+    private fun seed(): String {
+        val resource = "packs/calendar/sg-gst/contents.json"
+        return checkNotNull(CalendarSeedAuthoringIT::class.java.classLoader.getResource(resource)).readText()
+    }
 
     private fun authored(contents: String): String {
         val command =
@@ -54,10 +57,17 @@ class CalendarSeedAuthoringIT {
     private fun thresholds(
         json: String,
         key: String,
-    ) = mapper.readTree(json).path("alertThresholds").path(key).iterator().asSequence().map { it.asInt() }.toList()
+    ) = mapper
+        .readTree(json)
+        .path("alertThresholds")
+        .path(key)
+        .iterator()
+        .asSequence()
+        .map { it.asInt() }
+        .toList()
 
     @Test
-    fun `INV-AC-1727 the seed calendar pack is accepted as a draft of packType calendar and holds the shipped defaults`() {
+    fun `INV-AC-1727 the seed calendar pack is accepted as a draft of packType calendar with the shipped defaults`() {
         val stored = mapper.readTree(authored(seed()))
         stored.path("safetyMargin").path("value").asInt() shouldBe 3
         stored.path("safetyMargin").path("unit").asString() shouldBe "DAYS"
@@ -67,14 +77,22 @@ class CalendarSeedAuthoringIT {
     }
 
     @Test
-    fun `INV-AC-1727 value probe a scratch copy with 7 DAYS and thresholds 9 and 4 is stored as it is`() {
+    fun `INV-AC-1727 value probe a scratch copy with 7 DAYS and thresholds 9 and 4 is stored`() {
         val scratch = mapper.readTree(seed()) as ObjectNode
         (scratch.path("safetyMargin") as ObjectNode).put("value", 7)
         (scratch.path("alertThresholds").get("QUARTERLY") as ArrayNode).removeAll().add(9)
         (scratch.path("alertThresholds").get("MONTHLY") as ArrayNode).removeAll().add(4)
         val stored = authored(scratch.toString())
-        mapper.readTree(stored).path("safetyMargin").path("value").asInt() shouldBe 7
-        mapper.readTree(stored).path("safetyMargin").path("unit").asString() shouldBe "DAYS"
+        mapper
+            .readTree(stored)
+            .path("safetyMargin")
+            .path("value")
+            .asInt() shouldBe 7
+        mapper
+            .readTree(stored)
+            .path("safetyMargin")
+            .path("unit")
+            .asString() shouldBe "DAYS"
         thresholds(stored, "QUARTERLY") shouldBe listOf(9)
         thresholds(stored, "MONTHLY") shouldBe listOf(4)
     }

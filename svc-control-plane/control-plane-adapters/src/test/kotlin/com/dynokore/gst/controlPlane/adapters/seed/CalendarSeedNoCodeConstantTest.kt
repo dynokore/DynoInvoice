@@ -31,57 +31,91 @@ object CalendarNoCodeScan {
     private fun strip(
         text: String,
         strings: MutableList<String>,
-    ): List<String> {
-        val out = StringBuilder()
-        var i = 0
-        var depth = 0
-        while (i < text.length) {
-            val c = text[i]
-            when {
-                depth > 0 -> {
-                    if (text.startsWith("/*", i)) {
-                        depth++
+    ): List<String> = Lexer(text, strings).run().split("\n")
+
+    private class Lexer(
+        private val text: String,
+        private val strings: MutableList<String>,
+    ) {
+        private val out = StringBuilder()
+        private var i = 0
+        private var depth = 0
+
+        fun run(): String {
+            while (i < text.length) {
+                when {
+                    depth > 0 -> {
+                        insideComment()
+                    }
+
+                    text.startsWith("/*", i) -> {
+                        depth = 1
                         i += 2
-                    } else if (text.startsWith("*/", i)) {
-                        depth--
-                        i += 2
-                    } else {
-                        if (c == '\n') out.append('\n')
-                        i++
+                    }
+
+                    text.startsWith("//", i) -> {
+                        while (i < text.length && text[i] != '\n') i++
+                    }
+
+                    text.startsWith("\"\"\"", i) -> {
+                        rawString()
+                    }
+
+                    text[i] == '"' -> {
+                        quoted('"')
+                    }
+
+                    text[i] == '\'' -> {
+                        quoted('\'')
+                    }
+
+                    else -> {
+                        out.append(text[i++])
                     }
                 }
+            }
+            return out.toString()
+        }
+
+        private fun insideComment() {
+            when {
                 text.startsWith("/*", i) -> {
-                    depth = 1
+                    depth++
                     i += 2
                 }
-                text.startsWith("//", i) -> while (i < text.length && text[i] != '\n') i++
-                text.startsWith("\"\"\"", i) -> {
-                    val end = text.indexOf("\"\"\"", i + 3).let { if (it < 0) text.length else it }
-                    strings += text.substring(i + 3, end)
-                    out.append(MARK).append(strings.size - 1).append(MARK)
-                    out.append("\n".repeat(text.substring(i, minOf(end + 3, text.length)).count { it == '\n' }))
-                    i = minOf(end + 3, text.length)
+
+                text.startsWith("*/", i) -> {
+                    depth--
+                    i += 2
                 }
-                c == '"' -> {
-                    var j = i + 1
-                    while (j < text.length && text[j] != '"' && text[j] != '\n') j += if (text[j] == '\\') 2 else 1
-                    strings += text.substring(i + 1, minOf(j, text.length))
-                    out.append(MARK).append(strings.size - 1).append(MARK)
-                    i = j + 1
-                }
-                c == '\'' -> {
-                    var j = i + 1
-                    while (j < text.length && text[j] != '\'' && text[j] != '\n') j += if (text[j] == '\\') 2 else 1
-                    out.append("''")
-                    i = j + 1
-                }
+
                 else -> {
-                    out.append(c)
+                    if (text[i] == '\n') out.append('\n')
                     i++
                 }
             }
         }
-        return out.toString().split("\n")
+
+        private fun rawString() {
+            val end = text.indexOf("\"\"\"", i + 3).let { if (it < 0) text.length else it }
+            strings += text.substring(i + 3, end)
+            out.append(MARK).append(strings.size - 1).append(MARK)
+            val stop = minOf(end + 3, text.length)
+            out.append("\n".repeat(text.substring(i, stop).count { it == '\n' }))
+            i = stop
+        }
+
+        private fun quoted(quote: Char) {
+            var j = i + 1
+            while (j < text.length && text[j] != quote && text[j] != '\n') j += if (text[j] == '\\') 2 else 1
+            if (quote == '"') {
+                strings += text.substring(i + 1, minOf(j, text.length))
+                out.append(MARK).append(strings.size - 1).append(MARK)
+            } else {
+                out.append("''")
+            }
+            i = j + 1
+        }
     }
 
     /** `file:line` of every finding in [text]; [file] is only the label. */
@@ -95,8 +129,18 @@ object CalendarNoCodeScan {
             for (statement in line.split(";")) {
                 val names = IDENT.findAll(statement).map { it.value.replace("_", "").lowercase() }.toList()
                 if (names.none { n -> NAMES.any { it in n } }) continue
-                val literal = strings.filterIndexed { n, _ -> statement.contains("$MARK$n$MARK") }.any { it in LITERALS }
-                if (INT.containsMatchIn(statement.replace(Regex("$MARK[0-9]+$MARK"), "")) || CALL.containsMatchIn(statement) || literal) {
+                val literal =
+                    strings
+                        .filterIndexed {
+                            n,
+                            _,
+                            ->
+                            statement.contains("$MARK$n$MARK")
+                        }.any { it in LITERALS }
+                if (INT.containsMatchIn(statement.replace(Regex("$MARK[0-9]+$MARK"), "")) ||
+                    CALL.containsMatchIn(statement) ||
+                    literal
+                ) {
                     found += "$file:${index + 1}"
                 }
             }
@@ -115,7 +159,8 @@ object CalendarNoCodeScan {
                 .filter { it.isFile && it.extension in setOf("kt", "kts", "java") }
                 .forEach {
                     files++
-                    findings += scan(it.relativeTo(root).path.replace(File.separatorChar, '/'), it.readText(Charsets.UTF_8))
+                    findings +=
+                        scan(it.relativeTo(root).path.replace(File.separatorChar, '/'), it.readText(Charsets.UTF_8))
                 }
         }
         return files to findings

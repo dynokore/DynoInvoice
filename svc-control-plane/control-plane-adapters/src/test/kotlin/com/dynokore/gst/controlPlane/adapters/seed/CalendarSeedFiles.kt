@@ -27,7 +27,9 @@ object CalendarSeedFiles {
     val mapper: JsonMapper = JsonMapper.builder().build()
 
     private fun resource(name: String): String =
-        checkNotNull(CalendarSeedFiles::class.java.classLoader.getResource(BASE + name)) { "missing resource $BASE$name" }
+        checkNotNull(
+            CalendarSeedFiles::class.java.classLoader.getResource(BASE + name),
+        ) { "missing resource $BASE$name" }
             .readText(Charsets.UTF_8)
 
     val contents: String get() = resource("contents.json")
@@ -88,26 +90,48 @@ object CalendarSeedFiles {
     ): String {
         val t = pointer.split("/").drop(1).map { it.replace("~1", "/").replace("~0", "~") }
         return when (t[0]) {
-            "windows" -> "windows/${t[1]}/${root.path("windows").path(t[1]).path(t[2].toInt()).path("start").asString()}"
+            "windows" -> "windows/${t[1]}/${root.path(
+                "windows",
+            ).path(t[1]).path(t[2].toInt()).path("start").asString()}"
+
             "dueRules" -> "dueRules/${t[1]}"
+
             "holidays" -> "holidays/${root.path("holidays").path(t[1].toInt()).asString()}"
+
             "alertThresholds" -> "alertThresholds/${t[1]}"
+
             "finalReturnForm", "weekend", "safetyMargin" -> t[0]
+
             else -> "unknown:$pointer"
         }
     }
 
+    private val ROW_FIELDS =
+        mapOf(
+            "windows" to listOf("frequency", "date"),
+            "dueRules" to listOf("returnForm"),
+            "holidays" to listOf("date"),
+            "alertThresholds" to listOf("frequency"),
+            "finalReturnForm" to emptyList(),
+            "weekend" to emptyList(),
+            "safetyMargin" to emptyList(),
+            "pinnedRule" to emptyList(),
+        )
+
     /** The entry key a row of entrySources names, or null when the row is not well formed. */
     fun entryOfRow(row: JsonNode): String? {
-        fun text(name: String) = row.path(name).takeIf { it.isString }?.asString()?.takeIf { it.isNotEmpty() }
-        val section = text("section") ?: return null
-        return when (section) {
-            "windows" -> "windows/${text("frequency") ?: return null}/${text("date") ?: return null}"
-            "dueRules" -> "dueRules/${text("returnForm") ?: return null}"
-            "holidays" -> "holidays/${text("date") ?: return null}"
-            "alertThresholds" -> "alertThresholds/${text("frequency") ?: return null}"
-            "finalReturnForm", "weekend", "safetyMargin", "pinnedRule" -> section
-            else -> null
+        fun text(name: String) =
+            row
+                .path(name)
+                .takeIf { it.isString }
+                ?.asString()
+                ?.takeIf { it.isNotEmpty() }
+        val section = text("section")
+        val fields = ROW_FIELDS[section]?.map { text(it) }
+        return if (section == null || fields == null || fields.any { it == null }) {
+            null
+        } else {
+            (listOf(section) + fields).joinToString("/")
         }
     }
 }
@@ -121,7 +145,11 @@ class CalendarPackReader(
     val frequencies: List<String> get() = root.path("windows").properties().map { it.key }
 
     fun alertThresholds(frequency: String): List<Int> =
-        root.path("alertThresholds").path(frequency).items().map { it.asInt() }
+        root
+            .path("alertThresholds")
+            .path(frequency)
+            .items()
+            .map { it.asInt() }
 
     fun safetyMargin(): Pair<Int, String> =
         root.path("safetyMargin").let { it.path("value").asInt() to it.path("unit").asString() }
