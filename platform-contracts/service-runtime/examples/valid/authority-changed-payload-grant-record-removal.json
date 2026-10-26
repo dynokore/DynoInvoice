@@ -1,0 +1,9 @@
+{
+  "changeKind": "GRANT",
+  "principalRef": "PRN-8C41",
+  "authorityVersion": 90415,
+  "grantRecord": {
+    "entityRef": "ENT-3F2A9C",
+    "grants": []
+  }
+}

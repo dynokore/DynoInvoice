@@ -1,0 +1,18 @@
+{
+  "changeKind": "GRANT",
+  "principalRef": "PRN-8C41",
+  "authorityVersion": 90412,
+  "grantRecord": {
+    "entityRef": "ENT-3F2A9C",
+    "grants": [
+      {
+        "action": "document.read",
+        "scopeLevel": "ENTITY_PERIOD",
+        "scopeRef": "ENT-3F2A9C",
+        "periodFrom": "2027-Q1",
+        "periodTo": "2027-Q2",
+        "validFrom": "2027-01-15T00:00:00Z"
+      }
+    ]
+  }
+}

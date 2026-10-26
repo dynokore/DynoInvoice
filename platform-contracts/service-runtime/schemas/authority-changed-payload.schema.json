@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/authority-changed-payload.schema.json",
+  "title": "AuthorityChangedPayload",
+  "description": "Payload of the AuthorityChanged platform event, whose schema service-runtime owns (INV-REQ-1226, INV-Q-9229 A); access-svc emits it. Moved by copy from access/schemas/authority-changed-payload.schema.json (INV-T-9355); the properties are the same. Class: platform. Payload of the AuthorityChanged event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9); grant, consent and principal records added by INV-T-3298 (INV-API-3325, INV-Q-3322 (b), INV-Q-3339). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required. One event carries exactly one record: a grantRecord (changeKind GRANT), a consentRecord (changeKind CONSENT) or a principalRecord (changeKind PRINCIPAL, a deletion, or REVOCATION; INV-Q-3702), each keyed on its own and versioned by this event's authorityVersion. access-svc never emits an event without a record; an event that carries none of the three (a 1.0-shaped or faulty event) has no grant state: an authority replica drops what it holds for that principal and denies, never keeps it, so a revoke can never be lost (INV-REQ-1214). principalKind is never on the wire: the replica takes it from the propagated token (INV-REQ-1202 b2, INV-Q-3259).",
+  "type": "object",
+  "properties": {
+    "changeKind": {
+      "type": "string",
+      "description": "What kind of authority change this is. Every event carries exactly one record (INV-Q-3702): GRANT a grantRecord, CONSENT a consentRecord, PRINCIPAL (a deletion, only) the principalRecord DELETED, REVOCATION the principalRecord REVOKED. A principal change that removes all of the principal's authority without deleting it (deactivation, suspension) is a REVOCATION; a reactivation re-emits the principal's current grant records with higher versions; a principal change that leaves its authority unchanged (creation before any grant, name or contact change, credential rotation) emits no AuthorityChanged.",
+      "enum": [
+        "GRANT",
+        "CONSENT",
+        "PRINCIPAL",
+        "REVOCATION"
+      ]
+    },
+    "principalRef": {
+      "type": "string",
+      "description": "The principal the change concerns."
+    },
+    "validity": {
+      "type": "object",
+      "description": "The validity window of the change.",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Start of validity.",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "description": "End of validity, absent when open-ended.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "additionalProperties": true
+    },
+    "authorityVersion": {
+      "type": "integer",
+      "description": "Monotonic authority version this change advances to: one access-svc sequence, drawn after access-svc locks the principal row (or, for a consent record, the consent row) in the change's transaction, so versions per key follow commit order (TPL-05). It is the version of the one record this event carries; a replica ignores a record at or below the version it holds for that record's key and measures its lag against the newest version seen (INV-REQ-1201 b1).",
+      "minimum": 1
+    },
+    "grantRecord": {
+      "type": "object",
+      "description": "Present when changeKind is GRANT: the full grant state, after the change, of one (tenant, principalRef, entityRef), replacing whole whatever a replica holds for that key (INV-Q-3322 (b), INV-REQ-864). The tenant is the envelope's tenantid (API-40). Tenant and group grants are expanded by access-svc into one grant record per entity under the scope, and re-emitted when an entity is created, moved or retired under it; a replica never resolves a scope through its structure replica. A change touching N entities emits N events in one outbox transaction.",
+      "properties": {
+        "entityRef": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The registered entity this grant state is for."
+        },
+        "grants": {
+          "type": "array",
+          "description": "Every action the principal holds on entityRef after the change, one entry per action and scope. An empty list is an explicit removal: the replica keeps it as a tombstone with its authorityVersion, so an older redelivered record cannot bring the grant back.",
+          "items": {
+            "type": "object",
+            "description": "One action granted on entityRef, with the scope it was granted under and its validity window.",
+            "properties": {
+              "action": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "The action granted, as named in access-svc's action catalogue."
+              },
+              "scopeLevel": {
+                "type": "string",
+                "description": "The scope level of the grant this action comes from (INV-REQ-864 b1, INV-Q-3339): TENANT, GROUP, ENTITY, ENTITY_PERIOD or CONSENT. Kept for audit; TENANT and GROUP grants arrive already expanded to entityRef. Fail-closed: a replica denies any scopeLevel it does not recognise and never reads it as a plain ENTITY grant. ENTITY covers every period; ENTITY_PERIOD covers only periodFrom..periodTo; CONSENT needs, in addition, a live consentRecord for entityRef (INV-REQ-865).",
+                "enum": [
+                  "TENANT",
+                  "GROUP",
+                  "ENTITY",
+                  "ENTITY_PERIOD",
+                  "CONSENT"
+                ],
+                "x-extensible-enum": true
+              },
+              "scopeRef": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Reference of the grant's scope: the tenant, group, entity or consent the grant was made on (kept for audit)."
+              },
+              "periodFrom": {
+                "type": "string",
+                "format": "date",
+                "description": "ENTITY_PERIOD only, and then always present: first day of the first granted GST accounting period. A date, never a period name, since the filing frequency can change (INV-Q-3339, INV-AC-1911). An ENTITY_PERIOD entry without periodFrom and periodTo matches nothing."
+              },
+              "periodTo": {
+                "type": "string",
+                "format": "date",
+                "description": "ENTITY_PERIOD only, and then always present: last day of the last granted GST accounting period. A request matches only when its whole period lies inside periodFrom..periodTo, independently of the validity window."
+              },
+              "periodRefs": {
+                "type": "array",
+                "description": "ENTITY_PERIOD only: references of the granted periods, for display only; never used to decide.",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "One granted period's reference, as displayed."
+                }
+              },
+              "validFrom": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Start of this action's validity window."
+              },
+              "validUntil": {
+                "type": "string",
+                "format": "date-time",
+                "description": "End of this action's validity window, absent when open-ended."
+              }
+            },
+            "required": [
+              "action",
+              "scopeLevel",
+              "scopeRef",
+              "validFrom"
+            ],
+            "additionalProperties": true
+          }
+        }
+      },
+      "required": [
+        "entityRef",
+        "grants"
+      ],
+      "additionalProperties": true
+    },
+    "consentRecord": {
+      "type": "object",
+      "description": "Present when changeKind is CONSENT: the full state, after the change, of the agent consent for one client entity, keyed (tenant, clientEntityRef) and replacing whole whatever a replica holds for that key (INV-REQ-853 b1, INV-REQ-865, INV-Q-3136). A decision under a CONSENT-scoped grant needs both the grant and a live consent record, so a withdrawal takes effect with no grant-revocation step.",
+      "properties": {
+        "clientEntityRef": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The client entity the consent covers."
+        },
+        "state": {
+          "type": "string",
+          "description": "LIVE or WITHDRAWN. A withdrawal is irreversible; a new consent is a new record (INV-REQ-865 b4). Fail-closed: a replica treats any value other than LIVE as not live.",
+          "enum": [
+            "LIVE",
+            "WITHDRAWN"
+          ],
+          "x-extensible-enum": true
+        },
+        "scopeItems": {
+          "type": "array",
+          "description": "The consent's scope items: the VP-10 keys, any combination (INV-REQ-1271, INV-REQ-853 b1, INV-Q-3704). VP-10's exclusive NONE is sent as the empty list, never as a key. Fail-closed: an item a replica or owning service does not recognise is not granted, so an agent operation that needs it is refused (INV-REQ-913 b2).",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "description": "One VP-10 consent scope key.",
+            "enum": [
+              "SUBMIT_INVOICE_DATA",
+              "FILE_GST_RETURN",
+              "MAPPING_APPROVAL"
+            ],
+            "x-extensible-enum": true
+          }
+        },
+        "validFrom": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start of the consent's validity."
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time",
+          "description": "End of the consent's validity, absent when open-ended."
+        }
+      },
+      "required": [
+        "clientEntityRef",
+        "state",
+        "scopeItems",
+        "validFrom"
+      ],
+      "additionalProperties": true
+    },
+    "principalRecord": {
+      "type": "object",
+      "description": "Present when changeKind is PRINCIPAL or REVOCATION: a principal-level record keyed (tenant, principalRef) (INV-Q-3702). PRINCIPAL is a deletion and always carries state DELETED; REVOCATION carries state REVOKED and covers every principal change that removes all of the principal's authority without deleting it (deactivation, suspension). Its revocation version is this event's authorityVersion, and it voids every grant record of the principal with a lower version; a reactivation re-emits the principal's current grant records with higher versions and never revives old ones (INV-Q-3322, INV-REQ-865 b4).",
+      "properties": {
+        "state": {
+          "type": "string",
+          "description": "DELETED (changeKind PRINCIPAL: the principal is deleted) or REVOKED (changeKind REVOCATION: deactivation, suspension or any other removal of all the principal's authority).",
+          "enum": [
+            "DELETED",
+            "REVOKED"
+          ],
+          "x-extensible-enum": true
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "changeKind",
+    "principalRef",
+    "authorityVersion"
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,11 @@
+{
+  "changeKind": "GRANT",
+  "principalRef": "PRN-8C41",
+  "authorityVersion": 90412,
+  "grantRecord": {
+    "entityRef": "ENT-3F2A9C",
+    "grants": [
+      { "action": "document.read", "scopeRef": "ENT-3F2A9C", "validFrom": "2027-01-15T00:00:00Z" }
+    ]
+  }
+}

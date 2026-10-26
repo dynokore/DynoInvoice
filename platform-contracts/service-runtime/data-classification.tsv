@@ -25,3 +25,10 @@ schemas/break-glass-alert-raised-payload.schema.json	scope	NONE
 schemas/break-glass-alert-raised-payload.schema.json	action	NONE
 schemas/break-glass-alert-raised-payload.schema.json	unlockRef	NONE
 schemas/break-glass-alert-raised-payload.schema.json	overrideReason	NONE
+schemas/authority-changed-payload.schema.json	changeKind	NONE
+schemas/authority-changed-payload.schema.json	principalRef	IDENTIFYING
+schemas/authority-changed-payload.schema.json	validity	NONE
+schemas/authority-changed-payload.schema.json	authorityVersion	NONE
+schemas/authority-changed-payload.schema.json	grantRecord	NONE
+schemas/authority-changed-payload.schema.json	consentRecord	NONE
+schemas/authority-changed-payload.schema.json	principalRecord	NONE
