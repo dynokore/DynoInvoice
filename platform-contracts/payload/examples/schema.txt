@@ -9,3 +9,6 @@
 ../openapi.yaml#/components/schemas/AppliedPackVersion applied-pack-version-*.json
 ../openapi.yaml#/components/schemas/ValidationResult validation-result-*.json
 ../schemas/payload-rejected-payload.schema.json payload-rejected-*.json
+../openapi.yaml#/components/schemas/PendingValidationOverride pending-validation-override-*.json
+../openapi.yaml#/components/schemas/ValidationOverrideEntry validation-override-entry-*.json
+../openapi.yaml#/components/schemas/ValidationOverrideList validation-override-list-*.json

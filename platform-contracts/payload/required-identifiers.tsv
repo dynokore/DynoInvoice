@@ -1,6 +1,11 @@
 # INV-T-6019. Identifiers in backticks in the published behavior and intent of INV-REQ-325, 326, 474, 475, 476, 478, 503, 810
 # (read from Keel). One row per identifier, under the first requirement that names it.
-# Not listed, because they are not payload contract identifiers: tax.approver (role); masterdata-svc, payload-svc,
+# INV-T-10711. Not listed, because the backticked names of the implemented requirements and criteria that are not rows are:
+# 422 (a status code); tax.approver and tenant.admin (roles); access-svc (a service); OVERRIDABLE (a disposition value of the error catalogue);
+# authorise, recordSoleOperator and withdrawSoleOperatorAcknowledgement (operations of access/openapi.yaml, owned by the access contract tasks);
+# setPolicy and acknowledgeControlRelaxation (operations of service-runtime/openapi.yaml); AuthorityReplica.decide and validation.override
+# (a library method and a catalogue key; the service task INV-T-10713 owns them).
+# Earlier note: not listed, because they are not payload contract identifiers: tax.approver (role); masterdata-svc, payload-svc,
 # evidence-svc (services); POST /v1/pre-issuance-checks and POST /v1/issuances (ingestion-svc's public routes);
 # 422 and 503 (status codes); networkIssuance (submission contract); netTotal, taxTotal, grossTotal, amountDue
 # (canonical contract, INV-REQ-810: payload never recomputes totals).
@@ -54,3 +59,5 @@ AppliedPackVersion.version	schema_property	openapi.yaml	INV-REQ-499
 packVersions	property	schemas/payload-rejected-payload.schema.json	INV-REQ-499
 packType	property	schemas/payload-rejected-payload.schema.json	INV-REQ-499
 runSampleCheck	operation	openapi.yaml	INV-REQ-2588
+approveValidationOverride	operation	openapi.yaml	INV-REQ-1293
+getValidationOverrides	operation	openapi.yaml	INV-REQ-1293

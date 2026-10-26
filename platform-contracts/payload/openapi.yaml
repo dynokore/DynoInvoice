@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -268,7 +268,14 @@ paths:
         (INV-REQ-330).
 
 
-        Who approves is INV-REQ-1293 and is not decided here.
+        The call asks access-svc (`decideOverrideRelease`). Where the
+        entity's VP-32 value needs a second approver, the answer is `202`
+        with a `PendingValidationOverride` and nothing is released (INV-REQ-1293).
+        The override takes effect only on `201`. A decision other than release
+        is `403` (SRT-004), except a code that is not OVERRIDABLE, which stays
+        `422` PAY-017. The caller's right is the permission
+        `validation.override` on the entity, decided per request, never a role
+        name.
       tags: [validation]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -299,6 +306,25 @@ paths:
               default:
                 value: { code: "PAY-011", reason: "Register lag: the supplier's GST registration was confirmed by IRAS on the phone." }
       responses:
+        '202':
+          description: >-
+            A second approver is needed (VP-32); the override waits as a
+            pending record and nothing is released. Another person with
+            `validation.override` approves it with `approveValidationOverride`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingValidationOverride'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    code: "PAY-011"
+                    reason: "Register lag: the supplier's GST registration was confirmed by IRAS on the phone."
+                    requestedBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
+                    requestedAt: "2026-03-20T03:20:00Z"
+                    status: "PENDING"
         '201':
           description: The override is recorded (a repeat returns the recorded override unchanged).
           content:
@@ -343,6 +369,103 @@ paths:
                     code: "PAY-017"
                     correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                     docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        '403':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getValidationOverrides
+      summary: List the validation overrides of one document version
+      description: >-
+        Lists the pending and released overrides of one document and version
+        (INV-REQ-1293). The caller holds the permission `validation.override`
+        on the entity. A list across documents is not offered.
+      tags: [validation]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->payload-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1293]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The overrides of the document version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationOverrideList'
+              examples:
+                default:
+                  value:
+                    items:
+                      - code: "PAY-011"
+                        reason: "Register lag: the supplier's GST registration was confirmed by IRAS on the phone."
+                        status: "RELEASED"
+                        requestedBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
+                        requestedAt: "2026-03-20T03:20:00Z"
+                        releasedBy: "7c2e8d1f-3e5b-4d66-8b4f-1d2e3f4a5b6c"
+                        releasedAt: "2026-03-20T03:40:00Z"
+        '404':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/payload/documents/{docUuid}/versions/{version}/overrides/{code}/approval:
+    post:
+      operationId: approveValidationOverride
+      summary: Approve a pending validation override as the second approver
+      description: >-
+        Releases a pending override of one document version. The caller holds
+        the permission `validation.override` on the entity. The call asks
+        access-svc (`decideOverrideRelease`) with the first approver as the
+        prior approver; where the decision is not release (for example the
+        same person twice) the answer is `403` (SRT-004). Two simultaneous
+        calls release once. With no pending override for the triple, one
+        already released, or an unknown document version, the answer is `404`
+        (SRT-005). `overriddenBy` of the answer is the user ID of the approver
+        whose approval released it (INV-REQ-1293, INV-REQ-500).
+      tags: [validation]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->payload-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1293, INV-REQ-500]
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: >-
+          A PENDING override exists for the document, version and code.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (docUuid, version, code) — a repeat finds no pending override and
+          is answered `404`.
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/OverrideCode'
+      responses:
+        '201':
+          description: The override is released.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationOverride'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    code: "PAY-011"
+                    reason: "Register lag: the supplier's GST registration was confirmed by IRAS on the phone."
+                    overriddenBy: "7c2e8d1f-3e5b-4d66-8b4f-1d2e3f4a5b6c"
+                    overriddenAt: "2026-03-20T03:40:00Z"
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/payload/entities/{entityRef}/rendition-samples:
@@ -698,6 +821,13 @@ components:
       schema:
         type: integer
         minimum: 1
+    OverrideCode:
+      name: code
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 20
   schemas:
     DraftDocument:
       type: object
@@ -871,6 +1001,71 @@ components:
           type: string
           format: date-time
       required: [docUuid, version, code, reason, overriddenBy, overriddenAt]
+    PendingValidationOverride:
+      type: object
+      description: An override that waits for a second approver (INV-REQ-1293); nothing is released.
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        code:
+          type: string
+          maxLength: 20
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        requestedBy:
+          type: string
+          maxLength: 64
+          description: The user ID of the first approver, never a role.
+        requestedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [PENDING]
+          x-extensible-enum: true
+      required: [docUuid, version, code, reason, requestedBy, requestedAt, status]
+    ValidationOverrideEntry:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 20
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        status:
+          type: string
+          enum: [PENDING, RELEASED]
+          x-extensible-enum: true
+        requestedBy:
+          type: string
+          maxLength: 64
+        requestedAt:
+          type: string
+          format: date-time
+        releasedBy:
+          type: string
+          maxLength: 64
+        releasedAt:
+          type: string
+          format: date-time
+      required: [code, reason, status, requestedBy, requestedAt]
+    ValidationOverrideList:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/ValidationOverrideEntry'
+      required: [items]
     RegisterLookup:
       type: object
       description: >-
