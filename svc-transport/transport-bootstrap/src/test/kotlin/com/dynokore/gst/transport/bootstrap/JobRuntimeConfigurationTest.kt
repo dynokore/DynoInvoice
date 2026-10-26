@@ -70,7 +70,7 @@ class JobRuntimeConfigurationTest {
             .withBean(AuditWriter::class.java, { LocalAuditWriter() })
             .run { context ->
                 context.startupFailure.shouldBeNull()
-                // the platform wraps an own writer differently from the stager of the platform's writer: the assertion fails
+                // an own writer is wrapped differently from the platform writer: the assertion fails
                 shouldThrow<AssertionError> { delegateClass(context) shouldBe OutboxAuditWriter::class }
             }
     }
