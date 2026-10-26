@@ -28,8 +28,8 @@ object ControlPlaneHarness {
         ).joinToString("\n")
 
     /**
-     * The migration login, which owns the schema: information_schema lists a table only to a login with a privilege on it,
-     * and the runtime login holds none on a table it reaches through a definer function only (job_retention).
+     * The migration login, which owns the schema: information_schema lists a table only to a login with a privilege
+     * on it, and the runtime login holds none on a table it reaches through a definer function only (job_retention).
      */
     fun ownerDsl(): DSLContext =
         DSL.using(
