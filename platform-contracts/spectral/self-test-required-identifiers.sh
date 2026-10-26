@@ -177,12 +177,12 @@ for bad in "" "0000000000000000000000000000000000000000" "--output=x"; do
   out=$(python3 check-required-identifiers.py --base "$bad" "$T/base-bad-sha" 2>&1); rc=$?
   if [ $rc -eq 0 ]; then echo "gst-ci: FAIL — --base '$bad' was accepted"; failed=1; else echo "gst-ci: self-test base sha '$bad' failed as expected"; fi
 done
-# INV-T-7643 (INV-Q-7641 A): the audited-operation completeness rule, --base only. Each case is a throwaway
+# INV-T-7643 (INV-Q-7641 A): the audited-operation completeness rule, with and without --base (INV-T-7650: unconditional, no baseline). Each case is a throwaway
 # git repository whose base commit holds service svc with openapi.yaml, a one-row table and the audited table.
 AUD=catalogue/audited-operations.tsv
 mka() { # name -> $T/<name>; base audited line: op1 UNCONTRACTED svc -, plus the baseline line op2 op2 svc -
   mkdir -p "$T/$1/svc" "$T/$1/svc2" "$T/$1/catalogue"
-  printf 'openapi: 3.1.0\ninfo: {title: f, version: 1.0.0}\npaths:\n  /a: {get: {operationId: op1}}\n  /b: {get: {operationId: op1x}}\n  /c: {get: {operationId: Op1}}\n  /d:\n    get:\n      responses:\n        "200":\n          content:\n            application/json:\n              schema: {type: object, properties: {alpha: {type: string}, op1: {type: string}}}\n' > "$T/$1/svc/openapi.yaml"
+  printf 'openapi: 3.1.0\ninfo: {title: f, version: 1.0.0}\npaths:\n  /a: {get: {operationId: op1}}\n  /b: {get: {operationId: op1x}}\n  /c: {get: {operationId: Op1}}\n  /e: {get: {operationId: op2}}\n  /d:\n    get:\n      responses:\n        "200":\n          content:\n            application/json:\n              schema: {type: object, properties: {alpha: {type: string}, op1: {type: string}}}\n' > "$T/$1/svc/openapi.yaml"
   cp "$T/$1/svc/openapi.yaml" "$T/$1/svc2/openapi.yaml"; cp "$T/$1/svc/openapi.yaml" "$T/$1/svc/asyncapi.yaml"
   printf 'identifier\tkind\tfile\trequirement\nalpha\tproperty\topenapi.yaml\tR-6\n' > "$T/$1/svc/required-identifiers.tsv"
   printf 'identifier\tkind\tfile\trequirement\nalpha\tproperty\topenapi.yaml\tR-6\n' > "$T/$1/svc2/required-identifiers.tsv"
@@ -201,7 +201,7 @@ HEADL='listedName\toperationId\tservice\tdiscriminator\n'
 SETL="printf '${HEADL}op1\\top1\\tsvc\\t-\\nop2\\top2\\tsvc\\t-\\n' > $AUD"
 ROW() { echo "printf '$1\\t$2\\t$3\\tR\\n' >> $4/required-identifiers.tsv"; }
 FIND1="audited operation 'op1' of service 'svc' has no row (op1, operation, openapi.yaml) in svc/required-identifiers.tsv"
-aud_case aud-ok 0 "" "$SETL; $(ROW op1 operation openapi.yaml svc)"
+aud_case aud-ok 0 "" "$SETL; $(ROW op1 operation openapi.yaml svc); $(ROW op2 operation openapi.yaml svc)"
 aud_case aud-no-row 1 "$FIND1" "$SETL"
 aud_case aud-kind-property 1 "$FIND1" "$SETL; $(ROW op1 property openapi.yaml svc)"
 aud_case aud-lookalike 1 "$FIND1" "$SETL; $(ROW op1x operation openapi.yaml svc)"
@@ -209,10 +209,10 @@ aud_case aud-case 1 "$FIND1" "$SETL; $(ROW Op1 operation openapi.yaml svc)"
 aud_case aud-file 1 "$FIND1" "$SETL; $(ROW op1 operation asyncapi.yaml svc)"
 aud_case aud-other-service 1 "$FIND1" "$SETL; $(ROW op1 operation openapi.yaml svc2)"
 aud_case aud-no-table 1 "$FIND1; svc/required-identifiers.tsv does not exist" "$SETL; rm svc/required-identifiers.tsv"
-aud_case aud-baseline 0 "" "$SETL; $(ROW op1 operation openapi.yaml svc)"
+aud_case aud-baseline 1 "audited operation 'op2' of service 'svc' has no row" "$SETL; $(ROW op1 operation openapi.yaml svc)"
 aud_case aud-renamed 1 "audited operation 'op3' of service 'svc' has no row" "printf '${HEADL}op1\\tUNCONTRACTED\\tsvc\\t-\\nop3\\top3\\tsvc\\t-\\n' > $AUD"
 aud_case aud-other-svc-line 1 "audited operation 'op1' of service 'svc2' has no row" "printf '${HEADL}op1\\top1\\tsvc2\\t-\\nop2\\top2\\tsvc\\t-\\n' > $AUD; $(ROW op1 operation openapi.yaml svc)"
-aud_case aud-uncontracted 0 "" "true"
+aud_case aud-uncontracted 0 "" "$(ROW op2 operation openapi.yaml svc)"
 aud_case aud-comment-row 1 "$FIND1" "$SETL; printf '# op1\\toperation\\topenapi.yaml\\tR\\n' >> svc/required-identifiers.tsv"
 aud_case aud-deleted 1 "$AUD: exists at" "rm $AUD"
 aud_case aud-traversal 1 "service '../svc'" "printf '${HEADL}op9\\top9\\t../svc\\t-\\n' > $AUD"
@@ -224,8 +224,9 @@ mka aud-new-table; git -C "$T/aud-new-table" rm -q $AUD; git -C "$T/aud-new-tabl
 B=$(git -C "$T/aud-new-table" rev-parse HEAD); mkdir -p "$T/aud-new-table/catalogue"; printf "${HEADL}op1\top1\tsvc\t-\n" > "$T/aud-new-table/$AUD"
 out=$(python3 check-required-identifiers.py --base "$B" "$T/aud-new-table" 2>&1); rc=$?
 case "$out" in *"$FIND1"*) [ $rc -eq 1 ] && echo "gst-ci: self-test audited 'aud-new-table' failed as expected" || { echo "gst-ci: FAIL — aud-new-table rc $rc"; failed=1; };; *) echo "gst-ci: FAIL — aud-new-table without the finding:"; echo "$out"; failed=1;; esac
-# the rule is ratchet-only: the same repository without --base
+# INV-T-7650: the rule is unconditional; without --base it is applied and a missing row exits 1
 mka aud-plain; printf "${HEADL}op1\top1\tsvc\t-\n" > "$T/aud-plain/$AUD"
-out=$(python3 check-required-identifiers.py "$T/aud-plain" 2>&1) && case "$out" in *"audited"*) echo "gst-ci: FAIL — plain run mentions the audited rule"; failed=1;; *) echo "gst-ci: self-test audited 'aud-plain' (no --base) behaved as expected";; esac || { echo "gst-ci: FAIL — plain run rejected:"; echo "$out"; failed=1; }
+out=$(python3 check-required-identifiers.py "$T/aud-plain" 2>&1); rc=$?
+case "$out" in *"$FIND1"*) [ $rc -eq 1 ] && echo "gst-ci: self-test audited 'aud-plain' (no --base) failed as expected" || { echo "gst-ci: FAIL — aud-plain rc $rc"; failed=1; };; *) echo "gst-ci: FAIL — aud-plain without the finding:"; echo "$out"; failed=1;; esac
 [ "$failed" -eq 0 ] && echo "gst-ci: check-required-identifiers.py self-test passed."
 exit $failed

@@ -39,3 +39,6 @@ Acknowledgement.receivedAt	schema_property	openapi.yaml	INV-REQ-795
 TransportOutcome.outcome.ACCEPTED	schema_enum_value	openapi.yaml	INV-REQ-795
 TransportOutcome.outcome.REJECTED	schema_enum_value	openapi.yaml	INV-REQ-795
 TransportOutcome.outcome.TRANSIENT_FAILURE	schema_enum_value	openapi.yaml	INV-REQ-795
+# INV-T-7650. INV-REQ-2588 behavior 1 lists rotateCredential and testConnection in plain text (no backticked identifier); baseline rows of the audited-operation completeness rule (INV-Q-7641 A).
+rotateCredential	operation	openapi.yaml	INV-REQ-2588
+testConnection	operation	openapi.yaml	INV-REQ-2588

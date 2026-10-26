@@ -40,15 +40,13 @@ requirement cell are not findings. A table missing at the head, an empty sha, an
 the repository at the root each exit 1. There is no exemption for a retired row: removing one is an owner matter.
 Without --base the behaviour is the plain check above.
 
-Audited-operation completeness (INV-T-7643, INV-Q-7641 A), --base mode only: H are the data lines of
-`catalogue/audited-operations.tsv` in the working tree and B those of the same file at the base commit (four
-tab-separated cells: listedName, operationId, service, discriminator; the header line, blank lines, `#` lines and
-lines without four cells are not data lines). For each line of H whose operationId is not `UNCONTRACTED` and whose
-(operationId, service) pair is not the pair of a contracted line of B, `<service>/required-identifiers.tsv` must hold
-a data row (operationId, operation, openapi.yaml), compared by equality after trimming. The pairs of B are the
-baseline: the 52 pairs without a row at origin/main 4b8924e8 are exempt until the slice tasks INV-T-7644 to
-INV-T-7649 add their rows; INV-T-7650 removes this limit and applies the rule to the plain check. The table present
-at B and missing at the head is a finding; absent at both, no check; absent at B only, B is empty.
+Audited-operation completeness (INV-T-7643, INV-Q-7641 A; made unconditional by INV-T-7650), with and without --base:
+H are the data lines of `catalogue/audited-operations.tsv` in the working tree (four tab-separated cells: listedName,
+operationId, service, discriminator; the header line, blank lines, `#` lines and lines without four cells are not
+data lines). For every line of H whose operationId is not `UNCONTRACTED`, `<service>/required-identifiers.tsv` must
+hold a data row (operationId, operation, openapi.yaml), compared by equality after trimming. There is no baseline: B is
+treated as empty, so no pair is exempt. With --base, the table present at the base commit and missing at the head is
+still a finding; absent at both, no check.
 
 Usage: check-required-identifiers.py [--base <sha>] [<root>]      (default root: the current directory)
 Standard library plus PyYAML, as the other spectral checks.
@@ -215,21 +213,18 @@ def audited_lines(text: str) -> list[tuple[int, str, str]]:
     return out
 
 
-def check_audited(root: Path, sha: str) -> list[str]:
-    """INV-Q-7641 A: a contracted audited operation new since the base needs its operation row in its service table."""
+def check_audited(root: Path, sha: str | None) -> list[str]:
+    """INV-Q-7641 A, INV-T-7650: every contracted audited operation needs its operation row in its service table (no baseline)."""
     def git(*args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
 
     head = root / AUDITED
-    before = git("show", f"{sha}:{AUDITED}") if git("cat-file", "-e", f"{sha}:{AUDITED}").returncode == 0 else None
+    before = git("show", f"{sha}:{AUDITED}") if sha is not None and git("cat-file", "-e", f"{sha}:{AUDITED}").returncode == 0 else None
     if not head.is_file():
         return [f"{AUDITED}: exists at {sha} and is missing at the head"] if before is not None and before.returncode == 0 else []
-    baseline = {(op, svc) for _, op, svc in audited_lines(before.stdout)} if before is not None and before.returncode == 0 else set()
     findings: list[str] = []
     rows: dict[str, set | None] = {}
     for no, op, svc in audited_lines(head.read_text()):
-        if (op, svc) in baseline:
-            continue
         if svc not in rows:
             table = root / svc / "required-identifiers.tsv"
             ok = re.fullmatch(r"[^/]+", svc) and svc not in (".", "..") and table.is_file()
@@ -268,8 +263,8 @@ def main(argv: list[str]) -> int:
         findings += check_table(table, cache)
     if base is not None:
         findings += check_base(root, base)
-        if git_ok(root, base):
-            findings += check_audited(root, base)
+    if base is None or git_ok(root, base):
+        findings += check_audited(root, base)
     if findings:
         print("gst-ci: required-identifiers FAIL")
         for f in findings:
