@@ -51,11 +51,10 @@ class JobRuntimeIT {
             "spring.datasource.url=${database.getURL().substringBefore('?')}",
             "spring.datasource.username=${database.getUser()}",
             "spring.flyway.enabled=false",
-        )
-            .run { context: AssertableApplicationContext ->
-                context.startupFailure shouldBe null
-                block(context.getBean(JobRuntime::class.java))
-            }
+        ).run { context: AssertableApplicationContext ->
+            context.startupFailure shouldBe null
+            block(context.getBean(JobRuntime::class.java))
+        }
     }
 
     private companion object {

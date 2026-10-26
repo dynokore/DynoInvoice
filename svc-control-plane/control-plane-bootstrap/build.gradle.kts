@@ -17,7 +17,8 @@ plugins {
 
 sourceSets {
     create("integrationTest") {
-        compileClasspath += sourceSets["main"].output + sourceSets["test"].output + configurations["testCompileClasspath"]
+        compileClasspath +=
+            sourceSets["main"].output + sourceSets["test"].output + configurations["testCompileClasspath"]
         runtimeClasspath += output + compileClasspath + configurations["testRuntimeClasspath"]
     }
 }
@@ -85,7 +86,8 @@ tasks.withType<Test> { useJUnitPlatform() }
 val integrationTest =
     tasks.register<Test>("integrationTest") {
         group = "verification"
-        description = "STK-39: the job runtime of the composition against PostgreSQL in Testcontainers, as the runtime login (CS-19)."
+        description =
+            "STK-39: the job runtime of the composition against PostgreSQL in Testcontainers, as the runtime login (CS-19)."
         testClassesDirs = sourceSets["integrationTest"].output.classesDirs
         classpath = sourceSets["integrationTest"].runtimeClasspath
         shouldRunAfter(tasks.named("test"))
