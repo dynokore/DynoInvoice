@@ -152,7 +152,34 @@ class BlankCheckRepairDbTest {
     }
 
     @Test
-    fun `the config functions refuse an actor, a reason or an option key made only of U+FEFF`() {
+    fun `the installation functions refuse an actor, a reason or an option key made only of U+FEFF`() {
+        BoundaryFixture.asSuperuser { connection ->
+            connection.autoCommit = false
+            try {
+                val install =
+                    "select * from access.write_installation_setting('VP-01', array['k'], null, current_date, ?, " +
+                        "'{}'::jsonb, null)"
+                val maximum = "select access.config_option_value_maximum('VP-01', ?)"
+                bind(connection, PLATFORM_TENANT, FEFF)
+                assertEquals("42501", refusal(connection, install, "r")?.sqlState)
+                bind(connection, PLATFORM_TENANT, "u")
+                assertEquals("22023", refusal(connection, install, FEFF)?.sqlState)
+                assertTrue(
+                    refusal(connection, install, FEFF)?.message?.contains("are required") == true,
+                    "the reason refusal is the blank check",
+                )
+                // a letter passes the reason check: the call stops later, on the policy row, with another message
+                assertFalse(refusal(connection, install, "r")?.message?.contains("are required") == true)
+                assertEquals("22023", refusal(connection, maximum, FEFF)?.sqlState)
+                assertEquals(null, refusal(connection, maximum, "a"))
+            } finally {
+                connection.rollback()
+            }
+        }
+    }
+
+    @Test
+    fun `the purge functions refuse an actor made only of U+FEFF and delete nothing`() {
         BoundaryFixture.asSuperuser { connection ->
             connection.autoCommit = false
             try {
@@ -166,26 +193,8 @@ class BlankCheckRepairDbTest {
                     )
                 }
                 val before = count(connection, "access.config_resolved_value")
-                val install =
-                    "select * from access.write_installation_setting('VP-01', array['k'], null, current_date, ?, " +
-                        "'{}'::jsonb, null)"
                 val purgeSubject = "select access.config_purge_subject('st', 'sr')"
                 val purgeTenant = "select * from access.config_purge_tenant('$tenant')"
-                val maximum = "select access.config_option_value_maximum('VP-01', ?)"
-
-                bind(connection, PLATFORM_TENANT, FEFF)
-                assertEquals("42501", refusal(connection, install, "r")?.sqlState)
-                bind(connection, PLATFORM_TENANT, "u")
-                assertEquals("22023", refusal(connection, install, FEFF)?.sqlState)
-                assertTrue(
-                    refusal(connection, install, FEFF)?.message?.contains("are required") == true,
-                    "the reason refusal is the blank check",
-                )
-                // a letter passes the reason check: the call stops later, on the policy row, with another message
-                assertFalse(refusal(connection, install, "r")?.message?.contains("are required") == true)
-                assertEquals("22023", refusal(connection, maximum, FEFF)?.sqlState)
-                assertEquals(null, refusal(connection, maximum, "a"))
-
                 bind(connection, tenant, FEFF)
                 assertEquals("42501", refusal(connection, purgeSubject)?.sqlState)
                 assertEquals("42501", refusal(connection, purgeTenant)?.sqlState)
@@ -295,7 +304,7 @@ class BlankCheckRepairDbTest {
         val ZERO_WIDTH_SPACE: String = ZERO_WIDTH_SPACE_CODE.toChar().toString()
 
         /** The six characters backslash, u, F, E, F, F that the regex of the check reads as the code point. */
-        val SIX: String = "\\" + "uFEFF"
+        const val SIX = "\\" + "uFEFF"
 
         val FUNCTIONS =
             listOf(
