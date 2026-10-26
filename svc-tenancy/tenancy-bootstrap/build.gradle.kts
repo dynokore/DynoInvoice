@@ -31,6 +31,8 @@ dependencies {
 
     testImplementation(libs.springBoot.starterTest)
     testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.flyway.core)
+    testImplementation(libs.flyway.databasePostgresql)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
