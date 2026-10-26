@@ -89,7 +89,10 @@ class BlankCheckRepairDbTest {
                 }
                 val before = count(connection, "masterdata.consumer_sequence")
                 val deadLettersBefore = count(connection, "masterdata.event_dead_letter")
-                assertEquals("22023", refusal(connection, "select masterdata.full_sync_delete(?, 'src')", FEFF)?.sqlState)
+                assertEquals(
+                    "22023",
+                    refusal(connection, "select masterdata.full_sync_delete(?, 'src')", FEFF)?.sqlState,
+                )
                 assertEquals("22023", refusal(connection, "select masterdata.full_sync_delete('a', ?)", FEFF)?.sqlState)
                 assertEquals(
                     "22023",
