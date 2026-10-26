@@ -58,9 +58,11 @@ class RolePermissionKotlinEmitterTest {
     @Test
     fun `the OperationRoles literal has rows for exactly the cells of the table`() {
         val expected =
-            table.permissions.flatMap { p -> DeploymentForm.entries.flatMap { f -> p.cells.filter { it.form == f }.map { listOf(f.name, p.key, it.role, it.allowance.name) } } }
-        assertEquals(expected.toSet(), operationRows().toSet())
-        assertEquals(expected.size, operationRows().size)
+            DeploymentForm.entries.flatMap { f ->
+                table.permissions.flatMap { p -> p.cells.filter { it.form == f }.map { listOf(f.name, p.key, it.role, it.allowance.name) } }
+            }
+        // List equality: the rows come in the order of the table (forms, then keys, then cells), not just as the same set.
+        assertEquals(expected, operationRows())
     }
 
     @Test
