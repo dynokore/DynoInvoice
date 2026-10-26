@@ -7,7 +7,10 @@ import io.kotest.matchers.collections.shouldContainAll
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 
-/** After the migrations the schema holds the tables the job runtime, the outbox and the idempotency store write (TPL-12). */
+/**
+ * After the migrations the schema holds the tables the job runtime, the outbox and the idempotency store write
+ * (TPL-12).
+ */
 class JobRuntimeTablesIT {
     @Test
     fun `the control-plane schema holds the outbox, job and idempotency tables`() {
