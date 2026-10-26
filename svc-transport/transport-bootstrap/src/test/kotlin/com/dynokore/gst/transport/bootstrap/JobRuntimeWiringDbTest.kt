@@ -21,28 +21,45 @@ class JobRuntimeWiringDbTest {
     @Test
     fun `INV-AC-2126 a scheduled job is registered with its criticality and each run is recorded`(
         @TempDir dir: Path,
-    ) = TransportContext.online(dir).run { context ->
-        val runtime = context.getBean(JobRuntime::class.java)
-        runtime.register(job(JOB)) {}
-        runtime.announce()
-        runtime.fire(JOB)[JobTarget.Whole] shouldBe FireResult.RAN
+    ) {
+        TransportContext.online(dir).run { context ->
+            val runtime = context.getBean(JobRuntime::class.java)
+            runtime.register(job(JOB)) {}
+            writeRetentionRow()
+            runtime.announce()
+            runtime.fire(JOB)[JobTarget.Whole] shouldBe FireResult.RAN
 
-        runs(JOB) shouldContainExactly listOf("SUCCEEDED")
-        outbox(PlatformEventCatalogue.JOB_REGISTERED.eventType, JOB) shouldBe 1
-        outbox(PlatformEventCatalogue.JOB_RUN_RECORDED.eventType, JOB) shouldBe 1
+            runs(JOB) shouldContainExactly listOf("SUCCEEDED")
+            outbox(PlatformEventCatalogue.JOB_REGISTERED.eventType, JOB) shouldBe 1
+            outbox(PlatformEventCatalogue.JOB_RUN_RECORDED.eventType, JOB) shouldBe 1
+        }
     }
 
     @Test
     fun `probe - a body that throws leaves a FAILED row and no SUCCEEDED row`(
         @TempDir dir: Path,
-    ) = TransportContext.online(dir).run { context ->
-        val runtime = context.getBean(JobRuntime::class.java)
-        runtime.register(job(FAILING)) { error("boom") }
-        runtime.announce()
-        runtime.fire(FAILING)
+    ) {
+        TransportContext.online(dir).run { context ->
+            val runtime = context.getBean(JobRuntime::class.java)
+            runtime.register(job(FAILING)) { error("boom") }
+            writeRetentionRow()
+            runtime.announce()
+            runtime.fire(FAILING)
 
-        runs(FAILING) shouldContainExactly listOf("FAILED")
+            runs(FAILING) shouldContainExactly listOf("FAILED")
+        }
     }
+
+    /** The row the migration runner writes at install (INV-Q-4346); this harness applies only the Flyway files. */
+    private fun writeRetentionRow() =
+        TransportDb.superuser().use { connection ->
+            connection.createStatement().use {
+                it.execute(
+                    "insert into transport.job_retention (id, job_window) values (true, interval '2592000 seconds') " +
+                        "on conflict do nothing",
+                )
+            }
+        }
 
     private fun job(name: String) =
         JobDefinition(
