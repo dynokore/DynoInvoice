@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.7.0
+  version: 1.8.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -172,7 +172,7 @@ paths:
                       - gate: STAGING
                         candidateResult: PASSED
                       exposureReducing: false
-                      classifiedByRole: release.manager
+                      classifiedBy: alice.releasemanager@operator.example
                       recordedAt: '2026-10-12T08:45:00Z'
         "409":
           $ref: '#/components/responses/Error'
@@ -255,7 +255,7 @@ paths:
                       - gate: STAGING
                         candidateResult: PASSED
                       exposureReducing: false
-                      classifiedByRole: release.manager
+                      classifiedBy: alice.releasemanager@operator.example
                       recordedAt: '2026-10-12T08:45:00Z'
         "409":
           $ref: '#/components/responses/Error'
@@ -326,7 +326,7 @@ paths:
                         candidateResult: FAILED
                         baselineResult: FAILED
                       exposureReducing: false
-                      classifiedByRole: release.manager
+                      classifiedBy: alice.releasemanager@operator.example
                       accreditationCheck:
                         assessmentNeeded: true
                         alertRef: ALERT-2026-10-0001
@@ -476,7 +476,7 @@ paths:
                     gate: SCENARIOS
                     environment: SAAS
                     candidateResult: PASSED
-                    recordedByRole: release.manager
+                    recordedBy: alice.releasemanager@operator.example
                     recordedAt: '2026-10-12T08:45:00Z'
         "400":
           $ref: '#/components/responses/Error'
@@ -1371,7 +1371,7 @@ paths:
                       - gate: STAGING
                         candidateResult: PASSED
                       exposureReducing: false
-                      classifiedByRole: release.manager
+                      classifiedBy: alice.releasemanager@operator.example
                       recordedAt: '2026-10-12T08:45:00Z'
         "400":
           $ref: '#/components/responses/Error'
@@ -1509,7 +1509,7 @@ paths:
                     - submissionType: TYPE_3
                       acknowledgementId: ACK-3-0001
                     recordedAt: '2026-10-19T08:00:00Z'
-                    recordedByRole: release.manager
+                    recordedBy: alice.releasemanager@operator.example
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1569,7 +1569,7 @@ paths:
                       - submissionType: TYPE_3
                         acknowledgementId: ACK-3-0001
                       recordedAt: '2026-10-19T08:00:00Z'
-                      recordedByRole: release.manager
+                      recordedBy: alice.releasemanager@operator.example
                 lapsed:
                   value:
                     currency: LAPSED
@@ -1593,7 +1593,7 @@ paths:
                       - submissionType: TYPE_3
                         acknowledgementId: ACK-3-0001
                       recordedAt: '2026-10-19T08:00:00Z'
-                      recordedByRole: release.manager
+                      recordedBy: alice.releasemanager@operator.example
                 notRecorded:
                   value:
                     currency: NOT_RECORDED
@@ -1994,7 +1994,8 @@ components:
                 x-extensible-enum: true
         exposureReducing:
           type: boolean
-        classifiedByRole:
+        classifiedBy:
+          description: 'The user ID of the person who made the call: the `sub` of the authenticated end-user token. Never a role name.'
           type: string
           maxLength: 64
         accreditationCheck:
@@ -2200,7 +2201,8 @@ components:
           description: The reference to the run's evidence.
           type: string
           maxLength: 256
-        recordedByRole:
+        recordedBy:
+          description: 'The user ID of the person who made the call: the `sub` of the authenticated end-user token. Never a role name.'
           type: string
           maxLength: 64
         recordedAt:
@@ -2518,7 +2520,7 @@ components:
       - imdaReference
       - coveredSubmissionTypes
       - recordedAt
-      - recordedByRole
+      - recordedBy
       properties:
         grantedOn:
           type: string
@@ -2563,7 +2565,8 @@ components:
         recordedAt:
           type: string
           format: date-time
-        recordedByRole:
+        recordedBy:
+          description: 'The user ID of the person who made the call: the `sub` of the authenticated end-user token. Never a role name.'
           type: string
           maxLength: 64
     AccreditationStatus:

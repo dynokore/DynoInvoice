@@ -3,5 +3,5 @@
   "gate": "CERTIFICATION",
   "environment": "PRIVATE_MINIMAL",
   "candidateResult": "PASSED",
-  "recordedByRole": "release.manager"
+  "recordedBy": "alice.releasemanager@operator.example"
 }

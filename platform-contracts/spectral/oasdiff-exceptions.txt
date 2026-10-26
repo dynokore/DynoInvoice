@@ -64,3 +64,6 @@ POST /internal/v1/masterdata/counterparty-requests/{requestId}/submission the `r
 # INV-T-11269 (INV-Q-11260 A, INV-Q-3569 A): sourceKey and sourceRevision are added before any train is published (the README names 1.0.0 as the first train).
 POST /internal/v1/aggregation/batches added the new required request property `sourceKey`
 POST /internal/v1/aggregation/batches added the new required request property `sourceRevision`
+# INV-Q-10678 A (INV-T-10676), on INV-Q-3569's reasoning (no train is published, no consumer deployed; owner answer on INV-Q-10647): AccreditationRecord.recordedByRole is replaced by the user-ID property recordedBy; the optional GateRunResponse.recordedByRole and ReleaseGateResult.classifiedByRole renames are not reported by the gate (optional properties).
+GET /internal/v1/control-plane/accreditation removed the required property `record/recordedByRole` from the response with the `200` status
+POST /internal/v1/control-plane/accreditation removed the required property `recordedByRole` from the response with the `201` status

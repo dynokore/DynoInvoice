@@ -3,6 +3,6 @@
   "gate": "CERTIFICATION",
   "environment": "PRIVATE_MINIMAL",
   "candidateResult": "PASSED",
-  "recordedByRole": "release.manager",
+  "recordedBy": "alice.releasemanager@operator.example",
   "recordedAt": "2026-10-12T08:45:00Z"
 }

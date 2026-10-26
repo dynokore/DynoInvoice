@@ -21,7 +21,7 @@ gates	property	openapi.yaml	INV-REQ-2657
 gate	property	openapi.yaml	INV-REQ-2657
 candidateResult	property	openapi.yaml	INV-REQ-2657
 baselineResult	property	openapi.yaml	INV-REQ-2657
-classifiedByRole	property	openapi.yaml	INV-REQ-2657
+classifiedBy	property	openapi.yaml	INV-REQ-2657
 PASSED	enum_value	openapi.yaml	INV-REQ-2662
 FAILED	enum_value	openapi.yaml	INV-REQ-2662
 PENDING	enum_value	openapi.yaml	INV-REQ-2662
@@ -123,7 +123,7 @@ GateRunRequest.candidateFindings	schema_property	openapi.yaml	INV-REQ-2657
 GateRunRequest.baselineFindings	schema_property	openapi.yaml	INV-REQ-2657
 GateRunRequest.evidenceRef	schema_property	openapi.yaml	INV-REQ-2657
 GateRunResponse.gate	schema_property	openapi.yaml	INV-REQ-2657
-GateRunResponse.recordedByRole	schema_property	openapi.yaml	INV-REQ-2657
+GateRunResponse.recordedBy	schema_property	openapi.yaml	INV-REQ-2657
 GateRunRequest.gate.SCENARIOS	schema_enum_value	openapi.yaml	INV-REQ-2657
 GateRunRequest.gate.REGENERATION	schema_enum_value	openapi.yaml	INV-REQ-2657
 GateRunRequest.gate.SECURITY	schema_enum_value	openapi.yaml	INV-REQ-2657

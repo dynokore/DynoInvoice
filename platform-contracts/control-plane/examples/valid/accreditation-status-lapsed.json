@@ -30,6 +30,6 @@
       }
     ],
     "recordedAt": "2026-10-19T08:00:00Z",
-    "recordedByRole": "release.manager"
+    "recordedBy": "alice.releasemanager@operator.example"
   }
 }
