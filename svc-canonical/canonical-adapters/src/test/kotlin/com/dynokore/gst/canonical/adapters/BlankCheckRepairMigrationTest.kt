@@ -92,16 +92,21 @@ class BlankCheckRepairMigrationTest {
     }
 
     @Test
-    fun `the file name is the CS-19 name and its version is the greatest in the directory`() {
+    fun `the file name is the CS-19 name and no later migration redefines the repaired functions`() {
         val directory = Path.of("src/main/resources/db/migration")
-        val versions =
+        val files =
             Files
                 .list(directory)
-                .use { stream ->
-                    stream.map { it.fileName.toString() }.filter { it.endsWith(".sql") }.toList()
-                }.associateBy { Regex("""^V(\d+)__""").find(it)!!.groupValues[1].toLong() }
-        assertEquals(file, versions[versions.keys.max()])
-        assertEquals(202610270900L, versions.keys.max())
+                .use { stream -> stream.filter { it.fileName.toString().endsWith(".sql") }.toList() }
+                .associateBy { Regex("""^V(\d+)__""").find(it.fileName.toString())!!.groupValues[1].toLong() }
+        assertEquals(file, files[REPAIR_VERSION]?.fileName.toString())
+        files.filterKeys { it > REPAIR_VERSION }.values.forEach { later ->
+            val text = Files.readString(later)
+            FUNCTIONS.forEach { name ->
+                val redefines = Regex("""function\s+canonical\.$name\(""", RegexOption.IGNORE_CASE)
+                assertFalse(redefines.containsMatchIn(text), "${later.fileName} $name")
+            }
+        }
     }
 
     private data class Facts(
@@ -216,6 +221,7 @@ class BlankCheckRepairMigrationTest {
     }
 
     private companion object {
+        const val REPAIR_VERSION = 202610270900L
         const val FEFF_CODE = 0xFEFF
         val FEFF: Char = FEFF_CODE.toChar()
         const val GROUP_END = "revoke create on schema canonical from canonical_sys;"

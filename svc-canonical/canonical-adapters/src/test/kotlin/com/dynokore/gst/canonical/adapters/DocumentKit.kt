@@ -2,6 +2,7 @@ package com.dynokore.gst.canonical.adapters
 
 import com.dynokore.gst.canonical.adapters.persistence.JooqDocumentStore
 import com.dynokore.gst.canonical.application.document.CreateDocumentVersion
+import com.dynokore.gst.canonical.application.document.RebuildDerived
 import com.dynokore.gst.canonical.application.document.WindowReader
 import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.document.DocumentState
@@ -46,6 +47,9 @@ class DocumentKit {
             mapOf(
                 DSL.name("canonical", "document") to TableClass.TENANT,
                 DSL.name("canonical", "document_version") to TableClass.TENANT,
+                DSL.name("canonical", "document_line") to TableClass.TENANT,
+                DSL.name("canonical", "document_subtotal") to TableClass.TENANT,
+                DSL.name("canonical", "document_party") to TableClass.TENANT,
             ),
         )
     private val dsl =
@@ -53,6 +57,7 @@ class DocumentKit {
     val store = JooqDocumentStore(dsl)
     val versions = CreateDocumentVersion(store, transaction)
     val windows = WindowReader(store, transaction)
+    val rebuilds = RebuildDerived(store, transaction)
 
     fun <T> asTenant(
         tenant: UUID,

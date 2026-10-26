@@ -1,10 +1,15 @@
 package com.dynokore.gst.canonical.adapters.persistence
 
 import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT
+import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT_LINE
+import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT_PARTY
+import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT_SUBTOTAL
 import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT_VERSION
 import com.dynokore.gst.canonical.application.document.DocumentStore
+import com.dynokore.gst.canonical.domain.document.DerivedRows
 import com.dynokore.gst.canonical.domain.document.NewDocument
 import com.dynokore.gst.canonical.domain.document.NewVersion
+import com.dynokore.gst.canonical.domain.document.SubtotalCoverage
 import com.dynokore.gst.canonical.domain.document.WindowDocument
 import com.dynokore.platform.serviceruntime.persistence.UpdateOutcome
 import org.jooq.DSLContext
@@ -12,6 +17,7 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.time.LocalDate
 import java.util.UUID
+import com.dynokore.gst.canonical.domain.document.VersionKey as DerivedVersionKey
 
 /**
  * TPL-11. jOOQ only. The DSLContext is the one of the open `canonical` transaction; the tenant predicate is the
@@ -92,7 +98,110 @@ class JooqDocumentStore(
             .set(DOCUMENT_VERSION.SPECIFICATION_VERSION, version.specificationVersion.name)
             .set(DOCUMENT_VERSION.CREATED_BY, version.createdBy)
             .execute()
+        // C-6 and the shape are checked here, in the transaction that writes the version: a throw rolls all of it back.
+        writeDerived(
+            key.docUuid,
+            key.number,
+            key.tenantId,
+            CanonicalDerivation.derive(version.canonical).also(SubtotalCoverage::check),
+        )
     }
+
+    private fun writeDerived(
+        docUuid: UUID,
+        version: Int,
+        tenantId: UUID,
+        rows: DerivedRows,
+    ) {
+        rows.lines.forEach { line ->
+            dsl
+                .insertInto(DOCUMENT_LINE)
+                .set(DOCUMENT_LINE.DOC_UUID, docUuid)
+                .set(DOCUMENT_LINE.VERSION, version)
+                .set(DOCUMENT_LINE.LINE_NUMBER, line.lineNumber)
+                .set(DOCUMENT_LINE.TENANT_ID, tenantId)
+                .set(DOCUMENT_LINE.DESCRIPTION, line.description)
+                .set(DOCUMENT_LINE.QUANTITY, line.quantity)
+                .set(DOCUMENT_LINE.UNIT_PRICE, line.unitPrice)
+                .set(DOCUMENT_LINE.LINE_AMOUNT, line.lineAmount)
+                .set(DOCUMENT_LINE.TAX_CODE, line.taxCode)
+                .set(DOCUMENT_LINE.TAX_AMOUNT, line.taxAmount)
+                .execute()
+        }
+        rows.subtotals.forEach { subtotal ->
+            dsl
+                .insertInto(DOCUMENT_SUBTOTAL)
+                .set(DOCUMENT_SUBTOTAL.DOC_UUID, docUuid)
+                .set(DOCUMENT_SUBTOTAL.VERSION, version)
+                .set(DOCUMENT_SUBTOTAL.TAX_CODE, subtotal.taxCode)
+                .set(DOCUMENT_SUBTOTAL.TENANT_ID, tenantId)
+                .set(DOCUMENT_SUBTOTAL.TAXABLE_AMOUNT, subtotal.taxableAmount)
+                .set(DOCUMENT_SUBTOTAL.TAX_AMOUNT, subtotal.taxAmount)
+                .execute()
+        }
+        rows.parties.forEach { party ->
+            dsl
+                .insertInto(DOCUMENT_PARTY)
+                .set(DOCUMENT_PARTY.DOC_UUID, docUuid)
+                .set(DOCUMENT_PARTY.VERSION, version)
+                .set(DOCUMENT_PARTY.ROLE, party.role.column)
+                .set(DOCUMENT_PARTY.TENANT_ID, tenantId)
+                .set(DOCUMENT_PARTY.PARTY, DSL.`val`(party.party).cast(SQLDataType.JSONB))
+                .execute()
+        }
+    }
+
+    override fun rebuildDerived(
+        docUuid: UUID,
+        version: Int,
+    ) {
+        val stored =
+            dsl
+                .select(DOCUMENT_VERSION.TENANT_ID, DOCUMENT_VERSION.CANONICAL)
+                .from(DOCUMENT_VERSION)
+                .where(DOCUMENT_VERSION.DOC_UUID.eq(docUuid))
+                .and(DOCUMENT_VERSION.VERSION.eq(version))
+                .fetchOne() ?: throw NoSuchElementException("no version $version of document $docUuid")
+        // derived and checked before the first delete: a refused version keeps whatever rows it has
+        val rows = CanonicalDerivation.derive(checkNotNull(stored.get(DOCUMENT_VERSION.CANONICAL)).data())
+        SubtotalCoverage.check(rows)
+        deleteDerived(docUuid, version)
+        writeDerived(docUuid, version, checkNotNull(stored.get(DOCUMENT_VERSION.TENANT_ID)), rows)
+    }
+
+    private fun deleteDerived(
+        docUuid: UUID,
+        version: Int,
+    ) {
+        dsl
+            .deleteFrom(DOCUMENT_LINE)
+            .where(DOCUMENT_LINE.DOC_UUID.eq(docUuid))
+            .and(DOCUMENT_LINE.VERSION.eq(version))
+            .execute()
+        dsl
+            .deleteFrom(DOCUMENT_SUBTOTAL)
+            .where(DOCUMENT_SUBTOTAL.DOC_UUID.eq(docUuid))
+            .and(DOCUMENT_SUBTOTAL.VERSION.eq(version))
+            .execute()
+        dsl
+            .deleteFrom(DOCUMENT_PARTY)
+            .where(DOCUMENT_PARTY.DOC_UUID.eq(docUuid))
+            .and(DOCUMENT_PARTY.VERSION.eq(version))
+            .execute()
+    }
+
+    override fun versionKeys(tenantId: UUID): List<DerivedVersionKey> =
+        dsl
+            .select(DOCUMENT_VERSION.DOC_UUID, DOCUMENT_VERSION.VERSION)
+            .from(DOCUMENT_VERSION)
+            .where(DOCUMENT_VERSION.TENANT_ID.eq(tenantId))
+            .orderBy(DOCUMENT_VERSION.DOC_UUID, DOCUMENT_VERSION.VERSION)
+            .fetch {
+                DerivedVersionKey(
+                    checkNotNull(it.get(DOCUMENT_VERSION.DOC_UUID)),
+                    checkNotNull(it.get(DOCUMENT_VERSION.VERSION)),
+                )
+            }
 
     @Suppress("LongParameterList") // the signature of the window read of INV-REQ-772 b1
     override fun readWindow(
