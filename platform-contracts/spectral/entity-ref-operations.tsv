@@ -4,3 +4,6 @@ masterdata	POST	/internal/v1/masterdata/counterparties/{counterpartyRef}/resolut
 ingestion	POST	/internal/v1/ingestion/test-events	entityRef
 notification	POST	/internal/v1/notification/webhook-subscriptions	entityRef,entityRefs
 tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/questionnaire-answers	entityRef
+tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/offboarding	entityRef
+tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/operating-profile	entityRef
+tenancy	POST	/internal/v1/tenancy/business-units	entityRef

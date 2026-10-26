@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.15.0
+  version: 1.16.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -2053,7 +2053,7 @@ paths:
         confirmation (FR-AF.8, `secondConfirmationBy`) is required when scope is ENTITY; when scope is TENANT
         none is required and a value is ignored (owner answer INV-Q-8024).
         With scope TENANT the call is refused with 403 for every caller; the whole tenant is offboarded by
-        closeTenant, called by the scheduled job of control-plane-svc (owner answer INV-Q-8137).
+        closeTenant, called by the scheduled job of control-plane-svc (owner answer INV-Q-8137). An entityRef outside the principal's entity set is refused with 403 and the code SRT-004 before the handler runs (API-24); an absent property is the service's own concern.
       tags:
       - tenants
       x-principal: filing-workflow
@@ -2064,6 +2064,7 @@ paths:
       - FR-G.10
       - FR-AB.9
       - FR-AF.8
+      x-entity-ref: entityRef
       x-error-codes:
       - DEP-007
       x-operation:
@@ -2221,7 +2222,7 @@ paths:
         previews the differences and calls each owning service's setPolicy; it calls this operation with
         what it applied, after its setPolicy calls have succeeded, so a failure part-way leaves no record of
         a profile that was not applied (INV-REQ-1245 b2). A call for a scope that already has a record
-        replaces its profile reference and version.
+        replaces its profile reference and version. An entityRef outside the principal's entity set is refused with 403 and the code SRT-004 before the handler runs (API-24); an absent property is the service's own concern.
       tags:
       - tenants
       x-principal: filing-workflow
@@ -2230,6 +2231,7 @@ paths:
       x-timeout: 2000
       x-requirements:
       - FR-AI.7
+      x-entity-ref: entityRef
       x-error-codes: []
       x-operation:
         role: tenant.admin for scope TENANT, entity.admin for scope ENTITY
@@ -2398,7 +2400,7 @@ paths:
     post:
       operationId: registerBusinessUnit
       summary: Register a business unit under a registered entity
-      description: Registers a business unit under a registered entity, its short code entered at registration (INV-REQ-850 b7). Responds 409 when the code is already used by another entity or business unit of the tenant. Emits OrganisationStructureChanged.
+      description: Registers a business unit under a registered entity, its short code entered at registration (INV-REQ-850 b7). Responds 409 when the code is already used by another entity or business unit of the tenant. Emits OrganisationStructureChanged. An entityRef outside the principal's entity set is refused with 403 and the code SRT-004 before the handler runs (API-24); an absent property is the service's own concern.
       tags:
       - entities
       x-principal: filing-workflow
@@ -2407,6 +2409,7 @@ paths:
       x-timeout: 2000
       x-requirements:
       - FR-G.1
+      x-entity-ref: entityRef
       x-error-codes:
       - TNC-002
       x-operation:
