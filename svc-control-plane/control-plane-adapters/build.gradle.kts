@@ -115,6 +115,15 @@ tasks.withType<Test> {
                 "control-plane-contract/build/contracts-repo/platform-contracts/control-plane/${libs.versions.platformContractsBundle.get()}",
             ).asFile.path,
     )
+    // The staged bundle holds the rules schemas (calendar-pack-contents.schema.json); the seed tests read them, never a copy.
+    systemProperty(
+        "gst.contracts.bundle.dir",
+        rootProject.layout.projectDirectory
+            .dir("control-plane-contract/build/contracts-repo/.bundle")
+            .asFile.path,
+    )
+    // The repository root, the base of the no-code-constant scan of the five module directories (INV-REQ-1350).
+    systemProperty("gst.repo.root", rootProject.layout.projectDirectory.asFile.path)
     systemProperty(
         "gst.migrations.dir",
         layout.projectDirectory

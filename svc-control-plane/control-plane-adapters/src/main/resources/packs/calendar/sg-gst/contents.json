@@ -1,0 +1,922 @@
+{
+  "windows": {
+    "QUARTERLY": [
+      {
+        "start": "2025-01-01",
+        "end": "2025-03-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-04-01",
+        "end": "2025-06-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-07-01",
+        "end": "2025-09-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-10-01",
+        "end": "2025-12-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-01-01",
+        "end": "2026-03-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-04-01",
+        "end": "2026-06-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-07-01",
+        "end": "2026-09-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-10-01",
+        "end": "2026-12-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-01-01",
+        "end": "2027-03-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-04-01",
+        "end": "2027-06-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-07-01",
+        "end": "2027-09-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-10-01",
+        "end": "2027-12-31",
+        "returnForm": "F5"
+      }
+    ],
+    "MONTHLY": [
+      {
+        "start": "2025-01-01",
+        "end": "2025-01-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-02-01",
+        "end": "2025-02-28",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-03-01",
+        "end": "2025-03-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-04-01",
+        "end": "2025-04-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-05-01",
+        "end": "2025-05-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-06-01",
+        "end": "2025-06-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-07-01",
+        "end": "2025-07-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-08-01",
+        "end": "2025-08-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-09-01",
+        "end": "2025-09-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-10-01",
+        "end": "2025-10-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-11-01",
+        "end": "2025-11-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2025-12-01",
+        "end": "2025-12-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-01-01",
+        "end": "2026-01-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-02-01",
+        "end": "2026-02-28",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-03-01",
+        "end": "2026-03-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-04-01",
+        "end": "2026-04-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-05-01",
+        "end": "2026-05-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-06-01",
+        "end": "2026-06-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-07-01",
+        "end": "2026-07-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-08-01",
+        "end": "2026-08-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-09-01",
+        "end": "2026-09-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-10-01",
+        "end": "2026-10-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-11-01",
+        "end": "2026-11-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2026-12-01",
+        "end": "2026-12-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-01-01",
+        "end": "2027-01-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-02-01",
+        "end": "2027-02-28",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-03-01",
+        "end": "2027-03-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-04-01",
+        "end": "2027-04-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-05-01",
+        "end": "2027-05-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-06-01",
+        "end": "2027-06-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-07-01",
+        "end": "2027-07-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-08-01",
+        "end": "2027-08-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-09-01",
+        "end": "2027-09-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-10-01",
+        "end": "2027-10-31",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-11-01",
+        "end": "2027-11-30",
+        "returnForm": "F5"
+      },
+      {
+        "start": "2027-12-01",
+        "end": "2027-12-31",
+        "returnForm": "F5"
+      }
+    ]
+  },
+  "finalReturnForm": "F8",
+  "dueRules": {
+    "F5": {
+      "monthsAfterEnd": 1,
+      "endOfMonth": true,
+      "daysAfterEnd": 0
+    },
+    "F8": {
+      "monthsAfterEnd": 1,
+      "endOfMonth": false,
+      "daysAfterEnd": 0
+    }
+  },
+  "weekend": [
+    "SATURDAY",
+    "SUNDAY"
+  ],
+  "holidays": [
+    "2025-01-01",
+    "2025-01-29",
+    "2025-01-30",
+    "2025-03-31",
+    "2025-04-18",
+    "2025-05-01",
+    "2025-05-03",
+    "2025-05-12",
+    "2025-06-07",
+    "2025-08-09",
+    "2025-10-20",
+    "2025-12-25",
+    "2026-01-01",
+    "2026-02-17",
+    "2026-02-18",
+    "2026-03-21",
+    "2026-04-03",
+    "2026-05-01",
+    "2026-05-27",
+    "2026-05-31",
+    "2026-06-01",
+    "2026-08-09",
+    "2026-08-10",
+    "2026-11-08",
+    "2026-11-09",
+    "2026-12-25",
+    "2027-01-01",
+    "2027-02-06",
+    "2027-02-07",
+    "2027-02-08",
+    "2027-03-10",
+    "2027-03-26",
+    "2027-05-01",
+    "2027-05-17",
+    "2027-05-20",
+    "2027-08-09",
+    "2027-10-28",
+    "2027-12-25"
+  ],
+  "alertThresholds": {
+    "QUARTERLY": [
+      10
+    ],
+    "MONTHLY": [
+      5
+    ]
+  },
+  "safetyMargin": {
+    "value": 3,
+    "unit": "DAYS"
+  },
+  "entrySources": [
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2025-01-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2025-04-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2025-07-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2025-10-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2026-01-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2026-04-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2026-07-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2026-10-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2027-01-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2027-04-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2027-07-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "QUARTERLY",
+      "date": "2027-10-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-113"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-01-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-02-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-03-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-04-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-05-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-06-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-07-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-08-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-09-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-10-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-11-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2025-12-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-01-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-02-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-03-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-04-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-05-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-06-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-07-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-08-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-09-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-10-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-11-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2026-12-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-01-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-02-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-03-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-04-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-05-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-06-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-07-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-08-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-09-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-10-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-11-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "windows",
+      "frequency": "MONTHLY",
+      "date": "2027-12-01",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; example 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 (para 4.2.1); premise: every calendar month is a monthly accounting period of the same form"
+    },
+    {
+      "section": "finalReturnForm",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-AC-153"
+    },
+    {
+      "section": "dueRules",
+      "returnForm": "F5",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; paras 4.1.2 and 4.2.1 (examples 1 Jul 2023 - 31 Jul 2023 due 31 Aug 2023 and 1 Jul 2023 - 30 Sep 2023 due 31 Oct 2023)"
+    },
+    {
+      "section": "dueRules",
+      "returnForm": "F8",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS, Cancelling GST registration, https://www.iras.gov.sg/taxes/goods-services-tax-(gst)/gst-registration-deregistration/cancelling-gst-registration; GST F8 within one month from the end of the prescribed accounting period; premise: the due date is one month after the period end, not the end of that month"
+    },
+    {
+      "section": "weekend",
+      "sourceClass": "INFERRED",
+      "sourceReference": "IRAS e-Tax Guide How do I prepare my GST return? (Eleventh Edition, 30 Jan 2026), https://www.iras.gov.sg/media/docs/default-source/e-tax/etaxguide_gst_how-do-i-prepare-my-gst-return.pdf; para 7.1.2 defines a working day as Monday to Friday excluding public holidays; premise: the days that are not working days are Saturday and Sunday"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-01-01",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (New Year's Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-01-29",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Chinese New Year)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-01-30",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Chinese New Year)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-03-31",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Hari Raya Puasa)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-04-18",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Good Friday)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-05-01",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Labour Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-05-03",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Polling Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-05-12",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Vesak Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-06-07",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Hari Raya Haji)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-08-09",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (National Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-10-20",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Deepavali)"
+    },
+    {
+      "section": "holidays",
+      "date": "2025-12-25",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Christmas Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-01-01",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (New Year's Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-02-17",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Chinese New Year)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-02-18",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Chinese New Year)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-03-21",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Hari Raya Puasa)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-04-03",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Good Friday)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-05-01",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Labour Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-05-27",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Hari Raya Haji)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-05-31",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Vesak Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-06-01",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (In-lieu day for Vesak Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-08-09",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (National Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-08-10",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (In-lieu day for National Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-11-08",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Deepavali)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-11-09",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (In-lieu day for Deepavali)"
+    },
+    {
+      "section": "holidays",
+      "date": "2026-12-25",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Christmas Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-01-01",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (New Year's Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-02-06",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Chinese New Year)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-02-07",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Chinese New Year)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-02-08",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (In-lieu day for Chinese New Year)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-03-10",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Hari Raya Puasa)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-03-26",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Good Friday)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-05-01",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Labour Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-05-17",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Hari Raya Haji)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-05-20",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Vesak Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-08-09",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (National Day)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-10-28",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Deepavali)"
+    },
+    {
+      "section": "holidays",
+      "date": "2027-12-25",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "Ministry of Manpower, Public holidays, https://www.mom.gov.sg/employment-practices/public-holidays (Christmas Day)"
+    },
+    {
+      "section": "alertThresholds",
+      "frequency": "QUARTERLY",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-REQ-1117"
+    },
+    {
+      "section": "alertThresholds",
+      "frequency": "MONTHLY",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-REQ-1117"
+    },
+    {
+      "section": "safetyMargin",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-REQ-1279"
+    }
+  ]
+}
