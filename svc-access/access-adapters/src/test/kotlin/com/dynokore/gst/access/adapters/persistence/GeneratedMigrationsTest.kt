@@ -28,16 +28,29 @@ class GeneratedMigrationsTest {
             .joinToString("\n")
             .trim()
 
+    /**
+     * Flyway drops every U+FEFF from a script (INV-T-10836): the old generator wrote the ten blank code points that are
+     * not printable ASCII raw, the current one writes `\uXXXX`; the V files are never edited (INV-T-10861).
+     */
+    private fun escapeBlankCodePoints(text: String): String =
+        BLANK_CODE_POINTS.fold(text) { acc, cp ->
+            acc.replace(String(Character.toChars(cp)), "\\u" + "%04X".format(cp))
+        }
+
     @Test
     fun `the outbox migration is the DDL outbox-and-queue generates for the access schema`() {
         val expected = OutboxSchema.ddl("access", "access_runtime", "access_sys").trim()
-        assertEquals(expected, body(migration("V202610190900__create_outbox.sql")))
+        val text = migration("V202610190900__create_outbox.sql")
+        assertEquals(OUTBOX_RAW_FEFF, text.count { it == FEFF })
+        assertEquals(expected, escapeBlankCodePoints(body(text)))
     }
 
     @Test
     fun `the config migration is the DDL config-resolver generates for the access schema`() {
         val expected = ConfigSchema.ddl("access", "access_runtime", "access_sys", ConfigSchema.EventMode.OUTBOX).trim()
-        assertEquals(expected, body(migration("V202610210910__create_config_resolver.sql")))
+        val text = migration("V202610210910__create_config_resolver.sql")
+        assertEquals(CONFIG_RAW_FEFF, text.count { it == FEFF })
+        assertEquals(expected, escapeBlankCodePoints(body(text)))
     }
 
     @Test
@@ -102,5 +115,13 @@ class GeneratedMigrationsTest {
                 assertTrue(create in text, "$file: $table")
             }
         }
+    }
+
+    private companion object {
+        const val FEFF = '\uFEFF'
+        const val OUTBOX_RAW_FEFF = 3
+        const val CONFIG_RAW_FEFF = 18
+        val BLANK_CODE_POINTS =
+            listOf(0x00A0, 0x1680, 0x2000, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)
     }
 }

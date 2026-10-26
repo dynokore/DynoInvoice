@@ -42,6 +42,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.flywaydb.core.Flyway
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -252,15 +253,7 @@ object BoundaryFixture {
             val script = connection.createStatement()
             runFile(provisioning)
             runFile(bindingFunctions())
-            Files.list(migrationsDir).use { files ->
-                files
-                    .filter {
-                        it.fileName.toString().endsWith(
-                            ".sql",
-                        )
-                    }.sorted()
-                    .forEach { runFile(it) }
-            }
+            migrate()
             script.execute("ALTER ROLE access_runtime LOGIN PASSWORD '$RUNTIME_PASSWORD'")
             val database = SqlIdentifier.require(container.databaseName, "database")
             script.execute("GRANT CONNECT ON DATABASE $database TO access_runtime")
@@ -270,6 +263,24 @@ object BoundaryFixture {
                 "INSERT INTO access.binding_key (slot, secret) VALUES ('current', convert_to('$key', 'UTF8'))",
             )
         }
+    }
+
+    /**
+     * The migration files applied by Flyway as the superuser of the container, the tool production uses (twelve-factor
+     * dev/prod parity, INV-T-10861): a psql run would keep a raw U+FEFF that Flyway drops. The binding functions the
+     * installer left in the schema are baselined at 0, so V1 still runs.
+     */
+    private fun migrate() {
+        Flyway
+            .configure()
+            .dataSource(container.jdbcUrl, container.username, container.password)
+            .schemas("access")
+            .defaultSchema("access")
+            .locations("filesystem:" + migrationsDir.toAbsolutePath().normalize())
+            .baselineOnMigrate(true)
+            .baselineVersion("0")
+            .load()
+            .migrate()
     }
 
     /**
