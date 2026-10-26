@@ -154,7 +154,11 @@ class BlankCheckRepairMigrationTest {
                 assertEquals("search_path=$path", found.config, name)
                 assertTrue("submission_runtime=X/${found.owner}" in found.acl, found.acl)
                 assertFalse(found.acl.split(',').any { it.startsWith("=") || it.startsWith("{=") }, found.acl)
-                assertEquals(text.windowed(6).count { it == "\\uFEFF" }, found.source.windowed(6).count { it == "\\uFEFF" }, name)
+                assertEquals(
+                    text.windowed(ESCAPE.length).count { it == ESCAPE },
+                    found.source.windowed(ESCAPE.length).count { it == ESCAPE },
+                    name,
+                )
                 assertTrue("\\uFEFF" in found.source, name)
                 assertTrue(found.source.none { it.code == FEFF_CODE }, name)
             }
@@ -218,6 +222,7 @@ class BlankCheckRepairMigrationTest {
 
     private companion object {
         const val FEFF_CODE = 0xFEFF
+        const val ESCAPE = "\\uFEFF"
         val FEFF: Char = FEFF_CODE.toChar()
         const val GROUP_END = "revoke create on schema submission from submission_sys;"
         val FUNCTIONS = listOf("full_sync_delete", "event_dead_letter_record")
