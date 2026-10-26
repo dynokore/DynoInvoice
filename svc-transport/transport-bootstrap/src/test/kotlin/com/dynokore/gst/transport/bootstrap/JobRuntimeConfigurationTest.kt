@@ -1,8 +1,11 @@
 package com.dynokore.gst.transport.bootstrap
 
+import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.auditlog.OutboxAuditWriter
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.Envelope
+import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.serviceruntime.composition.OperatorSessionAuditStager
 import com.dynokore.platform.serviceruntime.jobs.FixedDeadlineSource
 import com.dynokore.platform.serviceruntime.jobs.JobCommand
@@ -14,6 +17,7 @@ import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.jobs.JobSchedule
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -21,28 +25,68 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.NoSuchBeanDefinitionException
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
+import org.springframework.boot.test.context.FilteredClassLoader
+import org.springframework.context.ApplicationContext
 import java.nio.file.Path
 import java.time.Duration
 import java.util.UUID
+import kotlin.reflect.KClass
 
 /** The two ports service-runtime leaves to the service, and the `JobRuntime` they let it build (INV-Q-9684 A). */
 class JobRuntimeConfigurationTest {
     private val actors = listOf("integration.engineer", "platform.engineer", "")
 
     @Test
-    fun `the context starts with exactly one JobRuntime and the outbox audit writer`(
+    fun `the context starts with exactly one JobRuntime and the outbox writer behind the audit decorator`(
         @TempDir dir: Path,
     ) {
         TransportContext.offline(dir).run { context ->
             context.startupFailure.shouldBeNull()
             context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
-            // service-runtime decorates every AuditWriter bean (INV-Q-4521): the bean wraps the writer
-            context
-                .getBean(AuditWriter::class.java)
-                .shouldBeInstanceOf<OperatorSessionAuditStager>()
-                .delegate
-                .shouldBeInstanceOf<OutboxAuditWriter>()
+            delegateClass(context) shouldBe OutboxAuditWriter::class
         }
+    }
+
+    @Test
+    fun `probe - without the audit-log implementation there is no AuditWriter bean and no JobRuntime`(
+        @TempDir dir: Path,
+    ) {
+        TransportContext
+            .offline(dir)
+            .withClassLoader(FilteredClassLoader(OutboxAuditWriter::class.java))
+            .run { context ->
+                context.startupFailure.shouldBeNull()
+                context.getBeansOfType(AuditWriter::class.java).size shouldBe 0
+                context.getBeansOfType(JobRuntime::class.java).size shouldBe 0
+            }
+    }
+
+    @Test
+    fun `probe - an own AuditWriter bean makes the delegate class differ`(
+        @TempDir dir: Path,
+    ) {
+        TransportContext
+            .offline(dir)
+            .withBean(AuditWriter::class.java, { LocalAuditWriter() })
+            .run { context ->
+                context.startupFailure.shouldBeNull()
+                // the platform wraps an own writer differently from the stager of the platform's writer: the assertion fails
+                shouldThrow<AssertionError> { delegateClass(context) shouldBe OutboxAuditWriter::class }
+            }
+    }
+
+    /** service-runtime wraps every AuditWriter bean in the stager (INV-Q-4521, INV-Q-11100 A): the class behind it. */
+    private fun delegateClass(context: ApplicationContext): KClass<*> =
+        context
+            .getBean(AuditWriter::class.java)
+            .shouldBeInstanceOf<OperatorSessionAuditStager>()
+            .delegate::class
+
+    private class LocalAuditWriter : AuditWriter {
+        override fun record(
+            entry: AuditEntry,
+            context: EventContext,
+        ): Envelope = error("not called")
     }
 
     @Test
