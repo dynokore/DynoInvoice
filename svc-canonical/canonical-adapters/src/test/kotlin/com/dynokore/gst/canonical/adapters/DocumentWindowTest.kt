@@ -69,7 +69,13 @@ class DocumentWindowTest {
             kit.versions.createVersion(
                 document.docUuid,
                 1,
-                DocumentKit.version(LocalDate.of(2026, 4, 5), """{"marker":"latest"}"""),
+                DocumentKit.version(
+                    LocalDate.of(2026, 4, 5),
+                    """{"marker":"latest",""" +
+                        """"lines":{"value":[],"classification":"content"},""" +
+                        """"taxSubtotals":{"value":[],"classification":"content"},""" +
+                        """"parties":{"value":{"supplier":{},"buyer":{}},"classification":"content"}}""",
+                ),
             )
         } shouldBe UpdateOutcome.Updated(2)
         read(march).shouldBeEmpty()

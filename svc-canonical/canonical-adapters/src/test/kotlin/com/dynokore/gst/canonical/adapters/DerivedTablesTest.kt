@@ -4,7 +4,6 @@ import com.dynokore.gst.canonical.domain.document.CanonicalShapeException
 import com.dynokore.gst.canonical.domain.document.SubtotalCoverageViolation
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
@@ -62,28 +61,11 @@ class DerivedTablesTest {
             DocumentSql.rows("select t::text from canonical.$table t where tenant_id = ? order by 1", tenant)
         }
 
-    private fun canonicals() =
-        DocumentSql.rows(
-            "select doc_uuid::text, version::text, canonical::text from canonical.document_version " +
-                "where tenant_id = ? order by 1, 2",
-            tenant,
-        )
-
     private fun amend(
         doc: UUID,
         from: Int,
         canonical: String,
     ) = kit.asTenant(tenant) { kit.versions.createVersion(doc, from, DocumentKit.version(day, canonical)) }
-
-    private fun seed(): List<UUID> =
-        listOf("380", "381", "380").mapIndexed { index, type ->
-            val sign = if (type == "381") "-" else ""
-            val document = DocumentKit.document(tenant, entity, day, canonical = coherent(type, sign))
-            kit.insert(document)
-            amend(document.docUuid, 1, coherent(type, sign).replace("item 1", "item 1 v2"))
-            amend(document.docUuid, 2, coherent(type, sign).replace("Buyer", "Buyer $index"))
-            document.docUuid
-        }
 
     private fun versionCount(doc: UUID) =
         DocumentSql.one("select count(*)::text from canonical.document_version where doc_uuid = ?", doc)
@@ -94,41 +76,6 @@ class DerivedTablesTest {
     private fun create(canonical: String) {
         val document = DocumentKit.document(tenant, entity, day, canonical = canonical)
         kit.insert(document)
-    }
-
-    @Test
-    fun `INV-AC-2573 derived rows deleted and rebuilt from the canonical JSONB equal the originals`() {
-        seed()
-        val before = snapshot()
-        val jsonb = canonicals()
-        before.getValue("document_line") shouldHaveSize 18
-        before.getValue("document_subtotal") shouldHaveSize 18
-        before.getValue("document_party") shouldHaveSize 18
-        tables.forEach { DocumentSql.execute("delete from canonical.$it where tenant_id = '$tenant'") }
-        snapshot().values.forEach { it.shouldBeEmpty() }
-        val report = kit.asTenant(tenant) { kit.rebuilds.rebuildAllDerived(tenant) }
-        report.rejected shouldBe emptyMap()
-        report.rebuilt shouldHaveSize 9
-        snapshot() shouldBe before
-        canonicals() shouldBe jsonb
-    }
-
-    @Test
-    fun `INV-AC-10347 rebuild restores the rows and a version violating C-6 writes nothing`() {
-        val docs = seed()
-        val before = snapshot()
-        val jsonb = canonicals()
-        tables.forEach { DocumentSql.execute("delete from canonical.$it where tenant_id = '$tenant'") }
-        kit.asTenant(tenant) { kit.rebuilds.rebuildAllDerived(tenant) }.rejected shouldBe emptyMap()
-        snapshot() shouldBe before
-        canonicals() shouldBe jsonb
-        val uncovered = canonical(listOf(Line("SR", "100", "9"), Line("ZR", "50", "0")), listOf(Line("SR", "100", "9")))
-        val refused = shouldThrow<SubtotalCoverageViolation> { amend(docs[0], 3, uncovered) }
-        refused.message shouldContain "C-6"
-        versionCount(docs[0]) shouldBe "3"
-        DocumentSql.one("select current_version::text from canonical.document where doc_uuid = ?", docs[0]) shouldBe "3"
-        snapshot() shouldBe before
-        canonicals() shouldBe jsonb
     }
 
     @Test
@@ -154,27 +101,29 @@ class DerivedTablesTest {
     }
 
     @Test
-    fun `a version with two tax codes that cover each other is written with its rows`() {
+    fun `INV-AC-11133 a version with two tax codes that cover each other is written with its rows`() {
         create(coherent())
-        val rows = snapshot()
-        rows.getValue("document_line") shouldHaveSize 2
-        rows.getValue("document_subtotal") shouldHaveSize 2
-        rows.getValue("document_party") shouldHaveSize 2
-    }
-
-    @Test
-    fun `a rebuild of a stored version that violates C-6 reports C-6 and writes none of its rows`() {
-        val document = DocumentKit.document(tenant, entity, day, canonical = coherent())
-        kit.insert(document)
-        val bad = canonical(listOf(Line("SR", "10", "1")), listOf(Line("SR", "10", "1"), Line("ZR", "5", "0")))
-        DocumentSql.execute(
-            "update canonical.document_version set canonical = '$bad'::jsonb where doc_uuid = '${document.docUuid}'",
-        )
-        val before = snapshot()
-        val report = kit.asTenant(tenant) { kit.rebuilds.rebuildDerived(document.docUuid, 1) }
-        report.rebuilt.shouldBeEmpty()
-        report.rejected.values.single() shouldContain "C-6"
-        snapshot() shouldBe before
+        DocumentSql.rows(
+            "select line_number::text, description, quantity::text, unit_price::text, line_amount::text, " +
+                "tax_code, tax_amount::text from canonical.document_line where tenant_id = ? order by 1",
+            tenant,
+        ) shouldBe
+            listOf(
+                listOf("1", "item 1", "2.500000", "100.000000", "100.00", "SR", "9.00"),
+                listOf("2", "item 2", "2.500000", "50.000000", "50.00", "ZR", "0.00"),
+            )
+        DocumentSql.rows(
+            "select tax_code, taxable_amount::text, tax_amount::text from canonical.document_subtotal " +
+                "where tenant_id = ? order by 1",
+            tenant,
+        ) shouldBe listOf(listOf("SR", "100.00", "9.00"), listOf("ZR", "50.00", "0.00"))
+        // jsonb does not keep key order, so each party is compared as a jsonb value
+        DocumentSql.rows(
+            "select role, (party = '{\"name\":\"Buyer\",\"address\":{\"city\":\"Singapore\"}}'::jsonb or " +
+                "party = '{\"uen\":\"201912345A\",\"name\":\"Supplier Pte Ltd\"}'::jsonb)::text " +
+                "from canonical.document_party where tenant_id = ? order by 1",
+            tenant,
+        ) shouldBe listOf(listOf("buyer", "true"), listOf("supplier", "true"))
     }
 
     private val wrapped = """"classification":"content"}"""
@@ -211,7 +160,8 @@ class DerivedTablesTest {
     fun `a document without taxSubtotals is refused and nothing is written`() = refused("{$noLines,$bothParties}")
 
     @Test
-    fun `a document without parties is refused and nothing is written`() = refused("{$noLines,$noSubtotals}")
+    fun `INV-AC-11133 a document without parties is refused and nothing is written`() =
+        refused("{$noLines,$noSubtotals}")
 
     @Test
     fun `parties without a buyer is refused and nothing is written`() =
@@ -242,23 +192,6 @@ class DerivedTablesTest {
     fun `empty lines and subtotals with both parties give two party rows and an extra key is ignored`() {
         create("""{"x":1,$noLines,$noSubtotals,$bothParties}""")
         counts() shouldBe listOf("1", "0", "0", "2")
-    }
-
-    @Test
-    fun `a stored version whose parties is absent is reported rejected by the rebuild of all`() {
-        seed()
-        val odd = DocumentKit.document(tenant, entity, day)
-        kit.insert(odd)
-        DocumentSql.execute(
-            "insert into canonical.document_version select doc_uuid, 2, tenant_id, entity_id, partition_date, " +
-                "'{\"lines\":{\"value\":[],\"classification\":\"content\"}}'::jsonb, " +
-                "scope_verdict, scope_pack_version, mapping_pack_version, mde_pack_version, specification_version, " +
-                "created_at, created_by from canonical.document_version where doc_uuid = '${odd.docUuid}'",
-        )
-        val before = snapshot()
-        val report = kit.asTenant(tenant) { kit.rebuilds.rebuildAllDerived(tenant) }
-        report.rejected.keys.map { it.docUuid to it.version } shouldBe listOf(odd.docUuid to 2)
-        snapshot() shouldBe before
     }
 
     @Test

@@ -32,7 +32,19 @@ class DocumentVersionsTest {
         marker: String,
         on: LocalDate = day,
         use: CreateDocumentVersion = kit.versions,
-    ) = kit.asTenant(tenant) { use.createVersion(doc, from, DocumentKit.version(on, """{"marker":"$marker"}""")) }
+    ) = kit.asTenant(tenant) {
+        use.createVersion(
+            doc,
+            from,
+            DocumentKit.version(
+                on,
+                """{"marker":"$marker",""" +
+                    """"lines":{"value":[],"classification":"content"},""" +
+                    """"taxSubtotals":{"value":[],"classification":"content"},""" +
+                    """"parties":{"value":{"supplier":{},"buyer":{}},"classification":"content"}}""",
+            ),
+        )
+    }
 
     @Test
     fun `INV-AC-2575 two concurrent amendments from version 1 give one version 2 and one conflict`() {

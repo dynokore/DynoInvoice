@@ -1,7 +1,6 @@
 package com.dynokore.gst.canonical.domain.document
 
 import java.math.BigDecimal
-import java.util.UUID
 
 /** One row of `document_line`: a scalar item of `lines.value` of the canonical document (INV-NOTE-3 section 10.6). */
 data class DerivedLine(
@@ -51,18 +50,6 @@ class CanonicalShapeException(
 class SubtotalCoverageViolation(
     message: String,
 ) : IllegalStateException(message)
-
-/** A version (or the version key) that a rebuild names. */
-data class VersionKey(
-    val docUuid: UUID,
-    val version: Int,
-)
-
-/** The versions a rebuild wrote and the versions it refused, with the reason (which names C-6 or the shape). */
-data class RebuildReport(
-    val rebuilt: List<VersionKey>,
-    val rejected: Map<VersionKey, String>,
-)
 
 /** C-6: every tax code of the lines has a subtotal row and every subtotal row has a line with that tax code. */
 object SubtotalCoverage {

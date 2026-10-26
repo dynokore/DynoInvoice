@@ -14,7 +14,8 @@ import java.math.BigDecimal
 /**
  * Derives the line, subtotal and party rows from a stored canonical document (INV-REQ-2572; INV-NOTE-3 sections 10.2
  * and 10.6) by the shape of canonical/schemas/canonical-version-created-payload.schema.json at e5180d6, property
- * `canonicalDocument`. A document that differs from that shape (INV-Q-11077 A) throws [CanonicalShapeException]. Money is the decimal string of the contract (API-12), never a JSON number.
+ * `canonicalDocument`. A document that differs from that shape (INV-Q-11077 A) throws [CanonicalShapeException].
+ * Money is the decimal string of the contract (API-12), never a JSON number.
  */
 object CanonicalDerivation {
     // floating numbers are read as exact decimals (INV-Q-11079 A): a double would round a 23-digit quantity
