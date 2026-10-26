@@ -1056,8 +1056,7 @@ paths:
         The overrides of the period, pending, released and superseded, as the
         second-approver wait shows them (INV-REQ-1293, INV-REQ-72). The
         caller holds the permission `validation.override` on the entity,
-        decided per request. The list is paged by cursor (`limit`, `cursor`,
-        `nextCursor`, API-18). A list across periods is not offered.
+        decided per request. A list across periods is not offered.
       tags: [readiness]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -1068,18 +1067,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/EntityRef'
         - $ref: '#/components/parameters/PeriodRef'
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 100
-            maximum: 500
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
       responses:
         '200':
           description: The overrides of the period.
@@ -1637,11 +1624,9 @@ components:
       properties:
         items:
           type: array
-          maxItems: 500
+          maxItems: 200
           items:
             $ref: '#/components/schemas/FilingGateOverrideEntry'
-        nextCursor:
-          type: string
       required: [items]
     EntityFinding:
       type: object
