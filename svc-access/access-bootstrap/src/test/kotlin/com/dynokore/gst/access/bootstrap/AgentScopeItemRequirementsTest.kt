@@ -222,7 +222,13 @@ class AgentScopeItemRequirementsTest {
     fun `INV-Q-8864 A each read key is decided by the live consent for the operator`() =
         run { env ->
             readKeys.forEach { key ->
-                env.assertDecision(Decision.ALLOW, agent, env.client(setOf(ScopeItem.SUBMIT_INVOICE_DATA)), key, "exact item")
+                env.assertDecision(
+                    Decision.ALLOW,
+                    agent,
+                    env.client(setOf(ScopeItem.SUBMIT_INVOICE_DATA)),
+                    key,
+                    "exact item",
+                )
                 val other = setOf(ScopeItem.FILE_GST_RETURN, ScopeItem.MAPPING_APPROVAL)
                 env.assertDecision(Decision.DENY, agent, env.client(other), key, "two other items")
                 env.assertDecision(Decision.DENY, agent, env.client(emptySet()), key, "nothing held")
@@ -247,9 +253,18 @@ class AgentScopeItemRequirementsTest {
 
     @Test
     fun `INV-Q-8864 A a file giving doc_view_content FILE_GST_RETURN refuses it under SUBMIT_INVOICE_DATA`() {
-        val table = AgentScopeItemTable.parse(production().replace("doc.view.content\tSUBMIT_INVOICE_DATA", "doc.view.content\tFILE_GST_RETURN"))
+        val table =
+            AgentScopeItemTable.parse(
+                production().replace("doc.view.content\tSUBMIT_INVOICE_DATA", "doc.view.content\tFILE_GST_RETURN"),
+            )
         run(table) { env ->
-            env.assertDecision(Decision.DENY, agent, env.client(setOf(ScopeItem.SUBMIT_INVOICE_DATA)), "doc.view.content", "wrong item")
+            env.assertDecision(
+                Decision.DENY,
+                agent,
+                env.client(setOf(ScopeItem.SUBMIT_INVOICE_DATA)),
+                "doc.view.content",
+                "wrong item",
+            )
         }
     }
 

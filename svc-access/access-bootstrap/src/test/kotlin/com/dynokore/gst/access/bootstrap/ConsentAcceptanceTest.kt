@@ -276,7 +276,7 @@ class ConsentAcceptanceTest {
             assertThat(env.decide("CLI-A", filing)).isEqualTo(DENY)
             assertThat(env.decide("CLI-B", replay)).isEqualTo(DENY)
             // a permission the table does not list needs an item nobody can name: refused
-            assertThat(env.decide("CLI-A", "doc.view.content")).isEqualTo(DENY)
+            assertThat(env.decide("CLI-A", "validation.override")).isEqualTo(DENY)
             env.updateRow(consent.consentRef, "submit_invoice_data = false")
             assertThat(env.decide("CLI-A", replay)).isEqualTo(DENY)
             env.updateRow(consent.consentRef, "submit_invoice_data = true")
