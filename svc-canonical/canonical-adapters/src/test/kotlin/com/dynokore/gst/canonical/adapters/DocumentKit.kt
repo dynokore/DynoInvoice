@@ -2,6 +2,7 @@ package com.dynokore.gst.canonical.adapters
 
 import com.dynokore.gst.canonical.adapters.persistence.JooqDocumentStore
 import com.dynokore.gst.canonical.application.document.CreateDocumentVersion
+import com.dynokore.gst.canonical.application.document.DerivedTablesRebuild
 import com.dynokore.gst.canonical.application.document.WindowReader
 import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.document.DocumentState
@@ -56,6 +57,7 @@ class DocumentKit {
     val store = JooqDocumentStore(dsl)
     val versions = CreateDocumentVersion(store, transaction)
     val windows = WindowReader(store, transaction)
+    val rebuilds = DerivedTablesRebuild(store, transaction)
 
     fun <T> asTenant(
         tenant: UUID,

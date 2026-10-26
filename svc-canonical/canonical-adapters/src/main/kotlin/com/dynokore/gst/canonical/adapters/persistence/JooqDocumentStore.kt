@@ -17,6 +17,7 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.time.LocalDate
 import java.util.UUID
+import com.dynokore.gst.canonical.application.document.VersionKey as ApplicationVersionKey
 
 /**
  * TPL-11. jOOQ only. The DSLContext is the one of the open `canonical` transaction; the tenant predicate is the
@@ -149,6 +150,58 @@ class JooqDocumentStore(
                 .execute()
         }
     }
+
+    override fun rebuildDerived(
+        docUuid: UUID,
+        version: Int,
+    ) {
+        val stored =
+            dsl
+                .select(DOCUMENT_VERSION.TENANT_ID, DOCUMENT_VERSION.CANONICAL)
+                .from(DOCUMENT_VERSION)
+                .where(DOCUMENT_VERSION.DOC_UUID.eq(docUuid))
+                .and(DOCUMENT_VERSION.VERSION.eq(version))
+                .fetchOne() ?: throw NoSuchElementException("no version $version of document $docUuid")
+        // derived and checked before the first delete: a refused version keeps whatever rows it has
+        val rows = CanonicalDerivation.derive(checkNotNull(stored.get(DOCUMENT_VERSION.CANONICAL)).data())
+        SubtotalCoverage.check(rows)
+        deleteDerived(docUuid, version)
+        writeDerived(docUuid, version, checkNotNull(stored.get(DOCUMENT_VERSION.TENANT_ID)), rows)
+    }
+
+    private fun deleteDerived(
+        docUuid: UUID,
+        version: Int,
+    ) {
+        dsl
+            .deleteFrom(DOCUMENT_LINE)
+            .where(DOCUMENT_LINE.DOC_UUID.eq(docUuid))
+            .and(DOCUMENT_LINE.VERSION.eq(version))
+            .execute()
+        dsl
+            .deleteFrom(DOCUMENT_SUBTOTAL)
+            .where(DOCUMENT_SUBTOTAL.DOC_UUID.eq(docUuid))
+            .and(DOCUMENT_SUBTOTAL.VERSION.eq(version))
+            .execute()
+        dsl
+            .deleteFrom(DOCUMENT_PARTY)
+            .where(DOCUMENT_PARTY.DOC_UUID.eq(docUuid))
+            .and(DOCUMENT_PARTY.VERSION.eq(version))
+            .execute()
+    }
+
+    override fun versionKeys(tenantId: UUID): List<ApplicationVersionKey> =
+        dsl
+            .select(DOCUMENT_VERSION.DOC_UUID, DOCUMENT_VERSION.VERSION)
+            .from(DOCUMENT_VERSION)
+            .where(DOCUMENT_VERSION.TENANT_ID.eq(tenantId))
+            .orderBy(DOCUMENT_VERSION.DOC_UUID, DOCUMENT_VERSION.VERSION)
+            .fetch {
+                ApplicationVersionKey(
+                    checkNotNull(it.get(DOCUMENT_VERSION.DOC_UUID)),
+                    checkNotNull(it.get(DOCUMENT_VERSION.VERSION)),
+                )
+            }
 
     @Suppress("LongParameterList") // the signature of the window read of INV-REQ-772 b1
     override fun readWindow(
