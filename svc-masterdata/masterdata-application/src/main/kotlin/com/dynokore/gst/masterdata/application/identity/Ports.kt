@@ -67,3 +67,11 @@ fun interface ConfirmerRoles {
         entity: EntityRef,
     ): Set<String>
 }
+
+/**
+ * Publishes `IdentityTripleCorrected` for a back-dated change that has just taken effect (INV-REQ-1006, owner answer
+ * INV-Q-7876 A). It appends in the transaction the caller holds, so a failure rolls the confirmation back.
+ */
+fun interface IdentityTripleCorrectedPublisher {
+    fun publish(change: PendingChange)
+}

@@ -42,7 +42,7 @@ class CounterpartyEmissionAndLookupTest {
     @Test
     fun `the channel is published and each write emits MasterDataResolved for the entity of the request`() =
         runCounterparty { env ->
-            assertThat(PublishedChannels.ALL).containsExactly(MasterDataResolvedOutbox.CHANNEL)
+            assertThat(PublishedChannels.ALL).contains(MasterDataResolvedOutbox.CHANNEL)
             val party = unique("CTP")
             val uen = unique("UEN")
             env.write(party, env.request("UEN" to uen, name = "A", address = ADDRESS, entity = "E-ONE"))

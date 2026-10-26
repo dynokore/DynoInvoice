@@ -4,9 +4,13 @@ import com.dynokore.gst.masterdata.domain.identity.ChangeState
 import com.dynokore.gst.masterdata.domain.identity.ConfirmationRefusal
 import com.dynokore.gst.masterdata.domain.identity.ConfirmationRule
 import com.dynokore.gst.masterdata.domain.identity.EntityRef
+import com.dynokore.gst.masterdata.domain.identity.PendingChange
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.gst.masterdata.domain.identity.TripleVersion
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import java.time.Clock
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /** `confirmIdentityTripleChange`: [confirmer] is the authenticated subject of the call, never a body field. */
 data class ConfirmCommand(
@@ -37,6 +41,10 @@ sealed interface ConfirmOutcome {
  * INV-REQ-1007, INV-REQ-1270: the change takes effect only when a different person from the proposer, holding a role of
  * the confirmer set, confirms it. The order of the checks: unknown change, then who confirms, then the state, so a
  * caller who may not confirm learns nothing of the state. A refused confirmation stores nothing.
+ *
+ * INV-REQ-1006, INV-Q-7876 A: a change whose effective date is earlier than the date of the confirmation (the clock's
+ * date in UTC), and which replaces a version already in force on that date, is a correction of the past; it appends
+ * `IdentityTripleCorrected` in the same transaction as the write of the triple and the move to CONFIRMED.
  */
 class ConfirmIdentityTripleChange(
     private val tx: TransactionRunner,
@@ -44,6 +52,8 @@ class ConfirmIdentityTripleChange(
     private val triples: TripleRepository,
     private val policy: ConfirmerPolicy,
     private val roles: ConfirmerRoles,
+    private val clock: Clock,
+    private val corrections: IdentityTripleCorrectedPublisher,
 ) {
     fun handle(command: ConfirmCommand): ConfirmOutcome =
         tx.inTransaction {
@@ -62,9 +72,22 @@ class ConfirmIdentityTripleChange(
                 ) {
                     ConfirmOutcome.NotPending
                 } else {
+                    val today = LocalDate.now(clock.withZone(ZoneOffset.UTC))
+                    val correction = isCorrection(change, today)
                     triples.save(change.version, change.proposedBy, command.confirmer, role.wire)
+                    if (correction) corrections.publish(change)
                     ConfirmOutcome.Confirmed(change.version)
                 }
             }
         }
+
+    /** Read before the save: a stored version on or before [today] must already exist for the same constitution. */
+    private fun isCorrection(
+        change: PendingChange,
+        today: LocalDate,
+    ): Boolean =
+        change.version.effectiveFrom.isBefore(today) &&
+            triples
+                .versions(change.version.entity, change.version.constitution)
+                .any { !it.effectiveFrom.isAfter(today) }
 }

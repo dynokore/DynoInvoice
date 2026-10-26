@@ -192,13 +192,14 @@ class OperationsTableTest {
         assertThat(withRow("route\tx\tINV-T-1\topen")).anyMatch { "kind must be" in it }
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
         assertThat(withRow("operation\tx\tUNASSIGNED\topen")).anyMatch { "task must be" in it }
-        assertThat(verify(base, published = setOf("masterdataMasterDataResolved", "masterdataReferenceRateLoaded")))
+        val published = setOf("masterdataMasterDataResolved", "masterdataIdentityTripleCorrected")
+        assertThat(verify(base, published = published + "masterdataReferenceRateLoaded"))
             .containsExactly("channel masterdataReferenceRateLoaded: published by the code but not marked done")
         val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
         assertThat(
             verify(
                 base.map { if (it.startsWith("channel\tmasterdataMasterDataResolved")) unpublished else it },
-                published = emptySet(),
+                published = setOf("masterdataIdentityTripleCorrected"),
             ),
         ).containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
     }

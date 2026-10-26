@@ -24,4 +24,5 @@ operation	recordIngestedCounterparty	INV-T-4943	done
 channel	masterdataMasterDataResolved	INV-T-4943	done
 channel	masterdataReferenceRateLoaded	INV-T-4947	open
 channel	masterdataSignedLinkRequested	INV-T-4945	open
+channel	masterdataIdentityTripleCorrected	INV-T-8017	done
 channel	masterdataExampleHappened	PLACEHOLDER	open
