@@ -10,6 +10,7 @@ import java.nio.file.Path
 import java.sql.Connection
 import java.sql.SQLException
 import java.util.Base64
+import java.util.Locale
 import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -249,7 +250,8 @@ class BlankCheckRepairDbTest {
         val payload = "$tenant.$encoded.${System.currentTimeMillis() / 1000 + 600}"
         val key = SecretKeySpec(TestSecrets.BINDING_KEY.toByteArray(), "HmacSHA256")
         val mac = Mac.getInstance("HmacSHA256").apply { init(key) }
-        val signature = mac.doFinal(payload.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        val digest = mac.doFinal(payload.toByteArray(Charsets.UTF_8))
+        val signature = digest.joinToString("") { "%02x".format(Locale.ROOT, it) }
         connection.prepareStatement("select set_config('app.binding_sig', ?, true)").use {
             it.setString(1, "$payload.$signature")
             it.execute()
