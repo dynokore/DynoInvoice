@@ -1,0 +1,12 @@
+file	pointer	relation	value	requirement
+openapi.yaml	/components/schemas/ElectionRequest/properties/approvedBy	absent	-	INV-REQ-505
+openapi.yaml	/components/schemas/RateSourceElectionRequest/properties/approvedBy	absent	-	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1elections/post/requestBody/content/application~1json/examples/default/value/approvedBy	absent	-	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1rate-source-elections/post/requestBody/content/application~1json/examples/default/value/approvedBy	absent	-	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1elections/post/responses/202/content/application~1json/schema/$ref	equals	"#/components/schemas/PendingElectionChange"	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1rate-source-elections/post/responses/202/content/application~1json/schema/$ref	equals	"#/components/schemas/PendingElectionChange"	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-changes~1{changeRef}~1approve/post/operationId	equals	"approveElectionChange"	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-changes~1{changeRef}~1approve/post/x-error-codes	equals	["POL-014"]	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-changes~1{changeRef}~1approve/post/requestBody	absent	-	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-changes~1{changeRef}~1approve/post/responses/200/content/application~1json/schema/$ref	equals	"#/components/schemas/ElectionChangeApproved"	INV-REQ-505
+openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-change~1{changeRef}~1approve	absent	-	INV-REQ-505

@@ -1,0 +1,10 @@
+{
+  "changeRef": "CHG-7A41C2",
+  "entityRef": "ENT-3F2A9C",
+  "election": "RATE_SOURCE",
+  "source": "MAS",
+  "basis": "DAILY",
+  "effectiveFrom": "2026-10-01",
+  "requestedBy": "identity:USR-004",
+  "requestedAt": "2026-10-18T09:30:00Z"
+}

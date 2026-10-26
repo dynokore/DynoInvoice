@@ -99,3 +99,17 @@ QuestionnaireAnswersRequest.entityFacts	schema_property	openapi.yaml	INV-REQ-987
 EntityFacts.recordsPurchases	schema_property	openapi.yaml	INV-REQ-987
 EntityFacts.hasForeignCurrencyDocuments	schema_property	openapi.yaml	INV-REQ-987
 EntityFacts.claimsInputTaxOnPostingBasis	schema_property	openapi.yaml	INV-REQ-987
+approveElectionChange	operation	openapi.yaml	INV-REQ-505
+approveElectionChange.POL-014	operation_error_code	openapi.yaml	INV-REQ-505
+PendingElectionChange.changeRef	schema_property	openapi.yaml	INV-REQ-505
+PendingElectionChange.entityRef	schema_property	openapi.yaml	INV-REQ-505
+PendingElectionChange.election	schema_property	openapi.yaml	INV-REQ-505
+PendingElectionChange.effectiveFrom	schema_property	openapi.yaml	INV-REQ-505
+PendingElectionChange.requestedBy	schema_property	openapi.yaml	INV-REQ-505
+PendingElectionChange.requestedAt	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeApproved.changeRef	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeApproved.entityRef	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeApproved.effectiveFrom	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeApproved.requestedBy	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeApproved.approvedBy	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeApproved.approvedAt	schema_property	openapi.yaml	INV-REQ-505
