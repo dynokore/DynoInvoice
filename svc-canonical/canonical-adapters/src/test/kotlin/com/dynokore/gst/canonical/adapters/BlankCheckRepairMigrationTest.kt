@@ -101,12 +101,40 @@ class BlankCheckRepairMigrationTest {
                 .associateBy { Regex("""^V(\d+)__""").find(it.fileName.toString())!!.groupValues[1].toLong() }
         assertEquals(file, files[REPAIR_VERSION]?.fileName.toString())
         files.filterKeys { it > REPAIR_VERSION }.values.forEach { later ->
-            val text = Files.readString(later)
             FUNCTIONS.forEach { name ->
-                val redefines = Regex("""function\s+canonical\.$name\(""", RegexOption.IGNORE_CASE)
-                assertFalse(redefines.containsMatchIn(text), "${later.fileName} $name")
+                assertFalse(redefines(Files.readString(later), name), "${later.fileName} $name")
             }
         }
+    }
+
+    /** True when [text] creates, alters or drops `canonical.<name>`, whatever the case, quoting and spacing. */
+    private fun redefines(
+        text: String,
+        name: String,
+    ): Boolean {
+        val flat = text.replace("\"", "").lowercase(Locale.ROOT).replace(Regex("""\s+"""), " ")
+        return Regex("""(create|alter|drop) (or replace )?function (if exists )?canonical ?\. ?$name\b""")
+            .containsMatchIn(flat)
+    }
+
+    @Test
+    fun `the redefinition matcher detects every form and none of the look-alikes`() {
+        val forms =
+            listOf(
+                "CREATE OR REPLACE FUNCTION canonical.full_sync_delete(",
+                "create function canonical.\"event_dead_letter_record\"(",
+                "create function\ncanonical.full_sync_delete(",
+                "alter function canonical.full_sync_delete",
+                "drop function if exists canonical . event_dead_letter_record",
+            )
+        forms.forEach { form -> assertTrue(FUNCTIONS.any { redefines(form, it) }, form) }
+        val lookAlikes =
+            listOf(
+                "create function canonical.full_sync_delete_v2(",
+                "create function other.full_sync_delete(",
+                "select canonical.full_sync_delete(",
+            )
+        lookAlikes.forEach { text -> assertFalse(FUNCTIONS.any { redefines(text, it) }, text) }
     }
 
     private data class Facts(

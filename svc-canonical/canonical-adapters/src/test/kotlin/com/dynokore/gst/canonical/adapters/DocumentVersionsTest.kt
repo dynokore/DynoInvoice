@@ -117,7 +117,16 @@ class DocumentVersionsTest {
 
     @Test
     fun `INV-AC-1712 a correction creates version 2 and version 1 is equal in every column`() {
-        val document = DocumentKit.document(tenant, entity, day, canonical = """{"a": 1, "b": [1, 2, 3]}""")
+        val document =
+            DocumentKit.document(
+                tenant,
+                entity,
+                day,
+                canonical =
+                    """{"a": 1, "b": [1, 2, 3], "lines": {"value": [], "classification": "content"}, """ +
+                        """"taxSubtotals": {"value": [], "classification": "content"}, """ +
+                        """"parties": {"value": {"supplier": {}, "buyer": {}}, "classification": "content"}}""",
+            )
         kit.insert(document)
         val before = versionOne(document.docUuid)
         amend(document.docUuid, 1, "correction", on = LocalDate.of(2026, 5, 1)) shouldBe UpdateOutcome.Updated(2)

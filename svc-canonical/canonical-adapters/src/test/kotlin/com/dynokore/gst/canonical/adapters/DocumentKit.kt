@@ -68,9 +68,15 @@ class DocumentKit {
         asTenant(document.tenantId) { transaction.inTransaction { store.insert(document) } }
 
     companion object {
+        /** A canonical document of the contract shape with no line, no subtotal and both parties empty. */
+        fun defaultCanonical(number: String) =
+            """{"documentNumber":"$number","lines":{"value":[],"classification":"content"},""" +
+                """"taxSubtotals":{"value":[],"classification":"content"},""" +
+                """"parties":{"value":{"supplier":{},"buyer":{}},"classification":"content"}}"""
+
         fun version(
             on: LocalDate,
-            canonical: String = """{"documentNumber":"n"}""",
+            canonical: String = defaultCanonical("n"),
         ) = NewVersion(
             canonical,
             ScopeVerdict.IN_SCOPE,
@@ -90,7 +96,7 @@ class DocumentKit {
             number: String = "INV-" + UUID.randomUUID(),
             issuer: String = "issuer-1",
             docUuid: UUID = UUID.randomUUID(),
-            canonical: String = """{"documentNumber":"$number"}""",
+            canonical: String = defaultCanonical(number),
         ) = NewDocument(
             docUuid,
             tenant,
