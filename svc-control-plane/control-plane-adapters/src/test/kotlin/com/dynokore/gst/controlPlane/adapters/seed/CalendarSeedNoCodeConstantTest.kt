@@ -210,7 +210,8 @@ object CalendarAddedMainSources {
         val committed = git(root, "diff", "--name-only", "--no-renames", "--diff-filter=A", base, "HEAD")
         val tree = git(root, "diff", "--name-only", "--no-renames", "--diff-filter=A", base)
         val untracked = git(root, "ls-files", "--others", "--exclude-standard")
-        return listOf(committed, tree, untracked).flatMap { checkNotNull(it) { "git failed in $root" }.lines() }
+        return listOf(committed, tree, untracked)
+            .flatMap { checkNotNull(it) { "git failed in $root" }.lines() }
             .filter { it.isNotBlank() }
             .distinct()
     }
@@ -287,8 +288,11 @@ class CalendarSeedNoCodeConstantTest {
         val dir = createTempDirectory("added-probe").toFile()
         try {
             fun run(vararg args: String) {
-                val p = ProcessBuilder(listOf("git", "-c", "user.name=t", "-c", "user.email=t@t") + args)
-                    .directory(dir).redirectErrorStream(true).start()
+                val p =
+                    ProcessBuilder(listOf("git", "-c", "user.name=t", "-c", "user.email=t@t") + args)
+                        .directory(dir)
+                        .redirectErrorStream(true)
+                        .start()
                 p.inputStream.readBytes()
                 check(p.waitFor() == 0) { "git ${args.toList()} failed" }
             }
@@ -313,6 +317,10 @@ class CalendarSeedNoCodeConstantTest {
 
     private fun head(dir: File): String {
         val p = ProcessBuilder("git", "rev-parse", "HEAD").directory(dir).start()
-        return p.inputStream.bufferedReader().readText().trim().also { p.waitFor() }
+        return p.inputStream
+            .bufferedReader()
+            .readText()
+            .trim()
+            .also { p.waitFor() }
     }
 }
