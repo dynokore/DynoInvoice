@@ -39,7 +39,7 @@ class JobRuntimeCompositionTest {
             context.startupFailure shouldBe null
             context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
             context.getBean(OutboxWriter::class.java).shouldNotBeNull()
-            // service-runtime wraps each AuditWriter; the wrapped one is the outbox writer
+            // service-runtime wraps every AuditWriter bean (OperatorSessionAuditWriter); the wrapped one is the outbox writer
             val audit = context.getBean(AuditWriter::class.java)
             audit.shouldBeInstanceOf<OperatorSessionAuditWriter>()
             audit.delegate.shouldBeInstanceOf<OutboxAuditWriter>()

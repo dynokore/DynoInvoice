@@ -30,8 +30,7 @@ class JobRuntimeIT {
         block: (JobRuntime) -> Unit,
     ) {
         val database = PostgresDb.runtimeDataSource as PGSimpleDataSource
-        // the migration Job's MigrationRunner writes the job_retention row;
-        // the harness stands in for it
+        // the migration Job's MigrationRunner writes the job_retention row after the migrations; the harness stands in for it
         PostgresDb
             .ownerDsl()
             .execute(
