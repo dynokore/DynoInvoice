@@ -16,6 +16,8 @@ dependencies {
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)
+    // the /metrics endpoint of the management server (API-33): the Prometheus scrape format
+    runtimeOnly(libs.micrometer.registryPrometheus)
     implementation(libs.springBoot.starterJdbc)
     implementation(libs.springBoot.starterJooq)
     implementation(libs.jooq)

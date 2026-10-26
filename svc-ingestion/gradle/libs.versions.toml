@@ -51,6 +51,7 @@ springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter
 springBoot-starterJdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
 springBoot-starterJooq = { module = "org.springframework.boot:spring-boot-starter-jooq" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+micrometer-registryPrometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
 springBoot-starterValidation = { module = "org.springframework.boot:spring-boot-starter-validation" }
 swagger-annotations = { module = "io.swagger.core.v3:swagger-annotations-jakarta", version.ref = "swaggerAnnotations" }
 assertj-core = { module = "org.assertj:assertj-core" }
