@@ -117,4 +117,51 @@ class ScopeAgreementTest {
         ScopeVerdict.entries.map { it.name } shouldContainExactlyInAnyOrder enumOf("scopeVerdict")
         NotSubmittableReason.entries.map { it.name } shouldContainExactlyInAnyOrder enumOf("notSubmittableReason")
     }
+
+    @Test
+    fun `INV-AC-10454 both disagreement pairs hold the two verdicts as given`() {
+        ScopeAgreement.decide(inScope, outOfScope) shouldBe Disagree(ScopeCode.SUB_013, inScope, outOfScope)
+        ScopeAgreement.decide(outOfScope, inScope) shouldBe Disagree(ScopeCode.SUB_013, outOfScope, inScope)
+        val result = ScopeAgreement.decide(inScope, outOfScope) as Disagree
+        (result.creditNote === inScope) shouldBe true
+        (result.preceding === outOfScope) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-10454 the look-alike with reason BUYER_REJECTED is not compared`() {
+        ScopeAgreement.decide(inScope, reasoned(BUYER_REJECTED)) shouldBe NotComparable(Why.PRECEDING_SIDE)
+    }
+
+    @Test
+    fun `INV-AC-10454 no member of the result carries a replacement verdict`() {
+        val allowed = setOf<Class<*>>(Verdict::class.java, ScopeCode::class.java, Why::class.java)
+        val members = ScopeDecision::class.java.permittedSubclasses.toList()
+        members.map { it.simpleName }.toSet() shouldBe setOf("Agree", "Disagree", "NotComparable")
+        val types =
+            members.flatMap { member ->
+                member.declaredFields
+                    .filter {
+                        !java.lang.reflect.Modifier
+                            .isStatic(it.modifiers)
+                    }.map { it.type }
+            }
+        types.size shouldBe 4
+        types.all { it in allowed } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-10455 the six pairs of the criterion`() {
+        ScopeAgreement.decide(inScope, inScope) shouldBe Agree
+        ScopeAgreement.decide(outOfScope, outOfScope) shouldBe Agree
+        ScopeAgreement.decide(inScope, outOfScope) shouldBe Disagree(ScopeCode.SUB_013, inScope, outOfScope)
+        ScopeAgreement.decide(preObligation, inScope) shouldBe NotComparable(Why.CREDIT_NOTE_SIDE)
+        ScopeAgreement.decide(inScope, reasoned(NotSubmittableReason.ISSUANCE_REFUSED)) shouldBe
+            NotComparable(Why.PRECEDING_SIDE)
+        ScopeAgreement.decide(inScope, null) shouldBe NotComparable(Why.NO_PRECEDING)
+    }
+
+    @Test
+    fun `INV-AC-10455 the code string is the catalogue code SUB-013`() {
+        ScopeCode.SUB_013.code shouldBe "SUB-013"
+    }
 }
