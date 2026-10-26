@@ -104,3 +104,7 @@ val sqlPlacementGate =
     }
 
 tasks.named("check") { dependsOn(sqlPlacementGate) }
+
+// CI's unit-test job runs only `test` and reports its JUnit XML: finalize it with the gate (as acKeyCoverage above), so
+// the gate's case runs there and shows in the test report.
+tasks.named<Test>("test") { finalizedBy(sqlPlacementGate) }
