@@ -36,7 +36,7 @@ class JobRuntimeConfigurationTest {
         TransportContext.offline(dir).run { context ->
             context.startupFailure.shouldBeNull()
             context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
-            // service-runtime decorates every AuditWriter bean (INV-Q-4521): the bean is the decorator, its delegate the writer
+            // service-runtime decorates every AuditWriter bean (INV-Q-4521): the bean wraps the writer
             context
                 .getBean(AuditWriter::class.java)
                 .shouldBeInstanceOf<OperatorSessionAuditStager>()
