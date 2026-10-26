@@ -6,6 +6,7 @@ plugins {
 dependencies {
     testImplementation(platform(libs.springBoot.dependencies))
     testImplementation(project(":evidence-contract"))
+    testImplementation(project(":evidence-domain"))
     testImplementation(project(":evidence-adapters"))
     testImplementation(libs.springBoot.starterWeb)
     testImplementation(libs.snakeyaml)
