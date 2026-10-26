@@ -10,6 +10,7 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import java.sql.Connection
 import java.time.LocalDate
 import java.util.UUID
@@ -125,6 +126,33 @@ class PlatformGrantWriteSurfaceTest {
     private fun refusalCode(block: () -> Any?): ClosedErrorCode? =
         (runCatching { block() }.exceptionOrNull() as? ApiRefusal)?.code
 
+    /** Every writer of role_grant, called once per operator role it takes (revoke and unmap take none). */
+    private fun writerCalls(
+        context: AssertableWebApplicationContext,
+        suffix: String,
+        grantRef: String,
+    ): List<Pair<String, () -> Any?>> {
+        val grants = context.getBean(GrantsController::class.java)
+        val idp = context.getBean(IdpGroupController::class.java)
+        val from = LocalDate.now().minusDays(1)
+        val to = LocalDate.now().plusDays(10)
+        val scope = "tenant:$platformId"
+        val byRole =
+            OPERATOR_ROLES.flatMap { role ->
+                val grant = GrantRequest(GrantRequest.GranteeKind.STAFF, "IDN-NEW-$suffix", role, scope, from, to)
+                val mapping = IdpGroupMappingRequest("grp-$suffix", role, scope, from, to)
+                listOf<Pair<String, () -> Any?>>(
+                    "grantRole $role" to { grants.grantRole(UUID.randomUUID(), grant) },
+                    "mapIdpGroup $role" to { idp.mapIdpGroup(UUID.randomUUID(), mapping) },
+                )
+            }
+        return byRole +
+            listOf<Pair<String, () -> Any?>>(
+                "revokeGrant" to { grants.revokeGrant(grantRef, UUID.randomUUID()) },
+                "unmapIdpGroup" to { idp.unmapIdpGroup("MAP-$suffix", UUID.randomUUID()) },
+            )
+    }
+
     @Test
     fun `INV-AC-9279 each writer of role_grant is refused under the platform tenant and no row changes`() {
         val suffix = UUID.randomUUID().toString().take(8)
@@ -137,40 +165,10 @@ class PlatformGrantWriteSurfaceTest {
                 BoundaryFixture.runner().run { context ->
                     context.startupFailure?.let { throw it }
                     val platform = context.getBean(PlatformTenantBinding::class.java)
-                    val grants = context.getBean(GrantsController::class.java)
-                    val idp = context.getBean(IdpGroupController::class.java)
                     val before = platformRows(connection)
                     assertThat(before).hasSize(1)
-                    val from = LocalDate.now().minusDays(1)
-                    val to = LocalDate.now().plusDays(10)
-                    val calls = mutableListOf<Pair<String, () -> Any?>>()
-                    OPERATOR_ROLES.forEach { role ->
-                        calls +=
-                            "grantRole $role" to {
-                                grants.grantRole(
-                                    UUID.randomUUID(),
-                                    GrantRequest(
-                                        GrantRequest.GranteeKind.STAFF,
-                                        "IDN-NEW-$suffix",
-                                        role,
-                                        "tenant:$platformId",
-                                        from,
-                                        to,
-                                    ),
-                                )
-                            }
-                        calls +=
-                            "mapIdpGroup $role" to {
-                                idp.mapIdpGroup(
-                                    UUID.randomUUID(),
-                                    IdpGroupMappingRequest("grp-$suffix", role, "tenant:$platformId", from, to),
-                                )
-                            }
-                    }
-                    calls += "revokeGrant" to { grants.revokeGrant(grantRef, UUID.randomUUID()) }
-                    calls += "unmapIdpGroup" to { idp.unmapIdpGroup("MAP-$suffix", UUID.randomUUID()) }
                     // the actor holds no grant, so the refusal is the caller check's: 403 ACCESS_DENIED
-                    calls.forEach { (name, call) ->
+                    writerCalls(context, suffix, grantRef).forEach { (name, call) ->
                         val refusal = platform.bindPlatform("user:operator-$suffix") { refusalCode(call) }
                         assertThat(refusal).describedAs(name).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
                         assertThat(platformRows(connection)).describedAs(name).isEqualTo(before)
@@ -203,7 +201,7 @@ class PlatformGrantWriteSurfaceTest {
                 "mapIdpGroup" to true, // GroupGrantReconciler.add / revoke
                 "unmapIdpGroup" to true, // UnmapIdpGroup revokes the grants made from the mapping
                 // no other use case of main calls GrantRepository.insert or update (checked by grep on main); the
-                // provision* and accept* operations are stubs today and a task that makes them write a grant must set true
+                // provision* and accept* operations are stubs today and a task that makes one write a grant sets true
                 "createPrincipal" to false,
                 "authenticatePrincipal" to false,
                 "issueAccessToken" to false,
