@@ -23,7 +23,7 @@ class AgentScopeItemTableTest {
         }.isInstanceOf(IllegalStateException::class.java)
 
     @Test
-    fun `the file holds exactly the eleven rows and each basis names FR-AF_34 or FR-AB_16`() {
+    fun `the file holds exactly the fourteen rows and each basis names FR-AF_34 or FR-AB_16`() {
         val rows =
             raw()
                 .split("\n")
@@ -42,12 +42,15 @@ class AgentScopeItemTableTest {
             "reconciliation.run" to "FILE_GST_RETURN",
             "reconciliation.annotate" to "FILE_GST_RETURN",
             "reconciliation.attest" to "FILE_GST_RETURN",
+            "submission.view-status" to "SUBMIT_INVOICE_DATA",
+            "doc.view.content" to "SUBMIT_INVOICE_DATA",
+            "period-readiness.view" to "SUBMIT_INVOICE_DATA",
         )
         assertThat(rows).allSatisfy { assertThat(it[2]).matches("FR-A[FB]\\.(34|16) .*") }
     }
 
     @Test
-    fun `the production table maps the eleven keys and nothing else, look-alike keys are unknown`() {
+    fun `the production table maps the fourteen keys and nothing else, look-alike keys are unknown`() {
         val table = AgentScopeItemTable.production()
         assertThat(table.itemFor(Permission("submission.replay"))).isEqualTo(ScopeItem.SUBMIT_INVOICE_DATA)
         assertThat(table.itemFor(Permission("mapping-pack.approve"))).isEqualTo(ScopeItem.MAPPING_APPROVAL)
@@ -55,9 +58,6 @@ class AgentScopeItemTableTest {
             assertThat(runCatching { table.itemFor(Permission(key)) }.getOrNull()).isNull()
         }
         listOf(
-            "submission.view-status",
-            "doc.view.content",
-            "period-readiness.view",
             "validation.override",
             "audit-pack.export",
             "mapping-pack.activate",
@@ -89,6 +89,7 @@ class AgentScopeItemTableTest {
         rejects(header + "submission.replay\tSUBMIT_INVOICE_DATA, FILE_GST_RETURN\tb\n")
         rejects(header + row + row)
         rejects(header + row.trimEnd() + "\n" + "submission.replay\tMAPPING_APPROVAL\tb\n")
+        rejects(header + "audit-pack.exports\tSUBMIT_INVOICE_DATA\tb\n")
         rejects(header)
         rejects("")
         rejects(header + "submission.replay\tSUBMIT_INVOICE_DATA\n")

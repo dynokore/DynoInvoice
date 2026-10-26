@@ -162,9 +162,6 @@ class AgentScopeItemRequirementsTest {
             val client = env.client(all)
             val approverClient = env.client(all)
             listOf(
-                "submission.view-status",
-                "doc.view.content",
-                "period-readiness.view",
                 "validation.override",
                 "audit-pack.export",
             ).forEach { assertThat(env.decide(agent, client, it)).describedAs(it).isEqualTo(Decision.DENY) }
@@ -210,6 +207,78 @@ class AgentScopeItemRequirementsTest {
             val withoutConsent = "CLI-NONE"
             assertThat(env.decide(approver, withoutConsent, "mapping-pack.approve")).isEqualTo(Decision.DENY)
         }
+
+    private val readKeys = listOf("submission.view-status", "doc.view.content", "period-readiness.view")
+    private val readLookAlikes =
+        listOf(
+            "submission.view-statuses",
+            "Submission.view-status",
+            "doc.view.contents",
+            "doc.view.content ",
+            "period-readiness.views",
+        )
+
+    @Test
+    fun `INV-Q-8864 A each read key is decided by the live consent for the operator`() =
+        run { env ->
+            readKeys.forEach { key ->
+                env.assertDecision(
+                    Decision.ALLOW,
+                    agent,
+                    env.client(setOf(ScopeItem.SUBMIT_INVOICE_DATA)),
+                    key,
+                    "exact item",
+                )
+                val other = setOf(ScopeItem.FILE_GST_RETURN, ScopeItem.MAPPING_APPROVAL)
+                env.assertDecision(Decision.DENY, agent, env.client(other), key, "two other items")
+                env.assertDecision(Decision.DENY, agent, env.client(emptySet()), key, "nothing held")
+                env.assertDecision(Decision.DENY, agent, "CLI-NONE", key, "no consent")
+                val ofOther = env.client(setOf(ScopeItem.SUBMIT_INVOICE_DATA))
+                env.assertDecision(Decision.DENY, agent, "CLI-OTHER", key, "consent for another client entity")
+                env.withdraw(env.lastConsentRef)
+                env.assertDecision(Decision.DENY, agent, ofOther, key, "after withdrawal")
+            }
+        }
+
+    @Test
+    fun `INV-Q-8864 A look-alike read keys are refused with all three items granted`() =
+        run { env ->
+            val client = env.client(all)
+            readLookAlikes.forEach {
+                assertThat(runCatching { env.decide(agent, client, it) }.getOrNull())
+                    .describedAs(it)
+                    .isNotEqualTo(Decision.ALLOW)
+            }
+        }
+
+    @Test
+    fun `INV-Q-8864 A a file giving doc_view_content FILE_GST_RETURN refuses it under SUBMIT_INVOICE_DATA`() {
+        val table =
+            AgentScopeItemTable.parse(
+                production().replace("doc.view.content\tSUBMIT_INVOICE_DATA", "doc.view.content\tFILE_GST_RETURN"),
+            )
+        run(table) { env ->
+            env.assertDecision(
+                Decision.DENY,
+                agent,
+                env.client(setOf(ScopeItem.SUBMIT_INVOICE_DATA)),
+                "doc.view.content",
+                "wrong item",
+            )
+        }
+    }
+
+    @Test
+    fun `INV-Q-8864 A a row left out refuses that read key with SUBMIT_INVOICE_DATA granted`() {
+        readKeys.forEach { gone ->
+            val lines = production().split("\n").filterNot { it.startsWith("$gone\t") }
+            run(AgentScopeItemTable.parse(lines.joinToString("\n"))) { env ->
+                val client = env.client(all)
+                env.assertDecision(Decision.DENY, agent, client, gone, "row left out")
+                (readKeys - gone).forEach { env.assertDecision(Decision.ALLOW, agent, client, it, "row kept") }
+            }
+        }
+    }
 
     private val fileOnly = setOf(ScopeItem.FILE_GST_RETURN)
 
