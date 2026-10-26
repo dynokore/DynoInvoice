@@ -1,6 +1,5 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
-import com.dynokore.gst.controlPlane.adapters.ControlPlaneHarness
 import com.dynokore.gst.controlPlane.adapters.PostgresDb
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.serviceruntime.jobs.JobCriticality
@@ -31,16 +30,15 @@ class JobRuntimeIT {
         block: (JobRuntime) -> Unit,
     ) {
         val database = PostgresDb.runtimeDataSource as PGSimpleDataSource
-        // the migration Job's MigrationRunner writes the job_retention row;
-        // the harness stands in for it
-        ControlPlaneHarness
+        // the migration Job's MigrationRunner writes the job_retention row after the migrations; the harness stands in for it
+        PostgresDb
             .ownerDsl()
             .execute(
                 "insert into controlplane.job_retention (id, job_window) values (true, interval '30 days') " +
                     "on conflict (id) do nothing",
             )
         // ... and the binding key the context's secret store holds, written as the key table's owner (controlplane_sys)
-        ControlPlaneHarness.ownerDsl().transaction { configuration ->
+        PostgresDb.ownerDsl().transaction { configuration ->
             val tx = DSL.using(configuration)
             tx.execute("set local role controlplane_sys")
             BindingKeyMigration.writeKeys(tx, "controlplane", BINDING_KEY)
@@ -79,7 +77,7 @@ class JobRuntimeIT {
         )
 
     private fun runStatuses(name: String): List<String> =
-        ControlPlaneHarness
+        PostgresDb
             .ownerDsl()
             .select(DSL.field("status", String::class.java))
             .from(DSL.table("controlplane.job_run"))
@@ -87,7 +85,7 @@ class JobRuntimeIT {
             .fetch(DSL.field("status", String::class.java))
 
     private fun outboxTypes(name: String): List<String> =
-        ControlPlaneHarness
+        PostgresDb
             .ownerDsl()
             .select(DSL.field("type", String::class.java))
             .from(DSL.table("controlplane.outbox"))
