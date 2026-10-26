@@ -1,10 +1,10 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
-import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
-import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.core.io.DefaultResourceLoader
 import java.nio.file.Files
@@ -60,8 +60,12 @@ object EvidenceContext {
         return SpringApplicationBuilder(EvidenceApplication::class.java, *configurations.toTypedArray())
             .web(WebApplicationType.SERVLET)
             .resourceLoader(DefaultResourceLoader(loader))
-            .properties(*overrides(mountRoot), "spring.datasource.url=${EvidenceDb.jdbcUrl}", "server.port=0", *properties)
-            .run()
+            .properties(
+                *overrides(mountRoot),
+                "spring.datasource.url=${EvidenceDb.jdbcUrl}",
+                "server.port=0",
+                *properties,
+            ).run()
     }
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */

@@ -10,9 +10,9 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 
 /**
- * A verifier that accepts only the test tokens: `token-<name>` is verified as subject `sa-<name>`; and a resolver for the end-user token. It sits outside the
- * packages the application scans, so only the test of the caller check puts it in a context; it is primary because
- * the runtime's own verifier is defined first by the composition root.
+ * A verifier that accepts only the test tokens (`token-<name>` is verified as subject `sa-<name>`) and a resolver
+ * for the end-user token. It sits outside the packages the application scans, so only the test of the caller check
+ * puts it in a context; it is primary because the runtime's own beans are defined first by the composition root.
  */
 @Configuration(proxyBeanMethods = false)
 class TestWorkloadVerifier {
@@ -28,7 +28,7 @@ class TestWorkloadVerifier {
             }
         }
 
-    /** Any `Authorization` header is the end user of one tenant, so a request that passes the caller check is served. */
+    /** Any `Authorization` header is the end user of one tenant, so a request past the caller check is served. */
     @Bean
     @Primary
     fun testEndUserResolver(): EndUserPrincipalResolver =
