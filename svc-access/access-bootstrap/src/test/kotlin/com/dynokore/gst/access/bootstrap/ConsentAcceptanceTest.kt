@@ -10,7 +10,6 @@ import com.dynokore.gst.access.adapters.http.ConsentController
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.consent.DocumentList
 import com.dynokore.gst.access.application.consent.HandoverStatements
-import com.dynokore.gst.access.application.consent.ScopeItemRequirements
 import com.dynokore.gst.access.application.consent.UnsubmittedDocument
 import com.dynokore.gst.access.application.consent.UnsubmittedDocuments
 import com.dynokore.gst.access.contract.model.AuthoriseResponse.Decision.ALLOW
@@ -23,7 +22,6 @@ import com.dynokore.gst.access.domain.consent.ConsentStatus
 import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Scope
-import com.dynokore.gst.access.domain.role.Permission
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
@@ -45,23 +43,14 @@ import java.util.UUID
  * the permission matrix and the role catalogue from the gst-catalogue table (no fixture rows), the consent controller
  * and `authorise` called under a bound tenant.
  *
- * Test data: the catalogue holds no scope item per permission (INV-T-4939 owns it and no text names it for every
- * permission), so the production table is empty and an agent is refused everything. These tests bind a table of two
- * rows: `submission.replay` needs SUBMIT_INVOICE_DATA, and `audit-pack.export` stands in for "record a filing fact"
- * (FILE_GST_RETURN), which has no permission in the catalogue. See the merge request, "Gaps".
+ * Scope items come from the production `agent-scope-items.tsv` (the real `ScopeItemRequirements` bean, no test
+ * table): `submission.replay` needs SUBMIT_INVOICE_DATA and `filing.confirm` needs FILE_GST_RETURN (INV-Q-8866 A).
  */
 class ConsentAcceptanceTest {
     private val signatory = "user:signatory"
     private val agent = "user:agent"
     private val replay = "submission.replay"
-    private val filing = "audit-pack.export"
-    private val requirements =
-        ScopeItemRequirements(
-            mapOf(
-                Permission("submission.replay") to ScopeItem.SUBMIT_INVOICE_DATA,
-                Permission("audit-pack.export") to ScopeItem.FILE_GST_RETURN,
-            ),
-        )
+    private val filing = "filing.confirm"
 
     private inner class Env(
         val context: AssertableWebApplicationContext,
@@ -172,7 +161,7 @@ class ConsentAcceptanceTest {
         documents: UnsubmittedDocuments? = null,
         block: (Env) -> Unit,
     ) {
-        var runner = BoundaryFixture.runner(catalogueMatrix = true, requirements = requirements)
+        var runner = BoundaryFixture.runner(catalogueMatrix = true, requirements = null)
         if (documents != null) runner = runner.withBean(UnsubmittedDocuments::class.java, { documents })
         runner.run { context ->
             context.startupFailure?.let { throw it }
@@ -183,7 +172,7 @@ class ConsentAcceptanceTest {
     private fun refusal(block: () -> Unit) = runCatching(block).exceptionOrNull()
 
     @Test
-    fun `INV-AC-8606 grantConsent records the three items separately, legacy scope 400, FILE_GST_RETURN test row`() =
+    fun `INV-AC-8606 grantConsent records the three items separately, legacy scope 400 FILE_GST_RETURN`() =
         run { env ->
             val granted = env.grant("CLI-A", setOf(ScopeItem.SUBMIT_INVOICE_DATA))
             assertThat(granted.status).isEqualTo(ConsentResponse.Status.ACTIVE)
@@ -202,7 +191,7 @@ class ConsentAcceptanceTest {
         }
 
     @Test
-    fun `INV-AC-1946 a consent grants only the chosen items, FILE_GST_RETURN half with a test table row`() =
+    fun `INV-AC-1946 a consent grants only the chosen items, FILE_GST_RETURN half`() =
         run { env ->
             env.grant("CLI-A", setOf(ScopeItem.SUBMIT_INVOICE_DATA))
             assertThat(env.decide("CLI-A", replay)).isEqualTo(ALLOW)
@@ -297,7 +286,7 @@ class ConsentAcceptanceTest {
         }
 
     @Test
-    fun `INV-AC-933 after FILE_GST_RETURN is withdrawn the next filing operation is refused, test table row`() =
+    fun `INV-AC-933 after FILE_GST_RETURN is withdrawn the next filing operation is refused`() =
         run { env ->
             val consent = env.grant("CLI-A", setOf(ScopeItem.FILE_GST_RETURN))
             assertThat(env.decide("CLI-A", filing)).isEqualTo(ALLOW)

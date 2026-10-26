@@ -5,6 +5,7 @@ import com.dynokore.gst.access.adapters.http.ConsentController
 import com.dynokore.gst.access.application.consent.ScopeItemRequirements
 import com.dynokore.gst.access.contract.model.AuthoriseResponse.Decision
 import com.dynokore.gst.access.contract.model.GrantConsentRequest
+import com.dynokore.gst.access.contract.model.WithdrawConsentRequest
 import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.grant.EntityRef
@@ -48,6 +49,7 @@ class AgentScopeItemRequirementsTest {
         val tenant = TenantId(UUID.randomUUID())
         private val tenants = context.getBean(TenantContext::class.java)
         private var next = 0
+        var lastConsentRef = ""
 
         /**
          * A fresh client entity with a live consent of [consentAgent] holding [items], the operator's and the
@@ -72,21 +74,32 @@ class AgentScopeItemRequirementsTest {
                 SeedSpec(approver, Role.TAX_APPROVER, Scope.ConsentDerived(TenantRef(tenant.toString()), check)),
             )
             tenants.bind(tenant, signatory) {
-                context.getBean(ConsentController::class.java).grantConsent(
-                    UUID.randomUUID(),
-                    GrantConsentRequest(
-                        clientRef = client,
-                        agentRef = consentAgent,
-                        validFrom = LocalDate.of(2026, 1, 1),
-                        authorisingPersonEmail = "director@client.example",
-                        submitInvoiceData = ScopeItem.SUBMIT_INVOICE_DATA in items,
-                        fileGstReturn = ScopeItem.FILE_GST_RETURN in items,
-                        mappingApproval = ScopeItem.MAPPING_APPROVAL in items,
-                    ),
-                )
+                context
+                    .getBean(ConsentController::class.java)
+                    .grantConsent(
+                        UUID.randomUUID(),
+                        GrantConsentRequest(
+                            clientRef = client,
+                            agentRef = consentAgent,
+                            validFrom = LocalDate.of(2026, 1, 1),
+                            authorisingPersonEmail = "director@client.example",
+                            submitInvoiceData = ScopeItem.SUBMIT_INVOICE_DATA in items,
+                            fileGstReturn = ScopeItem.FILE_GST_RETURN in items,
+                            mappingApproval = ScopeItem.MAPPING_APPROVAL in items,
+                        ),
+                    ).body!!
+                    .consentRef
+                    .also { lastConsentRef = it }
             }
             return client
         }
+
+        fun withdraw(consentRef: String) =
+            tenants.bind(tenant, signatory) {
+                context
+                    .getBean(ConsentController::class.java)
+                    .withdrawConsent(consentRef, UUID.randomUUID(), WithdrawConsentRequest("Relationship ended"))
+            }
 
         fun decide(
             who: String,
@@ -103,8 +116,20 @@ class AgentScopeItemRequirementsTest {
             }
     }
 
-    private fun run(block: (Env) -> Unit) {
-        BoundaryFixture.runner(catalogueMatrix = true, requirements = null).run { context ->
+    private val filingKeys =
+        listOf(
+            "filing.confirm",
+            "filed-return.upload",
+            "reconciliation.run",
+            "reconciliation.annotate",
+            "reconciliation.attest",
+        )
+
+    private fun run(
+        requirements: ScopeItemRequirements? = null,
+        block: (Env) -> Unit,
+    ) {
+        BoundaryFixture.runner(catalogueMatrix = true, requirements = requirements).run { context ->
             context.startupFailure?.let { throw it }
             assertThat(context.getBean(ScopeItemRequirements::class.java)).isNotNull()
             block(Env(context))
@@ -185,4 +210,74 @@ class AgentScopeItemRequirementsTest {
             val withoutConsent = "CLI-NONE"
             assertThat(env.decide(approver, withoutConsent, "mapping-pack.approve")).isEqualTo(Decision.DENY)
         }
+
+    private val fileOnly = setOf(ScopeItem.FILE_GST_RETURN)
+
+    private fun Env.assertDecision(
+        expected: Decision,
+        who: String,
+        client: String,
+        key: String,
+        why: String,
+    ) = assertThat(decide(who, client, key)).describedAs("$key, $why").isEqualTo(expected)
+
+    @Test
+    fun `INV-Q-8866 A each filing key is allowed under exactly FILE_GST_RETURN for the operator`() =
+        run { env ->
+            filingKeys.forEach { key ->
+                env.assertDecision(Decision.ALLOW, agent, env.client(fileOnly), key, "exact item")
+                env.assertDecision(Decision.DENY, agent, env.client(all - fileOnly), key, "two other items")
+                env.assertDecision(Decision.DENY, agent, env.client(emptySet()), key, "nothing held")
+                env.assertDecision(Decision.DENY, agent, "CLI-NONE", key, "no consent")
+                val withdrawn = env.client(fileOnly)
+                env.withdraw(env.lastConsentRef)
+                env.assertDecision(Decision.DENY, agent, withdrawn, key, "after withdrawal")
+            }
+        }
+
+    @Test
+    fun `INV-Q-8866 A the consent-derived approver is allowed filing_confirm under FILE_GST_RETURN`() =
+        run { env ->
+            val key = "filing.confirm"
+            env.assertDecision(Decision.ALLOW, approver, env.client(fileOnly), key, "exact item")
+            env.assertDecision(Decision.DENY, approver, env.client(all - fileOnly), key, "two other items")
+            env.assertDecision(Decision.DENY, approver, env.client(emptySet()), key, "nothing held")
+            env.assertDecision(Decision.DENY, approver, "CLI-NONE", key, "no consent")
+            val withdrawn = env.client(fileOnly)
+            env.withdraw(env.lastConsentRef)
+            env.assertDecision(Decision.DENY, approver, withdrawn, key, "after withdrawal")
+        }
+
+    @Test
+    fun `INV-Q-8866 A look-alike filing keys are refused with all three items granted`() =
+        run { env ->
+            val client = env.client(all)
+            listOf("filing.confirms", "Filing.confirm", "filing.confirm ", "filed-return.uploads").forEach {
+                assertThat(runCatching { env.decide(agent, client, it) }.getOrNull())
+                    .describedAs(it)
+                    .isNotEqualTo(Decision.ALLOW)
+            }
+        }
+
+    @Test
+    fun `INV-Q-8866 A a file giving reconciliation_run the item SUBMIT_INVOICE_DATA refuses it`() {
+        val from = "reconciliation.run\tFILE_GST_RETURN"
+        val table = AgentScopeItemTable.parse(production().replace(from, "reconciliation.run\tSUBMIT_INVOICE_DATA"))
+        run(table) { env ->
+            env.assertDecision(Decision.DENY, agent, env.client(fileOnly), "reconciliation.run", "wrong item in file")
+        }
+    }
+
+    @Test
+    fun `INV-Q-8866 A a row left out refuses that key for the agent with FILE_GST_RETURN granted`() {
+        val lines = production().split("\n").filterNot { it.startsWith("reconciliation.attest\t") }
+        run(AgentScopeItemTable.parse(lines.joinToString("\n"))) { env ->
+            val client = env.client(all)
+            env.assertDecision(Decision.DENY, agent, client, "reconciliation.attest", "row left out")
+            env.assertDecision(Decision.ALLOW, agent, client, "reconciliation.run", "row kept")
+        }
+    }
+
+    private fun production(): String =
+        checkNotNull(javaClass.getResourceAsStream("/agent-scope-items.tsv")).bufferedReader().use { it.readText() }
 }

@@ -5,3 +5,8 @@ submission.replay	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "replay" (Inference: key c
 mapping-pack.author	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "draft mappings" (Inference: key chosen for the phrase)
 transaction.ingest	SUBMIT_INVOICE_DATA	FR-AF.34 item 1 "SUBMIT_INVOICE_DATA" (Inference: key chosen for the item name)
 mapping-pack.approve	MAPPING_APPROVAL	FR-AB.16 "a second person at the agent approves" (Inference: key chosen for the phrase)
+filing.confirm	FILE_GST_RETURN	FR-AF.34 item 2 "Record the filing fact (`confirmFiling`), upload the filed return, run and annotate reconciliation, attest as preparer": Record the filing fact (`confirmFiling`) (Inference: key paired with the phrase)
+filed-return.upload	FILE_GST_RETURN	FR-AF.34 item 2 "Record the filing fact (`confirmFiling`), upload the filed return, run and annotate reconciliation, attest as preparer": upload the filed return (Inference: key paired with the phrase)
+reconciliation.run	FILE_GST_RETURN	FR-AF.34 item 2 "Record the filing fact (`confirmFiling`), upload the filed return, run and annotate reconciliation, attest as preparer": run and annotate reconciliation (Inference: key paired with the phrase)
+reconciliation.annotate	FILE_GST_RETURN	FR-AF.34 item 2 "Record the filing fact (`confirmFiling`), upload the filed return, run and annotate reconciliation, attest as preparer": run and annotate reconciliation (Inference: key paired with the phrase)
+reconciliation.attest	FILE_GST_RETURN	FR-AF.34 item 2 "Record the filing fact (`confirmFiling`), upload the filed return, run and annotate reconciliation, attest as preparer": attest as preparer (Inference: key paired with the phrase)

@@ -23,7 +23,7 @@ class AgentScopeItemTableTest {
         }.isInstanceOf(IllegalStateException::class.java)
 
     @Test
-    fun `the file holds exactly the six rows and each basis names FR-AF_34 or FR-AB_16`() {
+    fun `the file holds exactly the eleven rows and each basis names FR-AF_34 or FR-AB_16`() {
         val rows =
             raw()
                 .split("\n")
@@ -37,12 +37,17 @@ class AgentScopeItemTableTest {
             "mapping-pack.author" to "SUBMIT_INVOICE_DATA",
             "transaction.ingest" to "SUBMIT_INVOICE_DATA",
             "mapping-pack.approve" to "MAPPING_APPROVAL",
+            "filing.confirm" to "FILE_GST_RETURN",
+            "filed-return.upload" to "FILE_GST_RETURN",
+            "reconciliation.run" to "FILE_GST_RETURN",
+            "reconciliation.annotate" to "FILE_GST_RETURN",
+            "reconciliation.attest" to "FILE_GST_RETURN",
         )
         assertThat(rows).allSatisfy { assertThat(it[2]).matches("FR-A[FB]\\.(34|16) .*") }
     }
 
     @Test
-    fun `the production table maps the six keys and nothing else, look-alike keys are unknown`() {
+    fun `the production table maps the eleven keys and nothing else, look-alike keys are unknown`() {
         val table = AgentScopeItemTable.production()
         assertThat(table.itemFor(Permission("submission.replay"))).isEqualTo(ScopeItem.SUBMIT_INVOICE_DATA)
         assertThat(table.itemFor(Permission("mapping-pack.approve"))).isEqualTo(ScopeItem.MAPPING_APPROVAL)
