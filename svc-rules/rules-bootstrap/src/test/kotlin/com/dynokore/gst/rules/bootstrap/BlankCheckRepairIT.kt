@@ -206,7 +206,7 @@ class BlankCheckRepairIT {
             assertEquals("23514", sqlState(refused!!))
             assertTrue(CONSTRAINT in message(refused), message(refused))
             assertEquals("23514", sqlState(insert("$FEFF$FEFF").exceptionOrNull()!!))
-            assertTrue(insert("​").isSuccess)
+            assertTrue(insert("\u200B").isSuccess)
             assertTrue(insert("a").isSuccess)
         }
     }
