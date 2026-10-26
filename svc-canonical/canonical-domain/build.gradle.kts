@@ -11,3 +11,18 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.konsistRules)
 }
+
+// NettingLinksTest compares DocumentFunction with the ingestion contract's enum; canonical-contract stages the pinned
+// bundle while it is configured.
+evaluationDependsOn(":canonical-contract")
+
+tasks.withType<Test>().configureEach {
+    systemProperty(
+        "gst.ingestion.schema",
+        project(":canonical-contract")
+            .layout.buildDirectory
+            .file("contracts-repo/.bundle/ingestion/schemas/transaction-request.schema.json")
+            .get()
+            .asFile.path,
+    )
+}
