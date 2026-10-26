@@ -17,8 +17,8 @@ import java.time.Clock
  * (product-runtime declares the consumers of its feeds, so the default one of service-runtime backs off). It works on
  * the inbox, offset and dead-letter tables of schema `evidence` (V3__evidence_consumer_side.sql); its handler runs in
  * the consumer's transaction on the tenant-bound [DSLContext], so the locator, the drained records, the inbox row and
- * the offset commit together (INV-REQ-1222). The service binds no [RebuildRequiredSink] yet (reported gap): without
- * one the context does not start, which keeps the missing incident path visible.
+ * the offset commit together (INV-REQ-1222). A consumer that needs a rebuild raises its incident to the [RebuildRequiredSink]
+ * bean ([LoggingRebuildRequiredSink] unless the context supplies one, INV-Q-10834 A).
  */
 @Configuration(proxyBeanMethods = false)
 class LocatorConsumerConfiguration {

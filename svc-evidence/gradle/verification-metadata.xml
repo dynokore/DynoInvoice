@@ -68,8 +68,10 @@
          <trusted-key id="077E8893A6DCC33DD4A4D5B256E73BA9A0B592D0" group="org.apache.logging.log4j"/>
          <trusted-key id="0785B3EFF60B1B1BEA94E0BB7C25280EAE63EBE5" group="^org[.]apache[.]httpcomponents($|([.].*))" regex="true"/>
          <trusted-key id="07A4FA67A8222F1B39F9EDAEF8052E4E1BD0DB31" group="^org[.]neo4j($|([.].*))" regex="true"/>
+         <trusted-key id="09939C73246B4BA7444CAA453D002DBC5EA9615F" group="dev.drewhamilton.poko"/>
          <trusted-key id="0B1B71E813C226033B16D8C5F0D228D8FF31B515" group="^io[.]zipkin($|([.].*))" regex="true"/>
          <trusted-key id="0CC641C3A62453AB390066C4A41F13C999945293" group="commons-collections" name="commons-collections" version="3.2.2"/>
+         <trusted-key id="0D35D3F60078655126908E8AF3D1600878E85A3D" group="io.netty"/>
          <trusted-key id="0E519FB002B9DE71010C6BA9BBF5AC5A3CDBFD37" group="net.javacrumbs.shedlock"/>
          <trusted-key id="0F07D1201BDDAB67CFB84EB479752DB6C966F0B8" group="com.google.android" name="annotations" version="4.1.1.4"/>
          <trusted-key id="1452F35849B50750F6A3BBB4B54011358B352F85" group="org.hibernate.validator" name="hibernate-validator" version="9.1.3.Final"/>
@@ -77,6 +79,7 @@
          <trusted-key id="184454FAD8697760F3E00D2E4A51A45B944FFD51" group="org.apache.tika"/>
          <trusted-key id="19BEAB2D799C020F17C69126B16698A4ADF4D638" group="org.checkerframework" name="checker-qual"/>
          <trusted-key id="1A55F091AD28C07F831FA44D7905DE25C78AD456" group="com.google.protobuf"/>
+         <trusted-key id="1BD97A6A154E7810EE0BC832E2F38302C8075E3D" group="org.gradle.toolchains" name="foojay-resolver" version="1.0.0"/>
          <trusted-key id="1D2C7EF8ADA0F794B58C7C63436902AF59EDF60E" group="dev.equo.ide" name="solstice" version="1.8.2"/>
          <trusted-key id="1D85469D8559C2E1DF5F925131D2D79DF7E85DD3" group="org.jcommander" name="jcommander" version="1.85"/>
          <trusted-key id="1F47744C9B6E14F2049C2857F1F111AF65925306" group="io.github.classgraph" name="classgraph" version="4.8.184"/>
@@ -91,6 +94,7 @@
          <trusted-key id="28417C95E8906D108392822354A43F3254868410" group="org.apache.artemis"/>
          <trusted-key id="28AB6EB572779C2AD196BE22D44C1D8DB1606F22" group="com.github.joschi.jackson" name="jackson-datatype-threetenbp" version="2.18.2"/>
          <trusted-key id="29BEA2A645F2D6CED7FB12E02B172E3E156466E8" group="org.apache.maven.resolver"/>
+         <trusted-key id="2B34821418CF19CF1F2A8352953E02E4F573B46F" group="jakarta.platform"/>
          <trusted-key id="2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB">
             <trusting group="commons-beanutils"/>
             <trusting group="commons-cli"/>
@@ -104,17 +108,22 @@
             <trusting group="org.snakeyaml"/>
             <trusting group="org.yaml"/>
          </trusted-key>
+         <trusted-key id="32118CF76C9EC5D918E54967CA80D1F0EB6CA4BA" group="org.codehaus.mojo"/>
          <trusted-key id="33FD4BFD33554634053D73C0C2148900BCD3C2AF" group="^org[.]jetbrains($|([.].*))" regex="true"/>
          <trusted-key id="34441E504A937F43EB0DAEF96A65176A0FB1CD0B" group="org.apache.groovy"/>
          <trusted-key id="350C5D75D04AA599CBAD22348D5059F2B1927A9A" group="com.lemonappdev" name="konsist" version="0.17.3"/>
          <trusted-key id="3690C240CE51B4670D30AD1C38EE757D69184620" group="org.tukaani" name="xz" version="1.9"/>
          <trusted-key id="373578B889B9D636A93509DFEC67236259ADC5BD" group="io.github.compress4j" name="compress4j" version="2.1.2"/>
+         <trusted-key id="37C5181BF2066135E771E6DCB263D126C8A7E813" group="com.vdurmont" name="semver4j" version="3.1.0"/>
          <trusted-key id="3CA154339EDB344CA831FC65FEAA650EB6DA6579" group="org.atteo"/>
          <trusted-key id="3E61D8C230332482009D7F0EDB901B24CAD38BC4" group="^io[.]swagger($|([.].*))" regex="true"/>
          <trusted-key id="3F05DDA9F317301E927136D417A27CE7A60FF5F0" group="io.opentelemetry" name="opentelemetry-bom"/>
          <trusted-key id="4008F9DFF7DBC968F35F9E712642156411CCE8B3" group="com.vladsch.flexmark"/>
+         <trusted-key id="41CD49B4EF5876F9E9F691DABAC30622339994C4" group="org.jspecify" name="jspecify"/>
          <trusted-key id="42F1F5F3531B34660A81F7B05D95290D111CF7FF" group="com.googlecode.libphonenumber"/>
+         <trusted-key id="47504B76CF89C15C0512D9AFE16AB52D79FD224F" group="com.google.api.grpc" name="proto-google-common-protos" version="2.51.0"/>
          <trusted-key id="475F3B8E59E6E63AA78067482C7B12F2A511E325" group="org.slf4j"/>
+         <trusted-key id="477E62A656AD5475A1882855C809CA3C41BA6E96" group="jakarta.validation" name="jakarta.validation-api" version="2.0.2"/>
          <trusted-key id="4797B4F5DCC46CEA61059071A1AE06236CA2BA62" group="com.diffplug.durian" name="durian-swt.os" version="4.3.0"/>
          <trusted-key id="47EB6836245D2D40E89DFB4136D4E9618F3ADAB5" group="io.github.oshai" name="kotlin-logging-jvm"/>
          <trusted-key id="47FF105DF431FF5416B821FEAECDB81D38EA9C89" group="org.commonmark"/>
@@ -150,8 +159,11 @@
          <trusted-key id="716EE302674CDBB2E660E1B44DB5EA09F2E3C800" group="^org[.]eclipse[.]jetty($|([.].*))" regex="true"/>
          <trusted-key id="7464550A61C90BA385FC97A76D9567281201E5E3" group="jakarta.servlet" name="jakarta.servlet-api" version="6.1.0"/>
          <trusted-key id="7616EB882DAF57A11477AAF559A252FB1199D873" group="com.google.code.findbugs" name="jsr305" version="3.0.2"/>
+         <trusted-key id="7B121B76A7ED6CE6E60AD51784E913A8E3A748C0" group="org.bouncycastle" name="bc-jdk18on-bom" version="1.84"/>
          <trusted-key id="7C669810892CBD3148FA92995B05CCDE140C2876" group="org.eclipse.jgit"/>
+         <trusted-key id="7C7271B83AAE727A2941690666F8E4860BF74983" group="org.jooq"/>
          <trusted-key id="7D90CFFEC86BA5513FE48B9943C2E6B56905B362" group="com.michael-bull.kotlin-result"/>
+         <trusted-key id="80F6D6B0D90C6747753344CAB5A9E81B565E89E0" group="org.tomlj" name="tomlj" version="1.0.0"/>
          <trusted-key id="82F0964816AD7319CB0CCCF93EFD9D223D715E9A" group="com.nimbusds" name="nimbus-jose-jwt" version="10.9.1"/>
          <trusted-key id="84789D24DF77A32433CE1F079EB80E92EB2135B1" group="^org[.]apache($|([.].*))" regex="true"/>
          <trusted-key id="8569C95CADC508B09FE90F3002216ED811210DAA" group="io.github.detekt.sarif4k"/>
@@ -162,6 +174,7 @@
             <trusting group="org.rnorth.duct-tape"/>
             <trusting group="^org[.]jetbrains($|([.].*))" regex="true"/>
          </trusted-key>
+         <trusted-key id="890A711ECEFC9F46E7DC9A004083A52B1E69FF28" group="com.github.mifmif" name="generex" version="1.0.2"/>
          <trusted-key id="8E3A02905A1AE67E7B0F9ACD3967D4EDA591B991">
             <trusting group="io.ktor"/>
             <trusting group="org.jetbrains.kotlinx"/>
@@ -171,12 +184,14 @@
          <trusted-key id="9E3044071B758EBCB7E45673700E4F39BC05364B" group="org.eclipse.platform" name="org.eclipse.osgi" version="3.24.300"/>
          <trusted-key id="A33A0B49A4C1AB590B0A4DDC1364C5E2DF3E99C5" group="org.reactivestreams" name="reactive-streams" version="1.0.3"/>
          <trusted-key id="A59A3A16F87A0AE92F080DBFC25EC7B4882FAE47" group="org.openjdk.nashorn" name="nashorn-core" version="15.4"/>
+         <trusted-key id="A5BD02B93E7A40482EB1D66A5F69AD087600B22C" group="org.ow2.asm"/>
          <trusted-key id="A7892505CF1A58076453E52D7999BEFBA1039E8B" group="net.bytebuddy"/>
          <trusted-key id="A9789342F598AD5B1175EF357EB97D110DFADD60" group="com.googlecode.concurrent-trees" name="concurrent-trees" version="2.6.1"/>
          <trusted-key id="A9C5DF4D22E99998D9875A5110C01C5A2F6059E7" group="org.apache.tomcat.embed"/>
          <trusted-key id="AA70C7C433D501636392EC02153E7A3C2B4E5118" group="org.eclipse.ee4j" name="project"/>
          <trusted-key id="AA782B04ABD9E36CF3096037B59D3D0F9F9C8684" group="org.apache.cxf"/>
          <trusted-key id="ADBC987D1A7B91DB6B0AAA81995EFBF4A3D20BEB" group="com.pinterest.ktlint"/>
+         <trusted-key id="AE81EA0BD1BE2997053CC6C50D49734800E3AA0C" group="org.openapitools"/>
          <trusted-key id="AEB1E1AEC035C66FA39589D13EFC46EE83C40224" group="com.networknt" name="json-schema-validator" version="3.0.8"/>
          <trusted-key id="B02335AA54CCF21E52BBF9ABD9C565AA72BA2FDD" group="io.grpc"/>
          <trusted-key id="B18679A17A21DE79FF9DE8B0636D10E7975B6E6F" group="com.ethlo.time" name="itu" version="1.14.0"/>
@@ -185,6 +200,7 @@
             <trusting group="org.threeten"/>
          </trusted-key>
          <trusted-key id="BDB5FA4FE719D787FB3D3197F6D4A1D411E9D1AE" group="com.google.guava"/>
+         <trusted-key id="BE685132AFD2740D9095F9040CC0B712FEE75827" group="org.assertj"/>
          <trusted-key id="C3259D20DAEC4ACE6D57CC83340B090F727518D8" group="com.google.j2objc" name="j2objc-annotations" version="3.1"/>
          <trusted-key id="C668130C58722C9DC1C0FC633F1EB974E7AB9B37" group="biz.aQute.bnd" name="biz.aQute.bnd.annotation" version="7.1.0"/>
          <trusted-key id="C6F7D1C804C821F49AF3BFC13AD93C3C677A106E" group="io.perfmark" name="perfmark-api" version="0.27.0"/>
@@ -208,6 +224,7 @@
             <trusting group="commons-logging"/>
             <trusting group="org.apache.commons"/>
          </trusted-key>
+         <trusted-key id="F79157DB93697AA32CD4C46CC485C5A843FADB15" group="org.flywaydb"/>
          <trusted-key id="FA77DCFEF2EE6EB2DEBEDD2C012579464D01C06A" group="org.apache" name="apache"/>
          <trusted-key id="FA7929F83AD44C4590F6CC6815C71C0A4E0B8EDD" group="net.java.dev.jna"/>
          <trusted-key id="FC411CD3CB7DCB0ABC9801058118B3BCDB1A5000" group="jakarta.xml.bind"/>
@@ -374,12 +391,28 @@
             <sha256 value="61a1af1aae0c30604d9f44ae243f6a5038645a03841734a2c440b6662f48b4fd" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="audit-log" version="4.0.12">
+         <artifact name="audit-log-4.0.12.jar">
+            <sha256 value="a1a3896817511880c5aed2750ccfcdfab579d42789799a75cfe5d741f96cb8c7" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="audit-log-4.0.12.pom">
+            <sha256 value="d3b5758af0efdb1bd5348b659dcfb5e97cd45e5b823bc66e368485defb0d13fe" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="audit-log" version="4.0.8">
          <artifact name="audit-log-4.0.8.jar">
             <sha256 value="0f800d3820bf45badf5b86a5b8350bd8da75fa1bc9423f4093d824e91cc0c417" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
          <artifact name="audit-log-4.0.8.pom">
             <sha256 value="ab09e3c87e1f1254dc865ea92e6797c53d6869b013bf4e1f0a206c205de6fb42" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="audit-log-api" version="4.0.12">
+         <artifact name="audit-log-api-4.0.12.jar">
+            <sha256 value="353576d389b9b226818766165f06ad48fefed32e4f9c867f4810a244e6cd6bfb" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="audit-log-api-4.0.12.module">
+            <sha256 value="309d395637368cddad9e1ec483aa686d778a81fb70d1314044bf5dcbbeefea62" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="audit-log-api" version="4.0.8">
@@ -401,6 +434,14 @@
             <sha256 value="3b89fd6ed42f0d043e2c838d8a4355f08bc76444f8b888d8645a14a7bb5c8c8c" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="config-resolver" version="5.0.9">
+         <artifact name="config-resolver-5.0.9.jar">
+            <sha256 value="56bab4b9c9fd608bdd468ddca57c13e20c22908cf7c187fd871c99a226e705f2" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="config-resolver-5.0.9.pom">
+            <sha256 value="259e15970662b26d299c668a0fdd74e93f1080f8831564c0f227e512483155bb" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="config-resolver-api" version="5.0.5">
          <artifact name="config-resolver-api-5.0.5.jar">
             <sha256 value="19037de47ddacf6a66a0d2b31514960bdf31c1f24f1c4ca32b3b0cf47178b8f7" origin="Generated by Gradle" reason="Artifact is not signed"/>
@@ -410,6 +451,14 @@
          </artifact>
          <artifact name="config-resolver-api-5.0.5.pom">
             <sha256 value="c199cadcdedbf318c52f650f7a04c620875e059fe40035eb495802c2efe754be" origin="Generated by Gradle"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="config-resolver-api" version="5.0.9">
+         <artifact name="config-resolver-api-5.0.9.jar">
+            <sha256 value="19037de47ddacf6a66a0d2b31514960bdf31c1f24f1c4ca32b3b0cf47178b8f7" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="config-resolver-api-5.0.9.module">
+            <sha256 value="e09dd61dcf5bdd2f163eec01ea6e7b3b23c1af5da677e18ee9ea1b3897364396" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="crypto-api" version="1.1.1">
@@ -428,6 +477,14 @@
             <sha256 value="a80b24c5ab57750b1b6e394377842d78c043d0af61e8a1493bb536f441462748" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="evidence-store" version="2.0.9">
+         <artifact name="evidence-store-2.0.9.jar">
+            <sha256 value="8715f96a0d41905621ed32406a996719e98035158e3f92881173383084444e48" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="evidence-store-2.0.9.pom">
+            <sha256 value="6c78e28d7609f0cf2b55c53a9c4cb8e3d0368455456c8013c4f29bfb6c9de286" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="evidence-store-api" version="2.0.8">
          <artifact name="evidence-store-api-2.0.8.jar">
             <sha256 value="de75d326c1c63fa26398b222dd2e53078c8c48db3de0ccce5d67f731ef859595" origin="Generated by Gradle" reason="Artifact is not signed"/>
@@ -436,12 +493,28 @@
             <sha256 value="eef379805d3079e1cbab13468cbf1ef24ba70f020ddfcb4af1497ba4a3a781c6" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="evidence-store-api" version="2.0.9">
+         <artifact name="evidence-store-api-2.0.9.jar">
+            <sha256 value="de75d326c1c63fa26398b222dd2e53078c8c48db3de0ccce5d67f731ef859595" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="evidence-store-api-2.0.9.module">
+            <sha256 value="bd8757e3db8e3abeaef0b0a805a8c85043242f777e38a603b272a3a52993aec9" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="outbox-and-queue" version="6.2.2">
          <artifact name="outbox-and-queue-6.2.2.jar">
             <sha256 value="939280a2fe9537d1768d09fc970ea60444cc69d14fcdc5dbf4ae8543b978b8e9" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
          <artifact name="outbox-and-queue-6.2.2.pom">
             <sha256 value="0666f04ddf8ac2e6020f9e3d9d0dafc1c78798e1fd145de5f727bd847d365422" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="outbox-and-queue" version="6.5.1">
+         <artifact name="outbox-and-queue-6.5.1.jar">
+            <sha256 value="0089ddb4ad95cad64290ae91e7069032828b3ad9d822968ce42c96998c166dd4" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="outbox-and-queue-6.5.1.pom">
+            <sha256 value="18ba10646b40f3dcc21001950985ba5f585a488e329516fa618b54a2c2f1a5e4" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="outbox-and-queue-api" version="6.2.2">
@@ -455,9 +528,22 @@
             <sha256 value="4c9fefa28fd0f9ac11039e8c9fbdb446afe55f5f338afaf2b4ac317379f293e5" origin="Generated by Gradle"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="outbox-and-queue-api" version="6.5.1">
+         <artifact name="outbox-and-queue-api-6.5.1.jar">
+            <sha256 value="3b8c4b775a7fc1d2a728aca8bc254353a3f72c11db088800283122408cb0919a" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="outbox-and-queue-api-6.5.1.module">
+            <sha256 value="0e12484f89391e5a6878d477a93ce0699c0e45c1eab05a68fbab471d55ae61b6" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="platform-libs-bom" version="0.108.0">
          <artifact name="platform-libs-bom-0.108.0.module">
             <sha256 value="3398e358dbdb590af3669285c5f122327572e662ef0c9de563dba474894206f0" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="platform-libs-bom" version="0.120.0">
+         <artifact name="platform-libs-bom-0.120.0.module">
+            <sha256 value="0513a05110e4a2e67a7d049b73d9f9c1d77cd7456634b92c8d33686bae1f5209" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="product-runtime" version="1.2.4">
@@ -466,6 +552,14 @@
          </artifact>
          <artifact name="product-runtime-1.2.4.pom">
             <sha256 value="5860f70bc6a3a4281b1bdfedd7e2426b762773de1477080e2b04478b5093fc12" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="product-runtime" version="1.4.1">
+         <artifact name="product-runtime-1.4.1.jar">
+            <sha256 value="50e44addcc61bf43caf83464c5cf1e7066250feda94bfa577996ffd42f103385" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="product-runtime-1.4.1.pom">
+            <sha256 value="29db0232a9fb96507547fd452f3939922f61f9012111f9d62f2ee8be43b91bf8" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="product-runtime-api" version="1.2.4">
@@ -479,12 +573,36 @@
             <sha256 value="04de85793793ebf9d16243a456147080c5636f36e7136ceaa6ddb946e7a80da5" origin="Generated by Gradle"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="product-runtime-api" version="1.4.1">
+         <artifact name="product-runtime-api-1.4.1.jar">
+            <sha256 value="01d8eb885bbee3e47bd37bab112d1c9f3d58e5f450008999542237ccdb169060" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="product-runtime-api-1.4.1.module">
+            <sha256 value="51d2fd2be25e56dbe1b140f3e17d6f94d76d090c9e8e85044dcece48e0ef7357" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="service-runtime" version="10.10.2">
+         <artifact name="service-runtime-10.10.2.jar">
+            <sha256 value="8476cc6197ca4cab8999cbde63982c92fe28f212d9d3b296da47ce28ec765e94" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="service-runtime-10.10.2.pom">
+            <sha256 value="2a1dec1fb784a94dd54eabcfb3bfc5340a5d511469b7b79c27028d4ca2294d50" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="service-runtime" version="10.3.1">
          <artifact name="service-runtime-10.3.1.jar">
             <sha256 value="8e15114efec0a187b4fade641bb84552bbd809bec92e19da2e522d3a1378327e" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
          <artifact name="service-runtime-10.3.1.pom">
             <sha256 value="84b94402321230242a44e6ce869a71168ba80b7155cf8dc4317b864097884926" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="service-runtime-api" version="10.10.2">
+         <artifact name="service-runtime-api-10.10.2.jar">
+            <sha256 value="6a5307940fff2a4db843f14b5d3cbffabf8a87c22e029df8c305e61e7340855c" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="service-runtime-api-10.10.2.module">
+            <sha256 value="76490e50903023457dd27c8890414754e02f6e8df540b00bd90858620c4ce7b7" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="service-runtime-api" version="10.3.1">
@@ -506,6 +624,14 @@
             <sha256 value="bdaf57e03fdd918de40f110564cc3899ac9bfb24f6f8e820f5d60d80594ae7a1" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="tenancy-jooq" version="1.4.2">
+         <artifact name="tenancy-jooq-1.4.2.jar">
+            <sha256 value="fcf7b36dc00b9b17062270ebd998f9bac81b6d7ec85f5a799756da0ad2650465" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="tenancy-jooq-1.4.2.pom">
+            <sha256 value="0f1a368fbad168b59666d66e9b4e6081926d8e02a915910cf6c1a680708ebd6f" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="tenancy-jooq-api" version="1.4.1">
          <artifact name="tenancy-jooq-api-1.4.1.jar">
             <sha256 value="8cfebd776279531210e01229364388f8142ce9830bbe8cf2e27de8b6ca3a1f7d" origin="Generated by Gradle" reason="Artifact is not signed"/>
@@ -517,12 +643,28 @@
             <sha256 value="57a7423c8bf27361672a674354bb9b1978f635c7bc96af07c032afc8a4c9a208" origin="Generated by Gradle"/>
          </artifact>
       </component>
+      <component group="com.dynokore.platform" name="tenancy-jooq-api" version="1.4.2">
+         <artifact name="tenancy-jooq-api-1.4.2.jar">
+            <sha256 value="8cfebd776279531210e01229364388f8142ce9830bbe8cf2e27de8b6ca3a1f7d" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="tenancy-jooq-api-1.4.2.module">
+            <sha256 value="fd9cf612de1d82ca7357e27a80c0d1a42b971c4b774cbbc93a4fca3822cc9ed8" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
       <component group="com.dynokore.platform" name="tenancy-kernel" version="4.1.0">
          <artifact name="tenancy-kernel-4.1.0.jar">
             <sha256 value="1af971e8a3fd37da406884e00a2cc120b526d7ac1b84a4d5a472fbae87624c8c" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
          <artifact name="tenancy-kernel-4.1.0.pom">
             <sha256 value="93f22bcba78adec3ebce250fa6e246daaff06d5379a0c408832e80705ea6681c" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="tenancy-kernel" version="4.1.1">
+         <artifact name="tenancy-kernel-4.1.1.jar">
+            <sha256 value="1af971e8a3fd37da406884e00a2cc120b526d7ac1b84a4d5a472fbae87624c8c" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="tenancy-kernel-4.1.1.pom">
+            <sha256 value="f38c634e98834081d97029c53d9fb4e1b509593bb86280277c230e5aacd44ff8" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.dynokore.platform" name="tenancy-kernel-api" version="4.1.0">
@@ -534,6 +676,14 @@
          </artifact>
          <artifact name="tenancy-kernel-api-4.1.0.pom">
             <sha256 value="5c81835ee78d2d3bbf8b6adbca21c5b4b5777d28dac91419dd5bb053a4e4053d" origin="Generated by Gradle"/>
+         </artifact>
+      </component>
+      <component group="com.dynokore.platform" name="tenancy-kernel-api" version="4.1.1">
+         <artifact name="tenancy-kernel-api-4.1.1.jar">
+            <sha256 value="363a47acf91e007f28defb0f087e01a4ad9bafc3ecdafa19831a49a8ca1f86fe" origin="Generated by Gradle" reason="Artifact is not signed"/>
+         </artifact>
+         <artifact name="tenancy-kernel-api-4.1.1.module">
+            <sha256 value="db7502509debc411c48372465faf247f2b77fea161d78a35bbee4ab30dfeb8c5" origin="Generated by Gradle" reason="Artifact is not signed"/>
          </artifact>
       </component>
       <component group="com.ethlo.time" name="itu" version="1.14.0">
@@ -2171,6 +2321,7 @@
       </component>
       <component group="net.java" name="jvnet-parent" version="1">
          <artifact name="jvnet-parent-1.pom">
+            <pgp value="2BCBDD0F23EA1CAFCC11D4860374CF2E8DD1BDFD"/>
             <sha256 value="281440811268e65d9e266b3cc898297e214e04f09740d0386ceeb4a8923d63bf" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
@@ -2337,6 +2488,7 @@
       </component>
       <component group="org.apache.commons" name="commons-parent" version="39">
          <artifact name="commons-parent-39.pom">
+            <pgp value="808D78B17A5A2D7C3668E31FBFFC9B54721244AD"/>
             <sha256 value="87cd27e1a02a5c3eb6d85059ce98696bb1b44c2b8b650f0567c86df60fa61da7" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
@@ -2667,6 +2819,7 @@
       </component>
       <component group="org.eclipse.jetty" name="jetty-bom" version="9.4.45.v20220203">
          <artifact name="jetty-bom-9.4.45.v20220203.pom">
+            <pgp value="8B096546B1A8F02656B15D3B1677D141BCF3584D"/>
             <sha256 value="e8668b2a44e7ca63bc26bdfa2327af7e3f97f709dcbcc5e7b109d81fec3a55b6" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>
@@ -3744,6 +3897,7 @@
       </component>
       <component group="org.sonatype.oss" name="oss-parent" version="5">
          <artifact name="oss-parent-5.pom">
+            <pgp value="2BCBDD0F23EA1CAFCC11D4860374CF2E8DD1BDFD"/>
             <sha256 value="1678d4120a585d8a630131aeec4c524d928398583b7eab616ee7d5a87f520d3d" origin="Generated by Gradle" reason="A key couldn't be downloaded"/>
          </artifact>
       </component>

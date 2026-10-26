@@ -3,7 +3,6 @@ package com.dynokore.gst.evidence.adapters
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import io.kotest.matchers.shouldBe
 import org.flywaydb.core.Flyway
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
 import java.nio.file.Path
@@ -27,14 +26,29 @@ class ConsumerSideMigrationTest {
         assertEqual(fromGenerator, fromMigrations)
     }
 
-    // Flyway 12.4.0 drops U+FEFF inside a statement, and the generator's blank-check regex of three functions holds
-    // one; enabled when the ruling on that gap (reported with this task) is published.
-    @Disabled("gap: Flyway drops U+FEFF from the generator's blank-check regex (reported with INV-T-7218)")
+    /** INV-Q-10832 A: Flyway itself (the version of the build) builds the schema the generator builds, character for character. */
     @Test
     fun `V1 plus the consumer-side migration run by Flyway build the schema the generator builds`() {
         val fromGenerator = scratch { url -> viaGenerator(url, generated) }
         val fromMigrations = scratch { url -> viaMigrations(url, "V1__evidence_schema.sql", CONSUMER_SIDE) }
         assertEqual(fromGenerator, fromMigrations)
+    }
+
+    /** Flyway drops U+FEFF from a script it reads, so a script that holds one differs from the schema it builds. */
+    @Test
+    fun `the consumer-side migration holds no U+FEFF and equals itself without one`() {
+        val text = resource(CONSUMER_SIDE)
+        text.contains('\uFEFF') shouldBe false
+        text.replace("\uFEFF", "") shouldBe text
+    }
+
+    /** The Flyway-run comparison above is the gate of INV-Q-10832 A: it is never switched off. */
+    @Test
+    fun `this test class switches no test off`() {
+        val source = Path.of("src/test/kotlin/com/dynokore/gst/evidence/adapters/ConsumerSideMigrationTest.kt")
+        Files.exists(source) shouldBe true
+        val marker = "@" + "Disabled"
+        Files.readString(source).contains(marker) shouldBe false
     }
 
     private fun assertEqual(

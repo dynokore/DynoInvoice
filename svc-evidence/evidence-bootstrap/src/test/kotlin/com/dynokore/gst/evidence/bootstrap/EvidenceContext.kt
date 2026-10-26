@@ -1,7 +1,6 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
-import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.nio.file.Files
@@ -27,8 +26,6 @@ object EvidenceContext {
             // the real application.yaml (TPL-16), then the overrides below
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(EvidenceApplication::class.java)
-            // the incident path of a consumer that needs a rebuild is not bound in the service yet (reported gap)
-            .withBean(RebuildRequiredSink::class.java, { RebuildRequiredSink { } })
             .withPropertyValues(
                 "spring.datasource.url=jdbc:postgresql://localhost:5432/evidence",
                 "spring.datasource.username=evidence_runtime",
