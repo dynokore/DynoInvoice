@@ -624,11 +624,17 @@ components:
           minLength: 1
           maxLength: 40
           description: >-
-            The entity the document belongs to. transport-svc checks it
-            against the caller's entity set (403 SRT-004 outside it), picks
-            the adapter from that entity's AP connection record and records
-            it on the first attempt of the Doc UUID; a Doc UUID already
-            recorded under another entity is refused with 404 SRT-005.
+            The entity the document belongs to. transport-svc picks the adapter
+            from that entity's AP connection record and records it on the first
+            attempt of the Doc UUID; a Doc UUID already recorded under another
+            entity is refused with 404 SRT-005. The caller is the service
+            submission-svc, the only caller the sync edge of the operation names,
+            and the business authorisation of the filing happens upstream in
+            submission-svc, so transport-svc asks no authorisation decision; it
+            checks only that the verified calling service is submission-svc, that
+            the tenant it acts for equals the request's tenant and, where its
+            credential names entities, that this entity is one of them (403
+            SRT-004 otherwise, no retry hint).
       required: [docUuid, version, payload, entityRef]
     SendNetworkDocumentRequest:
       type: object
