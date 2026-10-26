@@ -82,11 +82,12 @@ dependencies {
     testFixturesImplementation(project(":control-plane-application"))
     testFixturesImplementation(libs.bouncycastle.bcprov)
     testFixturesImplementation(libs.bouncycastle.bcpkix)
-    // PostgresDb, the integration-test harness that control-plane-bootstrap's integrationTest reuses (INV-Q-10926 A)
+    // PostgresDb and ControlPlaneHarness, the integration-test harness that control-plane-bootstrap's integrationTest reuses (INV-Q-10926 A)
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.jooq)
     testFixturesImplementation(libs.postgresql)
     testFixturesImplementation(libs.platform.tenancyKernel)
+    testFixturesImplementation(libs.platform.crypto)
     testFixturesImplementation(libs.platform.tenancyJooq.api) {
         capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
     }
@@ -100,8 +101,6 @@ dependencies {
         capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
     }
     integrationTestImplementation(libs.platform.crypto)
-    // BindingKeyMigration: the harness installs the signed-binding functions the tenant policy of the outbox names
-    integrationTestImplementation(libs.platform.tenancyKernel)
 }
 
 // The feed index schema of the pinned platform-contracts release, staged by control-plane-contract, is a classpath
@@ -146,8 +145,23 @@ tasks.withType<Test> {
     inputs.dir(layout.projectDirectory.dir("src/main/resources/db/migration")).withPropertyName("migrations")
 }
 
+// The provisioning scripts plus the signed-binding functions the tenant policy of the outbox names (INV-Q-10984 B)
+val harnessInitSql =
+    tasks.register<JavaExec>("harnessInitSql") {
+        group = "verification"
+        description = "Stages roles.sql and schema.sql with the signed-binding functions appended for the harness."
+        val sourceDir = layout.projectDirectory.dir("src/integrationTest/resources")
+        val targetDir = layout.buildDirectory.dir("harness-init-sql")
+        classpath = sourceSets["testFixtures"].runtimeClasspath
+        mainClass.set("com.dynokore.gst.controlPlane.adapters.ControlPlaneHarness")
+        args(sourceDir.asFile.absolutePath, targetDir.get().asFile.absolutePath)
+        inputs.dir(sourceDir).withPropertyName("sourceDir")
+        outputs.dir(targetDir).withPropertyName("targetDir")
+    }
+
 val integrationTest =
     tasks.register<Test>("integrationTest") {
+        dependsOn(harnessInitSql)
         group = "verification"
         description = "STK-39: integration tests against PostgreSQL in Testcontainers, as the runtime login (CS-19)."
         testClassesDirs = sourceSets["integrationTest"].output.classesDirs
@@ -156,8 +170,9 @@ val integrationTest =
         systemProperty("gst.pg.image", System.getProperty("gst.pg.image") ?: "postgres:18")
         systemProperty(
             "gst.sql.dir",
-            layout.projectDirectory
-                .dir("src/integrationTest/resources")
+            layout.buildDirectory
+                .dir("harness-init-sql")
+                .get()
                 .asFile.path,
         )
     }

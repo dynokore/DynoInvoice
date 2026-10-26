@@ -12,7 +12,7 @@ class JobRuntimeTablesIT {
     @Test
     fun `the control-plane schema holds the outbox, job and idempotency tables`() {
         val names =
-            PostgresDb
+            ControlPlaneHarness
                 .ownerDsl()
                 .select(DSL.field("table_name", String::class.java))
                 .from(DSL.table("information_schema.tables"))
