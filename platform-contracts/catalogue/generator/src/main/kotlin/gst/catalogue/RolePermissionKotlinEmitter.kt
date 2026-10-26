@@ -71,6 +71,37 @@ object RolePermissionKotlinEmitter {
             appendLine("    /** The kind of [permissionKey], or null for a key that is not in the table. */")
             appendLine("    fun kind(permissionKey: String): PermissionKind? = permissionKinds[permissionKey]")
             appendLine("}")
+            appendLine()
+            appendLine("/**")
+            appendLine(" * The operation-to-roles map (INV-T-10641, INV-NOTE-10639 R3): per deployment form, the roles with a cell on a permission")
+            appendLine(" * key. Generated as a literal from the same table in the same run as [RolePermissions]; a key without a cell is absent.")
+            appendLine(" */")
+            appendLine("object OperationRoles {")
+            appendLine("    private val rolesByForm: Map<DeploymentForm, Map<String, Map<String, RoleAllowance>>> =")
+            appendLine("        mapOf(")
+            DeploymentForm.entries.forEach { form ->
+                appendLine("            DeploymentForm.$form to")
+                appendLine("                mapOf(")
+                table.permissions.forEach { p ->
+                    val cells = p.cells.filter { it.form == form }
+                    if (cells.isNotEmpty()) {
+                        appendLine("                    ${lit(p.key)} to")
+                        appendLine("                        mapOf(")
+                        cells.forEach { appendLine("                            ${lit(it.role)} to RoleAllowance.${it.allowance},") }
+                        appendLine("                        ),")
+                    }
+                }
+                appendLine("                ),")
+            }
+            appendLine("        )")
+            appendLine()
+            appendLine("    /** The roles with a cell on [permissionKey] in [form], with the cell's allowance; empty for a key with no cell there. */")
+            appendLine("    fun rolesFor(form: DeploymentForm, permissionKey: String): Map<String, RoleAllowance> =")
+            appendLine("        rolesByForm.getValue(form)[permissionKey] ?: emptyMap()")
+            appendLine()
+            appendLine("    /** The permission keys that have at least one cell in [form]. */")
+            appendLine("    fun keys(form: DeploymentForm): Set<String> = rolesByForm.getValue(form).keys")
+            appendLine("}")
         }
 
     private fun lit(s: String): String = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""

@@ -62,3 +62,7 @@ A new key is a minor step of `gstCatalogueVersion` in `../gradle.properties`, wi
 ruling. A changed cell of an existing key needs a Keel ruling first; the reviewer compares the cells with INV-NOTE-3.
 
 The keys `regulatory-pack.author` (held by `regulatory.author`) and `regulatory-pack.approve` (held by `regulatory.approver`), both WRITE, PERMITTED in SAAS and PRIVATE, were added by INV-T-9864 under coordinator ruling INV-Q-9779 A; their two row labels are in `addedRows`.
+
+## The operation-to-roles map
+
+The generated `RolePermission.kt` also declares `OperationRoles` (INV-T-10641, INV-NOTE-10639 R3). `OperationRoles.rolesFor(form, permissionKey)` returns the roles with a cell on that key in that form, with each cell's allowance, and `OperationRoles.keys(form)` returns the keys that have at least one cell in that form. The map is generated as a literal from the same yaml file in the same run as `RolePermissions`, in the order of the file. A key that is not in the table, or has no cell in the form, has no roles (an empty map).
