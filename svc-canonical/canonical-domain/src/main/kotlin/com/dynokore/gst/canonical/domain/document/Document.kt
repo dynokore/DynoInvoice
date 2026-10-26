@@ -63,3 +63,9 @@ data class WindowDocument(
     val currentVersion: Int,
     val canonical: String,
 )
+
+/** `documentFunction` of the canonical contract. */
+enum class DocumentFunction { INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT }
+
+/** `docUuidSource` of the canonical contract: where the Doc UUID of a document came from. */
+enum class DocUuidSource { SYSTEM, ISSUER, SUPPLIER }
