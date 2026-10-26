@@ -327,3 +327,9 @@ ZERO_RATED	enum_value	openapi.yaml	INV-Q-10703
 EXEMPT	enum_value	openapi.yaml	INV-Q-10703
 OUT_OF_SCOPE	enum_value	openapi.yaml	INV-Q-10703
 IMPORTS	enum_value	openapi.yaml	INV-Q-10703
+# INV-T-10698 (INV-REQ-992, INV-REQ-994, INV-REQ-995, INV-REQ-996): `tax.approver`, `tenant.admin` and `agent.operator` are roles; `approvePack` is an operation row that exists (INV-REQ-772).
+MappingPack.packVersion	schema_property	openapi.yaml	INV-REQ-996
+MappingPack.approvals	schema_property	openapi.yaml	INV-REQ-994
+MappingPack.activation	schema_property	openapi.yaml	INV-REQ-992
+MappingPackApproval.soleOperator	schema_property	openapi.yaml	INV-REQ-994
+MappingPackActivation.noDistinctApprover	schema_property	openapi.yaml	INV-REQ-992

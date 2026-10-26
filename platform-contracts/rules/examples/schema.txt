@@ -18,3 +18,5 @@
 ../schemas/scope-pack-contents.schema.json scope-pack-contents-*.json
 ../schemas/return-mapping-pack-contents.schema.json return-mapping-pack-contents-*.json
 ../openapi.yaml#/components/schemas/DryRunSupplyTypeTotal dry-run-supply-type-total-*.json
+../openapi.yaml#/components/schemas/MappingPackApproval pack-approval-*.json
+../openapi.yaml#/components/schemas/MappingPackActivation pack-activation-*.json

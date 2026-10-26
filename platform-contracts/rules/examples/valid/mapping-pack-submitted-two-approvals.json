@@ -1,0 +1,8 @@
+{
+ "packId": "MAP-0044",
+ "status": "SUBMITTED",
+ "approvals": [
+  {"approvedBy":"U-2002","approvedAt":"2026-10-20T08:30:00Z","soleOperator":false,"outstanding":["CLIENT_APPROVAL"]},
+  {"approvedBy":"U-2003","approvedAt":"2026-10-21T09:00:00Z","soleOperator":false,"outstanding":[],"soleOperatorAckRef":"ACK-9"}
+ ]
+}

@@ -1,0 +1,5 @@
+{
+ "packId": "MAP-0043",
+ "status": "APPROVED",
+ "approvals": [{"approvedBy":"U-2002","approvedAt":"2026-10-20T08:30:00Z","soleOperator":false,"outstanding":["CLIENT_ACKNOWLEDGEMENT"],"option":"AGENT_SECOND_PERSON"}]
+}

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -508,7 +508,13 @@ paths:
         `provides`, SCR-12.5, FR-P.2). Refused if the caller authored the
         draft (no self-approval, FR-P.2) or if an unaccepted non-PRIMARY
         entry remains (RUL-007), or a mapped IRAS code is missing from the
-        code catalogue (RUL-006, RUL-009, RUL-010).
+        code catalogue (RUL-006, RUL-009, RUL-010). The operation asks
+        access-svc (`decidePackApproval`) whether the caller may approve
+        and answers a DENY with 403 SRT-004 and a detail that names no
+        person (INV-REQ-995, INV-Q-1949; RUL-007 is unchanged). Every
+        answer carries `approvals`, whose last entry is this approval; the
+        status becomes APPROVED only when that latest approval has no
+        CLIENT_APPROVAL outstanding (INV-REQ-994, INV-REQ-996).
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -551,7 +557,12 @@ paths:
         Activation command to console-bff (services.yaml rules-svc
         `provides`, SCR-12.7, FR-B.1, FR-B.4). Evaluation begins selecting
         this pack by transaction date from `effectiveFrom` (FR-B.1).
-        Compensated, never undone, by `rollbackPack` (FR-AC.6).
+        Compensated, never undone, by `rollbackPack` (FR-AC.6). While the
+        latest approval's `outstanding` lists a step that access-svc has not
+        recorded, the operation answers 403 SRT-004 with the detail "the
+        client's acknowledgement is outstanding" (no new document code,
+        INV-Q-1949). Every answer carries `approvals` and `activation`;
+        `activation.noDistinctApprover` states the fact of INV-REQ-992.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -1371,7 +1382,63 @@ components:
           minimum: 0
           description: >-
             Number of those entries whose `accepted` is false, which block sign-off with RUL-007. Producer-enforced; present on the answer of `getMappingPack` only.
+        packVersion:
+          type: string
+          maxLength: 16
+          description: >-
+            The version label that access-svc stores with a client acknowledgement and takes as `packVersion` in `decidePackApproval`.
+        approvals:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/MappingPackApproval'
+          description: >-
+            The approval records, oldest first, so that a two-approver path of access-svc keeps both. Present on every answer of `approvePack` and `activateMappingPack` and on `getMappingPack` once an approval is recorded. The status becomes APPROVED only when the latest approval has no CLIENT_APPROVAL outstanding.
+        activation:
+          $ref: '#/components/schemas/MappingPackActivation'
       required: [packId, status]
+    MappingPackApproval:
+      type: object
+      properties:
+        approvedBy:
+          type: string
+          maxLength: 64
+          description: >-
+            The user ID of the approver, never a role.
+        approvedAt:
+          type: string
+          format: date-time
+        soleOperator:
+          type: boolean
+          description: >-
+            True where the author approved under the recorded sole-operator acknowledgement (INV-REQ-994).
+        outstanding:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [CLIENT_ACKNOWLEDGEMENT, CLIENT_APPROVAL]
+            x-extensible-enum: true
+          description: >-
+            The steps that access-svc left outstanding after this approval (INV-REQ-996 behavior 5).
+        soleOperatorAckRef:
+          type: string
+          maxLength: 64
+        option:
+          type: string
+          maxLength: 40
+          description: >-
+            The option key access-svc answered.
+      required: [approvedBy, approvedAt, soleOperator, outstanding]
+    MappingPackActivation:
+      type: object
+      properties:
+        noDistinctApprover:
+          type: boolean
+          description: >-
+            True where the installation of the private form recorded no distinct tax.approver or recorded nothing, false otherwise and always false in the SaaS form (INV-REQ-992 behavior 2, INV-REQ-1025). Present on the answer of `activateMappingPack` and on `getMappingPack` once the pack is active.
+      required: [noDistinctApprover]
     MappingEntryPage:
       type: object
       properties:

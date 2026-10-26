@@ -1,0 +1,8 @@
+{
+ "packId": "MAP-0042",
+ "status": "ACTIVE",
+ "effectiveFrom": "2026-11-01",
+ "packVersion": "2026.4",
+ "approvals": [{"approvedBy":"U-1001","approvedAt":"2026-10-20T08:30:00Z","soleOperator":true,"outstanding":[]}],
+ "activation": {"noDistinctApprover": true}
+}
