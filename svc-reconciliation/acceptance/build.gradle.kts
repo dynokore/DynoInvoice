@@ -10,6 +10,7 @@ dependencies {
     testImplementation(project(":reconciliation-adapters"))
     testImplementation(libs.springBoot.starterWeb)
     testImplementation(libs.snakeyaml)
+    testImplementation(libs.gstCatalogue)
     testImplementation(project(":reconciliation-bootstrap"))
     testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.jackson.databind)
