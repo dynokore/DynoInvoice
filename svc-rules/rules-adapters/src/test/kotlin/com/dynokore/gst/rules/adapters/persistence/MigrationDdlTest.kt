@@ -5,17 +5,25 @@ import com.dynokore.platform.rulepackkernel.PackRegistryMigration
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
+import java.util.Locale
 
 /**
  * A migration is a SQL file, never code that runs JDBC (CS-18), and the outbox tables of outbox-and-queue are a
  * versioned migration set applied into the service's own schema (TPL-12). `V2__outbox.sql` is the module's generated
  * DDL
  * for schema `rules`, committed as text; this test fails when the committed file differs from what the pinned
- * outbox-and-queue generates, so a library bump cannot leave a stale migration. Regenerate with
- * `-Dgst.regenerate=true` and review the diff.
+ * outbox-and-queue generates, so a library bump cannot leave a stale migration. A V file is never rewritten (Flyway
+ * checksums): the blank class the old generator wrote raw is compared as the `\uXXXX` escape the new one writes, and a
+ * generator change is a new forward migration (INV-T-10867).
  */
 class MigrationDdlTest {
     private val file = File("src/main/resources/db/migration/V2__outbox.sql")
+
+    /** The ten blank code points the old generator wrote raw and the new one writes as `\uXXXX` (INV-T-10836). */
+    private fun escapeBlankClass(text: String): String =
+        BLANK_CODE_POINTS.fold(text) { acc, cp ->
+            acc.replace(String(Character.toChars(cp)), "\\u%04X".format(Locale.ROOT, cp))
+        }
 
     private fun expected(): String =
         HEADER +
@@ -24,8 +32,8 @@ class MigrationDdlTest {
 
     @Test
     fun `V2 outbox migration is the DDL the pinned outbox-and-queue generates`() {
-        if (System.getProperty("gst.regenerate") == "true") file.writeText(expected())
-        file.readText() shouldBe expected()
+        escapeBlankClass(file.readText(Charsets.UTF_8)) shouldBe expected()
+        file.readText(Charsets.UTF_8).count { it.code == FEFF_CODE } shouldBe 3
     }
 
     private val artefactFile = File("src/main/resources/db/migration/V3__pack_artefact.sql")
@@ -38,8 +46,8 @@ class MigrationDdlTest {
     /** INV-T-7525: the holder copy table is the kernel's DDL taken verbatim, so a kernel bump cannot leave it stale. */
     @Test
     fun `V3 pack artefact migration is the DDL the pinned rulepack-kernel generates`() {
-        if (System.getProperty("gst.regenerate") == "true") artefactFile.writeText(expectedArtefact())
-        artefactFile.readText() shouldBe expectedArtefact()
+        escapeBlankClass(artefactFile.readText(Charsets.UTF_8)) shouldBe expectedArtefact()
+        artefactFile.readText(Charsets.UTF_8).count { it.code == FEFF_CODE } shouldBe 8
     }
 
     private val grantFile = File("src/main/resources/db/migration/V4__pack_artefact_grants.sql")
@@ -67,6 +75,9 @@ class MigrationDdlTest {
     }
 
     private companion object {
+        const val FEFF_CODE = 0xFEFF
+        val BLANK_CODE_POINTS =
+            listOf(0x00A0, 0x1680, 0x2000, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, FEFF_CODE)
         const val GRANT = "GRANT SELECT, INSERT ON rules.pack_artefact TO rules_runtime;"
         const val ARTEFACT_HEADER =
             "-- Generated: PackRegistryMigration.ddl(\"rules\", \"pack_artefact\", \"rules_runtime\", " +
