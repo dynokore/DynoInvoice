@@ -27,18 +27,6 @@ class IssuanceModeTest {
 
     private val ack = "AP_CALLBACK"
 
-    private fun rateValue(
-        e: ElectionEnv,
-        entity: com.dynokore.gst.tenancy.contract.model.EntityResponse,
-        on: java.time.LocalDate,
-    ) = e
-        .status(entity, on)
-        .elections
-        .first { it.kind == ElectionKind.EXCHANGE_RATE_SOURCE }
-        .value
-
-    private val posting = com.dynokore.gst.tenancy.domain.ElectionKeys.POSTING_DATE
-
     // ---- issuance mode -------------------------------------------------------------------------------------
 
     @Test

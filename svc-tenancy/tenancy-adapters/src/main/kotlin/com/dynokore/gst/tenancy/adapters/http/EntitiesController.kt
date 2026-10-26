@@ -56,7 +56,7 @@ import java.util.UUID
  * request's `tenantRef` must name the bound tenant, else the tenant is absent from the caller's scope (404).
  */
 @RestController
-@Suppress("TooManyFunctions") // one function per contract operation of the entities API
+@Suppress("TooManyFunctions", "LongParameterList") // one function per contract operation; one collaborator per use case
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin)
 open class EntitiesController(
     private val commands: StructureCommands,

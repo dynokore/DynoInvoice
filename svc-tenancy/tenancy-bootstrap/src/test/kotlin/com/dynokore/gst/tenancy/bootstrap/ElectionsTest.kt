@@ -25,8 +25,6 @@ class ElectionsTest {
         }
     }
 
-    private val ack = "AP_CALLBACK"
-
     private fun rateValue(
         e: ElectionEnv,
         entity: com.dynokore.gst.tenancy.contract.model.EntityResponse,

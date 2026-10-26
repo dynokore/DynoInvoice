@@ -147,7 +147,7 @@ class ReplicaActionAuthorityTest {
             instant = instant.plus(by)
         }
 
-        override fun getZone() = ZoneOffset.UTC
+        override fun getZone(): ZoneOffset = ZoneOffset.UTC
 
         override fun withZone(zone: java.time.ZoneId?): Clock = this
 

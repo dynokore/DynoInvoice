@@ -200,6 +200,7 @@ class ElectionUseCases {
         )
 
     @Bean
+    @Suppress("LongParameterList") // one provider per service-runtime collaborator
     fun consumerDependencies(
         catalogue: ObjectProvider<EventCatalogue>,
         reader: ObjectProvider<EventLogReader>,
@@ -213,6 +214,7 @@ class ElectionUseCases {
 }
 
 /** What a [JdbcInboxConsumer] needs from service-runtime, resolved when the first poll runs (not at start-up). */
+@Suppress("LongParameterList") // one provider per service-runtime collaborator
 class ConsumerDependencies(
     private val catalogue: ObjectProvider<EventCatalogue>,
     private val reader: ObjectProvider<EventLogReader>,
