@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.14.0
+  version: 1.15.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -915,7 +915,6 @@ paths:
                   source: MAS
                   basis: DAILY
                   effectiveFrom: "2026-10-01"
-                  approvedBy: identity:USR-009
       responses:
         "201":
           description: Election recorded
@@ -929,6 +928,24 @@ paths:
                     entityRef: ENT-3F2A9C
                     source: MAS
                     effectiveFrom: "2026-10-01"
+        "202":
+          description: >-
+            A CHANGE of an election already recorded is pending approval and takes effect only when approved (approveElectionChange). 201 stays the answer to a first election and to a repeat of the stored value (INV-Q-10046).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingElectionChange'
+              examples:
+                default:
+                  value:
+                    changeRef: CHG-7A41C2
+                    entityRef: ENT-3F2A9C
+                    election: RATE_SOURCE
+                    source: MAS
+                    basis: DAILY
+                    effectiveFrom: "2026-10-01"
+                    requestedBy: identity:USR-004
+                    requestedAt: "2026-10-18T09:30:00Z"
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -1335,7 +1352,6 @@ paths:
                 value:
                   election: POSTING_DATE
                   effectiveFrom: "2026-10-01"
-                  approvedBy: identity:USR-009
       responses:
         "201":
           description: Election recorded
@@ -1349,6 +1365,92 @@ paths:
                     entityRef: ENT-3F2A9C
                     election: POSTING_DATE
                     effectiveFrom: "2026-10-01"
+        "202":
+          description: >-
+            A CHANGE of an election already recorded is pending approval and takes effect only when approved (approveElectionChange). 201 stays the answer to a first election and to a repeat of the stored value (INV-Q-10046).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingElectionChange'
+              examples:
+                default:
+                  value:
+                    changeRef: CHG-7A41C2
+                    entityRef: ENT-3F2A9C
+                    election: POSTING_DATE
+                    effectiveFrom: "2026-10-01"
+                    requestedBy: identity:USR-004
+                    requestedAt: "2026-10-18T09:30:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/election-changes/{changeRef}/approve:
+    post:
+      operationId: approveElectionChange
+      summary: Approve a pending change of an election; it takes effect on approval
+      description: >-
+        Approve a pending change of an election (recordElection or electRateSource answered 202). The caller must hold the permission election-change.approve on the entity and must be a different person from the requestedBy of the change. The change takes effect only now, from its effectiveFrom, and the approval is audited.
+        Refusals: 403 SRT-004 when the caller is the requester of the change or lacks the permission; 404 SRT-005 when the entity has no such change or the change is already decided; 422 POL-014 when the value checks of the election fail at approval time (SRT codes are not listed in x-error-codes).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-6.1
+      x-error-codes:
+      - POL-014
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: The change is pending
+        reversibility: IRREVERSIBLE
+        repeatKey: (entityRef, changeRef)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: changeRef
+        in: path
+        required: true
+        description: The pending election change's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: CHG-7A41C2
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Change approved and in force from its effective date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElectionChangeApproved'
+              examples:
+                default:
+                  value:
+                    changeRef: CHG-7A41C2
+                    entityRef: ENT-3F2A9C
+                    effectiveFrom: "2026-10-01"
+                    requestedBy: identity:USR-004
+                    approvedBy: identity:USR-009
+                    approvedAt: "2026-10-19T08:00:00Z"
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -3135,10 +3237,6 @@ components:
         effectiveFrom:
           type: string
           format: date
-        approvedBy:
-          type: string
-          description: Not needed on the first election of the entity; required on a change of an election already recorded, and then names a person other than the caller who holds the approving role (tax.approver).
-          maxLength: 128
     RateSourceElectionResponse:
       type: object
       required:
@@ -3247,10 +3345,6 @@ components:
         effectiveFrom:
           type: string
           format: date
-        approvedBy:
-          type: string
-          description: Not needed on the first election of the entity; required on a change of an election already recorded, and then names a person other than the caller who holds the approving role (tax.approver).
-          maxLength: 128
     ElectionResponse:
       type: object
       required:
@@ -3267,6 +3361,71 @@ components:
         effectiveFrom:
           type: string
           format: date
+    PendingElectionChange:
+      type: object
+      required:
+      - changeRef
+      - entityRef
+      - election
+      - effectiveFrom
+      - requestedBy
+      - requestedAt
+      properties:
+        changeRef:
+          type: string
+          maxLength: 64
+        entityRef:
+          type: string
+          maxLength: 64
+        election:
+          type: string
+          maxLength: 64
+          description: The election key as ElectionResponse names it, or RATE_SOURCE for a change made through electRateSource (then source and basis are present).
+        source:
+          type: string
+          maxLength: 32
+        basis:
+          type: string
+          enum:
+          - DAILY
+          - MONTHLY_AVERAGE
+        effectiveFrom:
+          type: string
+          format: date
+        requestedBy:
+          type: string
+          maxLength: 128
+        requestedAt:
+          type: string
+          format: date-time
+    ElectionChangeApproved:
+      type: object
+      required:
+      - changeRef
+      - entityRef
+      - effectiveFrom
+      - requestedBy
+      - approvedBy
+      - approvedAt
+      properties:
+        changeRef:
+          type: string
+          maxLength: 64
+        entityRef:
+          type: string
+          maxLength: 64
+        effectiveFrom:
+          type: string
+          format: date
+        requestedBy:
+          type: string
+          maxLength: 128
+        approvedBy:
+          type: string
+          maxLength: 128
+        approvedAt:
+          type: string
+          format: date-time
     ElectionStatusResponse:
       type: object
       required:

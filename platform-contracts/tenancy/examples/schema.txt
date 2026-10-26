@@ -27,3 +27,5 @@
 ../openapi.yaml#/components/schemas/FilingFrequencyResponse filing-frequency-response-*.json
 ../openapi.yaml#/components/schemas/ConfirmPeriodRequest confirm-period-request-*.json
 ../openapi.yaml#/components/schemas/QuestionnaireAnswersRequest questionnaire-answers-request-*.json
+../openapi.yaml#/components/schemas/PendingElectionChange pending-election-change-*.json
+../openapi.yaml#/components/schemas/ElectionChangeApproved election-change-approved-*.json
