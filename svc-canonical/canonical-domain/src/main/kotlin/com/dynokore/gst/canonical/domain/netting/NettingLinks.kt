@@ -28,10 +28,7 @@ data class Unresolved(
     val why: Why,
 )
 
-/**
- * [resolved]: the Doc UUIDs of `nettedCreditNoteDocUuids`, in key order;
- * [unresolved]: the other keys, in key order.
- */
+/** [resolved] are the Doc UUIDs of `nettedCreditNoteDocUuids`, in key order; [unresolved] the other keys, in key order. */
 data class RevisionLinks(
     val resolved: List<UUID>,
     val unresolved: List<Unresolved>,
