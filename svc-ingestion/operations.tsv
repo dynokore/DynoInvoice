@@ -1,0 +1,16 @@
+kind	id	task
+operation	submitTransaction	UNASSIGNED
+operation	submitBatch	UNASSIGNED
+operation	getBatchStatus	UNASSIGNED
+operation	submitAggregate	UNASSIGNED
+operation	requestIssuance	UNASSIGNED
+operation	checkPreIssuance	UNASSIGNED
+operation	recordControlTotals	UNASSIGNED
+operation	configureAdapter	UNASSIGNED
+operation	mapTriggerClass	UNASSIGNED
+operation	waiveTriggerClass	UNASSIGNED
+operation	getFeedHealth	UNASSIGNED
+operation	replayFeed	UNASSIGNED
+operation	sendTestEvent	UNASSIGNED
+channel	gst.ingestion.feed-health-changed.v1	UNASSIGNED
+channel	gst.ingestion.example-happened.v1	UNASSIGNED
