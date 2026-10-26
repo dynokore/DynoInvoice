@@ -1,0 +1,38 @@
+{
+ "packRef": "MAP-0042",
+ "changedCount": 3,
+ "byPeriod": [
+  {
+   "periodRef": "2025-12",
+   "documentCount": 2,
+   "taxableValue": "200.00",
+   "gstValue": "18.00"
+  },
+  {
+   "periodRef": "2026-01",
+   "documentCount": 1,
+   "taxableValue": "100.00",
+   "gstValue": "9.00"
+  }
+ ],
+ "straddlingCreditNotes": [
+  {
+   "docUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+   "transactionDate": "2026-01-15",
+   "precedingDocumentDate": "2025-12-20",
+   "oldCategoryCode": "SR",
+   "newCategoryCode": "SR9",
+   "taxableValue": "-50.00",
+   "gstValue": "-4.50"
+  }
+ ],
+ "sample": [
+  {
+   "docUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+   "oldCategoryCode": "ZR",
+   "newCategoryCode": "SR",
+   "taxableValue": "1000.00",
+   "gstValue": "90.00"
+  }
+ ]
+}

@@ -1,0 +1,9 @@
+{
+ "docUuid": "not-a-uuid",
+ "transactionDate": "2026-01-15",
+ "precedingDocumentDate": "2025-12-20",
+ "oldCategoryCode": "SR",
+ "newCategoryCode": "SR9",
+ "taxableValue": "-50.00",
+ "gstValue": "-4.50"
+}

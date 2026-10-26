@@ -77,6 +77,10 @@ ABORTED	enum_value	openapi.yaml	INV-REQ-1166
 firstPeriodRef	property	openapi.yaml	INV-REQ-1303
 lastPeriodRef	property	openapi.yaml	INV-REQ-1303
 periodCount	property	openapi.yaml	INV-REQ-1303
+byPeriod	property	openapi.yaml	INV-REQ-686
+periodRef	property	openapi.yaml	INV-REQ-686
+straddlingCreditNotes	property	openapi.yaml	INV-REQ-703
+sgdValuesAbsent	property	openapi.yaml	INV-REQ-772
 acknowledgePackDelta	operation	openapi.yaml	INV-REQ-2588
 dryRun	operation	openapi.yaml	INV-REQ-772
 approvePack	operation	openapi.yaml	INV-REQ-772

@@ -10,6 +10,8 @@
 ../openapi.yaml#/components/schemas/MappingEntryPage entries-page-*.json
 ../openapi.yaml#/components/schemas/DryRunResult dry-run-result-*.json
 ../openapi.yaml#/components/schemas/DryRunChangeTypeTotal dry-run-change-type-total-*.json
+../openapi.yaml#/components/schemas/DryRunPeriodDelta dry-run-period-delta-*.json
+../openapi.yaml#/components/schemas/DryRunStraddlingCreditNote dry-run-straddling-credit-note-*.json
 ../schemas/scenario-pack-rendition-wording.schema.json scenario-pack-rendition-wording-*.json
 ../schemas/mde-pack-contents.schema.json mde-pack-contents-*.json
 ../schemas/severity-override-pack-contents.schema.json severity-override-pack-contents-*.json

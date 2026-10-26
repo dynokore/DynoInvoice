@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1617,6 +1617,15 @@ components:
       required: [firstPeriodRef, lastPeriodRef, periodCount]
     DryRunResult:
       type: object
+      description: >-
+        Result of a dry run. Every changed document, one counted in
+        `changedCount`, is counted in `documentCount` of exactly one item of
+        each of `changeTypeTotals`, `byPeriod` and `supplyTypeTotals`, so the
+        `documentCount` values of each add up to `changedCount`; a changed
+        document flagged `sgdValuesAbsent` is counted in `documentCount` and in
+        `valuesAbsentCount` and left out of `taxableValue` and `gstValue`
+        (INV-Q-10786 A). These rules are enforced by the producer (rules-svc)
+        and are not expressible in the schema.
       properties:
         packRef:
           type: string
@@ -1626,6 +1635,12 @@ components:
           minimum: 0
         sample:
           type: array
+          description: >-
+            Sampled changed documents. A changed document flagged
+            `sgdValuesAbsent` is listed and never omitted, with the flag true and
+            `0.00` in both values; for any other item the member is not written.
+            Straddling credit notes are not listed here, see
+            `straddlingCreditNotes`.
           items:
             type: object
             properties:
@@ -1656,7 +1671,28 @@ components:
                   GST supply type of the document, as the sample page stated it
                   (`PackDryRunSampleRecorded`, INV-T-10746); the producer sets it
                   on every item it writes (INV-Q-10703 B').
+              sgdValuesAbsent:
+                type: boolean
+                description: >-
+                  True only for a changed document in a foreign currency that has
+                  no stated SGD totals (INV-Q-5568 A, INV-Q-5634 A, INV-Q-5818 A).
+                  `taxableValue` and `gstValue` are then the placeholder `0.00`; a
+                  consumer leaves such an item out of every sum and shows it as
+                  absent, and a value is never converted. The producer writes the
+                  member only on a flagged item.
             required: [docUuid, oldCategoryCode, newCategoryCode, taxableValue, gstValue]
+            if:
+              properties:
+                sgdValuesAbsent:
+                  const: true
+              required: [sgdValuesAbsent]
+            then:
+              properties:
+                taxableValue:
+                  const: '0.00'
+                gstValue:
+                  const: '0.00'
+              required: [taxableValue, gstValue]
         changeTypeTotals:
           type: array
           minItems: 3
@@ -1704,7 +1740,123 @@ components:
             order of its string. It is present on every `result` of `getDryRun`
             and on the `200` answer of `dryRun`, and is optional in the schema so
             that a 1.7 body stays valid.
+        byPeriod:
+          type: array
+          items:
+            $ref: '#/components/schemas/DryRunPeriodDelta'
+          description: >-
+            Affected documents by period (INV-REQ-686, INV-REQ-703, INV-AC-748,
+            INV-Q-10764 A). These rules are enforced by the producer (rules-svc)
+            and are not expressible in the schema: every changed document, one
+            counted in `changedCount`, is in exactly one item, so the
+            `documentCount` values add up to `changedCount`; a changed document
+            flagged `sgdValuesAbsent` is counted in `documentCount` and in
+            `valuesAbsentCount` and left out of `taxableValue` and `gstValue`; the
+            items come in the calendar's order of periods; `taxableValue`,
+            `gstValue` and `valuesAbsentCount` of an item follow the rule of
+            `changeTypeTotals`. It is present on every `result` of `getDryRun` and
+            on the `200` answer of `dryRun`, with an empty array when there is
+            nothing to list, and is optional in the schema so that a 1.9 body
+            stays valid.
+        straddlingCreditNotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DryRunStraddlingCreditNote'
+          description: >-
+            Credit notes whose preceding document is on the other side of the
+            change (INV-REQ-703, INV-AC-748, INV-Q-10764 A). These rules are
+            enforced by the producer (rules-svc) and are not expressible in the
+            schema: it lists the changed credit notes (documentFunction
+            `ADJUSTMENT` with a `precedingDocumentDate`) whose `transactionDate`
+            and `precedingDocumentDate` lie on different sides of the effective
+            date of the candidate pack, and those credit notes are not in
+            `sample`. It is present on every `result` of `getDryRun` and on the
+            `200` answer of `dryRun`, with an empty array when there is nothing to
+            list, and is optional in the schema so that a 1.9 body stays valid.
       required: [packRef, changedCount]
+    DryRunPeriodDelta:
+      type: object
+      description: >-
+        Affected documents of one period in a dry-run result (INV-REQ-686,
+        INV-Q-10764 A). The producer enforces the counts and sums, see
+        `DryRunResult.byPeriod`.
+      properties:
+        periodRef:
+          type: string
+          maxLength: 32
+          description: Opaque calendar reference of the period, like `DryRunRequest.firstPeriodRef`.
+        documentCount:
+          type: integer
+          minimum: 0
+        taxableValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12); sum over the documents of this period, leaving out those flagged `sgdValuesAbsent`.
+        gstValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12); sum over the documents of this period, leaving out those flagged `sgdValuesAbsent`.
+        valuesAbsentCount:
+          type: integer
+          minimum: 0
+          description: Number of documents of this period flagged `sgdValuesAbsent`, left out of both sums.
+      required: [periodRef, documentCount, taxableValue, gstValue]
+    DryRunStraddlingCreditNote:
+      type: object
+      description: >-
+        A changed credit note whose preceding document is on the other side of
+        the effective date (INV-REQ-703, INV-Q-10764 A). The producer enforces
+        the listing rule, see `DryRunResult.straddlingCreditNotes`.
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        transactionDate:
+          type: string
+          format: date
+        precedingDocumentDate:
+          type: string
+          format: date
+        oldCategoryCode:
+          type: string
+          maxLength: 10
+        newCategoryCode:
+          type: string
+          maxLength: 10
+        taxableValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        gstValue:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+          description: Money as a decimal string (API-12).
+        sgdValuesAbsent:
+          type: boolean
+          description: >-
+            True only for a changed document in a foreign currency that has
+            no stated SGD totals (INV-Q-5568 A, INV-Q-5634 A, INV-Q-5818 A).
+            `taxableValue` and `gstValue` are then the placeholder `0.00`; a
+            consumer leaves such an item out of every sum and shows it as
+            absent, and a value is never converted. The producer writes the
+            member only on a flagged item.
+      required: [docUuid, transactionDate, precedingDocumentDate, oldCategoryCode, newCategoryCode, taxableValue, gstValue]
+      if:
+        properties:
+          sgdValuesAbsent:
+            const: true
+        required: [sgdValuesAbsent]
+      then:
+        properties:
+          taxableValue:
+            const: '0.00'
+          gstValue:
+            const: '0.00'
+        required: [taxableValue, gstValue]
     DryRunSupplyTypeTotal:
       type: object
       description: >-

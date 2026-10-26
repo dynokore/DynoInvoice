@@ -1,0 +1,14 @@
+{
+ "packRef": "MAP-0042",
+ "changedCount": 1,
+ "sample": [
+  {
+   "docUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+   "oldCategoryCode": "ZR",
+   "newCategoryCode": "SR",
+   "taxableValue": "1000.00",
+   "gstValue": "90.00",
+   "sgdValuesAbsent": false
+  }
+ ]
+}
