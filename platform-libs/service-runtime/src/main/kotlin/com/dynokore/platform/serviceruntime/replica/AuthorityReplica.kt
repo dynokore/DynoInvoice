@@ -411,7 +411,14 @@ class AuthorityReplica(
 ) : ReplicaFeedSink<AuthorityChanged> {
     /** One feed, so one lag for all three record kinds. */
     val tracker = ReplicaLagTracker(clock)
-    val grants = EventFedReplica<AuthorityKey, GrantState>("authority-grant", clock, lagBound, tracker = tracker)
+    val grants =
+        EventFedReplica<AuthorityKey, GrantState>(
+            "authority-grant",
+            clock,
+            lagBound,
+            tracker = tracker,
+            partitionOf = { it.tenant to it.principalId },
+        )
     val consents =
         EventFedReplica<ConsentKey, AuthorityRecord.ConsentRecord>(
             "authority-consent",
@@ -506,7 +513,7 @@ class AuthorityReplica(
         val voidBelow = principals.peek(PrincipalKey(tenant, principalId))?.revocationVersion ?: Long.MIN_VALUE
         val now = clock.instant()
         return grants
-            .heldWhere { it.tenant == tenant && it.principalId == principalId }
+            .heldIn(tenant to principalId)
             .filter { (key, state) ->
                 val consentLive by lazy { consents.peek(ConsentKey(tenant, key.entityRef))?.isLiveAt(now) == true }
                 state.authorityVersion >= voidBelow &&
@@ -552,7 +559,7 @@ class AuthorityReplica(
 
             null -> {
                 revoke(event, null)
-                grants.tombstoneIf { it.tenant == event.tenant && it.principalId == event.principalId }
+                grants.tombstoneIn(event.tenant to event.principalId)
             }
         }
     }

@@ -3,7 +3,6 @@ package com.dynokore.platform.serviceruntime.replica
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import java.time.Clock
 import java.time.Duration
-import java.util.concurrent.ConcurrentHashMap
 
 /** One change from a feed, carrying the source's monotonic [version] (INV-REQ-1201 behaviour #1). */
 sealed interface ReplicaChange<K, V> {
@@ -70,6 +69,10 @@ sealed interface Lookup<out V> {
  * Held in memory, partitioned by key (which carries the tenant). A restart starts
  * empty: reads fill by fallback until the feed has caught up.
  *
+ * [partitionOf] (default none: one flat map) groups the entries so [heldIn] and [tombstoneIn] touch one
+ * partition only (the authority replica's per-(tenant, principal) grants, INV-Q-9049 A); [heldWhere] and
+ * [tombstoneIf] still scan every entry.
+ *
  * [versionOf] reads the source version a fallback answer carries (the structure
  * replica's getEntityStructure fill, INV-Q-3324): a fill then keeps that version and
  * never overwrites a newer state held. Without it a fill keeps the held version.
@@ -81,20 +84,19 @@ class EventFedReplica<K : Any, V : Any>(
     private val fallback: ReplicaFallback<K, V>? = null,
     val tracker: ReplicaLagTracker = ReplicaLagTracker(clock),
     private val versionOf: ((V) -> Long)? = null,
+    private val partitionOf: ((K) -> Any)? = null,
 ) {
-    private data class Entry<V>(
-        val value: V?,
-        val version: Long,
-    )
+    private val store = PartitionedStore<K, V>(partitionOf)
 
-    private val store = ConcurrentHashMap<K, Entry<V>>()
+    /** Entries examined so far by [heldIn], [tombstoneIn], [heldWhere] and [tombstoneIf] (test-visible). */
+    val visitCount: Long get() = store.visitCount
 
     init {
         require(lagBound == null || !lagBound.isNegative) { "lagBound must not be negative, was $lagBound" }
     }
 
     fun apply(change: ReplicaChange<K, V>) {
-        store.compute(change.key) { _, old ->
+        store.compute(change.key) { old ->
             when {
                 old != null && change.version <= old.version -> old
                 change is ReplicaChange.Upsert -> Entry(change.value, change.version)
@@ -110,7 +112,7 @@ class EventFedReplica<K : Any, V : Any>(
         version: Long,
         merge: (V?) -> V,
     ) {
-        store.compute(key) { _, old ->
+        store.compute(key) { old ->
             if (old != null && version <= old.version) old else Entry(merge(old?.value), version)
         }
         tracker.onApplied(version)
@@ -120,30 +122,29 @@ class EventFedReplica<K : Any, V : Any>(
      * Turns every key matching [predicate] into a removal that keeps its held version (the authority replica's
      * stateless event): the value is dropped, but versions never go backwards, so an older redelivery stays out.
      */
-    fun tombstoneIf(predicate: (K) -> Boolean) {
-        store.keys.filter(predicate).forEach { key ->
-            store.computeIfPresent(key) { _, old -> Entry(null, old.version) }
-        }
-    }
+    fun tombstoneIf(predicate: (K) -> Boolean) = store.tombstone(null, predicate)
+
+    /** [tombstoneIf] for every key of [partition] only; other partitions are not visited. */
+    fun tombstoneIn(partition: Any) = store.tombstone(partition) { true }
 
     /** Every value held (removals left out) whose key matches [predicate], with no fallback and no lag check. */
-    fun heldWhere(predicate: (K) -> Boolean): Map<K, V> =
-        buildMap {
-            store.forEach { (key, entry) -> if (predicate(key)) entry.value?.let { put(key, it) } }
-        }
+    fun heldWhere(predicate: (K) -> Boolean): Map<K, V> = store.held(null, predicate)
+
+    /** Every value held in [partition] only (removals left out); other partitions are not visited. */
+    fun heldIn(partition: Any): Map<K, V> = store.held(partition) { true }
 
     /** What is held for [key] with no fallback and no lag check; null for a miss or a held removal. */
-    fun peek(key: K): V? = store[key]?.value
+    fun peek(key: K): V? = store.get(key)?.value
 
     fun lag(): Lag = tracker.lag()
 
-    fun size(): Int = store.values.count { it.value != null }
+    fun size(): Int = store.size()
 
     fun get(
         key: K,
         deadline: Deadline,
     ): Lookup<V> {
-        val held = store[key]
+        val held = store.get(key)
         val lag = tracker.lag()
         val fresh = lagBound == null || lag.isWithin(lagBound)
         return if (held != null && fresh) {
@@ -160,39 +161,17 @@ class EventFedReplica<K : Any, V : Any>(
         lag: Lag,
     ): Lookup<V> =
         when (val answer = fallback?.fetch(key, deadline) ?: FallbackResult.Unavailable) {
-            is FallbackResult.Found -> fill(key, answer.value)?.let { Lookup.Filled(it) } ?: Lookup.Absent
-            FallbackResult.NotFound -> Lookup.Absent
-            FallbackResult.Unavailable -> lastKnown(held, lag)
-        }
-
-    private fun lastKnown(
-        held: Entry<V>?,
-        lag: Lag,
-    ): Lookup<V> = held?.value?.let { Lookup.LastKnown(it, lag) } ?: Lookup.Unavailable
-
-    /**
-     * Holds a fallback answer and returns what is then held (null: a newer removal). With [versionOf] the
-     * answer keeps its own version and loses to a newer state held (an event applied while the call was
-     * out); without it the answer carries no source version, so it keeps the held one and a later event
-     * still wins.
-     */
-    private fun fill(
-        key: K,
-        value: V,
-    ): V? {
-        val versioned = versionOf
-        val held =
-            store.compute(key) { _, old ->
-                when {
-                    versioned == null -> Entry(value, old?.version ?: NO_VERSION)
-                    old != null && versioned(value) <= old.version -> old
-                    else -> Entry(value, versioned(value))
-                }
+            is FallbackResult.Found -> {
+                store.fill(key, answer.value, versionOf)?.let { Lookup.Filled(it) }
+                    ?: Lookup.Absent
             }
-        return held?.value
-    }
 
-    private companion object {
-        const val NO_VERSION = -1L
-    }
+            FallbackResult.NotFound -> {
+                Lookup.Absent
+            }
+
+            FallbackResult.Unavailable -> {
+                held?.value?.let { Lookup.LastKnown(it, lag) } ?: Lookup.Unavailable
+            }
+        }
 }

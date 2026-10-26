@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.12.0] - 2026-10-27
+### Added
+- `EventFedReplica` takes an optional `partitionOf` and gains `heldIn(partition)`, `tombstoneIn(partition)` and the test-visible `visitCount`; the authority replica keys its grants by (tenant, principalId), so `heldEntities` and the stateless-event tombstone touch only that principal's records (INV-T-9058, INV-Q-9049 A). Without `partitionOf`, and for `heldWhere` and `tombstoneIf`, behaviour is unchanged.
+
 ## [10.11.0] - 2026-10-27
 ### Added
 - `ReplicaColdStartSync` requests the authority replica's FULL_SYNC from `access-svc` at start-up through the shared start path of `rebuildConsumer` (actor `system:replica-cold-start`, no operator check, no 'rebuild required' state), and exposes `isOwnReplay` (INV-T-9057, INV-Q-9047 A). It passes only the empty clear `ReadModelClear("access-svc", [])`, never the service's own clears (INV-Q-11157 A), and re-checks every `recheckInterval` (default 30 s) as a `SmartLifecycle` on one virtual thread `replica-cold-start-recheck` (INV-Q-11159 A). `rebuildConsumer` behaves as before.
