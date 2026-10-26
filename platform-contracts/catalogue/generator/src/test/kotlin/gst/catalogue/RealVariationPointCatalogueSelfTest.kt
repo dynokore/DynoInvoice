@@ -53,6 +53,21 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-T-9275 VP-82 offers exactly NO_EXTRA_PAIRS and CONFLICTING_PAIRS, planned, none acknowledged`() {
+        val vp82 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-82" }
+        assertEquals("INV-REQ-9271", vp82.requirement)
+        assertEquals(VpStatus.PLANNED, vp82.status)
+        assertEquals("vp-82.set", vp82.setPermission)
+        val fields = vp82.fields!!
+        assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
+        assertEquals(listOf("NO_EXTRA_PAIRS", "CONFLICTING_PAIRS"), fields.options.map { it.key })
+        assertEquals(listOf(Strictness.DEFAULT, Strictness.STRICTER), fields.options.map { it.strictness })
+        assertTrue(fields.options.all { it.acknowledgedBy.isEmpty() })
+        assertTrue(fields.options[0].typedValue == null)
+        assertTrue(fields.options[1].typedValue != null)
+    }
+
+    @Test
     fun `INV-T-8291 VP-81 offers exactly the three ruled options, planned, set and acknowledged by tenant admin`() {
         val vp81 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-81" }
         assertEquals("INV-REQ-8287", vp81.requirement)
