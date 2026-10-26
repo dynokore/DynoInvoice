@@ -14,3 +14,14 @@ aggregateType	property	openapi.yaml	INV-REQ-410
 POS	enum_value	openapi.yaml	INV-REQ-410
 STI	enum_value	openapi.yaml	INV-REQ-410
 PCP	enum_value	openapi.yaml	INV-REQ-410
+sourceKey	property	openapi.yaml	INV-REQ-434
+sourceRevision	property	openapi.yaml	INV-REQ-434
+periodStart	property	openapi.yaml	INV-REQ-434
+periodEnd	property	openapi.yaml	INV-REQ-434
+entityRef	property	openapi.yaml	INV-REQ-434
+documentNumber	property	openapi.yaml	INV-REQ-436
+sequence	property	openapi.yaml	INV-REQ-436
+issueDate	property	openapi.yaml	INV-REQ-436
+transactionDate	property	openapi.yaml	INV-REQ-436
+intakeAggregationBatch.ING-002	operation_error_code	openapi.yaml	INV-Q-11260
+intakeAggregationBatch.ING-022	operation_error_code	openapi.yaml	INV-Q-11264

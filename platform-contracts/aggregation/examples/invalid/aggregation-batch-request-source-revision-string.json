@@ -1,0 +1,1 @@
+{"entityRef":"E-001","businessUnitRef":"BU-01","aggregateType":"PCP","periodStart":"2026-03-01","periodEnd":"2026-03-31","underlyingRef":"BATCH-9001","linesByInternalTaxCode":[{"internalTaxCode":"SR-STD","amount":"3.50"}],"claimantReference":"CLM-0042","sourceKey":"POS-FEED-0001","sourceRevision":"1"}

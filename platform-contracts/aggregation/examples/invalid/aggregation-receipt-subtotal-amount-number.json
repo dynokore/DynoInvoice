@@ -1,1 +1,1 @@
-{"entityRef":"E-001","aggregateType":"PCP","windowState":"OPEN","subtotalsByTaxCode":[{"internalTaxCode":"SR-STD","amount":3.5}]}
+{"entityRef":"E-001","aggregateType":"PCP","windowState":"OPEN","subtotalsByTaxCode":[{"internalTaxCode":"SR-STD","amount":3.5}],"documentNumber":"AGG-E-001-STI-BU-01-20260331-1","sequence":1,"issueDate":"2026-03-31","transactionDate":"2026-03-31"}

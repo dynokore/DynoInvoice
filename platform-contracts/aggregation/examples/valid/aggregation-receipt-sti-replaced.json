@@ -1,1 +1,1 @@
-{"entityRef":"E-001","aggregateType":"STI","windowState":"OPEN","aggregateId":"AGG-4471","underlyingCount":3,"subtotalsByTaxCode":[{"internalTaxCode":"SR-STD","amount":"3.50"}],"replacesReceiptNumber":"STI-000123"}
+{"entityRef":"E-001","aggregateType":"STI","windowState":"OPEN","aggregateId":"AGG-4471","underlyingCount":3,"subtotalsByTaxCode":[{"internalTaxCode":"SR-STD","amount":"3.50"}],"replacesReceiptNumber":"STI-000123","documentNumber":"AGG-E-001-STI-BU-01-20260331-1","sequence":1,"issueDate":"2026-03-31","transactionDate":"2026-03-31"}

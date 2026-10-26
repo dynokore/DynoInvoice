@@ -61,3 +61,6 @@ GET /internal/v1/masterdata/counterparties/resolution the `counterparty/resolved
 GET /internal/v1/masterdata/counterparties/{counterpartyRef}/history the `items/items/counterparty/resolvedIdentifiers/items/scheme` response property's maxLength was increased from `20` to `32` for the response status `200`
 POST /internal/v1/masterdata/counterparties/{counterpartyRef}/resolution the `resolvedIdentifiers/items/scheme` response property's maxLength was increased from `20` to `32` for the response status `200`
 POST /internal/v1/masterdata/counterparty-requests/{requestId}/submission the `resolvedIdentifiers/items/scheme` response property's maxLength was increased from `20` to `32` for the response status `200`
+# INV-T-11269 (INV-Q-11260 A, INV-Q-3569 A): sourceKey and sourceRevision are added before any train is published (the README names 1.0.0 as the first train).
+POST /internal/v1/aggregation/batches added the new required request property `sourceKey`
+POST /internal/v1/aggregation/batches added the new required request property `sourceRevision`

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -55,7 +55,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->aggregation-svc
-      x-error-codes: [ING-006, ING-018]
+      x-error-codes: [ING-006, ING-018, ING-002, ING-022]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-4.5, FR-4.8, FR-4.9, FR-4.14, FR-10.15, "C-3", "C-8", FR-AE.73]
       x-operation:
         role: ingest
@@ -66,8 +66,9 @@ paths:
           window, never spanning a prescribed period (FR-4.14).
         reversibility: COMPENSABLE
         repeatKey: >-
-          (entityRef, businessUnitRef, aggregateType, periodStart,
-          periodEnd) — a repeat is idempotent on the same window (API-15).
+          (entityRef, sourceKey, sourceRevision), within the tenant from the
+          token; a repeat of the same triple returns the original aggregate
+          and its original number (INV-REQ-434 items 2 and 3, API-15)
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -85,6 +86,8 @@ paths:
                   periodStart: "2026-03-20"
                   periodEnd: "2026-03-20"
                   underlyingRef: "BATCH-9001"
+                  sourceKey: "POS-FEED-0001"
+                  sourceRevision: 1
                   linesByInternalTaxCode:
                     - internalTaxCode: "SR-STD"
                       amount: "1500.00"
@@ -97,9 +100,26 @@ paths:
                 $ref: '#/components/schemas/AggregationReceipt'
               examples:
                 default:
-                  value: { entityRef: "E-001", aggregateType: "POS", windowState: "OPEN" }
+                  value: { entityRef: "E-001", aggregateType: "POS", windowState: "OPEN", documentNumber: "AGG-E-001-POS-BU-01-20260320-1", sequence: 1, issueDate: "2026-03-20", transactionDate: "2026-03-20" }
+        '409':
+          description: ING-002 - sourceRevision is lower than the recorded one for the same sourceKey; nothing is stored
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "https://errors.invoice.internal/ING-002"
+                    title: "Stale sourceRevision is refused"
+                    status: 409
+                    code: "ING-002"
+                    severity: "BLOCK"
+                    disposition: "TERMINAL"
+                    remediationOwner: "Integration"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         '422':
-          description: ING-006 - aggregateType is not POS, STI or PCP; nothing is created and the rejection cannot be overridden
+          description: ING-006 - aggregateType is not POS, STI or PCP; nothing is created and the rejection cannot be overridden. ING-022 - the aggregate number cannot be built; nothing is stored
           content:
             application/problem+json:
               schema:
@@ -111,6 +131,16 @@ paths:
                     title: "Aggregation outside POS, STI and PCP is refused"
                     status: 422
                     code: "ING-006"
+                    severity: "BLOCK"
+                    disposition: "TERMINAL"
+                    remediationOwner: "Integration"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                aggregateNumberNotBuilt:
+                  value:
+                    type: "https://errors.invoice.internal/ING-022"
+                    title: "The aggregate number cannot be built"
+                    status: 422
+                    code: "ING-022"
                     severity: "BLOCK"
                     disposition: "TERMINAL"
                     remediationOwner: "Integration"
@@ -223,7 +253,16 @@ components:
           type: string
           maxLength: 100
           description: Reference of the expense claimant, never a name; names stay in the source expense system (INV-REQ-884).
-      required: [entityRef, businessUnitRef, aggregateType, periodStart, periodEnd, underlyingRef, linesByInternalTaxCode]
+        sourceKey:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Key of the source record, with sourceRevision the intake identity; a replay of the same key and revision returns the original aggregate (INV-REQ-434).
+        sourceRevision:
+          type: integer
+          minimum: 1
+          description: Revision of the source record under sourceKey; a lower revision than the recorded one is refused with ING-002 (INV-REQ-434).
+      required: [entityRef, businessUnitRef, aggregateType, periodStart, periodEnd, underlyingRef, linesByInternalTaxCode, sourceKey, sourceRevision]
     AggregationReceipt:
       type: object
       properties:
@@ -263,7 +302,25 @@ components:
           type: string
           maxLength: 100
           description: Receipt number of the STI receipt a full tax invoice replaces; the receipt is excluded from any aggregate not yet transmitted (INV-REQ-440).
-      required: [entityRef, aggregateType, windowState]
+        documentNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Deterministic aggregate number AGG-{entity}-{type}-{businessUnit}-{periodEnd:yyyymmdd}-{seq}, assigned by aggregation-svc (INV-REQ-436).
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Sequence of the aggregate in its numbering sequence, the last part of documentNumber (INV-REQ-436).
+        issueDate:
+          type: string
+          format: date
+          description: Issue date of the aggregate, equal to periodEnd (INV-REQ-436).
+        transactionDate:
+          type: string
+          format: date
+          description: Transaction date of the aggregate, equal to periodEnd (INV-REQ-436).
+      required: [entityRef, aggregateType, windowState, documentNumber, sequence, issueDate, transactionDate]
     UnderlyingTransactionPage:
       type: object
       properties:
