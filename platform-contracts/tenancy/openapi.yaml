@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.16.0
+  version: 1.17.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1803,6 +1803,7 @@ paths:
                   contractReference: CTR-2026-0091
                   legalName: Acme Holdings Pte Ltd
                   planRef: PLAN-STANDARD
+                  dataRegion: SG
       responses:
         "201":
           description: Tenant created
@@ -1816,6 +1817,7 @@ paths:
                     tenantRef: TEN-7B1004
                     legalName: Acme Holdings Pte Ltd
                     planRef: PLAN-STANDARD
+                    dataRegion: SG
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -3761,6 +3763,11 @@ components:
           description: Optional. The tenantRef control-plane-svc minted for the provisioning request;
             tenancy-svc records the tenant under it, and mints one when it is absent, as in 1.0.0
             (INV-Q-3573).
+        dataRegion:
+          type: string
+          maxLength: 64
+          description: Optional (INV-Q-8675 option A). The key of an entry on control-plane-svc's region list
+            that the tenant is provisioned in (INV-REQ-1386); a tenant created without it has none.
     TenantResponse:
       type: object
       required:
@@ -3777,6 +3784,11 @@ components:
         planRef:
           type: string
           maxLength: 64
+        dataRegion:
+          type: string
+          maxLength: 64
+          description: Optional (INV-Q-8675 option A). The key of an entry on control-plane-svc's region list
+            that the tenant was provisioned in (INV-REQ-1386); a tenant created without it has none.
     OpenTenantRequest:
       type: object
       required:

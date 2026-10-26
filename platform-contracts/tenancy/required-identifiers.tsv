@@ -94,6 +94,7 @@ FilingFrequencyResponse.status.ACTIVE	schema_enum_value	openapi.yaml	INV-REQ-708
 FilingFrequencyResponse.status.PENDING_CONFIRMATION	schema_enum_value	openapi.yaml	INV-REQ-708
 ConfirmPeriodRequest.kind.FREQUENCY_CHANGE	schema_enum_value	openapi.yaml	INV-REQ-84
 # INV-T-9770 adds five rows (INV-REQ-987): the entity-scope answers of answerQuestionnaire. goLive and the other names of INV-REQ-987 belong to the tasks that carry them.
+# INV-T-8695 adds two rows (INV-REQ-1386): CreateTenantRequest.dataRegion and TenantResponse.dataRegion. The other names of INV-AC-1331 and INV-AC-8572 add no row: provisionTenant (an operation of the control-plane contract that exists).
 QuestionnaireAnswersRequest.entityRef	schema_property	openapi.yaml	INV-REQ-987
 QuestionnaireAnswersRequest.entityFacts	schema_property	openapi.yaml	INV-REQ-987
 EntityFacts.recordsPurchases	schema_property	openapi.yaml	INV-REQ-987
@@ -113,3 +114,5 @@ ElectionChangeApproved.effectiveFrom	schema_property	openapi.yaml	INV-REQ-505
 ElectionChangeApproved.requestedBy	schema_property	openapi.yaml	INV-REQ-505
 ElectionChangeApproved.approvedBy	schema_property	openapi.yaml	INV-REQ-505
 ElectionChangeApproved.approvedAt	schema_property	openapi.yaml	INV-REQ-505
+CreateTenantRequest.dataRegion	schema_property	openapi.yaml	INV-REQ-1386
+TenantResponse.dataRegion	schema_property	openapi.yaml	INV-REQ-1386

@@ -29,3 +29,5 @@
 ../openapi.yaml#/components/schemas/QuestionnaireAnswersRequest questionnaire-answers-request-*.json
 ../openapi.yaml#/components/schemas/PendingElectionChange pending-election-change-*.json
 ../openapi.yaml#/components/schemas/ElectionChangeApproved election-change-approved-*.json
+../openapi.yaml#/components/schemas/CreateTenantRequest create-tenant-request-*.json
+../openapi.yaml#/components/schemas/TenantResponse tenant-response-*.json
