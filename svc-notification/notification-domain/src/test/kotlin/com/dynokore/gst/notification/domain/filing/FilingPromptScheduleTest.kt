@@ -94,6 +94,27 @@ class FilingPromptScheduleTest {
     fun `INV-AC-10443 sent 27th prompt sends nothing the next day`() {
         val due = FilingPromptSchedule.promptsDue(twoPrompts, apr(28), false, setOf(before(apr(27), 3)))
         due.send shouldBe null
+        due.superseded.shouldBeEmpty()
+    }
+
+    @Test
+    fun `sent 20th and today the 27th sends the 27th and supersedes nothing`() {
+        val due = FilingPromptSchedule.promptsDue(twoPrompts, apr(27), false, setOf(ready(apr(20))))
+        due.send shouldBe before(apr(27), 3)
+        due.superseded.shouldBeEmpty()
+    }
+
+    @Test
+    fun `sent 20th and 27th and today the 28th sends nothing`() {
+        val sent = setOf(ready(apr(20)), before(apr(27), 3))
+        FilingPromptSchedule.promptsDue(twoPrompts, apr(28), false, sent).send shouldBe null
+    }
+
+    @Test
+    fun `sent 27th makes promptsDue on the 27th empty`() {
+        val due = FilingPromptSchedule.promptsDue(twoPrompts, apr(27), false, setOf(before(apr(27), 3)))
+        due.send shouldBe null
+        due.superseded.shouldBeEmpty()
     }
 
     @Test
