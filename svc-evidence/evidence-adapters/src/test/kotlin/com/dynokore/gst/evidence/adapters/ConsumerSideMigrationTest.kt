@@ -26,7 +26,7 @@ class ConsumerSideMigrationTest {
         assertEqual(fromGenerator, fromMigrations)
     }
 
-    /** INV-Q-10832 A: Flyway itself (the version of the build) builds the schema the generator builds, character for character. */
+    /** INV-Q-10832 A: Flyway itself (the version of the build) builds the schema the generator builds. */
     @Test
     fun `V1 plus the consumer-side migration run by Flyway build the schema the generator builds`() {
         val fromGenerator = scratch { url -> viaGenerator(url, generated) }
