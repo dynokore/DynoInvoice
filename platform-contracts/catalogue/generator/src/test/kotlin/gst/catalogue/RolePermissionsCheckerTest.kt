@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(11, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(14, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -362,7 +362,7 @@ class RolePermissionsCheckerTest {
     fun `the six operation keys carry their labels and addedRows holds its labels`() {
         opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
         assertEquals(
-            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values,
+            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels,
             RolePermissionsChecker.addedRows.toSet(),
         )
     }
@@ -425,6 +425,8 @@ class RolePermissionsCheckerTest {
 
     private val ackLabel = "Acknowledge a control relaxation"
     private val bumpLabel = "Run the authority incarnation command"
+    private val lookupLabels = setOf("Look up an enquiry by Acknowledgement ID", "Reverse-look up an enquiry", "Record a rendition sample check")
+
     private val ackKeys =
         listOf("03", "07", "13", "40", "44", "50", "61", "66", "81").map { "vp-$it.acknowledge" } +
             listOf("59", "62").flatMap { n -> listOf("tax-approver", "client-signatory").map { "vp-$n.acknowledge.$it" } }
@@ -444,7 +446,7 @@ class RolePermissionsCheckerTest {
     }
 
     @Test
-    fun `the thirteen acknowledge keys and the bump key carry their labels and addedRows holds the nine labels`() {
+    fun `the thirteen acknowledge keys and the bump key carry their labels and addedRows holds the twelve labels`() {
         assertEquals(13, ackKeys.size)
         ackKeys.forEach { assertEquals(ackLabel, permission(real, it).row, it) }
         assertEquals(bumpLabel, permission(real, "authority-incarnation.bump").row)
@@ -461,7 +463,7 @@ class RolePermissionsCheckerTest {
                 bumpLabel,
                 "Author a regulatory pack",
                 "Approve a regulatory pack",
-            ),
+            ) + lookupLabels,
             RolePermissionsChecker.addedRows.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
@@ -619,5 +621,130 @@ class RolePermissionsCheckerTest {
     @Test
     fun `probe 57 the kind of approve set to READ is reported`() {
         assertReported(withPermission("regulatory-pack.approve") { it.copy(kind = PermissionKind.READ) }, "key regulatory-pack.approve: kind READ")
+    }
+
+    private val byAck = "enquiry-lookup.by-acknowledgement"
+    private val reverse = "enquiry-lookup.reverse"
+    private val sample = "rendition-sample.record"
+    private val saasF = DeploymentForm.SAAS
+    private val privF = DeploymentForm.PRIVATE
+
+    private fun withRow(
+        key: String,
+        row: String,
+    ) = withPermission(key) { it.copy(row = row) }
+
+    private fun withKind(
+        key: String,
+        kind: PermissionKind,
+    ) = withPermission(key) { it.copy(kind = kind) }
+
+    private fun allowWithinScope(key: String) =
+        withPermission(key) { p -> p.copy(cells = p.cells.map { if (it.form == saasF) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it }) }
+
+    private fun duplicateOnRow(
+        key: String,
+        newKey: String,
+    ) = real.copy(permissions = real.permissions + permission(real, key).copy(key = newKey))
+
+    private fun swapRows(
+        a: String,
+        b: String,
+    ): RolePermissionTable {
+        val ra = permission(real, a).row
+        val rb = permission(real, b).row
+        return real.copy(permissions = real.permissions.map { if (it.key == a) it.copy(row = rb) else if (it.key == b) it.copy(row = ra) else it })
+    }
+
+    @Test
+    fun `the three lookup and sample keys carry their pinned pairs, kinds and cells`() {
+        assertEquals(RolePermissionsChecker.lookupSamplePairs.keys, setOf(byAck, reverse, sample))
+        RolePermissionsChecker.lookupSamplePairs.forEach { (k, row) -> assertEquals(row, permission(real, k).row, k) }
+        assertEquals(PermissionKind.READ, permission(real, byAck).kind)
+        assertEquals(PermissionKind.READ, permission(real, reverse).kind)
+        assertEquals(PermissionKind.WRITE, permission(real, sample).kind)
+        assertEquals(6, permission(real, byAck).cells.size)
+        assertEquals(4, permission(real, reverse).cells.size)
+        assertEquals(2, permission(real, sample).cells.size)
+    }
+
+    @Test
+    fun `probe 58 by-acknowledgement cells and fields changed alone are each reported`() {
+        listOf("tenant.admin", "finance.viewer", "security.officer", "platform.engineer").forEach { r ->
+            assertReported(cellAdd(byAck, r, saasF), "role $r key $byAck form SAAS")
+        }
+        assertReported(cellAdd(byAck, "agent.operator", saasF, RoleAllowance.WITHIN_SCOPE), "key $byAck")
+        listOf(saasF, privF).forEach { assertReported(cellRemove(byAck, "tax.operator", it), "role tax.operator key $byAck form $it") }
+        assertReported(cellRemove(byAck, "auditor", saasF), "role auditor key $byAck form SAAS")
+        assertReported(cellRemove(byAck, "tax.approver", privF), "role tax.approver key $byAck form PRIVATE")
+        assertReported(allowWithinScope(byAck), byAck)
+        assertReported(withKind(byAck, PermissionKind.WRITE), byAck)
+        listOf("Export audit pack", "View audit log", "Reverse-look up an enquiry", "Look up an enquiry by Acknowledgement ID ").forEach {
+            assertReported(withRow(byAck, it), "key $byAck")
+        }
+        assertReported(duplicateOnRow(byAck, "$byAck" + "2"), "enquiry-lookup.by-acknowledgement2")
+    }
+
+    @Test
+    fun `probe 59 by-acknowledgement renamed or removed is reported missing`() {
+        listOf("$byAck ", "enquiry-lookups.by-acknowledgement", "enquiry-lookup.by-acknowledgements", "enquiry-lookup.run", "Enquiry-lookup.by-acknowledgement").forEach { name ->
+            assertReported(withPermission(byAck) { it.copy(key = name) }, "key $byAck: missing")
+        }
+        assertReported(real.copy(permissions = real.permissions.filterNot { it.key == byAck }), "key $byAck: missing")
+    }
+
+    @Test
+    fun `probe 60 reverse cells and fields changed alone are each reported`() {
+        listOf("tenant.admin", "finance.viewer", "security.officer").forEach { r ->
+            assertReported(cellAdd(reverse, r, saasF), "role $r key $reverse form SAAS")
+        }
+        assertReported(cellAdd(reverse, "agent.operator", saasF, RoleAllowance.WITHIN_SCOPE), "key $reverse")
+        listOf(saasF, privF).forEach { assertReported(cellAdd(reverse, "tax.operator", it), "role tax.operator key $reverse form $it") }
+        assertReported(cellRemove(reverse, "auditor", saasF), "role auditor key $reverse form SAAS")
+        assertReported(cellRemove(reverse, "tax.approver", privF), "role tax.approver key $reverse form PRIVATE")
+        assertReported(allowWithinScope(reverse), reverse)
+        assertReported(withKind(reverse, PermissionKind.WRITE), reverse)
+        listOf("Look up an enquiry by Acknowledgement ID", "Reverse-look up an enquiry ").forEach { assertReported(withRow(reverse, it), "key $reverse") }
+        assertReported(duplicateOnRow(reverse, "enquiry-lookup.reverse2"), "enquiry-lookup.reverse2")
+        listOf("$reverse ", "enquiry-lookups.reverse", "enquiry-lookup.reverses", "Enquiry-lookup.reverse").forEach { name ->
+            assertReported(withPermission(reverse) { it.copy(key = name) }, "key $reverse: missing")
+        }
+        assertReported(real.copy(permissions = real.permissions.filterNot { it.key == reverse }), "key $reverse: missing")
+    }
+
+    @Test
+    fun `probe 61 sample cells and fields changed alone are each reported`() {
+        listOf("entity.admin", "tenant.admin", "tax.approver", "auditor").forEach { r ->
+            assertReported(cellAdd(sample, r, saasF), "key $sample")
+        }
+        assertReported(cellAdd(sample, "agent.operator", saasF, RoleAllowance.WITHIN_SCOPE), "key $sample")
+        assertReported(cellRemove(sample, "tax.operator", privF), "role tax.operator key $sample form PRIVATE")
+        assertReported(allowWithinScope(sample), sample)
+        assertReported(withKind(sample, PermissionKind.READ), sample)
+        listOf(
+            permission(real, "election-change.approve").row,
+            "Look up an enquiry by Acknowledgement ID",
+            "Record a rendition sample check ",
+        ).forEach { assertReported(withRow(sample, it), "key $sample") }
+        assertReported(duplicateOnRow(sample, "rendition-sample.run"), "rendition-sample.run")
+        listOf("$sample ", "rendition-samples.record", "rendition-sample.records", "Rendition-sample.record").forEach { name ->
+            assertReported(withPermission(sample) { it.copy(key = name) }, "key $sample: missing")
+        }
+        assertReported(real.copy(permissions = real.permissions.filterNot { it.key == sample }), "key $sample: missing")
+    }
+
+    @Test
+    fun `probe 62 swapped rows between the new keys are reported naming both keys`() {
+        listOf(byAck to reverse, byAck to sample).forEach { (a, b) ->
+            assertReported(swapRows(a, b), a, b)
+        }
+    }
+
+    @Test
+    fun `probe 63 each new label removed from addedRows while its key stays fails naming the key and the label`() {
+        RolePermissionsChecker.lookupSamplePairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
     }
 }

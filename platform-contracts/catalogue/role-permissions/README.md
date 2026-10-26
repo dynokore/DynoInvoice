@@ -45,12 +45,14 @@ The fourteen keys of INV-T-10149 (INV-Q-10140 C, INV-Q-10142 A) are all WRITE. T
 
 The key `election-change.approve` (INV-T-10123, INV-Q-10027) is held by `tax.approver` only and is checked with the person-differs rule of INV-Q-9704 by the service, not by the catalogue.
 
+The key `enquiry-lookup.by-acknowledgement` (row "Look up an enquiry by Acknowledgement ID") is held by `auditor`, `tax.approver` and `tax.operator`, `enquiry-lookup.reverse` (row "Reverse-look up an enquiry") by `auditor` and `tax.approver`, and `rendition-sample.record` (row "Record a rendition sample check") by `tax.operator` alone, all in SAAS and PRIVATE (INV-T-10492, INV-Q-10378 A, INV-Q-10380 A).
+
 The whole-job run and pause are the key `job.operate-whole-job` (INV-REQ-1138), with the `row` of `job.operate`; `job.operate` has no cell for `platform.engineer`.
 
 ## What the build checks (`checkRolePermissions`, wired into `check`; also run by `generateRolePermissionCatalogue`)
 
 `RolePermissionsChecker` reports: a role set that differs from the 19 names; a role whose forms differ; a key that
-breaks the pattern or repeats; a `row` that is neither one of the 34 published labels nor one of the added labels of `addedRows` (the nine labels of section 2 of INV-NOTE-10136 and the two labels "Author a regulatory pack" and "Approve a regulatory pack" of INV-Q-9779 A; the text of record of the nine is INV-NOTE-10136), or a label of either list with no key; a cell that names
+breaks the pattern or repeats; a `row` that is neither one of the 34 published labels nor one of the added labels of `addedRows` (the twelve labels of section 2 of INV-NOTE-10136 and the two labels "Author a regulatory pack" and "Approve a regulatory pack" of INV-Q-9779 A; the text of record of the twelve is INV-NOTE-10136), or a label of either list with no key; a cell that names
 a role not in the file or a form the role does not have; a repeated (role, form, key) cell; an `auditor` cell on a
 WRITE key (INV-REQ-863, FR-P.5); a (key, row) pair of the two retention keys that differs from the pinned table; and any required cell that is missing, extra or different (the table in the checker).
 

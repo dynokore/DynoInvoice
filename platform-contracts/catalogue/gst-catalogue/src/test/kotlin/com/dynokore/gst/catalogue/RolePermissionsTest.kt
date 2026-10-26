@@ -120,6 +120,12 @@ class RolePermissionsTest {
                 Req("election-change.approve", PermissionKind.WRITE, "tax.approver", y, both),
                 Req("regulatory-pack.author", PermissionKind.WRITE, "regulatory.author", y, both),
                 Req("regulatory-pack.approve", PermissionKind.WRITE, "regulatory.approver", y, both),
+                Req("enquiry-lookup.by-acknowledgement", PermissionKind.READ, "auditor", y, both),
+                Req("enquiry-lookup.by-acknowledgement", PermissionKind.READ, "tax.approver", y, both),
+                Req("enquiry-lookup.by-acknowledgement", PermissionKind.READ, "tax.operator", y, both),
+                Req("enquiry-lookup.reverse", PermissionKind.READ, "auditor", y, both),
+                Req("enquiry-lookup.reverse", PermissionKind.READ, "tax.approver", y, both),
+                Req("rendition-sample.record", PermissionKind.WRITE, "tax.operator", y, both),
             ) +
             listOf(
                 "filing.confirm",
@@ -208,6 +214,36 @@ class RolePermissionsTest {
         assertNull(RolePermissions.kind("election-change.manage"))
         assertNull(RolePermissions.kind("election-change.approve "))
         assertNull(RolePermissions.kind("entity-config.approve"))
+    }
+
+    @Test
+    fun `the enquiry lookups and the rendition sample check have their kinds and exact holders in both forms`() {
+        val expected =
+            mapOf(
+                "enquiry-lookup.by-acknowledgement" to
+                    Pair(PermissionKind.READ, setOf("auditor", "tax.approver", "tax.operator")),
+                "enquiry-lookup.reverse" to Pair(PermissionKind.READ, setOf("auditor", "tax.approver")),
+                "rendition-sample.record" to Pair(PermissionKind.WRITE, setOf("tax.operator")),
+            )
+        expected.forEach { (key, kindAndRoles) ->
+            assertEquals(kindAndRoles.first, RolePermissions.kind(key), key)
+            both.forEach { form ->
+                val holders =
+                    RolePermissions
+                        .cells(form)
+                        .filter { (_, perms) -> perms[key] == RoleAllowance.PERMITTED }
+                        .keys
+                assertEquals(kindAndRoles.second, holders, "$key $form")
+            }
+        }
+        listOf(
+            "enquiry-lookup.by-acknowledgement ",
+            "enquiry-lookup.run",
+            "enquiry-lookup.view",
+            "Enquiry-lookup.reverse",
+            "rendition-sample.upload",
+            "Rendition-sample.record",
+        ).forEach { assertNull(RolePermissions.kind(it), it) }
     }
 
     @Test

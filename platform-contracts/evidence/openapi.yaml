@@ -169,18 +169,20 @@ paths:
       operationId: getAcknowledgementChain
       summary: Look up the complete evidence chain of a submission by Acknowledgement ID
       description: >-
-        Lookup by Acknowledgement ID, the auditor role's own resource
-        (services.yaml evidence-svc `provides`, capabilities "Enquiry
-        lookups"; FR-AA.12, FR-X.9). Returns the complete chain — payload,
-        acknowledgement, decision trace and audit entries — for that
-        submission. Usable by the auditor role alone; every lookup is
-        audit-logged and changes no state (FR-X.11, FR-AA.14, INV-REQ-958).
+        Lookup by Acknowledgement ID (services.yaml evidence-svc `provides`,
+        capabilities "Enquiry lookups"; FR-AA.12, FR-X.9). Returns the
+        complete chain — payload, acknowledgement, decision trace and audit
+        entries — for that submission. Access is decided per request by the
+        permission key `enquiry-lookup.by-acknowledgement` through
+        `AuthorityReplica.decide`, never by a role name; the catalogue cells
+        give it to `auditor`, `tax.approver` and `tax.operator`; every lookup
+        is audit-logged and changes no state (FR-X.11, FR-AA.14, INV-REQ-958).
         Queries only the evidence store's own indexes, never another
         service (FR-AA.15). The chain also holds the canonical version and
         the source document reference, the decision trace carries its
         pack versions, and the recorded versions are in `reproduction`
-        (INV-REQ-691, INV-REQ-1345). The `auditor` role alone may call it
-        and each lookup is itself audit-logged (INV-REQ-711, INV-REQ-725).
+        (INV-REQ-691, INV-REQ-1345). Each lookup is itself audit-logged
+        (INV-REQ-711, INV-REQ-725).
         The chain also holds the buyer-created invoice references of a
         self-billing supplier-cum-recipient's document, and this lookup and
         the audit pack export produce them on request (INV-AC-741).
@@ -280,9 +282,11 @@ paths:
       description: >-
         Reverse lookup (services.yaml evidence-svc `provides`, capabilities
         "Enquiry lookups"; FR-AA.13, FR-X.10). Returns every related
-        submission with its acknowledgement state. Auditor role only,
-        audit-logged, changes no state (FR-X.11, INV-REQ-958). The `auditor`
-        role alone may call it and each lookup is itself audit-logged
+        submission with its acknowledgement state. Access is decided per
+        request by the permission key `enquiry-lookup.reverse` through
+        `AuthorityReplica.decide`, never by a role name; the catalogue cells
+        give it to `auditor` and `tax.approver`. Audit-logged, changes no
+        state (FR-X.11, INV-REQ-958); each lookup is itself audit-logged
         (INV-REQ-711, INV-REQ-725). Parameters combine with AND: `docUuid`,
         `documentNumber`, `counterparty`, `dateFrom`/`dateTo`, `periodRef`
         and `categoryCode` index the archive (INV-REQ-650). Answers 202 when

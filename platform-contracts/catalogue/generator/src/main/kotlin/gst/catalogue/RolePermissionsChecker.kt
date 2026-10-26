@@ -101,6 +101,17 @@ object RolePermissionsChecker {
             "Run the authority incarnation command",
             "Author a regulatory pack",
             "Approve a regulatory pack",
+            "Look up an enquiry by Acknowledgement ID",
+            "Reverse-look up an enquiry",
+            "Record a rendition sample check",
+        )
+
+    /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
+    val lookupSamplePairs: Map<String, String> =
+        mapOf(
+            "enquiry-lookup.by-acknowledgement" to "Look up an enquiry by Acknowledgement ID",
+            "enquiry-lookup.reverse" to "Reverse-look up an enquiry",
+            "rendition-sample.record" to "Record a rendition sample check",
         )
 
     /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
@@ -287,6 +298,10 @@ object RolePermissionsChecker {
             "vp-62.acknowledge.client-signatory" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
             "authority-incarnation.bump" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "election-change.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "enquiry-lookup.by-acknowledgement" to
+                Required(PermissionKind.READ, cells(permitted, both, "auditor", "tax.approver", "tax.operator")),
+            "enquiry-lookup.reverse" to Required(PermissionKind.READ, cells(permitted, both, "auditor", "tax.approver")),
+            "rendition-sample.record" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
         )
 
     fun check(
@@ -340,6 +355,13 @@ object RolePermissionsChecker {
         retentionPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
             if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (retention keys ${retentionPairs.keys.joinToString()})."
+        }
+        lookupSamplePairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${lookupSamplePairs.keys.joinToString()}, INV-T-10492)."
+        }
+        table.permissions.filter { it.key !in lookupSamplePairs && it.row in lookupSamplePairs.values }.forEach { p ->
+            v += "key ${p.key}: row '${p.row}' belongs to the keys ${lookupSamplePairs.keys.joinToString()} (INV-T-10492)."
         }
         table.permissions.firstOrNull { it.key == "election-change.approve" }?.let { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123)."
