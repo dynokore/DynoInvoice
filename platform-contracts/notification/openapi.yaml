@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -127,6 +127,7 @@ paths:
         is accepted.
       tags: [policies]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: [POL-008, POL-013, POL-014, POL-015, POL-022]
@@ -227,6 +228,7 @@ paths:
         on the last page; there is no offset and no total count.
       tags: [policies]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -281,6 +283,7 @@ paths:
         falls due, without tiers (INV-REQ-1403, INV-REQ-1113).
       tags: [alerts]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -344,6 +347,7 @@ paths:
         recorded acknowledgement unchanged.
       tags: [alerts]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -395,6 +399,7 @@ paths:
         listed here (`listAlerts` lists those).
       tags: [alerts]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -454,6 +459,7 @@ paths:
         control-plane does).
       tags: [alerts]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -512,6 +518,7 @@ paths:
         determined, the snooze is refused with POL-014.
       tags: [alerts]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: [POL-013, POL-014]
@@ -616,6 +623,7 @@ paths:
         own concern.
       tags: [webhooks]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-entity-ref: [entityRef, entityRefs]
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
@@ -704,6 +712,7 @@ paths:
         offset and no total count.
       tags: [webhooks]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -754,6 +763,7 @@ paths:
       description: Subscription commands (services.yaml notification-svc `provides`).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -783,6 +793,7 @@ paths:
         service's configured overlap, which is outside this contract.
       tags: [webhooks]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -827,6 +838,7 @@ paths:
         response code (INV-AC-1874).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -868,6 +880,7 @@ paths:
         (INV-AC-1874).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -897,6 +910,7 @@ paths:
         Delivery to the endpoint resumes on resume (INV-AC-1874).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -930,6 +944,7 @@ paths:
         last attempt (INV-REQ-822).
       tags: [deliveries]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -991,6 +1006,7 @@ paths:
         (INV-AC-840).
       tags: [webhooks]
       x-principal: filing-workflow
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []
@@ -1034,6 +1050,7 @@ paths:
         BOUNCED and `alertId`.
       tags: [deliveries]
       x-principal: reporting
+      x-caller-auth: end-user
       x-sync-edge: console-bff->notification-svc
       x-timeout: 2000
       x-error-codes: []

@@ -12,3 +12,5 @@ submission/openapi.yaml
 transport/openapi.yaml
 evidence/openapi.yaml
 reconciliation/openapi.yaml
+ingestion/openapi.yaml
+notification/openapi.yaml
