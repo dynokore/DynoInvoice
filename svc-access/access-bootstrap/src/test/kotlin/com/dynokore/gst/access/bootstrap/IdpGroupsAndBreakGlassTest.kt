@@ -25,7 +25,7 @@ import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EnvelopeJson
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -166,7 +166,7 @@ class IdpGroupsAndBreakGlassTest {
             env.synchronise()
             assertThat(env.grantsOf("IDN-U2").single().status).isEqualTo(GrantStatus.REVOKED)
             assertThat(env.grantsOf("IDN-U1").single().status).isEqualTo(GrantStatus.ACTIVE)
-            val changed = env.events(ProductEventTypes.AUTHORITY_CHANGED)
+            val changed = env.events(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType)
             assertThat(changed).hasSize(1)
             assertThat(changed.single().dataJson).contains("IDN-U2")
             // the replica that receives the event holds no action for the leaver
@@ -199,7 +199,7 @@ class IdpGroupsAndBreakGlassTest {
                 simulator.removeFromGroup("tenant-admin-1", "tenant.admin")
                 env.synchronise()
                 assertThat(env.grantsOf("tenant-admin-1").single().status).isEqualTo(GrantStatus.REVOKED)
-                assertThat(env.events(ProductEventTypes.AUTHORITY_CHANGED)).hasSize(1)
+                assertThat(env.events(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType)).hasSize(1)
             }
         }
     }

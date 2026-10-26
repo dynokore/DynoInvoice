@@ -2,6 +2,7 @@ package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.grant.AuthorityGrantRecord
+import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantedAction
 import com.dynokore.gst.access.domain.consent.Consent
 import com.dynokore.gst.access.domain.consent.ConsentRef
@@ -10,10 +11,19 @@ import com.dynokore.gst.access.domain.consent.ConsentTerms
 import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.ScopeLevel
 import com.dynokore.gst.access.domain.grant.TenantRef
+import com.dynokore.gst.access.domain.principal.PrincipalStatus
+import com.dynokore.gst.access.domain.principal.PrincipalType
+import com.dynokore.gst.access.domain.principal.ServicePrincipal
 import com.dynokore.platform.outboxandqueue.EmissionGuard
 import com.dynokore.platform.outboxandqueue.EmissionNotPermitted
+import com.dynokore.platform.outboxandqueue.Envelope
+import com.dynokore.platform.outboxandqueue.EventContext
+import com.dynokore.platform.outboxandqueue.OutboundEvent
+import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SpecificationVersion
@@ -22,6 +32,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 
@@ -120,7 +131,7 @@ class AuthorityChangedPayloadTest {
         val catalogue = AccessEventCatalogue.load()
         val guard = EmissionGuard(catalogue, AccessEventCatalogue.SERVICE)
         listOf(
-            ProductEventTypes.AUTHORITY_CHANGED,
+            PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
             "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
             "com.dynokore.gst.access.AccessAlertRaised.v1",
             "com.dynokore.gst.access.MessageRequested.v1",
@@ -134,7 +145,7 @@ class AuthorityChangedPayloadTest {
         ).forEach { assertThrows(EmissionNotPermitted::class.java, { guard.require(it) }, it) }
         // another service's guard over the same catalogue does not let it emit access's event
         assertThrows(EmissionNotPermitted::class.java) {
-            EmissionGuard(catalogue, "tenancy-svc").require(ProductEventTypes.AUTHORITY_CHANGED)
+            EmissionGuard(catalogue, "tenancy-svc").require(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType)
         }
     }
 
@@ -179,5 +190,43 @@ class AuthorityChangedPayloadTest {
         val items = node["consentRecord"]["scopeItems"]
         assertEquals(listOf("SUBMIT_INVOICE_DATA"), (0 until items.size()).map { items[it].asString() })
         assertTrue(!node.has("grantRecord") && !node.has("principalRecord"))
+    }
+
+    @Test
+    fun `INV-Q-10878 the three publishers write the platform AuthorityChanged type`() {
+        val captured = mutableListOf<OutboundEvent>()
+        val writer =
+            object : OutboxWriter {
+                override fun append(
+                    events: List<OutboundEvent>,
+                    context: EventContext,
+                ): List<Envelope> {
+                    captured.addAll(events)
+                    return emptyList()
+                }
+            }
+        val grants = AuthorityChangedOutbox(writer, mapper)
+        grants.publish(listOf(record(action())))
+        grants.publish(consent(ConsentStatus.LIVE, ScopeItem.SUBMIT_INVOICE_DATA))
+        val directory =
+            object : EntityDirectory {
+                override fun membership(entity: EntityRef) = null
+
+                override fun entitiesCoveredBy(scope: Scope) = setOf(EntityRef("ENT-1"))
+            }
+        val tenant = "0a000000-0000-4000-8000-00000000000a"
+        val principal =
+            ServicePrincipal(
+                "PRN-1",
+                TenantRef(tenant),
+                PrincipalType.INGEST,
+                "tenant:$tenant",
+                null,
+                PrincipalStatus.REVOKED,
+                1,
+            )
+        PrincipalRevocationOutbox(writer, mapper, Clock.systemUTC(), directory).publishRevoked(principal) { 7L }
+        assertEquals(3, captured.size)
+        captured.forEach { assertEquals("com.dynokore.gst.platform.AuthorityChanged.v1", it.type) }
     }
 }

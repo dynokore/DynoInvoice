@@ -4,7 +4,7 @@ import com.dynokore.gst.access.adapters.http.PrincipalsController
 import com.dynokore.gst.access.contract.model.CreatePrincipalRequest
 import com.dynokore.gst.access.contract.model.PrincipalResponse
 import com.dynokore.gst.access.domain.role.Role
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -152,7 +152,7 @@ class PrincipalAcceptanceTest {
             captured.envelopes.clear()
             val revoked = context.inTenant { controller.revokePrincipal(created.principalRef, UUID.randomUUID()).body }
             assertThat((revoked as PrincipalResponse).status).isEqualTo(PrincipalResponse.Status.REVOKED)
-            val events = captured.envelopes.filter { it.type == ProductEventTypes.AUTHORITY_CHANGED }
+            val events = captured.envelopes.filter { it.type == PlatformEventCatalogue.AUTHORITY_CHANGED.eventType }
             assertThat(events).hasSize(1)
             val payload = JsonMapper.builder().build().readTree(events.single().dataJson)
             assertThat(payload.get("changeKind").asString()).isEqualTo("REVOCATION")
@@ -161,6 +161,8 @@ class PrincipalAcceptanceTest {
             // a repeat is a no-op: no second event
             captured.envelopes.clear()
             context.inTenant { controller.revokePrincipal(created.principalRef, UUID.randomUUID()) }
-            assertThat(captured.envelopes.filter { it.type == ProductEventTypes.AUTHORITY_CHANGED }).isEmpty()
+            assertThat(
+                captured.envelopes.filter { it.type == PlatformEventCatalogue.AUTHORITY_CHANGED.eventType },
+            ).isEmpty()
         }
 }

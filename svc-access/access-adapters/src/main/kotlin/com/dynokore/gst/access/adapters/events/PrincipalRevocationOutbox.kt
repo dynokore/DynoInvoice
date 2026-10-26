@@ -7,7 +7,7 @@ import com.dynokore.gst.access.domain.principal.ServicePrincipal
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
@@ -40,7 +40,10 @@ class PrincipalRevocationOutbox(
             val context = EventContexts.forAggregate(tenant, EntityRef(entity.value), principal.ref)
             outbox.append(
                 listOf(
-                    OutboundEvent(ProductEventTypes.AUTHORITY_CHANGED, payload(principal, nextVersion()).toString()),
+                    OutboundEvent(
+                        PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
+                        payload(principal, nextVersion()).toString(),
+                    ),
                 ),
                 context,
             )

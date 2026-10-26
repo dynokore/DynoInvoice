@@ -7,7 +7,7 @@ import com.dynokore.gst.access.application.principal.PrincipalRevocationPublishe
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse.Decision
 import com.dynokore.gst.access.contract.model.PrincipalResponse
 import com.dynokore.gst.access.domain.principal.ServicePrincipal
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
@@ -155,7 +155,7 @@ class RevocationWriteTest {
         block()
         val mapper = JsonMapper.builder().build()
         return captured.envelopes
-            .filter { it.type == ProductEventTypes.AUTHORITY_CHANGED }
+            .filter { it.type == PlatformEventCatalogue.AUTHORITY_CHANGED.eventType }
             .filter { mapper.readTree(it.dataJson).get("changeKind").asString() == "REVOCATION" }
             .map { it.entity.value }
     }

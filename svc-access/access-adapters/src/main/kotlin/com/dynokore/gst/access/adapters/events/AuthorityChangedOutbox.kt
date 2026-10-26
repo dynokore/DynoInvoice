@@ -9,7 +9,7 @@ import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
@@ -35,7 +35,7 @@ class AuthorityChangedOutbox(
                     record.identity.value,
                 )
             outbox.append(
-                listOf(OutboundEvent(ProductEventTypes.AUTHORITY_CHANGED, payload(record).toString())),
+                listOf(OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, payload(record).toString())),
                 context,
             )
         }
@@ -50,7 +50,9 @@ class AuthorityChangedOutbox(
                 record.consent.agent.value,
             )
         outbox.append(
-            listOf(OutboundEvent(ProductEventTypes.AUTHORITY_CHANGED, consentPayload(record).toString())),
+            listOf(
+                OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, consentPayload(record).toString()),
+            ),
             context,
         )
     }

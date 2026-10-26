@@ -21,7 +21,7 @@ import com.dynokore.gst.access.domain.grant.Target
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.role.Role
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
@@ -329,7 +329,7 @@ class AcceptanceCriteriaTest {
                 env.captured.envelopes
                     .toList()
                     .also { env.captured.envelopes.clear() }
-                    .filter { it.type == ProductEventTypes.AUTHORITY_CHANGED }
+                    .filter { it.type == PlatformEventCatalogue.AUTHORITY_CHANGED.eventType }
                     .forEach { handler.handle(it) }
             }
             assertThat(feed).isNotNull()
