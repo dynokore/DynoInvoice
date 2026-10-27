@@ -17,7 +17,8 @@ class BreakGlassCallerServiceMigrationTest {
 
     private fun adds(sql: String): Boolean =
         Regex(
-            """ADD COLUMN caller_service text\s+CHECK \(caller_service IS NULL OR length\(caller_service\) BETWEEN 1 AND 64\)""",
+            "ADD COLUMN caller_service text\\s+CHECK " +
+                "\\(caller_service IS NULL OR length\\(caller_service\\) BETWEEN 1 AND 64\\)",
         ).containsMatchIn(sql)
 
     @Test

@@ -72,7 +72,7 @@ open class BreakGlassController(
         breakGlassActionRequest: BreakGlassActionRequest,
     ): ResponseEntity<BreakGlassActionResponse> {
         // an unmapped caller is refused before the use case runs (INV-Q-9113 A)
-        val callerService = serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        val callerService = verifiedCaller()
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         val action = BreakGlassAction.valueOf(breakGlassActionRequest.action.name)
         return when (
@@ -104,6 +104,8 @@ open class BreakGlassController(
             }
         }
     }
+
+    private fun verifiedCaller(): String = serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
 
     private fun unlocked(session: BreakGlassSession) =
         BreakGlassResponse(
