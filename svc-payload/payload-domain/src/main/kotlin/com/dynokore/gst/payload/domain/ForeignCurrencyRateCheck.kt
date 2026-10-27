@@ -73,7 +73,8 @@ object ForeignCurrencyRateCheck {
     private const val PERCENT = "percent"
     private val HUNDRED = BigDecimal(100)
 
-    @Suppress("CyclomaticComplexMethod", "ReturnCount")
+    // The seven-argument signature is fixed by ruling INV-Q-6802 A.
+    @Suppress("CyclomaticComplexMethod", "ReturnCount", "LongParameterList")
     fun check(
         currency: String,
         documentDate: LocalDate,
