@@ -1,6 +1,8 @@
 package com.dynokore.gst.evidence.adapters.persistence
 
+import com.dynokore.gst.evidence.adapters.events.AuditEntryRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
+import com.dynokore.gst.evidence.adapters.events.DecisionTraceRecordedHandler
 import com.dynokore.gst.evidence.application.chain.LocatorRecorder
 import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.domain.chain.RecordKind
@@ -35,4 +37,16 @@ object ChainWiring {
         dsl: DSLContext,
         clock: Clock = Clock.systemUTC(),
     ): EventHandler = CanonicalVersionCreatedHandler(locatorRecorder(dsl, clock))
+
+    /** The handler of `DecisionTraceRecorded`, to run inside the inbox consumer's transaction. */
+    fun decisionTraceHandler(
+        dsl: DSLContext,
+        clock: Clock = Clock.systemUTC(),
+    ): EventHandler = DecisionTraceRecordedHandler(recordAppender(dsl, clock), clock)
+
+    /** The handler of `AuditEntryRecorded`, to run inside the inbox consumer's transaction. */
+    fun auditEntryHandler(
+        dsl: DSLContext,
+        clock: Clock = Clock.systemUTC(),
+    ): EventHandler = AuditEntryRecordedHandler(recordAppender(dsl, clock), clock)
 }

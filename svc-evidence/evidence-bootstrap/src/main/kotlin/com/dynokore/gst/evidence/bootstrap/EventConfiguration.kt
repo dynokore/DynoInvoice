@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(EvidenceEvents.entries)
+    fun eventCatalogue(): EventCatalogue = EventCatalogue(EvidenceEvents.entries + EvidenceEvents.recordEntries)
 }
 
 object EvidenceEvents {
@@ -32,4 +32,29 @@ object EvidenceEvents {
         topicByType.map { (type, topic) ->
             CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
         }
+
+    /**
+     * The two record-topic types evidence-svc consumes (INV-REQ-3650 b1, platform-contracts `event-log/topics.yaml`):
+     * evidence-svc is not their producer, so the emission guard refuses it to emit them. `recordTopic` makes the inbox
+     * consumer skip the `docsequence` check (INV-Q-3809).
+     */
+    val recordEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                "com.dynokore.gst.canonical.DecisionTraceRecorded.v1",
+                RecordConsumerConfiguration.DECISION_TRACE_TOPIC,
+                setOf("canonical-svc"),
+                contentTopic = true,
+                recordTopic = true,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                "com.dynokore.gst.platform.AuditEntryRecorded.v1",
+                RecordConsumerConfiguration.AUDIT_ENTRY_TOPIC,
+                setOf(CatalogueEntry.EVERY_SERVICE),
+                contentTopic = false,
+                recordTopic = true,
+                retainedWhileResolvable = false,
+            ),
+        )
 }
