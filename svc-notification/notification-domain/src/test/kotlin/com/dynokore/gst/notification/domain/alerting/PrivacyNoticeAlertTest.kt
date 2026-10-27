@@ -43,8 +43,10 @@ class PrivacyNoticeAlertTest {
 
     @Test
     fun `no usable recipient is withheld`() {
-        PrivacyNoticeAlert.decide(notice(), emptyList(), emptySet()) shouldBe Withhold(PrivacyNoticeWithheld.NO_RECIPIENT)
-        PrivacyNoticeAlert.decide(notice(), listOf("  "), emptySet()) shouldBe Withhold(PrivacyNoticeWithheld.NO_RECIPIENT)
+        PrivacyNoticeAlert.decide(notice(), emptyList(), emptySet()) shouldBe
+            Withhold(PrivacyNoticeWithheld.NO_RECIPIENT)
+        PrivacyNoticeAlert.decide(notice(), listOf("  "), emptySet()) shouldBe
+            Withhold(PrivacyNoticeWithheld.NO_RECIPIENT)
     }
 
     @Test
@@ -61,7 +63,8 @@ class PrivacyNoticeAlertTest {
 
     @Test
     fun `equal input gives equal output`() {
-        PrivacyNoticeAlert.decide(notice(), two, emptySet()) shouldBe PrivacyNoticeAlert.decide(notice(), two, emptySet())
+        PrivacyNoticeAlert.decide(notice(), two, emptySet()) shouldBe
+            PrivacyNoticeAlert.decide(notice(), two, emptySet())
     }
 
     @Test
