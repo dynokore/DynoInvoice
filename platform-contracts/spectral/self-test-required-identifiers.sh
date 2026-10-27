@@ -149,6 +149,49 @@ info: {title: fixture, version: 1.0.0}
 paths: {}
 YAML
 expect_fail_dir "$T/code-other-service" "$NF operation_error_code"
+# INV-T-11736 (INV-Q-11733 A): the kind operation_response. Operation postThing answers 202 and 403 (one as the
+# integer key 202), listThings answers 200 and 409, and components.responses holds 418.
+mkr() { # name, identifier -> $T/<name>/svc
+  mkdir -p "$T/$1/svc"
+  cat > "$T/$1/svc/openapi.yaml" <<'YAML'
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /x:
+    post:
+      operationId: postThing
+      description: Answers 500 when broken.
+      responses:
+        202: {description: accepted}
+        '403': {description: forbidden}
+        default: {description: other}
+  /y:
+    get:
+      operationId: listThings
+      responses:
+        '200': {description: ok}
+        '409': {description: conflict}
+components:
+  responses:
+    Teapot: {description: teapot}
+    '418': {description: teapot}
+YAML
+  printf 'identifier\tkind\tfile\trequirement\n%s\toperation_response\topenapi.yaml\tR-6\n' "$2" > "$T/$1/svc/required-identifiers.tsv"
+}
+for ok in postThing.202 postThing.403 postThing.default listThings.409; do
+  mkr "resp-pass-$ok" "$ok"
+  out=$(python3 check-required-identifiers.py "$T/resp-pass-$ok" 2>&1) || { echo "gst-ci: FAIL — operation_response '$ok' rejected:"; echo "$out"; failed=1; }
+done
+resp_fail() { mkr "$1" "$2"; expect_fail_dir "$T/$1" "$3"; }
+resp_fail resp-absent postThing.200 "$NF operation_response"
+resp_fail resp-other-operation postThing.409 "$NF operation_response"
+resp_fail resp-components-only postThing.418 "$NF operation_response"
+resp_fail resp-substring-long postThing.2020 "$NF operation_response"
+resp_fail resp-substring-short postThing.20 "$NF operation_response"
+resp_fail resp-operation-case postthing.202 "$NF operation_response"
+resp_fail resp-unknown-operation postThings.202 "$NF operation_response"
+resp_fail resp-no-dot postThing "needs 2 non-empty dot-separated parts (<operationId>.<STATUS>)"
+resp_fail resp-empty-status postThing. "needs 2 non-empty dot-separated parts (<operationId>.<STATUS>)"
 # INV-T-6937 (INV-Q-7027 A): --base. Each case is a throwaway git repository with a base commit.
 TSV='identifier\tkind\tfile\trequirement\nalpha\tproperty\topenapi.yaml\tR-6\nbeta\tproperty\topenapi.yaml\tR-6\n'
 mkb() { # name -> $T/<name> with one commit holding svc/openapi.yaml and the two-row table

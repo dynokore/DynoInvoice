@@ -48,6 +48,11 @@ hold a data row (operationId, operation, openapi.yaml), compared by equality aft
 treated as empty, so no pair is exempt. With --base, the table present at the base commit and missing at the head is
 still a finding; absent at both, no check.
 
+    operation_response  `<operationId>.<STATUS>` (split at the first dot): under `paths`, an operation whose own
+                `operationId` equals <operationId> has a `responses` key whose string value equals <STATUS> (the YAML
+                key 202 and the quoted key '202' both read as 202; `default` is valid). Another operation's responses,
+                `components.responses`, a description and a substring never count (INV-T-11736, INV-Q-11733 A)
+
 Usage: check-required-identifiers.py [--base <sha>] [<root>]      (default root: the current directory)
 Standard library plus PyYAML, as the other spectral checks.
 """
@@ -60,9 +65,9 @@ from pathlib import Path
 
 import yaml
 
-KINDS = ("property", "operation", "enum_value", "query_parameter", "schema_property", "schema_enum_value", "operation_error_code")
-SCOPED = {"schema_property": 2, "schema_enum_value": 3, "operation_error_code": 2}
-SCOPED_FORM = {"schema_property": "<Schema>.<property>", "schema_enum_value": "<Schema>.<property>.<MEMBER>", "operation_error_code": "<operationId>.<CODE>"}
+KINDS = ("property", "operation", "enum_value", "query_parameter", "schema_property", "schema_enum_value", "operation_error_code", "operation_response")
+SCOPED = {"schema_property": 2, "schema_enum_value": 3, "operation_error_code": 2, "operation_response": 2}
+SCOPED_FORM = {"schema_property": "<Schema>.<property>", "schema_enum_value": "<Schema>.<property>.<MEMBER>", "operation_error_code": "<operationId>.<CODE>", "operation_response": "<operationId>.<STATUS>"}
 HEADER = ("identifier", "kind", "file", "requirement")
 
 
@@ -90,6 +95,12 @@ def collect(doc) -> dict[str, set]:
                 walk(item)
 
     walk(doc)
+    paths = doc.get("paths") if isinstance(doc, dict) else None
+    for item in (paths.values() if isinstance(paths, dict) else ()):
+        for op in (item.values() if isinstance(item, dict) else ()):
+            responses = op.get("responses") if isinstance(op, dict) else None
+            if isinstance(op, dict) and isinstance(op.get("operationId"), str) and isinstance(responses, dict):
+                found["operation_response"].update((op["operationId"], str(k)) for k in responses)
     schemas = (doc.get("components") or {}).get("schemas") if isinstance(doc, dict) else None
     for sname, schema in (schemas.items() if isinstance(schemas, dict) else ()):
         props = schema.get("properties") if isinstance(schema, dict) else None

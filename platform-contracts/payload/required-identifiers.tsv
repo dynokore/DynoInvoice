@@ -80,3 +80,5 @@ ValidationOverrideEntry.releasedAt	schema_property	openapi.yaml	INV-REQ-1293
 PendingValidationOverride.status.PENDING	schema_enum_value	openapi.yaml	INV-REQ-1293
 ValidationOverrideEntry.status.PENDING	schema_enum_value	openapi.yaml	INV-REQ-1293
 ValidationOverrideEntry.status.RELEASED	schema_enum_value	openapi.yaml	INV-REQ-1293
+overrideValidation.202	operation_response	openapi.yaml	INV-REQ-500
+overrideValidation.403	operation_response	openapi.yaml	INV-REQ-500

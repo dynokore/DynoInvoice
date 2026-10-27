@@ -138,3 +138,5 @@ FilingGateOverrideEntry.requestedBy	schema_property	openapi.yaml	INV-REQ-1293
 FilingGateOverrideEntry.requestedAt	schema_property	openapi.yaml	INV-REQ-1293
 FilingGateOverrideEntry.releasedBy	schema_property	openapi.yaml	INV-REQ-1293
 FilingGateOverrideEntry.releasedAt	schema_property	openapi.yaml	INV-REQ-1293
+overrideFilingGate.202	operation_response	openapi.yaml	INV-REQ-500
+overrideFilingGate.403	operation_response	openapi.yaml	INV-REQ-500
