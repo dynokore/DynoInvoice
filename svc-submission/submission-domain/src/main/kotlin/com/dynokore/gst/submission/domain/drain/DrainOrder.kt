@@ -73,9 +73,16 @@ object DrainOrder {
         today: LocalDate,
     ): Tier =
         when {
-            today >= item.windowOpensOn -> Tier.WINDOW_OPEN
-            drained != null && item.entityRef == drained.entityRef && item.periodRef == drained.periodRef ->
+            today >= item.windowOpensOn -> {
+                Tier.WINDOW_OPEN
+            }
+
+            drained != null && item.entityRef == drained.entityRef && item.periodRef == drained.periodRef -> {
                 Tier.DRAINED_PERIOD
-            else -> Tier.ROUTINE
+            }
+
+            else -> {
+                Tier.ROUTINE
+            }
         }
 }

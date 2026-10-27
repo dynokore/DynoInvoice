@@ -28,7 +28,14 @@ class DrainOrderTest {
 
     @Test
     fun `INV-AC-173 a document inside its window goes before the drained backlog`() {
-        val b = item("b", entity = "B", period = "2026-Q1", due = LocalDate.of(2026, 4, 25), opens = LocalDate.of(2026, 4, 15))
+        val b =
+            item(
+                "b",
+                entity = "B",
+                period = "2026-Q1",
+                due = LocalDate.of(2026, 4, 25),
+                opens = LocalDate.of(2026, 4, 15),
+            )
         val a1 = item("a1", opens = LocalDate.of(2026, 4, 25))
         val a2 = item("a2", opens = LocalDate.of(2026, 4, 26))
         val r = DrainOrder.rank(listOf(a1, a2, b), drained, apr20)
@@ -40,7 +47,15 @@ class DrainOrderTest {
 
     @Test
     fun `INV-AC-208 a routine document outside its window is last after the drained backlog`() {
-        val c = item("c", entity = "C", period = "2026-Q2", due = LocalDate.of(2026, 5, 31), opens = LocalDate.of(2026, 5, 21), queued = t0.minusSeconds(3600))
+        val c =
+            item(
+                "c",
+                entity = "C",
+                period = "2026-Q2",
+                due = LocalDate.of(2026, 5, 31),
+                opens = LocalDate.of(2026, 5, 21),
+                queued = t0.minusSeconds(3600),
+            )
         val a1 = item("a1", opens = LocalDate.of(2026, 4, 25))
         val a2 = item("a2", opens = LocalDate.of(2026, 4, 26), queued = t0.plusSeconds(60))
         val r = DrainOrder.rank(listOf(c, a2, a1), drained, apr20)
@@ -50,8 +65,16 @@ class DrainOrderTest {
 
     @Test
     fun `INV-AC-145 drained period queued later goes before earlier queued routine items`() {
-        val routine = item("r", period = "2026-Q2", due = LocalDate.of(2026, 5, 10), opens = LocalDate.of(2026, 5, 1), queued = t0)
-        val mine = item("m", due = LocalDate.of(2026, 6, 30), opens = LocalDate.of(2026, 6, 20), queued = t0.plusSeconds(500))
+        val routine =
+            item(
+                "r",
+                period = "2026-Q2",
+                due = LocalDate.of(2026, 5, 10),
+                opens = LocalDate.of(2026, 5, 1),
+                queued = t0,
+            )
+        val mine =
+            item("m", due = LocalDate.of(2026, 6, 30), opens = LocalDate.of(2026, 6, 20), queued = t0.plusSeconds(500))
         val r = DrainOrder.rank(listOf(routine, mine), drained, apr20)
         docs(r) shouldBe listOf("m", "r")
         r.map { it.tier } shouldBe listOf(Tier.DRAINED_PERIOD, Tier.ROUTINE)
@@ -60,7 +83,8 @@ class DrainOrderTest {
     @Test
     fun `INV-AC-173 today one day before windowOpensOn is not window open`() {
         tierAt(apr20.minusDays(1)) shouldBe Tier.DRAINED_PERIOD
-        DrainOrder.rank(listOf(item("d", entity = "B")), drained, apr20.minusDays(1)).single().tier shouldBe Tier.ROUTINE
+        DrainOrder.rank(listOf(item("d", entity = "B")), drained, apr20.minusDays(1)).single().tier shouldBe
+            Tier.ROUTINE
     }
 
     @Test
@@ -149,7 +173,13 @@ class DrainOrderTest {
 
     @Test
     fun `INV-AC-145 two items with one docUuid and version are refused`() {
-        shouldThrow<IllegalArgumentException> { DrainOrder.rank(listOf(item("a"), item("a", entity = "B")), drained, apr20) }
+        shouldThrow<IllegalArgumentException> {
+            DrainOrder.rank(
+                listOf(item("a"), item("a", entity = "B")),
+                drained,
+                apr20,
+            )
+        }
     }
 
     @Test
