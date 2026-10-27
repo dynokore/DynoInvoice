@@ -90,13 +90,27 @@ class AuthorisePlatformScopeTest {
         return context.getBean(TenantContext::class.java).bind(customerTenant, "caller") { block() }
     }
 
+    /** The rows this test inserted, so that no platform row outlives it for the other tests of the module. */
+    private fun removeRows() {
+        BoundaryFixture.asSuperuser { c ->
+            c.createStatement().use {
+                it.execute("delete from access.role_grant where identity_ref like '%-$run'")
+                it.execute("delete from access.identity where identity_ref like '%-$run'")
+            }
+        }
+    }
+
     private fun run(block: (AuthoriseController) -> Unit) {
         BoundaryFixture
             .runner(catalogueMatrix = true, requirements = null)
             .run { context: AssertableWebApplicationContext ->
                 context.startupFailure?.let { throw it }
                 this.context = context
-                block(context.getBean(AuthoriseController::class.java))
+                try {
+                    block(context.getBean(AuthoriseController::class.java))
+                } finally {
+                    removeRows()
+                }
             }
     }
 
