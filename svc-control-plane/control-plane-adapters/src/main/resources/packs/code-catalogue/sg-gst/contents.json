@@ -1,0 +1,323 @@
+{
+  "complete": true,
+  "codes": [
+    {
+      "code": "SR",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 79",
+      "description": "Standard-rated supply of goods or services"
+    },
+    {
+      "code": "SRCA-S",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "submissionRate": "0",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 79",
+      "description": "Customer accounting supply made by supplier"
+    },
+    {
+      "code": "SRCA-C",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 79",
+      "description": "Customer accounting supply accountable by the customer on supplier's behalf"
+    },
+    {
+      "code": "SRLVG",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 79",
+      "description": "Own supply of Low-Value Goods (LVG)"
+    },
+    {
+      "code": "NA",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "submissionRate": "0",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 79",
+      "description": "Taxable supplies where GST need not be charged under specific schemes such as AMFT scheme, A3PL scheme; taxable supplies where GST is accounted for on a different basis under specific schemes, such as GMS and Discounted Sales Price Scheme"
+    },
+    {
+      "code": "SRRC",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 79",
+      "description": "Imported services and LVG accountable by the GST-registered customer under reverse charge"
+    },
+    {
+      "code": "SROVR-RS",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Supply of remote services accountable by the electronic marketplace on behalf of third-party suppliers"
+    },
+    {
+      "code": "SROVR-LVG",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Supply of LVG accountable by the redeliverer or electronic marketplace on behalf of third-party suppliers"
+    },
+    {
+      "code": "DS",
+      "group": "SUPPLY_STANDARD_RATED",
+      "side": "SUPPLY",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Deemed supplies"
+    },
+    {
+      "code": "ZR",
+      "group": "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE",
+      "side": "SUPPLY",
+      "annexERate": "0",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Zero-rated supplies"
+    },
+    {
+      "code": "ES33",
+      "group": "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Regulation 33 Exempt Supplies"
+    },
+    {
+      "code": "ESN33",
+      "group": "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Non-Regulation 33 Exempt Supplies"
+    },
+    {
+      "code": "OS",
+      "group": "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Supplies outside the scope of the GST Act"
+    },
+    {
+      "code": "NG",
+      "group": "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 80",
+      "description": "Supplies made by non-GST registered business, i.e. the non-GST registered business is not required to determine GST treatment, charge GST, or file any GST returns"
+    },
+    {
+      "code": "TX",
+      "group": "PURCHASE_STANDARD_RATED",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Standard-rated taxable purchases"
+    },
+    {
+      "code": "IM",
+      "group": "PURCHASE_STANDARD_RATED",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Import of goods (9% GST paid to Singapore Customs on the import of goods into Singapore)"
+    },
+    {
+      "code": "ME",
+      "group": "PURCHASE_STANDARD_RATED",
+      "side": "PURCHASE",
+      "annexERate": "0",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Import of goods under the Major Exporter Scheme (MES), A3PL scheme or other approved schemes"
+    },
+    {
+      "code": "IGDS",
+      "group": "PURCHASE_STANDARD_RATED",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Import of goods under the Import GST Deferment Scheme (IGDS)"
+    },
+    {
+      "code": "TXCA",
+      "group": "PURCHASE_STANDARD_RATED",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Standard-rated purchases of prescribed goods subject to customer accounting"
+    },
+    {
+      "code": "TXNA",
+      "group": "PURCHASE_STANDARD_RATED",
+      "side": "PURCHASE",
+      "annexERate": "NA",
+      "submissionRate": "0",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Purchases made where no GST is charged under specific GST schemes, such as AMFT scheme, A3PL scheme; purchases made where GST is accounted for on a different basis under specific schemes, such as GMS and Discounted Sales Price Scheme"
+    },
+    {
+      "code": "TXRC-TS",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Imported services and LVG claimable by the GST-registered customer under reverse charge"
+    },
+    {
+      "code": "TX-ESS",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 81",
+      "description": "Standard-rated purchases directly attributable to Regulation 33 exempt supplies"
+    },
+    {
+      "code": "TXRC-ESS",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Imported services and LVG claimable by the GST-registered customer under reverse charge that are directly attributable to Regulation 33 exempt supplies"
+    },
+    {
+      "code": "IM-ESS",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Import of goods with GST paid to Singapore Customs that are directly attributable to Regulation 33 exempt supplies"
+    },
+    {
+      "code": "TX-N33",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Standard-rated purchases directly attributable to non-Regulation 33 exempt supplies"
+    },
+    {
+      "code": "TXRC-N33",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Imported services and LVG claimable by the GST-registered customer under reverse charge that are directly attributable to non-Regulation 33 exempt supplies"
+    },
+    {
+      "code": "IM-N33",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Import of goods with GST paid to Singapore Customs that are directly attributable to non-Regulation 33 exempt supplies"
+    },
+    {
+      "code": "TX-RE",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Residual input tax - purchases from GST-registered suppliers that are subject to GST at 9% and are either attributable to the making of both taxable and exempt supplies, or incurred for the overall running of the business"
+    },
+    {
+      "code": "TXRC-RE",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Imported services and LVG claimable by the GST-registered customer under reverse charge that are residual"
+    },
+    {
+      "code": "IM-RE",
+      "group": "PURCHASE_INPUT_TAX_ATTRIBUTION",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Import of goods with GST paid to Singapore Customs that are residual"
+    },
+    {
+      "code": "ZP",
+      "group": "PURCHASE_ZERO_RATED_NON_REPORTABLE",
+      "side": "PURCHASE",
+      "annexERate": "0",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Zero-rated purchases"
+    },
+    {
+      "code": "BL",
+      "group": "PURCHASE_ZERO_RATED_NON_REPORTABLE",
+      "side": "PURCHASE",
+      "annexERate": "9",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Disallowed expenses"
+    },
+    {
+      "code": "EP",
+      "group": "PURCHASE_ZERO_RATED_NON_REPORTABLE",
+      "side": "PURCHASE",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 82",
+      "description": "Exempt purchases"
+    },
+    {
+      "code": "OP",
+      "group": "PURCHASE_ZERO_RATED_NON_REPORTABLE",
+      "side": "PURCHASE",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 83",
+      "description": "Out-of-scope purchases received from GST-registered suppliers; purchases from GST-registered suppliers where input tax is not claimed (e.g. not for business purposes, invalid tax invoices, not claiming input tax out of prudence etc.)"
+    },
+    {
+      "code": "NR",
+      "group": "PURCHASE_ZERO_RATED_NON_REPORTABLE",
+      "side": "PURCHASE",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E, page 83",
+      "description": "Purchases received from non-GST registered suppliers; purchases received by non-GST registered business"
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+path	value	source kind	source class	citation	retrieved on
+/complete	true	REQUIREMENT	PRIMARY	INV-REQ-418	
+/codes/0/code	"SR"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/0/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/0/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/0/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/0/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/0/sourceReference	"R1 Annex E, page 79"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/0/description	"Standard-rated supply of goods or services"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/1/code	"SRCA-S"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/1/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/1/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/1/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/1/submissionRate	"0"	LAW	PRIMARY	R1 Example 26 (IBT-119, IBT-152 = 0), page 50	2026-10-28
+/codes/1/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/1/sourceReference	"R1 Annex E, page 79"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/1/description	"Customer accounting supply made by supplier"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/2/code	"SRCA-C"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/2/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/2/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/2/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/2/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/2/sourceReference	"R1 Annex E, page 79"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/2/description	"Customer accounting supply accountable by the customer on supplier's behalf"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/3/code	"SRLVG"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/3/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/3/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/3/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/3/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/3/sourceReference	"R1 Annex E, page 79"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/3/description	"Own supply of Low-Value Goods (LVG)"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/4/code	"NA"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/4/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/4/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/4/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/4/submissionRate	"0"	LAW	PRIMARY	R1 section 11.19 Gross Margin Scheme (IBT-119, IBT-152 indicated as 0), page 45	2026-10-28
+/codes/4/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/4/sourceReference	"R1 Annex E, page 79"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/4/description	"Taxable supplies where GST need not be charged under specific schemes such as AMFT scheme, A3PL scheme; taxable supplies where GST is accounted for on a different basis under specific schemes, such as GMS and Discounted Sales Price Scheme"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/5/code	"SRRC"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/5/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/5/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/5/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/5/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/5/sourceReference	"R1 Annex E, page 79"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/5/description	"Imported services and LVG accountable by the GST-registered customer under reverse charge"	LAW	PRIMARY	R1 Annex E page 79	2026-10-28
+/codes/6/code	"SROVR-RS"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/6/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/6/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/6/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/6/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/6/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/6/description	"Supply of remote services accountable by the electronic marketplace on behalf of third-party suppliers"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/7/code	"SROVR-LVG"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/7/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/7/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/7/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/7/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/7/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/7/description	"Supply of LVG accountable by the redeliverer or electronic marketplace on behalf of third-party suppliers"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/8/code	"DS"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/8/group	"SUPPLY_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/8/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/8/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/8/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/8/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/8/description	"Deemed supplies"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/9/code	"ZR"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/9/group	"SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/9/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/9/annexERate	"0"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/9/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/9/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/9/description	"Zero-rated supplies"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/10/code	"ES33"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/10/group	"SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/10/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/10/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/10/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/10/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/10/description	"Regulation 33 Exempt Supplies"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/11/code	"ESN33"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/11/group	"SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/11/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/11/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/11/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/11/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/11/description	"Non-Regulation 33 Exempt Supplies"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/12/code	"OS"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/12/group	"SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/12/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/12/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/12/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/12/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/12/description	"Supplies outside the scope of the GST Act"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/13/code	"NG"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/13/group	"SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/13/side	"SUPPLY"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/13/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/13/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/13/sourceReference	"R1 Annex E, page 80"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/13/description	"Supplies made by non-GST registered business, i.e. the non-GST registered business is not required to determine GST treatment, charge GST, or file any GST returns"	LAW	PRIMARY	R1 Annex E page 80	2026-10-28
+/codes/14/code	"TX"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/14/group	"PURCHASE_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/14/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/14/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/14/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/14/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/14/description	"Standard-rated taxable purchases"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/15/code	"IM"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/15/group	"PURCHASE_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/15/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/15/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/15/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/15/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/15/description	"Import of goods (9% GST paid to Singapore Customs on the import of goods into Singapore)"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/16/code	"ME"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/16/group	"PURCHASE_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/16/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/16/annexERate	"0"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/16/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/16/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/16/description	"Import of goods under the Major Exporter Scheme (MES), A3PL scheme or other approved schemes"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/17/code	"IGDS"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/17/group	"PURCHASE_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/17/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/17/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/17/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/17/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/17/description	"Import of goods under the Import GST Deferment Scheme (IGDS)"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/18/code	"TXCA"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/18/group	"PURCHASE_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/18/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/18/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/18/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/18/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/18/description	"Standard-rated purchases of prescribed goods subject to customer accounting"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/19/code	"TXNA"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/19/group	"PURCHASE_STANDARD_RATED"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/19/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/19/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/19/submissionRate	"0"	LAW	PRIMARY	R1 section 11.19 Gross Margin Scheme customer (IBT-119, IBT-152 indicated as 0), page 46	2026-10-28
+/codes/19/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/19/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/19/description	"Purchases made where no GST is charged under specific GST schemes, such as AMFT scheme, A3PL scheme; purchases made where GST is accounted for on a different basis under specific schemes, such as GMS and Discounted Sales Price Scheme"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/20/code	"TXRC-TS"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/20/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/20/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/20/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/20/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/20/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/20/description	"Imported services and LVG claimable by the GST-registered customer under reverse charge"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/21/code	"TX-ESS"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/21/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/21/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/21/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/21/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/21/sourceReference	"R1 Annex E, page 81"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/21/description	"Standard-rated purchases directly attributable to Regulation 33 exempt supplies"	LAW	PRIMARY	R1 Annex E page 81	2026-10-28
+/codes/22/code	"TXRC-ESS"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/22/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/22/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/22/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/22/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/22/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/22/description	"Imported services and LVG claimable by the GST-registered customer under reverse charge that are directly attributable to Regulation 33 exempt supplies"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/23/code	"IM-ESS"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/23/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/23/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/23/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/23/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/23/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/23/description	"Import of goods with GST paid to Singapore Customs that are directly attributable to Regulation 33 exempt supplies"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/24/code	"TX-N33"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/24/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/24/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/24/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/24/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/24/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/24/description	"Standard-rated purchases directly attributable to non-Regulation 33 exempt supplies"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/25/code	"TXRC-N33"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/25/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/25/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/25/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/25/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/25/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/25/description	"Imported services and LVG claimable by the GST-registered customer under reverse charge that are directly attributable to non-Regulation 33 exempt supplies"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/26/code	"IM-N33"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/26/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/26/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/26/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/26/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/26/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/26/description	"Import of goods with GST paid to Singapore Customs that are directly attributable to non-Regulation 33 exempt supplies"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/27/code	"TX-RE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/27/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/27/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/27/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/27/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/27/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/27/description	"Residual input tax - purchases from GST-registered suppliers that are subject to GST at 9% and are either attributable to the making of both taxable and exempt supplies, or incurred for the overall running of the business"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/28/code	"TXRC-RE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/28/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/28/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/28/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/28/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/28/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/28/description	"Imported services and LVG claimable by the GST-registered customer under reverse charge that are residual"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/29/code	"IM-RE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/29/group	"PURCHASE_INPUT_TAX_ATTRIBUTION"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/29/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/29/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/29/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/29/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/29/description	"Import of goods with GST paid to Singapore Customs that are residual"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/30/code	"ZP"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/30/group	"PURCHASE_ZERO_RATED_NON_REPORTABLE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/30/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/30/annexERate	"0"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/30/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/30/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/30/description	"Zero-rated purchases"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/31/code	"BL"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/31/group	"PURCHASE_ZERO_RATED_NON_REPORTABLE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/31/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/31/annexERate	"9"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/31/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/31/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/31/description	"Disallowed expenses"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/32/code	"EP"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/32/group	"PURCHASE_ZERO_RATED_NON_REPORTABLE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/32/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/32/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/32/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/32/sourceReference	"R1 Annex E, page 82"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/32/description	"Exempt purchases"	LAW	PRIMARY	R1 Annex E page 82	2026-10-28
+/codes/33/code	"OP"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/33/group	"PURCHASE_ZERO_RATED_NON_REPORTABLE"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/33/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/33/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/33/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/33/sourceReference	"R1 Annex E, page 83"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/33/description	"Out-of-scope purchases received from GST-registered suppliers; purchases from GST-registered suppliers where input tax is not claimed (e.g. not for business purposes, invalid tax invoices, not claiming input tax out of prudence etc.)"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/34/code	"NR"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/34/group	"PURCHASE_ZERO_RATED_NON_REPORTABLE"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/34/side	"PURCHASE"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/34/annexERate	"NA"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
+/codes/34/sourceClass	"PRIMARY"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/34/sourceReference	"R1 Annex E, page 83"	REQUIREMENT	PRIMARY	INV-REQ-2429	
+/codes/34/description	"Purchases received from non-GST registered suppliers; purchases received by non-GST registered business"	LAW	PRIMARY	R1 Annex E page 83	2026-10-28
