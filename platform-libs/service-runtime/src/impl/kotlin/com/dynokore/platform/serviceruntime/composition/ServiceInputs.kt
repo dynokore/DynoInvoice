@@ -90,6 +90,7 @@ data class EvidenceProperties(
 internal object Props {
     const val SCHEMA = "service-runtime.modules.schema"
     const val SERVICE = "gst.service"
+    const val AUDIT_WRITER = "service-runtime.modules.audit.writer"
     const val LEDGER_TABLE = "service-runtime.modules.evidence.ledger-table"
     const val LEGAL_HOLD_TABLE = "service-runtime.modules.evidence.legal-hold-table"
     const val BUCKET = "service-runtime.modules.evidence.bucket"

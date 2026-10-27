@@ -99,11 +99,13 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.web.servlet.ServletRegistrationBean
+import org.springframework.core.env.MapPropertySource
 import software.amazon.awssdk.services.s3.S3Client
 import java.nio.file.Files
 import java.nio.file.Path
@@ -668,6 +670,125 @@ class CompositionRootTest {
                     ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
                     .delegate
                     .shouldBeInstanceOf<LocalAuditWriter>()
+            }
+    }
+
+    private val auditWriterProperty = "service-runtime.modules.audit.writer"
+
+    private fun auditDelegate(context: AssertableApplicationContext): AuditWriter =
+        context
+            .getBean(AuditWriter::class.java)
+            .shouldBeInstanceOf<OperatorSessionAuditWriter>()
+            .delegate
+
+    @Test
+    fun `audit writer local selects the local writer although the service has an outbox`(
+        @TempDir mountRoot: Path,
+    ) {
+        base.withServiceInputs(mountRoot).withPropertyValues("$auditWriterProperty=local").run { context ->
+            context.startupFailure shouldBe null
+            auditDelegate(context).shouldBeInstanceOf<LocalAuditWriter>()
+            context.getBeanNamesForType(AuditWriter::class.java).toList() shouldBe listOf("localAuditWriter")
+            context.getBeansOfType(OutboxWriter::class.java).size shouldBe 1
+            context.getBean(AuditedOperations::class.java)
+            context.getBean(OverrideService::class.java)
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["", "outbox"])
+    fun `audit writer absent or outbox keeps the outbox writer`(
+        value: String,
+        @TempDir mountRoot: Path,
+    ) {
+        val runner = base.withServiceInputs(mountRoot)
+        (if (value.isEmpty()) runner else runner.withPropertyValues("$auditWriterProperty=$value")).run { context ->
+            context.startupFailure shouldBe null
+            auditDelegate(context).shouldBeInstanceOf<OutboxAuditWriter>()
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Local", "local ", "locale", "", "OUTBOX", "outbox "])
+    fun `a bad audit writer value fails the start and names the property`(
+        value: String,
+        @TempDir mountRoot: Path,
+    ) {
+        // a property source of its own: withPropertyValues trims the value, which would hide a trailing space
+        base
+            .withServiceInputs(mountRoot)
+            .withInitializer {
+                it.environment.propertySources.addFirst(MapPropertySource("exact", mapOf(auditWriterProperty to value)))
+            }.run { context ->
+                context.startupFailure
+                    .shouldNotBeNull()
+                    .message
+                    .shouldNotBeNull()
+                    .contains(auditWriterProperty) shouldBe
+                    true
+            }
+    }
+
+    @Test
+    fun `audit writer local without gst service fails the start and names the property`() {
+        base
+            .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+            .withPropertyValues(
+                "gst.instance-id=cp-0",
+                "service-runtime.modules.schema=control_plane",
+                "$auditWriterProperty=local",
+            ).run { context ->
+                context.startupFailure.shouldNotBeNull().message.shouldNotBeNull().contains(
+                    auditWriterProperty,
+                ) shouldBe
+                    true
+            }
+    }
+
+    @Test
+    fun `audit writer local without the schema property fails the start and names the property`() {
+        base
+            .withBean("dataSource", DataSource::class.java, { mockk<DataSource>(relaxed = true) })
+            .withPropertyValues(
+                "gst.service=control-plane-svc",
+                "gst.instance-id=cp-0",
+                "$auditWriterProperty=local",
+            ).run { context ->
+                context.startupFailure.shouldNotBeNull().message.shouldNotBeNull().contains(
+                    auditWriterProperty,
+                ) shouldBe
+                    true
+            }
+    }
+
+    @Test
+    fun `audit writer local without a TransactionRunner fails the start and names the property`() {
+        ApplicationContextRunner()
+            .withUserConfiguration(AuditLogWiring::class.java)
+            .withPropertyValues(
+                "gst.service=control-plane-svc",
+                "service-runtime.modules.schema=control_plane",
+                "$auditWriterProperty=local",
+            ).run { context ->
+                context.startupFailure.shouldNotBeNull().message.shouldNotBeNull().contains(
+                    auditWriterProperty,
+                ) shouldBe
+                    true
+            }
+    }
+
+    @Test
+    fun `a service's own AuditWriter bean wins over audit writer local`(
+        @TempDir mountRoot: Path,
+    ) {
+        val own = mockk<AuditWriter>(relaxed = true)
+        base
+            .withServiceInputs(mountRoot)
+            .withBean("ownAuditWriter", AuditWriter::class.java, { own })
+            .withPropertyValues("$auditWriterProperty=local")
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.getBeanNamesForType(AuditWriter::class.java).toList() shouldBe listOf("ownAuditWriter")
             }
     }
 

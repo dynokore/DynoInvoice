@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.14.0] - 2026-10-27
+### Added
+- The property `service-runtime.modules.audit.writer` (`local` or `outbox`) lets a service that has an outbox select `LocalAuditWriter`; absent keeps today's selection, any other value or `local` without a `TransactionRunner`, `gst.service` or the schema property fails the start with a message naming the property (INV-T-11437; coordinator ruling INV-Q-11431 A).
+
 ## [10.13.0] - 2026-10-27
 ### Added
 - `EntityRefScopeFilter` judges every element of an array-valued entity reference and reads a line whose third column holds several property names joined by a comma; a non-string element, a repeated name or a bad name is refused as before (coordinator ruling INV-Q-9617 A; INV-T-9632; INV-REQ-1202; INV-AC-9629).
