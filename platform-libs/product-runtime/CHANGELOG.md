@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-10-27
+### Changed
+- Depends on `service-runtime 10.17.0`: `AuthorityReplica.decideTenant` is added in `service-runtime` (INV-T-11703; G-DVS).
+
 ## [1.6.2] - 2026-10-27
 ### Changed
 - Depends on `service-runtime 10.16.0`: the machine access token is verified in `service-runtime` (INV-T-9155; G-DVS).

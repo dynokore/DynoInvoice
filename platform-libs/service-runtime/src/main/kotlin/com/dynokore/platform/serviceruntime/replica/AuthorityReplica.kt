@@ -473,6 +473,7 @@ data class PrincipalRevocation(
  * `AuthorityChanged` with no ordering between the two (coordinator rulings INV-Q-4162, INV-Q-4171): each event
  * carries the whole key set and replaces the one held. Holding no valid key refuses every operator-session token.
  */
+@Suppress("TooManyFunctions") // one decision per scope: decide, decideTenant; INV-Q-11688 A (CS-50)
 class AuthorityReplica(
     private val clock: Clock,
     val lagBound: Duration = DEFAULT_LAG_BOUND,
@@ -527,6 +528,45 @@ class AuthorityReplica(
 
             FallbackResult.Unavailable -> {
                 degraded(request.principal)
+            }
+        }
+    }
+
+    /**
+     * Decides an operation that names no entity: permitted only on a TENANT-scope grant of exactly [action]
+     * (INV-Q-11688 A, INV-AC-11706). The access contract cannot be asked for a tenant scope, so beyond the lag
+     * bound, or with no version received, the answer is AUTHORITY_UNAVAILABLE for every principal kind: no
+     * fallback call and no machine continuation. A record voided by the principal record (same rule as
+     * [decideLocally]) never grants; REVOKED when only such records hold a live TENANT grant of the action.
+     */
+    fun decideTenant(
+        tenant: TenantId,
+        principal: Principal,
+        action: String,
+    ): AuthorityDecision {
+        if (!tracker.lag().isWithin(lagBound)) {
+            return AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+        }
+        val voidBelow = principals.peek(PrincipalKey(tenant, principal.id))?.revocationVersion
+        val now = clock.instant()
+        val tenantHolders =
+            grants
+                .heldIn(tenant to principal.id)
+                .values
+                .filter { state ->
+                    state.grants.any { it.action == action && it.scopeLevel == ScopeLevel.TENANT && it.isValidAt(now) }
+                }
+        return when {
+            tenantHolders.any { voidBelow == null || it.authorityVersion >= voidBelow } -> {
+                local(DecisionReason.GRANTED)
+            }
+
+            tenantHolders.isNotEmpty() -> {
+                local(DecisionReason.REVOKED)
+            }
+
+            else -> {
+                local(DecisionReason.NO_GRANT)
             }
         }
     }

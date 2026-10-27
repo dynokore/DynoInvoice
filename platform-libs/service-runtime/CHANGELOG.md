@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.17.0] - 2026-10-27
+### Added
+- `AuthorityReplica.decideTenant(tenant, principal, action)`: an operation that names no entity is permitted only on a TENANT-scope grant of exactly that action, decided locally; beyond the lag bound or with no version received the answer is AUTHORITY_UNAVAILABLE for every principal kind, with no fallback call (INV-Q-11688 A; INV-AC-11706).
+
 ## [10.16.0] - 2026-10-27
 ### Added
 - `MachineTokenFilter` and `MachineTokenVerifier` (impl): a request whose method and path match a line of `META-INF/gst/machine-principal-operations.tsv` is verified here and never reaches the end-user resolver. The token passes only with `typ` `at+jwt`, a signature by a machine-access key matched by `kid` with `alg` equal to the key's `alg` (RS, PS, ES), the configured `iss` and `aud` (`service-runtime.machine-identity.issuer` and `.audience`), `exp` not passed, `iat`, `sub` equal to `client_id`, `tenant_id` for `ingest`, `filing-workflow`, `reporting` and `certification`, and exactly one `scope` equal to the line's scope (or `certification` on a line with that additional principal, then only with `environment` `SANDBOX`). A bad token is 401 SRT-003, a wrong scope or a certification token outside SANDBOX 403 SRT-004; an empty machine key set is 401; no network call (INV-Q-9028 A, INV-Q-9040 A, INV-Q-9032 A; INV-AC-9147, INV-AC-9148, INV-AC-9149).
