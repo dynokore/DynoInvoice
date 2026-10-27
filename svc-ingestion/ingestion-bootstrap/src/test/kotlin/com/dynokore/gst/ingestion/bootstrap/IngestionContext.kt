@@ -37,7 +37,7 @@ object IngestionContext {
             "spring.datasource.url=jdbc:postgresql://localhost:5432/ingestion",
             "spring.datasource.username=ingestion_runtime",
             "service-runtime.workload-identity.audience=ingestion-svc",
-            "ingestion.canonical-svc-url=http://localhost:9",
+            "INGESTION_CANONICAL_SVC_URL=http://localhost:9",
             "gst.service=ingestion-svc",
             "gst.instance-id=ingestion-svc-0",
             "service-runtime.pool.profile=minimal",
