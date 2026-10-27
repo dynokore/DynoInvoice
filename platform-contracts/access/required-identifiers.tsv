@@ -126,3 +126,5 @@ decideOverrideRelease	operation	openapi.yaml	INV-REQ-1293
 getMappingAcknowledgement	operation	openapi.yaml	INV-REQ-996
 recordInstallationApproverFact	operation	openapi.yaml	INV-REQ-992
 getInstallationApproverFact	operation	openapi.yaml	INV-REQ-992
+# INV-T-9377. INV-Q-8868 A, INV-REQ-853 and INV-AC-7741: the backticked name authorise is an operation of the access contract; access.role_grant is a table of svc-access, CLIENT-A and CLIENT-B are test fixtures and doc.view is a permission of a test, none a contract identifier, so no rows.
+authorise	operation	openapi.yaml	INV-REQ-853

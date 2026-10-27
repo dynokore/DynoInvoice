@@ -31,3 +31,4 @@
 ../openapi.yaml#/components/schemas/OverrideReleaseDecision override-release-decision-*.json
 ../openapi.yaml#/components/schemas/InstallationApproverFact installation-approver-fact-state-*.json
 ../openapi.yaml#/components/schemas/InstallationApproverFactRequest installation-approver-fact-request-*.json
+../openapi.yaml#/components/schemas/GrantRequest grant-request-*.json
