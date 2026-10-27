@@ -49,14 +49,24 @@ object LayerOneSeverity {
         escalations: List<SeverityEscalation>,
     ): ClassifiedFinding =
         when (failure.flag) {
-            PeppolFlag.FATAL -> ClassifiedFinding(failure.ruleId, Severity.BLOCK, PAY_002)
-            PeppolFlag.WARNING ->
-                if (escalations.any { it.ruleId == failure.ruleId && specificationVersion in it.specificationVersions }) {
+            PeppolFlag.FATAL -> {
+                ClassifiedFinding(failure.ruleId, Severity.BLOCK, PAY_002)
+            }
+
+            PeppolFlag.WARNING -> {
+                if (isEscalated(failure.ruleId, specificationVersion, escalations)) {
                     ClassifiedFinding(failure.ruleId, Severity.BLOCK, PAY_001)
                 } else {
                     ClassifiedFinding(failure.ruleId, Severity.WARN, null)
                 }
+            }
         }
+
+    private fun isEscalated(
+        ruleId: String,
+        specificationVersion: String,
+        escalations: List<SeverityEscalation>,
+    ): Boolean = escalations.any { it.ruleId == ruleId && specificationVersion in it.specificationVersions }
 }
 
 /** The verdict that holds both validation layers (INV-REQ-470 behavior 3). */
