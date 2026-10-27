@@ -52,7 +52,7 @@ class DocumentKit {
                 DSL.name("canonical", "document_party") to TableClass.TENANT,
             ),
         )
-    private val dsl =
+    val dsl =
         TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tables, tenants, transaction).dsl()
     val store = JooqDocumentStore(dsl)
     val versions = CreateDocumentVersion(store, transaction)
