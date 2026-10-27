@@ -7,6 +7,8 @@ dependencies {
     testImplementation(platform(libs.springBoot.dependencies))
     testImplementation(project(":canonical-contract"))
     testImplementation(project(":canonical-adapters"))
+    testImplementation(project(":canonical-domain"))
+    testImplementation(libs.gstCatalogue)
     testImplementation(libs.springBoot.starterWeb)
     testImplementation(libs.snakeyaml)
     testImplementation(project(":canonical-bootstrap"))
