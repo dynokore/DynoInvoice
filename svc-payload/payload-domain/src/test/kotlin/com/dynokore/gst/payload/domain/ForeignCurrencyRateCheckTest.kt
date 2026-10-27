@@ -14,6 +14,7 @@ class ForeignCurrencyRateCheckTest {
     private val onFile = RateOnFile("MAS", "USD", day, rate)
     private val stated = StatedSgd(rate, "MAS", "1.00", "1.00", "1.00")
 
+    @Suppress("LongParameterList") // a test builder: every argument of check has a default
     private fun run(
         currency: String = "USD",
         elected: String? = "MAS",
