@@ -22,4 +22,4 @@
 ../openapi.yaml#/components/schemas/DryRunSupplyTypeTotal dry-run-supply-type-total-*.json
 ../openapi.yaml#/components/schemas/MappingPackApproval pack-approval-*.json
 ../openapi.yaml#/components/schemas/MappingPackActivation pack-activation-*.json
-../openapi.yaml#/components/schemas/ActiveRegulatoryPackPage active-regulatory-pack-page-*.json
+../openapi.yaml#/components/schemas/ActiveRegulatoryPackPage active-regulatory-pack-*.json
