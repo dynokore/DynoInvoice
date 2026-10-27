@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.18.0] - 2026-10-28
+### Added
+- `ConfiguredTelemetryExport`, the one `TelemetryExport` implementation, created by `BindingAutoConfiguration` when `gst.bindings.telemetry-export` is `bundled-otel` or `managed-observability` and no other bean exists; `gst.bindings.telemetry-export-otlp-endpoint` is validated at start-up (scheme compared case-insensitively, INV-Q-11874) and returned unchanged (INV-T-11067, INV-Q-11058, INV-REQ-1384).
+
 ## [10.17.1] - 2026-10-27
 ### Changed
 - Metadata-only change (INV-T-9100, G-DVS): depends on `outbox-and-queue 6.6.0`, whose version steps; no code change.

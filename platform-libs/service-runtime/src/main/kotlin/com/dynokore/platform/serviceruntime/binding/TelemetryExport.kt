@@ -8,9 +8,11 @@ package com.dynokore.platform.serviceruntime.binding
  * [otlpEndpoint] differs, selected by configuration (ARC-11), not by a second
  * implementation.
  *
- * Declared here as one of the closed set of SDS §12.1 bindings (FR-H.1); no
- * implementation ships with this task (done-when, INV-T-2871 / T27) — one lands
- * with the task that wires Micrometer's OTLP registry to it.
+ * Declared here as one of the closed set of SDS §12.1 bindings (FR-H.1). The one implementation,
+ * `ConfiguredTelemetryExport`, is created by service-runtime's auto-configuration when
+ * `gst.bindings.telemetry-export` (`bundled-otel` or `managed-observability`) and
+ * `gst.bindings.telemetry-export-otlp-endpoint` are set and the service supplies no bean of its own
+ * (INV-T-11067, INV-Q-11058).
  */
 fun interface TelemetryExport : Binding {
     /** The OTLP endpoint metrics and traces export to. */

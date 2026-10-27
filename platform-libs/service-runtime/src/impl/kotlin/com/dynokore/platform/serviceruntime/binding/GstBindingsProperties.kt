@@ -39,11 +39,17 @@ data class GstProperties(
  * The implementation selected per §12.1 binding (TPL-16 `global.bindings`: `eventBinding: postgres`,
  * `objectStore: s3-compatible`, `secretStore: kubernetes`). Each value names the one implementation platform-libs
  * ships for that binding today, which is also the default (INV-T-2875).
+ *
+ * @property telemetryExport `bundled-otel` or `managed-observability` (both select [ConfiguredTelemetryExport]); null
+ *   means the auto-configuration provides no [TelemetryExport] (INV-T-11067, INV-Q-11058).
+ * @property telemetryExportOtlpEndpoint the OTLP endpoint [TelemetryExport.otlpEndpoint] returns, used as given.
  */
 data class BindingsProperties(
     val eventBinding: String = "postgres",
     val objectStore: String = "s3-compatible",
     val secretStore: SecretStoreProperties = SecretStoreProperties(),
+    val telemetryExport: String? = null,
+    val telemetryExportOtlpEndpoint: String? = null,
 )
 
 /**

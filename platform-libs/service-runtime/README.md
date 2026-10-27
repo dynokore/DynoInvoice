@@ -44,7 +44,11 @@ Service inputs:
   (the service's own schema), `service-runtime.modules.evidence.ledger-table`, `.legal-hold-table` and `.bucket`.
 - **§12.1 selection:** `gst.bindings.event-binding` (`postgres`), `gst.bindings.object-store` (`s3-compatible`),
   `gst.bindings.secret-store.implementation` (`kubernetes`). Each names the one implementation platform-libs ships
-  and is the default.
+  and is the default. `gst.bindings.telemetry-export` (`bundled-otel` or `managed-observability`, no default) and
+  `gst.bindings.telemetry-export-otlp-endpoint` select `ConfiguredTelemetryExport` (INV-T-11067, INV-Q-11058): both
+  names select the same class and differ only in the endpoint; a selection of any other value, or an endpoint that is
+  missing, not `http`/`https`, without a host, or with user information, a query, a fragment or a trailing slash,
+  refuses the start. With the selection absent no `TelemetryExport` is provided and a service may supply its own.
 
 | Module | Port | Implementation | Created when the service declares |
 | --- | --- | --- | --- |
@@ -76,6 +80,7 @@ Service inputs:
 | crypto | `DetachedSigner`, `DetachedSignatureVerifier` | `BouncyCastleCms` | nothing |
 | rulepack-kernel | `PackVerifier`, `PackContentValidator`, `PackRegistry` | `BouncyCastlePackVerifier`, `JacksonPackContentValidator`, `InMemoryPackRegistry` | nothing |
 | service-runtime | `SecretStore` (§12.1) | `MountedFileSecretStore` | nothing |
+| service-runtime | `TelemetryExport` (§12.1) | `ConfiguredTelemetryExport` | `gst.bindings.telemetry-export`, `gst.bindings.telemetry-export-otlp-endpoint`; no other `TelemetryExport` |
 | service-runtime | `OperationRunner` | `TransactionalOperationRunner` | (a `TransactionRunner` with its `CurrentConnection`, an `AuditWriter`) |
 | service-runtime | `ConnectionStatusReporter`, the only `ConnectionStatusChanged` publisher (INV-REQ-836 b4) | `OutboxConnectionStatusReporter` | (an `OutboxWriter`) |
 | service-runtime | `EvidenceArtefactRecorder` | `OutboxEvidenceArtefactRecorder` | (an `OutboxWriter`) |
@@ -85,7 +90,7 @@ Service inputs:
 
 Left for the service, with no platform-libs implementation: the §12.1 `PackSource` (rules-svc, INV-ADR-2773,
 INV-REQ-1079), the base `LicenceCheck` (tenancy-svc, INV-REQ-1076), `MessageDelivery` (INV-REQ-817: one implementation per channel, EMAIL and SMS; the SMS channel carries passcodes only, INV-REQ-2762),
-`IdentityProvider` (INV-REQ-882) and `TelemetryExport` (INV-REQ-1104); `JobCommandAuthorizer`, `DeadlineSource`
+`IdentityProvider` (INV-REQ-882); `JobCommandAuthorizer`, `DeadlineSource`
 and `EndUserPrincipalResolver`; and the per-edge or per-adapter `ResilientExecutor`, `VersionedAdapterRouter` and
 `SigningKey`. No other L1 module depends on service-runtime (`CompositionRootDirectionTest`).
 
