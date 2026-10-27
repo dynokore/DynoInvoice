@@ -75,7 +75,16 @@ open class BreakGlassController(
         val callerService = serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         val action = BreakGlassAction.valueOf(breakGlassActionRequest.action.name)
-        return when (val outcome = record.handle(actor, unlockRef, action, breakGlassActionRequest.target, callerService)) {
+        return when (
+            val outcome =
+                record.handle(
+                    actor,
+                    unlockRef,
+                    action,
+                    breakGlassActionRequest.target,
+                    callerService,
+                )
+        ) {
             is RecordBreakGlassOutcome.Recorded -> {
                 ResponseEntity.status(HttpStatus.CREATED).body(
                     BreakGlassActionResponse(

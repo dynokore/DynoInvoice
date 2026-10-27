@@ -91,7 +91,10 @@ class RecordBreakGlassActionCallerTest {
                 null to RecordBreakGlassOutcome.NotFound,
             )
         cases.forEach { (found, expected) ->
-            assertEquals(expected, useCase(found).handle("IDN-ADM", "BG-1", BreakGlassAction.VIEW, null, "ingestion-svc"))
+            assertEquals(
+                expected,
+                useCase(found).handle("IDN-ADM", "BG-1", BreakGlassAction.VIEW, null, "ingestion-svc"),
+            )
         }
         assertTrue(inserted.isEmpty() && audits.isEmpty() && alerts.isEmpty())
     }
