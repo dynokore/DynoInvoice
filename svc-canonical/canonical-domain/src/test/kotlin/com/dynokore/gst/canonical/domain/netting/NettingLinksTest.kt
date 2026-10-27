@@ -1,8 +1,10 @@
 package com.dynokore.gst.canonical.domain.netting
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.util.UUID
@@ -89,6 +91,46 @@ class NettingLinksTest {
         val links = NettingLinks.forRevision(entity, listOf("K"), recorded)
         links.resolved.shouldBeEmpty()
         links.unresolved shouldBe listOf(Unresolved("K", Why.OTHER_ENTITY))
+    }
+
+    @Test
+    fun `an invoice of another entity is OTHER_ENTITY`() {
+        val recorded = mapOf("K" to doc(inv1, DocumentFunction.INVOICE, otherEntity))
+        NettingLinks.forRevision(entity, listOf("K"), recorded).unresolved shouldBe
+            listOf(Unresolved("K", Why.OTHER_ENTITY))
+    }
+
+    @Test
+    fun `a debit note of another entity is OTHER_ENTITY`() {
+        val recorded = mapOf("K" to doc(inv1, DocumentFunction.DEBIT_NOTE, otherEntity))
+        NettingLinks.forRevision(entity, listOf("K"), recorded).unresolved shouldBe
+            listOf(Unresolved("K", Why.OTHER_ENTITY))
+    }
+
+    @Test
+    fun `a repeated key is refused naming the first repeated key`() {
+        val recorded = mapOf("K1" to doc(cn1, DocumentFunction.CREDIT_NOTE))
+        val e =
+            shouldThrow<IllegalArgumentException> {
+                NettingLinks.forRevision(
+                    entity,
+                    listOf("K0", "K1", "K0", "K1"),
+                    recorded,
+                )
+            }
+        e.message shouldContain "K0"
+        shouldThrow<IllegalArgumentException> {
+            NettingLinks.forRevision(entity, listOf("K1", "K1"), recorded)
+        }.message shouldContain
+            "K1"
+    }
+
+    @Test
+    fun `keys differing in case, an empty list and a one-key list are not refused`() {
+        val recorded = mapOf("K1" to doc(cn1, DocumentFunction.CREDIT_NOTE))
+        NettingLinks.forRevision(entity, listOf("K1", "k1"), recorded).resolved shouldBe listOf(cn1)
+        NettingLinks.forRevision(entity, emptyList(), recorded) shouldBe RevisionLinks(emptyList(), emptyList())
+        NettingLinks.forRevision(entity, listOf("K1"), recorded).resolved shouldBe listOf(cn1)
     }
 
     @Test

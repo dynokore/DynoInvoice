@@ -28,7 +28,10 @@ data class Unresolved(
     val why: Why,
 )
 
-/** [resolved] are the Doc UUIDs of `nettedCreditNoteDocUuids`, in key order; [unresolved] the other keys, in key order. */
+/**
+ * [resolved]: the Doc UUIDs of `nettedCreditNoteDocUuids`, in key order;
+ * [unresolved]: the other keys, in key order.
+ */
 data class RevisionLinks(
     val resolved: List<UUID>,
     val unresolved: List<Unresolved>,
@@ -56,6 +59,7 @@ object NettingLinks {
         keys: List<String>,
         recorded: Map<String, RecordedDocument>,
     ): RevisionLinks {
+        require(keys.size == keys.toSet().size) { "nettedCreditNoteKeys repeats the key '${firstRepeated(keys)}'" }
         val resolved = mutableListOf<UUID>()
         val unresolved = mutableListOf<Unresolved>()
         for (key in keys) {
@@ -63,8 +67,8 @@ object NettingLinks {
             val why =
                 when {
                     doc == null -> Why.NOT_RECORDED
-                    doc.documentFunction != DocumentFunction.CREDIT_NOTE -> Why.NOT_A_CREDIT_NOTE
                     doc.entityId != entityId -> Why.OTHER_ENTITY
+                    doc.documentFunction != DocumentFunction.CREDIT_NOTE -> Why.NOT_A_CREDIT_NOTE
                     else -> null
                 }
             if (why == null) resolved += recorded.getValue(key).docUuid else unresolved += Unresolved(key, why)
@@ -87,5 +91,10 @@ object NettingLinks {
             1 -> NettedBy(matches.single().docUuid)
             else -> Ambiguous
         }
+    }
+
+    private fun firstRepeated(keys: List<String>): String {
+        val seen = HashSet<String>()
+        return keys.first { !seen.add(it) }
     }
 }
