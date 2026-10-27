@@ -63,11 +63,27 @@ class CancellationTallyTest {
     @Test
     fun `INV-AC-601 an extra code on the credit note and a missing code each give CATEGORY_CODE_SET`() {
         val sr = TallyGroup("SR", d("100.00"), d("9.00"))
-        val zr = TallyGroup("ZR", d("5.00"), d("0.00"))
+        val zr = TallyGroup("ZR", d("50.00"), d("0.00"))
         kinds(CancellationTally.compare(basis(), basis(groups = listOf(sr, zr)))) shouldBe
-            listOf(TallyMismatch(TallyMismatchKind.CATEGORY_CODE_SET, "ZR", null, "5.00"))
+            listOf(TallyMismatch(TallyMismatchKind.CATEGORY_CODE_SET, "ZR", null, "50.00"))
         kinds(CancellationTally.compare(basis(groups = listOf(sr, zr)), basis())) shouldBe
-            listOf(TallyMismatch(TallyMismatchKind.CATEGORY_CODE_SET, "ZR", "5.00", null))
+            listOf(TallyMismatch(TallyMismatchKind.CATEGORY_CODE_SET, "ZR", "50.00", null))
+    }
+
+    @Test
+    fun `INV-AC-10441 an extra code with two groups carries their taxable sum`() {
+        val extra = listOf(TallyGroup("ZR", d("20.00"), d("1.00")), TallyGroup("ZR", d("30.00"), d("2.00")))
+        val sr = TallyGroup("SR", d("100.00"), d("9.00"))
+        kinds(CancellationTally.compare(basis(), basis(groups = listOf(sr) + extra))) shouldBe
+            listOf(TallyMismatch(TallyMismatchKind.CATEGORY_CODE_SET, "ZR", null, "50.00"))
+    }
+
+    @Test
+    fun `INV-AC-10441 an extra code with taxable zero carries the zero string`() {
+        val sr = TallyGroup("SR", d("100.00"), d("9.00"))
+        val zr = TallyGroup("ZR", d("0.00"), d("0.00"))
+        kinds(CancellationTally.compare(basis(), basis(groups = listOf(sr, zr)))) shouldBe
+            listOf(TallyMismatch(TallyMismatchKind.CATEGORY_CODE_SET, "ZR", null, "0.00"))
     }
 
     @Test

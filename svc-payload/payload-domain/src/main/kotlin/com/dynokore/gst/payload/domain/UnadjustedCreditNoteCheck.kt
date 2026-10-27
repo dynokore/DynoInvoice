@@ -23,7 +23,6 @@ object UnadjustedCreditNoteCheck {
         marked: Boolean,
         lines: List<LineCode>,
     ): CheckResult {
-        require(lines.isNotEmpty()) { "a credit note has lines (ingestion contract)" }
         if (!marked) return CheckResult.Passes
         val bad = lines.filter { it.categoryCode != IRAS_STANDARD_RATED_CODE }
         return if (bad.isEmpty()) CheckResult.Passes else CheckResult.Violations(bad)

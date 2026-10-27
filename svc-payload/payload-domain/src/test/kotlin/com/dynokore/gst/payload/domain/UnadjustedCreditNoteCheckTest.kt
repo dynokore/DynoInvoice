@@ -2,7 +2,6 @@ package com.dynokore.gst.payload.domain
 
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 class UnadjustedCreditNoteCheckTest {
     private fun lines(vararg codes: String) = codes.mapIndexed { i, c -> LineCode(i + 1, c) }
@@ -43,7 +42,12 @@ class UnadjustedCreditNoteCheckTest {
     }
 
     @Test
-    fun `INV-AC-764 empty lines throw`() {
-        assertThrows<IllegalArgumentException> { UnadjustedCreditNoteCheck.check(true, emptyList()) }
+    fun `INV-AC-10440 marked with empty lines passes`() {
+        UnadjustedCreditNoteCheck.check(true, emptyList()) shouldBe CheckResult.Passes
+    }
+
+    @Test
+    fun `INV-AC-10440 not marked with empty lines passes`() {
+        UnadjustedCreditNoteCheck.check(false, emptyList()) shouldBe CheckResult.Passes
     }
 }
