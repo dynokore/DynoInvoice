@@ -117,7 +117,9 @@ class RecordConsumersTest {
         version: EvidenceDb.Version,
         block: Boundary.(TenantId) -> Unit,
     ) {
-        EvidenceContext.online(dir, version).run { context -> Boundary(context).block(TenantId(UUID.randomUUID())) }
+        EvidenceContext.online(dir).withPropertyValues("spring.datasource.url=${version.jdbcUrl}").run { context ->
+            Boundary(context).block(TenantId(UUID.randomUUID()))
+        }
     }
 
     private fun <T> Boundary.tx(
