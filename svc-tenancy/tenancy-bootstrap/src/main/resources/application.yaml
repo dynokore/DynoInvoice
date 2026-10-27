@@ -48,3 +48,5 @@ inv:
       - tenancy.installation_fact
       - tenancy.write_installation_setting
       - tenancy.config_purge_tenant
+      # definer function of INV-Q-11717 (tenant listing for replay); it holds no tenant data
+      - tenancy.list_tenant_ids
