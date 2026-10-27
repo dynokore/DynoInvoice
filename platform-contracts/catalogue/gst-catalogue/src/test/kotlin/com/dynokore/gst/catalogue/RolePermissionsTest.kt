@@ -60,7 +60,7 @@ class RolePermissionsTest {
                 Req("retention.delete.approve", PermissionKind.WRITE, "security.officer", y, listOf(saas)),
                 Req("retention.delete.approve", PermissionKind.WRITE, "tax.approver", y, listOf(privateForm)),
             ) +
-            listOf("elevation.decide", "access-review.run", "privacy-request.handle").map {
+            listOf("elevation.decide", "access-review.run", "privacy-request.handle", "security-case.record").map {
                 Req(it, PermissionKind.WRITE, "security.officer", y, both)
             } +
             listOf("tenant.admin", "tax.approver", "auditor", "security.officer").map {

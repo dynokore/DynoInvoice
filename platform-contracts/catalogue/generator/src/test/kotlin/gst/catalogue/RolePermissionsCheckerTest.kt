@@ -773,4 +773,53 @@ class RolePermissionsCheckerTest {
         assertReported(cellRemove(purge, "platform.engineer", saasF), "key $purge", "missing")
         assertReported(withKind(purge, PermissionKind.READ), "key $purge: kind READ")
     }
+
+    private val scKey = "security-case.record"
+
+    private fun scRow() = permission(real, "privacy-request.handle").row
+
+    @Test
+    fun `INV-T-11695 the key is WRITE with the row of privacy-request-handle held by security officer only`() {
+        val p = permission(real, scKey)
+        assertEquals(PermissionKind.WRITE, p.kind)
+        assertEquals(scRow(), p.row)
+        assertEquals(
+            setOf(CellRow("security.officer", DeploymentForm.SAAS, RoleAllowance.PERMITTED), CellRow("security.officer", DeploymentForm.PRIVATE, RoleAllowance.PERMITTED)),
+            p.cells.toSet(),
+        )
+        assertEquals(2, p.cells.size)
+    }
+
+    @Test
+    fun `INV-T-11695 probe a changed or padded row of the key is reported`() {
+        assertReported(withPermission(scKey) { it.copy(row = scRow().removeSuffix("requests") + "request") }, "key $scKey")
+        assertReported(withPermission(scKey) { it.copy(row = scRow() + " ") }, "key $scKey")
+    }
+
+    @Test
+    fun `INV-T-11695 probe extra cells of the key are reported`() {
+        val tax = withPermission(scKey) { it.copy(cells = it.cells + CellRow("tax.approver", DeploymentForm.SAAS, RoleAllowance.PERMITTED)) }
+        assertReported(tax, "role tax.approver key $scKey form SAAS", "extra")
+        val dep = withPermission(scKey) { it.copy(cells = it.cells + CellRow("deployment.operator", DeploymentForm.PRIVATE, RoleAllowance.PERMITTED)) }
+        assertReported(dep, "role deployment.operator key $scKey form PRIVATE", "extra")
+    }
+
+    @Test
+    fun `INV-T-11695 probe a removed cell of the key is reported`() {
+        assertReported(withPermission(scKey) { p -> p.copy(cells = p.cells.filter { it.form != DeploymentForm.PRIVATE }) }, "role security.officer key $scKey form PRIVATE", "missing")
+        assertReported(withPermission(scKey) { p -> p.copy(cells = p.cells.filter { it.form != DeploymentForm.SAAS }) }, "role security.officer key $scKey form SAAS", "missing")
+    }
+
+    @Test
+    fun `INV-T-11695 probe a READ kind of the key is reported`() {
+        assertReported(withPermission(scKey) { it.copy(kind = PermissionKind.READ) }, "key $scKey")
+    }
+
+    @Test
+    fun `INV-T-11695 probe a removed key and look-alike keys are reported as missing`() {
+        assertReported(real.copy(permissions = real.permissions.filter { it.key != scKey }), "key $scKey: missing")
+        for (alias in listOf("security-cases.record", "security-case.record ", "Security-case.record", "security.case.record")) {
+            assertReported(withPermission(scKey) { it.copy(key = alias) }, "key $scKey: missing")
+        }
+    }
 }

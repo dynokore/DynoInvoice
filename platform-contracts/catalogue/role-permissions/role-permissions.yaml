@@ -1120,3 +1120,9 @@ permissions:
     row: "Purge audit entries"
     cells:
       - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+  - key: security-case.record
+    kind: WRITE
+    row: "Approve operator elevation or diagnostic invitation; review audit log; run access reviews; handle privacy requests"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}

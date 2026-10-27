@@ -68,3 +68,5 @@ The keys `regulatory-pack.author` (held by `regulatory.author`) and `regulatory-
 ## The operation-to-roles map
 
 The generated `RolePermission.kt` also declares `OperationRoles` (INV-T-10641, INV-NOTE-10639 R3). `OperationRoles.rolesFor(form, permissionKey)` returns the roles with a cell on that key in that form, with each cell's allowance, and `OperationRoles.keys(form)` returns the keys that have at least one cell in that form. The map is generated as a literal from the same yaml file in the same run as `RolePermissions`, in the order of the file. A key that is not in the table, or has no cell in the form, has no roles (an empty map).
+
+The key `security-case.record` (row of `privacy-request.handle`, WRITE) is held by `security.officer` in SAAS and PRIVATE and was added under INV-Q-11686 A.

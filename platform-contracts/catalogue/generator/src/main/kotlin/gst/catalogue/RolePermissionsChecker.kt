@@ -304,6 +304,7 @@ object RolePermissionsChecker {
             "enquiry-lookup.reverse" to Required(PermissionKind.READ, cells(permitted, both, "auditor", "tax.approver")),
             "rendition-sample.record" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
             "audit-entry.purge" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer")),
+            "security-case.record" to Required(PermissionKind.WRITE, cells(permitted, both, "security.officer")),
         )
 
     fun check(
