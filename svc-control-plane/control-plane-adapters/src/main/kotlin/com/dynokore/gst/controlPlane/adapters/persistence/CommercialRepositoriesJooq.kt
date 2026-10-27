@@ -67,14 +67,19 @@ class QualificationRepositoryJooq(
                 QUALIFICATION.CUSTOMER_REF
                     .eq(customerRef.value)
                     .and(QUALIFICATION.INSTALLATION_REF.eq(installationRef.value)),
-            ).fetchOne()
-            ?.let {
-                Qualification(
-                    customerRef,
-                    installationRef,
-                    QualificationOutcome.valueOf(checkNotNull(it.outcome)),
-                )
-            }
+            ).orderBy(QUALIFICATION.SEQ.desc())
+            .limit(1)
+            .fetchOne()
+            ?.let { qualificationOf(it.customerRef, it.installationRef, it.outcome) }
+
+    override fun latestFor(installationRef: CommercialRef): Qualification? =
+        dsl
+            .selectFrom(QUALIFICATION)
+            .where(QUALIFICATION.INSTALLATION_REF.eq(installationRef.value))
+            .orderBy(QUALIFICATION.SEQ.desc())
+            .limit(1)
+            .fetchOne()
+            ?.let { qualificationOf(it.customerRef, it.installationRef, it.outcome) }
 
     override fun save(
         qualification: Qualification,
@@ -89,4 +94,14 @@ class QualificationRepositoryJooq(
             .set(QUALIFICATION.RECORDED_AT, OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
             .execute()
     }
+
+    private fun qualificationOf(
+        customerRef: String?,
+        installationRef: String?,
+        outcome: String?,
+    ) = Qualification(
+        CommercialRef(checkNotNull(customerRef)),
+        CommercialRef(checkNotNull(installationRef)),
+        QualificationOutcome.valueOf(checkNotNull(outcome)),
+    )
 }

@@ -53,3 +53,6 @@ data class Qualification(
     val installationRef: CommercialRef,
     val outcome: QualificationOutcome,
 )
+
+/** The qualification outcome of the latest record of an installation, if one is recorded (INV-Q-8689). */
+fun Qualification?.isQualified(): Boolean = this?.outcome == QualificationOutcome.QUALIFIED

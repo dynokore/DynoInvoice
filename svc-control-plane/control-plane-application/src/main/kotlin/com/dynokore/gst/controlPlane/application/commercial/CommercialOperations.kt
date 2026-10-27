@@ -19,9 +19,9 @@ import com.dynokore.platform.serviceruntime.operation.OperationAudit
 import com.dynokore.platform.serviceruntime.operation.Reversibility
 import com.dynokore.platform.tenancykernel.TenantId
 
-private const val SCOPE = "installation"
+internal const val SCOPE = "installation"
 
-private fun auditContext(
+internal fun auditContext(
     aggregateKey: String,
     request: RequestContext,
 ) = EventContext(
@@ -99,8 +99,10 @@ data class RecordQualificationCommand(
 )
 
 /**
- * recordQualification (SCR-38.4, INV-REQ-906 b1): `commercial.admin` records the qualification outcome of an
- * installation. The repeat key is (customerRef, installationRef): a repeat returns the recorded outcome unchanged.
+ * recordQualification (SCR-38.4, INV-REQ-906 b1, INV-Q-8689 A): `commercial.admin` records the qualification outcome
+ * of an installation and attests the precondition "prerequisite report received" by the call itself; the call is
+ * audit-logged. The repeat key is (customerRef, installationRef): the same outcome again returns the original record,
+ * another outcome supersedes the earlier one and both stay in the history; `issueLicence` reads the latest.
  */
 class RecordQualification(
     private val qualifications: QualificationRepository,
@@ -124,7 +126,7 @@ class RecordQualification(
     override fun priorResult(
         command: RecordQualificationCommand,
         state: Qualification?,
-    ) = state
+    ) = state?.takeIf { it.outcome == command.outcome }
 
     override fun unmetPrecondition(
         command: RecordQualificationCommand,

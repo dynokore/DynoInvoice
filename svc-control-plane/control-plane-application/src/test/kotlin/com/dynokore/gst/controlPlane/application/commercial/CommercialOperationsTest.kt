@@ -18,7 +18,7 @@ class CommercialOperationsTest {
     private val request = RequestContext("corr-1", "cause-1")
     private val roles = OperatorRoles { actor, role -> actor == "carol" && role == OperatorRole.COMMERCIAL_ADMIN }
     private val plans = LinkedHashMap<Pair<String, String>, Plan>()
-    private val qualifications = LinkedHashMap<Pair<String, String>, Qualification>()
+    private val qualifications = ArrayList<Qualification>()
     private val planRepository =
         object : PlanRepository {
             override fun find(
@@ -38,13 +38,16 @@ class CommercialOperationsTest {
             override fun find(
                 customerRef: CommercialRef,
                 installationRef: CommercialRef,
-            ) = qualifications[customerRef.value to installationRef.value]
+            ) = qualifications.lastOrNull { it.customerRef == customerRef && it.installationRef == installationRef }
+
+            override fun latestFor(installationRef: CommercialRef) =
+                qualifications.lastOrNull { it.installationRef == installationRef }
 
             override fun save(
                 qualification: Qualification,
                 recordedBy: String,
             ) {
-                qualifications[qualification.customerRef.value to qualification.installationRef.value] = qualification
+                qualifications += qualification
             }
         }
     private val managePlan = ManagePlan(planRepository, roles)
@@ -88,7 +91,7 @@ class CommercialOperationsTest {
     }
 
     @Test
-    fun `a qualification outcome is recorded and a repeat returns it`() {
+    fun `a qualification outcome is recorded and the same outcome again returns it`() {
         val command =
             RecordQualificationCommand(
                 ActorId("carol"),
@@ -100,9 +103,32 @@ class CommercialOperationsTest {
         recordQualification.permits("carol", command) shouldBe true
         recordQualification.permits("bob", command) shouldBe false
         val recorded = recordQualification.perform(command, recordQualification.load(command))
-        recordQualification.priorResult(
-            command.copy(outcome = QualificationOutcome.NOT_QUALIFIED),
-            recordQualification.load(command),
-        ) shouldBe recorded
+        recordQualification.priorResult(command, recordQualification.load(command)) shouldBe recorded
+        qualifications.size shouldBe 1
+    }
+
+    @Test
+    fun `another outcome supersedes the earlier record and both stay in the history (INV-Q-8689)`() {
+        val command =
+            RecordQualificationCommand(
+                ActorId("carol"),
+                CommercialRef("CUST-0091"),
+                CommercialRef("INST-0091"),
+                QualificationOutcome.QUALIFIED,
+                request,
+            )
+        recordQualification.perform(command, recordQualification.load(command))
+        val other = command.copy(outcome = QualificationOutcome.NOT_QUALIFIED)
+        recordQualification.priorResult(other, recordQualification.load(other)) shouldBe null
+        recordQualification.perform(other, recordQualification.load(other))
+        qualifications.map { it.outcome } shouldBe
+            listOf(QualificationOutcome.QUALIFIED, QualificationOutcome.NOT_QUALIFIED)
+        qualificationRepository.latestFor(CommercialRef("INST-0091"))?.outcome shouldBe
+            QualificationOutcome.NOT_QUALIFIED
+    }
+
+    @Test
+    fun `recordQualification is audited`() {
+        recordQualification.audited shouldBe true
     }
 }

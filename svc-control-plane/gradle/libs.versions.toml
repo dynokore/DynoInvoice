@@ -7,7 +7,7 @@ platformLibsBom = "0.103.0"
 gstCatalogue = "1.28.0"
 # The published platform-contracts bundle this service generates from and tests against (INV-T-4984: the fixture takes
 # the feed index schema from the pinned release, never a copy).
-platformContractsBundle = "0.0.0-dev+ad00fb84"
+platformContractsBundle = "0.0.0-dev+d6181f83"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"

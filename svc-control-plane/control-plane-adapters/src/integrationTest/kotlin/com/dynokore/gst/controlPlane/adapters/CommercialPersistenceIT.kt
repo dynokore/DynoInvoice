@@ -48,6 +48,29 @@ class CommercialPersistenceIT {
     }
 
     @Test
+    fun `INV-Q-8689 a pair keeps every record, the latest governs find and latestFor`() {
+        val repository = QualificationRepositoryJooq(dsl, clock)
+        val installation = CommercialRef("INST-${UUID.randomUUID().toString().take(8)}")
+        val customer = CommercialRef("CUST-1")
+        repository.save(Qualification(customer, installation, QualificationOutcome.QUALIFIED), "carol")
+        repository.save(Qualification(customer, installation, QualificationOutcome.NOT_QUALIFIED), "carol")
+        repository.find(customer, installation)?.outcome shouldBe QualificationOutcome.NOT_QUALIFIED
+        repository.latestFor(installation)?.outcome shouldBe QualificationOutcome.NOT_QUALIFIED
+        dsl.fetchCount(
+            org.jooq.impl.DSL
+                .table(
+                    org.jooq.impl.DSL
+                        .name("controlplane", "qualification"),
+                ),
+            org.jooq.impl.DSL
+                .field(
+                    org.jooq.impl.DSL
+                        .name("installation_ref"),
+                ).eq(installation.value),
+        ) shouldBe 2
+    }
+
+    @Test
     fun `the runtime login reads and inserts the commercial tables and changes none of their rows`() {
         listOf("plan_version", "qualification").forEach { table ->
             has(table, "SELECT") shouldBe true

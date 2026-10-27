@@ -44,6 +44,12 @@ fun stageContracts() {
     }
     // The OpenAPI document's `../service-runtime/...` $ref resolves beside the artefact.
     File(unpacked, "service-runtime").copyRecursively(File(moduleDir, "service-runtime"), overwrite = true)
+    // The payload schema of the invitation MessageRequested that control-plane-svc emits (INV-Q-8677 A) is read from the
+    // same pinned bundle, never copied into the repository.
+    File(unpacked, "access/schemas/message-requested-payload.schema.json").copyTo(
+        File(moduleDir, "access/schemas/message-requested-payload.schema.json"),
+        overwrite = true,
+    )
     File(moduleDir, "maven-metadata.xml").writeText(
         """
         <?xml version="1.0" encoding="UTF-8"?>

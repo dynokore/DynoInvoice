@@ -11,6 +11,8 @@ import java.util.UUID
 internal class OperatorCaller(
     val principal: EndUserPrincipal,
     val correlationId: String,
+    /** The Authorization header value, passed on to a service this operator's request calls. */
+    val authorization: String,
 ) {
     companion object {
         fun of(principals: EndUserPrincipalResolver): OperatorCaller {
@@ -23,7 +25,7 @@ internal class OperatorCaller(
             if (principal.tenant != null) {
                 problem(ClosedErrorCode.ACCESS_DENIED, correlationId, "A platform operator token is required")
             }
-            return OperatorCaller(principal, correlationId)
+            return OperatorCaller(principal, correlationId, checkNotNull(request.getHeader("Authorization")))
         }
     }
 }
