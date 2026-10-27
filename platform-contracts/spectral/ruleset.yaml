@@ -99,11 +99,13 @@ rules:
 
   inv-req-1202-x-caller-auth:
     description: >-
-      INV-REQ-1202, INV-AC-8259 (owner answer INV-Q-8201 A) — every operation
-      declares x-caller-auth, the token kind of its caller: `end-user`,
-      `signed-link` or `service-job`. `enumeration` alone does not fire on an
-      absent field, so `defined` runs first. Self-test:
-      self-test-caller-auth-rule.sh.
+      INV-REQ-1202, INV-AC-8259 (owner answer INV-Q-8201 A; INV-Q-11833 B) —
+      every operation declares x-caller-auth, the token kind of its caller:
+      `end-user`, `signed-link` or `service-job`. `defined` runs first because
+      `schema` does not fire on an absent field. `schema` with type string and
+      enum is used instead of `enumeration`, which accepts an array whose
+      elements are all allowed, so it could not refuse `[end-user]`.
+      Self-test: self-test-caller-auth-rule.sh.
     message: "every operation declares x-caller-auth with one of end-user, signed-link or service-job; a value other than end-user is set only by a platform-contracts change that passes contract review (INV-REQ-1202, owner answer INV-Q-8201)"
     given: "$.paths[*][get,post,put,delete,patch]"
     severity: error
@@ -112,9 +114,11 @@ rules:
       - field: x-caller-auth
         function: defined
       - field: x-caller-auth
-        function: enumeration
+        function: schema
         functionOptions:
-          values: ["end-user", "signed-link", "service-job"]
+          schema:
+            type: string
+            enum: ["end-user", "signed-link", "service-job"]
 
   inv-api-02-x-error-codes:
     description: API-02 — every operation declares x-error-codes (every catalogue code it can return).
