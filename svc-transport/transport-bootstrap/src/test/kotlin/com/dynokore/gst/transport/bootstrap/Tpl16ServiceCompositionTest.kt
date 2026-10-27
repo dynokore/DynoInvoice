@@ -1,8 +1,10 @@
 package com.dynokore.gst.transport.bootstrap
 
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.nulls.shouldBeNull
@@ -32,7 +34,19 @@ class Tpl16ServiceCompositionTest {
             ).forEach { context.getBean(it.java) }
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:transport-svc"
-            catalogueTypes(context) shouldBe TransportEvents.entries.map { it.eventType }.toSet()
+            context.getBeansOfType(EventCatalogue::class.java).size shouldBe 1
+            val catalogue = context.getBean(EventCatalogue::class.java)
+            catalogueTypes(context) shouldBe
+                (
+                    TransportEvents.entries.map { it.eventType } +
+                        PlatformEventCatalogue.ALL.filter { it.topic != null }.map { it.eventType }
+                ).toSet()
+            listOf(
+                PlatformEventCatalogue.JOB_REGISTERED,
+                PlatformEventCatalogue.JOB_RUN_RECORDED,
+                PlatformEventCatalogue.AUDIT_ENTRY_RECORDED,
+            ).forEach { catalogue.find(it.eventType)!!.producers shouldBe setOf(CatalogueEntry.EVERY_SERVICE) }
+            TransportEvents.entries.forEach { catalogue.find(it.eventType)!!.producers shouldBe setOf("transport-svc") }
         }
     }
 

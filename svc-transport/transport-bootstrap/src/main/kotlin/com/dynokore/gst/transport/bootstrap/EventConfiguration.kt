@@ -2,18 +2,21 @@ package com.dynokore.gst.transport.bootstrap
 
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
  * The events transport-svc may emit (INV-REQ-815 behaviour 2): the three of model/architecture/events.yaml it
  * produces, each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type.
- * The contract's `ExampleHappened` channel is the scaffold placeholder and is not catalogued.
+ * The contract's `ExampleHappened` channel is the scaffold placeholder and is not catalogued. The platform events with
+ * a fixed topic are catalogued too, produced by every service (INV-REQ-815 behaviour 4; INV-Q-11892 A), so the job
+ * runtime's `JobRegistered` and `JobRunRecorded` pass the emission guard.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(TransportEvents.entries)
+    fun eventCatalogue(): EventCatalogue = EventCatalogue(TransportEvents.entries + PlatformEventEntries.entries)
 }
 
 object TransportEvents {
@@ -31,5 +34,20 @@ object TransportEvents {
     val entries: List<CatalogueEntry> =
         topicByType.map { (type, topic) ->
             CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
+        }
+}
+
+/** The platform events with a fixed topic, produced by every service; the two replay messages have none. */
+object PlatformEventEntries {
+    val entries: List<CatalogueEntry> =
+        PlatformEventCatalogue.ALL.mapNotNull { event ->
+            event.topic?.let {
+                CatalogueEntry(
+                    event.eventType,
+                    it,
+                    setOf(CatalogueEntry.EVERY_SERVICE),
+                    contentTopic = false,
+                )
+            }
         }
 }
