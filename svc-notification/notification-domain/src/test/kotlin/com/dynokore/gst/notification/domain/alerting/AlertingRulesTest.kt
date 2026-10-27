@@ -7,9 +7,10 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
+private const val JANE = "tax.approver:jane.tan"
+
 class AlertingRulesTest {
     private val bizDate = LocalDate.of(2026, 4, 20)
-    private val jane = "tax.approver:jane.tan"
     private val now = Instant.parse("2026-04-20T00:00:00Z")
     private val stop = Instant.parse("2026-04-27T00:00:00Z")
 
@@ -32,8 +33,8 @@ class AlertingRulesTest {
     private data class Bounce(
         val c: AlertClass = AlertClass.DEADLINE,
         val ack: Boolean = false,
-        val r: List<String> = listOf(jane),
-        val b: List<String> = listOf(jane),
+        val r: List<String> = listOf(JANE),
+        val b: List<String> = listOf(JANE),
         val cur: Int = 1,
         val high: Int = 2,
     )
@@ -42,13 +43,13 @@ class AlertingRulesTest {
 
     @Test
     fun `INV-AC-2115 one recipient with no claim is refused POL-014`() {
-        rec(listOf(jane)) shouldBe refusedR("POL-014", RecipientRefusal.TOO_FEW_RECIPIENTS)
+        rec(listOf(JANE)) shouldBe refusedR("POL-014", RecipientRefusal.TOO_FEW_RECIPIENTS)
     }
 
     @Test
     fun `INV-AC-2115 a claim naming the person with no date is saved from the business date`() {
-        rec(listOf(jane), AcknowledgementClaim(jane, null)) shouldBe
-            RecipientDecision.Saved(RecordedAcknowledgement(jane, bizDate))
+        rec(listOf(JANE), AcknowledgementClaim(JANE, null)) shouldBe
+            RecipientDecision.Saved(RecordedAcknowledgement(JANE, bizDate))
     }
 
     @Test
@@ -64,7 +65,7 @@ class AlertingRulesTest {
 
     @Test
     fun `a blank recipient is refused first`() {
-        rec(listOf("a", "  "), AcknowledgementClaim(jane, null)) shouldBe
+        rec(listOf("a", "  "), AcknowledgementClaim(JANE, null)) shouldBe
             refusedR("POL-013", RecipientRefusal.BLANK_RECIPIENT)
     }
 
@@ -78,10 +79,10 @@ class AlertingRulesTest {
 
     @Test
     fun `an effective date before the business date is back dated and the same day is accepted`() {
-        rec(listOf("a"), AcknowledgementClaim(jane, bizDate.minusDays(1))) shouldBe
+        rec(listOf("a"), AcknowledgementClaim(JANE, bizDate.minusDays(1))) shouldBe
             refusedR("POL-022", RecipientRefusal.BACK_DATED)
-        rec(listOf("a"), AcknowledgementClaim(jane, bizDate)) shouldBe
-            RecipientDecision.Saved(RecordedAcknowledgement(jane, bizDate))
+        rec(listOf("a"), AcknowledgementClaim(JANE, bizDate)) shouldBe
+            RecipientDecision.Saved(RecordedAcknowledgement(JANE, bizDate))
     }
 
     @Test
@@ -165,7 +166,7 @@ class AlertingRulesTest {
 
     @Test
     fun `duplicate recipient entries count as one for escalation`() {
-        esc(Bounce(r = listOf(jane, jane))) shouldBe EscalationDecision.Escalate(2)
+        esc(Bounce(r = listOf(JANE, JANE))) shouldBe EscalationDecision.Escalate(2)
     }
 
     @Test
