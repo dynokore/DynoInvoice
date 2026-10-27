@@ -10,6 +10,7 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.konsistRules)
+    testImplementation(libs.gstCatalogue)
 }
 
 // ScopeAgreementTest reads canonical/openapi.yaml of the same bundle. CreditNoteOrderingTest reads lifecycle-states.schema.json from the contract bundle that submission-contract stages.

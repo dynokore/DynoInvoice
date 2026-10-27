@@ -1,11 +1,15 @@
 package com.dynokore.gst.submission.domain.migration
 
+import com.dynokore.gst.catalogue.Disposition
+import com.dynokore.gst.catalogue.ErrorCode
+import com.dynokore.gst.catalogue.Severity
 import com.dynokore.gst.submission.domain.migration.PriorSolutionDecision.ExternallySubmitted
 import com.dynokore.gst.submission.domain.migration.PriorSolutionDecision.HoldForCorrection
 import com.dynokore.gst.submission.domain.migration.PriorSolutionDecision.NotAffected
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
 
@@ -183,8 +187,29 @@ class PriorSolutionGuardTest {
     }
 
     @Test
-    fun `INV-AC-2108 the code constant is SUB-017`() {
-        PriorSolutionGuard.SUB_017 shouldBe "SUB-017"
+    fun `INV-AC-2108 the hold code of each reason equals the catalogue code of SUB-017`() {
+        val resubmitted = doc(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
+        val corrected = doc(number = "CN-1", date = after, creditNote = true, precedingDate = before)
+        listOf(resubmitted, corrected).forEach {
+            (PriorSolutionGuard.decide(it, cutover, imported) as HoldForCorrection).code shouldBe ErrorCode.SUB_017.code
+        }
+        PriorSolutionGuard.SUB_017 shouldBe ErrorCode.SUB_017.code
+    }
+
+    @Test
+    fun `INV-AC-2108 the catalogue row SUB-017 is BLOCK MANUAL owned by Tax operations`() {
+        ErrorCode.fromCode("SUB-017") shouldBe ErrorCode.SUB_017
+        ErrorCode.SUB_017.severity shouldBe Severity.BLOCK
+        ErrorCode.SUB_017.disposition shouldBe Disposition.MANUAL
+        ErrorCode.SUB_017.owner shouldBe "Tax operations"
+    }
+
+    @Test
+    fun `INV-AC-2108 look-alike codes do not equal the catalogue code`() {
+        listOf("SUB-016", "SUB-017 ", "sub-017").forEach {
+            it shouldNotBe ErrorCode.SUB_017.code
+            ErrorCode.fromCode(it) shouldNotBe ErrorCode.SUB_017
+        }
     }
 
     @Test
