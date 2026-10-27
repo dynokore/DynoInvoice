@@ -169,7 +169,7 @@ class AuthorisePlatformScopeTest {
             row(
                 Grant(
                     platform,
-                    "user:expired",
+                    "expired",
                     "release.manager",
                     from = "now() - interval '10 days'",
                     until = "now() - interval '1 day'",
@@ -178,7 +178,7 @@ class AuthorisePlatformScopeTest {
             row(
                 Grant(
                     platform,
-                    "user:future",
+                    "future",
                     "release.manager",
                     from = "now() + interval '1 day'",
                     until = "now() + interval '2 days'",
