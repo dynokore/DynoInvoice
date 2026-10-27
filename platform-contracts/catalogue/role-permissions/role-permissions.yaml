@@ -1115,3 +1115,8 @@ permissions:
     cells:
       - {role: tax.operator, form: SAAS, allowance: PERMITTED}
       - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: audit-entry.purge
+    kind: WRITE
+    row: "Purge audit entries"
+    cells:
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}

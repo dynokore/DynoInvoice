@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A).
      */
     val addedRows: List<String> =
         listOf(
@@ -104,6 +104,7 @@ object RolePermissionsChecker {
             "Look up an enquiry by Acknowledgement ID",
             "Reverse-look up an enquiry",
             "Record a rendition sample check",
+            "Purge audit entries",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -302,6 +303,7 @@ object RolePermissionsChecker {
                 Required(PermissionKind.READ, cells(permitted, both, "auditor", "tax.approver", "tax.operator")),
             "enquiry-lookup.reverse" to Required(PermissionKind.READ, cells(permitted, both, "auditor", "tax.approver")),
             "rendition-sample.record" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
+            "audit-entry.purge" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer")),
         )
 
     fun check(

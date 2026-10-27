@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(14, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(15, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -746,5 +746,31 @@ class RolePermissionsCheckerTest {
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }
+    }
+
+    private val purge = "audit-entry.purge"
+
+    @Test
+    fun `probe 70 the purge row changed to Purge audit entry is reported`() {
+        assertReported(withRow(purge, "Purge audit entry"), "key $purge", "Purge audit entry", "neither one of the 34")
+        assertReported(withRow(purge, "Purge audit entries "), "key $purge", "neither one of the 34")
+    }
+
+    @Test
+    fun `probe 71 the purge label with no key is reported`() {
+        assertReported(real.copy(permissions = real.permissions.filterNot { it.key == purge }), "key $purge: missing")
+        assertReported(withPermission(purge) { it.copy(key = "audit-entries.purge") }, "key $purge: missing")
+    }
+
+    @Test
+    fun `probe 72 extra purge cells are reported`() {
+        assertReported(cellAdd(purge, "deployment.operator", saasF), "key $purge", "extra")
+        assertReported(cellAdd(purge, "platform.engineer", privF), "key $purge", "extra")
+    }
+
+    @Test
+    fun `probe 73 the purge SAAS cell removed or the kind set to READ is reported`() {
+        assertReported(cellRemove(purge, "platform.engineer", saasF), "key $purge", "missing")
+        assertReported(withKind(purge, PermissionKind.READ), "key $purge: kind READ")
     }
 }

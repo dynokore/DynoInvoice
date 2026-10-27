@@ -47,6 +47,8 @@ The key `election-change.approve` (INV-T-10123, INV-Q-10027) is held by `tax.app
 
 The key `enquiry-lookup.by-acknowledgement` (row "Look up an enquiry by Acknowledgement ID") is held by `auditor`, `tax.approver` and `tax.operator`, `enquiry-lookup.reverse` (row "Reverse-look up an enquiry") by `auditor` and `tax.approver`, and `rendition-sample.record` (row "Record a rendition sample check") by `tax.operator` alone, all in SAAS and PRIVATE (INV-T-10492, INV-Q-10378 A, INV-Q-10380 A).
 
+The key `audit-entry.purge` (row "Purge audit entries", WRITE) is held by `platform.engineer` in SAAS only, with no PRIVATE cell because control-plane-svc runs only in the SaaS form (INV-REQ-1155). It was added by INV-T-11439 under INV-Q-11433 A, and its label is the last of `addedRows` (15 labels).
+
 The whole-job run and pause are the key `job.operate-whole-job` (INV-REQ-1138), with the `row` of `job.operate`; `job.operate` has no cell for `platform.engineer`.
 
 ## What the build checks (`checkRolePermissions`, wired into `check`; also run by `generateRolePermissionCatalogue`)

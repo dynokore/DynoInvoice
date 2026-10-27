@@ -126,6 +126,7 @@ class RolePermissionsTest {
                 Req("enquiry-lookup.reverse", PermissionKind.READ, "auditor", y, both),
                 Req("enquiry-lookup.reverse", PermissionKind.READ, "tax.approver", y, both),
                 Req("rendition-sample.record", PermissionKind.WRITE, "tax.operator", y, both),
+                Req("audit-entry.purge", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
             ) +
             listOf(
                 "filing.confirm",
