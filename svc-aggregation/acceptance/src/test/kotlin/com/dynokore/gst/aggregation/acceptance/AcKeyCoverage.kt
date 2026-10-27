@@ -24,7 +24,11 @@ object AcKeyCoverage {
      * key are exactly these criteria, no more and no fewer (a criterion of another slice, or a look-alike such as
      * `INV-AC-4470`, is a finding naming the row). The merge request of each later slice adds its own entry.
      */
-    val OWNED: Map<String, Set<String>> = mapOf("INV-T-8451" to setOf("INV-AC-447", "INV-AC-1572"))
+    val OWNED: Map<String, Set<String>> =
+        mapOf(
+            "INV-T-8451" to setOf("INV-AC-447", "INV-AC-1572"),
+            "INV-T-11349" to setOf("INV-AC-1436"),
+        )
     private val HEADER = listOf("criterion", "task", "wave")
 
     data class Row(

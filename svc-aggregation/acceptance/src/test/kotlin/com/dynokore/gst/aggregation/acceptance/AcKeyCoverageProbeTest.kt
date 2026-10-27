@@ -8,8 +8,10 @@ import org.junit.jupiter.api.Test
 /** The probes of the key gate: each is run once, with the row it must name. */
 class AcKeyCoverageProbeTest {
     private val table =
-        "criterion\ttask\twave\nINV-AC-447\tINV-T-8451\t2\nINV-AC-1572\tINV-T-8451\t2\nINV-AC-100\tINV-T-1\t4\n"
-    private val names = listOf("INV-AC-447 rejects()", "INV-AC-1572 blocks()", "an unrelated test()")
+        "criterion\ttask\twave\nINV-AC-447\tINV-T-8451\t2\nINV-AC-1572\tINV-T-8451\t2\n" +
+            "INV-AC-1436\tINV-T-11349\t2\nINV-AC-100\tINV-T-1\t4\n"
+    private val names =
+        listOf("INV-AC-447 rejects()", "INV-AC-1572 blocks()", "INV-AC-1436 numbers()", "an unrelated test()")
 
     @Test
     fun `the table and a matching test pass`() {
@@ -18,7 +20,8 @@ class AcKeyCoverageProbeTest {
 
     @Test
     fun `deleting the test of a row fails naming the row`() {
-        AcKeyCoverage.findings(table, listOf("INV-AC-1572 blocks()")).single() shouldContain "INV-AC-447"
+        AcKeyCoverage.findings(table, listOf("INV-AC-1572 blocks()", "INV-AC-1436 numbers()")).single() shouldContain
+            "INV-AC-447"
     }
 
     @Test
@@ -63,10 +66,36 @@ class AcKeyCoverageProbeTest {
 
     @Test
     fun `a missing ac_ref row and a wrong wave of this task fail naming the row`() {
-        val without = "criterion\ttask\twave\nINV-AC-447\tINV-T-8451\t2\n"
-        AcKeyCoverage.findings(without, listOf("INV-AC-447 rejects()")).single() shouldContain
+        val without = "criterion\ttask\twave\nINV-AC-447\tINV-T-8451\t2\nINV-AC-1436\tINV-T-11349\t2\n"
+        AcKeyCoverage.findings(without, listOf("INV-AC-447 rejects()", "INV-AC-1436 numbers()")).single() shouldContain
             "INV-AC-1572 (task INV-T-8451): an ac_ref of INV-T-8451 with no row"
         val deferred = table.replace("INV-AC-447\tINV-T-8451\t2", "INV-AC-447\tINV-T-8451\t3")
         AcKeyCoverage.findings(deferred, names).single() shouldContain "INV-AC-447 (task INV-T-8451): wave 3"
+    }
+
+    @Test
+    fun `a row of another slice carrying the task key of the numbering fails naming the row`() {
+        AcKeyCoverage.findings(table + "INV-AC-453\tINV-T-11349\t2\n", names + "INV-AC-453 x()").single() shouldContain
+            "INV-AC-453 (task INV-T-11349): not among the ac_refs"
+    }
+
+    @Test
+    fun `a look alike row of the numbering key fails naming the row`() {
+        val lookAlike = "INV-AC-14360"
+        val findings = AcKeyCoverage.findings(table + "$lookAlike\tINV-T-11349\t2\n", names + "$lookAlike x()")
+        findings.joinToString("\n") shouldContain "$lookAlike (task INV-T-11349): not among the ac_refs"
+    }
+
+    @Test
+    fun `the table without the numbering row fails naming the ac_ref`() {
+        val without = table.replace("INV-AC-1436\tINV-T-11349\t2\n", "")
+        AcKeyCoverage.findings(without, names.filter { !it.startsWith("INV-AC-1436") }).single() shouldContain
+            "INV-AC-1436 (task INV-T-11349): an ac_ref of INV-T-11349 with no row"
+    }
+
+    @Test
+    fun `the numbering row with wave 3 fails naming the row`() {
+        val deferred = table.replace("INV-AC-1436\tINV-T-11349\t2", "INV-AC-1436\tINV-T-11349\t3")
+        AcKeyCoverage.findings(deferred, names).single() shouldContain "INV-AC-1436 (task INV-T-11349): wave 3"
     }
 }
