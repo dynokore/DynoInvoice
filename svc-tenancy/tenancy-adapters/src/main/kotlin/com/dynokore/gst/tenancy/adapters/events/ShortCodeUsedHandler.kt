@@ -6,6 +6,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import org.jooq.DSLContext
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
@@ -78,7 +79,7 @@ class ShortCodeUsedHandler(
     }
 
     private companion object {
-        val log = LoggerFactory.getLogger(ShortCodeUsedHandler::class.java)
+        val log: Logger = LoggerFactory.getLogger(ShortCodeUsedHandler::class.java)
         val CODE = Regex("^[A-Z0-9]{1,10}$")
         val NODE_KINDS = setOf("ENTITY", "BUSINESS_UNIT")
     }
