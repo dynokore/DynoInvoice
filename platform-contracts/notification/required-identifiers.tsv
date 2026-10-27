@@ -72,3 +72,6 @@ deleteWebhookSubscription	operation	openapi.yaml	INV-REQ-2588
 replayWebhookDelivery	operation	openapi.yaml	INV-REQ-2588
 rotateWebhookSecret	operation	openapi.yaml	INV-REQ-2588
 setAlertPolicy	operation	openapi.yaml	INV-REQ-2588
+# INV-Q-8966 A. The alert trigger of a break-glass use.
+BREAK_GLASS_USED	enum_value	openapi.yaml	INV-REQ-897
+Alert.trigger.BREAK_GLASS_USED	schema_enum_value	openapi.yaml	INV-REQ-897

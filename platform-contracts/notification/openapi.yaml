@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -54,6 +54,11 @@ info:
     `listPlatformAlerts` and `acknowledgePlatformAlert`, which read and
     acknowledge the platform alerts of accreditation currency (INV-Q-7316,
     INV-REQ-1365).
+
+
+    Version 1.13.0 adds the alert trigger BREAK_GLASS_USED, the contract name
+    of the alert of a break-glass use, an alert of the class SECURITY
+    (INV-Q-8966, INV-REQ-897).
   contact:
     name: notification (see CODEOWNERS)
 servers:
@@ -280,7 +285,10 @@ paths:
         and on the configured days before the due date (INV-REQ-918,
         INV-REQ-1277). A privacy notice is an alert of the class SECURITY with
         the trigger PRIVACY_NOTICE_DUE, raised once per case when the notice
-        falls due, without tiers (INV-REQ-1403, INV-REQ-1113).
+        falls due, without tiers (INV-REQ-1403, INV-REQ-1113). A break-glass
+        use is an alert of the class SECURITY with the trigger
+        BREAK_GLASS_USED, raised once for each event `BreakGlassAlertRaised`,
+        without tiers (INV-REQ-897, INV-AC-2384).
       tags: [alerts]
       x-principal: reporting
       x-caller-auth: end-user
@@ -1275,7 +1283,9 @@ components:
             reserved tenant-wide reference
             `00000000-0000-0000-0000-000000000000`. The alert of accreditation
             currency concerns the product and no tenant and holds the reserved
-            platform reference `ffffffff-ffff-ffff-ffff-ffffffffffff`.
+            platform reference `ffffffff-ffff-ffff-ffff-ffffffffffff`. A
+            break-glass alert holds the tenant-wide reference whatever the
+            scope of the event, TENANT or INSTALLATION (INV-Q-8966).
         alertClass:
           type: string
           enum: [COVERAGE, DEADLINE, BACKLOG, MISSING_ACKNOWLEDGEMENT, PACK_STALENESS, SECURITY, ACCREDITATION]
@@ -1295,7 +1305,7 @@ components:
           format: date-time
         trigger:
           type: string
-          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED]
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED, BREAK_GLASS_USED]
           x-extensible-enum: true
         caseId:
           type: string
