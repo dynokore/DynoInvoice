@@ -94,15 +94,18 @@ object EvidenceDb {
      * (`db/provision.sql`, then this module's Flyway migrations) and, first, the objects of other services that
      * [foreignSetup] creates as superuser: the stand-in for an operational store (INV-AC-1711, INV-AC-7871,
      * INV-AC-7872). [probeMigration] is
-     * a scratch migration applied after the real ones and never committed. The database is dropped after [block].
+     * a scratch migration applied after the real ones and never committed. [version] names the PostgreSQL major it
+     * is made on. The database is dropped after [block].
      */
     fun <T> withScratchDatabase(
         foreignSetup: String,
         probeMigration: String? = null,
+        version: Version = Version.PG18,
         block: (url: String) -> T,
     ): T {
+        val container = version.started.getOrThrow()
         val name = "scratch_" + UUID.randomUUID().toString().replace("-", "")
-        superuser().use { it.createStatement().use { statement -> statement.execute("create database $name") } }
+        version.superuser().use { it.createStatement().use { statement -> statement.execute("create database $name") } }
         val url = container.jdbcUrl.substringBeforeLast('/') + "/$name"
         val directory = Files.createTempDirectory("evidence-probe")
         try {
@@ -130,7 +133,7 @@ object EvidenceDb {
             return block(url)
         } finally {
             directory.toFile().deleteRecursively()
-            superuser().use {
+            version.superuser().use {
                 it.createStatement().use { statement ->
                     statement.execute("drop database if exists $name with (force)")
                 }

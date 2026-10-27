@@ -18,6 +18,7 @@ dependencies {
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.tenancyKernel.impl)
+    implementation(libs.platform.tenancyJooq.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)
     implementation(libs.springBoot.starterJdbc)
