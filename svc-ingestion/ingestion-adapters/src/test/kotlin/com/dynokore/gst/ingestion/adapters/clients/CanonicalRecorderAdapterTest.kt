@@ -68,12 +68,8 @@ class CanonicalRecorderAdapterTest {
         registry: ResilienceRegistry,
     ): ApplicationContextRunner =
         ApplicationContextRunner()
-            .withConfiguration(
-                AutoConfigurations.of(
-                    InternalRestClientAutoConfiguration::class.java,
-                    PropertyPlaceholderAutoConfiguration::class.java,
-                ),
-            ).withBean("deadline", ClientHttpRequestInterceptor::class.java, { DeadlinePropagationInterceptor(clock) })
+            .withConfiguration(AutoConfigurations.of(InternalRestClientAutoConfiguration::class.java, PropertyPlaceholderAutoConfiguration::class.java))
+            .withBean("deadline", ClientHttpRequestInterceptor::class.java, { DeadlinePropagationInterceptor(clock) })
             .withBean(
                 "workload",
                 ClientHttpRequestInterceptor::class.java,
@@ -81,10 +77,7 @@ class CanonicalRecorderAdapterTest {
             ).withBean(
                 "endUser",
                 ClientHttpRequestInterceptor::class.java,
-                {
-                    com.dynokore.platform.serviceruntime.resilience.http
-                        .EndUserTokenPropagationInterceptor()
-                },
+                { com.dynokore.platform.serviceruntime.resilience.http.EndUserTokenPropagationInterceptor() },
             ).withBean(ResilienceRegistry::class.java, { registry })
             .withBean(Clock::class.java, { clock })
             .withUserConfiguration(CanonicalRecorderAdapter::class.java)
@@ -113,7 +106,7 @@ class CanonicalRecorderAdapterTest {
     )
 
     @Test
-    fun `INV-AC-2178 a replay answered 200 returns REPLAY with the docUuid of canonical-svc, one request`() {
+    fun `INV-AC-2178 a replay answered 200 by canonical-svc returns the outcome REPLAY with its docUuid and one request`() {
         stub.reply = replyJson(200)
         val outcome = withAdapter { RecordTransaction(it).execute(command) }
         outcome shouldBe RecordingOutcome.Replay(docUuid)
@@ -175,8 +168,7 @@ class CanonicalRecorderAdapterTest {
     @Test
     fun `an edge that retries makes as many requests as its policy allows and then throws`() {
         stub.reply = CanonicalStub.Reply(201, delayMillis = 1500)
-        val retry =
-            RetryProperties(maxAttempts = 2, initialBackoff = Duration.ofMillis(10), maxBackoff = Duration.ofMillis(20))
+        val retry = RetryProperties(maxAttempts = 2, initialBackoff = Duration.ofMillis(10), maxBackoff = Duration.ofMillis(20))
         shouldThrow<CanonicalUnavailableException> {
             withAdapter(registry(timeout = Duration.ofMillis(300), retry = retry)) { it.record(command) }
         }
@@ -187,12 +179,8 @@ class CanonicalRecorderAdapterTest {
     fun `a refused connection throws`() {
         val closed = ServerSocket(0).use { it.localPort }
         runner("http://127.0.0.1:$closed", registry()).run { context ->
-            shouldThrow<CanonicalUnavailableException> {
-                context
-                    .getBean(
-                        CanonicalRecorder::class.java,
-                    ).record(command)
-            }.message shouldContain "refused"
+            shouldThrow<CanonicalUnavailableException> { context.getBean(CanonicalRecorder::class.java).record(command) }
+                .message shouldContain "refused"
         }
     }
 
@@ -205,9 +193,7 @@ class CanonicalRecorderAdapterTest {
     @Test
     fun `a body with a member the generated request cannot carry is refused, not silently cut`() {
         withAdapter { adapter ->
-            shouldThrow<Exception> {
-                adapter.record(command.copy(body = body.replace("\"currency\"", "\"unknownMember\":1,\"currency\"")))
-            }
+            shouldThrow<Exception> { adapter.record(command.copy(body = body.replace("\"currency\"", "\"unknownMember\":1,\"currency\""))) }
         }
         stub.seen.size shouldBe 0
     }

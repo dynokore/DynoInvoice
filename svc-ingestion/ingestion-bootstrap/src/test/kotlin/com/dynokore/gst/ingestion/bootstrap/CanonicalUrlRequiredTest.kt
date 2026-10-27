@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 
-/** INV-T-11023: `ingestion.canonical-svc-url` is required and not blank; the service does not start without it. */
+/** INV-T-11023: `ingestion.canonical-svc-url` is required and not blank; the service does not start without it (TPL-16). */
 class CanonicalUrlRequiredTest {
     @Test
     fun `the context starts with the url and fails when it is blank or unresolved`(

@@ -43,9 +43,7 @@ val stageCanonicalContract by tasks.registering(Sync::class) {
     into(layout.buildDirectory.dir("canonical-contract"))
 }
 tasks.named<gst.build.contracts.PrepareDecimalSpecTask>("prepareContractClientSpec") {
-    source.set(
-        stageCanonicalContract.map { layout.buildDirectory.file("canonical-contract/canonical/openapi.yaml").get() },
-    )
+    source.set(stageCanonicalContract.map { layout.buildDirectory.file("canonical-contract/canonical/openapi.yaml").get() })
 }
 
 dependencies {
