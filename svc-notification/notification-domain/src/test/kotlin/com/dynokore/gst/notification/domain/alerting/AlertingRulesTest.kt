@@ -29,14 +29,16 @@ class AlertingRulesTest {
         hard: Instant? = stop,
     ) = SnoozeRule.decide(c, now, until, hard)
 
-    private fun esc(
-        c: AlertClass = AlertClass.DEADLINE,
-        ack: Boolean = false,
-        r: List<String> = listOf(jane),
-        b: List<String> = listOf(jane),
-        cur: Int = 1,
-        high: Int = 2,
-    ) = BounceEscalation.decide(c, ack, r, b, cur, high)
+    private data class Bounce(
+        val c: AlertClass = AlertClass.DEADLINE,
+        val ack: Boolean = false,
+        val r: List<String> = listOf(jane),
+        val b: List<String> = listOf(jane),
+        val cur: Int = 1,
+        val high: Int = 2,
+    )
+
+    private fun esc(e: Bounce = Bounce()) = BounceEscalation.decide(e.c, e.ack, e.r, e.b, e.cur, e.high)
 
     @Test
     fun `INV-AC-2115 one recipient with no claim is refused POL-014`() {
@@ -152,17 +154,18 @@ class AlertingRulesTest {
 
     @Test
     fun `INV-AC-10575 escalation stays for every other case`() {
-        esc(c = AlertClass.BACKLOG) shouldBe EscalationDecision.Stay(NoEscalation.NOT_DEADLINE)
-        esc(ack = true) shouldBe EscalationDecision.Stay(NoEscalation.ACKNOWLEDGED)
-        esc(r = listOf("a", "b"), b = listOf("a", "b")) shouldBe EscalationDecision.Stay(NoEscalation.NOT_ONE_RECIPIENT)
-        esc(r = emptyList()) shouldBe EscalationDecision.Stay(NoEscalation.NOT_ONE_RECIPIENT)
-        esc(b = emptyList()) shouldBe EscalationDecision.Stay(NoEscalation.NOT_BOUNCED)
-        esc(cur = 2) shouldBe EscalationDecision.Stay(NoEscalation.NO_NEXT_TIER)
+        esc(Bounce(c = AlertClass.BACKLOG)) shouldBe EscalationDecision.Stay(NoEscalation.NOT_DEADLINE)
+        esc(Bounce(ack = true)) shouldBe EscalationDecision.Stay(NoEscalation.ACKNOWLEDGED)
+        val two = listOf("a", "b")
+        esc(Bounce(r = two, b = two)) shouldBe EscalationDecision.Stay(NoEscalation.NOT_ONE_RECIPIENT)
+        esc(Bounce(r = emptyList())) shouldBe EscalationDecision.Stay(NoEscalation.NOT_ONE_RECIPIENT)
+        esc(Bounce(b = emptyList())) shouldBe EscalationDecision.Stay(NoEscalation.NOT_BOUNCED)
+        esc(Bounce(cur = 2)) shouldBe EscalationDecision.Stay(NoEscalation.NO_NEXT_TIER)
     }
 
     @Test
     fun `duplicate recipient entries count as one for escalation`() {
-        esc(r = listOf(jane, jane)) shouldBe EscalationDecision.Escalate(2)
+        esc(Bounce(r = listOf(jane, jane))) shouldBe EscalationDecision.Escalate(2)
     }
 
     @Test
