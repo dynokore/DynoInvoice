@@ -203,6 +203,8 @@ contract-rules:
     - gst_check data-classification-check python3 spectral/check-data-classification.py canonical evidence service-runtime submission
     - gst_check event-log-topics-drift-check python3 event-log/generate-topics.py . --check event-log/topics.yaml
     - gst_check event-log-generator-tests python3 -m unittest discover -s event-log -p 'test_*.py' -v
+    - gst_check route-scopes-drift-check python3 route-scopes/generate-routes.py . --check route-scopes/machine-routes.tsv
+    - gst_check route-scopes-generator-tests python3 -m unittest discover -s route-scopes -p 'test_*.py' -v
     - gst_checks_done
 
 invoice-docs-checks:
