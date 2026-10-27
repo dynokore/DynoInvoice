@@ -10,7 +10,7 @@ import java.sql.DriverManager
 import java.util.UUID
 
 /**
- * A PostgreSQL 18 database with the roles of INV-AC-2175, the signed-binding functions of the schema and the Flyway
+ * A PostgreSQL database (18 unless a [Version] is named) with the roles of INV-AC-2175, the signed-binding functions of the schema and the Flyway
  * migrations of this module applied by `evidence_migrate` (TPL-12, TPL-14). The roles (`db/roles.sql`) and the
  * binding functions (`db/provision.sql`, installed by the sys login as the installer does; coordinator rulings
  * INV-Q-6586 and INV-Q-6663) are SQL files the postgres image runs as superuser when it initialises. This class holds
@@ -27,30 +27,51 @@ object EvidenceDb {
     /** The value of the `tenancy/binding-key-current` secret: the key is its UTF-8 bytes (service-runtime README). */
     const val BINDING_SECRET = "evidence-test-binding-key-0001"
 
-    /** postgres:18 pinned by digest, as platform-libs' testcontainers-pins table pins it (INV-T-5604). */
-    private const val IMAGE = "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"
     private const val INIT_DIRECTORY = "/docker-entrypoint-initdb.d/"
 
-    // Started once per JVM. A failed start or migration is kept and rethrown, never retried (a retry would start
-    // another container per access), and the container is stopped.
-    private val started: Result<PostgreSQLContainer<*>> by lazy {
-        runCatching {
-            val postgres =
-                PostgreSQLContainer(DockerImageName.parse(IMAGE).asCompatibleSubstituteFor("postgres"))
-                    .withCopyFileToContainer(
-                        MountableFile.forClasspathResource("db/roles.sql"),
-                        "${INIT_DIRECTORY}00-roles.sql",
-                    ).withCopyFileToContainer(
-                        MountableFile.forClasspathResource("db/provision.sql"),
-                        "${INIT_DIRECTORY}01-provision.sql",
-                    )
-            postgres.start()
-            runCatching { migrate(postgres) }.onFailure { postgres.stop() }.getOrThrow()
-            postgres
+    /**
+     * The PostgreSQL majors the database tests run on (INV-Q-11759), each image pinned by the digest of the table
+     * `testcontainers-pins/README.md` of platform-libs (INV-T-5604). A container starts lazily, once per JVM. A failed
+     * start or migration is kept and rethrown, never retried (a retry would start another container per access), and
+     * the container is stopped.
+     */
+    enum class Version(
+        val major: Int,
+        val image: String,
+    ) {
+        PG16(16, "postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"),
+        PG17(17, "postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3"),
+        PG18(18, "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"),
+        ;
+
+        internal val started: Result<PostgreSQLContainer<*>> by lazy {
+            runCatching {
+                val postgres =
+                    PostgreSQLContainer(DockerImageName.parse(image).asCompatibleSubstituteFor("postgres"))
+                        .withCopyFileToContainer(
+                            MountableFile.forClasspathResource("db/roles.sql"),
+                            "${INIT_DIRECTORY}00-roles.sql",
+                        ).withCopyFileToContainer(
+                            MountableFile.forClasspathResource("db/provision.sql"),
+                            "${INIT_DIRECTORY}01-provision.sql",
+                        )
+                postgres.start()
+                runCatching { migrate(postgres) }.onFailure { postgres.stop() }.getOrThrow()
+                postgres
+            }
         }
+
+        val jdbcUrl: String get() = started.getOrThrow().jdbcUrl
+
+        fun superuser(): Connection =
+            started.getOrThrow().let { DriverManager.getConnection(it.jdbcUrl, it.username, it.password) }
+
+        /** The display name of a parameterised run: the image tag. */
+        override fun toString(): String = image.substringBefore('@')
     }
 
-    private val container: PostgreSQLContainer<*> get() = started.getOrThrow()
+    // the members below serve the postgres:18 container
+    private val container: PostgreSQLContainer<*> get() = Version.PG18.started.getOrThrow()
 
     val jdbcUrl: String get() = container.jdbcUrl
 

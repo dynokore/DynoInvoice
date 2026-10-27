@@ -1,5 +1,6 @@
 package com.dynokore.gst.evidence.bootstrap
 
+import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.AppliedRecord.Companion.APPLIED_RECORD
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.EventDeadLetter.Companion.EVENT_DEAD_LETTER
@@ -31,6 +32,8 @@ import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import org.springframework.context.ApplicationContext
 import java.nio.file.Path
 import java.time.Clock
@@ -111,9 +114,10 @@ class RecordConsumersTest {
 
     private fun run(
         dir: Path,
+        version: EvidenceDb.Version,
         block: Boundary.(TenantId) -> Unit,
     ) {
-        EvidenceContext.online(dir).run { context -> Boundary(context).block(TenantId(UUID.randomUUID())) }
+        EvidenceContext.online(dir, version).run { context -> Boundary(context).block(TenantId(UUID.randomUUID())) }
     }
 
     private fun <T> Boundary.tx(
@@ -231,10 +235,12 @@ class RecordConsumersTest {
         content: ByteArray,
     ): String = ContentHash.of(previous.orEmpty().toByteArray(Charsets.US_ASCII) + content).hex
 
-    @Test
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
     fun `INV-AC-7216 pending decision trace drained once by the locator, audit entry in the audit chain`(
+        version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir) { tenant ->
+    ) = run(dir, version) { tenant ->
         traceLog.add(trace(tenant, "dt-1"))
         traceConsumer.pollOnce() shouldBe result(1, 0, 0)
         traces(tenant).size shouldBe 0
@@ -266,10 +272,12 @@ class RecordConsumersTest {
         applied(tenant, "au-1").single().periodRef shouldBe "AUDIT-2026-10"
     }
 
-    @Test
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
     fun `a decision trace after the locator is appended at once, with an older docsequence not dropped`(
+        version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir) { tenant ->
+    ) = run(dir, version) { tenant ->
         locatorLog.add(locator(tenant, "ev-1"))
         locatorConsumer.pollOnce().applied shouldBe 1
         traceLog.add(trace(tenant, "dt-1", docSequence = 5))
@@ -280,10 +288,12 @@ class RecordConsumersTest {
         pendingCount(tenant) shouldBe 0
     }
 
-    @Test
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
     fun `two events with the same content and different event ids are two records, key order does not matter`(
+        version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir) { tenant ->
+    ) = run(dir, version) { tenant ->
         locatorLog.add(locator(tenant, "ev-1"))
         locatorConsumer.pollOnce()
         traceLog.add(trace(tenant, "dt-1", """{"b":[{"y":1,"x":2}],"a":"1"}"""))
@@ -294,10 +304,12 @@ class RecordConsumersTest {
         records.map { String(it.content) }.toSet() shouldBe setOf("""{"a":"1","b":[{"x":2,"y":1}]}""")
     }
 
-    @Test
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
     fun `an audit entry without an entity reference is appended to the tenant-wide chain, a redelivery stores nothing`(
+        version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir) { tenant ->
+    ) = run(dir, version) { tenant ->
         auditLog.add(audit(tenant, "au-1", entityRef = null))
         auditLog.add(audit(tenant, "au-1", entityRef = null))
         auditConsumer.pollOnce() shouldBe result(1, 1, 0)
@@ -306,10 +318,12 @@ class RecordConsumersTest {
         applied(tenant, "au-1").single().entityRef shouldBe tenantWide
     }
 
-    @Test
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
     fun `the content hash of an appended record is the SHA-256 chain link of the canonical JSON`(
+        version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir) { tenant ->
+    ) = run(dir, version) { tenant ->
         auditLog.add(audit(tenant, "au-1"))
         auditLog.add(audit(tenant, "au-2", data = """{"scope":"s","action":"write","actor":"u2"}"""))
         auditConsumer.pollOnce().applied shouldBe 2
@@ -324,14 +338,41 @@ class RecordConsumersTest {
         } shouldBe ChainVerificationResult.Valid(2)
     }
 
-    @Test
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
     fun `an audit entry without actor is dead-lettered and stores nothing`(
+        version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir) { tenant ->
+    ) = run(dir, version) { tenant ->
         auditLog.add(audit(tenant, "au-1", data = """{"scope":"invoice","action":"read"}"""))
         auditConsumer.pollOnce() shouldBe result(0, 0, 1)
         deadLetters(tenant) shouldBe 1
         chain(tenant, RecordKind.AUDIT_LOG, entity, "AUDIT-2026-10").size shouldBe 0
         applied(tenant, "au-1").size shouldBe 0
+    }
+
+    @Test
+    fun `the database versions are exactly 16, 17 and 18, pinned by digest, and each container reports its major`() {
+        EvidenceDb.Version.entries.map { it.major } shouldBe listOf(16, 17, 18)
+        EvidenceDb.Version.entries.map { it.image } shouldBe
+            listOf(
+                "postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d",
+                "postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3",
+                "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336",
+            )
+        EvidenceDb.Version.entries.forEach { version ->
+            version.superuser().use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("show server_version_num").use { rows ->
+                        rows.next()
+                        rows.getInt(1) / SERVER_VERSION_DIVISOR shouldBe version.major
+                    }
+                }
+            }
+        }
+    }
+
+    private companion object {
+        const val SERVER_VERSION_DIVISOR = 10000
     }
 }
