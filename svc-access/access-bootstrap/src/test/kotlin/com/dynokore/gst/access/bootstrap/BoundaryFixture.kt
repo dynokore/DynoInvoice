@@ -165,7 +165,7 @@ class BoundaryTestConfiguration {
     @Bean
     fun signerCalls(): SignerCalls = SignerCalls()
 
-    /** The verified calling service, which a test sets; the production bean reads the request attribute (INV-T-11611). */
+    /** The verified calling service, which a test sets; production reads the request attribute (INV-T-11611). */
     @Bean
     fun serviceCaller(): ServiceCaller = MovableServiceCaller()
 
