@@ -42,7 +42,7 @@ sealed interface LineCoding {
  * mapping, and nothing here compares them (INV-REQ-365).
  */
 class LineCoder(
-    private val mapping: List<MappingEntry>,
+    mapping: List<MappingEntry>,
     private val catalogue: CodeCatalogue,
     private val scenario: ScenarioData,
 ) {
