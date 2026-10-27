@@ -46,7 +46,8 @@ paths:
       summary: Authorisation decision on role x permission x scope, evaluated live (SDS §28.16, FR-P.1,
         FR-Z.14)
       description: Called by every service (the fallback edge when a caller's authority replica lags beyond
-        its bound, FR-Z.14). Always 200; the decision, not an HTTP error, carries a DENY.
+        its bound, FR-Z.14). A decision is 200 with ALLOW or DENY; 503 means access-svc has no snapshot
+        of the organisation structure yet and decides nothing.
       tags:
       - authorise
       x-principal: filing-workflow
@@ -103,6 +104,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "503":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
