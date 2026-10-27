@@ -40,9 +40,16 @@ class OperatorSessionBindingFilter(
         response: ServletResponse,
         chain: FilterChain,
     ) {
-        val authorization = (request as HttpServletRequest).getHeader(HttpHeaders.AUTHORIZATION)
+        val http = request as HttpServletRequest
+        val authorization = http.getHeader(HttpHeaders.AUTHORIZATION)
         val session =
-            if (carriesAct(authorization)) resolvers.ifAvailable?.resolve(authorization)?.operatorSession else null
+            if (http.getAttribute(MachineTokenFilter.PRINCIPAL_ATTRIBUTE) == null &&
+                carriesAct(authorization)
+            ) {
+                resolvers.ifAvailable?.resolve(authorization)?.operatorSession
+            } else {
+                null
+            }
         if (session == null) {
             chain.doFilter(request, response)
         } else {

@@ -6,6 +6,14 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.16.0] - 2026-10-27
+### Added
+- `MachineTokenFilter` and `MachineTokenVerifier` (impl): a request whose method and path match a line of `META-INF/gst/machine-principal-operations.tsv` is verified here and never reaches the end-user resolver. The token passes only with `typ` `at+jwt`, a signature by a machine-access key matched by `kid` with `alg` equal to the key's `alg` (RS, PS, ES), the configured `iss` and `aud` (`service-runtime.machine-identity.issuer` and `.audience`), `exp` not passed, `iat`, `sub` equal to `client_id`, `tenant_id` for `ingest`, `filing-workflow`, `reporting` and `certification`, and exactly one `scope` equal to the line's scope (or `certification` on a line with that additional principal, then only with `environment` `SANDBOX`). A bad token is 401 SRT-003, a wrong scope or a certification token outside SANDBOX 403 SRT-004; an empty machine key set is 401; no network call (INV-Q-9028 A, INV-Q-9040 A, INV-Q-9032 A; INV-AC-9147, INV-AC-9148, INV-AC-9149).
+- `Principal` carries `tenant` and `entityCoverage` (`MachineEntityCoverage`, from `principal_scope`: `entity:<ref>`, `tenant:<ref>`, `installation`, anything else covers nothing). `EntityRefScopeFilter` decides a machine principal by that coverage; `tenant:<ref>` covers an `entityRef` only when `<ref>` equals the token's `tenant_id` and `StructureReplica.node(tenant, entityRef, deadline)` answers `Local`, `Filled` or `LastKnown` with a node of kind `ENTITY` (a retired node counts; INV-Q-10955); `Absent`, `Unavailable`, another kind and an invalid reference cover nothing.
+### Changed
+- `Principal` is no longer a data class (no `copy`, no component functions) and its public constructor refuses `PrincipalKind.MACHINE`: a MACHINE principal is made only by the verifier, inside service-runtime. The `impl` and `implTest` compilations are associated with `main` to see its `internal` members.
+- `EndUserPrincipalBindingFilter` and `OperatorSessionBindingFilter` pass a request `MachineTokenFilter` has verified.
+
 ## [10.15.0] - 2026-10-27
 ### Added
 - `IngestionErrorCode` gains `SOURCE_REVISION_LOWER` (ING-002, 409) and `AGGREGATE_NUMBER_NOT_BUILDABLE` (ING-022, 422), so that a service renders them with `Problems.renderIngestion` (coordinator rulings INV-Q-11260 A and INV-Q-11264 A; INV-T-11270; INV-REQ-434; INV-REQ-436). The pinned error catalogue now holds ING-022 and SUB-023.

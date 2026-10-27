@@ -2,6 +2,7 @@ package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.KeySourceException
@@ -47,7 +48,7 @@ data class EndUserIdentityProperties(
  * INV-Q-3773), issuer, expiry and audience.
  */
 @AutoConfiguration
-@EnableConfigurationProperties(EndUserIdentityProperties::class)
+@EnableConfigurationProperties(EndUserIdentityProperties::class, MachineIdentityProperties::class)
 class EndUserIdentityAutoConfiguration {
     @Bean
     @ConditionalOnBean(IdentityProvider::class)
@@ -64,6 +65,30 @@ class EndUserIdentityAutoConfiguration {
         decoder.setJwtValidator(DelegatingOAuth2TokenValidator(endUserTokenValidators(issuer.issuerUri, properties)))
         return JwtEndUserPrincipalResolver(decoder, authority, clock)
     }
+
+    /**
+     * Verifies the machine access token of every operation `machine-principal-operations.tsv` lists, before the
+     * operator session (-60) and the end-user binding (-50), so a machine token never reaches the end-user resolver
+     * (INV-Q-9028 A, INV-Q-9040 A, INV-Q-9032 A).
+     */
+    @Bean
+    fun machineTokenFilter(
+        authority: ObjectProvider<AuthorityReplica>,
+        properties: MachineIdentityProperties,
+        clock: ObjectProvider<Clock>,
+        tenants: ObjectProvider<TenantContext>,
+        resources: ResourceLoader,
+    ): FilterRegistrationBean<MachineTokenFilter> =
+        FilterRegistrationBean(
+            MachineTokenFilter.from(
+                checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
+                MachineTokenVerifier(authority.ifAvailable, properties, clock.getIfAvailable { Clock.systemUTC() }),
+                tenants,
+            ),
+        ).apply {
+            order = ORDER_MACHINE_TOKEN
+            urlPatterns = listOf("/*")
+        }
 
     /** Binds a verified operator session for the request (INV-Q-4521), after the workload-identity filter. */
     @Bean
@@ -105,10 +130,16 @@ class EndUserIdentityAutoConfiguration {
      * `x-entity-ref` (API-24; INV-Q-8513), after the principal is bound (-50).
      */
     @Bean
-    fun entityRefScopeFilter(resources: ResourceLoader): FilterRegistrationBean<EntityRefScopeFilter> =
+    fun entityRefScopeFilter(
+        resources: ResourceLoader,
+        structure: ObjectProvider<StructureReplica>,
+        clock: ObjectProvider<Clock>,
+    ): FilterRegistrationBean<EntityRefScopeFilter> =
         FilterRegistrationBean(
             EntityRefScopeFilter.from(
                 checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
+                structure,
+                clock.getIfAvailable { Clock.systemUTC() },
             ),
         ).apply {
             order = ORDER_ENTITY_REF_SCOPE
@@ -118,6 +149,9 @@ class EndUserIdentityAutoConfiguration {
     companion object {
         /** After the binding of the end-user principal. */
         const val ORDER_ENTITY_REF_SCOPE = -45
+
+        /** After the end-user token capture (-70), before the operator session binding. */
+        private const val ORDER_MACHINE_TOKEN = -65
 
         /** After the end-user token capture (-70), before any handler. */
         private const val ORDER_OPERATOR_SESSION = -60

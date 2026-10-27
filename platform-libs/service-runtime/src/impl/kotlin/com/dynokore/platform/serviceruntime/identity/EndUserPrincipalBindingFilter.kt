@@ -28,7 +28,8 @@ import java.util.UUID
  * there, never this filter. A missing or refused token is 401 SRT-003 and an unreachable issuer 503 SRT-011, the
  * handler not called, as the command servlets answer.
  *
- * An operation listed in [UntouchedOperations] (workload-only, or marked `signed-link` or `service-job`, owner
+ * A request [MachineTokenFilter] has verified as a machine operation passes untouched too: its token is never read
+ * here. An operation listed in [UntouchedOperations] (workload-only, or marked `signed-link` or `service-job`, owner
  * answer INV-Q-8201) passes untouched: no token is read, nothing is bound. Every other request, one absent from the
  * contract resources included, is an end-user operation (fail closed).
  */
@@ -44,7 +45,9 @@ class EndUserPrincipalBindingFilter(
     ) {
         val http = request as HttpServletRequest
         http.removeAttribute(PRINCIPAL_ATTRIBUTE)
-        if (untouched.matches(http.method, http.requestURI.removePrefix(http.contextPath.orEmpty()))) {
+        if (http.getAttribute(MachineTokenFilter.PRINCIPAL_ATTRIBUTE) != null ||
+            untouched.matches(http.method, http.requestURI.removePrefix(http.contextPath.orEmpty()))
+        ) {
             chain.doFilter(request, response)
             return
         }

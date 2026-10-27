@@ -11,11 +11,80 @@ import java.util.concurrent.atomic.AtomicLong
 /** Who is acting. Only [MACHINE] keeps working when no decision can be had (INV-REQ-1201 behaviours #4 and #5). */
 enum class PrincipalKind { HUMAN, CONSENT_AGENT, MACHINE }
 
-/** The acting principal. Its kind comes from the propagated token, never from `AuthorityChanged` (INV-Q-3259). */
-data class Principal(
+/**
+ * The acting principal. Its kind comes from the propagated token, never from `AuthorityChanged` (INV-Q-3259).
+ * A [PrincipalKind.MACHINE] principal exists only as the result of a verified machine access token (coordinator
+ * rulings INV-Q-9028 A, INV-Q-9040 A, INV-Q-9032 A): the public constructor refuses that kind and the factory is
+ * internal to service-runtime. A machine principal carries the token's [tenant] (null for a scope without one) and
+ * the [entityCoverage] its `principal_scope` claim states.
+ */
+class Principal internal constructor(
     val id: String,
     val kind: PrincipalKind,
-)
+    val tenant: TenantId?,
+    val entityCoverage: MachineEntityCoverage?,
+) {
+    constructor(id: String, kind: PrincipalKind) : this(id, kind, null, null) {
+        require(kind != PrincipalKind.MACHINE) { "a machine principal is made only by a verified machine access token" }
+    }
+
+    override fun equals(other: Any?): Boolean =
+        other is Principal &&
+            id == other.id && kind == other.kind && tenant == other.tenant && entityCoverage == other.entityCoverage
+
+    override fun hashCode(): Int = listOf(id, kind, tenant, entityCoverage).hashCode()
+
+    override fun toString(): String = "Principal(id=$id, kind=$kind)"
+
+    internal companion object {
+        fun machine(
+            id: String,
+            tenant: TenantId?,
+            coverage: MachineEntityCoverage,
+        ) = Principal(id, PrincipalKind.MACHINE, tenant, coverage)
+    }
+}
+
+/**
+ * The entities a machine token covers, read from its `principal_scope` claim by exact match (INV-AC-9148):
+ * `entity:<ref>` one entity, `tenant:<ref>` the entities of the token's tenant, `installation` no entity-scoped
+ * operation; every other value, an absent claim included, is [None] and covers nothing.
+ */
+sealed interface MachineEntityCoverage {
+    data class Entity(
+        val ref: String,
+    ) : MachineEntityCoverage
+
+    data class Tenant(
+        val ref: String,
+    ) : MachineEntityCoverage
+
+    data object Installation : MachineEntityCoverage
+
+    data object None : MachineEntityCoverage
+
+    companion object {
+        private val REF = Regex("^[^\\s,\\p{Cntrl}]{1,200}$")
+
+        /** The coverage of [claim]; anything not exactly one of the three forms is [None]. */
+        fun of(claim: Any?): MachineEntityCoverage {
+            val text = claim as? String ?: return None
+            return when {
+                text == "installation" -> Installation
+
+                text.startsWith(
+                    "entity:",
+                ) && REF.matches(text.removePrefix("entity:")) -> Entity(text.removePrefix("entity:"))
+
+                text.startsWith(
+                    "tenant:",
+                ) && REF.matches(text.removePrefix("tenant:")) -> Tenant(text.removePrefix("tenant:"))
+
+                else -> None
+            }
+        }
+    }
+}
 
 /** One grant record's key: a principal's grant state on one entity (INV-Q-3322 (b)). */
 data class AuthorityKey(

@@ -46,7 +46,7 @@ internal class OperatorSessionTokens(
                 jwt.header.algorithm?.name ==
                     it.alg
             }
-        val verifier = key?.let { verifierFor(jwt.header, it) } ?: return null
+        val verifier = key?.let { signatureVerifierFor(jwt.header, it) } ?: return null
         val signed =
             try {
                 jwt.verify(verifier)
@@ -55,29 +55,6 @@ internal class OperatorSessionTokens(
             }
         val claims = if (signed) claimsOf(jwt) else null
         return claims?.takeIf(::withinLifetime)?.let { verified -> sessionOf(verified)?.let { verified to it } }
-    }
-
-    private fun verifierFor(
-        header: JWSHeader,
-        key: OperatorSessionKey,
-    ): JWSVerifier? {
-        val algorithm = header.algorithm
-        val family =
-            when (algorithm) {
-                in JWSAlgorithm.Family.RSA -> "RSA"
-                in JWSAlgorithm.Family.EC -> "EC"
-                else -> return null
-            }
-        return try {
-            val spki = X509EncodedKeySpec(Base64.getDecoder().decode(key.publicKey))
-            DefaultJWSVerifierFactory().createJWSVerifier(header, KeyFactory.getInstance(family).generatePublic(spki))
-        } catch (expected: IllegalArgumentException) {
-            null
-        } catch (expected: GeneralSecurityException) {
-            null
-        } catch (expected: JOSEException) {
-            null
-        }
     }
 
     private fun claimsOf(jwt: SignedJWT): JWTClaimsSet? =
@@ -129,5 +106,31 @@ internal class OperatorSessionTokens(
 
         /** The clock skew Spring's JwtTimestampValidator allows the identity provider's tokens by default. */
         val CLOCK_SKEW: Duration = Duration.ofSeconds(60)
+    }
+}
+
+/**
+ * The signature verifier for a token whose header names [key]: an RSA (`RS`, `PS`) or EC (`ES`) algorithm over the key's
+ * DER X.509 public key; `none`, HMAC and anything else give null, so the token is refused.
+ */
+internal fun signatureVerifierFor(
+    header: JWSHeader,
+    key: OperatorSessionKey,
+): JWSVerifier? {
+    val family =
+        when (header.algorithm) {
+            in JWSAlgorithm.Family.RSA -> "RSA"
+            in JWSAlgorithm.Family.EC -> "EC"
+            else -> return null
+        }
+    return try {
+        val spki = X509EncodedKeySpec(Base64.getDecoder().decode(key.publicKey))
+        DefaultJWSVerifierFactory().createJWSVerifier(header, KeyFactory.getInstance(family).generatePublic(spki))
+    } catch (expected: IllegalArgumentException) {
+        null
+    } catch (expected: GeneralSecurityException) {
+        null
+    } catch (expected: JOSEException) {
+        null
     }
 }

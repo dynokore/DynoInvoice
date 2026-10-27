@@ -4,6 +4,15 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.http.StoredResponse
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.serviceruntime.replica.Lookup
+import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
+import com.dynokore.platform.serviceruntime.resilience.Deadline
+import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
+import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.Filter
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ReadListener
@@ -13,6 +22,7 @@ import jakarta.servlet.ServletResponse
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletRequestWrapper
 import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.server.PathContainer
 import tools.jackson.core.JsonToken
 import tools.jackson.databind.ObjectMapper
@@ -23,10 +33,13 @@ import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import java.time.Clock
+import java.time.Duration
 import java.util.UUID
 
 /**
- * Refuses a request whose body entity reference is outside the end-user principal's entity set (API-24; coordinator
+ * Refuses a request whose body entity reference is outside the principal's entity set (the end-user's, or a verified
+ * machine token's `principal_scope` left by [MachineTokenFilter], INV-AC-9148) (API-24; coordinator
  * ruling INV-Q-8513 A; owner ruling INV-Q-3716), for the operations the contract marks with `x-entity-ref` and for no
  * other (API-25: a system-flow callee has no entity-set check). The principal is the one
  * [EndUserPrincipalBindingFilter] left in [EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE]; without it the answer
@@ -37,6 +50,8 @@ import java.util.UUID
  */
 class EntityRefScopeFilter private constructor(
     parsed: List<OperationLine<List<String>>>,
+    private val structure: ObjectProvider<StructureReplica>?,
+    private val clock: Clock,
 ) : Filter {
     private val operations = OperationLines.of(parsed, RESOURCE, "properties") { a, b -> a == b }
 
@@ -54,8 +69,9 @@ class EntityRefScopeFilter private constructor(
         }
         val out = response as HttpServletResponse
         val correlation = CorrelationContext.currentCorrelationId()?.value ?: "http:${UUID.randomUUID()}"
+        val machine = http.getAttribute(MachineTokenFilter.PRINCIPAL_ATTRIBUTE) as? Principal
         val principal = http.getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
-        if (principal == null) {
+        if (machine == null && principal == null) {
             refuse(out, Problems.unauthenticated(correlation))
             return
         }
@@ -78,7 +94,13 @@ class EntityRefScopeFilter private constructor(
                 )
                 return
             }
-        if (values.isNotEmpty() && (!principal.entitySetCurrent || !values.all { inSet(principal, it) })) {
+        val covered =
+            when {
+                values.isEmpty() -> true
+                machine != null -> values.all { machineCovers(machine, it) }
+                else -> principal != null && principal.entitySetCurrent && values.all { inSet(principal, it) }
+            }
+        if (!covered) {
             refuse(out, Problems.accessDenied(correlation))
             return
         }
@@ -94,6 +116,46 @@ class EntityRefScopeFilter private constructor(
         } catch (_: IllegalArgumentException) {
             false
         }
+
+    /**
+     * A machine token's entity set is its `principal_scope` (INV-AC-9148): `entity:<ref>` covers that ref only;
+     * `tenant:<ref>` covers an entity only when `<ref>` is the token's own tenant and the [StructureReplica] holds the
+     * node under that tenant as an ENTITY (INV-Q-10955; a retired node counts); `installation` and anything else cover
+     * nothing.
+     */
+    private fun machineCovers(
+        machine: Principal,
+        value: String,
+    ): Boolean =
+        when (val coverage = machine.entityCoverage) {
+            is MachineEntityCoverage.Entity -> {
+                coverage.ref == value
+            }
+
+            is MachineEntityCoverage.Tenant -> {
+                val tenant = machine.tenant
+                tenant != null && coverage.ref == tenant.toString() && isEntityOf(tenant, value)
+            }
+
+            else -> {
+                false
+            }
+        }
+
+    /** True when the structure replica answers a node of kind ENTITY for [value] under [tenant]; anything else is false. */
+    private fun isEntityOf(
+        tenant: TenantId,
+        value: String,
+    ): Boolean {
+        val replica = structure?.ifAvailable ?: return false
+        return try {
+            val ref = EntityRef(value).value
+            val deadline = CurrentDeadline.current() ?: Deadline.after(STRUCTURE_BUDGET, clock)
+            isEntityNode(replica.node(tenant, ref, deadline))
+        } catch (_: IllegalArgumentException) {
+            false
+        }
+    }
 
     /** The body, or null when it is over the limit. */
     private fun readLimited(request: HttpServletRequest): ByteArray? {
@@ -209,11 +271,25 @@ class EntityRefScopeFilter private constructor(
     companion object {
         const val RESOURCE = "META-INF/gst/entity-ref-operations.tsv"
         const val MAX_BODY_BYTES = 1048576
+        private val STRUCTURE_BUDGET: Duration = Duration.ofSeconds(2)
         private val PROPERTY = Regex("^[A-Za-z][A-Za-z0-9]{0,39}$")
         private val MAPPER = ObjectMapper()
 
+        /** True when a replica answer, held, filled or last known, is a node of kind ENTITY (INV-Q-10955); absent or unavailable is false. */
+        internal fun isEntityNode(found: Lookup<StructureNode>): Boolean =
+            when (found) {
+                is Lookup.Local -> found.value.kind == StructureNodeKind.ENTITY
+                is Lookup.Filled -> found.value.kind == StructureNodeKind.ENTITY
+                is Lookup.LastKnown -> found.value.kind == StructureNodeKind.ENTITY
+                Lookup.Absent, Lookup.Unavailable -> false
+            }
+
         /** Every resource of [RESOURCE] on the classpath merged; a malformed or repeated line stops the start-up. */
-        fun from(loader: ClassLoader): EntityRefScopeFilter {
+        fun from(
+            loader: ClassLoader,
+            structure: ObjectProvider<StructureReplica>? = null,
+            clock: Clock = Clock.systemUTC(),
+        ): EntityRefScopeFilter {
             val operations =
                 loader.getResources(RESOURCE).toList().flatMap { url ->
                     val text = url.openStream().use { String(it.readAllBytes(), StandardCharsets.UTF_8) }
@@ -231,7 +307,7 @@ class EntityRefScopeFilter private constructor(
                         OperationLine(parts[0], parts[1], names)
                     }
                 }
-            return EntityRefScopeFilter(operations)
+            return EntityRefScopeFilter(operations, structure, clock)
         }
     }
 }

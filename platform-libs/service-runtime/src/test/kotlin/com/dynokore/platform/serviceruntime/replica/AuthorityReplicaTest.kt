@@ -24,7 +24,18 @@ class AuthorityReplicaTest {
         kind: PrincipalKind,
         period: DateSpan? = null,
         entity: String = "e1",
-    ) = AuthorizationRequest(TENANT_A, Principal("p1", kind), entity, "approve", period)
+    ) = AuthorizationRequest(
+        TENANT_A,
+        // A MACHINE principal is made only inside service-runtime (INV-Q-9028 A).
+        if (kind == PrincipalKind.MACHINE) {
+            Principal.machine("p1", TENANT_A, MachineEntityCoverage.None)
+        } else {
+            Principal("p1", kind)
+        },
+        entity,
+        "approve",
+        period,
+    )
 
     private fun decide(kind: PrincipalKind) = replica.decide(request(kind), deadline(clock))
 

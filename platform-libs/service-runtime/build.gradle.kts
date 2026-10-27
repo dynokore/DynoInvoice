@@ -67,6 +67,16 @@ sourceSets {
     }
 }
 
+// The impl and implTest compilations see main's `internal` members: the machine Principal is made only inside
+// service-runtime (INV-Q-9028 A).
+kotlin {
+    target {
+        compilations.getByName("impl").associateWith(compilations.getByName("main"))
+        compilations.getByName("implTest").associateWith(compilations.getByName("main"))
+        compilations.getByName("implTest").associateWith(compilations.getByName("impl"))
+    }
+}
+
 // Project evaluation order is alphabetical, so these modules' `implJar` tasks would not exist yet (as audit-log).
 evaluationDependsOn(":tenancy-kernel")
 evaluationDependsOn(":outbox-and-queue")

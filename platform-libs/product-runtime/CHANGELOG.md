@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-10-27
+### Changed
+- Depends on `service-runtime 10.16.0`: the machine access token is verified in `service-runtime` (INV-T-9155; G-DVS).
+
 ## [1.6.1] - 2026-10-27
 ### Changed
 - Depends on `service-runtime 10.15.0`: `IngestionErrorCode` gains ING-002 and ING-022 (INV-T-11270; G-DVS).
