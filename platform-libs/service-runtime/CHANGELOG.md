@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.17.1] - 2026-10-27
+### Changed
+- Metadata-only change (INV-T-9100, G-DVS): depends on `outbox-and-queue 6.6.0`, whose version steps; no code change.
+
 ## [10.17.0] - 2026-10-27
 ### Added
 - `AuthorityReplica.decideTenant(tenant, principal, action)`: an operation that names no entity is permitted only on a TENANT-scope grant of exactly that action, decided locally; beyond the lag bound or with no version received the answer is AUTHORITY_UNAVAILABLE for every principal kind, with no fallback call (INV-Q-11688 A; INV-AC-11706).

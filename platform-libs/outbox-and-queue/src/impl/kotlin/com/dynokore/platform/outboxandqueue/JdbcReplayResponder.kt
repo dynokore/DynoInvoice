@@ -7,6 +7,7 @@ import org.jooq.Table
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.time.Clock
+import java.util.UUID
 
 /**
  * The producer side of the replay protocol (INV-REQ-1205 b4; rulings INV-Q-3599, INV-Q-3601, INV-Q-3625, INV-Q-3644,
@@ -55,6 +56,8 @@ class JdbcReplayResponder
         private val envelopes = EnvelopeJson()
         private val json = ReplayJson()
         private val stopped = mutableSetOf<String>()
+        private var lastServed = -1
+        private var answerLockHeld = false
         private val ledger = ResponderLedger(dsl, scope, s, service, envelopes)
         private val sender = ReplaySender(sourcesByType, writer, scope, pageSize)
 
@@ -67,15 +70,33 @@ class JdbcReplayResponder
          * Reads every request topic this service reads and answers what it finds there. Returns the replays answered.
          */
         @Synchronized
-        fun runOnce(): List<ReplayAnswer> =
-            catalogue.requestTopicsReadBy(service).flatMap { topic ->
-                // the lock transaction writes nothing; its end releases the lock
-                scope.bindWorkload(TenantId.PLATFORM) {
-                    scope.transactions.inTransaction {
-                        if (ledger.tryLock(topic.topic)) drain(topic) else emptyList()
+        fun runOnce(): List<ReplayAnswer> {
+            val topics = catalogue.requestTopicsReadBy(service)
+            // fairness: start after the topic served last, wrapping around; the log order within a topic is unchanged
+            val start = if (topics.isEmpty()) 0 else (lastServed + 1) % topics.size
+            return (topics.indices).flatMap { step ->
+                val index = (start + step) % topics.size
+                // the lock transaction writes nothing; its end releases the locks
+                val answers =
+                    scope.bindWorkload(TenantId.PLATFORM) {
+                        scope.transactions.inTransaction {
+                            answerLockHeld = false
+                            if (ledger.tryLock(topics[index].topic)) drain(topics[index]) else emptyList()
+                        }
                     }
-                }
+                if (answers.isNotEmpty()) lastServed = index
+                answers
             }
+        }
+
+        /**
+         * Takes the service-wide answer lock on first need within the open topic transaction (INV-Q-9087): one replay is
+         * answered at a time across all instances of the service. False leaves the request unhandled.
+         */
+        private fun takeAnswerLock(): Boolean {
+            if (!answerLockHeld) answerLockHeld = ledger.tryAnswerLock()
+            return answerLockHeld
+        }
 
         private fun drain(topic: ReplayRequestTopic): List<ReplayAnswer> {
             val next = ledger.position(topic.topic)
@@ -97,7 +118,13 @@ class JdbcReplayResponder
                     return emptyList()
                 }
             stopped.remove(topic.topic)
-            return records.mapNotNull { answer(topic, it) }
+            val answers = mutableListOf<ReplayAnswer>()
+            for (record in records) {
+                val outcome = answer(topic, record)
+                if (outcome === BUSY) break // the request stays unhandled; later requests wait for it (log order)
+                if (outcome != null) answers += outcome
+            }
+            return answers
         }
 
         private fun answer(
@@ -165,6 +192,10 @@ class JdbcReplayResponder
                     null
                 }
 
+                !takeAnswerLock() -> {
+                    BUSY
+                }
+
                 else -> {
                     val correlation = CorrelationId("replay:${request.replayId}")
                     val causation = CausationId(envelope.id.value)
@@ -197,6 +228,8 @@ class JdbcReplayResponder
             }
 
         private companion object {
+            /** Marks a request left unhandled because another run holds the service's answer lock. */
+            val BUSY = ReplayAnswer(UUID(0, 0), "", "", 0)
             const val BATCH = 20
             const val DEFAULT_PAGE = 200
             const val MAX_PAGE = 5000

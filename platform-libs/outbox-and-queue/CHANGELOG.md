@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.6.0] - 2026-10-27
+### Changed
+- `JdbcReplayResponder` answers one replay at a time per producing service across all its instances (INV-Q-9087, INV-T-9100, INV-AC-9092): before it answers a request it takes the transaction advisory lock `<service>.replay-answer` through the `ledger.tryLock` mechanism, and a refused request stays unhandled (no inbox row, no position change) until the next run; each `runOnce` starts with the request topic after the one served last, wrapping around.
+
 ## [6.5.2] - 2026-10-26
 ### Changed
 - Metadata-only release (INV-T-11066, INV-Q-11056, G-DVS): depends on `tenancy-kernel 4.2.0`, whose published module metadata changed; no code change.

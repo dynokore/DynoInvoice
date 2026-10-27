@@ -100,6 +100,17 @@ replay_topics:
       - access-svc
     subscribers:
       - evidence-svc
+  - topic: gst.canonical.replay-evidence.v1
+    event_types:
+      - com.dynokore.gst.canonical.CanonicalVersionCreated.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: true
+    retained_while_resolvable: false
+    record_topic: false
+    producers:
+      - canonical-svc
+    subscribers:
+      - evidence-svc
   - topic: gst.canonical.replay-reconciliation.v1
     event_types:
       - com.dynokore.gst.canonical.CanonicalVersionCreated.v1

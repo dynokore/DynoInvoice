@@ -111,8 +111,16 @@ internal class ResponderLedger(
     }
 
     /** The per-topic transaction advisory lock, a jOOQ function call; false when another run holds it. */
-    fun tryLock(topic: String): Boolean {
-        val lock = JooqRoutines.tryAdvisoryXactLock("$s/replay-responder/$topic")
+    fun tryLock(topic: String): Boolean = tryXactLock("$s/replay-responder/$topic")
+
+    /**
+     * The service-wide transaction advisory lock of one answer at a time, keyed `<service>.replay-answer` (INV-Q-9087);
+     * false when a run of any instance of this service holds it.
+     */
+    fun tryAnswerLock(): Boolean = tryXactLock("$service.replay-answer")
+
+    private fun tryXactLock(key: String): Boolean {
+        val lock = JooqRoutines.tryAdvisoryXactLock(key)
         return dsl.select(lock).fetchSingle().get(lock) == true
     }
 

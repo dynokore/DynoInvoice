@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.6.4] - 2026-10-27
+### Changed
+- Metadata-only change (INV-T-9100, G-DVS): depends on `outbox-and-queue 6.6.0`, whose version steps; no code change.
+
 ## [1.6.3] - 2026-10-27
 ### Changed
 - Depends on `service-runtime 10.17.0`: `AuthorityReplica.decideTenant` is added in `service-runtime` (INV-T-11703; G-DVS).
