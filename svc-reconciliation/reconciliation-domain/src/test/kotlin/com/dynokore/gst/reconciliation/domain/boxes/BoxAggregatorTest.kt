@@ -29,18 +29,16 @@ class BoxAggregatorTest {
         doc: String,
         code: String,
         direction: Direction,
-        taxable: String,
-        tax: String,
-        number: Int = 1,
-        version: Int = 1,
-    ) = DocumentLine(doc, version, direction, SgdLine(number, code, d(taxable), d(tax)))
+        amounts: Pair<String, String>,
+        at: Pair<Int, Int> = 1 to 1,
+    ) = DocumentLine(doc, at.second, direction, SgdLine(at.first, code, d(amounts.first), d(amounts.second)))
 
     private val standardLines =
         listOf(
-            line("A", "SR", Direction.SALE, "100.00", "9.00"),
-            line("B", "SR", Direction.SALE, "-50.00", "-4.50"),
-            line("A", "ZR", Direction.SALE, "30.00", "0.00", number = 2),
-            line("C", "SR", Direction.PURCHASE, "20.00", "1.80"),
+            line("A", "SR", Direction.SALE, "100.00" to "9.00"),
+            line("B", "SR", Direction.SALE, "-50.00" to "-4.50"),
+            line("A", "ZR", Direction.SALE, "30.00" to "0.00", at = 2 to 1),
+            line("C", "SR", Direction.PURCHASE, "20.00" to "1.80"),
         )
 
     @Test
@@ -55,10 +53,10 @@ class BoxAggregatorTest {
     fun `INV-AC-677 unmapped lines are returned and add to no Box`() {
         val extra =
             listOf(
-                line("D", "XX", Direction.SALE, "10.00", "1.00", number = 3),
-                line("D", "sr", Direction.SALE, "10.00", "1.00", number = 2),
-                line("D", "ZR", Direction.PURCHASE, "10.00", "0.00", number = 1),
-                line("C", " SR", Direction.SALE, "10.00", "1.00", number = 5, version = 2),
+                line("D", "XX", Direction.SALE, "10.00" to "1.00", at = 3 to 1),
+                line("D", "sr", Direction.SALE, "10.00" to "1.00", at = 2 to 1),
+                line("D", "ZR", Direction.PURCHASE, "10.00" to "0.00", at = 1 to 1),
+                line("C", " SR", Direction.SALE, "10.00" to "1.00", at = 5 to 2),
             )
         val result = BoxAggregator.aggregate(entries, standardLines + extra)
         result.boxes shouldBe BoxAggregator.aggregate(entries, standardLines).boxes
@@ -73,7 +71,7 @@ class BoxAggregatorTest {
 
     @Test
     fun `INV-AC-677 the direction decides the entry`() {
-        val result = BoxAggregator.aggregate(entries, listOf(line("A", "SR", Direction.PURCHASE, "20.00", "1.80")))
+        val result = BoxAggregator.aggregate(entries, listOf(line("A", "SR", Direction.PURCHASE, "20.00" to "1.80")))
         result.boxes shouldBe mapOf("5" to d("20.00"), "7" to d("1.80"))
     }
 
@@ -113,24 +111,24 @@ class BoxAggregatorTest {
             BoxAggregator.aggregate(
                 entries,
                 listOf(
-                    line("A", "ZR", Direction.SALE, "0.10", "0"),
-                    line("B", "ZR", Direction.SALE, "0.2", "0"),
+                    line("A", "ZR", Direction.SALE, "0.10" to "0"),
+                    line("B", "ZR", Direction.SALE, "0.2" to "0"),
                 ),
             )
         result.boxes["2"] shouldBe d("0.30")
-        result.boxes["2"]!!.scale() shouldBe 2
+        result.boxes.getValue("2").scale() shouldBe 2
     }
 
     @Test
     fun `INV-AC-677 an amount with three decimal places fails`() {
         shouldThrow<IllegalArgumentException> {
-            BoxAggregator.aggregate(entries, listOf(line("A", "ZR", Direction.SALE, "1.005", "0.00")))
+            BoxAggregator.aggregate(entries, listOf(line("A", "ZR", Direction.SALE, "1.005" to "0.00")))
         }
     }
 
     @Test
     fun `INV-AC-677 the result does not depend on input order`() {
-        val extra = listOf(line("D", "XX", Direction.SALE, "1.00", "0.10", number = 9))
+        val extra = listOf(line("D", "XX", Direction.SALE, "1.00" to "0.10", at = 9 to 1))
         val forward = BoxAggregator.aggregate(entries, standardLines + extra)
         val shuffled = BoxAggregator.aggregate(entries.reversed(), (standardLines + extra).reversed())
         shuffled shouldBe forward
