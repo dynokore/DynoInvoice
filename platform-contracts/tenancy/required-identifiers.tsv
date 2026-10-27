@@ -32,6 +32,7 @@ recordAppliedOperatingProfile	operation	openapi.yaml	INV-REQ-1245
 getAppliedOperatingProfile	operation	openapi.yaml	INV-REQ-1245
 offboardTenant	operation	openapi.yaml	INV-REQ-956
 recordInstallationAction	operation	openapi.yaml	INV-REQ-1101
+RecordInstallationActionRequest.command.ROTATE_DB_CREDENTIAL	schema_enum_value	openapi.yaml	INV-REQ-1101
 recordMigrationCutover	operation	openapi.yaml	INV-REQ-1109
 getMigrationCutover	operation	openapi.yaml	INV-REQ-1109
 cutoverDate	property	openapi.yaml	INV-REQ-1109
