@@ -28,6 +28,7 @@ object AcKeyCoverage {
         mapOf(
             "INV-T-8451" to setOf("INV-AC-447", "INV-AC-1572"),
             "INV-T-11349" to setOf("INV-AC-1436"),
+            "INV-T-11286" to setOf("INV-AC-453", "INV-AC-2779"),
         )
     private val HEADER = listOf("criterion", "task", "wave")
 
