@@ -61,7 +61,11 @@ class BreakGlassAlertTest {
 
     @Test
     fun `installation scope uses the tenant-wide entity ref`() {
-        val d = BreakGlassAlert.decide(event(scope = BreakGlassScope.INSTALLATION, action = BreakGlassAction.REPLAY), two) as Raise
+        val d =
+            BreakGlassAlert.decide(
+                event(scope = BreakGlassScope.INSTALLATION, action = BreakGlassAction.REPLAY),
+                two,
+            ) as Raise
         d.draft.alertClass shouldBe "SECURITY"
         d.draft.trigger shouldBe "BREAK_GLASS_USED"
         d.draft.entityRef shouldBe TENANT_WIDE_ENTITY_REF
