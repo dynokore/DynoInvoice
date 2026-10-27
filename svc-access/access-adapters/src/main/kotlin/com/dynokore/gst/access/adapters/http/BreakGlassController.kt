@@ -14,6 +14,7 @@ import com.dynokore.gst.access.domain.breakglass.BreakGlassAction
 import com.dynokore.gst.access.domain.breakglass.BreakGlassRules
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -36,6 +37,7 @@ open class BreakGlassController(
     private val unlock: UnlockBreakGlassUseCase,
     private val record: RecordBreakGlassActionUseCase,
     private val tenants: TenantContext,
+    private val serviceCaller: ServiceCaller,
 ) : BreakGlassApi {
     override fun unlockBreakGlass(
         idempotencyKey: UUID,
@@ -69,9 +71,11 @@ open class BreakGlassController(
         idempotencyKey: UUID,
         breakGlassActionRequest: BreakGlassActionRequest,
     ): ResponseEntity<BreakGlassActionResponse> {
+        // an unmapped caller is refused before the use case runs (INV-Q-9113 A)
+        val callerService = serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         val action = BreakGlassAction.valueOf(breakGlassActionRequest.action.name)
-        return when (val outcome = record.handle(actor, unlockRef, action, breakGlassActionRequest.target)) {
+        return when (val outcome = record.handle(actor, unlockRef, action, breakGlassActionRequest.target, callerService)) {
             is RecordBreakGlassOutcome.Recorded -> {
                 ResponseEntity.status(HttpStatus.CREATED).body(
                     BreakGlassActionResponse(

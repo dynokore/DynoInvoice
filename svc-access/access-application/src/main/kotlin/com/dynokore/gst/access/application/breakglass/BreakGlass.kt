@@ -46,6 +46,7 @@ interface BreakGlassSessions {
         unlockRef: String,
         action: BreakGlassAction,
         target: String?,
+        callerService: String,
     ): String
 }
 
@@ -167,12 +168,14 @@ class RecordBreakGlassActionUseCase(
         unlockRef: String,
         action: BreakGlassAction,
         target: String?,
+        callerService: String,
     ): RecordBreakGlassOutcome =
         tx.inTransaction {
             val session = sessions.find(unlockRef) ?: return@inTransaction RecordBreakGlassOutcome.NotFound
             if (!session.isOpenAt(clock.instant())) return@inTransaction RecordBreakGlassOutcome.NotOpen
-            val ref = sessions.insertAction(unlockRef, action, target)
-            effects.record(actor, "recordBreakGlassAction", unlockRef, action.name, action.name)
+            val ref = sessions.insertAction(unlockRef, action, target, callerService)
+            // the audit entry names the service that carried the action out (INV-Q-9113 A)
+            effects.record(actor, "recordBreakGlassAction", unlockRef, action.name, "${action.name} by $callerService")
             RecordBreakGlassOutcome.Recorded(ref)
         }
 }

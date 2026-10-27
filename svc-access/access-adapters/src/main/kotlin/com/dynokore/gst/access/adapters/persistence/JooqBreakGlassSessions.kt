@@ -57,6 +57,7 @@ class JooqBreakGlassSessions(
         unlockRef: String,
         action: BreakGlassAction,
         target: String?,
+        callerService: String,
     ): String {
         val ref = "BGA-" + ref()
         dsl
@@ -66,6 +67,7 @@ class JooqBreakGlassSessions(
             .set(BREAK_GLASS_ACTION.UNLOCK_REF, unlockRef)
             .set(BREAK_GLASS_ACTION.ACTION, action.name)
             .set(BREAK_GLASS_ACTION.TARGET, target)
+            .set(BREAK_GLASS_ACTION.CALLER_SERVICE, callerService)
             .set(BREAK_GLASS_ACTION.CREATED_AT, now())
             .set(BREAK_GLASS_ACTION.CREATED_BY, actor())
             .set(BREAK_GLASS_ACTION.UPDATED_AT, now())
