@@ -202,14 +202,60 @@ class CanonicalRecorderAdapterTest {
         runner(" ", registry()).run { (it.startupFailure != null) shouldBe true }
     }
 
+    private fun sentTree(candidate: String): tools.jackson.databind.JsonNode {
+        stub.seen.clear()
+        stub.reply = replyJson(201)
+        withAdapter { it.record(command.copy(body = candidate)) }
+        return mapper.readTree(stub.seen.single().body)
+    }
+
     @Test
-    fun `a body with a member the generated request cannot carry is refused, not silently cut`() {
+    fun `a body without sourceTimeZone is sent without it`() {
+        val sent = sentTree(body.replace(""","sourceTimeZone":"Asia/Singapore"""", ""))
+        sent.has("sourceTimeZone") shouldBe false
+        sent shouldBe mapper.readTree(body.replace(""","sourceTimeZone":"Asia/Singapore"""", ""))
+    }
+
+    @Test
+    fun `a body with an explicit sourceTimeZone is sent equal`() {
+        val given = body.replace("Asia/Singapore", "Asia/Kolkata")
+        sentTree(given) shouldBe mapper.readTree(given)
+    }
+
+    @Test
+    fun `an explicit null member stays null`() {
+        val given = body.replace("\"currency\"", "\"postingTimestamp\":null,\"currency\"")
+        val sent = sentTree(given)
+        sent.has("postingTimestamp") shouldBe true
+        sent.get("postingTimestamp").isNull shouldBe true
+        sent shouldBe mapper.readTree(given)
+    }
+
+    @Test
+    fun `a look-alike unknown member is sent as given`() {
+        val given = body.replace("\"currency\"", "\"sourceTimezone\":\"x\",\"currency\"")
+        sentTree(given) shouldBe mapper.readTree(given)
+    }
+
+    @Test
+    fun `a body that is not a JSON object is refused before any request`() {
         withAdapter { adapter ->
-            shouldThrow<Exception> {
-                adapter.record(command.copy(body = body.replace("\"currency\"", "\"unknownMember\":1,\"currency\"")))
-            }
+            shouldThrow<IllegalArgumentException> { adapter.record(command.copy(body = "[]")) }
+            shouldThrow<IllegalArgumentException> { adapter.record(command.copy(body = "not json")) }
         }
         stub.seen.size shouldBe 0
+    }
+
+    @Test
+    fun `a 2xx whose body cannot be read gives Rejected with that status`() {
+        stub.reply = CanonicalStub.Reply(200, "not json")
+        withAdapter { it.record(command) } shouldBe CanonicalAnswer.Rejected(null, 200)
+        stub.reply = CanonicalStub.Reply(201, """{"docUuid": 5}""")
+        withAdapter { it.record(command) } shouldBe CanonicalAnswer.Rejected(null, 201)
+        stub.reply = CanonicalStub.Reply(202, "")
+        withAdapter { it.record(command) } shouldBe CanonicalAnswer.Rejected(null, 202)
+        stub.reply = replyJson(201)
+        withAdapter { it.record(command) } shouldBe CanonicalAnswer.Created(docUuid, 2)
     }
 
     private companion object {

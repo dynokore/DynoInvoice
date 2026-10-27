@@ -10,18 +10,25 @@ import com.dynokore.gst.ingestion.domain.recording.CanonicalAnswer
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
+import org.openapitools.client.infrastructure.ApiClient
+import org.openapitools.client.infrastructure.RequestConfig
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.env.Environment
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientResponseException
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.KotlinModule
 import tools.jackson.module.kotlin.readValue
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
+import java.util.UUID
 
 /** The edge `ingestion-svc->canonical-svc` gave no answer: timeout, open breaker, full bulkhead or no connection. */
 class CanonicalUnavailableException(
@@ -40,20 +47,29 @@ class CanonicalRecorderAdapter(
     private val clock: Clock,
     environment: Environment,
 ) : CanonicalRecorder {
-    private val api = DocumentsApi(builder.baseUrl(baseUrl(environment)).build())
+    private val restClient = builder.baseUrl(baseUrl(environment)).build()
+    private val api = DocumentsApi(restClient)
+    private val transport = Transport(restClient)
     private val policy = registry.forEdge(EDGE)
     private val mapper =
         JsonMapper
             .builder()
             .addModule(KotlinModule.Builder().build())
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build()
 
     override fun record(command: RecordDocumentCommand): CanonicalAnswer {
-        val request = mapper.readValue<RecordDocumentRequest>(command.body)
-        // the generated types tolerate unknown members (API-09): the request must still carry the whole body, no more
-        require(mapper.valueToTree<JsonNode>(request).withoutNulls() == mapper.readTree(command.body).withoutNulls()) {
-            "the generated request cannot carry the body of ${command.sourceKey}/${command.sourceRevision} unchanged"
-        }
+        // INV-Q-11474 A: the members of command.body go out as given, none added, dropped or changed
+        val tree =
+            try {
+                mapper.readTree(command.body)
+            } catch (failure: JacksonException) {
+                throw IllegalArgumentException(
+                    "the body of ${command.sourceKey}/${command.sourceRevision} is not JSON",
+                    failure,
+                )
+            }
+        require(tree.isObject) { "the body of ${command.sourceKey}/${command.sourceRevision} is not a JSON object" }
         // API-29: the deadline of the request being served; a call with none behind it gets the edge's contract timeout
         val deadline = CurrentDeadline.current() ?: Deadline.after(EDGE_TIMEOUT, clock)
         return policy.execute(
@@ -62,42 +78,44 @@ class CanonicalRecorderAdapter(
             onConnectFailure = { unavailable("connection refused") },
             onTimeout = { unavailable("timed out") },
         ) {
-            send(request)
+            send(tree)
         }
     }
 
-    private fun JsonNode.withoutNulls(): JsonNode =
-        when {
-            isObject -> {
-                mapper.createObjectNode().also { out ->
-                    properties().forEach { (k, v) -> if (!v.isNull) out.set(k, v.withoutNulls()) }
-                }
-            }
-
-            isArray -> {
-                mapper.createArrayNode().also { out -> forEach { out.add(it.withoutNulls()) } }
-            }
-
-            else -> {
-                this
-            }
-        }
-
     private fun unavailable(reason: String): Nothing = throw CanonicalUnavailableException("$EDGE: $reason")
 
-    private fun send(request: RecordDocumentRequest): CanonicalAnswer =
+    private fun send(tree: JsonNode): CanonicalAnswer =
         try {
-            val response = api.recordDocumentWithHttpInfo(request)
+            val response = transport.post(requestConfig(tree))
             answer(response.statusCode.value(), response.body)
         } catch (failure: RestClientResponseException) {
             rejected(failure)
         }
 
+    private fun parseResponse(raw: String): RecordDocumentResponse? =
+        runCatching { mapper.readValue<RecordDocumentResponse>(raw) }.getOrNull()
+
+    /** Method, path and headers come from the generated config; only the body is replaced by the parsed tree. */
+    private fun requestConfig(tree: JsonNode): RequestConfig<JsonNode> {
+        val generated = api.recordDocumentRequestConfig(TEMPLATE)
+        return RequestConfig(
+            method = generated.method,
+            path = generated.path,
+            headers = generated.headers,
+            params = generated.params,
+            query = generated.query,
+            requiresAuthentication = generated.requiresAuthentication,
+            body = tree,
+        )
+    }
+
+    /** The status is read before the body (INV-Q-11476 A): an unreadable body gives the status alone. */
     private fun answer(
         status: Int,
-        body: RecordDocumentResponse?,
-    ): CanonicalAnswer =
-        when {
+        raw: String?,
+    ): CanonicalAnswer {
+        val body = raw?.takeIf { it.isNotBlank() }?.let { parseResponse(it) }
+        return when {
             body == null -> {
                 CanonicalAnswer.Rejected(null, status)
             }
@@ -118,6 +136,7 @@ class CanonicalRecorderAdapter(
                 CanonicalAnswer.Rejected(null, status)
             }
         }
+    }
 
     /** A 4xx with the Error envelope carries its code and status; a 5xx or any other body carries only the status. */
     private fun rejected(failure: RestClientResponseException): CanonicalAnswer {
@@ -129,7 +148,29 @@ class CanonicalRecorderAdapter(
         return CanonicalAnswer.Rejected(null, status)
     }
 
+    /** The generated `ApiClient` sends the request; the answer comes back raw, so the status precedes any parsing. */
+    private class Transport(
+        client: RestClient,
+    ) : ApiClient(client) {
+        fun post(config: RequestConfig<JsonNode>): ResponseEntity<String> =
+            prepare(defaults(config)).retrieve().toEntity(String::class.java)
+    }
+
     private companion object {
+        /** Only its method, path and headers are used: the generated config needs a typed request to be asked for. */
+        val TEMPLATE =
+            RecordDocumentRequest(
+                tenantId = UUID(0, 0),
+                entityRef = "",
+                sourceSystem = "",
+                sourceKey = "",
+                sourceRevision = 0,
+                documentFunction = RecordDocumentRequest.DocumentFunction.entries.first(),
+                transactionDate = LocalDate.EPOCH,
+                currency = "",
+                lines = emptyList(),
+            )
+
         const val URL_PROPERTY = "ingestion.canonical-svc-url"
         const val EDGE = "ingestion-svc->canonical-svc"
 
