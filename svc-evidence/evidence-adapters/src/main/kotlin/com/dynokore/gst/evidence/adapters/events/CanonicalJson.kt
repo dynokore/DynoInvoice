@@ -27,11 +27,15 @@ internal object CanonicalJson {
                     .forEach { out.set(it, sorted(node.get(it))) }
                 out
             }
+
             node.isArray -> {
                 val out: ArrayNode = JsonNodeFactory.instance.arrayNode()
                 node.forEach { out.add(sorted(it)) }
                 out
             }
-            else -> node
+
+            else -> {
+                node
+            }
         }
 }

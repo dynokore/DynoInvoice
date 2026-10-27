@@ -183,7 +183,8 @@ class RecordConsumersTest {
         EventEntityRef(entity),
         1,
         """{"docUuid":"$doc","version":1,"transactionDate":"2026-01-15","prescribedPeriodRef":"2026-Q1",""" +
-            """"traceReference":"trace-1","canonicalDocument":{"documentNumber":{"value":"INV-001","classification":"c"}}}""",
+            """"traceReference":"trace-1",""" +
+            """"canonicalDocument":{"documentNumber":{"value":"INV-001","classification":"c"}}}""",
         DocUuid(doc),
     )
 
@@ -218,17 +219,23 @@ class RecordConsumersTest {
         data,
     )
 
+    private fun result(
+        applied: Int,
+        duplicates: Int,
+        deadLettered: Int,
+    ) = PollResult(applied = applied, ignored = 0, duplicates = duplicates, stale = 0, deadLettered = deadLettered)
+
     private fun sha256Link(
         previous: String?,
         content: ByteArray,
     ): String = ContentHash.of(((previous ?: "").toByteArray(Charsets.US_ASCII)) + content).hex
 
     @Test
-    fun `INV-AC-7216 a decision trace before its locator is pending, appended once when the locator is stored, and an audit entry joins its audit chain`(
+    fun `INV-AC-7216 pending decision trace drained once by the locator, audit entry in the audit chain`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         traceLog.add(trace(tenant, "dt-1"))
-        traceConsumer.pollOnce() shouldBe PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
+        traceConsumer.pollOnce() shouldBe result(1, 0, 0)
         traces(tenant).size shouldBe 0
         pendingCount(tenant) shouldBe 1
         applied(tenant, "dt-1").size shouldBe 0
@@ -266,8 +273,9 @@ class RecordConsumersTest {
         locatorConsumer.pollOnce().applied shouldBe 1
         traceLog.add(trace(tenant, "dt-1", docSequence = 5))
         traceLog.add(trace(tenant, "dt-2", """{"rule":"R2"}""", docSequence = 2))
-        traceConsumer.pollOnce() shouldBe PollResult(applied = 2, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
-        traces(tenant).map { String(it.content) } shouldBe listOf("""{"outcome":"ok","rule":"R1"}""", """{"rule":"R2"}""")
+        traceConsumer.pollOnce() shouldBe result(2, 0, 0)
+        traces(tenant).map { String(it.content) } shouldBe
+            listOf("""{"outcome":"ok","rule":"R1"}""", """{"rule":"R2"}""")
         pendingCount(tenant) shouldBe 0
     }
 
@@ -291,7 +299,7 @@ class RecordConsumersTest {
     ) = run(dir) { tenant ->
         auditLog.add(audit(tenant, "au-1", entityRef = null))
         auditLog.add(audit(tenant, "au-1", entityRef = null))
-        auditConsumer.pollOnce() shouldBe PollResult(applied = 1, ignored = 0, duplicates = 1, stale = 0, deadLettered = 0)
+        auditConsumer.pollOnce() shouldBe result(1, 1, 0)
         val tenantWide = EventEntityRef.TENANT_WIDE.value
         chain(tenant, RecordKind.AUDIT_LOG, tenantWide, "AUDIT-2026-10").size shouldBe 1
         applied(tenant, "au-1").single().entityRef shouldBe tenantWide
@@ -320,7 +328,7 @@ class RecordConsumersTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         auditLog.add(audit(tenant, "au-1", data = """{"scope":"invoice","action":"read"}"""))
-        auditConsumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
+        auditConsumer.pollOnce() shouldBe result(0, 0, 1)
         deadLetters(tenant) shouldBe 1
         chain(tenant, RecordKind.AUDIT_LOG, entity, "AUDIT-2026-10").size shouldBe 0
         applied(tenant, "au-1").size shouldBe 0

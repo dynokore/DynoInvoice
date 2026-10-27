@@ -15,8 +15,8 @@ import java.time.Clock
 /**
  * The subscriptions of evidence-svc to the two record topics (INV-REQ-3650 b1, INV-REQ-1226 b4), one inbox consumer
  * each on the inbox, offset and dead-letter tables of schema `evidence`. Both types are catalogued as record types
- * ([EvidenceEvents.recordEntries]), so the consumer takes no `docsequence` check for them (INV-Q-3809). The handler runs
- * in the consumer's transaction, so the record, its `applied_record` row, the inbox row and the offset commit
+ * ([EvidenceEvents.recordEntries]), so the consumer takes no `docsequence` check for them (INV-Q-3809). The handler
+ * runs in the consumer's transaction, so the record, its `applied_record` row, the inbox row and the offset commit
  * together (INV-REQ-1222). The position write of INV-T-4271 is not here.
  */
 @Configuration(proxyBeanMethods = false)
