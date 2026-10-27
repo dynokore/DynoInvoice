@@ -1,13 +1,18 @@
 {
-  "description": "Standard-rated supply (credit-note).",
+  "description": "Standard-rated supply (credit note).",
   "expected": "SR",
+  "expectedField": "categoryCode",
   "id": "sm-standard-supply-credit-note",
   "inputs": {
-    "documentType": "381",
-    "scheme": "standard",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SR",
+    "lineSign": "NEGATIVE",
+    "precedingDocumentDate": "2026-09-01",
+    "precedingDocumentNumber": "INV-ORIG-1",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "SRS 14.1"
+  "source": "INV-BR-1470: SR standard-rated supply; INV-NOTE-2 section 14.1 FR-10.3: credit note codes tally with the original invoice"
 }

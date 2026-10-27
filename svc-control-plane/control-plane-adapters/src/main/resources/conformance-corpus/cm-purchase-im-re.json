@@ -1,13 +1,15 @@
 {
   "description": "Annex E purchase code IM-RE: Import of goods with GST paid to Singapore Customs that are residual",
   "expected": "IM-RE",
+  "expectedField": "categoryCode",
   "id": "cm-purchase-im-re",
   "inputs": {
-    "annexERate": "9%",
-    "code": "IM-RE",
-    "side": "purchase"
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-IM-RE",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, purchase codes): IM-RE"
 }

@@ -1,12 +1,15 @@
 {
-  "description": "Non-reportable purchases: purchases exempt from GST.",
+  "description": "OUT_OF_SCOPE by INV-NOTE-2 section 7.3 for code EP.",
   "expected": "OUT_OF_SCOPE",
+  "expectedField": "scopeVerdict",
   "id": "sc-exempt-purchase",
   "inputs": {
-    "category": "Non-reportable purchases: purchases exempt from GST",
-    "side": "purchase"
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-EP",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCOPE_MATRIX",
-  "source": "SRS 7.3 (R1 section 7.3)"
+  "source": "INV-NOTE-2 section 7.3: purchases exempt from GST; section 6.2 EP"
 }

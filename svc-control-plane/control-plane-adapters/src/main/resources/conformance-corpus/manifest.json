@@ -2,355 +2,323 @@
   "files": [
     {
       "name": "cm-purchase-bl.json",
-      "sha256": "cc1a1ab9150e7d8b69c4a17b5a192c5601d0f8f8780cf512bf8f957cfba95996"
+      "sha256": "a281596a5214c2d118a5660b0af12f5e73bc1f8e1d2b84f65a308e1f528306bc"
     },
     {
       "name": "cm-purchase-ep.json",
-      "sha256": "2638df30bce9e42519e26fbbe1891e79ab5902e6af2389176fd1d99aade0567c"
+      "sha256": "a0a73b4a024387af921049d78b1197cbd65b759fd4c5a9d19031b4b6ad8a87c1"
     },
     {
       "name": "cm-purchase-igds.json",
-      "sha256": "7e2698d944176f4bac0e76878b829d21abb9e53795fa9e3ec5734f00642be822"
+      "sha256": "5338fe7a8695df736f435a70477e52f1bac8c3c145247e01044d4b8cbe32fb28"
     },
     {
       "name": "cm-purchase-im-ess.json",
-      "sha256": "6c44f8642098dedda2f79c52f87de7b67d63c1c4b22c6ac88ad0c8803abd1c47"
+      "sha256": "deaae2ba06a77c74e788d6e77c2a4baded2bc7c5a7d4d5b05da07afa555d3453"
     },
     {
       "name": "cm-purchase-im-n33.json",
-      "sha256": "8cb90f9635973286c58dc252edadfa73060e3a524702594066250749b727b185"
+      "sha256": "46b726729e101961222c23831c6b05c74a8c2ac918014c4ed4cfd50f03dbd8ce"
     },
     {
       "name": "cm-purchase-im-re.json",
-      "sha256": "73a054e207e03f102b590b3ec34d4c96fae3759d8f287ee8fb9b4834a8768289"
+      "sha256": "e15ebb2033ea7182ce94fbbee04b0d89391c149fa0e9d42087ff387c01bc9783"
     },
     {
       "name": "cm-purchase-im.json",
-      "sha256": "1b96e948c986385ab39d94ee3c0674927857e58ed0ed760096550dcca7f8401c"
+      "sha256": "206834a1ca87bd26138760bffb2d727104d898ba9e6f6d16485d2bb4442b1303"
     },
     {
       "name": "cm-purchase-me.json",
-      "sha256": "560b68ba139b58c4c8f100d866b2ebeb7b1397c0439a85cc74929e12d1743a01"
+      "sha256": "0221bb20a798beba046e7996d5f14aa685dddd182fedf9f3d0f73ab2e57ab517"
     },
     {
       "name": "cm-purchase-nr.json",
-      "sha256": "ff615a7763746c632c0cbfd93ff568cb8bd9185692dd457784dc2b2086820aab"
+      "sha256": "44663108e64b7e9b5687943aa3a171cf7cbb184069ace1dff7f052fa5eb1ee3c"
     },
     {
       "name": "cm-purchase-op.json",
-      "sha256": "7aa7fb1c96a47987248911e32f863cedf63daeca1a0294d6e53b1000c8a76d55"
+      "sha256": "3c1b604a07ebe2cdf2597b1e283c6ca708a59978e475cf3af624f9d0ade16e84"
     },
     {
       "name": "cm-purchase-tx-ess.json",
-      "sha256": "e7834ef5a648a56d4e00f07a2443173d32aad44bbf36fc85464813aa90d3cf70"
+      "sha256": "fab0c3118cb447abc07bede6ea7d6908dd075cdb8977c2629ae8d391fa6fab66"
     },
     {
       "name": "cm-purchase-tx-n33.json",
-      "sha256": "bc3b3eb18f93ea4c0f6baa43985761ef5c4fc2e2149316310437cb64f3b4b68b"
+      "sha256": "328a483e292d57d1d7a09d455f08165b2b932e57a49222de64f5107c7c4c9c0f"
     },
     {
       "name": "cm-purchase-tx-re.json",
-      "sha256": "c50db50d4774b8cbcf077f5aa05c778725045ad92244240545ac58a3e5d5024f"
+      "sha256": "dc4a67852cd20bf396ab68a61d41bc5de3dace84c7728cc3bb1538ff42dddac8"
     },
     {
       "name": "cm-purchase-tx.json",
-      "sha256": "d1cb709e6b83da0e6dd2cb11d9891593abebee82b75eac5a44369e829415879a"
+      "sha256": "9ee2fa0d49ea00352a5e9ef35bc9e70e0ef755b800e690b6e78af733db6572ac"
     },
     {
       "name": "cm-purchase-txca.json",
-      "sha256": "17f27a5145f877dd0de296fb525711aaae079cf0cbfbb68a210272d9669a6752"
+      "sha256": "4e90abd3e1cf46f281071c344acbd38d9637b27ac2041a3067780cea36fd1b2e"
     },
     {
       "name": "cm-purchase-txna.json",
-      "sha256": "bd3a834575c1ac91a819e45fdf96cf39542ed5f122b4fc667ba3df2bae27f996"
+      "sha256": "896c93e5d81958646417d7b1b734a840e090fa3269c04d518e8e70e5efaa2f3d"
     },
     {
       "name": "cm-purchase-txrc-ess.json",
-      "sha256": "36b7a15844c475d4f35dac39876e190c493c59a317c090ee9de863d0c703cee5"
+      "sha256": "3998948b42c1a53b18af8e239a3f462f439367c5cb9a27341546265f9d64ea24"
     },
     {
       "name": "cm-purchase-txrc-n33.json",
-      "sha256": "c9df8968f135d9eedc390e166a23a7e4159a022f68fe53463fe7bbd34cd8dfce"
+      "sha256": "8f7c92edd81a6bd445026399f79e8ebe44bf9071630b77d53988fd6679034619"
     },
     {
       "name": "cm-purchase-txrc-re.json",
-      "sha256": "46077d5def9a32a066c861c52e9d2daa0550f39ae54d9036f577afbdd1ab7a8e"
+      "sha256": "48b89f328ac492d2b276aff431d7bf5c857164f70f0a74f0339620be1808bbc9"
     },
     {
       "name": "cm-purchase-txrc-ts.json",
-      "sha256": "5ac11f73ea42666b55929eb14fe3e6d454ec2d4703fe1401d3ca8f5d16328024"
+      "sha256": "8f0ac4d5a9497b6997e771f4529ab440b7e6539df65f7340d4e9880cec9f0b7d"
     },
     {
       "name": "cm-purchase-zp.json",
-      "sha256": "810294ca6310f2b9fb28e28f3eff37fb0b47c51e7410fb9dfa1392ff1c440a83"
+      "sha256": "b586a511634eb7869b436d9eb13317aad3850d80b5133e2fd2deb8ef6ab49508"
     },
     {
       "name": "cm-supply-ds.json",
-      "sha256": "00d8561fdcbdd4eb5c509814d8d1760036474bd59700d5918fc4c4cfea9ba7bf"
+      "sha256": "2ef02cbd98489c84b92158d453cd76cc608e14603c8587911df67168712b3cdc"
     },
     {
       "name": "cm-supply-es33.json",
-      "sha256": "476cfd6195c9bea5f12b1610320685baf964f3a5f467816464f21ee0edcdfd1a"
+      "sha256": "d2988911d128d096abf6570a59b7e89827bff3e80b65e2aa4b72b3bd6293b39d"
     },
     {
       "name": "cm-supply-esn33.json",
-      "sha256": "582067f2f2ab93596b0bd92ce64b6dde07ccf526c7e5ac1460b296ea596f7724"
+      "sha256": "b64c68b3241077d6bc656e4c01da76f2d44093c4f8f9bf9b03832181ecc55edb"
     },
     {
       "name": "cm-supply-na.json",
-      "sha256": "146cad8e5799dbe140e33eb30e8af5bc551639cf02fee908d3635b149f494d5c"
+      "sha256": "5c5f892d0da8e2fe36071ef69fcfdbb3670e3f231f541f2b981321ecd359e576"
     },
     {
       "name": "cm-supply-ng.json",
-      "sha256": "60a10ccf75053bf033f1d60df4bc01dee2fcbad712980c9c522a00ca2c3a5a5f"
+      "sha256": "0dcfc8e3c105ce5df610b514bbdf5af9ef5b126c08ba0f1c60d372856bfeb1ac"
     },
     {
       "name": "cm-supply-os.json",
-      "sha256": "228638806270bd1928884e4a5669291984b0c4a16b357154a7157bf941cd9699"
+      "sha256": "0c3de2f58fe5aa0d531c95fcfed718276d23754d12eb370180437ad4a7a69550"
     },
     {
       "name": "cm-supply-sr.json",
-      "sha256": "fea66e1512f647aa2a2af27b0c11946996296286be41884f653513031a14213c"
+      "sha256": "ac046d59c9dded7cf5fd99e9831fc0a217827726e0bc22c46b87db0291d043d8"
     },
     {
       "name": "cm-supply-srca-c.json",
-      "sha256": "3969d7e2f3bee3b1f6adc7e1bacdbc954757ede6ffd53700496ec27b18214f9a"
+      "sha256": "1f173ce9298f26fa0ed350b78f82c5947338e798f95c7c29ace4d23e7165a87c"
     },
     {
       "name": "cm-supply-srca-s.json",
-      "sha256": "667a584a03ca679568bd455557130c7395c72fdd9d8f3b1d007411e4d9575f90"
+      "sha256": "d229146761b1af06b4ffc7b15f2a67d9e63d241867b8aaac8f172a2a53b75a0d"
     },
     {
       "name": "cm-supply-srlvg.json",
-      "sha256": "8785c732a66f13ddbc2ca59149490d5122dd0a5b2f15ddffd1a28f9cb6ee41cd"
+      "sha256": "18028cff9636e8e7e300f28444ff867c7ba1b8abad8d9c4c49267d3e0090e5f4"
     },
     {
       "name": "cm-supply-srovr-lvg.json",
-      "sha256": "d381f214d3d256bebe1373ac52724d95e213caf3a821c3118fe36e35f51770aa"
+      "sha256": "0e60746dafe2b42df74b026359ed3ee80fbbe1b1361791ee147283825f8d61e6"
     },
     {
       "name": "cm-supply-srovr-rs.json",
-      "sha256": "f4591246d3cfe8e191f60e96045621c1e3d774e779a3900d45b5057e05a66ab7"
+      "sha256": "ba2be98be8dfd79570dda0459a01b1c48b1f1c2e9dae605b7eb8d739eb3ade44"
     },
     {
       "name": "cm-supply-srrc.json",
-      "sha256": "de36157189e0ad47734af76b955b3c0c355bea5eb87b0bb13feb7561216657a5"
+      "sha256": "68417a151f2fcbbb40b332dd0503f03fb745080de1ea74de39e1d22a05a1c3a1"
     },
     {
       "name": "cm-supply-zr.json",
-      "sha256": "790f6c9299319febe6c5096eb930e1fafa93ca3ca2932b7b26d7a8a3280667aa"
+      "sha256": "b6e4701a5d12bd476c5dc7755f2ed82c323c59af3d6b61be6341d746ab5a3617"
+    },
+    {
+      "name": "ed-aggregate-pcp-tx.json",
+      "sha256": "d3369a88a47c75e00964de355f17266942629a797cd0d57b9f6c2c03cf4c6c3d"
     },
     {
       "name": "ed-aggregate-pos-sr.json",
-      "sha256": "252ddc46c4bc1711d74ae4317ce437849fd57e811dd778f0a240743c0590c4d5"
+      "sha256": "8e9eba777ed5c28427b4d4d7421d4d15e520b22b64bc4d5cf98f8d67d8456384"
     },
     {
       "name": "ed-cancellation-381.json",
-      "sha256": "646e82ada1caf4addd758cbebb40754305b13877bab275f18060c2e7abdafc45"
+      "sha256": "aaa6c6fe7d2d0ac473d0460c4c1ee28f18e7bd5b9e15f64d3e1ba3d32609cad7"
     },
     {
-      "name": "ed-foreign-currency-sr.json",
-      "sha256": "0f56c32e699fe6417d5765250ac14db1d4d4bbc08e0e3e98a544c277ceecd6d4"
+      "name": "ed-foreign-currency-zr-export.json",
+      "sha256": "1ade0c229ffb832bc6ef88a4b20919073808c55641803ec6d74d2ea58c3b044c"
     },
     {
-      "name": "ed-mixed-codes-sr-zr.json",
-      "sha256": "7c44a552deba1993b74431a9a330761cee727516f32f53bc46a8f1b7e83aedd7"
+      "name": "ed-mixed-codes-line1-sr.json",
+      "sha256": "bfcd8f0339f0ac9eb8bd5e701b26e247f3db969133b787ebd33eb1486ffe0ccb"
     },
     {
-      "name": "ed-mixed-scope-all-out.json",
-      "sha256": "9cbfb6ffa4f6b64c42854f269ec5c33f289330672947bfacaf26bc1bf638af0d"
+      "name": "ed-mixed-codes-line2-sr.json",
+      "sha256": "f891bc2f3469fd0964e6d2f536b649d9d46f9dfd71dd10b3691229cad50d8e86"
     },
     {
-      "name": "ed-mixed-scope-deposit-rental.json",
-      "sha256": "24f9f3826b48e12305a77e405d40425fbdae6b2d8f81bbc3825aafd032f3dd68"
+      "name": "ed-mixed-codes-line3-zr.json",
+      "sha256": "90a65c7e918359c1c076d94e427bcfb8ef4ff525f9e10948db5a09d5d587f609"
     },
     {
-      "name": "sc-bad-debt-relief.json",
-      "sha256": "e58b7598ff9bb10f952d549dea9e0c87e6338786c3ef15dd9971402d558cd7df"
+      "name": "ed-mixed-scope-deposit-line.json",
+      "sha256": "042bd20d3ee557000ca998d5f93c51d67a70b650244f8a48341c0825ec772b87"
+    },
+    {
+      "name": "ed-mixed-scope-rental-line.json",
+      "sha256": "f5a506403a3c3a38314ef9410bfe71d1beeb13b6770470c8b4cf58cc8a34456e"
+    },
+    {
+      "name": "mapping-fixture.json",
+      "sha256": "68f03e2f52b370614641cf1736ddab03840f2e7af3175269b5bc61315721b0c9"
     },
     {
       "name": "sc-blocked-input-tax.json",
-      "sha256": "eb6398ed0ee507a5aca29eb9ac960bc54e85a3e602fb4a0b127b39964f863887"
-    },
-    {
-      "name": "sc-carbon-credit.json",
-      "sha256": "af636b524636eaee918f266b4ffda7cda217932dd885b305c7c2ca1d1198244f"
+      "sha256": "d153c5138e5948e65ac87b6b9ed19d66934cf42b62a141a91dc4588a82c296d9"
     },
     {
       "name": "sc-deemed-supply.json",
-      "sha256": "a2426aa17c1727f657f2f0c1f627d25af9ed20f42e442f3f73f90aee051a8f51"
-    },
-    {
-      "name": "sc-exempt-dpt.json",
-      "sha256": "b6bf01d73154ade6796888a12fab11e7e4c2d5ddbf800c285816b143ab7a6299"
-    },
-    {
-      "name": "sc-exempt-financial.json",
-      "sha256": "3ffdce87c824d725589fb26a62f0aa2e1a8abf767ac5302362e5a525b46f9306"
+      "sha256": "2e6252f5b0bcee7a3878cef1b75a7401b74e8705ac7fb39487102e6dc97f1c11"
     },
     {
       "name": "sc-exempt-purchase.json",
-      "sha256": "d5198d26754ec01bd1fb3d724600ac77b46f074d8994b4a40e1de605270746cf"
-    },
-    {
-      "name": "sc-going-concern-transfer.json",
-      "sha256": "cfe8c8d8d7bc05ff12765ec8037810ca9d007c2de0bec69631cc94105969bb84"
+      "sha256": "e69b32c28847c15a4e5fd5462f7df10d4d2fb53fc591085518263b9de98a5668"
     },
     {
       "name": "sc-import-permit.json",
-      "sha256": "5f2761e73fc9ebce1807d6f60bbe454bde8c9eefe942c1ede4e37d4f02ad8b4f"
+      "sha256": "3ec77f6c3723ea3a1d56236da08c317afc7a43e249d806584d2840a8f6ead6bc"
     },
     {
       "name": "sc-non-gst-supplier-purchase.json",
-      "sha256": "e73fe132c6a09c34ea1a8dc4a50affaefeb212ced6134e568ce3e082742db3ab"
+      "sha256": "48d79d81c0585f9dd39959e7bcca8c33a3ebb6ba56e0036cec8f64181f25738d"
     },
     {
       "name": "sc-out-of-scope-registered-supplier.json",
-      "sha256": "72266b06c117d85b10409beca8caf4d8ece3d222d1c8304b2d6f97b8e8aac28e"
+      "sha256": "226aa1fcbbd044a5a292acc0dd45a5de089f51f3899ed3ced4a53047fa12c121"
     },
     {
-      "name": "sc-overseas-head-office-purchase.json",
-      "sha256": "6fdd25afb07439261ae32084e2f98347d931e84c3314c90279cf54c08519a9e9"
-    },
-    {
-      "name": "sc-overseas-head-office-service.json",
-      "sha256": "9454d72f5e166f35af2f54274cc197d703e6ada0c47ec606a1f0131ab8f75cd9"
-    },
-    {
-      "name": "sc-pre-registration-claim.json",
-      "sha256": "40690b8fc2c3da907a0c9e84f60fc87e421f747e95512c10f1851b572c4ec08b"
-    },
-    {
-      "name": "sc-regulatory-fee.json",
-      "sha256": "cced361ca886197243c44d213001e14eb5bc5185fa0f6fa1be2190a6835c05e9"
+      "name": "sc-outside-gst-act-supply.json",
+      "sha256": "559d982296bff886c12417ef773e864d404df6499ee371cad19fd00981ac43bf"
     },
     {
       "name": "sc-reverse-charge-purchase.json",
-      "sha256": "5fe56596a7addf520c93d4156aca9a87f4a50eb7b87ce081452d4d43f7624f15"
+      "sha256": "04de2c9b0c2e753995ab426f4fffd73fcc6d0bc6e6b240616a9b28a537150563"
     },
     {
       "name": "sc-reverse-charge-supply.json",
-      "sha256": "23e4c2e231ec5c2a41adf25ec0709c725b4eebca848a5ecd830db39da8943fd3"
-    },
-    {
-      "name": "sc-third-country-sale.json",
-      "sha256": "f451e552322bb0fe00b03c50f063be6602b20f5fac97ed6c47b748eadaeb129c"
-    },
-    {
-      "name": "sc-zero-rated-dpt.json",
-      "sha256": "4058300503cf6cf0550c21780cf4251f6127320fe36f49a68287fdaff3901ab5"
-    },
-    {
-      "name": "sc-zero-rated-export-no-sale.json",
-      "sha256": "81b1d167a7ea7349a7d4e89e1814c5fb00effac6f07a44936cc7e04787b08ff4"
-    },
-    {
-      "name": "sc-zero-rated-financial.json",
-      "sha256": "315aebe92d8ded490986ca3d73b9417b5d8217e03232b067c23aa435767fba42"
-    },
-    {
-      "name": "sc-zero-rated-import-permit.json",
-      "sha256": "d64c45c058858b747fa3abcbae45bfaa1232b2a6e09884a0fc15f61d0e44f6d7"
+      "sha256": "97729ddef9e0b05a0813380b4dd3afa55d1d7a1b0d064e7d160144962c3fc5d9"
     },
     {
       "name": "sm-a3pl-purchase-credit-note.json",
-      "sha256": "490c8e11da21953adcc52bc2ce217882468537e88afc785186ffa6189a4d1f0d"
+      "sha256": "1a519d87c0f65ce4b1cad32eac663f669813d83312cf816f41b6fdf6e58e324c"
     },
     {
       "name": "sm-a3pl-purchase-invoice.json",
-      "sha256": "5ed02c00f4dad7317d89cc88cfa118cafdd236f154c0ee1cf67d3de44ffb7355"
+      "sha256": "2ebdd4177668a5adf7f9cea4e112891db61adb26ef9b6958aa83221c0255020a"
     },
     {
       "name": "sm-a3pl-supply-credit-note.json",
-      "sha256": "25ad3642230318ac21453bfae4626f6d745a25368c0c69c36c2e471f4c03329d"
+      "sha256": "3d7251a9aad00ac5a1b4085988342f91b5beafcf6494bf2d5832a49ba7ecaffc"
     },
     {
       "name": "sm-a3pl-supply-invoice.json",
-      "sha256": "83f9a2bb6aa9e9dded2abc11ce206bc4cbbb5756bda8656af2a30a7e9108603c"
+      "sha256": "bec252159ee4b1ce009b366df6908a2d25b35dc08c7e913308b6ea9f21025211"
     },
     {
       "name": "sm-amcs-purchase-credit-note.json",
-      "sha256": "870c59d2778f6ebdae0726d016d48a0aa0709001796626f7da3dc03e0aa882d9"
+      "sha256": "48550889fb70bdf38f2c2aca8e16a34aab9c2c1722eefc8f26dbb2a4c9c65fbb"
     },
     {
       "name": "sm-amcs-purchase-invoice.json",
-      "sha256": "5b077b11754ec6ebd42336563851d58778ef5083f9b5c0f6b3346c95e1143532"
+      "sha256": "6199e17b7edbf702dc354cf81c698408c2c44deb5e8ecae9e930230bf62a9fe7"
     },
     {
       "name": "sm-amcs-supply-credit-note.json",
-      "sha256": "adbb325c6b15c6f6476a1822d46f7dd9bd34717731bd0fea5e6380a3c2569f6c"
+      "sha256": "a766a64f2a415a96d4aebd38eeaac5a1b58be24176c8d14e91ea8858105ce715"
     },
     {
       "name": "sm-amcs-supply-invoice.json",
-      "sha256": "92be026c47bf2f773f1f5a08bca11d251839098f9d0573e0b87a78f9d2cc8a4e"
+      "sha256": "edc8005b87b4aa1280a95939baed2c74952e3eb24cbf04d9f8c819b62171c48a"
     },
     {
       "name": "sm-arcs-purchase-credit-note.json",
-      "sha256": "617b3f52f566c1a7ed8365f4c151ad08925bb84b4d497a67f57002306a068778"
+      "sha256": "0154015d09a114b399163468369be16eb99dfd94850ad7440cc09c3fa9a948de"
     },
     {
       "name": "sm-arcs-purchase-invoice.json",
-      "sha256": "1dbeddd35af315830dc1c8f56f28b2080320828375f7e1f8066b6876efb97a0c"
+      "sha256": "a26bd4bbb85d80af1e71262ad5e0f002a35bdb370d1f78cf32e71eb1ae11a968"
     },
     {
       "name": "sm-arcs-supply-credit-note.json",
-      "sha256": "aafb7df52897d26ed3033928c7bc4f0b2e42749fe411c7049d9bca6ee6fcecb9"
+      "sha256": "4bfa8429da541e038534733443c3bfa6cad4deacab6b633abd22ba33c3f8e032"
     },
     {
       "name": "sm-arcs-supply-invoice.json",
-      "sha256": "9f458428fdae6c6275ce84261fef65022ebf918464b175ebfb3f95c24e887e99"
+      "sha256": "cb3fb57fe259636eace29a26501051c95a7858aae389fc2806292324a8552b1d"
     },
     {
       "name": "sm-ca-purchase-credit-note.json",
-      "sha256": "73ecf6685a331f1b3a44fa4cd9e607ba85652defde83133c0dbc8692c6404180"
+      "sha256": "8422eb62f6a6d2d610a1bc9c5bc5e104526f50a1d34f72ebc8e7ac4cd9f234dd"
     },
     {
       "name": "sm-ca-purchase-invoice.json",
-      "sha256": "21268666100492ac1237a2687680e30cc5617c7a788999794f7114250cde0f6b"
+      "sha256": "d7aa6d6ad1b332871d892a6eac643ed7056ea68af283a54c0460070383679324"
     },
     {
       "name": "sm-ca-supply-credit-note.json",
-      "sha256": "5686c121e62f104637040d0f52163caf7bd4b4d9d524b2de7aa5d342b112fffe"
+      "sha256": "4589a42efdf91106080da29e47e219eb48625be50c0cfb32f36d010af5347ca2"
     },
     {
       "name": "sm-ca-supply-invoice.json",
-      "sha256": "11b1ee9777402baf3d0080618e9e4674e5b019e8f32772ee324825eab1ccdb42"
+      "sha256": "fc89123c539c093cb40e843ee9dbca9994f437ea329538f30bff5efc7c3b3db5"
     },
     {
       "name": "sm-standard-purchase-credit-note.json",
-      "sha256": "38a42c635bed8b2a344810a0f1aa7ed36ce129fef352aa29402cf661eb211a4b"
+      "sha256": "304d18fee0c6b3c14acc9b408b827db83d10eefcc8a0824a681916c8475d223a"
     },
     {
       "name": "sm-standard-purchase-invoice.json",
-      "sha256": "5c627abd3e110307ba6586d6990f5f2744e3f60e987558bc347bc4d9d8a257b3"
+      "sha256": "a9e5fe57c113f308371f95ea6ae044c9cd387db932ad538e38fc0c8000e88f99"
     },
     {
       "name": "sm-standard-supply-credit-note.json",
-      "sha256": "61444d944f65803c13e2f1465714abec2e0f908f3b70eac63e5d306128598bb8"
+      "sha256": "452003392ecef2d5709d9a6a44d405eab3dca359bb9184aa9b85440d7413017d"
     },
     {
       "name": "sm-standard-supply-invoice.json",
-      "sha256": "65a40254224aa6a12bae8fdaf6f72500de2d0c8af7012e2da12ef272e4288583"
+      "sha256": "c386d277ef8b2dd5153101eb7e8b710eee964faac469a01c6090ff538b4364f7"
     },
     {
       "name": "sm-sws-supply-credit-note.json",
-      "sha256": "e755e124b5c27e807a045880d44c2c8218b01e24a694bcc22d6fb59ddb990628"
+      "sha256": "4b9090af2c675495ad7025c4ae4a8f6eb434b5d72cd87c35ae1dd0508ab537bc"
     },
     {
       "name": "sm-sws-supply-invoice.json",
-      "sha256": "5441d185d802aa33dded07e331c40f8141e371a7bd4d465be9bdbd24c9e6ca68"
+      "sha256": "b283cec97a5c2af3c5e29d22baa2a24db15b89bb8e0988a26605afd39ac5e482"
     },
     {
       "name": "wx-r1-ex25-dd-purchase.json",
-      "sha256": "d0d13b69634636062097b03213e2bb5b5bd8c08cb61cee83c72f801e1fcb5f49"
+      "sha256": "0ae29f0a129e99abac7e3f0097992a47832e7699065755991f7feb33f3bce590"
     },
     {
       "name": "wx-r1-ex25-ee-supply.json",
-      "sha256": "e95150628ff4bbfb6d5737b4aefe9f3fb64e0f3ee91e5f30d494e9c8789eec72"
+      "sha256": "74485dc32b76c52a510708de465a6242a132bf9d324eb142f06b59a21d9f71c0"
     },
     {
-      "name": "wx-r1-ex26-customer-accounting-purchase.json",
-      "sha256": "64f95b29b1bdf105786c60819936473059c3ce5e4f865c793f03a27ced86690c"
+      "name": "wx-r1-ex26-customer-purchase.json",
+      "sha256": "2258c9684aff1ac2543d20d2c73d1229e03ed81562654eb15caab0fb8fb3d9ca"
+    },
+    {
+      "name": "wx-r1-ex26-supplier-sale.json",
+      "sha256": "ee11b66c860be00c3cdf5bc538e65fc2b1de409dc83e055fb7e26e776f24b342"
     }
   ]
 }

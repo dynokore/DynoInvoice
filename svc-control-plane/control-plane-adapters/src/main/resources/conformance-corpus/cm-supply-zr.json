@@ -1,13 +1,15 @@
 {
   "description": "Annex E supply code ZR: Zero-rated supplies",
   "expected": "ZR",
+  "expectedField": "categoryCode",
   "id": "cm-supply-zr",
   "inputs": {
-    "annexERate": "0%",
-    "code": "ZR",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-ZR",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): ZR"
 }

@@ -1,13 +1,15 @@
 {
   "description": "Annex E purchase code TX-ESS: Standard-rated purchases directly attributable to Regulation 33 exempt supplies",
   "expected": "TX-ESS",
+  "expectedField": "categoryCode",
   "id": "cm-purchase-tx-ess",
   "inputs": {
-    "annexERate": "9%",
-    "code": "TX-ESS",
-    "side": "purchase"
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TX-ESS",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, purchase codes): TX-ESS"
 }

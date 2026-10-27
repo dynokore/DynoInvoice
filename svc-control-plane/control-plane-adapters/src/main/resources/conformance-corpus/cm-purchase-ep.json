@@ -1,13 +1,15 @@
 {
   "description": "Annex E purchase code EP: Exempt purchases",
   "expected": "EP",
+  "expectedField": "categoryCode",
   "id": "cm-purchase-ep",
   "inputs": {
-    "annexERate": "NA",
-    "code": "EP",
-    "side": "purchase"
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-EP",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, purchase codes): EP"
 }

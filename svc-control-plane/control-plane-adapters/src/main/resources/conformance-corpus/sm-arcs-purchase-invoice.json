@@ -1,13 +1,17 @@
 {
-  "description": "ARCS customer purchase, GST waived (invoice).",
+  "description": "ARCS customer purchase, GST waived. Inference. (invoice).",
   "expected": "TXNA",
+  "expectedField": "categoryCode",
   "id": "sm-arcs-purchase-invoice",
   "inputs": {
-    "documentType": "380",
-    "scheme": "arcs",
-    "side": "purchase"
+    "direction": "PURCHASE",
+    "election": "ARCS",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TXNA",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "SRS 14.20"
+  "source": "INV-NOTE-2 section 14.15 table, ARCS: customer TXNA (the table says inferred). Inference"
 }

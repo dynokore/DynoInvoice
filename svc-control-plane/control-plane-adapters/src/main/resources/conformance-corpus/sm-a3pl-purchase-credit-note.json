@@ -1,13 +1,19 @@
 {
-  "description": "Approved 3PL specified-person purchase, no GST charged (credit-note).",
+  "description": "Approved 3PL specified-person purchase, no GST charged (credit note).",
   "expected": "TXNA",
+  "expectedField": "categoryCode",
   "id": "sm-a3pl-purchase-credit-note",
   "inputs": {
-    "documentType": "381",
-    "scheme": "a3pl",
-    "side": "purchase"
+    "direction": "PURCHASE",
+    "election": "A3PL",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TXNA",
+    "lineSign": "NEGATIVE",
+    "precedingDocumentDate": "2026-09-01",
+    "precedingDocumentNumber": "INV-ORIG-1",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "SRS 14.18 (R11)"
+  "source": "INV-NOTE-2 section 14.18 table: recipient TXNA; INV-NOTE-2 section 14.1 FR-10.3: credit note codes tally with the original invoice"
 }

@@ -1,13 +1,15 @@
 {
   "description": "Annex E supply code SRCA-C: Customer accounting supply accountable by the customer on supplier's behalf",
   "expected": "SRCA-C",
+  "expectedField": "categoryCode",
   "id": "cm-supply-srca-c",
   "inputs": {
-    "annexERate": "9%",
-    "code": "SRCA-C",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRCA-C",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): SRCA-C"
 }

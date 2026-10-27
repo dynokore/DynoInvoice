@@ -1,13 +1,15 @@
 {
   "description": "Annex E supply code SROVR-LVG: Supply of LVG accountable by the redeliverer or electronic marketplace on behalf of third-",
   "expected": "SROVR-LVG",
+  "expectedField": "categoryCode",
   "id": "cm-supply-srovr-lvg",
   "inputs": {
-    "annexERate": "9%",
-    "code": "SROVR-LVG",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SROVR-LVG",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): SROVR-LVG"
 }

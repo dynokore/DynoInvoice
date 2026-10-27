@@ -1,13 +1,15 @@
 {
   "description": "Annex E supply code SRLVG: Own supply of Low-Value Goods (\"LVG\")",
   "expected": "SRLVG",
+  "expectedField": "categoryCode",
   "id": "cm-supply-srlvg",
   "inputs": {
-    "annexERate": "9%",
-    "code": "SRLVG",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRLVG",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): SRLVG"
 }

@@ -1,13 +1,15 @@
 {
   "description": "Annex E supply code SR: Standard-rated supply of goods or services",
   "expected": "SR",
+  "expectedField": "categoryCode",
   "id": "cm-supply-sr",
   "inputs": {
-    "annexERate": "9%",
-    "code": "SR",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SR",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "CODE_MATRIX",
-  "source": "R1 Annex E"
+  "source": "INV-BR-1470 (R1 Annex E, supply codes): SR"
 }

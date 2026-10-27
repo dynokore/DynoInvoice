@@ -1,0 +1,15 @@
+{
+  "description": "OUT_OF_SCOPE by INV-NOTE-2 section 7.3 for code OS.",
+  "expected": "OUT_OF_SCOPE",
+  "expectedField": "scopeVerdict",
+  "id": "sc-outside-gst-act-supply",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-OS",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCOPE_MATRIX",
+  "source": "INV-NOTE-2 section 7.3: out-of-scope supplies; section 6.2 OS"
+}

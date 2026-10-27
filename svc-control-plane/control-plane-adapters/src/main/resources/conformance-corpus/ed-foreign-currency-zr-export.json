@@ -1,0 +1,15 @@
+{
+  "description": "Foreign-currency zero-rated export, ZR. Inference: currency is not an input of the evaluation.",
+  "expected": "ZR",
+  "expectedField": "categoryCode",
+  "id": "ed-foreign-currency-zr-export",
+  "inputs": {
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-ZR",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "EDGE_CORPUS",
+  "source": "INV-REQ-468 behavior 2: a foreign-currency zero-rated export (ZR). Inference"
+}

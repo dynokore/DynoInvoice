@@ -1,13 +1,17 @@
 {
   "description": "Approved refiner and consolidator scheme supply, GST waived (invoice).",
   "expected": "NA",
+  "expectedField": "categoryCode",
   "id": "sm-arcs-supply-invoice",
   "inputs": {
-    "documentType": "380",
-    "scheme": "arcs",
-    "side": "supply"
+    "direction": "SALE",
+    "election": "ARCS",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-NA",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "SRS 14.20"
+  "source": "INV-NOTE-2 section 14.15 table, ARCS: supplier NA"
 }

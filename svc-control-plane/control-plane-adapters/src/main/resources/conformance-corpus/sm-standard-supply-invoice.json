@@ -1,13 +1,16 @@
 {
   "description": "Standard-rated supply (invoice).",
   "expected": "SR",
+  "expectedField": "categoryCode",
   "id": "sm-standard-supply-invoice",
   "inputs": {
-    "documentType": "380",
-    "scheme": "standard",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SR",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "SRS 14.1"
+  "source": "INV-BR-1470: SR standard-rated supply"
 }

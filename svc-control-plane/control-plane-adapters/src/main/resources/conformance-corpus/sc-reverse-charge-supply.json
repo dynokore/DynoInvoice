@@ -1,12 +1,15 @@
 {
-  "description": "Standard-rated supplies: reverse charge supplies the business accounts for.",
+  "description": "EXCLUDED_TXN by INV-NOTE-2 section 7.3 for code SRRC.",
   "expected": "EXCLUDED_TXN",
+  "expectedField": "scopeVerdict",
   "id": "sc-reverse-charge-supply",
   "inputs": {
-    "category": "Standard-rated supplies: reverse charge supplies the business accounts for",
-    "side": "supply"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SRRC",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCOPE_MATRIX",
-  "source": "SRS 7.3 (R1 section 7.3)"
+  "source": "INV-NOTE-2 section 7.3: reverse charge supplies; section 6.2 SRRC"
 }

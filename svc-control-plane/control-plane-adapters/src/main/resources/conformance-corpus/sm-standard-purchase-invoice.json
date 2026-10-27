@@ -1,13 +1,16 @@
 {
   "description": "Standard-rated purchase (invoice).",
   "expected": "TX",
+  "expectedField": "categoryCode",
   "id": "sm-standard-purchase-invoice",
   "inputs": {
-    "documentType": "380",
-    "scheme": "standard",
-    "side": "purchase"
+    "direction": "PURCHASE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-TX",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "SCENARIO_MATRIX",
-  "source": "SRS 14.1"
+  "source": "INV-BR-1470: TX standard-rated purchase"
 }

@@ -1,15 +1,15 @@
 {
-  "description": "Self-billed supply, supplier-cum-recipient: Type 2, supply code SR.",
+  "description": "R1 Example 25, Company EE, supplier-cum-recipient: self-billed supply, SR.",
   "expected": "SR",
+  "expectedField": "categoryCode",
   "id": "wx-r1-ex25-ee-supply",
   "inputs": {
-    "party": "Company EE, supplier-cum-recipient",
-    "rate": "9",
-    "selfBilling": "true",
-    "side": "supply",
-    "submissionType": "2"
+    "direction": "SALE",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SR",
+    "transactionDate": "2026-10-01"
   },
   "period": "2026-10",
   "section": "WORKED_EXAMPLES",
-  "source": "R1 Example 25"
+  "source": "INV-NOTE-2 section 25.1 (R1 Example 25); INV-REQ-415 table: supplier-cum-recipient, supply code SR"
 }
