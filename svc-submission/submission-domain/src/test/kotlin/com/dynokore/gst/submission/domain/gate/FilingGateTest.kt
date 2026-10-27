@@ -136,13 +136,13 @@ class FilingGateTest {
     }
 
     @Test
-    fun `INV-AC-10571 fromKey accepts both real keys`() {
+    fun `fromKey accepts both real keys`() {
         GateMode.fromKey("ADVISORY") shouldBe GateMode.ADVISORY
         GateMode.fromKey("BLOCKING") shouldBe GateMode.BLOCKING
     }
 
     @Test
-    fun `INV-AC-10571 fromKey refuses advisory, BLOCK and the empty string`() {
+    fun `fromKey refuses advisory, BLOCK and the empty string`() {
         for (key in listOf("advisory", "BLOCK", "", " BLOCKING")) {
             assertThrows<IllegalArgumentException> { GateMode.fromKey(key) }
         }
