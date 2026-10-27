@@ -27,7 +27,12 @@ object BoxAggregator {
         val byKey = entries.associateBy { it.categoryCode to it.direction }
         require(byKey.size == entries.size) { "two entries have the same (categoryCode, direction)" }
         entries.forEach { entry ->
-            require(entry.boxes.map { it.box }.toSet().size == entry.boxes.size) {
+            require(
+                entry.boxes
+                    .map { it.box }
+                    .toSet()
+                    .size == entry.boxes.size,
+            ) {
                 "entry ${entry.categoryCode}/${entry.direction} lists a box twice"
             }
         }

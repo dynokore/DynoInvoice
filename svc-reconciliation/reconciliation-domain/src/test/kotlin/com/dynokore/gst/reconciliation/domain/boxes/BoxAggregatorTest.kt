@@ -17,7 +17,11 @@ class BoxAggregatorTest {
     private val entries =
         listOf(
             MappingEntry("SR", Direction.SALE, listOf(feed("1", Basis.TAXABLE_AMOUNT), feed("6", Basis.TAX_AMOUNT))),
-            MappingEntry("SR", Direction.PURCHASE, listOf(feed("5", Basis.TAXABLE_AMOUNT), feed("7", Basis.TAX_AMOUNT))),
+            MappingEntry(
+                "SR",
+                Direction.PURCHASE,
+                listOf(feed("5", Basis.TAXABLE_AMOUNT), feed("7", Basis.TAX_AMOUNT)),
+            ),
             MappingEntry("ZR", Direction.SALE, listOf(feed("2", Basis.TAXABLE_AMOUNT))),
         )
 
@@ -98,7 +102,8 @@ class BoxAggregatorTest {
 
     @Test
     fun `INV-AC-677 a duplicated box in one entry fails`() {
-        val bad = MappingEntry("SR", Direction.SALE, listOf(feed("1", Basis.TAXABLE_AMOUNT), feed("1", Basis.TAX_AMOUNT)))
+        val bad =
+            MappingEntry("SR", Direction.SALE, listOf(feed("1", Basis.TAXABLE_AMOUNT), feed("1", Basis.TAX_AMOUNT)))
         shouldThrow<IllegalArgumentException> { BoxAggregator.aggregate(listOf(bad), emptyList()) }
     }
 
