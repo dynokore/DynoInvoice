@@ -146,12 +146,12 @@ class AlertingRulesTest {
     }
 
     @Test
-    fun `INV-AC-1872 bounced sole deadline recipient at tier 1 of 2 escalates to 2`() {
+    fun `INV-AC-1872 INV-AC-10575 bounced sole deadline recipient at tier 1 of 2 escalates to 2`() {
         esc() shouldBe EscalationDecision.Escalate(2)
     }
 
     @Test
-    fun `escalation stays for every other case`() {
+    fun `INV-AC-10575 escalation stays for every other case`() {
         esc(c = AlertClass.BACKLOG) shouldBe EscalationDecision.Stay(NoEscalation.NOT_DEADLINE)
         esc(ack = true) shouldBe EscalationDecision.Stay(NoEscalation.ACKNOWLEDGED)
         esc(r = listOf("a", "b"), b = listOf("a", "b")) shouldBe EscalationDecision.Stay(NoEscalation.NOT_ONE_RECIPIENT)
