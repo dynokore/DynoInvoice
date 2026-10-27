@@ -144,6 +144,7 @@ class RecordConsumersTest {
     private fun Boundary.deadLetters(tenant: TenantId) =
         tx(tenant) { dsl.fetchCount(EVENT_DEAD_LETTER, EVENT_DEAD_LETTER.CONSUMER.eq(consumerName)) }
 
+    @Suppress("LongParameterList") // the fields of the envelope a test varies
     private fun envelope(
         tenant: TenantId,
         eventId: String,
@@ -228,7 +229,7 @@ class RecordConsumersTest {
     private fun sha256Link(
         previous: String?,
         content: ByteArray,
-    ): String = ContentHash.of(((previous ?: "").toByteArray(Charsets.US_ASCII)) + content).hex
+    ): String = ContentHash.of(previous.orEmpty().toByteArray(Charsets.US_ASCII) + content).hex
 
     @Test
     fun `INV-AC-7216 pending decision trace drained once by the locator, audit entry in the audit chain`(
