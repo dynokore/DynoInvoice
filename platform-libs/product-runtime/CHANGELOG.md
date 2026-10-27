@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-27
+### Changed
+- Depends on `service-runtime 10.13.0`: `EntityRefScopeFilter` judges list-valued entity references (INV-T-9632).
+
 ## [1.4.4] - 2026-10-27
 ### Changed
 - Metadata-only release (INV-T-9058, G-DVS): depends on `service-runtime 10.12.0`, whose published bytes changed; no code change.

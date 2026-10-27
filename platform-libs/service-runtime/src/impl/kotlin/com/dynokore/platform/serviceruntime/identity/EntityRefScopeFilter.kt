@@ -30,13 +30,13 @@ import java.util.UUID
  * ruling INV-Q-8513 A; owner ruling INV-Q-3716), for the operations the contract marks with `x-entity-ref` and for no
  * other (API-25: a system-flow callee has no entity-set check). The principal is the one
  * [EndUserPrincipalBindingFilter] left in [EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE]; without it the answer
- * is 401 SRT-003. A body that is not one JSON object, is over [MAX_BODY_BYTES], repeats the property or holds it as
- * a non-string is 400 SRT-001; an absent property continues (the service refuses a missing required entity itself);
- * a string outside the set, or any string while the set is not current, is 403 SRT-004 (the same answer whether or
+ * is 401 SRT-003. A body that is not one JSON object, is over [MAX_BODY_BYTES], repeats a named property, or holds one as
+ * neither a string nor an array of strings is 400 SRT-001; an absent property continues (the service refuses a missing required entity itself);
+ * a string, or any element of an array, outside the set, or any one while the set is not current, is 403 SRT-004 (the same answer whether or
  * not the entity exists). The handler then reads the same body bytes. Messages and logs never carry the value.
  */
 class EntityRefScopeFilter private constructor(
-    parsed: List<OperationLine<String>>,
+    parsed: List<OperationLine<List<String>>>,
 ) : Filter {
     private val operations = OperationLines.of(parsed, RESOURCE, "properties") { a, b -> a == b }
 
@@ -64,21 +64,21 @@ class EntityRefScopeFilter private constructor(
             refuse(out, Problems.contractViolation("the request body is over $MAX_BODY_BYTES bytes", correlation))
             return
         }
-        val value =
+        val values =
             try {
-                stringProperty(bytes, serving.payload)
+                entityRefs(bytes, serving.payload)
             } catch (_: MalformedBody) {
                 refuse(
                     out,
                     Problems.contractViolation(
                         "the body of ${serving.method} ${serving.template} is not one JSON object with " +
-                            "${serving.payload} absent or a single string",
+                            "${serving.payload.joinToString(",")} absent, a string or an array of strings",
                         correlation,
                     ),
                 )
                 return
             }
-        if (value != null && (!principal.entitySetCurrent || !inSet(principal, value))) {
+        if (values.isNotEmpty() && (!principal.entitySetCurrent || !values.all { inSet(principal, it) })) {
             refuse(out, Problems.accessDenied(correlation))
             return
         }
@@ -103,11 +103,15 @@ class EntityRefScopeFilter private constructor(
 
     private class MalformedBody : RuntimeException()
 
-    /** The string value of [property] at the top level, null when absent; [MalformedBody] on anything else. */
-    private fun stringProperty(
+    /**
+     * Every string held by the top-level [properties] of the body (a string property is one value, an array property
+     * its elements, in order); [MalformedBody] on a repeated name, a non-string value or element, or a body that is
+     * not one JSON object.
+     */
+    private fun entityRefs(
         bytes: ByteArray,
-        property: String,
-    ): String? {
+        properties: List<String>,
+    ): List<String> {
         val text =
             try {
                 StandardCharsets.UTF_8
@@ -119,7 +123,8 @@ class EntityRefScopeFilter private constructor(
             } catch (_: CharacterCodingException) {
                 throw MalformedBody()
             }
-        var found: String? = null
+        val seen = mutableSetOf<String>()
+        val found = mutableListOf<String>()
         try {
             MAPPER.createParser(text).use { parser ->
                 if (parser.nextToken() != JsonToken.START_OBJECT) throw MalformedBody()
@@ -129,9 +134,26 @@ class EntityRefScopeFilter private constructor(
                     if (token != JsonToken.PROPERTY_NAME) throw MalformedBody()
                     val name = parser.currentName()
                     val valueToken = parser.nextToken()
-                    if (name == property) {
-                        if (found != null || valueToken != JsonToken.VALUE_STRING) throw MalformedBody()
-                        found = parser.string
+                    if (name in properties) {
+                        if (!seen.add(name)) throw MalformedBody()
+                        when (valueToken) {
+                            JsonToken.VALUE_STRING -> {
+                                found += parser.string
+                            }
+
+                            JsonToken.START_ARRAY -> {
+                                while (true) {
+                                    val element = parser.nextToken()
+                                    if (element == JsonToken.END_ARRAY) break
+                                    if (element != JsonToken.VALUE_STRING) throw MalformedBody()
+                                    found += parser.string
+                                }
+                            }
+
+                            else -> {
+                                throw MalformedBody()
+                            }
+                        }
                     } else {
                         parser.skipChildren()
                     }
@@ -201,8 +223,12 @@ class EntityRefScopeFilter private constructor(
                         check(parts.size == 3) { "$origin: a line needs exactly 3 TAB-separated fields" }
                         check(parts[0].isNotEmpty()) { "$origin: the method is empty" }
                         check(parts[1].startsWith("/")) { "$origin: the path must start with /" }
-                        check(PROPERTY.matches(parts[2])) { "$origin: the property must match ${PROPERTY.pattern}" }
-                        OperationLine(parts[0], parts[1], parts[2])
+                        val names = parts[2].split(',')
+                        check(names.all { PROPERTY.matches(it) }) {
+                            "$origin: every property must match ${PROPERTY.pattern}"
+                        }
+                        check(names.toSet().size == names.size) { "$origin: the properties must be distinct" }
+                        OperationLine(parts[0], parts[1], names)
                     }
                 }
             return EntityRefScopeFilter(operations)

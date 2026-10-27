@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.13.0] - 2026-10-27
+### Added
+- `EntityRefScopeFilter` judges every element of an array-valued entity reference and reads a line whose third column holds several property names joined by a comma; a non-string element, a repeated name or a bad name is refused as before (coordinator ruling INV-Q-9617 A; INV-T-9632; INV-REQ-1202; INV-AC-9629).
+
 ## [10.12.0] - 2026-10-27
 ### Added
 - `EventFedReplica` takes an optional `partitionOf` and gains `heldIn(partition)`, `tombstoneIn(partition)` and the test-visible `visitCount`; the authority replica keys its grants by (tenant, principalId), so `heldEntities` and the stateless-event tombstone touch only that principal's records (INV-T-9058, INV-Q-9049 A). Without `partitionOf`, and for `heldWhere` and `tombstoneIf`, behaviour is unchanged.

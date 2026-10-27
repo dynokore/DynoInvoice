@@ -253,7 +253,6 @@ class EntityRefScopeFilterTest {
                 """{"entityRef":1}""",
                 """{"entityRef":true}""",
                 """{"entityRef":null}""",
-                """{"entityRef":["E-001"]}""",
                 """{"entityRef":{"a":1}}""",
                 """{"entityRef":"E-001","entityRef":"E-002"}""",
                 """{"entityRef":"E-002","entityRef":"E-001"}""",
@@ -272,6 +271,15 @@ class EntityRefScopeFilterTest {
         expect(postBytes("/internal/v1/a/7", byteArrayOf(0x7b, 0x22, 0xff.toByte(), 0x22, 0x7d)), 400, "SRT-001", 0)
         val split = "{\"entityRef\":\"E-001\",\"x\":\"".toByteArray() + byteArrayOf(0xc3.toByte()) + "\"}".toByteArray()
         expect(postBytes("/internal/v1/a/7", split), 400, "SRT-001", 0)
+    }
+
+    @Test
+    fun `INV-AC-9629 an array on a line naming entityRef is judged element by element`() {
+        reset()
+        expect(post("/internal/v1/a/7", """{"entityRef":["E-001"]}"""), 200, null, 1)
+        expect(post("/internal/v1/a/7", """{"entityRef":["E-002"]}"""), 403, "SRT-004", 1)
+        expect(post("/internal/v1/a/7", """{"entityRef":["E-001","E-002"]}"""), 403, "SRT-004", 1)
+        expect(post("/internal/v1/a/7", """{"entityRef":["E-001",1]}"""), 400, "SRT-001", 1)
     }
 
     @Test
