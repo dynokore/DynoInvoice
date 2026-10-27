@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.adapters.migrations
 
+import com.dynokore.platform.auditlog.AuditSchema
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.serviceruntime.jobs.JobSchema
@@ -43,6 +44,11 @@ class GeneratedMigrationsTest {
     @Test
     fun `the idempotency migration is the DDL service-runtime generates for the control-plane schema`() {
         check("V202610210830__create_idempotency.sql", IdempotencySchema.ddl(SCHEMA, RUNTIME, SYS))
+    }
+
+    @Test
+    fun `the audit entry migration is the DDL audit-log generates for the control-plane schema`() {
+        check("V202610271110__create_audit_entry.sql", AuditSchema.auditEntryDdl(SCHEMA, RUNTIME))
     }
 
     private companion object {

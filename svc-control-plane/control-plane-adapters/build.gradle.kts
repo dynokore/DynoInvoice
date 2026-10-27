@@ -71,6 +71,7 @@ dependencies {
     testImplementation(libs.platform.crypto)
     // OutboxSchema (outbox-and-queue impl) and JobSchema, IdempotencySchema (service-runtime impl): the DDL the migrations equal
     testImplementation(libs.platform.outboxAndQueue)
+    testImplementation(libs.platform.auditLog)
     testImplementation(libs.snakeyaml)
     testImplementation(testFixtures(project))
 
