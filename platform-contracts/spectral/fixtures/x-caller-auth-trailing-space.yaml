@@ -1,0 +1,10 @@
+# Fixture for self-test-caller-auth-rule.sh (INV-AC-8259, INV-T-8269): refused, trailing space
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /v1/fixture/op:
+    post:
+      operationId: fixtureCommand
+      x-principal: ingest
+      x-caller-auth: "end-user "
+      responses: {"200": {description: ok}}

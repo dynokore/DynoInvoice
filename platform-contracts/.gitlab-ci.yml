@@ -321,6 +321,7 @@ spectral-rule-self-tests:
     - !reference [.gst-checks, script]
     - gst_check sync-edge-rule-self-test sh spectral/self-test-sync-edge-rule.sh
     - gst_check workload-rule-self-test sh spectral/self-test-workload-rule.sh
+    - gst_check caller-auth-rule-self-test sh spectral/self-test-caller-auth-rule.sh
     - gst_check deprecation-rule-self-test sh spectral/self-test-deprecation-rule.sh
     - gst_check envelope-rule-self-test sh spectral/self-test-message-envelope-rule.sh
     - gst_check money-rule-self-test sh spectral/self-test-money-rule.sh

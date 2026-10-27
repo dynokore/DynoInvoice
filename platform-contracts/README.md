@@ -143,6 +143,10 @@ Per-service Maven modules (`generatorSource("platform-contracts:<service>:openap
 TPL-01) are a follow-up: the `gst.contract-server`/`gst.contract-client`
 Gradle plugins that would resolve them are not built yet.
 
+## Caller token kind `x-caller-auth` (INV-T-8269)
+
+`x-caller-auth` is required on every operation, with one of the values `end-user`, `signed-link` and `service-job` (INV-REQ-1202, owner answer INV-Q-8201 A, criterion INV-AC-8259). `end-user` is the value of an operation whose caller holds a verified end-user token. A value other than `end-user` is set only by a platform-contracts change that passes contract review. The merge request of that change names the operation, the verification the operation keeps instead of the end-user check (the signed link by its passcode and attempt rules in access-svc; the job by its workload token and the caller check of the service) and who verifies it. The Spectral rule `inv-req-1202-x-caller-auth` refuses an operation without the key.
+
 ## Dependency locking and verification (INV-T-4299)
 
 STK-72 applies (coordinator rulings INV-Q-4322 and INV-Q-4327). This repository has three Gradle builds: the root packaging build, `catalogue/` (with its included build `catalogue/generator/`) and `codegen-self-test/`. In each one, every resolvable configuration is locked in strict mode:
