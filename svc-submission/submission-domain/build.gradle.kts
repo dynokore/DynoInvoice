@@ -27,4 +27,12 @@ tasks.withType<Test>().configureEach {
             .get()
             .asFile.path,
     )
+    systemProperty(
+        "gst.rules.handlers.schema",
+        project(":submission-contract")
+            .layout.buildDirectory
+            .file("contracts-repo/rules/schemas/scenario-pack-handlers.schema.json")
+            .get()
+            .asFile.path,
+    )
 }

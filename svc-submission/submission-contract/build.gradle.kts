@@ -1,7 +1,7 @@
 // submission-contract (TPL-01, TPL-13): the Spring server interfaces and DTOs generated from
 // platform-contracts/submission/openapi.yaml (STK-46). asyncapi.yaml and schemas/ are staged from the same
 // pinned bundle for the operations gate and the payload tests of submission-adapters. canonical/openapi.yaml is staged
-// for the enum-parity test of submission-domain.
+// for the enum-parity test of submission-domain, as is rules/schemas/scenario-pack-handlers.schema.json.
 plugins {
     id("gst.contract-server")
 }
@@ -41,7 +41,12 @@ fun stageContracts() {
             .get()
             .asFile
     val marker = File(root, ".bundle-version")
-    if (marker.isFile && marker.readText() == version && File(root, "canonical/openapi.yaml").isFile) return
+    if (marker.isFile && marker.readText() == version &&
+        File(root, "canonical/openapi.yaml").isFile &&
+        File(root, "rules/schemas/scenario-pack-handlers.schema.json").isFile
+    ) {
+        return
+    }
     root.deleteRecursively()
     val unpacked = File(root, ".bundle")
     copy {
@@ -52,6 +57,12 @@ fun stageContracts() {
     val canonicalOpenApi = File(unpacked, "canonical/openapi.yaml")
     check(canonicalOpenApi.isFile) { "the platform-contracts bundle $version has no canonical/openapi.yaml" }
     canonicalOpenApi.copyTo(File(root, "canonical/openapi.yaml"), overwrite = true)
+    // The rules contract's submissionType enum is read by the type decision tests of submission-domain (INV-T-6993).
+    val handlersSchema = File(unpacked, "rules/schemas/scenario-pack-handlers.schema.json")
+    check(handlersSchema.isFile) {
+        "the platform-contracts bundle $version has no rules/schemas/scenario-pack-handlers.schema.json"
+    }
+    handlersSchema.copyTo(File(root, "rules/schemas/scenario-pack-handlers.schema.json"), overwrite = true)
     val svc = "submission"
     val moduleDir = File(root, "platform-contracts/$svc")
     val svcDir = File(unpacked, svc)
