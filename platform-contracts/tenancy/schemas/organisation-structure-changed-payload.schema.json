@@ -118,6 +118,15 @@
           "type": "integer",
           "minimum": 1,
           "description": "tenancy-svc's monotonic structure version of this node state: one sequence across OrganisationStructureChanged, EntityProfileChanged and getEntityStructure, drawn after tenancy-svc locks the node row in the changing transaction, so versions per node follow commit order (TPL-05). A replica replaces the node whole and ignores a state at or below the version it holds (INV-Q-3324)."
+        },
+        "environment": {
+          "type": "string",
+          "description": "The tenant's environment (INV-REQ-1125, INV-Q-9032 A). Present on a node of kind TENANT only. An absent value means the environment is not known; a consumer never reads an absent value as PRODUCTION. A consumer maps a value it does not know to unknown.",
+          "enum": [
+            "PRODUCTION",
+            "SANDBOX"
+          ],
+          "x-extensible-enum": true
         }
       },
       "required": [

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.18.0
+  version: 1.19.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -2827,6 +2827,15 @@ components:
           description: tenancy-svc's monotonic structure version of this node state, one sequence
             across both structure events and this response (TPL-05). The caller keeps whichever is
             newer, the fill or the state it holds.
+        environment:
+          type: string
+          description: The tenant's environment (INV-REQ-1125, INV-Q-9032 A). Present on a node of
+            kind TENANT only. An absent value means the environment is not known; a consumer never
+            reads an absent value as PRODUCTION. A consumer maps a value it does not know to unknown.
+          enum:
+          - PRODUCTION
+          - SANDBOX
+          x-extensible-enum: true
     AssessPhaseRequest:
       type: object
       required:

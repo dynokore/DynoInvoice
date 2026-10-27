@@ -117,3 +117,7 @@ ElectionChangeApproved.approvedBy	schema_property	openapi.yaml	INV-REQ-505
 ElectionChangeApproved.approvedAt	schema_property	openapi.yaml	INV-REQ-505
 CreateTenantRequest.dataRegion	schema_property	openapi.yaml	INV-REQ-1386
 TenantResponse.dataRegion	schema_property	openapi.yaml	INV-REQ-1386
+StructureNode.environment	schema_property	openapi.yaml	INV-REQ-1125
+StructureNode.environment.SANDBOX	schema_enum_value	openapi.yaml	INV-REQ-1125
+environment	property	schemas/organisation-structure-changed-payload.schema.json	INV-REQ-1125
+SANDBOX	enum_value	schemas/organisation-structure-changed-payload.schema.json	INV-REQ-1125
