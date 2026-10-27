@@ -42,3 +42,11 @@ TransportOutcome.outcome.TRANSIENT_FAILURE	schema_enum_value	openapi.yaml	INV-RE
 # INV-T-7650. INV-REQ-2588 behavior 1 lists rotateCredential and testConnection in plain text (no backticked identifier); baseline rows of the audited-operation completeness rule (INV-Q-7641 A).
 rotateCredential	operation	openapi.yaml	INV-REQ-2588
 testConnection	operation	openapi.yaml	INV-REQ-2588
+# INV-T-9687. Rows of the acknowledgement-route election and clearing operations (INV-REQ-1310, INV-Q-9680 A) and ApNotification.acknowledgementId (INV-Q-9670 A). `issuanceMode` and `EntityProfileChanged` (INV-REQ-1310, INV-REQ-585) belong to the tenancy contract and `ap-callback` is a principal; the header names are not rows (INV-Q-5389 A).
+electAcknowledgementRoute	operation	openapi.yaml	INV-REQ-1310
+clearAcknowledgementRoute	operation	openapi.yaml	INV-REQ-1310
+ApNotification.acknowledgementId	schema_property	openapi.yaml	INV-Q-9670
+ElectAcknowledgementRouteRequest.acknowledgementRoute	schema_property	openapi.yaml	INV-REQ-1310
+AcknowledgementRouteResponse.acknowledgementRoute	schema_property	openapi.yaml	INV-REQ-1310
+AcknowledgementRouteResponse.entityRefs	schema_property	openapi.yaml	INV-REQ-1310
+AcknowledgementRouteResponse.version	schema_property	openapi.yaml	INV-REQ-1310

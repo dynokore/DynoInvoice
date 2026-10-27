@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -292,12 +292,25 @@ paths:
         `503` with the API-20 envelope; the `503` is retryable, and the
         AP re-sends the same notification, de-duplicated by its
         notification ID (API-27).
+
+
+        Sender verification (INV-REQ-585, ruling INV-Q-9668 A): a callback
+        is either signed or arrives over mutual TLS (API-27). A signed
+        callback carries `X-AP-Timestamp` (Unix epoch seconds, UTC) and
+        `X-AP-Signature` (`sha256=` followed by 64 lowercase hex digits).
+        The signed material is the `X-AP-Timestamp` value, one `.`, then
+        the raw request body; the timestamp is fresh when it lies within
+        300 seconds either way of the receiver's clock. An unsigned,
+        stale or unverifiable callback is refused with no state change.
+        Both headers are absent for the mutual-TLS alternative of API-27;
+        they are optional in the schema because a required header is a
+        breaking change and the mutual-TLS form carries none.
       tags: [notifications]
       x-principal: ap-callback
       x-degraded-allow: true
       x-caller-auth: end-user
       x-timeout: 10000
-      x-error-codes: []
+      x-error-codes: [SRT-001, SRT-003, SRT-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§33.6"]
       x-operation:
         role: ap-callback
@@ -310,6 +323,16 @@ paths:
           in: path
           required: true
           schema: { type: string, maxLength: 40 }
+        - name: X-AP-Timestamp
+          in: header
+          required: false
+          description: 'Unix epoch seconds, UTC, of the signing; part of the signed material (INV-Q-9668 A). Absent for the mutual-TLS alternative.'
+          schema: { type: integer, minimum: 0 }
+        - name: X-AP-Signature
+          in: header
+          required: false
+          description: 'Signature over the X-AP-Timestamp value, one `.`, and the raw body (INV-Q-9668 A). Absent for the mutual-TLS alternative.'
+          schema: { type: string, pattern: '^sha256=[0-9a-f]{64}$' }
       requestBody:
         required: true
         content:
@@ -333,6 +356,12 @@ paths:
               examples:
                 default:
                   value: { apNotificationId: "APN-55210", recorded: true }
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         default:
@@ -597,6 +626,125 @@ paths:
                     correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/transport/connections/{connectionRef}/acknowledgement-route:
+    put:
+      operationId: electAcknowledgementRoute
+      summary: Elect how acknowledgements arrive on an AP connection
+      description: >-
+        Console command to console-bff (sync-edges.yaml `console-bff ->
+        transport-svc`, kind console). `integration.engineer` elects one of
+        AP callback, polling, or import of the AP's or IRSP's report for the
+        connection (INV-REQ-1310; there is no default). The value is closed
+        to these three; any other value is refused with `400`. Electing the
+        stored route again is a no-op. The response is the connection's
+        resulting route, `entityRefs` and `version` (ruling INV-Q-9680 A).
+      tags: [administration]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 2000
+      x-sync-edge: console-bff->transport-svc
+      x-error-codes: [SRT-001, SRT-005]
+      x-requirements: [INV-REQ-1310]
+      x-operation:
+        role: integration.engineer
+        scope: tenant
+        precondition: "The connection exists (INV-REQ-1310, connection scope)."
+        reversibility: UNDOABLE
+        repeatKey: "(connectionRef, Idempotency-Key) — a repeat returns the original result; electing the stored route again is a no-op."
+      parameters:
+        - name: connectionRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElectAcknowledgementRouteRequest'
+            examples:
+              default:
+                value:
+                  acknowledgementRoute: "AP_CALLBACK"
+      responses:
+        '200':
+          description: The connection's route after the election.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgementRouteResponse'
+              examples:
+                default:
+                  value: { acknowledgementRoute: "AP_CALLBACK", entityRefs: ["ENT-CL0043"], version: 5 }
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: clearAcknowledgementRoute
+      summary: Clear the elected acknowledgement route of an AP connection
+      description: >-
+        Console command to console-bff (sync-edges.yaml `console-bff ->
+        transport-svc`, kind console). Removes the elected route so that the
+        connection has none (INV-REQ-1310; ruling INV-Q-9680 A). Clearing a
+        clear route is a no-op. Clearing is refused with HTTP 422 and the
+        code SUB-023 while an entity of the connection is in Observe mode
+        today, or has no issuance-mode replica row (fail closed); nothing is
+        recorded or published. The check belongs to the transport-svc task
+        (INV-T-4982).
+      tags: [administration]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 2000
+      x-sync-edge: console-bff->transport-svc
+      x-error-codes: [SRT-005, SUB-023]
+      x-requirements: [INV-REQ-1310]
+      x-operation:
+        role: integration.engineer
+        scope: tenant
+        precondition: "The connection exists (INV-REQ-1310, connection scope)."
+        reversibility: UNDOABLE
+        repeatKey: "(connectionRef, Idempotency-Key) — clearing a clear route is a no-op."
+      parameters:
+        - name: connectionRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The connection after the clearing; `acknowledgementRoute` is absent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgementRouteResponse'
+              examples:
+                default:
+                  value: { entityRefs: ["ENT-CL0043"], version: 6 }
+        '404':
+          $ref: '#/components/responses/Error'
+        '422':
+          description: >-
+            Refused: SUB-023 (clearing refused: an entity of the connection is
+            in Observe mode today, or has no issuance-mode replica row; fail
+            closed; nothing is recorded or published).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                SUB-023:
+                  value:
+                    type: "about:blank"
+                    title: "Acknowledgement route cannot be cleared while an entity is in Observe mode"
+                    status: 422
+                    code: "SUB-023"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -748,6 +896,13 @@ components:
         version: { type: integer, minimum: 1 }
         peppolMessageId: { type: string, maxLength: 100 }
         documentReference: { type: string, maxLength: 256 }
+        acknowledgementId:
+          type: string
+          maxLength: 100
+          description: >-
+            The AP's identifier of the acknowledgement (ruling INV-Q-9670 A).
+            The service requires it on kind ACKNOWLEDGEMENT, a rule the schema
+            language cannot express; the producer and the consumer enforce it.
       required: [apNotificationId, kind]
     ApNotificationResult:
       type: object
@@ -840,6 +995,29 @@ components:
     SetConnectionEntitiesResponse:
       type: object
       properties:
+        entityRefs:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 40 }
+        version: { type: integer, minimum: 1 }
+      required: [entityRefs, version]
+    ElectAcknowledgementRouteRequest:
+      type: object
+      description: 'Elects the acknowledgement route of the connection; the three values are closed (INV-REQ-1310, INV-Q-9680 A).'
+      properties:
+        acknowledgementRoute:
+          type: string
+          enum: [AP_CALLBACK, POLLING, REPORT_IMPORT]
+      required: [acknowledgementRoute]
+      additionalProperties: false
+    AcknowledgementRouteResponse:
+      type: object
+      description: 'The connection after an election or a clearing; `acknowledgementRoute` is absent when no route is elected.'
+      properties:
+        acknowledgementRoute:
+          type: string
+          enum: [AP_CALLBACK, POLLING, REPORT_IMPORT]
+          x-extensible-enum: true
         entityRefs:
           type: array
           uniqueItems: true
