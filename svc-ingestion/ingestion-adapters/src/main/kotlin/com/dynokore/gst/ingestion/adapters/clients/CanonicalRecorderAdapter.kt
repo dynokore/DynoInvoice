@@ -11,7 +11,7 @@ import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.beans.factory.annotation.Value
+import org.springframework.core.env.Environment
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -23,7 +23,7 @@ import tools.jackson.module.kotlin.readValue
 import java.time.Clock
 import java.time.Duration
 
-/** The edge `ingestion-svc->canonical-svc` could not answer: timed out, breaker or bulkhead refused it, or no connection. */
+/** The edge `ingestion-svc->canonical-svc` gave no answer: timeout, open breaker, full bulkhead or no connection. */
 class CanonicalUnavailableException(
     message: String,
 ) : RuntimeException(message)
@@ -38,13 +38,9 @@ class CanonicalRecorderAdapter(
     @Qualifier("internalRestClientBuilder") builder: RestClient.Builder,
     registry: ResilienceRegistry,
     private val clock: Clock,
-    @Value($$"${ingestion.canonical-svc-url}") baseUrl: String,
+    environment: Environment,
 ) : CanonicalRecorder {
-    init {
-        require(baseUrl.isNotBlank()) { "ingestion.canonical-svc-url must not be blank" }
-    }
-
-    private val api = DocumentsApi(builder.baseUrl(baseUrl).build())
+    private val api = DocumentsApi(builder.baseUrl(baseUrl(environment)).build())
     private val policy = registry.forEdge(EDGE)
     private val mapper =
         JsonMapper
@@ -56,17 +52,15 @@ class CanonicalRecorderAdapter(
         val request = mapper.readValue<RecordDocumentRequest>(command.body)
         // the generated types tolerate unknown members (API-09): the request must still carry the whole body, no more
         require(mapper.valueToTree<JsonNode>(request).withoutNulls() == mapper.readTree(command.body).withoutNulls()) {
-            "the generated RecordDocumentRequest cannot carry the body of ${command.sourceKey} revision ${command.sourceRevision} unchanged"
+            "the generated request cannot carry the body of ${command.sourceKey}/${command.sourceRevision} unchanged"
         }
         // API-29: the deadline of the request being served; a call with none behind it gets the edge's contract timeout
         val deadline = CurrentDeadline.current() ?: Deadline.after(EDGE_TIMEOUT, clock)
         return policy.execute(
             deadline,
-            onCallNotPermitted = {
-                throw CanonicalUnavailableException("$EDGE: call not permitted (breaker open or bulkhead full)")
-            },
-            onConnectFailure = { throw CanonicalUnavailableException("$EDGE: connection refused") },
-            onTimeout = { throw CanonicalUnavailableException("$EDGE: timed out") },
+            onCallNotPermitted = { unavailable("call not permitted (breaker open or bulkhead full)") },
+            onConnectFailure = { unavailable("connection refused") },
+            onTimeout = { unavailable("timed out") },
         ) {
             send(request)
         }
@@ -88,6 +82,10 @@ class CanonicalRecorderAdapter(
                 this
             }
         }
+
+    private fun unavailable(reason: String): Nothing = throw CanonicalUnavailableException("$EDGE: $reason")
+
+    private fun unavailable(reason: String): Nothing = throw CanonicalUnavailableException("$EDGE: $reason")
 
     private fun send(request: RecordDocumentRequest): CanonicalAnswer =
         try {
@@ -134,9 +132,16 @@ class CanonicalRecorderAdapter(
     }
 
     private companion object {
+        const val URL_PROPERTY = "ingestion.canonical-svc-url"
         const val EDGE = "ingestion-svc->canonical-svc"
 
         /** `x-timeout` of `recordDocument` in the canonical contract. */
         val EDGE_TIMEOUT: Duration = Duration.ofMillis(2000)
+
+        /** Required and not blank, with no default (TPL-16, twelve-factor config): the context fails without it. */
+        fun baseUrl(environment: Environment): String =
+            environment.getRequiredProperty(URL_PROPERTY).also {
+                require(it.isNotBlank()) { "$URL_PROPERTY must not be blank" }
+            }
     }
 }
