@@ -47,6 +47,9 @@ NOT_END_USER = {
         "authenticatePrincipal": "service-job",  # API gateway, workload
         "issueAccessToken": "service-job",  # API gateway, workload token
     },
+    "rules/openapi.yaml": {
+        "listActiveRegulatoryPacks": "service-job",  # installer, workload only
+    },
     "masterdata/openapi.yaml": {
         "submitCounterpartyDetails": "signed-link",  # counterparty signed link
     },

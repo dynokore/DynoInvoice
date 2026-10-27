@@ -1,0 +1,10 @@
+{
+ "items": [
+  {
+   "packType": "SCOPE",
+   "version": "2026.4",
+   "status": "STAGED",
+   "minEngineVersion": "2026.3"
+  }
+ ]
+}

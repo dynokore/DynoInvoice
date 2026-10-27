@@ -1,0 +1,20 @@
+{
+ "items": [
+  {
+   "packType": "SCOPE",
+   "version": "2026.4",
+   "status": "ACTIVE",
+   "minEngineVersion": "2026.3",
+   "effectiveFrom": "2026-04-01"
+  },
+  {
+   "packType": "SCENARIO",
+   "version": "2026.5",
+   "status": "ARMED",
+   "minEngineVersion": "2026.4",
+   "effectiveFrom": "2026-07-01",
+   "effectiveTo": "2026-12-31"
+  }
+ ],
+ "nextCursor": "c-0002"
+}

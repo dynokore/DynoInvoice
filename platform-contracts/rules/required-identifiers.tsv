@@ -337,3 +337,10 @@ MappingPack.approvals	schema_property	openapi.yaml	INV-REQ-994
 MappingPack.activation	schema_property	openapi.yaml	INV-REQ-992
 MappingPackApproval.soleOperator	schema_property	openapi.yaml	INV-REQ-994
 MappingPackActivation.noDistinctApprover	schema_property	openapi.yaml	INV-REQ-992
+listActiveRegulatoryPacks	operation	openapi.yaml	INV-REQ-1105
+ActiveRegulatoryPackPage.items	schema_property	openapi.yaml	INV-REQ-1105
+ActiveRegulatoryPackPage.nextCursor	schema_property	openapi.yaml	INV-REQ-1105
+ActiveRegulatoryPack.packType	schema_property	openapi.yaml	INV-REQ-1105
+ActiveRegulatoryPack.version	schema_property	openapi.yaml	INV-REQ-1105
+ActiveRegulatoryPack.status	schema_property	openapi.yaml	INV-REQ-1105
+ActiveRegulatoryPack.minEngineVersion	schema_property	openapi.yaml	INV-REQ-1105

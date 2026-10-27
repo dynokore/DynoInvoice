@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -689,6 +689,62 @@ paths:
                 default:
                   value: { packType: "SCOPE", version: "2026.4", status: "IMPORTING" }
         default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/active:
+    get:
+      operationId: listActiveRegulatoryPacks
+      summary: List the active regulatory packs with their minimum engine version
+      description: >-
+        The operation lists the regulatory packs of the platform layer that
+        are in an active state, which are the packs with `status` ARMED or
+        ACTIVE; a pack in any other state (STAGED, ACKNOWLEDGED, IMPORTING,
+        FAILED, SUPERSEDED, ABORTED) and a pack of a tenant's mapping layer
+        are never listed. Entries are ordered by `packType`, then by
+        `version`, both compared as strings. The installer reads the list in
+        its pre-flight to compare each pack's `minEngineVersion` with the
+        target train (INV-REQ-1105 behavior 1). Only the installer workload
+        is admitted: any other identity gets 403 SRT-004 and a call with no
+        valid workload token gets 401 SRT-003. The closed service-runtime
+        refusals carry their SRT codes and are not listed in x-error-codes
+        (INV-Q-5500, ARC-19).
+      tags: [regulatory-packs]
+      x-principal: workload
+      x-caller-auth: service-job
+      x-sync-edge: installer->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1105]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        '200':
+          description: One page of the active regulatory packs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveRegulatoryPackPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - { packType: "SCOPE", version: "2026.4", status: "ACTIVE", minEngineVersion: "2026.3", effectiveFrom: "2026-04-01" }
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
           $ref: '#/components/responses/Error'
   /internal/v1/rules/regulatory-packs/{packType}/{version}:
     get:
@@ -1581,6 +1637,45 @@ components:
             End of the grace window computed for the calling tenant, never later than
             `effectiveFrom`; present once the effective date is known (INV-REQ-858 b5).
       required: [packType, version, status]
+    ActiveRegulatoryPackPage:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/ActiveRegulatoryPack'
+        nextCursor:
+          type: string
+          maxLength: 200
+      required: [items]
+    ActiveRegulatoryPack:
+      type: object
+      properties:
+        packType:
+          type: string
+          maxLength: 40
+        version:
+          type: string
+          maxLength: 16
+        status:
+          type: string
+          enum: [ARMED, ACTIVE]
+          x-extensible-enum: true
+        minEngineVersion:
+          type: string
+          maxLength: 40
+          description: >-
+            The train version from which the pack may run (INV-NOTE-3
+            FR-H.10). A consumer treats a value that does not parse as a train
+            version as a failure.
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+      required: [packType, version, status, minEngineVersion]
     ReprocessingRun:
       type: object
       properties:
