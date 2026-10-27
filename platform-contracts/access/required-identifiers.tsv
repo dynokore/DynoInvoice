@@ -128,3 +128,9 @@ recordInstallationApproverFact	operation	openapi.yaml	INV-REQ-992
 getInstallationApproverFact	operation	openapi.yaml	INV-REQ-992
 # INV-T-9377. INV-Q-8868 A, INV-REQ-853 and INV-AC-7741: the backticked name authorise is an operation of the access contract; access.role_grant is a table of svc-access, CLIENT-A and CLIENT-B are test fixtures and doc.view is a permission of a test, none a contract identifier, so no rows.
 authorise	operation	openapi.yaml	INV-REQ-853
+# INV-T-9307. INV-Q-9109 A and INV-REQ-896: the operation approveBreakGlassUnlock and the schema properties the contract carries; unlockRef, tenantRef, expiresAt, approvedBy, OPEN, SEALED and BreakGlassSessionChanged belong to INV-T-9306; x-break-glass-action belongs to INV-T-9308; the setting access.break-glass.approval-window is a service setting, no contract element.
+approveBreakGlassUnlock	operation	openapi.yaml	INV-REQ-896
+ApproveBreakGlassUnlockRequest.tenantRef	schema_property	openapi.yaml	INV-REQ-896
+ApproveBreakGlassUnlockResponse.approvalRef	schema_property	openapi.yaml	INV-REQ-896
+ApproveBreakGlassUnlockResponse.madeAt	schema_property	openapi.yaml	INV-REQ-896
+ApproveBreakGlassUnlockResponse.expiresAt	schema_property	openapi.yaml	INV-REQ-896
