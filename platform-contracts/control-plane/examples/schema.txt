@@ -17,3 +17,5 @@
 ../openapi.yaml#/components/schemas/FirstInvitationReissueResponse first-invitation-reissue-response-*.json
 ../openapi.yaml#/components/schemas/GateRunRequest gate-run-request-*.json
 ../openapi.yaml#/components/schemas/GateRunResponse gate-run-response-*.json
+../openapi.yaml#/components/schemas/PurgeAuditEntriesRequest purge-audit-entries-request-*.json
+../openapi.yaml#/components/schemas/PurgeAuditEntriesResponse purge-audit-entries-response-*.json

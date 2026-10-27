@@ -342,6 +342,77 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/control-plane/audit-purges:
+    post:
+      operationId: purgeAuditEntries
+      summary: Purge audit entries older than a cut-off, never younger than the retention floor (INV-REQ-2588, INV-REQ-1378)
+      description: 'The caller must hold the permission `audit-entry.purge`; SaaS only serves it. The purge records itself
+        (one audit entry, committed with the delete) and deletes only entries at or before the cut-off. The cut-off must be
+        at or before now minus the floor, the longest retention the data regions report; a younger cut-off is refused with
+        CPL-001 and a floor that cannot be determined (a region unreachable or returning no figure) with CPL-002, deleting
+        nothing in both cases.'
+      tags:
+      - releases
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->control-plane-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-2588
+      - INV-REQ-1378
+      - INV-REQ-3767
+      x-error-codes:
+      - CPL-001
+      - CPL-002
+      x-operation:
+        role: platform.engineer
+        permission: audit-entry.purge
+        scope: platform
+        precondition: the floor can be determined and the cut-off is at or before now minus the floor (a cut-off exactly at now minus the floor is allowed; a younger one is refused with CPL-001)
+        reversibility: IRREVERSIBLE
+        repeatKey: 'cutOff: a repeat of a cut-off, or an earlier one, deletes zero rows and writes its own audit entry'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurgeAuditEntriesRequest'
+            examples:
+              default:
+                value:
+                  cutOff: '2016-04-27T00:00:00Z'
+                  reason: Retention floor passed
+      responses:
+        "200":
+          description: Purged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeAuditEntriesResponse'
+              examples:
+                default:
+                  value:
+                    purgeId: 3f2b8c1e-5d4a-4e7b-9a10-2c6d8e0f1a23
+                    cutOff: '2016-04-27T00:00:00Z'
+                    floor: P10Y
+                    deletedCount: 1
+                    auditEntryId: 7a9d1c44-0b2e-4f6a-8d35-5e1f2a3b4c5d
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs:
     post:
       operationId: recordGateRun
@@ -1983,6 +2054,46 @@ components:
         needsReAccreditationAssessment:
           description: Whether the train changes what accreditation covered and so needs a re-accreditation assessment (INV-REQ-1365). Absent is read as true.
           type: boolean
+    PurgeAuditEntriesRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - cutOff
+      properties:
+        cutOff:
+          type: string
+          format: date-time
+          description: Entries at or before this instant are deleted; it must be at or before now minus the floor.
+        reason:
+          type: string
+          maxLength: 500
+          description: Free-text reason the operator gives; recorded in the audit entry.
+    PurgeAuditEntriesResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - purgeId
+      - cutOff
+      - floor
+      - deletedCount
+      - auditEntryId
+      properties:
+        purgeId:
+          type: string
+          format: uuid
+        cutOff:
+          type: string
+          format: date-time
+        floor:
+          type: string
+          format: duration
+          description: The ISO-8601 duration of the floor used.
+        deletedCount:
+          type: integer
+          minimum: 0
+        auditEntryId:
+          type: string
+          format: uuid
     GateRunRequest:
       type: object
       required:

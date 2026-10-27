@@ -130,3 +130,12 @@ GateRunRequest.gate.SECURITY	schema_enum_value	openapi.yaml	INV-REQ-2657
 GateRunRequest.gate.CERTIFICATION	schema_enum_value	openapi.yaml	INV-REQ-2657
 GateRunRequest.environment.SAAS	schema_enum_value	openapi.yaml	INV-REQ-909
 GateRunRequest.environment.PRIVATE_MINIMAL	schema_enum_value	openapi.yaml	INV-REQ-909
+# INV-T-11440 (INV-Q-11435 A): purgeAuditEntries. Not rows: `grantRole`, `inviteExternalIdentity`, `inviteUser`, `granteeKind`, `AuditEntryRecorded` (INV-REQ-2588, other contracts or INV-T-3099); `evidence-svc` (INV-REQ-1378, a service); `x-error-codes`, `<service>/openapi.yaml`, `catalogue/audited-operations.tsv` (not identifiers of this contract).
+purgeAuditEntries	operation	openapi.yaml	INV-REQ-2588
+PurgeAuditEntriesRequest.cutOff	schema_property	openapi.yaml	INV-REQ-2588
+PurgeAuditEntriesRequest.reason	schema_property	openapi.yaml	INV-REQ-2588
+PurgeAuditEntriesResponse.purgeId	schema_property	openapi.yaml	INV-REQ-2588
+PurgeAuditEntriesResponse.cutOff	schema_property	openapi.yaml	INV-REQ-2588
+PurgeAuditEntriesResponse.floor	schema_property	openapi.yaml	INV-REQ-2588
+PurgeAuditEntriesResponse.deletedCount	schema_property	openapi.yaml	INV-REQ-2588
+PurgeAuditEntriesResponse.auditEntryId	schema_property	openapi.yaml	INV-REQ-2588
