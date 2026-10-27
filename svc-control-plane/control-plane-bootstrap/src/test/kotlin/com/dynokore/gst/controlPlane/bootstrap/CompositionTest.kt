@@ -56,6 +56,7 @@ class CompositionTest {
                 "service-runtime.modules.schema=controlplane",
                 "service-runtime.idempotency.schema=controlplane",
                 "gst.bindings.secret-store.mount-root=$mount",
+                "control-plane.tenancy.base-url=http://tenancy-svc.invalid",
                 "control-plane.signing.ref=KEY-REG-01",
                 "control-plane.signing.alias=pack-signing",
                 "control-plane.signing.pin-secret=signing/pin",

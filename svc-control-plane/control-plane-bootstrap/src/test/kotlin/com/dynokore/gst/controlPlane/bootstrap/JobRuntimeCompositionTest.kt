@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.adapters.events.ControlPlaneEventCatalogue
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.auditlog.OutboxAuditWriter
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -48,14 +49,15 @@ class JobRuntimeCompositionTest {
     }
 
     @Test
-    fun `the event catalogue holds the platform events that have a topic and nothing else`(
+    fun `the event catalogue holds the platform events that have a topic and the invitation message, nothing else`(
         @TempDir mount: Path,
     ) {
         controlPlaneRunner(mount).run { context ->
             context.getBeansOfType(EventCatalogue::class.java).size shouldBe 1
             val catalogue = context.getBean(EventCatalogue::class.java)
             catalogue.entries().map { it.eventType to it.topic }.toSet() shouldBe
-                PlatformEventCatalogue.ALL.mapNotNull { e -> e.topic?.let { e.eventType to it } }.toSet()
+                PlatformEventCatalogue.ALL.mapNotNull { e -> e.topic?.let { e.eventType to it } }.toSet() +
+                (ControlPlaneEventCatalogue.MESSAGE_REQUESTED to ControlPlaneEventCatalogue.MESSAGE_REQUESTED_TOPIC)
             catalogue.find(PlatformEventCatalogue.JOB_RUN_RECORDED.eventType).shouldNotBeNull()
             catalogue.find("com.dynokore.gst.controlplane.NotCatalogued.v1").shouldBeNull()
         }

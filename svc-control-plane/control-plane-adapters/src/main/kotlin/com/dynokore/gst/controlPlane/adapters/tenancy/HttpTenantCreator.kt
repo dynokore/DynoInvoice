@@ -52,7 +52,7 @@ class HttpTenantCreator(
                 .build()
         return try {
             val status = client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode()
-            if (status in 200..299) TenantCreation.Created else TenantCreation.Pending
+            if (status in SUCCESS_FIRST..SUCCESS_LAST) TenantCreation.Created else TenantCreation.Pending
         } catch (e: IOException) {
             log.warn("createTenant did not complete: {}", e.javaClass.simpleName)
             TenantCreation.Pending
@@ -64,5 +64,7 @@ class HttpTenantCreator(
 
     companion object {
         const val PATH = "/internal/v1/tenancy/tenants"
+        private const val SUCCESS_FIRST = 200
+        private const val SUCCESS_LAST = 299
     }
 }

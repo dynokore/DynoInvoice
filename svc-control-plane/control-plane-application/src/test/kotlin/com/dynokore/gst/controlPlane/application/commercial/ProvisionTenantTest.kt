@@ -100,9 +100,13 @@ class ProvisionTenantTest {
 
     private fun run(command: ProvisionTenantCommand): Pair<String?, TenantProvisioning?> {
         val state = provision.load(command)
-        provision.priorResult(command, state)?.let { return null to it }
-        provision.unmetPrecondition(command, state)?.let { return it to null }
-        return null to provision.perform(command, state)
+        val prior = provision.priorResult(command, state)
+        val refusal = if (prior == null) provision.unmetPrecondition(command, state) else null
+        return when {
+            prior != null -> null to prior
+            refusal != null -> refusal to null
+            else -> null to provision.perform(command, state)
+        }
     }
 
     @Test

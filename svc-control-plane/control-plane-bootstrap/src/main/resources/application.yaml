@@ -36,7 +36,7 @@ inv.tenancy.platform-scoped-tables:                 # INV-ADR-3968 item 4a: the 
   - controlplane.licence
 control-plane:
   tenancy:
-    create-timeout: PT1500MS                        # createTenant is bounded inside console-bff's 2 s (INV-REQ-1203, INV-REQ-1204 b7)
+    create-timeout: PT1.5S                          # createTenant is bounded inside console-bff's 2 s (INV-REQ-1203, INV-REQ-1204 b7)
   invitation:
     validity: P7D                                   # how long the signed first invitation stays valid
 management:

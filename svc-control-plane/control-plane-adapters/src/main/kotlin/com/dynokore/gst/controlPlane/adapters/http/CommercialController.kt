@@ -55,9 +55,11 @@ import java.util.UUID
  * The commercial operations of `commercial.admin` (INV-REQ-906 b1, INV-REQ-1306, TPL-08): managePlan,
  * recordQualification, issueLicence, getLicence, provisionTenant and getTenantProvisioningRequest. The other
  * operations of the commercial tag are not overridden here, so the generated interface answers 501 for them;
- * `operations.tsv` lists each under its own state. The caller is the verified token's `sub`, never a request field (API-24).
+ * `operations.tsv` lists each under its own state. The caller is the verified token's `sub`, never a request
+ * field (API-24).
  */
 @RestController
+@Suppress("TooManyFunctions", "LongParameterList") // one method per operation of the generated CommercialApi (TPL-08)
 class CommercialController(
     private val principals: EndUserPrincipalResolver,
     private val platform: PlatformTenantBinding,

@@ -42,7 +42,8 @@ class CmsLicenceSigner(
 /**
  * The first invitation reference (INV-AC-935): `<payload>.<signature>`, both base64url, where the payload is the
  * canonical JSON of the contract reference, the tenant reference and the issue and expiry instants, and the
- * signature is * the detached CMS signature over the payload bytes. The expiry is inside the signed payload, so it cannot be moved.
+ * signature is the detached CMS signature over the payload bytes. The expiry is inside the signed payload, so it
+ * cannot be moved.
  */
 class CmsInvitationIssuer(
     private val signer: DetachedSigner,

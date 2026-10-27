@@ -26,13 +26,32 @@ import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
 import com.dynokore.platform.crypto.DetachedSigner
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import org.jooq.DSLContext
-import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import java.net.URI
+import org.springframework.core.env.Environment
 import java.time.Clock
-import java.time.Duration
 import java.util.UUID
+
+/** The settings of tenant provisioning, bound by prefix (a missing or non-positive value stops the start-up). */
+@Configuration(proxyBeanMethods = false)
+class ProvisioningSettingsConfiguration {
+    @Bean
+    fun tenancySettings(environment: Environment): TenancySettings =
+        Binder
+            .get(environment)
+            .bind(TenancySettings.PREFIX, TenancySettings::class.java)
+            .orElseThrow { IllegalStateException("${TenancySettings.PREFIX} is not configured") }
+            .also { it.verify() }
+
+    @Bean
+    fun invitationSettings(environment: Environment): InvitationSettings =
+        Binder
+            .get(environment)
+            .bind(InvitationSettings.PREFIX, InvitationSettings::class.java)
+            .orElseThrow { IllegalStateException("${InvitationSettings.PREFIX} is not configured") }
+            .also { it.verify() }
+}
 
 /**
  * Tenant provisioning and licences (INV-REQ-1306, INV-REQ-906 b1): the region list, the provisioning requests, the
@@ -55,10 +74,8 @@ class ProvisioningConfiguration {
     fun licenceRepository(dsl: DSLContext): LicenceRepository = LicenceRepositoryJooq(dsl)
 
     @Bean
-    fun tenantCreator(
-        @Value("\${control-plane.tenancy.base-url}") baseUrl: URI,
-        @Value("\${control-plane.tenancy.create-timeout}") timeout: Duration,
-    ): TenantCreator = HttpTenantCreator(baseUrl, timeout)
+    fun tenantCreator(settings: TenancySettings): TenantCreator =
+        HttpTenantCreator(java.net.URI.create(checkNotNull(settings.baseUrl)), checkNotNull(settings.createTimeout))
 
     @Bean
     fun invitationIssuer(
@@ -86,7 +103,7 @@ class ProvisioningConfiguration {
         messages: InvitationMessages,
         roles: OperatorRoles,
         clock: Clock,
-        @Value("\${control-plane.invitation.validity}") validity: Duration,
+        settings: InvitationSettings,
     ) = ProvisionTenant(
         provisionings,
         regions,
@@ -95,7 +112,7 @@ class ProvisioningConfiguration {
         messages,
         roles,
         clock,
-        validity,
+        checkNotNull(settings.validity),
     ) {
         CommercialRef(
             "TEN-" +
@@ -137,5 +154,37 @@ class ProvisioningConfiguration {
     private companion object {
         const val TENANT_REF_DIGITS = 12
         const val LICENCE_REF_DIGITS = 12
+    }
+}
+
+/** Where tenancy-svc is and how long the inline `createTenant` may take (`control-plane.tenancy.*`). */
+data class TenancySettings(
+    val baseUrl: String? = null,
+    val createTimeout: java.time.Duration? = null,
+) {
+    fun verify() {
+        check(!baseUrl.isNullOrBlank()) { "$PREFIX.base-url is not set" }
+        check(createTimeout != null && !createTimeout.isNegative && !createTimeout.isZero) {
+            "$PREFIX.create-timeout is not set to a positive duration"
+        }
+    }
+
+    companion object {
+        const val PREFIX = "control-plane.tenancy"
+    }
+}
+
+/** How long the signed first invitation stays valid (`control-plane.invitation.validity`). */
+data class InvitationSettings(
+    val validity: java.time.Duration? = null,
+) {
+    fun verify() {
+        check(validity != null && !validity.isNegative && !validity.isZero) {
+            "$PREFIX.validity is not set to a positive duration"
+        }
+    }
+
+    companion object {
+        const val PREFIX = "control-plane.invitation"
     }
 }
