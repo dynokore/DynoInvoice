@@ -13,11 +13,22 @@ internal object GrantRequests {
     fun scopeOf(
         text: String,
         tenant: TenantRef,
+        allowConsent: Boolean = false,
     ): Scope? =
         when (val parsed = ScopeParser.parse(text, tenant)) {
-            is ScopeParser.Parsed.Ok -> parsed.scope
-            ScopeParser.Parsed.Missing -> null
-            is ScopeParser.Parsed.Unsupported -> invalid("scope is not supported")
+            is ScopeParser.Parsed.Ok -> {
+                // only grantRole takes a consent-derived scope; elsewhere it is as unsupported as any other text
+                if (parsed.scope is Scope.ConsentDerived && !allowConsent) invalid("scope is not supported")
+                parsed.scope
+            }
+
+            ScopeParser.Parsed.Missing -> {
+                null
+            }
+
+            is ScopeParser.Parsed.Unsupported -> {
+                invalid("scope is not supported")
+            }
         }
 
     fun identityOf(text: String): IdentityRef =

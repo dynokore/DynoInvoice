@@ -3,6 +3,7 @@ package com.dynokore.gst.access.adapters.events
 import com.dynokore.gst.access.adapters.http.ScopeParser
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.principal.PrincipalRevocationPublisher
+import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.principal.ServicePrincipal
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -34,7 +35,9 @@ class PrincipalRevocationOutbox(
         val tenant = TenantId.of(principal.tenant.value)
         // a domain event cannot carry the tenant-wide entity: the revocation is keyed on each entity the scope reaches
         val scope =
-            (ScopeParser.parse(principal.scope, principal.tenant) as? ScopeParser.Parsed.Ok)?.scope
+            (ScopeParser.parse(principal.scope, principal.tenant) as? ScopeParser.Parsed.Ok)
+                ?.scope
+                ?.takeUnless { it is Scope.ConsentDerived }
                 ?: error("the scope of a stored principal is unreadable")
         directory.entitiesCoveredBy(scope).sortedBy { it.value }.forEach { entity ->
             val context = EventContexts.forAggregate(tenant, EntityRef(entity.value), principal.ref)

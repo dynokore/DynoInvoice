@@ -56,7 +56,7 @@ open class GrantsController(
     ): ResponseEntity<GrantResponse> {
         requireManager()
         val tenant = TenantRef(tenants.current().toString())
-        val scope = GrantRequests.scopeOf(grantRequest.scope, tenant)
+        val scope = GrantRequests.scopeOf(grantRequest.scope, tenant, allowConsent = true)
         val identity = GrantRequests.identityOf(grantRequest.identityRef)
         val window = GrantRequests.windowOf(grantRequest)
         val command =
