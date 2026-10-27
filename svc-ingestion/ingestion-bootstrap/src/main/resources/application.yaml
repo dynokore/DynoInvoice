@@ -19,6 +19,8 @@ service-runtime:
   event-log-pool.minimum-idle: 1
   modules.schema: ingestion
   idempotency.schema: ingestion
+ingestion:
+  canonical-svc-url: ${INGESTION_CANONICAL_SVC_URL} # required, no default: the context does not start without it (TPL-16)
 management:
   server.port: 8081 # API-33: health, metrics and diagnostics only on the management port, no token
   endpoints.web:
