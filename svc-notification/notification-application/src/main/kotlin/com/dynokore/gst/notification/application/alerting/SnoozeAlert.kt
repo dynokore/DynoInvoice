@@ -45,7 +45,7 @@ sealed interface SnoozeAlertResult {
     ) : SnoozeAlertResult
 }
 
-/** INV-REQ-1114: the decided permission first (INV-Q-10027), then the snooze rule; the clock and hard stop are read after it. */
+/** INV-REQ-1114: the decided permission first (INV-Q-10027); the clock and hard stop are read only after it. */
 class SnoozeAlert(
     private val replica: AuthorityReplica,
     private val clock: Clock,

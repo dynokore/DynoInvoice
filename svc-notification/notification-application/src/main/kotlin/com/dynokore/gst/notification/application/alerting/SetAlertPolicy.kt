@@ -62,7 +62,10 @@ class SetAlertPolicy(
                 ),
                 deadline,
             )
-        if (!decision.allowed) return SetAlertPolicyResult.Forbidden(decision.reason)
+        return if (decision.allowed) applyRules(command) else SetAlertPolicyResult.Forbidden(decision.reason)
+    }
+
+    private fun applyRules(command: SetAlertPolicyCommand): SetAlertPolicyResult {
         val disable = DisableRule.decide(command.alertClass, command.channels)
         if (disable is DisableDecision.Refused) {
             return SetAlertPolicyResult.Refused(disable.code, "NOT_DISABLEABLE")
