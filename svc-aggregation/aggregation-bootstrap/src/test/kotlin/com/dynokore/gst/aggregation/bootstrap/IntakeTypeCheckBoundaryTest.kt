@@ -3,12 +3,18 @@ package com.dynokore.gst.aggregation.bootstrap
 import com.dynokore.gst.aggregation.adapters.http.IntakeBodyCachingFilter
 import com.dynokore.gst.aggregation.adapters.http.IntakeController
 import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
+import com.dynokore.gst.aggregation.application.AggregateRepository
+import com.dynokore.gst.aggregation.application.IntakeAggregate
+import com.dynokore.gst.aggregation.application.NewAggregate
+import com.dynokore.gst.aggregation.application.ShortCodes
+import com.dynokore.gst.aggregation.application.StoredAggregate
 import com.dynokore.gst.aggregation.domain.AggregateIntakeCheck
 import com.dynokore.gst.aggregation.domain.IntakeVerdict
 import com.dynokore.platform.serviceruntime.http.IngestionErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.logging.CorrelationId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
@@ -27,7 +33,7 @@ import java.util.UUID
 class IntakeTypeCheckBoundaryTest {
     private val mvc: MockMvc =
         MockMvcBuilders
-            .standaloneSetup(IntakeController())
+            .standaloneSetup(IntakeController(IntakeAggregate(NoCodes, NoStore)))
             .setControllerAdvice(NotAggregatableAdvice())
             .addFilters<StandaloneMockMvcBuilder>(IntakeBodyCachingFilter())
             .build()
@@ -37,7 +43,7 @@ class IntakeTypeCheckBoundaryTest {
 
     private fun raw(aggregateTypeMember: String) =
         """{"entityRef":"E-001","businessUnitRef":"BU-01",$aggregateTypeMember
-        |"periodStart":"2026-03-20","periodEnd":"2026-03-20","underlyingRef":"BATCH-9001",
+        |"periodStart":"2026-03-20","periodEnd":"2026-03-20","underlyingRef":"BATCH-9001","sourceKey":"K-1","sourceRevision":1,
         |"linesByInternalTaxCode":[{"internalTaxCode":"SR-STD","amount":"1500.00"}]}
         """.trimMargin()
 
@@ -113,8 +119,13 @@ class IntakeTypeCheckBoundaryTest {
     }
 
     @Test
-    fun `POS, STI and PCP pass the type check and reach the operation, which answers 501 until its task`() {
-        listOf("POS", "STI", "PCP").forEach { call(it).status shouldBe 501 }
+    fun `POS, STI and PCP pass the type check and reach the operation`() {
+        // the intake rules are tested at the service boundary (AggregateIntakeBoundaryTest); here only that the type
+        // check lets the three through to the use case, which reads the replay key first
+        listOf("POS", "STI", "PCP").forEach { type ->
+            val failure = shouldThrow<Exception> { call(type) }
+            generateSequence<Throwable>(failure) { it.cause }.any { it.message == REACHED } shouldBe true
+        }
     }
 
     @Test
@@ -126,7 +137,31 @@ class IntakeTypeCheckBoundaryTest {
         refusal.overridable shouldBe false
     }
 
+    private object NoCodes : ShortCodes {
+        override fun entityCode(entityRef: String): String? = null
+
+        override fun businessUnitCode(businessUnitRef: String): String? = null
+    }
+
+    private object NoStore : AggregateRepository {
+        override fun findByIntakeKey(
+            entityRef: String,
+            sourceKey: String,
+            sourceRevision: Long,
+        ): StoredAggregate? = error(REACHED)
+
+        override fun highestRevision(
+            entityRef: String,
+            sourceKey: String,
+        ): Long? = error(REACHED)
+
+        override fun nextSequence(): Long = error(REACHED)
+
+        override fun store(aggregate: NewAggregate): StoredAggregate = error(REACHED)
+    }
+
     private companion object {
+        const val REACHED = "reached the use case"
         const val CORRELATION = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
     }
 }

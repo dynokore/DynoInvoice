@@ -9,6 +9,7 @@ dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":aggregation-adapters"))
+    implementation(project(":aggregation-application"))
     implementation(project(":aggregation-domain"))
     implementation(project(":aggregation-contract"))
     implementation(libs.platform.serviceRuntime.impl)
