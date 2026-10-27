@@ -130,7 +130,7 @@ class CanonicalRecorderAdapterTest {
         mapper.readTree(request.body) shouldBe mapper.readTree(body)
         request.headers["authorization"] shouldBe "Bearer end-user-1"
         request.headers["x-workload-token"] shouldBe "workload-token-of-ingestion"
-        (request.headers["x-deadline-ms"]!!.toLong() in 1..2000L) shouldBe true
+        (request.headers.getValue("x-deadline-ms").toLong() in 1..2000L) shouldBe true
     }
 
     @Test
