@@ -20,15 +20,14 @@ class PriorSolutionGuardTest {
     private val record = ImportedPriorRecord("E-1", "INV-100", before, "ACK-1")
     private val imported = listOf(record)
 
+    private val base =
+        PriorSolutionDocument("E-1", "INV-100", before, false, null, null, emptyList())
+
     private fun doc(
-        number: String? = "INV-100",
-        date: LocalDate = before,
-        entity: String = "E-1",
-        creditNote: Boolean = false,
-        precedingNumber: String? = null,
-        precedingDate: LocalDate? = null,
-        versions: List<LifecycleState> = emptyList(),
-    ) = PriorSolutionDocument(entity, number, date, creditNote, precedingNumber, precedingDate, versions)
+        number: String? = base.documentNumber,
+        date: LocalDate = base.transactionDate,
+        entity: String = base.entityRef,
+    ) = base.copy(documentNumber = number, transactionDate = date, entityRef = entity)
 
     private fun hold(reason: HoldReason) = HoldForCorrection("SUB-017", reason)
 
@@ -47,7 +46,7 @@ class PriorSolutionGuardTest {
     @Test
     fun `INV-AC-2108 credit note with a pre-cutover preceding date is held`() {
         PriorSolutionGuard.decide(
-            doc(number = "CN-1", date = after, creditNote = true, precedingDate = before),
+            doc(number = "CN-1", date = after).copy(creditNote = true, precedingDocumentDate = before),
             cutover,
             imported,
         ) shouldBe
@@ -57,7 +56,7 @@ class PriorSolutionGuardTest {
     @Test
     fun `INV-AC-2108 credit note with preceding number matching imported record is held`() {
         PriorSolutionGuard.decide(
-            doc(number = "CN-1", date = after, creditNote = true, precedingNumber = "INV-100"),
+            doc(number = "CN-1", date = after).copy(creditNote = true, precedingDocumentNumber = "INV-100"),
             cutover,
             imported,
         ) shouldBe
@@ -66,34 +65,46 @@ class PriorSolutionGuardTest {
 
     @Test
     fun `INV-AC-2108 credit note with a post-cutover preceding date is not affected`() {
-        val d = doc(number = "CN-1", date = after, creditNote = true, precedingDate = LocalDate.of(2026, 3, 2))
+        val d =
+            doc(
+                number = "CN-1",
+                date = after,
+            ).copy(creditNote = true, precedingDocumentDate = LocalDate.of(2026, 3, 2))
         PriorSolutionGuard.decide(d, cutover, imported) shouldBe NotAffected
     }
 
     @Test
     fun `INV-AC-2108 preceding number of another entity is not held`() {
-        val d = doc(number = "CN-1", date = after, entity = "E-2", creditNote = true, precedingNumber = "INV-100")
+        val d =
+            doc(
+                number = "CN-1",
+                date = after,
+                entity = "E-2",
+            ).copy(creditNote = true, precedingDocumentNumber = "INV-100")
         PriorSolutionGuard.decide(d, cutover, imported) shouldBe NotAffected
     }
 
     @Test
     fun `INV-AC-2108 post-cutover imported record behind the preceding number is not held`() {
         val late = listOf(ImportedPriorRecord("E-1", "INV-100", cutover, "ACK-9"))
-        val d = doc(number = "CN-1", date = after, creditNote = true, precedingNumber = "INV-100")
+        val d = doc(number = "CN-1", date = after).copy(creditNote = true, precedingDocumentNumber = "INV-100")
         PriorSolutionGuard.decide(d, cutover, late) shouldBe NotAffected
     }
 
     @Test
     fun `INV-AC-2108 preceding date present and not before the cutover wins over the preceding number`() {
         val d =
-            doc(number = "CN-1", date = after, creditNote = true, precedingNumber = "INV-100", precedingDate = cutover)
+            doc(
+                number = "CN-1",
+                date = after,
+            ).copy(creditNote = true, precedingDocumentNumber = "INV-100", precedingDocumentDate = cutover)
         PriorSolutionGuard.decide(d, cutover, imported) shouldBe NotAffected
     }
 
     @Test
     fun `INV-AC-2108 debit note with a pre-cutover preceding date is not affected`() {
         PriorSolutionGuard.decide(
-            doc(number = "DN-1", date = after, precedingDate = before),
+            doc(number = "DN-1", date = after).copy(precedingDocumentDate = before),
             cutover,
             imported,
         ) shouldBe
@@ -103,7 +114,7 @@ class PriorSolutionGuardTest {
     @Test
     fun `INV-AC-2108 credit note with the cutover date absent is not held`() {
         PriorSolutionGuard.decide(
-            doc(number = "CN-1", date = after, creditNote = true, precedingDate = before),
+            doc(number = "CN-1", date = after).copy(creditNote = true, precedingDocumentDate = before),
             null,
             imported,
         ) shouldBe
@@ -142,25 +153,29 @@ class PriorSolutionGuardTest {
 
     @Test
     fun `INV-AC-2107 other version states do not stop the match`() {
-        PriorSolutionGuard.decide(doc(versions = listOf(LifecycleState.ACKNOWLEDGED)), cutover, imported) shouldBe
+        PriorSolutionGuard.decide(
+            doc().copy(versions = listOf(LifecycleState.ACKNOWLEDGED)),
+            cutover,
+            imported,
+        ) shouldBe
             ExternallySubmitted("ACK-1")
     }
 
     @Test
     fun `INV-AC-2108 resubmission of an externally submitted document is held without a cutover date`() {
-        val d = doc(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
+        val d = doc().copy(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
         PriorSolutionGuard.decide(d, null, imported) shouldBe hold(HoldReason.RESUBMISSION_OF_EXTERNALLY_SUBMITTED)
     }
 
     @Test
     fun `INV-AC-2108 resubmission hold comes before the match of a pre-cutover document`() {
-        val d = doc(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
+        val d = doc().copy(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
         PriorSolutionGuard.decide(d, cutover, imported) shouldBe hold(HoldReason.RESUBMISSION_OF_EXTERNALLY_SUBMITTED)
     }
 
     @Test
     fun `INV-AC-2107 credit note matching rule 2 itself is externally submitted not held`() {
-        val d = doc(creditNote = true, precedingDate = before)
+        val d = doc().copy(creditNote = true, precedingDocumentDate = before)
         PriorSolutionGuard.decide(d, cutover, imported) shouldBe ExternallySubmitted("ACK-1")
     }
 
@@ -188,8 +203,8 @@ class PriorSolutionGuardTest {
 
     @Test
     fun `INV-AC-2108 the hold code of each reason equals the catalogue code of SUB-017`() {
-        val resubmitted = doc(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
-        val corrected = doc(number = "CN-1", date = after, creditNote = true, precedingDate = before)
+        val resubmitted = doc().copy(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
+        val corrected = doc(number = "CN-1", date = after).copy(creditNote = true, precedingDocumentDate = before)
         listOf(resubmitted, corrected).forEach {
             (PriorSolutionGuard.decide(it, cutover, imported) as HoldForCorrection).code shouldBe ErrorCode.SUB_017.code
         }
