@@ -44,7 +44,10 @@ data class RankedItem(
     val tier: Tier,
 )
 
-/** Despatch order of a drain (INV-REQ-71 behavior 3, option A of INV-Q-6341). Pure: reads no clock, calendar or margin. */
+/**
+ * Despatch order of a drain (INV-REQ-71 behavior 3, option A of INV-Q-6341).
+ * Pure: reads no clock, calendar or margin.
+ */
 object DrainOrder {
     private val ORDER: Comparator<RankedItem> =
         compareBy<RankedItem> { it.tier }
