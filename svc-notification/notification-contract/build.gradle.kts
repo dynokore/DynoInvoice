@@ -97,7 +97,7 @@ val contractResources = layout.buildDirectory.dir("contract-resources")
 val stageContractResources =
     tasks.register<Sync>("stageContractResources") {
         from(layout.buildDirectory.dir("contracts-repo/.bundle/notification")) {
-            include("asyncapi.yaml")
+            include("asyncapi.yaml", "openapi.yaml")
             into("gst/contracts/notification")
         }
         into(contractResources)

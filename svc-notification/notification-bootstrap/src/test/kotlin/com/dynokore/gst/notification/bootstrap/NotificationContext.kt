@@ -1,8 +1,12 @@
 package com.dynokore.gst.notification.bootstrap
 
 import com.dynokore.gst.notification.adapters.NotificationDb
+import org.springframework.boot.WebApplicationType
+import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.core.io.DefaultResourceLoader
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -26,18 +30,43 @@ object NotificationContext {
             // the real application.yaml (TPL-16), then the overrides below
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(NotificationApplication::class.java)
-            .withPropertyValues(
-                "spring.datasource.url=jdbc:postgresql://localhost:5432/notification",
-                "spring.datasource.username=notification_runtime",
-                "service-runtime.workload-identity.audience=notification-svc",
-                "gst.service=notification-svc",
-                "gst.instance-id=notification-svc-0",
-                "service-runtime.pool.profile=minimal",
-                "service-runtime.modules.schema=notification",
-                "service-runtime.idempotency.schema=notification",
-                "service-runtime.datasource.credential=db/notification_runtime",
-                "gst.bindings.secret-store.mount-root=$mountRoot",
-            )
+            .withPropertyValues(*overrides(mountRoot))
+
+    private fun overrides(mountRoot: Path): Array<String> =
+        arrayOf(
+            "spring.datasource.url=jdbc:postgresql://localhost:5432/notification",
+            "spring.datasource.username=notification_runtime",
+            "service-runtime.workload-identity.audience=notification-svc",
+            "gst.service=notification-svc",
+            "gst.instance-id=notification-svc-0",
+            "service-runtime.pool.profile=minimal",
+            "service-runtime.modules.schema=notification",
+            "service-runtime.idempotency.schema=notification",
+            "service-runtime.datasource.credential=db/notification_runtime",
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+        )
+
+    /**
+     * As [online], started by SpringApplication in an embedded servlet container on a free port, for a test that
+     * calls the service over HTTP. The caller closes the context. [loader] is the class loader of the context.
+     */
+    fun startServlet(
+        mountRoot: Path,
+        configurations: List<Class<*>>,
+        properties: Array<String>,
+        loader: ClassLoader,
+    ): ConfigurableApplicationContext {
+        secrets(mountRoot)
+        return SpringApplicationBuilder(NotificationApplication::class.java, *configurations.toTypedArray())
+            .web(WebApplicationType.SERVLET)
+            .resourceLoader(DefaultResourceLoader(loader))
+            .properties(
+                *overrides(mountRoot),
+                "spring.datasource.url=${NotificationDb.jdbcUrl}",
+                "server.port=0",
+                *properties,
+            ).run()
+    }
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
     fun online(mountRoot: Path): ApplicationContextRunner {
