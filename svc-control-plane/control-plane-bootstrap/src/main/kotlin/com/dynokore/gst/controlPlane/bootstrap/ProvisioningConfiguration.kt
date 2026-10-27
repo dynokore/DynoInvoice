@@ -10,6 +10,7 @@ import com.dynokore.gst.controlPlane.adapters.signing.PackSigningSettings
 import com.dynokore.gst.controlPlane.adapters.tenancy.HttpTenantCreator
 import com.dynokore.gst.controlPlane.application.commercial.GetLicence
 import com.dynokore.gst.controlPlane.application.commercial.GetTenantProvisioningRequest
+import com.dynokore.gst.controlPlane.application.commercial.InvitationDelivery
 import com.dynokore.gst.controlPlane.application.commercial.InvitationIssuer
 import com.dynokore.gst.controlPlane.application.commercial.InvitationMessages
 import com.dynokore.gst.controlPlane.application.commercial.IssueLicence
@@ -108,11 +109,8 @@ class ProvisioningConfiguration {
         provisionings,
         regions,
         tenants,
-        invitations,
-        messages,
+        InvitationDelivery(invitations, messages, clock, checkNotNull(settings.validity)),
         roles,
-        clock,
-        checkNotNull(settings.validity),
     ) {
         CommercialRef(
             "TEN-" +

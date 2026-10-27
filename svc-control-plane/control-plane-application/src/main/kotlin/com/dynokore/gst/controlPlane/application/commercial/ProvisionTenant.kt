@@ -38,6 +38,18 @@ data class ProvisionState(
     val regionListed: Boolean,
 )
 
+/** How the first administrator's invitation is issued, announced and timed. */
+class InvitationDelivery(
+    val issuer: InvitationIssuer,
+    val messages: InvitationMessages,
+    val clock: Clock,
+    val validity: Duration,
+) {
+    init {
+        require(!validity.isZero && !validity.isNegative) { "an invitation expires after its issue" }
+    }
+}
+
 /**
  * provisionTenant (SCR-38.1, INV-REQ-1306, INV-API-3495): `commercial.admin` provisions a SaaS tenant from a contract.
  * The region is elected here with no default and must be on the region list (CPL-003); it is recorded with the request
@@ -49,19 +61,10 @@ class ProvisionTenant(
     private val provisionings: ProvisioningRepository,
     private val regions: RegionList,
     private val tenants: TenantCreator,
-    private val invitations: InvitationIssuer,
-    private val messages: InvitationMessages,
+    private val invitation: InvitationDelivery,
     private val roles: OperatorRoles,
-    private val clock: Clock,
-    private val invitationValidity: Duration,
     private val newTenantRef: () -> CommercialRef,
 ) : DeclaredOperation<ProvisionTenantCommand, ProvisionState, TenantProvisioning> {
-    init {
-        require(
-            !invitationValidity.isZero && !invitationValidity.isNegative,
-        ) { "an invitation expires after its issue" }
-    }
-
     override val operationId = "provisionTenant"
     override val reversibility = Reversibility.COMPENSABLE
     override val audited = true
@@ -105,9 +108,9 @@ class ProvisionTenant(
         state: ProvisionState,
     ): TenantProvisioning {
         val tenantRef = newTenantRef()
-        val issuedAt = clock.instant().truncatedTo(ChronoUnit.SECONDS)
-        val expiresAt = issuedAt.plus(invitationValidity)
-        val invitationRef = invitations.issue(command.contractReference, tenantRef, issuedAt, expiresAt)
+        val issuedAt = invitation.clock.instant().truncatedTo(ChronoUnit.SECONDS)
+        val expiresAt = issuedAt.plus(invitation.validity)
+        val invitationRef = invitation.issuer.issue(command.contractReference, tenantRef, issuedAt, expiresAt)
         val recorded =
             TenantProvisioning(
                 command.contractReference,
@@ -124,22 +127,31 @@ class ProvisionTenant(
             ProvisioningRecord(recorded, command.idempotencyKey, command.fingerprint),
             command.actor.value,
         )
-        messages.request(command.contractReference, command.firstAdministratorEmail, invitationRef, command.request)
-        val created =
-            tenants.create(
-                CreateTenantCall(
-                    tenantRef,
-                    command.contractReference,
-                    command.legalName,
-                    command.planRef,
-                    command.dataRegion,
-                    command.credential,
-                ),
-            )
+        invitation.messages.request(
+            command.contractReference,
+            command.firstAdministratorEmail,
+            invitationRef,
+            command.request,
+        )
+        val created = createTenant(tenantRef, command)
         if (created != TenantCreation.Created) return recorded
         provisionings.markCreated(command.contractReference)
         return recorded.copy(status = ProvisioningStatus.CREATED)
     }
+
+    private fun createTenant(
+        tenantRef: CommercialRef,
+        command: ProvisionTenantCommand,
+    ) = tenants.create(
+        CreateTenantCall(
+            tenantRef,
+            command.contractReference,
+            command.legalName,
+            command.planRef,
+            command.dataRegion,
+            command.credential,
+        ),
+    )
 
     override fun audit(
         command: ProvisionTenantCommand,

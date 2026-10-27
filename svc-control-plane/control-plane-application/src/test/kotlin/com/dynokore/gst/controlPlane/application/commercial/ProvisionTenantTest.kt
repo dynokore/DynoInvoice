@@ -71,11 +71,13 @@ class ProvisionTenantTest {
                 calls += call
                 creation
             },
-            { contract, tenant, issuedAt, expiresAt -> "signed:$contract:$tenant:$issuedAt:$expiresAt" },
-            { _, email, ref, _ -> messages += "$email|$ref" },
+            InvitationDelivery(
+                { contract, tenant, issuedAt, expiresAt -> "signed:$contract:$tenant:$issuedAt:$expiresAt" },
+                { _, email, ref, _ -> messages += "$email|$ref" },
+                clock,
+                Duration.ofDays(7),
+            ),
             roles,
-            clock,
-            Duration.ofDays(7),
         ) { CommercialRef("TEN-${++counter}") }
 
     private val key = UUID.fromString("7d444840-9dc0-41a0-b0e8-6b4a0e9c9a11")
