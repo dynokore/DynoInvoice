@@ -15,6 +15,8 @@ import org.yaml.snakeyaml.Yaml
  */
 object TenancyEventCatalogue {
     const val SERVICE = "tenancy-svc"
+    const val SHORT_CODE_USED_TYPE = "com.dynokore.gst.aggregation.ShortCodeUsed.v1"
+    const val SHORT_CODE_USED_TOPIC = "gst.aggregation.short-code-used.v1"
     const val ASYNCAPI_RESOURCE = "gst/contracts/tenancy/asyncapi.yaml"
 
     /**
@@ -44,7 +46,14 @@ object TenancyEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        val seen = (ownTypes + consumed.map { it.eventType })
+        val consumedDomain =
+            CatalogueEntry(
+                SHORT_CODE_USED_TYPE,
+                SHORT_CODE_USED_TOPIC,
+                setOf("aggregation-svc"),
+                contentTopic = false,
+            )
+        val seen = (ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE)
         val platform =
             PlatformEventCatalogue.ALL
                 .filter { it.topic != null && it.eventType !in seen }
@@ -56,7 +65,7 @@ object TenancyEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + platform)
+        return EventCatalogue(own + consumed + consumedDomain + platform)
     }
 
     /** A channel message is either inline or a `$ref` to `#/components/messages/<name>`. */

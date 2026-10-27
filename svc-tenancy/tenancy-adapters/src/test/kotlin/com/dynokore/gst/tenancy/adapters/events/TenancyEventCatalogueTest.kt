@@ -1,9 +1,11 @@
 package com.dynokore.gst.tenancy.adapters.events
 
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EmissionGuard
 import com.dynokore.platform.outboxandqueue.EmissionNotPermitted
 import com.dynokore.platform.productruntime.ProductEventTypes
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
 /** The emission guard accepts what tenancy-svc produces and rejects an uncatalogued type (TPL-05, API-43). */
@@ -32,5 +34,16 @@ class TenancyEventCatalogueTest {
         shouldThrow<EmissionNotPermitted> {
             EmissionGuard(catalogue, "access-svc").require(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED)
         }
+    }
+
+    @Test
+    fun `INV-AC-2779 the catalogue lists ShortCodeUsed as consumed from aggregation-svc by equality`() {
+        catalogue.find("com.dynokore.gst.aggregation.ShortCodeUsed.v1") shouldBe
+            CatalogueEntry(
+                "com.dynokore.gst.aggregation.ShortCodeUsed.v1",
+                "gst.aggregation.short-code-used.v1",
+                setOf("aggregation-svc"),
+                contentTopic = false,
+            )
     }
 }
