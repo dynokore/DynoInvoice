@@ -1,8 +1,12 @@
 package com.dynokore.gst.ingestion.bootstrap
 
 import com.dynokore.gst.ingestion.adapters.IngestionDb
+import org.springframework.boot.WebApplicationType
+import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.core.io.DefaultResourceLoader
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -26,18 +30,43 @@ object IngestionContext {
             // the real application.yaml (TPL-16), then the overrides below
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(IngestionApplication::class.java)
-            .withPropertyValues(
-                "spring.datasource.url=jdbc:postgresql://localhost:5432/ingestion",
-                "spring.datasource.username=ingestion_runtime",
-                "service-runtime.workload-identity.audience=ingestion-svc",
-                "gst.service=ingestion-svc",
-                "gst.instance-id=ingestion-svc-0",
-                "service-runtime.pool.profile=minimal",
-                "service-runtime.modules.schema=ingestion",
-                "service-runtime.idempotency.schema=ingestion",
-                "service-runtime.datasource.credential=db/ingestion_runtime",
-                "gst.bindings.secret-store.mount-root=$mountRoot",
-            )
+            .withPropertyValues(*overrides(mountRoot))
+
+    private fun overrides(mountRoot: Path): Array<String> =
+        arrayOf(
+            "spring.datasource.url=jdbc:postgresql://localhost:5432/ingestion",
+            "spring.datasource.username=ingestion_runtime",
+            "service-runtime.workload-identity.audience=ingestion-svc",
+            "gst.service=ingestion-svc",
+            "gst.instance-id=ingestion-svc-0",
+            "service-runtime.pool.profile=minimal",
+            "service-runtime.modules.schema=ingestion",
+            "service-runtime.idempotency.schema=ingestion",
+            "service-runtime.datasource.credential=db/ingestion_runtime",
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+        )
+
+    /**
+     * As [online], started by SpringApplication in an embedded servlet container on a free port, for a test that
+     * calls the service over HTTP. The caller closes the context. [loader] is the class loader of the context.
+     */
+    fun startServlet(
+        mountRoot: Path,
+        configurations: List<Class<*>>,
+        properties: Array<String>,
+        loader: ClassLoader,
+    ): ConfigurableApplicationContext {
+        secrets(mountRoot)
+        return SpringApplicationBuilder(IngestionApplication::class.java, *configurations.toTypedArray())
+            .web(WebApplicationType.SERVLET)
+            .resourceLoader(DefaultResourceLoader(loader))
+            .properties(
+                *overrides(mountRoot),
+                "spring.datasource.url=${IngestionDb.jdbcUrl}",
+                "server.port=0",
+                *properties,
+            ).run()
+    }
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
     fun online(mountRoot: Path): ApplicationContextRunner {
