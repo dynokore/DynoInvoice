@@ -14,7 +14,7 @@ data class DocumentPackage(
     val members: List<BatchCandidate>,
 )
 
-/** A candidate above the byte limit: never packed, never truncated (INV-REQ-426); the caller maps it to a blocking hold. */
+/** A candidate above the byte limit: never packed, never truncated (INV-REQ-426); the caller maps it to a hold. */
 data class Oversized(
     val docUuid: String,
     val version: Int,
