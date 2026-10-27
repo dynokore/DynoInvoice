@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.15.0] - 2026-10-27
+### Added
+- `IngestionErrorCode` gains `SOURCE_REVISION_LOWER` (ING-002, 409) and `AGGREGATE_NUMBER_NOT_BUILDABLE` (ING-022, 422), so that a service renders them with `Problems.renderIngestion` (coordinator rulings INV-Q-11260 A and INV-Q-11264 A; INV-T-11270; INV-REQ-434; INV-REQ-436). The pinned error catalogue now holds ING-022 and SUB-023.
+
 ## [10.14.0] - 2026-10-27
 ### Added
 - The property `service-runtime.modules.audit.writer` (`local` or `outbox`) lets a service that has an outbox select `LocalAuditWriter`; absent keeps today's selection, any other value or `local` without a `TransactionRunner`, `gst.service` or the schema property fails the start with a message naming the property (INV-T-11437; coordinator ruling INV-Q-11431 A).

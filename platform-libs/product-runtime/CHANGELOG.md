@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-27
+### Changed
+- Depends on `service-runtime 10.15.0`: `IngestionErrorCode` gains ING-002 and ING-022 (INV-T-11270; G-DVS).
+
 ## [1.6.0] - 2026-10-27
 ### Changed
 - Depends on `service-runtime 10.14.0`: the property `service-runtime.modules.audit.writer` (INV-T-11437).
