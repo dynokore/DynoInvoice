@@ -10,3 +10,4 @@
 ../schemas/accreditation-alert-raised-payload.schema.json accreditation-alert-raised-payload-*.json
 ../schemas/break-glass-alert-raised-payload.schema.json break-glass-alert-raised-payload-*.json
 ../schemas/authority-changed-payload.schema.json authority-changed-payload-*.json
+../schemas/break-glass-session-changed-payload.schema.json break-glass-session-changed-payload-*.json

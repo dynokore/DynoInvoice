@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/break-glass-session-changed-payload.schema.json",
+  "title": "BreakGlassSessionChangedPayload",
+  "description": "Payload of the BreakGlassSessionChanged platform event (class: platform; INV-REQ-896, INV-Q-9119 option A). access-svc emits it for each break-glass unlock (OPEN) and each reseal (SEALED); the authority replica of every other service holds the session from it. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "unlockRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The break-glass unlock the session belongs to."
+    },
+    "tenantRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The tenant the session concerns."
+    },
+    "status": {
+      "type": "string",
+      "description": "Whether the session is open or sealed again.",
+      "enum": [
+        "OPEN",
+        "SEALED"
+      ],
+      "x-extensible-enum": true
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the session expires; checked locally by the replica."
+    },
+    "approvedBy": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "description": "The approvers of the unlock, in order (as UnlockBreakGlassRequest.approvedBy)."
+    }
+  },
+  "required": [
+    "unlockRef",
+    "tenantRef",
+    "status",
+    "expiresAt",
+    "approvedBy"
+  ],
+  "additionalProperties": true
+}

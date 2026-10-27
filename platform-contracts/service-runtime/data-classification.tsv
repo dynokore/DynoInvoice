@@ -32,3 +32,8 @@ schemas/authority-changed-payload.schema.json	authorityVersion	NONE
 schemas/authority-changed-payload.schema.json	grantRecord	NONE
 schemas/authority-changed-payload.schema.json	consentRecord	NONE
 schemas/authority-changed-payload.schema.json	principalRecord	NONE
+schemas/break-glass-session-changed-payload.schema.json	unlockRef	NONE
+schemas/break-glass-session-changed-payload.schema.json	tenantRef	NONE
+schemas/break-glass-session-changed-payload.schema.json	status	NONE
+schemas/break-glass-session-changed-payload.schema.json	expiresAt	NONE
+schemas/break-glass-session-changed-payload.schema.json	approvedBy	IDENTIFYING

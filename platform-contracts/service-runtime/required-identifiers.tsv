@@ -89,3 +89,9 @@ ZERO_RATED	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	I
 EXEMPT	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
 OUT_OF_SCOPE	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
 IMPORTS	enum_value	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-Q-10703
+unlockRef	property	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
+tenantRef	property	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
+expiresAt	property	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
+approvedBy	property	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
+OPEN	enum_value	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
+SEALED	enum_value	schemas/break-glass-session-changed-payload.schema.json	INV-REQ-896
