@@ -10,10 +10,10 @@ import java.sql.DriverManager
 import java.util.UUID
 
 /**
- * A PostgreSQL database (18 unless a [Version] is named) with the roles of INV-AC-2175, the signed-binding functions of the schema and the Flyway
- * migrations of this module applied by `evidence_migrate` (TPL-12, TPL-14). The roles (`db/roles.sql`) and the
- * binding functions (`db/provision.sql`, installed by the sys login as the installer does; coordinator rulings
- * INV-Q-6586 and INV-Q-6663) are SQL files the postgres image runs as superuser when it initialises. This class holds
+ * A PostgreSQL database (18 unless a [Version] is named) with the roles of INV-AC-2175, the signed-binding functions
+ * of the schema and the Flyway migrations of this module applied by `evidence_migrate` (TPL-12, TPL-14). The roles
+ * (`db/roles.sql`) and the binding functions (`db/provision.sql`, installed by the sys login as the installer does;
+ * coordinator rulings INV-Q-6586 and INV-Q-6663) are SQL files the postgres image runs as superuser when it initialises. This class holds
  * no SQL text: the migrations do not run the binding generator.
  */
 object EvidenceDb {
