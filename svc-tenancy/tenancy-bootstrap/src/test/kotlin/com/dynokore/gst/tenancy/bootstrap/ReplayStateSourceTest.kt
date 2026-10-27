@@ -56,6 +56,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.Locale
 import java.util.UUID
 
 private const val STRUCTURE_TYPE = "com.dynokore.gst.tenancy.OrganisationStructureChanged.v1"
@@ -244,7 +245,7 @@ private fun unitStamp(
 ): Stamped =
     Stamped(
         "business_unit",
-        { at -> insertUnit(dsl, tenant, entity, unit, suffix, at) },
+        { at -> insertUnit(dsl, tenant, entity to unit, suffix, at) },
         { at ->
             dsl
                 .update(BUSINESS_UNIT)
@@ -273,11 +274,11 @@ private fun <R : Record> changed(
 private fun insertUnit(
     dsl: DSLContext,
     tenant: TenantId,
-    entity: UUID,
-    unit: UUID,
+    entityAndUnit: Pair<UUID, UUID>,
     suffix: String,
     changedAt: OffsetDateTime,
 ) {
+    val (entity, unit) = entityAndUnit
     dsl
         .insertInto(BUSINESS_UNIT)
         .set(BUSINESS_UNIT.ID, unit)
@@ -721,8 +722,8 @@ class ReplayStateSourceTest {
             }
             BoundaryFixture.asSuperuser { c ->
                 val privilege = "select has_function_privilege('%s', 'tenancy.list_tenant_ids()', 'EXECUTE')"
-                assertThat(flag(c, privilege.format("public"))).isFalse()
-                assertThat(flag(c, privilege.format("tenancy_runtime"))).isTrue()
+                assertThat(flag(c, privilege.format(Locale.ROOT, "public"))).isFalse()
+                assertThat(flag(c, privilege.format(Locale.ROOT, "tenancy_runtime"))).isTrue()
                 assertThat(flag(c, "select prosecdef from pg_proc where proname = 'list_tenant_ids'")).isTrue()
             }
         }
