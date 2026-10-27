@@ -26,30 +26,35 @@ class AuthorisePlatformScopeTest {
 
     private fun id(name: String) = "user:$name-$run"
 
-    private fun row(
-        tenant: String,
-        name: String,
-        role: String,
-        status: String = "ACTIVE",
-        level: String = "TENANT",
-        from: String = "now() - interval '1 day'",
-        until: String = "now() + interval '30 days'",
-    ) {
-        val identity = id(name)
+    private data class Grant(
+        val tenant: String,
+        val name: String,
+        val role: String,
+        val status: String = "ACTIVE",
+        val level: String = "TENANT",
+        val from: String = "now() - interval '1 day'",
+        val until: String = "now() + interval '30 days'",
+    )
+
+    private fun row(grant: Grant) {
+        val identity = id(grant.name)
         val ref = "GRT-" + UUID.randomUUID().toString().take(8)
         BoundaryFixture.asSuperuser { c ->
             c.createStatement().use {
                 it.execute(
                     "insert into access.identity (id, tenant_id, identity_ref, grantee_kind, created_at, created_by, " +
-                        "updated_at, updated_by, version) select gen_random_uuid(), '$tenant', '$identity', 'STAFF', " +
+                        "updated_at, updated_by, version) select gen_random_uuid(), " +
+                        "'${grant.tenant}', '$identity', 'STAFF', " +
                         "now(), 'mig', now(), 'mig', 0 where not exists (select 1 from access.identity " +
-                        "where tenant_id = '$tenant' and identity_ref = '$identity')",
+                        "where tenant_id = '${grant.tenant}' and identity_ref = '$identity')",
                 )
                 it.execute(
                     "insert into access.role_grant (id, tenant_id, grant_ref, identity_ref, role, scope_level, " +
                         "scope_ref, valid_from, valid_until, status, grant_source, created_at, created_by, " +
-                        "updated_at, updated_by, version) values (gen_random_uuid(), '$tenant', '$ref', '$identity', " +
-                        "'$role', '$level', '$tenant', $from, $until, '$status', 'BY_HAND', now(), 'mig', now(), " +
+                        "updated_at, updated_by, version) values (gen_random_uuid(), " +
+                        "'${grant.tenant}', '$ref', '$identity', " +
+                        "'${grant.role}', '${grant.level}', '${grant.tenant}', " +
+                        "${grant.from}, ${grant.until}, '${grant.status}', 'BY_HAND', now(), 'mig', now(), " +
                         "'mig', 0)",
                 )
             }
@@ -136,9 +141,9 @@ class AuthorisePlatformScopeTest {
     @Test
     fun `INV-AC-9789 the platform grants allow their role for scope platform and nothing else`() =
         run { api ->
-            row(platform, "rm", "release.manager")
-            row(platform, "ca", "commercial.admin")
-            row(customer, "cust-rm", "release.manager")
+            row(Grant(platform, "rm", "release.manager"))
+            row(Grant(platform, "ca", "commercial.admin"))
+            row(Grant(customer, "cust-rm", "release.manager"))
             val before = snapshot()
             allow(api.ask(id("rm"), "release-train.publish"), "release.manager")
             deny(api.ask(id("rm"), "plan.manage"))
@@ -159,23 +164,27 @@ class AuthorisePlatformScopeTest {
     @Test
     fun `INV-AC-9789 a pending, revoked or expired platform grant is denied`() =
         run { api ->
-            row(platform, "pending", "release.manager", status = "PENDING")
-            row(platform, "revoked", "release.manager", status = "REVOKED")
+            row(Grant(platform, "pending", "release.manager", status = "PENDING"))
+            row(Grant(platform, "revoked", "release.manager", status = "REVOKED"))
             row(
-                platform,
-                "user:expired",
-                "release.manager",
-                from = "now() - interval '10 days'",
-                until = "now() - interval '1 day'",
+                Grant(
+                    platform,
+                    "user:expired",
+                    "release.manager",
+                    from = "now() - interval '10 days'",
+                    until = "now() - interval '1 day'",
+                ),
             )
             row(
-                platform,
-                "user:future",
-                "release.manager",
-                from = "now() + interval '1 day'",
-                until = "now() + interval '2 days'",
+                Grant(
+                    platform,
+                    "user:future",
+                    "release.manager",
+                    from = "now() + interval '1 day'",
+                    until = "now() + interval '2 days'",
+                ),
             )
-            row(platform, "group", "release.manager", level = "GROUP")
+            row(Grant(platform, "group", "release.manager", level = "GROUP"))
             val before = snapshot()
             listOf("pending", "revoked", "expired", "future", "group").forEach {
                 deny(api.ask(id(it), "release-train.publish"))
@@ -186,7 +195,7 @@ class AuthorisePlatformScopeTest {
     @Test
     fun `INV-AC-9789 every look-alike scope is denied and reads no grant`() =
         run { api ->
-            row(platform, "rm", "release.manager")
+            row(Grant(platform, "rm", "release.manager"))
             val before = snapshot()
             listOf(
                 "Platform",
