@@ -56,7 +56,7 @@ class PackageBatcher(
             }
         }
         for ((code, group) in groups) {
-            var members = mutableListOf<BatchCandidate>()
+            val members = mutableListOf<BatchCandidate>()
             var bytes = 0L
             for (candidate in group) {
                 val closes =
@@ -67,14 +67,14 @@ class PackageBatcher(
                                 members.any { it.docUuid == candidate.docUuid }
                         )
                 if (closes) {
-                    packages += DocumentPackage(code, members)
-                    members = mutableListOf()
+                    packages += DocumentPackage(code, members.toList())
+                    members.clear()
                     bytes = 0L
                 }
                 members += candidate
                 bytes += candidate.sizeBytes
             }
-            if (members.isNotEmpty()) packages += DocumentPackage(code, members)
+            if (members.isNotEmpty()) packages += DocumentPackage(code, members.toList())
         }
         return BatchResult(packages, refused)
     }
