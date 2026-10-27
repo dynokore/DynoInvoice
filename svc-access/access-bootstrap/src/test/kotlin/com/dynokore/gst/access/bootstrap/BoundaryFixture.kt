@@ -33,6 +33,7 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.StagedOutboxRow
+import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
@@ -42,7 +43,9 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
+import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -162,6 +165,10 @@ class BoundaryTestConfiguration {
     @Bean
     fun signerCalls(): SignerCalls = SignerCalls()
 
+    /** The verified calling service, which a test sets; the production bean reads the request attribute (INV-T-11611). */
+    @Bean
+    fun serviceCaller(): ServiceCaller = MovableServiceCaller()
+
     /** Counts the calls of the signer port: `open` reads the key, `sign` signs (INV-T-8850). */
     @Bean
     fun countingSigner(calls: SignerCalls): BeanPostProcessor =
@@ -187,6 +194,13 @@ class BoundaryTestConfiguration {
                     bean
                 }
         }
+}
+
+/** The calling service a test sets, `null` for a caller that is not mapped to a service (INV-T-11611). */
+class MovableServiceCaller(
+    @Volatile var value: String? = "ingestion-svc",
+) : ServiceCaller {
+    override fun current(): String? = value
 }
 
 class SignerCalls {
@@ -501,5 +515,47 @@ object Seeds {
                 }
             }
         }
+    }
+}
+
+class BoundaryServiceCallerTest {
+    private fun <T> withCaller(block: (MovableServiceCaller, ApplicationContext) -> T): T {
+        var result: T? = null
+        BoundaryFixture.runner().run { context ->
+            result = block(context.getBean(ServiceCaller::class.java) as MovableServiceCaller, context)
+        }
+        @Suppress("UNCHECKED_CAST")
+        return result as T
+    }
+
+    @Test
+    fun `INV-T-11611 the initial caller is ingestion-svc and the context holds exactly one ServiceCaller`() {
+        withCaller { caller, context ->
+            assertThat(caller.current()).isEqualTo("ingestion-svc")
+            assertThat(context.getBeansOfType(ServiceCaller::class.java)).hasSize(1)
+            assertThat(context.getBean(ServiceCaller::class.java)).isSameAs(caller)
+        }
+    }
+
+    @Test
+    fun `INV-T-11611 a caller set to null reads as null`() {
+        withCaller { caller, _ ->
+            caller.value = null
+            assertThat(caller.current()).isNull()
+        }
+    }
+
+    @Test
+    fun `INV-T-11611 a caller set to ingestion-svc2 reads as that and not as ingestion-svc`() {
+        withCaller { caller, _ ->
+            caller.value = "ingestion-svc2"
+            assertThat(caller.current()).isEqualTo("ingestion-svc2").isNotEqualTo("ingestion-svc")
+        }
+    }
+
+    @Test
+    fun `INV-T-11611 two runners built one after the other do not share the value`() {
+        withCaller { caller, _ -> caller.value = "ingestion-svc2" }
+        withCaller { caller, _ -> assertThat(caller.current()).isEqualTo("ingestion-svc") }
     }
 }
