@@ -7,3 +7,5 @@
 ../openapi.yaml#/components/schemas/SubmitPackageRequest submit-package-request-*.json
 ../openapi.yaml#/components/schemas/PackageOutcome package-outcome-*.json
 ../openapi.yaml#/components/schemas/SubmitPayloadRequest submit-payload-request-*.json
+../schemas/acknowledgement-received-payload.schema.json acknowledgement-received-payload-*.json
+../openapi.yaml#/components/schemas/ApNotification ap-notification-*.json

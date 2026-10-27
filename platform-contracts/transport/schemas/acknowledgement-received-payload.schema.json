@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/transport/schemas/acknowledgement-received-payload.schema.json",
   "title": "AcknowledgementReceivedPayload",
-  "description": "Payload of the AcknowledgementReceived event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "description": "Payload of the AcknowledgementReceived event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Payload (catalogue text): adapter, AP notification ID, docUuid, version, acknowledgementId, outcome (ACCEPTED or REJECTED; absent reads as ACCEPTED), reasons (code and message, present on a rejection). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
   "type": "object",
   "properties": {
     "adapter": {
@@ -26,6 +26,23 @@
     "acknowledgementId": {
       "type": "string",
       "description": "Identifier of the acknowledgement itself."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["ACCEPTED", "REJECTED"],
+      "description": "An absent value reads as ACCEPTED, so every earlier event stays valid. For REJECTED the acknowledgementId is the apNotificationId of the rejection notification (ruling INV-Q-9772 A)."
+    },
+    "reasons": {
+      "type": "array",
+      "description": "The reasons of a rejection, present when outcome is REJECTED.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "required": ["code", "message"]
+      }
     }
   },
   "required": [

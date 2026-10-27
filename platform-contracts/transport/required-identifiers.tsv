@@ -50,3 +50,10 @@ ElectAcknowledgementRouteRequest.acknowledgementRoute	schema_property	openapi.ya
 AcknowledgementRouteResponse.acknowledgementRoute	schema_property	openapi.yaml	INV-REQ-1310
 AcknowledgementRouteResponse.entityRefs	schema_property	openapi.yaml	INV-REQ-1310
 AcknowledgementRouteResponse.version	schema_property	openapi.yaml	INV-REQ-1310
+# INV-T-9776. Rows of the REJECTION kind, its reasons and the widened acknowledgement payload (INV-Q-9672 B). `receiveApNotification` is an existing operationId; `AcknowledgementReceived` and `NetworkDocumentReceived` are events (INV-Q-5389 A); `ap-callback` is a principal; `transport-svc` and `svc-transport` are services.
+REJECTION	enum_value	openapi.yaml	INV-Q-9672
+ApNotification.reasons	schema_property	openapi.yaml	INV-Q-9672
+reasons	property	schemas/acknowledgement-received-payload.schema.json	INV-Q-9672
+outcome	property	schemas/acknowledgement-received-payload.schema.json	INV-Q-9672
+ApNotificationReason.code	schema_property	openapi.yaml	INV-Q-9672
+ApNotificationReason.message	schema_property	openapi.yaml	INV-Q-9672

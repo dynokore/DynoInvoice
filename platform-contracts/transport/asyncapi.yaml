@@ -85,7 +85,8 @@ components:
         Catalogued event AcknowledgementReceived (model/architecture/events.yaml, INV-NOTE-3 §19.8,
         INV-REQ-815; class: domain). Emitted by: transport-svc. Consumed by: submission-svc. Delivery:
         At-least-once. Payload (catalogue text): adapter, AP notification ID, docUuid, version,
-        acknowledgementId. Authored by INV-T-2853 (T9).
+        acknowledgementId, outcome (ACCEPTED or REJECTED; absent reads as ACCEPTED), reasons (code and
+        message, present on a rejection). Authored by INV-T-2853 (T9).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/acknowledgement-received-payload.schema.json'

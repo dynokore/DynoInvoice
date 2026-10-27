@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -305,6 +305,11 @@ paths:
         Both headers are absent for the mutual-TLS alternative of API-27;
         they are optional in the schema because a required header is a
         breaking change and the mutual-TLS form carries none.
+
+
+        A notification of kind INBOUND_NETWORK_DOCUMENT is answered `503`
+        with the API-20 envelope and nothing recorded until Wave 3 (owner
+        answer INV-Q-9676 A).
       tags: [notifications]
       x-principal: ap-callback
       x-degraded-allow: true
@@ -890,8 +895,15 @@ components:
         apNotificationId: { type: string, maxLength: 100 }
         kind:
           type: string
-          enum: [ACKNOWLEDGEMENT, DELIVERY_STATUS, INBOUND_NETWORK_DOCUMENT]
+          enum: [ACKNOWLEDGEMENT, DELIVERY_STATUS, INBOUND_NETWORK_DOCUMENT, REJECTION]
           x-extensible-enum: true
+          description: >-
+            For kind REJECTION (ruling INV-Q-9672 B) `docUuid`, `version` and
+            `reasons` are required by the service, a rule the schema language
+            cannot express with an extensible enum; the producer and the
+            consumer enforce it. `acknowledgementId` is absent for kind
+            REJECTION. A notification of kind REJECTION with a missing field
+            is answered 400 SRT-001.
         docUuid: { type: string, format: uuid }
         version: { type: integer, minimum: 1 }
         peppolMessageId: { type: string, maxLength: 100 }
@@ -903,7 +915,20 @@ components:
             The AP's identifier of the acknowledgement (ruling INV-Q-9670 A).
             The service requires it on kind ACKNOWLEDGEMENT, a rule the schema
             language cannot express; the producer and the consumer enforce it.
+        reasons:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ApNotificationReason'
+          description: 'The reasons of a rejection (kind REJECTION, ruling INV-Q-9672 B).'
       required: [apNotificationId, kind]
+    ApNotificationReason:
+      type: object
+      properties:
+        code: { type: string, maxLength: 100 }
+        message: { type: string, maxLength: 1000 }
+      required: [code, message]
+      additionalProperties: false
     ApNotificationResult:
       type: object
       properties:
