@@ -379,7 +379,9 @@ paths:
       description: >-
         Lists the pending and released overrides of one document and version
         (INV-REQ-1293). The caller holds the permission `validation.override`
-        on the entity. A list across documents is not offered.
+        on the entity. The entries are ordered by `requestedAt` then `code`.
+        The list pages by cursor (API-18). A list across documents is not
+        offered.
       tags: [validation]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -390,6 +392,21 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DocUuid'
         - $ref: '#/components/parameters/Version'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque cursor taken from `nextCursor` of the previous page.
+          schema:
+            type: string
+            maxLength: 512
       responses:
         '200':
           description: The overrides of the document version.
@@ -1062,9 +1079,13 @@ components:
       properties:
         items:
           type: array
-          maxItems: 200
+          maxItems: 500
           items:
             $ref: '#/components/schemas/ValidationOverrideEntry'
+        nextCursor:
+          type: string
+          maxLength: 512
+          description: Opaque cursor of the next page; omitted on the last page.
       required: [items]
     RegisterLookup:
       type: object
