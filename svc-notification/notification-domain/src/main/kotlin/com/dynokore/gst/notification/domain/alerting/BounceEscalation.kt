@@ -20,6 +20,8 @@ sealed interface EscalationDecision {
 
 /** INV-REQ-819: a bounced deadline alert with one distinct, unacknowledged recipient moves to the next tier. */
 object BounceEscalation {
+    // The six-argument signature is fixed by INV-T-6759 (INV-Q-6749 A).
+    @Suppress("LongParameterList")
     fun decide(
         alertClass: AlertClass,
         acknowledged: Boolean,
