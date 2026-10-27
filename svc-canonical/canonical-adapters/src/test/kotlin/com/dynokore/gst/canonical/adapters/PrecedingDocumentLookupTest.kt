@@ -1,8 +1,8 @@
 package com.dynokore.gst.canonical.adapters
 
 import com.dynokore.gst.canonical.adapters.persistence.JooqPrecedingDocumentLookup
+import com.dynokore.gst.canonical.application.document.PrecedingDocUuidResolver
 import com.dynokore.gst.canonical.application.document.PrecedingReference
-import com.dynokore.gst.canonical.application.document.ResolvePrecedingDocUuid
 import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.document.NewDocument
 import com.dynokore.gst.canonical.domain.document.PrecedingResolution
@@ -14,7 +14,7 @@ import java.util.UUID
 /** The link from a credit note to its preceding document over `document` (INV-AC-752 needs it; INV-Q-6311 A). */
 class PrecedingDocumentLookupTest {
     private val kit = DocumentKit()
-    private val resolver = ResolvePrecedingDocUuid(JooqPrecedingDocumentLookup(kit.dsl), kit.transaction)
+    private val resolver = PrecedingDocUuidResolver(JooqPrecedingDocumentLookup(kit.dsl), kit.transaction)
     private val tenant = UUID.randomUUID()
     private val entity = UUID.randomUUID()
     private val number = "INV-" + UUID.randomUUID()
@@ -22,6 +22,7 @@ class PrecedingDocumentLookupTest {
     private val creditNoteUuid = UUID.randomUUID()
     private val day = LocalDate.of(2026, 3, 10)
 
+    @Suppress("LongParameterList") // a test builder: every argument has a default
     private fun original(
         owner: UUID = tenant,
         within: UUID = entity,

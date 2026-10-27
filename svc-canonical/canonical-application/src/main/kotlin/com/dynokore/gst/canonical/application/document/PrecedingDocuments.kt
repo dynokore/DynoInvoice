@@ -40,7 +40,7 @@ data class PrecedingReference(
  * Resolves the preceding document of a credit note to its Doc UUID (INV-REQ-709, INV-Q-6311 option A). The caller
  * invokes it only for a credit note whose preceding number is populated; the reference cannot be built without one.
  */
-class ResolvePrecedingDocUuid(
+class PrecedingDocUuidResolver(
     private val lookup: PrecedingDocumentLookup,
     private val transaction: TransactionRunner,
 ) {
