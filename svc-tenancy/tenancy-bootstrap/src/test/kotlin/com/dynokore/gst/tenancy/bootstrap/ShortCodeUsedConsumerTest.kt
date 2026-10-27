@@ -1,5 +1,9 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.tenancy.adapters.events.TenancyEventCatalogue
 import com.dynokore.gst.tenancy.adapters.http.EntitiesController
 import com.dynokore.gst.tenancy.adapters.http.TenancyRefusal
@@ -21,6 +25,7 @@ import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.outboxandqueue.PollResult
+import com.dynokore.platform.outboxandqueue.RebuildRequiredIncident
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -29,6 +34,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import java.time.Instant
 import java.util.UUID
@@ -162,7 +168,6 @@ class ShortCodeUsedConsumerTest {
         BoundaryFixture
             .runner()
             .withBean(EventLogReader::class.java, { log })
-            .withBean(RebuildRequiredSink::class.java, { RebuildRequiredSink { } })
             .run { context ->
                 context.startupFailure?.let { throw it }
                 block(Env(context, log))
@@ -225,6 +230,49 @@ class ShortCodeUsedConsumerTest {
             env.log.add(used(tenant, eventId, "RED1"))
             assertThat(env.consumer.pollOnce()).isEqualTo(PollResult(0, 0, 1, 0, 0))
             assertThat(env.inboxRows(tenant)).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `INV-AC-2779 with nothing supplied the one RebuildRequiredSink bean is the logging sink`() {
+        run { env ->
+            val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
+            assertThat(sinks).hasSize(1)
+            assertThat(sinks.values.single()).isInstanceOf(LoggingRebuildRequiredSink::class.java)
+        }
+    }
+
+    @Test
+    fun `INV-AC-2779 a supplied RebuildRequiredSink replaces the logging sink`() {
+        val supplied = RebuildRequiredSink { }
+        BoundaryFixture
+            .runner()
+            .withBean(EventLogReader::class.java, { Log() })
+            .withBean(RebuildRequiredSink::class.java, { supplied })
+            .run { context ->
+                context.startupFailure?.let { throw it }
+                val sinks = context.getBeansOfType(RebuildRequiredSink::class.java)
+                assertThat(sinks).hasSize(1)
+                assertThat(sinks.values.single()).isSameAs(supplied)
+                assertThat(context.getBeansOfType(LoggingRebuildRequiredSink::class.java)).isEmpty()
+            }
+    }
+
+    @Test
+    fun `INV-AC-2779 the logging sink writes one ERROR line with consumer, topic, next offset and watermark`() {
+        val logger = LoggerFactory.getLogger(LoggingRebuildRequiredSink::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>().also { it.start() }
+        logger.addAppender(appender)
+        try {
+            LoggingRebuildRequiredSink().raise(
+                RebuildRequiredIncident("tenancy-svc", "gst.x.y.v1", 5, 9, Instant.now()),
+            )
+            assertThat(appender.list).hasSize(1)
+            val event = appender.list.single()
+            assertThat(event.level).isEqualTo(Level.ERROR)
+            assertThat(event.formattedMessage).contains("tenancy-svc", "gst.x.y.v1", "next offset 5", "watermark 9")
+        } finally {
+            logger.detachAppender(appender)
         }
     }
 }

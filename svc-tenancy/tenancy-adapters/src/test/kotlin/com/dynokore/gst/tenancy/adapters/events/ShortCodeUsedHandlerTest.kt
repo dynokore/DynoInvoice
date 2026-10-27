@@ -245,7 +245,7 @@ class ShortCodeUsedHandlerTest {
                 block(DSL.using(it, SQLDialect.POSTGRES))
             }
 
-        /** A runtime-role transaction bound to [tenant] and [actor] as TransactionRunnerImpl binds it, then committed. */
+        /** A runtime-role transaction bound to [tenant] and [actor] as TransactionRunnerImpl does, then committed. */
         fun <T> bound(
             tenant: TenantId,
             actor: String,

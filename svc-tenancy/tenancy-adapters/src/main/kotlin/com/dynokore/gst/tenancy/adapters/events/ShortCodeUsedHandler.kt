@@ -73,8 +73,8 @@ class ShortCodeUsedHandler(
         name: String,
     ): String {
         val node = data.get(name)?.takeUnless { it.isNull } ?: throw ContractViolation("the payload has no $name")
-        if (!node.isString) throw ContractViolation("$name is not a string")
-        return node.asString().also { if (it.isBlank()) throw ContractViolation("$name is blank") }
+        val value = if (node.isString) node.asString() else null
+        return value?.takeUnless { it.isBlank() } ?: throw ContractViolation("$name is not a non-blank string")
     }
 
     private companion object {
