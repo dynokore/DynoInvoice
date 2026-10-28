@@ -43,6 +43,11 @@ sealed interface GrantRoleOutcome {
      */
     data object SecondHolderRefused : GrantRoleOutcome
 
+    /**
+     * The grant would give the person both roles of a pair the tenant lists in VP-82 (INV-REQ-9271, INV-AC-12355).
+     */
+    data object ConflictingPairRefused : GrantRoleOutcome
+
     /** The role is not in the role catalogue of this installation's form (INV-NOTE-3 section 22.2, INV-REQ-888). */
     data class UnknownRole(
         val roleWire: String,

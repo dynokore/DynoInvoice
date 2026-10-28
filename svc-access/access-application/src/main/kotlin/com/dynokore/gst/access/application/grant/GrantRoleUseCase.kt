@@ -1,5 +1,7 @@
 package com.dynokore.gst.access.application.grant
 
+import com.dynokore.gst.access.application.separation.ConflictingPairPolicy
+import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.application.separation.SoleOperatorScope
 import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
@@ -20,6 +22,7 @@ class GrantRoleRules(
     val catalogue: RoleCatalogue,
     val soleOperators: SoleOperatorAcks,
     val soleOperatorScope: SoleOperatorScopePolicy,
+    val conflictingPairs: ConflictingRolePairs = ConflictingRolePairs.NONE,
 )
 
 /** What a granted role writes besides the grant: the AuthorityChanged events and the audit entry. */
@@ -71,26 +74,51 @@ class GrantRoleUseCase(
         return separated(command, role, scope)
     }
 
-    /** The separation of duty: the lock on the acknowledgement comes before the count of the people holding both. */
+    /**
+     * The separation of duty: the lock on the acknowledgement comes before the count of the people holding both. The
+     * built-in pair is decided first; the pairs of VP-82 only add refusals (INV-REQ-9271) and are read after it.
+     */
     private fun separated(
         command: GrantRoleCommand,
         role: Role,
         scope: Scope,
     ): GrantRoleOutcome {
         val held = grants.findByIdentity(command.identity).filter { it.status != GrantStatus.REVOKED }.map { it.role }
+        val refusal = builtInRefusal(command, role, held.toSet())
         return when {
-            !SeparationOfDuty.completesConflict(held.toSet(), role) -> insert(command, role, scope)
+            refusal != null -> {
+                refusal
+            }
+
+            // VP-82, read after the built-in pair; a failed read or an unknown value fails the request
+            ConflictingPairPolicy.completesListedPair(rules.conflictingPairs.current(), held.toSet(), role) -> {
+                GrantRoleOutcome.ConflictingPairRefused
+            }
+
+            else -> {
+                insert(command, role, scope)
+            }
+        }
+    }
+
+    /** The refusal of the built-in pair of INV-REQ-891 and VP-81, or null when the grant may go on. */
+    private fun builtInRefusal(
+        command: GrantRoleCommand,
+        role: Role,
+        held: Set<Role>,
+    ): GrantRoleOutcome? =
+        when {
+            !SeparationOfDuty.completesConflict(held, role) -> null
 
             rules.soleOperators.lockActive() == null -> GrantRoleOutcome.SoleOperatorAckRequired
 
             // VP-81, read after the lock; a failed read or an unknown value fails the request (nothing is written)
-            rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> insert(command, role, scope)
+            rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> null
 
             otherPeopleHoldingBoth(command.identity).isNotEmpty() -> GrantRoleOutcome.SecondHolderRefused
 
-            else -> insert(command, role, scope)
+            else -> null
         }
-    }
 
     /** The people other than [identity] who hold both roles in the bound tenant (VP-81 one-holder values). */
     private fun otherPeopleHoldingBoth(identity: IdentityRef): Set<IdentityRef> =

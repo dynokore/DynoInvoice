@@ -6,6 +6,8 @@ import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.separation.ConflictingPairPolicy
+import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantSource
@@ -83,14 +85,15 @@ class IdpProvisioningEffects(
     val audit: GrantAudit,
     val catalogue: RoleCatalogue,
     val mapped: MappedGrants,
+    val conflictingPairs: ConflictingRolePairs = ConflictingRolePairs.NONE,
 )
 
 /**
  * Brings the grants made from one mapping in line with the members of its group (INV-REQ-892 behaviour 3): a member
  * without a live grant of the mapped role and scope gets one, a grant made from the mapping for a person who left the
  * group is revoked, each change publishes AuthorityChanged and is audited. A member whose grant would complete the
- * `security.officer` and `tenant.admin` pair is not given it (the separation of duty holds for every route, fail
- * closed). Runs inside the caller's transaction.
+ * `security.officer` and `tenant.admin` pair, or a pair listed in VP-82, is not given it (the separation of duty holds
+ * for every route, fail closed). Runs inside the caller's transaction.
  */
 class GroupGrantReconciler(
     private val grants: GrantRepository,
@@ -131,14 +134,32 @@ class GroupGrantReconciler(
     ) {
         grants.lockIdentity(identity, GranteeKind.STAFF)
         val existing = grants.findByRepeatKey(identity, mapping.role.wire, mapping.scope)
-        if (existing != null && existing.status != GrantStatus.REVOKED) return
+        if ((existing == null || existing.status == GrantStatus.REVOKED) && !completesPair(identity, mapping)) {
+            issue(actor, tenant, mapping, identity)
+        }
+    }
+
+    /** The built-in pair first, then the pairs of VP-82 (a failed read fails the run); both only withhold a grant. */
+    private fun completesPair(
+        identity: IdentityRef,
+        mapping: IdpGroupMapping,
+    ): Boolean {
         val held =
             grants
                 .findByIdentity(identity)
                 .filter { it.status != GrantStatus.REVOKED }
                 .map { it.role }
                 .toSet()
-        if (SeparationOfDuty.completesConflict(held, mapping.role)) return
+        return SeparationOfDuty.completesConflict(held, mapping.role) ||
+            ConflictingPairPolicy.completesListedPair(effects.conflictingPairs.current(), held, mapping.role)
+    }
+
+    private fun issue(
+        actor: String,
+        tenant: TenantRef,
+        mapping: IdpGroupMapping,
+        identity: IdentityRef,
+    ) {
         val grant =
             Grant.issue(
                 GrantHeader(grants.nextGrantRef(), tenant, identity),

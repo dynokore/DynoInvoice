@@ -30,6 +30,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /** The detail of the 403 for an Operator role in grantRole and mapIdpGroup (INV-Q-9069 A). */
+internal const val CONFLICTING_PAIR_DETAIL = "these two roles cannot be held by the same person in this tenant"
 internal const val OPERATOR_ROLE_REFUSED_DETAIL = "an operator role cannot be granted in a customer tenant"
 
 /**
@@ -85,20 +86,28 @@ open class GrantsController(
             }
 
             // the contract lists 403 and 409 for grantRole; no catalogue error code names these refusals (INV-REQ-891)
-            GrantRoleOutcome.SecondHolderRefused, GrantRoleOutcome.SoleOperatorAckRequired -> {
-                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, separationDetail(outcome))
-            }
-
-            GrantRoleOutcome.OperatorRoleRefused -> {
-                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, OPERATOR_ROLE_REFUSED_DETAIL)
+            GrantRoleOutcome.SecondHolderRefused,
+            GrantRoleOutcome.SoleOperatorAckRequired,
+            GrantRoleOutcome.ConflictingPairRefused,
+            GrantRoleOutcome.OperatorRoleRefused,
+            -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, refusalDetail(outcome))
             }
         }
     }
 
-    private fun separationDetail(outcome: GrantRoleOutcome) =
+    private fun refusalDetail(outcome: GrantRoleOutcome) =
         when (outcome) {
             GrantRoleOutcome.SecondHolderRefused -> {
                 "only one person may hold security.officer and tenant.admin under the sole-operator acknowledgement"
+            }
+
+            GrantRoleOutcome.ConflictingPairRefused -> {
+                CONFLICTING_PAIR_DETAIL
+            }
+
+            GrantRoleOutcome.OperatorRoleRefused -> {
+                OPERATOR_ROLE_REFUSED_DETAIL
             }
 
             else -> {

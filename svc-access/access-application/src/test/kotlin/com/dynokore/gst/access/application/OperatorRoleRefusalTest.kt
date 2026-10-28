@@ -19,6 +19,7 @@ import com.dynokore.gst.access.application.idp.MapIdpGroupCommand
 import com.dynokore.gst.access.application.idp.MapIdpGroupOutcome
 import com.dynokore.gst.access.application.idp.MapIdpGroupUseCase
 import com.dynokore.gst.access.application.idp.MappedGrants
+import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
 import com.dynokore.gst.access.domain.grant.GranteeKind
@@ -95,7 +96,12 @@ class OperatorRoleRefusalTest {
             failing<EntityDirectory>(),
             matrix,
             GrantRoleEffects(failing<AuthorityChangePublisher>(), failing<GrantAudit>()),
-            GrantRoleRules(allRoles, failing<SoleOperatorAcks>(), failing<SoleOperatorScopePolicy>()),
+            GrantRoleRules(
+                allRoles,
+                failing<SoleOperatorAcks>(),
+                failing<SoleOperatorScopePolicy>(),
+                failing<ConflictingRolePairs>(),
+            ),
         )
 
     private fun mapEffects(): IdpProvisioningEffects =
@@ -104,6 +110,7 @@ class OperatorRoleRefusalTest {
             failing<GrantAudit>(),
             allRoles,
             MappedGrants { emptyList() },
+            failing<ConflictingRolePairs>(),
         )
 
     private fun mapUseCase() =
@@ -159,6 +166,7 @@ class OperatorRoleRefusalTest {
                 "SoleOperatorAckRequired",
                 "SecondHolderRefused",
                 "UnknownRole",
+                "ConflictingPairRefused",
                 "OperatorRoleRefused",
             ),
             names(GrantRoleOutcome::class.java),
