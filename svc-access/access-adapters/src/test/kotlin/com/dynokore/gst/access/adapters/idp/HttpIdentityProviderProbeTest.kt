@@ -6,8 +6,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.net.InetSocketAddress
 import java.time.Duration
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 class HttpIdentityProviderProbeTest {
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -89,21 +87,12 @@ class HttpIdentityProviderProbeTest {
     }
 
     @Test
-    fun `the default timeout is 2 seconds`() {
-        assertEquals(Duration.ofSeconds(2), HttpIdentityProviderProbe.DEFAULT_TIMEOUT)
-    }
-
-    @Test
-    fun `an answer held back past the timeout counts as failed without waiting for it`() {
-        val release = CountDownLatch(1)
-        server.createContext("/.well-known/openid-configuration") { ex ->
-            release.await(10, TimeUnit.SECONDS)
-            ex.close()
-        }
-        server.start()
-        val ok = HttpIdentityProviderProbe(base, "$base/keys", Duration.ofMillis(300)).probe()
-        val stillHeld = release.count == 1L
-        release.countDown()
-        assertEquals(listOf(false, true), listOf(ok, stillHeld))
+    fun `an answer after 3 seconds counts as failed within the 2 second timeout`() {
+        serve("/.well-known/openid-configuration", delayMillis = 3000)
+        serve("/keys")
+        val start = System.nanoTime()
+        val ok = probe("$base/keys")
+        val elapsed = Duration.ofNanos(System.nanoTime() - start)
+        assertEquals(listOf(false, true), listOf(ok, elapsed < Duration.ofMillis(2800)))
     }
 }
