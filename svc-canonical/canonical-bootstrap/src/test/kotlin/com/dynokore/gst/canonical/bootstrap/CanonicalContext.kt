@@ -3,6 +3,7 @@ package com.dynokore.gst.canonical.bootstrap
 import com.dynokore.gst.canonical.adapters.CanonicalDb
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -21,6 +22,28 @@ object CanonicalContext {
         return base(mountRoot)
     }
 
+    /** The service over the Testcontainers database as a servlet context, for the tests that call the controllers. */
+    fun web(mountRoot: Path): WebApplicationContextRunner {
+        secrets(mountRoot)
+        return WebApplicationContextRunner()
+            .withInitializer(ConfigDataApplicationContextInitializer())
+            .withUserConfiguration(CanonicalApplication::class.java)
+            .withPropertyValues(*properties(mountRoot).toTypedArray(), "spring.datasource.url=${CanonicalDb.jdbcUrl}")
+    }
+
+    private fun properties(mountRoot: Path): List<String> =
+        listOf(
+            "spring.datasource.username=canonical_runtime",
+            "service-runtime.workload-identity.audience=canonical-svc",
+            "gst.service=canonical-svc",
+            "gst.instance-id=canonical-svc-0",
+            "service-runtime.pool.profile=minimal",
+            "service-runtime.modules.schema=canonical",
+            "service-runtime.idempotency.schema=canonical",
+            "service-runtime.datasource.credential=db/canonical_runtime",
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+        )
+
     private fun base(mountRoot: Path): ApplicationContextRunner =
         ApplicationContextRunner()
             // the real application.yaml (TPL-16), then the overrides below
@@ -28,15 +51,7 @@ object CanonicalContext {
             .withUserConfiguration(CanonicalApplication::class.java)
             .withPropertyValues(
                 "spring.datasource.url=jdbc:postgresql://localhost:5432/canonical",
-                "spring.datasource.username=canonical_runtime",
-                "service-runtime.workload-identity.audience=canonical-svc",
-                "gst.service=canonical-svc",
-                "gst.instance-id=canonical-svc-0",
-                "service-runtime.pool.profile=minimal",
-                "service-runtime.modules.schema=canonical",
-                "service-runtime.idempotency.schema=canonical",
-                "service-runtime.datasource.credential=db/canonical_runtime",
-                "gst.bindings.secret-store.mount-root=$mountRoot",
+                *properties(mountRoot).toTypedArray(),
             )
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
