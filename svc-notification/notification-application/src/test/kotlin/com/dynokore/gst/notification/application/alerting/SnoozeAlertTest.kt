@@ -4,6 +4,7 @@ import com.dynokore.gst.notification.domain.alerting.AlertClass
 import com.dynokore.platform.serviceruntime.replica.DecisionReason
 import com.dynokore.platform.serviceruntime.replica.Principal
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.time.Instant
@@ -58,18 +59,22 @@ class SnoozeAlertTest {
         handle(hardStop) shouldBe SnoozeAlertResult.Accepted(hardStop)
     }
 
-    // GAP (reported in the MR): the AC data puts the hard stop at now+7 days, so one second after it is also beyond the
-    // 7-day bound, which SnoozeRule checks first; the AC's BEYOND_HARD_STOP is unreachable with that data.
     @Test
-    fun `INV-AC-10573 one second after a hard stop at now plus 7 days is refused BEYOND_MAX_SNOOZE first`() {
-        handle(hardStop.plusSeconds(1)) shouldBe SnoozeAlertResult.Refused("POL-013", "BEYOND_MAX_SNOOZE")
+    fun `INV-AC-10573 data set 1 one second after the hard stop is BEYOND_MAX_SNOOZE not BEYOND_HARD_STOP`() {
+        // the 7-day bound is checked before the hard stop (ruling on INV-Q-12403)
+        val result = handle(hardStop.plusSeconds(1))
+        result shouldBe SnoozeAlertResult.Refused("POL-013", "BEYOND_MAX_SNOOZE")
+        (result as SnoozeAlertResult.Refused).reason shouldNotBe "BEYOND_HARD_STOP"
     }
 
     @Test
-    fun `INV-AC-10573 one second after a nearer hard stop is refused BEYOND_HARD_STOP`() {
-        knownHardStop = now.plus(Duration.ofDays(3))
-        handle(now.plus(Duration.ofDays(3)).plusSeconds(1)) shouldBe
-            SnoozeAlertResult.Refused("POL-013", "BEYOND_HARD_STOP")
+    fun `INV-AC-10573 data set 2 hard stop at now plus 3 days is Accepted and one second after it BEYOND_HARD_STOP`() {
+        val stop = now.plus(Duration.ofDays(3))
+        knownHardStop = stop
+        for (alertClass in listOf(AlertClass.DEADLINE, AlertClass.COVERAGE)) {
+            handle(stop, alertClass) shouldBe SnoozeAlertResult.Accepted(stop)
+            handle(stop.plusSeconds(1), alertClass) shouldBe SnoozeAlertResult.Refused("POL-013", "BEYOND_HARD_STOP")
+        }
     }
 
     @Test
