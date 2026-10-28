@@ -16,7 +16,8 @@ import java.util.UUID
  */
 class ChainTablesTest {
     private val chainTables = RecordKind.entries.map { it.table }
-    private val storeTables = listOf("document_locator", "pending_record", "applied_record")
+    private val storeTables =
+        listOf("document_locator", "pending_record", "applied_record", "period_digest", "period_digest_chain")
     private val allTables = chainTables + storeTables
 
     /** The column names `COLUMNS` declares: its comma-separated items without the table constraints. */
@@ -118,6 +119,14 @@ class ChainTablesTest {
                 "insert into evidence.applied_record values (?, ?, 'decision_trace', 'E', 'P', 0, now())"
             }
 
+            "period_digest" -> {
+                "insert into evidence.period_digest values (?, 'E', ?, 1, 1, now(), now(), ?, 'sha256:' || repeat('a', 64))"
+            }
+
+            "period_digest_chain" -> {
+                "insert into evidence.period_digest_chain values (?, 'E', ?, 1, 'PAYLOAD', 0, '-')"
+            }
+
             else -> {
                 "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, content, " +
                     "content_hash, recorded_at) values (gen_random_uuid(), ?, 'E', ?, 0, 'T', '\\x00', ?, now())"
@@ -138,7 +147,7 @@ class ChainTablesTest {
             } else if (table == "pending_record") {
                 it.setString(2, text)
                 it.setObject(3, UUID.randomUUID())
-            } else if (table == "applied_record") {
+            } else if (table == "applied_record" || table == "period_digest_chain") {
                 it.setString(2, text)
             } else {
                 it.setString(2, text)

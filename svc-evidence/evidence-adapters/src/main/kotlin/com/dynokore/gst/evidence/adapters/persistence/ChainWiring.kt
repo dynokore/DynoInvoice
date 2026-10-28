@@ -3,8 +3,12 @@ package com.dynokore.gst.evidence.adapters.persistence
 import com.dynokore.gst.evidence.adapters.events.AuditEntryRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.evidence.adapters.events.DecisionTraceRecordedHandler
+import com.dynokore.gst.evidence.adapters.events.GstReturnRecordedHandler
 import com.dynokore.gst.evidence.application.chain.LocatorRecorder
 import com.dynokore.gst.evidence.application.chain.RecordAppender
+import com.dynokore.gst.evidence.application.digest.DigestObjects
+import com.dynokore.gst.evidence.application.digest.MaxRetention
+import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -49,4 +53,15 @@ object ChainWiring {
         dsl: DSLContext,
         clock: Clock = Clock.systemUTC(),
     ): EventHandler = AuditEntryRecordedHandler(recordAppender(dsl, clock), clock)
+
+    /** The handler of `GstReturnRecorded`, to run inside the inbox consumer's transaction. */
+    fun gstReturnRecordedHandler(
+        dsl: DSLContext,
+        objects: DigestObjects,
+        retention: MaxRetention,
+        clock: Clock = Clock.systemUTC(),
+    ): EventHandler =
+        GstReturnRecordedHandler(
+            PeriodDigestRecorder(JooqChainTails(dsl), JooqPeriodDigestStore(dsl), objects, retention, clock),
+        )
 }

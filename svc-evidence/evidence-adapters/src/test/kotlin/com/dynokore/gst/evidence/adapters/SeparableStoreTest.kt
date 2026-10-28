@@ -15,6 +15,8 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
+private const val HASH_LENGTH = 64
+
 /**
  * INV-AC-7872 and INV-REQ-636: dropping the operational schema leaves every row of every `evidence` table retrievable
  * and equal to what was written. The scratch schema `operational_probe` stands for an operational store.
@@ -51,6 +53,9 @@ class SeparableStoreTest {
             "case_register.case_kind" to "SECURITY",
             "case_register.status" to "OPEN",
             "idempotency_key.status" to 200,
+            "period_digest.digest" to "sha256:" + "a".repeat(HASH_LENGTH),
+            "period_digest_chain.evidence_type" to "PAYLOAD",
+            "period_digest_chain.tail_hash" to "a".repeat(HASH_LENGTH),
         )
 
     /** Columns left unset: a SECURITY case has no subject (the shape check of `case_register`). */

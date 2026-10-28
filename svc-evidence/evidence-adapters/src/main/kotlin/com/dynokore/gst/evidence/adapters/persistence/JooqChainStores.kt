@@ -18,7 +18,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
-private fun Instant.utc() = atOffset(ZoneOffset.UTC)
+internal fun Instant.utc() = atOffset(ZoneOffset.UTC)
 
 /** `document_locator` over the service's tenant-bound [DSLContext] (jOOQ only, STK §3). */
 class JooqLocatorStore(

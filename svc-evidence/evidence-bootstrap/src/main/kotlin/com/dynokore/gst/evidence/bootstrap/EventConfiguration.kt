@@ -14,7 +14,8 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(EvidenceEvents.entries + EvidenceEvents.recordEntries)
+    fun eventCatalogue(): EventCatalogue =
+        EventCatalogue(EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries)
 }
 
 object EvidenceEvents {
@@ -54,6 +55,22 @@ object EvidenceEvents {
                 setOf(CatalogueEntry.EVERY_SERVICE),
                 contentTopic = false,
                 recordTopic = true,
+                retainedWhileResolvable = false,
+            ),
+        )
+
+    /**
+     * `GstReturnRecorded` (INV-Q-7251 A (1), platform-contracts `event-log/topics.yaml`): an ordinary topic of
+     * reconciliation-svc that evidence-svc subscribes to, so the consumer keeps the `docsequence` check.
+     */
+    val returnEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                "com.dynokore.gst.reconciliation.GstReturnRecorded.v1",
+                ReturnConsumerConfiguration.GST_RETURN_RECORDED_TOPIC,
+                setOf("reconciliation-svc"),
+                contentTopic = false,
+                recordTopic = false,
                 retainedWhileResolvable = false,
             ),
         )
