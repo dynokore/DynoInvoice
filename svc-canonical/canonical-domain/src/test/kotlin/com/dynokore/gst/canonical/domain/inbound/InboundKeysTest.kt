@@ -1,6 +1,6 @@
 package com.dynokore.gst.canonical.domain.inbound
 
-import com.dynokore.gst.canonical.domain.document.DocumentFunction
+import com.dynokore.gst.canonical.domain.netting.DocumentFunction
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test

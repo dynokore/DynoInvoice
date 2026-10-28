@@ -105,4 +105,20 @@ class ReceiptDispositionTest {
     fun `INV-AC-10351 INV-AC-10352 INV-AC-10353 the hold code is ING-013`() {
         HoldPending.CODE shouldBe "ING-013"
     }
+
+    @Test
+    fun `a receipt with a null carried disposition throws whatever previous is`() {
+        listOf(null, *BuyerDisposition.entries.toTypedArray()).forEach { previous ->
+            val failure =
+                runCatching {
+                    ReceiptDisposition.decide(
+                        InboundKind.RECEIPT,
+                        null,
+                        previous,
+                    )
+                }.exceptionOrNull()
+            (failure is IllegalArgumentException) shouldBe true
+            failure?.message shouldBe "a receipt carries a buyerDisposition"
+        }
+    }
 }

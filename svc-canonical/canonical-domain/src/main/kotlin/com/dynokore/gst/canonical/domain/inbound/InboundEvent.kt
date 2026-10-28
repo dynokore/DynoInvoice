@@ -1,6 +1,6 @@
 package com.dynokore.gst.canonical.domain.inbound
 
-import com.dynokore.gst.canonical.domain.document.DocumentFunction
+import com.dynokore.gst.canonical.domain.netting.DocumentFunction
 import java.time.LocalDate
 import java.util.UUID
 

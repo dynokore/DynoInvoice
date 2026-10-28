@@ -1,8 +1,8 @@
 package com.dynokore.gst.canonical.acceptance
 
 import com.dynokore.gst.canonical.domain.document.DocUuidSource
-import com.dynokore.gst.canonical.domain.document.DocumentFunction
 import com.dynokore.gst.canonical.domain.inbound.BuyerDisposition
+import com.dynokore.gst.canonical.domain.netting.DocumentFunction
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.yaml.snakeyaml.Yaml

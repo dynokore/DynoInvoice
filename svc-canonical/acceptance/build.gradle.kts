@@ -6,7 +6,6 @@ plugins {
 dependencies {
     testImplementation(platform(libs.springBoot.dependencies))
     testImplementation(project(":canonical-contract"))
-    testImplementation(project(":canonical-domain"))
     testImplementation(project(":canonical-adapters"))
     testImplementation(project(":canonical-domain"))
     testImplementation(libs.gstCatalogue)
