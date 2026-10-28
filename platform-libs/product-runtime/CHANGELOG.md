@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-28
+### Changed
+- Requires `gst-catalogue` 2.8.0 or later as the new minimum (pinned to 2.11.0): `VariationPoint.setBy` is removed in the catalogue (2.0.0), so `GstVariationPointCatalogue` now maps `setBy` of a definition from `OperationRoles.rolesFor(form, vp.setPermission)`, the union of the role keys over every `DeploymentForm`, PERMITTED and WITHIN_SCOPE cells alike (INV-T-11572; prerequisite of INV-T-9865).
+
 ## [1.6.5] - 2026-10-28
 ### Changed
 - Metadata-only release (INV-T-11067, INV-Q-11058, G-DVS): depends on `service-runtime 10.18.0`, whose published module metadata changed; no code change.

@@ -2,6 +2,7 @@ package com.dynokore.platform.productruntime
 
 import com.dynokore.gst.catalogue.AckCondition
 import com.dynokore.gst.catalogue.BoundValue
+import com.dynokore.gst.catalogue.RolePermissions
 import com.dynokore.gst.catalogue.TypedValue
 import com.dynokore.gst.catalogue.VariationPoint
 import com.dynokore.gst.catalogue.VpOption
@@ -16,6 +17,7 @@ import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
@@ -38,7 +40,11 @@ class CatalogueAdapterTest {
             def.status.name shouldBe vp.status.name
             def.modifiers.map { it.name }.toSet() shouldBe vp.classModifiers.map { it.name }.toSet()
             def.scopeLevels.map { it.name } shouldContainExactly vp.scopeLevels.orEmpty().map { it.name }
-            def.setBy.toList() shouldContainExactly vp.setBy
+            def.setBy shouldBe
+                GstForm.entries
+                    .flatMap { form ->
+                        RolePermissions.cells(form).filterValues { vp.setPermission in it.keys }.keys
+                    }.toSet()
             def.options.map { it.key } shouldContainExactly vp.optionSpecs.orEmpty().map { it.key }
             def.options.zip(vp.optionSpecs.orEmpty()).forEach { (mapped, source) ->
                 mapped.strictness.name shouldBe source.strictness.name
@@ -53,6 +59,12 @@ class CatalogueAdapterTest {
             def.installationBound shouldBe (vp.installationParameter != null || vp.installationParameterRef != null)
             def.installationParameter?.value shouldBe vp.installationParameterRef?.row
         }
+    }
+
+    @Test
+    fun `setBy of VP-52 holds deployment operator and setBy of VP-04 holds client signatory`() {
+        requireNotNull(catalogue.find(VariationPointKey("VP-52"))).setBy shouldContain "deployment.operator"
+        requireNotNull(catalogue.find(VariationPointKey("VP-04"))).setBy shouldContain "client.signatory"
     }
 
     private fun assertSameTyped(

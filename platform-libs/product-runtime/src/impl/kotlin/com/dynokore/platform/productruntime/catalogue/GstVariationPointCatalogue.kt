@@ -1,6 +1,7 @@
 package com.dynokore.platform.productruntime.catalogue
 
 import com.dynokore.gst.catalogue.BoundValue
+import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.catalogue.TypedValue
 import com.dynokore.gst.catalogue.VariationPoint
 import com.dynokore.gst.catalogue.VpConstraint
@@ -22,6 +23,7 @@ import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.configresolver.VpClass
 import com.dynokore.platform.configresolver.VpModifier
 import com.dynokore.platform.configresolver.VpStatus
+import com.dynokore.gst.catalogue.DeploymentForm as GstForm
 
 /**
  * config-resolver's [VariationPointCatalogue] over the generated gst-catalogue `VariationPoint` (STK-61, CS-28;
@@ -72,7 +74,7 @@ class GstVariationPointCatalogue(
                 modifiers = vp.classModifiers.mapTo(linkedSetOf()) { VpModifier.valueOf(it.name) },
                 status = VpStatus.valueOf(vp.status.name),
                 scopeLevels = vp.scopeLevels.orEmpty().mapTo(linkedSetOf()) { ScopeLevel.valueOf(it.name) },
-                setBy = vp.setBy.toCollection(linkedSetOf()),
+                setBy = setters(vp),
                 options = vp.optionSpecs.orEmpty().map(::option),
                 defaultByForm = vp.defaultByForm.mapKeys { DeploymentForm.valueOf(it.key) },
                 mustBeElected = vp.mustBeElected,
@@ -84,6 +86,10 @@ class GstVariationPointCatalogue(
                 installationBound = vp.installationParameter != null || vp.installationParameterRef != null,
                 installationParameter = vp.installationParameterRef?.row?.let(::VariationPointKey),
             )
+
+        /** The roles holding the row's set permission in any deployment form, PERMITTED and WITHIN_SCOPE alike. */
+        private fun setters(vp: VariationPoint): Set<String> =
+            GstForm.entries.flatMapTo(linkedSetOf()) { OperationRoles.rolesFor(it, vp.setPermission).keys }
 
         fun crossOption(constraints: List<VpConstraint>): String? =
             constraints
