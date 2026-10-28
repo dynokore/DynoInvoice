@@ -10,9 +10,10 @@ import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.Filter
+import org.assertj.core.api.Assertions.assertThat
+import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
 import org.mockito.stubbing.Answer
-import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
@@ -23,6 +24,7 @@ import org.springframework.core.io.ClassPathResource
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockHttpServletResponse
+import org.springframework.test.util.AopTestUtils
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder
@@ -34,6 +36,7 @@ import org.springframework.web.method.HandlerMethod
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
 import org.yaml.snakeyaml.Yaml
 import tools.jackson.databind.json.JsonMapper
+import java.lang.reflect.InvocationTargetException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -170,47 +173,38 @@ private val TEST_RESOLVER =
 /**
  * The doubles, not annotated `@Configuration` on purpose: the component scan of the application would otherwise pick
  * this class up in every other test context. The resolver maps one token to tenant-a and user-a and refuses every
- * other token; the verifier maps a test token to a subject; every controller bean is replaced by a double that counts
- * the calls of its operations and records the tenant and actor bound at that moment (the controllers hold the use cases
- * and their own checks, which are proven by their own tests).
+ * other token; the verifier maps a test token to a subject; every controller bean is the real bean under a Mockito
+ * spy (INV-Q-12159, INV-Q-12506), so a call that reaches an unstubbed handler runs the real controller and its use
+ * case. A test stubs only the one handler method it calls, through [ServedContext.call].
  */
 class ServedDoubles {
     @Bean
-    fun controllerDoubles(tenants: ObjectProvider<TenantContext>): BeanPostProcessor =
+    fun controllerSpies(): BeanPostProcessor =
         object : BeanPostProcessor {
+            // before initialisation: the proxies of the container are built from the spy, not around it
             override fun postProcessBeforeInitialization(
                 bean: Any,
                 beanName: String,
             ): Any {
                 // the verifier and the resolver of the composition root are replaced, not joined by a second bean
                 return when {
-                    bean is WorkloadTokenVerifier -> TEST_VERIFIER
-                    bean is EndUserPrincipalResolver -> TEST_RESOLVER
-                    isController(bean) -> controllerDouble(bean)
-                    else -> bean
+                    bean is WorkloadTokenVerifier -> {
+                        TEST_VERIFIER
+                    }
+
+                    bean is EndUserPrincipalResolver -> {
+                        TEST_RESOLVER
+                    }
+
+                    AnnotatedElementUtils.hasAnnotation(bean.javaClass, RestController::class.java) -> {
+                        Mockito.spy(bean)
+                    }
+
+                    else -> {
+                        bean
+                    }
                 }
             }
-
-            private fun isController(bean: Any) =
-                AnnotatedElementUtils.hasAnnotation(bean.javaClass, RestController::class.java)
-
-            private fun controllerDouble(bean: Any): Any =
-                Mockito.mock(
-                    bean.javaClass,
-                    Answer<Any?> { call ->
-                        if (AnnotatedElementUtils.hasAnnotation(call.method, RequestMapping::class.java)) {
-                            val context = tenants.getObject()
-                            Doubles.reached.add(
-                                Reached(
-                                    call.method.name,
-                                    runCatching { context.current().toString() }.getOrNull(),
-                                    runCatching { context.currentActor() }.getOrNull(),
-                                ),
-                            )
-                        }
-                        null
-                    },
-                )
         }
 }
 
@@ -225,6 +219,90 @@ class ServedContext(
             .addFilters<DefaultMockMvcBuilder>(*filters(context).toTypedArray())
             .build()
     private val events = context.getBean(CapturedEvents::class.java)
+
+    /** The controller beans of the context behind their proxies, each a Mockito spy of the real bean. */
+    val spies: List<Any> =
+        context
+            .getBeansWithAnnotation(RestController::class.java)
+            .values
+            .map {
+                AopTestUtils.getUltimateTargetObject<Any>(it)
+            }.onEach {
+                check(Mockito.mockingDetails(it).isSpy) { "${it.javaClass.name} is not a Mockito spy" }
+            }
+
+    /** The calls of mapped handler methods that the spies counted during the last [call]. */
+    var calls: Int = 0
+        private set
+
+    val application: AssertableWebApplicationContext get() = context
+
+    /** Zeroes the counters of the doubles and of the spies. */
+    fun reset() {
+        Doubles.reset()
+        Mockito.clearInvocations(*spies.toTypedArray())
+        calls = 0
+    }
+
+    /** The precondition of a refused sweep: no stubbing is left on any controller spy. */
+    fun assertNoStubbings() {
+        spies.forEach {
+            assertThat(Mockito.mockingDetails(it).stubbings)
+                .describedAs("stubbings of the spy ${it.javaClass.simpleName}")
+                .isEmpty()
+        }
+    }
+
+    private fun handlerCalls(): Int =
+        spies.sumOf { spy ->
+            Mockito.mockingDetails(spy).invocations.count {
+                AnnotatedElementUtils.hasAnnotation(it.method, RequestMapping::class.java)
+            }
+        }
+
+    /**
+     * True when the controller overrides the handler method. An operation no controller builds is served by the
+     * default method of the generated API interface (it answers 501) and no spy counts a call of it.
+     */
+    fun isBuilt(operation: ContractOperation): Boolean {
+        val handler = mappedHandlers().single { it.key == operation.key }.handler
+        val controller = AopTestUtils.getUltimateTargetObject<Any>(context.getBean(handler.beanType)).javaClass
+        return !controller.getMethod(handler.method.name, *handler.method.parameterTypes).declaringClass.isInterface
+    }
+
+    /** The spy calls a request that is allowed to reach [operation] counts: one for a built operation, else none. */
+    fun reachedCalls(operation: ContractOperation): Int = if (isBuilt(operation)) 1 else 0
+
+    /** Stubs the one handler method of [operation]: it records the bound tenant and actor and returns null. */
+    private fun stub(operation: ContractOperation) {
+        if (!isBuilt(operation)) return
+        val handler = mappedHandlers().single { it.key == operation.key }.handler
+        val spy = AopTestUtils.getUltimateTargetObject<Any>(context.getBean(handler.beanType))
+        val tenants = context.getBean(TenantContext::class.java)
+        val answer =
+            Answer<Any?> {
+                Doubles.reached.add(
+                    Reached(
+                        operation.operationId,
+                        runCatching { tenants.current().toString() }.getOrNull(),
+                        runCatching { tenants.currentActor() }.getOrNull(),
+                    ),
+                )
+                null
+            }
+        // the matchers are created after `when`: Mockito refuses a matcher that is pending when `when` is called
+        val stubbed = Mockito.doAnswer(answer).`when`(spy)
+        // any() matches null too, which a type matcher of a reference type does not; a primitive needs its own matcher
+        val matchers =
+            handler.method.parameterTypes.map {
+                if (it.isPrimitive) ArgumentMatchers.any(it) else ArgumentMatchers.any()
+            }
+        try {
+            handler.method.invoke(stubbed, *matchers.toTypedArray())
+        } catch (e: InvocationTargetException) {
+            throw IllegalStateException("cannot stub ${operation.key} (${handler.method})", e.targetException)
+        }
+    }
 
     /** The (method, path pattern) of each handler method the context maps. */
     fun mappedHandlers(): List<MappedHandler> =
@@ -247,7 +325,10 @@ class ServedContext(
         workload: String?,
         authorization: String? = null,
         extra: Map<String, String> = emptyMap(),
+        stubHandler: Boolean = false,
     ): MockHttpServletResponse {
+        assertNoStubbings()
+        if (stubHandler) stub(operation)
         var path = operation.path
         val parameters = (operation.raw["parameters"] as? List<*>).orEmpty().filterIsInstance<Map<*, *>>()
         parameters.filter { it["in"] == "path" }.forEach { path = path.replace("{" + it["name"] + "}", "PROBE-1") }
@@ -265,7 +346,14 @@ class ServedContext(
         workload?.let { request.header("X-Workload-Token", it) }
         authorization?.let { request.header("Authorization", it) }
         extra.forEach { (k, v) -> request.header(k, v) }
-        return mvc.perform(request).andReturn().response
+        Mockito.clearInvocations(*spies.toTypedArray())
+        try {
+            return mvc.perform(request).andReturn().response
+        } finally {
+            calls = handlerCalls()
+            // the stub of the call is removed again: a later refused sweep starts with no stubbing
+            if (stubHandler) Mockito.reset(*spies.toTypedArray())
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -276,24 +364,33 @@ class ServedContext(
         return checkNotNull(examples?.values?.firstOrNull()?.get("value")) { "${operation.key}: no request example" }
     }
 
-    /** The rows of every table of the access schema, and the events captured, as one comparable value. */
-    fun stored(): Map<String, Long> =
+    /**
+     * The content of every table of the access schema (the md5 of its rows as ordered jsonb text, so an update that
+     * keeps the row count changes it) and the captured outbox envelopes themselves, as one comparable value.
+     */
+    fun stored(): Map<String, String> =
         BoundaryFixture.asSuperuser { connection ->
-            val counts = sortedMapOf<String, Long>()
+            val content = sortedMapOf<String, String>()
             connection.createStatement().use { s ->
+                val tables = mutableListOf<String>()
                 s
                     .executeQuery(
-                        "SELECT table_name, (xpath('/row/c/text()', query_to_xml(" +
-                            "format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))" +
-                            "[1]" +
-                            "::text::bigint FROM information_schema.tables " +
+                        "SELECT table_name FROM information_schema.tables " +
                             "WHERE table_schema = 'access' AND table_type = 'BASE TABLE'",
-                    ).use {
-                        while (it.next()) counts[it.getString(1)] = it.getLong(2)
-                    }
+                    ).use { while (it.next()) tables.add(it.getString(1)) }
+                check(tables.isNotEmpty()) { "the access schema has no table" }
+                tables.forEach { table ->
+                    s
+                        .executeQuery(
+                            "SELECT coalesce(md5(string_agg(to_jsonb(t)::text, ',' ORDER BY to_jsonb(t)::text)), '') " +
+                                "FROM access.\"$table\" t",
+                        ).use {
+                            it.next()
+                            content["access.$table"] = it.getString(1)
+                        }
+                }
             }
-            check(counts.isNotEmpty()) { "the access schema has no table" }
-            counts + ("captured events" to events.envelopes.size.toLong())
+            content + ("captured events" to events.envelopes.joinToString("\n") { it.toString() })
         }
 
     private companion object {
