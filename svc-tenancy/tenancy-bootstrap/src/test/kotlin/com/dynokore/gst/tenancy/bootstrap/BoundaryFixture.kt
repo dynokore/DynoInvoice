@@ -232,5 +232,6 @@ object BoundaryFixture {
                 "service-runtime.event-loops.enabled=false",
                 "gst.bindings.secret-store.mount-root=${TestSecrets.mount(RUNTIME_PASSWORD)}",
                 "service-runtime.datasource.credential=db/tenancy_runtime",
+                "spring.profiles.active=test",
             )
 }

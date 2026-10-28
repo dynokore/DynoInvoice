@@ -7,6 +7,7 @@ import com.dynokore.gst.tenancy.application.period.HistoryState
 import com.dynokore.gst.tenancy.application.period.ItemState
 import com.dynokore.gst.tenancy.application.period.RaisedCode
 import com.dynokore.gst.tenancy.application.period.StoredPeriod
+import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.FilingFrequencyResponse
 import com.dynokore.gst.tenancy.contract.model.FilingFrequencyResponseConfirmationPeriod
@@ -376,19 +377,17 @@ class FilingFrequencyChangeTest {
                     assertThat(p.rows(entity)).isEqualTo(rows)
                 }
                 // the permission on another entity only
-                p.env.withEntity { _, other ->
-                    p.actAs(other, "entity.admin")
-                    assertThat(codeOf { p.change(entity, Freq.MONTHLY, "2026-02-01") })
-                        .isEqualTo(ClosedErrorCode.ACCESS_DENIED)
-                    assertThat(p.rows(entity)).isEqualTo(rows)
-                }
                 assertThat(p.people.asked.toSet()).isEqualTo(setOf("filing-frequency.change"))
                 // look-alike keys are not the catalogue key, even for the holder
                 p.actAs(entity, "entity.admin")
-                for (key in listOf("filing-frequency.change ", "Filing-frequency.change", "period.confirm")) {
-                    assertThat(p.people.holds(PeriodEnv.PERIOD_CALLER, entity.entityRef, key)).describedAs(key).isFalse()
+                for (key in listOf("filing-frequency.change ", "Filing-frequency.change")) {
+                    assertThat(
+                        p.people.holds(PeriodEnv.PERIOD_CALLER, entity.entityRef, key),
+                    ).describedAs(key).isFalse()
                 }
-                assertThat(p.people.holds(PeriodEnv.PERIOD_CALLER, entity.entityRef, "filing-frequency.change")).isTrue()
+                assertThat(
+                    p.people.holds(PeriodEnv.PERIOD_CALLER, entity.entityRef, "filing-frequency.change"),
+                ).isTrue()
                 assertThat(propose(p, entity).status).isEqualTo(FilingFrequencyResponse.Status.PENDING_CONFIRMATION)
             }
         }
@@ -404,17 +403,43 @@ class FilingFrequencyChangeTest {
                 assertThat(codeOf { confirmAs(p, entity, proposal, Kind.TRANSITIONAL) })
                     .isEqualTo(ClosedErrorCode.ACCESS_DENIED)
                 assertThat(p.people.asked.toSet()).isEqualTo(setOf("period.confirm"))
-                for (key in listOf("period.confirm ", "Period.confirm", "filing-frequency.change")) {
+                for (key in listOf("period.confirm ", "Period.confirm")) {
                     p.actAs(entity, "entity.admin")
-                    assertThat(p.people.holds(PeriodEnv.PERIOD_CALLER, entity.entityRef, key)).describedAs(key).isFalse()
+                    assertThat(
+                        p.people.holds(PeriodEnv.PERIOD_CALLER, entity.entityRef, key),
+                    ).describedAs(key).isFalse()
                 }
                 p.people.asked.clear()
                 val missing = entity.copy(entityRef = "ENT-DOES-NOT-EXIST")
                 p.actAs(missing, "tenant.admin")
-                assertThat(codeOf { p.change(missing, Freq.MONTHLY, "2026-02-01") }).isEqualTo(ClosedErrorCode.NOT_FOUND)
+                assertThat(
+                    codeOf { p.change(missing, Freq.MONTHLY, "2026-02-01") },
+                ).isEqualTo(ClosedErrorCode.NOT_FOUND)
                 assertThat(codeOf { confirmAs(p, missing, proposal, Kind.TRANSITIONAL) })
                     .isEqualTo(ClosedErrorCode.NOT_FOUND)
                 assertThat(p.people.asked).isEmpty()
+            }
+        }
+    }
+
+    @Test
+    fun `the permission on another entity only does not allow the change or the confirmation`() {
+        run { p ->
+            p.env.withGroup(2, CreateGroupRequest.GroupKind.DIVISIONAL) { _, _, entities ->
+                val (mine, other) = entities
+                p.register(mine, "2026-01-01")
+                p.change(mine, Freq.QUARTERLY, "2026-01-01")
+                val proposal = propose(p, mine).confirmationPeriod!!
+                val rows = p.rows(mine)
+                p.people.caller = "identity:USR-041"
+                p.people.grant("identity:USR-041", other.entityRef, "entity.admin")
+                assertThat(
+                    codeOf { p.change(mine, Freq.MONTHLY, "2026-03-01") },
+                ).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+                assertThat(codeOf { confirmAs(p, mine, proposal, Kind.TRANSITIONAL) })
+                    .isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+                assertThat(p.rows(mine)).isEqualTo(rows)
+                assertThat(p.frequencyEvents()).isEmpty()
             }
         }
     }

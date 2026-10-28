@@ -26,6 +26,8 @@ import com.dynokore.gst.tenancy.contract.model.ElectionResponse
 import com.dynokore.gst.tenancy.contract.model.ElectionStatusResponse
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.EntityStatusResponse
+import com.dynokore.gst.tenancy.contract.model.FilingFrequencyChangeRequest
+import com.dynokore.gst.tenancy.contract.model.FilingFrequencyResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
 import com.dynokore.gst.tenancy.contract.model.IssuanceModeResponse
 import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest

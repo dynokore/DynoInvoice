@@ -5,8 +5,8 @@ import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
-import com.dynokore.gst.tenancy.domain.PeriodPermissions
 import com.dynokore.gst.tenancy.domain.FactAnswer
+import com.dynokore.gst.tenancy.domain.PeriodPermissions
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent

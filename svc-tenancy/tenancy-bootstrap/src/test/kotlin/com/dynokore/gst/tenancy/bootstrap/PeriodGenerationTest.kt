@@ -1,30 +1,30 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
 import com.dynokore.gst.tenancy.adapters.http.ConstraintRefusal
-import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.period.CalendarPackSource
 import com.dynokore.gst.tenancy.application.period.ConfirmKind
 import com.dynokore.gst.tenancy.application.period.ConfirmOutcome
 import com.dynokore.gst.tenancy.application.period.ConfirmPeriods
 import com.dynokore.gst.tenancy.application.period.ConfirmRequest
+import com.dynokore.gst.tenancy.application.period.ConfirmationState
 import com.dynokore.gst.tenancy.application.period.FilingFrequencyChangePublisher
 import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
 import com.dynokore.gst.tenancy.application.period.FrequencyOutcome
 import com.dynokore.gst.tenancy.application.period.FrequencyRequest
 import com.dynokore.gst.tenancy.application.period.PeriodAccess
-import com.dynokore.gst.tenancy.application.period.PeriodPlanner
-import com.dynokore.gst.tenancy.application.period.PeriodStores
-import com.dynokore.gst.tenancy.application.structure.StructureStore
-import com.dynokore.platform.tenancykernel.TenantContext
-import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.dynokore.gst.tenancy.application.period.ConfirmationState
 import com.dynokore.gst.tenancy.application.period.PeriodGeneration
 import com.dynokore.gst.tenancy.application.period.PeriodOutcome
+import com.dynokore.gst.tenancy.application.period.PeriodPlanner
+import com.dynokore.gst.tenancy.application.period.PeriodStores
 import com.dynokore.gst.tenancy.application.period.StoredPeriod
+import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.platform.calendarandperiods.PeriodKind
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -143,6 +143,7 @@ class PeriodGenerationTest {
     fun `fail closed with nothing stored when no registration date is recorded`() {
         run { p ->
             p.env.withEntity { _, entity ->
+                p.actAs(entity, "entity.admin")
                 val refusal = assertThatThrownBy { p.change(entity, Freq.QUARTERLY, "2026-01-01") }
                 refusal.isInstanceOf(ConstraintRefusal::class.java)
                 assertThat(
