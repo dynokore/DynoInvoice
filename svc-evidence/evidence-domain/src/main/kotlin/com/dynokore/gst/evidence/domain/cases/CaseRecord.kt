@@ -40,14 +40,14 @@ data class CaseRecord(
     init {
         when (kind) {
             CaseKind.SECURITY -> {
-                require(security != null) { "a SECURITY case needs its security facts" }
+                requireNotNull(security) { "a SECURITY case needs its security facts" }
                 require(subjectRef == null) { "a SECURITY case has no subjectRef" }
                 require(status == CaseStatus.OPEN) { "a SECURITY case opens with status OPEN" }
             }
 
             CaseKind.PRIVACY -> {
                 require(security == null) { "a PRIVACY case has no security facts" }
-                require(subjectRef != null) { "a PRIVACY case needs a subjectRef" }
+                requireNotNull(subjectRef) { "a PRIVACY case needs a subjectRef" }
                 require(subjectRef.length <= MAX_SUBJECT_REF) { "subjectRef is longer than $MAX_SUBJECT_REF" }
             }
         }
