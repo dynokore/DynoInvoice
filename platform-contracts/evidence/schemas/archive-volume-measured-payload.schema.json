@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/evidence/schemas/archive-volume-measured-payload.schema.json",
+  "title": "ArchiveVolumeMeasuredPayload",
+  "description": "Payload of the ArchiveVolumeMeasured event (INV-REQ-878; class: domain). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "tenantRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The tenant that owns the entity. evidence-svc writes the canonical lower-case hyphenated text of the tenant id, which TenantRefs.idOf of tenancy-domain maps back to that id."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The entity whose retained archive volume was measured."
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The size in bytes of everything evidence-svc retains for the entity at measuredAt."
+    },
+    "measuredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant the volume was measured."
+    }
+  },
+  "required": [
+    "tenantRef",
+    "entityRef",
+    "bytes",
+    "measuredAt"
+  ],
+  "additionalProperties": true
+}

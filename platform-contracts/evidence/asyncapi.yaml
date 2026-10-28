@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: evidence events
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Every event evidence produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -38,6 +38,11 @@ channels:
     messages:
       PriorSubmissionEvidenceImported:
         $ref: '#/components/messages/PriorSubmissionEvidenceImported'
+  evidenceArchiveVolumeMeasured:
+    address: 'gst.evidence.archive-volume-measured.v1'
+    messages:
+      ArchiveVolumeMeasured:
+        $ref: '#/components/messages/ArchiveVolumeMeasured'
   evidenceExampleHappened:
     address: 'gst.evidence.example-happened.v1'
     messages:
@@ -58,6 +63,13 @@ operations:
       $ref: '#/channels/evidencePriorSubmissionEvidenceImported'
     messages:
       - $ref: '#/channels/evidencePriorSubmissionEvidenceImported/messages/PriorSubmissionEvidenceImported'
+  publishArchiveVolumeMeasured:
+    action: send
+    description: ArchiveVolumeMeasured — one event per entity once per UTC day (INV-REQ-878).
+    channel:
+      $ref: '#/channels/evidenceArchiveVolumeMeasured'
+    messages:
+      - $ref: '#/channels/evidenceArchiveVolumeMeasured/messages/ArchiveVolumeMeasured'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -92,6 +104,18 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/prior-submission-evidence-imported-payload.schema.json'
+    ArchiveVolumeMeasured:
+      name: com.dynokore.gst.evidence.ArchiveVolumeMeasured.v1
+      title: ArchiveVolumeMeasured
+      summary: The retained archive volume of an entity was measured (INV-REQ-878).
+      description: >-
+        Event ArchiveVolumeMeasured (INV-REQ-878; class: domain). Emitted by: evidence-svc. Consumed by: tenancy-svc.
+        Delivery: At-least-once. One event is published per entity once per UTC day, carrying the size in bytes of
+        everything evidence-svc retains for the entity at measuredAt. tenancy-svc consumes it into its metering
+        counters, which getUsageCounters returns as archiveVolumeBytes. The payload holds no personal data.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/archive-volume-measured-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.evidence.ExampleHappened.v1
       title: ExampleHappened

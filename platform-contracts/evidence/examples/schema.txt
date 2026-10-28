@@ -12,3 +12,4 @@
 ../schemas/prior-submission-evidence-imported-payload.schema.json prior-submission-evidence-imported-payload-*.json
 ../openapi.yaml#/components/schemas/ImportPriorEvidenceRequest import-prior-evidence-request-*.json
 ../openapi.yaml#/components/schemas/PriorEvidenceImportResult prior-evidence-import-result-*.json
+../schemas/archive-volume-measured-payload.schema.json archive-volume-measured-payload-*.json
