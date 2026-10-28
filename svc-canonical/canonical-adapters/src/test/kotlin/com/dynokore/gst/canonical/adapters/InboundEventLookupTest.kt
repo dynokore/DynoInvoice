@@ -8,6 +8,7 @@ import com.dynokore.gst.canonical.domain.inbound.InboundKeys
 import com.dynokore.gst.canonical.domain.inbound.InboundKind
 import com.dynokore.gst.canonical.domain.inbound.UuidKey
 import com.dynokore.gst.canonical.domain.netting.DocumentFunction
+import com.dynokore.platform.tenancyjooq.TenantPredicateViolation
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -264,5 +265,28 @@ class InboundEventLookupTest {
         append(receipt(uuid = later), doc, version = 2)
         append(posting(), doc, version = 3)
         byFallback(posting()) shouldBe listOf(Existing(doc, later))
+    }
+
+    @Test
+    fun `findByUuidKey returns a row of tenant A to tenant A and nothing to tenant B`() {
+        val doc = UUID.randomUUID()
+        append(receipt(), doc)
+        byUuid() shouldBe listOf(Existing(doc, supplierUuid))
+        byUuid(asTenant = UUID.randomUUID()) shouldBe emptyList()
+    }
+
+    @Test
+    fun `findByUuidKey with no tenant bound throws TenantPredicateViolation`() {
+        val key = checkNotNull(InboundKeys.uuidKey(receipt()))
+        // a transaction is open for a tenant, but the thread that reads has no tenant bound
+        kit.asTenant(tenant) {
+            kit.transaction.inTransaction {
+                var failure: Throwable? = null
+                val reader = Thread { failure = runCatching { kit.inbound.findByUuidKey(key) }.exceptionOrNull() }
+                reader.start()
+                reader.join()
+                (failure is TenantPredicateViolation) shouldBe true
+            }
+        }
     }
 }
