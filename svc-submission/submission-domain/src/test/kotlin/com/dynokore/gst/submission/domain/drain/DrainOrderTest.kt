@@ -171,7 +171,7 @@ class DrainOrderTest {
 
     @Test
     fun `INV-AC-10579 a drain despatches window open first then the drained period then routine each by due date`() {
-        fun at(day: Int) = Instant.parse("2026-04-%02dT10:00:00Z".format(day))
+        fun at(day: Int) = Instant.parse("2026-04-0${day}T10:00:00Z")
 
         fun d(
             month: Int,
