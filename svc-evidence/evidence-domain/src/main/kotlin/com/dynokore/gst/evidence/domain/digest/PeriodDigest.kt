@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.domain.digest
 
 import java.security.MessageDigest
+import java.util.HexFormat
 
 /** The three document-bound chains a period digest anchors, in the fixed order of INV-Q-7251 A (2). */
 enum class DigestChainType {
@@ -52,5 +53,5 @@ fun periodDigest(
         listOf("$entityRef|$period|$returnVersion") +
             chains.sortedBy { it.type }.map { "${it.type.name}|${it.length}|${it.tailText}" }
     val hash = MessageDigest.getInstance("SHA-256").digest(lines.joinToString("\n").toByteArray(Charsets.UTF_8))
-    return PERIOD_DIGEST_PREFIX + hash.joinToString("") { "%02x".format(it) }
+    return PERIOD_DIGEST_PREFIX + HexFormat.of().formatHex(hash)
 }

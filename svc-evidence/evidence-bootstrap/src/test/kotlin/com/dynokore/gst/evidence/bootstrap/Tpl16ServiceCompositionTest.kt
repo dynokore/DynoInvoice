@@ -33,8 +33,8 @@ class Tpl16ServiceCompositionTest {
             ).forEach { context.getBean(it.java) }
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:evidence-svc"
-            catalogueTypes(context) shouldBe
-                (EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries).map { it.eventType }.toSet()
+            val entries = EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries
+            catalogueTypes(context) shouldBe entries.map { it.eventType }.toSet()
         }
     }
 
