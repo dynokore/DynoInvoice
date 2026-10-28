@@ -28,6 +28,17 @@ sealed interface ElectionOutcome {
         val repeated: Boolean = false,
     ) : ElectionOutcome
 
+    /** 202: a change of an election already recorded waits for the approval of another person (INV-Q-10105). */
+    data class Pending(
+        val change: PendingChange,
+    ) : ElectionOutcome
+
+    /** 200: the pending change was approved and the election is in force from its effective date. */
+    data class Approved(
+        val approval: ApprovedChange,
+    ) : ElectionOutcome
+
+    /** 404 SRT-005: no such entity, or no PENDING change of that reference on it. */
     data object NotFound : ElectionOutcome
 
     /** 400 SRT-001: a missing or unknown value. */
@@ -47,10 +58,11 @@ sealed interface ElectionOutcome {
 }
 
 /**
- * setIssuanceMode, recordElection and electRateSource (INV-REQ-323, INV-REQ-422, INV-REQ-505, INV-REQ-1283 to
- * INV-REQ-1286): each stores the election effective-dated with its actor through the election store, after the checks
- * of the rulings INV-Q-9692, INV-Q-9694, INV-Q-9698, INV-Q-9702, INV-Q-9704 and INV-Q-9706. Nothing is defaulted.
- */
+ * setIssuanceMode, recordElection, electRateSource and approveElectionChange (INV-REQ-323, INV-REQ-422,
+ * INV-REQ-505, INV-REQ-1283 to INV-REQ-1286): each stores the election effective-dated with its actor through the
+ * election store, after the checks of the rulings INV-Q-9692, INV-Q-9694, INV-Q-9698, INV-Q-9702, INV-Q-9704 and
+ * INV-Q-9706. Nothing is defaulted. A change of an election already recorded is stored PENDING and takes effect
+ * only when another person holding `election-change.approve` approves it (INV-Q-10105).
 @Suppress("LongParameterList", "TooManyFunctions") // the ports and checks of the three operations
 class ElectionCommands(
     private val tx: TransactionRunner,
@@ -63,6 +75,8 @@ class ElectionCommands(
     private val scopePacks: ScopePackStore,
     private val authority: ActionAuthority,
     private val caller: CallerSource,
+    private val changes: ElectionChangeStore,
+    private val audit: ElectionAudit,
 ) {
     /** Elects the Type 1A issuance mode from [effectiveFrom]; the second confirmation is required every time. */
     fun setIssuanceMode(
@@ -124,7 +138,9 @@ class ElectionCommands(
             }
             val before = elections.history(entity.ref, kind)
             repeated(before, election, effectiveFrom)?.let { return@inTransaction it }
-            change(before, election, null)?.let { return@inTransaction it }
+            if (isChange(before, election, null)) {
+                return@inTransaction request(entity.ref, kind, election, null, effectiveFrom, actor)
+            }
             store(
                 entity.ref,
                 entity.groupRef,
@@ -154,7 +170,16 @@ class ElectionCommands(
             before
                 .firstOrNull { it.effectiveFrom == effectiveFrom && it.value == source && it.basis == basis }
                 ?.let { return@inTransaction ElectionOutcome.Done(it, repeated = true) }
-            change(before, source, basis)?.let { return@inTransaction it }
+            if (isChange(before, source, basis)) {
+                return@inTransaction request(
+                    entity.ref,
+                    ElectionKind.EXCHANGE_RATE_SOURCE,
+                    source,
+                    basis,
+                    effectiveFrom,
+                    actor,
+                )
+            }
             store(
                 entity.ref,
                 entity.groupRef,
@@ -171,6 +196,76 @@ class ElectionCommands(
                     .single { it.effectiveFrom == effectiveFrom },
             )
         }
+
+    /**
+     * Approves a PENDING change (INV-Q-10105): the caller holds `election-change.approve` on the entity and is not the
+     * requester; the value checks of the request are run again; the version is written with the requester as actor and
+     * the approver in the reason, and the change turns APPROVED.
+     */
+    fun approveElectionChange(
+        entityRef: String,
+        changeRef: String,
+    ): ElectionOutcome =
+        tx.inTransaction {
+            val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
+            val approver = caller.actor()
+            if (!holds { authority.holds(approver, entity.ref, ElectionPermissions.APPROVE) }) {
+                return@inTransaction ElectionOutcome.Forbidden(
+                    "$approver does not hold ${ElectionPermissions.APPROVE} for entity ${entity.ref}",
+                )
+            }
+            val change = changes.pending(entity.ref, changeRef) ?: return@inTransaction ElectionOutcome.NotFound
+            if (change.requestedBy == approver) {
+                return@inTransaction ElectionOutcome.Forbidden("the approver must be a person other than the requester")
+            }
+            valueRefusal(change)?.let { return@inTransaction it }
+            store(
+                entity.ref,
+                entity.groupRef,
+                change.kind,
+                change.value,
+                change.basis,
+                change.effectiveFrom,
+                change.requestedBy,
+                "${change.kind.variationPoint} election change ${change.changeRef} requested by " +
+                    "${change.requestedBy}, approved by $approver",
+            )?.let { return@inTransaction it }
+            val approval =
+                checkNotNull(changes.approve(entity.ref, change.changeRef, approver)) { "change not PENDING" }
+            audit.approved(approval)
+            ElectionOutcome.Approved(approval)
+        }
+
+    /** The value checks of the original request, run again at approval time (INV-REQ-1283, INV-REQ-504). */
+    private fun valueRefusal(change: PendingChange): ElectionOutcome.Refused? =
+        when {
+            change.kind == ElectionKind.PURCHASE_DATE_BASIS && change.value == ElectionKeys.POSTING_DATE -> {
+                postingRefusal(change.entityRef)
+            }
+
+            change.kind == ElectionKind.EXCHANGE_RATE_SOURCE -> {
+                listedRefusal(change.value, checkNotNull(change.basis), change.effectiveFrom)
+            }
+
+            else -> {
+                null
+            }
+        }
+
+    /** Stores the change PENDING and writes the "requested" audit entry; nothing reaches the policy writer. */
+    @Suppress("LongParameterList") // one request with its requester
+    private fun request(
+        entityRef: String,
+        kind: ElectionKind,
+        value: String,
+        basis: String?,
+        effectiveFrom: LocalDate,
+        actor: String,
+    ): ElectionOutcome {
+        val change = changes.request(entityRef, kind, value, basis, effectiveFrom, actor)
+        audit.requested(change)
+        return ElectionOutcome.Pending(change)
+    }
 
     /** The caller must hold `entity-config.manage` (entity.admin only) on the entity (ruling INV-Q-10025). */
     private fun gate(
@@ -216,22 +311,12 @@ class ElectionCommands(
             }
         }
 
-    /**
-     * A change of an election already recorded (a stored version exists and the value differs, on the stored date or
-     * on another) is not stored here: it needs the approval of the two-step flow of INV-T-10125 (rulings INV-Q-10029,
-     * INV-Q-10105, INV-Q-11870). Nothing is stored and no audit entry is written.
-     */
-    private fun change(
+    /** A change: a stored version exists and the new value or basis differs by equality, on the stored date or not. */
+    private fun isChange(
         before: List<ElectionRecord>,
         value: String,
         basis: String?,
-    ): ElectionOutcome.Refused? =
-        before.lastOrNull()?.takeIf { it.value != value || it.basis != basis }?.let {
-            ElectionOutcome.Refused(
-                "a change of an election already recorded needs the approval of the two-step flow of INV-T-10125; " +
-                    "nothing is stored",
-            )
-        }
+    ): Boolean = before.lastOrNull()?.let { it.value != value || it.basis != basis } ?: false
 
     private fun repeated(
         before: List<ElectionRecord>,

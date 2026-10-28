@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.election.AccessPointRouteChangedHandler
+import com.dynokore.gst.tenancy.adapters.election.AuditLogElectionAudit
 import com.dynokore.gst.tenancy.adapters.election.ConfigElectionPolicyStore
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
 import com.dynokore.gst.tenancy.adapters.election.ElectionPolicyWriterGuard
@@ -11,10 +12,13 @@ import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
 import com.dynokore.gst.tenancy.adapters.election.RulePackStagedHandler
 import com.dynokore.gst.tenancy.adapters.election.UnrecordedEntityFacts
 import com.dynokore.gst.tenancy.adapters.persistence.JooqAccessPointRouteStore
+import com.dynokore.gst.tenancy.adapters.persistence.JooqElectionChangeStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqScopePackStore
 import com.dynokore.gst.tenancy.application.election.AccessPointRouteStore
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
+import com.dynokore.gst.tenancy.application.election.ElectionAudit
+import com.dynokore.gst.tenancy.application.election.ElectionChangeStore
 import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionGate
 import com.dynokore.gst.tenancy.application.election.ElectionPolicyStore
@@ -25,6 +29,7 @@ import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureStore
+import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -89,6 +94,18 @@ class ElectionUseCases {
         mapper: ObjectMapper,
     ): ScopePackStore = JooqScopePackStore(dsl, tenants, mapper)
 
+    @Bean
+    fun electionChangeStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): ElectionChangeStore = JooqElectionChangeStore(dsl, tenants)
+
+    @Bean
+    fun electionAudit(
+        writer: AuditWriter,
+        tenants: TenantContext,
+    ): ElectionAudit = AuditLogElectionAudit(writer, tenants)
+
     /** The entity facts answer NOT_RECORDED until INV-T-4933 binds the stored questionnaire answers (INV-Q-9696 B). */
     @Bean
     @ConditionalOnMissingBean(EntityFactSource::class)
@@ -118,6 +135,8 @@ class ElectionUseCases {
         scopePacks: ScopePackStore,
         authority: ActionAuthority,
         caller: CallerSource,
+        changes: ElectionChangeStore,
+        audit: ElectionAudit,
     ): ElectionCommands =
         ElectionCommands(
             tx,
@@ -130,6 +149,8 @@ class ElectionUseCases {
             scopePacks,
             authority,
             caller,
+            changes,
+            audit,
         )
 
     @Bean

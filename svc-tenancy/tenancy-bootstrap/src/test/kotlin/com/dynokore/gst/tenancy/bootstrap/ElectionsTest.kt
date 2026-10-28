@@ -53,7 +53,7 @@ class ElectionsTest {
     }
 
     @Test
-    fun `INV-AC-9510 the apportionment mode is elected and a later change is refused for the two-step flow`() {
+    fun `INV-AC-9510 the apportionment mode is elected and a later change waits for approval`() {
         run { e, env ->
             env.withEntity { tenant, entity ->
                 e.usualPeople(entity)
@@ -67,10 +67,8 @@ class ElectionsTest {
                 val audits = e.auditEntries(entity, "VP-23")
                 val later = TODAY.plusDays(7)
                 assertThat(first.reason).isEqualTo("VP-23 election by $ADMIN")
-                val refused = e.reason { e.elect(entity, "ENTIRE_INVOICE", later) }
-                assertThat(refused).contains("two-step flow of INV-T-10125")
-                assertThat(e.refusal { e.elect(entity, "ENTIRE_INVOICE", later) }!!.first).isEqualTo(422)
-                assertThat(e.refusal { e.elect(entity, "ENTIRE_INVOICE", TODAY) }!!.first).isEqualTo(422)
+                assertThat(e.pending { e.elect(entity, "ENTIRE_INVOICE", later) }.requestedBy).isEqualTo(ADMIN)
+                e.pending { e.elect(entity, "ENTIRE_INVOICE", TODAY) }
                 assertThat(e.history(entity, ElectionKind.APPORTIONMENT_MODE).map { it.value })
                     .containsExactly("CLAIMABLE_PORTION")
                 assertThat(e.auditEntries(entity, "VP-23")).isEqualTo(audits)
@@ -79,7 +77,7 @@ class ElectionsTest {
     }
 
     @Test
-    fun `INV-AC-9514 neither the date basis nor the apportionment mode has a default and a change is refused`() {
+    fun `INV-AC-9514 neither the date basis nor the apportionment mode has a default and a change is pending`() {
         run { e, env ->
             env.withEntity { _, entity ->
                 e.usualPeople(entity)
@@ -97,10 +95,10 @@ class ElectionsTest {
                     .doesNotContain(ElectionKind.PURCHASE_DATE_BASIS, ElectionKind.APPORTIONMENT_MODE)
                 val audits = e.auditEntries(entity, "VP-22")
                 val later = TODAY.plusDays(2)
-                // a change is refused 422 POL-014 whatever the dropped approvedBy field would have named
+                // a change is stored pending (202), never written
                 e.facts.set(entity.entityRef, "claimsInputTaxOnPostingBasis", FactAnswer.TRUE)
-                assertThat(e.refusal { e.elect(entity, posting, later) }!!.first).isEqualTo(422)
-                assertThat(e.refusal { e.elect(entity, posting, TODAY) }!!.first).isEqualTo(422)
+                e.pending { e.elect(entity, posting, later) }
+                e.pending { e.elect(entity, posting, TODAY) }
                 assertThat(e.history(entity, ElectionKind.PURCHASE_DATE_BASIS).map { it.value })
                     .containsExactly("INVOICE_DATE")
                 assertThat(e.auditEntries(entity, "VP-22")).isEqualTo(audits)
@@ -218,31 +216,6 @@ class ElectionsTest {
                 }
                 val kept = e.history(entity, ElectionKind.EXCHANGE_RATE_SOURCE).single()
                 assertThat(kept.value to kept.basis).isEqualTo("MAS" to "DAILY")
-            }
-        }
-    }
-
-    @Test
-    fun `INV-AC-1511 INV-AC-9515 a change of the rate source is refused for the two-step flow`() {
-        run { e, env ->
-            env.withEntity { tenant, entity ->
-                e.usualPeople(entity)
-                e.staged(tenant, "SCOPE-SG", "1.0", sources = TWO_SOURCES)
-                e.activated(tenant, "SCOPE-SG", "1.0", TODAY.minusDays(30))
-                e.rate(entity, "MAS", RateSourceElectionRequest.Basis.DAILY, TODAY)
-                val audits = e.auditEntries(entity, "VP-24")
-                val july = TODAY.plusDays(30)
-                val monthly = RateSourceElectionRequest.Basis.MONTHLY_AVERAGE
-                val daily = RateSourceElectionRequest.Basis.DAILY
-                // another source later, another basis with the same source, another source on the stored date
-                assertThat(e.refusal { e.rate(entity, "BNM", monthly, july) }!!.first).isEqualTo(422)
-                assertThat(e.refusal { e.rate(entity, "MAS", monthly, july) }!!.first).isEqualTo(422)
-                assertThat(e.refusal { e.rate(entity, "BNM", daily, TODAY) }!!.first).isEqualTo(422)
-                assertThat(e.reason { e.rate(entity, "BNM", monthly, july) }).contains("two-step flow of INV-T-10125")
-                val kept = e.history(entity, ElectionKind.EXCHANGE_RATE_SOURCE).single()
-                assertThat(kept.value to kept.basis).isEqualTo("MAS" to "DAILY")
-                assertThat(kept.reason).isEqualTo("VP-24 election by $ADMIN")
-                assertThat(e.auditEntries(entity, "VP-24")).isEqualTo(audits)
             }
         }
     }

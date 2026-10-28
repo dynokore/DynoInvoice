@@ -34,6 +34,7 @@ object ElectionRoles {
 object ElectionPermissions {
     const val MANAGE = "entity-config.manage"
     const val CONFIRM = "entity-config.confirm"
+    const val APPROVE = "election-change.approve"
 }
 
 object ElectionKeys {

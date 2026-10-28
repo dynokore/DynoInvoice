@@ -71,6 +71,7 @@ class TestPeople :
             ElectionPermissions.CONFIRM -> roles.any { it in CONFIRMING }
             PeriodPermissions.FILING_FREQUENCY_CHANGE -> ElectionRoles.ENTITY_ADMIN in roles
             PeriodPermissions.PERIOD_CONFIRM -> roles.any { it in PERIOD_CONFIRMING }
+            ElectionPermissions.APPROVE -> ElectionRoles.TAX_APPROVER in roles
             else -> false
         }
     }

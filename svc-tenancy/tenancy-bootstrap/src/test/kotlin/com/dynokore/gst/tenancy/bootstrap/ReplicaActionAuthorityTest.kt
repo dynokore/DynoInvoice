@@ -104,6 +104,36 @@ class ReplicaActionAuthorityTest {
     }
 
     @Test
+    fun `election-change approve is held only by its own grant and refused for every look-alike`() {
+        val approve = ElectionPermissions.APPROVE
+        grant("identity:USR-009", "E1", approve)
+        assertThat(authority.holds("identity:USR-009", "E1", approve)).isTrue()
+        assertThat(authority.holds("identity:USR-009", "E1", "$approve ")).isFalse()
+        assertThat(authority.holds("identity:USR-009 ", "E1", approve)).isFalse()
+        assertThat(authority.holds("identity:USR-009", "E2", approve)).isFalse()
+        grant("identity:USR-010", "E1", ElectionPermissions.CONFIRM)
+        grant("identity:USR-011", "E1", ElectionPermissions.MANAGE)
+        grant("identity:USR-012", "E1", "tax.approver")
+        listOf("identity:USR-010", "identity:USR-011", "identity:USR-012").forEach {
+            assertThat(authority.holds(it, "E1", approve)).describedAs(it).isFalse()
+        }
+        grant("identity:USR-013", "E1", approve, validUntil = now.minusSeconds(1))
+        assertThat(authority.holds("identity:USR-013", "E1", approve)).isFalse()
+        grant("identity:USR-014", "E1", approve)
+        replica.accept(
+            AuthorityChanged(
+                tenant,
+                "identity:USR-014",
+                ++version,
+                AuthorityRecord.PrincipalRecord(PrincipalState.REVOKED),
+            ),
+        )
+        replica.observeHead(version)
+        assertThat(authority.holds("identity:USR-014", "E1", approve)).isFalse()
+        assertThat(ReplicaActionAuthority(null, tenants, clock).holds("identity:USR-009", "E1", approve)).isFalse()
+    }
+
+    @Test
     fun `a grant of another tenant is not read`() {
         grant("identity:USR-004", "E1", ElectionPermissions.CONFIRM, on = otherTenant)
         assertThat(authority.holds("identity:USR-004", "E1", ElectionPermissions.CONFIRM)).isFalse()

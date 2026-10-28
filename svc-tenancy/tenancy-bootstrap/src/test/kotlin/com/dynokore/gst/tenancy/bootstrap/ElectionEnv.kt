@@ -6,6 +6,7 @@ import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
 import com.dynokore.gst.tenancy.adapters.election.RulePackStagedHandler
 import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
 import com.dynokore.gst.tenancy.adapters.http.ConstraintRefusal
+import com.dynokore.gst.tenancy.adapters.http.PendingChangeAccepted
 import com.dynokore.gst.tenancy.application.election.AccessPointRouteStore
 import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionGate
@@ -14,6 +15,7 @@ import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.election.ScopePackStore
 import com.dynokore.gst.tenancy.contract.model.ElectionRequest
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
+import com.dynokore.gst.tenancy.contract.model.PendingElectionChange
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.domain.ElectionKind
@@ -89,6 +91,64 @@ internal class ElectionEnv(
         UUID.randomUUID(),
         RateSourceElectionRequest(source, basis, from),
     )
+
+    /** The 202 body [block] answers: the call must store a PENDING change and write no version. */
+    fun pending(block: () -> Unit): PendingElectionChange =
+        try {
+            block()
+            error("the call did not answer 202")
+        } catch (accepted: PendingChangeAccepted) {
+            accepted.change
+        }
+
+    fun approve(
+        entity: EntityResponse,
+        changeRef: String,
+    ) = env.api.approveElectionChange(entity.entityRef, changeRef, UUID.randomUUID())
+
+    /** The states of the entity's election changes, oldest first, read as the superuser. */
+    fun changeStates(entity: EntityResponse): List<String> =
+        BoundaryFixture.asSuperuser { c ->
+            c
+                .prepareStatement(
+                    "select state from tenancy.election_change where entity_ref = ? order by requested_at, change_ref",
+                ).use { s ->
+                    s.setString(1, entity.entityRef)
+                    s.executeQuery().use { rs ->
+                        generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
+                    }
+                }
+        }
+
+    /** Audit entries of the entity with the action [action] ("election-change.requested" or ".approved"). */
+    fun changeAudits(
+        entity: EntityResponse,
+        action: String,
+    ): Long = outboxCount(entity, AUDIT_TOPIC, action)
+
+    /** Events of the entity other than audit entries (policy changes, profile changes). */
+    fun otherEvents(entity: EntityResponse): Long = outboxCount(entity, NOT_AUDIT, "")
+
+    private fun outboxCount(
+        entity: EntityResponse,
+        topic: String,
+        action: String,
+    ): Long =
+        BoundaryFixture.asSuperuser { c ->
+            val comparison = if (topic == NOT_AUDIT) "<>" else "="
+            c
+                .prepareStatement(
+                    "select count(*) from tenancy.outbox where topic $comparison '$AUDIT_TOPIC' " +
+                        "and data::text like ? and data::text like ?",
+                ).use { s ->
+                    s.setString(1, "%${entity.entityRef}%")
+                    s.setString(2, "%$action%")
+                    s.executeQuery().use {
+                        it.next()
+                        it.getLong(1)
+                    }
+                }
+        }
 
     fun history(
         entity: EntityResponse,
@@ -221,5 +281,7 @@ internal class ElectionEnv(
 
     companion object {
         val UNAUTHENTICATED = ClosedErrorCode.UNAUTHENTICATED
+        private const val AUDIT_TOPIC = "gst.platform.audit-entry-recorded.v1"
+        private const val NOT_AUDIT = "not-audit"
     }
 }

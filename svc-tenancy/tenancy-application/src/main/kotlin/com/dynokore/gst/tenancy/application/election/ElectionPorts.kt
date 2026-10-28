@@ -18,6 +18,67 @@ data class ElectionRecord(
     val reason: String = "",
 ) : Effective
 
+/**
+ * A change of an election already recorded that waits for approval (INV-REQ-370, INV-REQ-422, INV-REQ-505; owner answer
+ * INV-Q-10105): the requested value ([basis] for the rate source), the date it takes effect and who asked.
+ */
+data class PendingChange(
+    val changeRef: String,
+    val entityRef: String,
+    val kind: ElectionKind,
+    val value: String,
+    val basis: String?,
+    val effectiveFrom: LocalDate,
+    val requestedBy: String,
+    val requestedAt: Instant,
+)
+
+/** A change that was approved: the pending change with the person and time of the approval. */
+data class ApprovedChange(
+    val change: PendingChange,
+    val approvedBy: String,
+    val approvedAt: Instant,
+)
+
+/** The pending changes of the elections of the bound tenant (table `election_change`, forced RLS). */
+interface ElectionChangeStore {
+    /** Stores a PENDING change of [kind] requested by [requestedBy]. */
+    @Suppress("LongParameterList") // one request with its requester
+    fun request(
+        entityRef: String,
+        kind: ElectionKind,
+        value: String,
+        basis: String?,
+        effectiveFrom: LocalDate,
+        requestedBy: String,
+    ): PendingChange
+
+    /** The change of this entity and tenant that is still PENDING, else null (unknown, other entity or decided). */
+    fun pending(
+        entityRef: String,
+        changeRef: String,
+    ): PendingChange?
+
+    /** Sets PENDING to APPROVED; null when the change is no longer PENDING (already decided). */
+    fun approve(
+        entityRef: String,
+        changeRef: String,
+        approvedBy: String,
+    ): ApprovedChange?
+}
+
+/**
+ * The audit entries of the two-step flow (INV-REQ-370 behavior 6, INV-REQ-422 behavior 4), written in the caller's
+ * transaction so each commits with the change it records.
+ */
+interface ElectionAudit {
+    /** "requested": names the requester, the variation point and the requested value. */
+    fun requested(change: PendingChange)
+
+    /** "approved": names the approver and the requester. */
+    fun approved(approval: ApprovedChange)
+}
+
 /** The verified caller of the operation in hand (the end-user token's `sub`, API-24), never a request field. */
 fun interface CallerSource {
     fun actor(): String

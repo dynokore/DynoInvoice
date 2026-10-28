@@ -283,8 +283,8 @@ class ElectionPolicyTest {
         val refusal =
             if (owned && definition.status == VpStatus.AVAILABLE) {
                 if (id != "VP-25" && row.e.history(row.entity, kindOf(id)).isNotEmpty()) {
-                    // the first option is stored; every other option is a change, which waits for the two-step flow
-                    assertThat(row.e.reason { elect(row.e, row.entity, id, option.key) }).contains("two-step flow")
+                    // the first option is stored; every other option is a change, which waits for the approval
+                    row.e.pending { elect(row.e, row.entity, id, option.key) }
                     assertThat(row.e.history(row.entity, kindOf(id)).map { it.value }).doesNotContain(option.key)
                 } else {
                     elect(row.e, row.entity, id, option.key)

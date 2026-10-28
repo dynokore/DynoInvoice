@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.application.election.ElectionOutcome
 import com.dynokore.gst.tenancy.application.election.ElectionRecord
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
+import com.dynokore.gst.tenancy.application.election.PendingChange
 import com.dynokore.gst.tenancy.application.status.AssessOutcome
 import com.dynokore.gst.tenancy.application.status.AssessPhaseCommands
 import com.dynokore.gst.tenancy.application.status.EntityStatusCommands
@@ -21,6 +22,7 @@ import com.dynokore.gst.tenancy.contract.model.AssessPhaseRequest
 import com.dynokore.gst.tenancy.contract.model.BusinessUnitResponse
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
+import com.dynokore.gst.tenancy.contract.model.ElectionChangeApproved
 import com.dynokore.gst.tenancy.contract.model.ElectionRequest
 import com.dynokore.gst.tenancy.contract.model.ElectionResponse
 import com.dynokore.gst.tenancy.contract.model.ElectionStatusResponse
@@ -31,6 +33,7 @@ import com.dynokore.gst.tenancy.contract.model.FilingFrequencyResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
 import com.dynokore.gst.tenancy.contract.model.IssuanceModeResponse
 import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest
+import com.dynokore.gst.tenancy.contract.model.PendingElectionChange
 import com.dynokore.gst.tenancy.contract.model.PhaseAssessmentResponse
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionResponse
@@ -40,6 +43,7 @@ import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
 import com.dynokore.gst.tenancy.domain.CodeRefusal
+import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.IssuanceMode
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
@@ -51,6 +55,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -261,6 +266,31 @@ open class EntitiesController(
             .body(RateSourceElectionResponse(entityRef, done.value, done.effectiveFrom))
     }
 
+    override fun approveElectionChange(
+        entityRef: String,
+        changeRef: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<ElectionChangeApproved> =
+        when (val outcome = electionCommands.approveElectionChange(entityRef, changeRef)) {
+            is ElectionOutcome.Approved -> {
+                val approval = outcome.approval
+                ResponseEntity.ok(
+                    ElectionChangeApproved(
+                        approval.change.changeRef,
+                        approval.change.entityRef,
+                        approval.change.effectiveFrom,
+                        approval.change.requestedBy,
+                        approval.approvedBy,
+                        approval.approvedAt.atOffset(ZoneOffset.UTC),
+                    ),
+                )
+            }
+
+            else -> {
+                refused(outcome)
+            }
+        }
+
     override fun getElectionStatus(
         entityRef: String,
         on: LocalDate?,
@@ -273,14 +303,51 @@ open class EntitiesController(
     private fun created(outcome: ElectionOutcome): HttpStatus =
         if (outcome is ElectionOutcome.Done && outcome.repeated) HttpStatus.OK else HttpStatus.CREATED
 
+    /** The stored election, or 202 (a change waits for approval) or the refusal. */
     private fun elected(outcome: ElectionOutcome): ElectionRecord =
         when (outcome) {
             is ElectionOutcome.Done -> outcome.election
-            ElectionOutcome.NotFound -> notFound()
-            is ElectionOutcome.Invalid -> invalid(outcome.reason)
-            is ElectionOutcome.Refused -> constraintRefused(outcome.reason)
-            is ElectionOutcome.Forbidden -> forbidden(outcome.reason)
+            is ElectionOutcome.Pending -> throw PendingChangeAccepted(pendingChange(outcome.change))
+            else -> refused(outcome)
         }
+
+    /** The refusal an outcome that stored nothing stands for. */
+    private fun refused(outcome: ElectionOutcome): Nothing =
+        when (outcome) {
+            ElectionOutcome.NotFound -> {
+                notFound()
+            }
+
+            is ElectionOutcome.Invalid -> {
+                invalid(outcome.reason)
+            }
+
+            is ElectionOutcome.Refused -> {
+                constraintRefused(outcome.reason)
+            }
+
+            is ElectionOutcome.Forbidden -> {
+                forbidden(outcome.reason)
+            }
+
+            is ElectionOutcome.Done, is ElectionOutcome.Pending, is ElectionOutcome.Approved -> {
+                error("outcome ${outcome::class.simpleName} is not a refusal")
+            }
+        }
+
+    private fun pendingChange(change: PendingChange): PendingElectionChange {
+        val rateSource = change.kind == ElectionKind.EXCHANGE_RATE_SOURCE
+        return PendingElectionChange(
+            changeRef = change.changeRef,
+            entityRef = change.entityRef,
+            election = if (rateSource) RATE_SOURCE else change.value,
+            effectiveFrom = change.effectiveFrom,
+            requestedBy = change.requestedBy,
+            requestedAt = change.requestedAt.atOffset(ZoneOffset.UTC),
+            source = change.value.takeIf { rateSource },
+            basis = change.basis?.let { PendingElectionChange.Basis.valueOf(it) },
+        )
+    }
 
     private fun boundTenant(tenantRef: String): TenantId {
         val id =
@@ -305,3 +372,6 @@ open class EntitiesController(
 }
 
 private val SINGAPORE: ZoneId = ZoneId.of("Asia/Singapore")
+
+/** The `election` of a pending change made through electRateSource (PendingElectionChange). */
+private const val RATE_SOURCE = "RATE_SOURCE"

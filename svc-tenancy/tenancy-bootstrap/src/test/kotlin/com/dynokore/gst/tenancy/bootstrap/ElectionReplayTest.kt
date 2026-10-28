@@ -17,7 +17,7 @@ import org.springframework.http.ResponseEntity
 /**
  * The replay of an election and the change on a stored date (rulings INV-Q-10046, INV-Q-11868, INV-Q-11870): a first
  * election answers 201, the same election again answers 200 and writes nothing, and another value on the stored date
- * is a change that waits for the two-step flow (422 POL-014, nothing stored).
+ * is a change that waits for the two-step approval (202, nothing stored).
  */
 class ElectionReplayTest {
     private fun run(block: (ElectionEnv, ProfileEnv) -> Unit) {
@@ -82,7 +82,7 @@ class ElectionReplayTest {
     }
 
     @Test
-    fun `another value on the stored date is a change and is refused 422 with nothing stored`() {
+    fun `another value on the stored date is a change and answers 202 with nothing stored`() {
         run { e, env ->
             env.withEntity { tenant, entity ->
                 ready(e, tenant, entity)
@@ -93,14 +93,15 @@ class ElectionReplayTest {
                 e.rate(entity, "MAS", daily)
                 val before = listOf("VP-22", "VP-23", "VP-24").map { versions(env, tenant, entity, it) }
                 val audits = listOf("VP-22", "VP-23", "VP-24").map { e.auditEntries(entity, it) }
-                listOf<() -> Unit>(
-                    { e.elect(entity, "POSTING_DATE") },
-                    { e.elect(entity, "ENTIRE_INVOICE") },
-                    { e.rate(entity, "BNM", daily) },
-                    { e.rate(entity, "MAS", monthly) },
-                    { e.elect(entity, "POSTING_DATE", TODAY.plusDays(3)) },
-                ).forEach { call -> assertThat(e.refusal(call)!!.first).isEqualTo(422) }
-                assertThat(e.reason { e.elect(entity, "POSTING_DATE") }).contains("two-step flow")
+                val changes =
+                    listOf<() -> Unit>(
+                        { e.elect(entity, "POSTING_DATE") },
+                        { e.elect(entity, "ENTIRE_INVOICE") },
+                        { e.rate(entity, "BNM", monthly) },
+                        { e.rate(entity, "BNM", monthly, TODAY.plusDays(5)) },
+                        { e.elect(entity, "POSTING_DATE", TODAY.plusDays(3)) },
+                    )
+                changes.forEach { call -> e.pending(call) }
                 assertThat(
                     listOf("VP-22", "VP-23", "VP-24").map { versions(env, tenant, entity, it) },
                 ).isEqualTo(before)
