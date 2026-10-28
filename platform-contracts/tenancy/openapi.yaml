@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.23.0
+  version: 1.24.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -4716,6 +4716,7 @@ components:
           - SIEM_TARGET_CHANGE
           - SUPPORT_BUNDLE_EXPORT
           - ROTATE_DB_CREDENTIAL
+          - CREATE_FIRST_ADMINISTRATOR
         stepName:
           type: string
           maxLength: 128
