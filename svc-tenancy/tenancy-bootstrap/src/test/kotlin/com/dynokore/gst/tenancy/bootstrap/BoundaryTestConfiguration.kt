@@ -1,11 +1,17 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
-import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.domain.ElectionRoles
+import com.dynokore.gst.tenancy.domain.FactAnswer
+import com.dynokore.gst.tenancy.domain.PeriodPermissions
+import com.dynokore.platform.outboxandqueue.Envelope
+import com.dynokore.platform.outboxandqueue.EventContext
+import com.dynokore.platform.outboxandqueue.OutboundEvent
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -13,21 +19,15 @@ import com.dynokore.platform.serviceruntime.replica.Grant
 import com.dynokore.platform.serviceruntime.replica.ScopeLevel
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
-import java.time.Clock
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicLong
-import com.dynokore.gst.tenancy.domain.FactAnswer
-import com.dynokore.gst.tenancy.domain.PeriodPermissions
-import com.dynokore.platform.outboxandqueue.Envelope
-import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.outboxandqueue.OutboundEvent
-import com.dynokore.platform.outboxandqueue.OutboxWriter
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import java.time.Clock
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicLong
 
 /** Captures what the outbox writer returned, so the tests can feed the replica exactly what the service published. */
 class CapturedEvents {

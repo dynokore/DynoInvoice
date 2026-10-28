@@ -1,4 +1,4 @@
--- V202610281000: the pending change of an election (INV-REQ-370, INV-REQ-422, INV-REQ-505, INV-REQ-1284; owner answer
+-- V202610281010: the pending change of an election (INV-REQ-370, INV-REQ-422, INV-REQ-505, INV-REQ-1284; owner answer
 -- INV-Q-10105: a two-step flow). A change of an election already recorded is stored here as PENDING and takes effect
 -- only when another person holding election-change.approve approves it; the version is then written through the
 -- policy writer and the row turns APPROVED. Forced RLS on the signed binding.

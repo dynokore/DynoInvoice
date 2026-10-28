@@ -1,6 +1,5 @@
 package com.dynokore.gst.tenancy.bootstrap
 
-import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.adapters.election.AccessPointRouteChangedHandler
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
 import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
@@ -20,6 +19,7 @@ import com.dynokore.gst.tenancy.contract.model.PendingElectionChange
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.domain.ElectionKind
+import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef

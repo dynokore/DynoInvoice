@@ -4,8 +4,8 @@ import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionOutcome
 import com.dynokore.gst.tenancy.application.election.ElectionRecord
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
-import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
 import com.dynokore.gst.tenancy.application.election.PendingChange
+import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
 import com.dynokore.gst.tenancy.application.status.AssessOutcome
 import com.dynokore.gst.tenancy.application.status.AssessPhaseCommands
 import com.dynokore.gst.tenancy.application.status.EntityStatusCommands

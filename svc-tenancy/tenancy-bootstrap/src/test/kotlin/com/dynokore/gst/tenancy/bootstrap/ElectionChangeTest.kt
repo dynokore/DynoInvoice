@@ -1,6 +1,5 @@
 package com.dynokore.gst.tenancy.bootstrap
 
-import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.adapters.http.PendingChangeAccepted
 import com.dynokore.gst.tenancy.adapters.http.PendingChangeAdvice
 import com.dynokore.gst.tenancy.application.election.ElectionChangeStore
@@ -8,6 +7,7 @@ import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.domain.ElectionKind
+import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyRefusal
