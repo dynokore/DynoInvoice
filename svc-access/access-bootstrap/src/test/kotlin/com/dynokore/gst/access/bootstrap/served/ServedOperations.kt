@@ -300,7 +300,7 @@ class ServedContext(
         try {
             handler.method.invoke(stubbed, *matchers.toTypedArray())
         } catch (e: InvocationTargetException) {
-            throw IllegalStateException("cannot stub ${operation.key} (${handler.method})", e.targetException)
+            throw IllegalStateException("cannot stub ${operation.key} (${handler.method})", e)
         }
     }
 
