@@ -19,3 +19,5 @@ channel	gst.submission.readiness-changed.v1	UNASSIGNED
 channel	gst.submission.submission-type-decided.v1	UNASSIGNED
 channel	gst.submission.example-happened.v1	UNASSIGNED
 operation	resolveAmendmentHold	UNASSIGNED
+operation	approveFilingGateOverride	INV-T-10714
+operation	getFilingGateOverrides	INV-T-10714
