@@ -6,6 +6,7 @@ paths:
     get:
       operationId: fixtureOp
       x-principal: ingest
+      x-caller-auth: end-user
       x-error-codes: []
       x-requirements: []
       x-timeout: 500
