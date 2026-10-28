@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.adapters.election.AccessPointRouteChangedHandler
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
 import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
@@ -65,6 +66,7 @@ internal class ElectionEnv(
         people.grant(ADMIN, entity.entityRef, "entity.admin")
         people.grant(OTHER_ADMIN, entity.entityRef, "tenant.admin")
         people.grant(APPROVER, entity.entityRef, "tax.approver")
+        people.grantPermission(APPROVER, entity.entityRef, ElectionPermissions.APPROVE)
         people.grant(ENTITY_ADMIN_ONLY, entity.entityRef, "entity.admin")
     }
 

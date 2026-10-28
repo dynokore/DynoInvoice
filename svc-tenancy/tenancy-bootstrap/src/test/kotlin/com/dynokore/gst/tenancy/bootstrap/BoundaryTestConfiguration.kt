@@ -4,7 +4,18 @@ import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
+import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.domain.ElectionRoles
+import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
+import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
+import java.time.Clock
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
 import com.dynokore.platform.outboxandqueue.Envelope
@@ -37,7 +48,8 @@ class CapturingOutboxWriter(
  * The people of a test: who calls, and which roles each person holds for which entity (the authority replica of the
  * service, here a table). One bean answers the caller and authority ports of the elections: the permissions follow
  * the roles as the
- * RolePermissions cells do (MANAGE: entity.admin; CONFIRM: entity.admin, tenant.admin, tax.approver).
+ * RolePermissions cells do (MANAGE: entity.admin; CONFIRM: entity.admin, tenant.admin, tax.approver); APPROVE is
+ * answered by a real replica holding permission grants only.
  */
 class TestPeople :
     CallerSource,
@@ -45,6 +57,46 @@ class TestPeople :
     @Volatile
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
+    private val clock = Clock.systemUTC()
+    private val replica = AuthorityReplica(clock).also { it.onSnapshotComplete(0) }
+    private val version = AtomicLong()
+    private val approvals =
+        ReplicaActionAuthority(
+            replica,
+            object : TenantContext {
+                override fun current() = TENANT
+
+                override fun currentActor(): String? = null
+
+                override fun <T> bind(
+                    tenant: TenantId,
+                    actor: String,
+                    block: () -> T,
+                ): T = block()
+            },
+            clock,
+        )
+
+    /** A permission grant on one entity, held in a real [AuthorityReplica] (permissions are not derived from roles). */
+    fun grantPermission(
+        person: String,
+        entityRef: String,
+        permission: String,
+    ) {
+        val now = clock.instant()
+        replica.accept(
+            AuthorityChanged(
+                TENANT,
+                person,
+                version.incrementAndGet(),
+                AuthorityRecord.GrantRecord(
+                    entityRef,
+                    listOf(Grant(permission, ScopeLevel.ENTITY, entityRef, now.minusSeconds(60), null)),
+                ),
+            ),
+        )
+        replica.observeHead(version.get())
+    }
 
     /** Every permission key the service asked about, in order: the keys are compared with the catalogue by equality. */
     val asked = CopyOnWriteArrayList<String>()
@@ -71,13 +123,14 @@ class TestPeople :
             ElectionPermissions.CONFIRM -> roles.any { it in CONFIRMING }
             PeriodPermissions.FILING_FREQUENCY_CHANGE -> ElectionRoles.ENTITY_ADMIN in roles
             PeriodPermissions.PERIOD_CONFIRM -> roles.any { it in PERIOD_CONFIRMING }
-            ElectionPermissions.APPROVE -> ElectionRoles.TAX_APPROVER in roles
+            ElectionPermissions.APPROVE -> approvals.holds(person, entityRef, action)
             else -> false
         }
     }
 
     private companion object {
         val PERIOD_CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TAX_APPROVER)
+        val TENANT = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000a1"))
         val CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TENANT_ADMIN, ElectionRoles.TAX_APPROVER)
     }
 }

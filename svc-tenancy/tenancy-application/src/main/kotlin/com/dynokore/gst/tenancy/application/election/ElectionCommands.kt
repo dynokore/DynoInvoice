@@ -58,10 +58,11 @@ sealed interface ElectionOutcome {
 }
 
 /**
- * setIssuanceMode, recordElection, electRateSource and approveElectionChange (INV-REQ-323, INV-REQ-422, INV-REQ-505, INV-REQ-1283 to
- * INV-REQ-1286): each stores the election effective-dated with its actor through the election store, after the checks
- * of the rulings INV-Q-9692, INV-Q-9694, INV-Q-9698, INV-Q-9702, INV-Q-9704 and INV-Q-9706. Nothing is defaulted. A change of an election already recorded is stored PENDING and
- * takes effect only when another person holding `election-change.approve` approves it (INV-Q-10105).
+ * setIssuanceMode, recordElection, electRateSource and approveElectionChange (INV-REQ-323, INV-REQ-422,
+ * INV-REQ-505, INV-REQ-1283 to INV-REQ-1286): each stores the election effective-dated with its actor through the
+ * election store, after the checks of the rulings INV-Q-9692, INV-Q-9694, INV-Q-9698, INV-Q-9702, INV-Q-9704 and
+ * INV-Q-9706. Nothing is defaulted. A change of an election already recorded is stored PENDING and takes effect
+ * only when another person holding `election-change.approve` approves it (INV-Q-10105).
  */
 @Suppress("LongParameterList", "TooManyFunctions") // the ports and checks of the three operations
 class ElectionCommands(

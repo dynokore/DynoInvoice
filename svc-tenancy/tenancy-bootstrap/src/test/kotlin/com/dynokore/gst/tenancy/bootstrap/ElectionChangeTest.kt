@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.adapters.http.PendingChangeAccepted
 import com.dynokore.gst.tenancy.adapters.http.PendingChangeAdvice
 import com.dynokore.gst.tenancy.application.election.ElectionChangeStore
@@ -205,15 +206,17 @@ class ElectionChangeTest {
                 e.people.grant("identity:USR-011", entity.entityRef, "tax.approver")
                 e.rate(entity, "MAS", daily)
                 val change = e.pending { e.rate(entity, "BNM", monthly, later) }
-                // the requester holds tax.approver as well as entity.admin and still may not approve own change
-                e.people.grant(ADMIN, entity.entityRef, "entity.admin", "tax.approver")
+                // the requester holds the permission as well and still may not approve own change
+                e.people.grantPermission(ADMIN, entity.entityRef, ElectionPermissions.APPROVE)
                 refusedKeepsPending(e, entity, change.changeRef, ADMIN, 403)
                 refusedKeepsPending(e, entity, change.changeRef, OTHER_ADMIN, 403)
                 refusedKeepsPending(e, entity, change.changeRef, ENTITY_ADMIN_ONLY, 403)
                 refusedKeepsPending(e, entity, change.changeRef, "$APPROVER ", 403)
                 refusedKeepsPending(e, entity, change.changeRef, NOBODY, 403)
-                // a tax.approver of another entity only
-                e.people.grant("identity:USR-012", "ENT-OTHER", "tax.approver")
+                // the role tax.approver alone is no permission
+                refusedKeepsPending(e, entity, change.changeRef, "identity:USR-011", 403)
+                // a permission grant on another entity only
+                e.people.grantPermission("identity:USR-012", "ENT-OTHER", ElectionPermissions.APPROVE)
                 refusedKeepsPending(e, entity, change.changeRef, "identity:USR-012", 403)
             }
         }
