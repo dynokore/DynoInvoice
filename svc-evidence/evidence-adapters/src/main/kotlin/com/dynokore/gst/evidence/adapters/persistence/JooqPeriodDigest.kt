@@ -83,66 +83,84 @@ class JooqPeriodDigestStore(
 class JooqChainTails(
     private val dsl: DSLContext,
 ) : ChainTails {
-    /** The columns of one chain table that a tail reads. */
-    private class Columns(
-        val table: Table<*>,
-        val tenant: Field<UUID?>,
-        val entity: Field<String?>,
-        val period: Field<String?>,
-        val seq: Field<Long?>,
-        val hash: Field<String?>,
-    )
-
-    private val columns =
-        mapOf(
-            DigestChainType.PAYLOAD to
-                Columns(
+    override fun tail(
+        tenant: TenantId,
+        entityRef: String,
+        period: String,
+        type: DigestChainType,
+    ): ChainTail =
+        when (type) {
+            DigestChainType.PAYLOAD -> {
+                tail(
                     EVIDENCE_PAYLOAD,
                     EVIDENCE_PAYLOAD.TENANT_ID,
                     EVIDENCE_PAYLOAD.ENTITY_REF,
                     EVIDENCE_PAYLOAD.PERIOD_REF,
                     EVIDENCE_PAYLOAD.SEQ,
                     EVIDENCE_PAYLOAD.CONTENT_HASH,
-                ),
-            DigestChainType.ACKNOWLEDGEMENT to
-                Columns(
+                    tenant.value,
+                    entityRef,
+                    period,
+                    type,
+                )
+            }
+
+            DigestChainType.ACKNOWLEDGEMENT -> {
+                tail(
                     ACKNOWLEDGEMENT,
                     ACKNOWLEDGEMENT.TENANT_ID,
                     ACKNOWLEDGEMENT.ENTITY_REF,
                     ACKNOWLEDGEMENT.PERIOD_REF,
                     ACKNOWLEDGEMENT.SEQ,
                     ACKNOWLEDGEMENT.CONTENT_HASH,
-                ),
-            DigestChainType.DECISION_TRACE to
-                Columns(
+                    tenant.value,
+                    entityRef,
+                    period,
+                    type,
+                )
+            }
+
+            DigestChainType.DECISION_TRACE -> {
+                tail(
                     DECISION_TRACE,
                     DECISION_TRACE.TENANT_ID,
                     DECISION_TRACE.ENTITY_REF,
                     DECISION_TRACE.PERIOD_REF,
                     DECISION_TRACE.SEQ,
                     DECISION_TRACE.CONTENT_HASH,
-                ),
-        )
+                    tenant.value,
+                    entityRef,
+                    period,
+                    type,
+                )
+            }
+        }
 
-    override fun tail(
-        tenant: TenantId,
+    @Suppress("LongParameterList") // the columns of one chain table and the key of one chain
+    private fun tail(
+        table: Table<*>,
+        tenantColumn: Field<UUID?>,
+        entityColumn: Field<String?>,
+        periodColumn: Field<String?>,
+        seqColumn: Field<Long?>,
+        hashColumn: Field<String?>,
+        tenant: UUID,
         entityRef: String,
         period: String,
         type: DigestChainType,
     ): ChainTail {
-        val c = checkNotNull(columns[type])
         val last =
             dsl
-                .select(c.seq, c.hash)
-                .from(c.table)
-                .where(c.tenant.eq(tenant.value), c.entity.eq(entityRef), c.period.eq(period))
-                .orderBy(c.seq.desc())
+                .select(seqColumn, hashColumn)
+                .from(table)
+                .where(tenantColumn.eq(tenant), entityColumn.eq(entityRef), periodColumn.eq(period))
+                .orderBy(seqColumn.desc())
                 .limit(1)
                 .fetchOne()
         return if (last == null) {
             ChainTail(type, 0, null)
         } else {
-            ChainTail(type, checkNotNull(last.get(c.seq)) + 1, checkNotNull(last.get(c.hash)))
+            ChainTail(type, checkNotNull(last.get(seqColumn)) + 1, checkNotNull(last.get(hashColumn)))
         }
     }
 }

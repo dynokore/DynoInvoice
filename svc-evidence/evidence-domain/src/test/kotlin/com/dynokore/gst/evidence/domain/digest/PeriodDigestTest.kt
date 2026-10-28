@@ -5,7 +5,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import java.security.MessageDigest
-import java.util.HexFormat
 
 class PeriodDigestTest {
     private val h1 = "a".repeat(64)
@@ -19,7 +18,10 @@ class PeriodDigestTest {
         )
 
     private fun sha(text: String) =
-        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
+        MessageDigest
+            .getInstance("SHA-256")
+            .digest(text.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 
     private val specified = "E-001|2026-Q1|1\nPAYLOAD|3|$h1\nACKNOWLEDGEMENT|2|$h2\nDECISION_TRACE|0|-"
 
