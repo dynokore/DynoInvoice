@@ -21,6 +21,11 @@ operation	getRegisterAndRates	INV-T-4947	open
 operation	getImportRecord	INV-T-4944	open
 operation	getCounterpartyHistory	INV-T-4943	done
 operation	recordIngestedCounterparty	INV-T-4943	done
+operation	getNetworkRegistration	INV-T-4946	open
+operation	confirmNetworkRegistration	INV-T-4946	open
+operation	listRegisterSuggestions	INV-T-4946	open
+operation	confirmRegisterSuggestion	INV-T-4946	open
+operation	exportGapReport	INV-T-4944	open
 channel	masterdataMasterDataResolved	INV-T-4943	done
 channel	masterdataReferenceRateLoaded	INV-T-4947	open
 channel	masterdataSignedLinkRequested	INV-T-4945	open
