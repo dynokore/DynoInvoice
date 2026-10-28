@@ -12,6 +12,7 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.OperatorSession
 import com.dynokore.platform.serviceruntime.identity.OperatorSessionBindingFilter
+import com.dynokore.platform.serviceruntime.securityevents.SecurityEventAuditWriter
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -160,10 +161,19 @@ class OperatorSessionAuditWriterTest {
                         ServiceRuntimeConfiguration::class.java,
                         L1CompositionAutoConfiguration::class.java,
                     ),
-                ).withPropertyValues("service-runtime.workload-identity.audience=svc")
+                ).withPropertyValues(
+                    "service-runtime.workload-identity.audience=svc",
+                    // the security-event emitter needs a TelemetryExport (INV-T-10969, INV-Q-11058)
+                    "gst.bindings.telemetry-export=bundled-otel",
+                    "gst.bindings.telemetry-export-otlp-endpoint=http://collector:4318",
+                )
         base.withBean(AuditWriter::class.java, { own }).run { context ->
             val wired = context.getBean(AuditWriter::class.java)
-            wired.shouldBeInstanceOf<OperatorSessionAuditWriter>().delegate shouldBe own
+            wired
+                .shouldBeInstanceOf<OperatorSessionAuditWriter>()
+                .delegate
+                .shouldBeInstanceOf<SecurityEventAuditWriter>()
+                .delegate shouldBe own
             CurrentOperatorSession.callWith(session) { wired.record(entry.copy(reason = "own"), mockk(relaxed = true)) }
             recorded.last().reason shouldBe "case CASE-5521: own"
         }
@@ -178,6 +188,8 @@ class OperatorSessionAuditWriterTest {
                     .getBean(
                         AuditWriter::class.java,
                     ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
+                    .delegate
+                    .shouldBeInstanceOf<SecurityEventAuditWriter>()
                     .delegate
                     .shouldBeInstanceOf<LocalAuditWriter>()
             }

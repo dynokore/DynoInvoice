@@ -268,6 +268,9 @@ val implTestTask =
         jvmArgs("-Duser.timezone=UTC")
         systemProperty("user.language", "de")
         systemProperty("user.country", "DE")
+        // INV-Q-11993: the contexts need a TelemetryExport (INV-Q-11058); `.invalid` never resolves (RFC 2606, RFC 6761).
+        systemProperty("gst.bindings.telemetry-export", "bundled-otel")
+        systemProperty("gst.bindings.telemetry-export-otlp-endpoint", "http://telemetry-export.invalid:4318")
     }
 
 tasks.named("check") {

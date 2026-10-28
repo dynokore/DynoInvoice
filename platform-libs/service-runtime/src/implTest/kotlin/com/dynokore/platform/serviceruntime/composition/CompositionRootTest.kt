@@ -76,6 +76,8 @@ import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
+import com.dynokore.platform.serviceruntime.securityevents.SecurityEventAuditStager
+import com.dynokore.platform.serviceruntime.securityevents.SecurityEventAuditWriter
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.LicenceCheck
 import com.dynokore.platform.tenancykernel.LicenceStatus
@@ -133,7 +135,12 @@ class CompositionRootTest {
                     ServiceRuntimeConfiguration::class.java,
                     L1CompositionAutoConfiguration::class.java,
                 ),
-            ).withPropertyValues("service-runtime.workload-identity.audience=submission-svc")
+            ).withPropertyValues(
+                "service-runtime.workload-identity.audience=submission-svc",
+                // the security-event emitter needs a TelemetryExport (INV-T-10969, INV-Q-11058)
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://collector:4318",
+            )
 
     /**
      * The inputs only a service has: its event-log DataSource, catalogues, limits, sinks, S3 client and ports, each
@@ -397,6 +404,8 @@ class CompositionRootTest {
                 AuditWriter::class.java,
             ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
             .delegate
+            .shouldBeInstanceOf<SecurityEventAuditWriter>()
+            .delegate
             .shouldBeInstanceOf<OutboxAuditWriter>()
         context.getBean(AuditedOperations::class.java)
         context.getBean(OverrideService::class.java)
@@ -634,7 +643,11 @@ class CompositionRootTest {
         for ((runner, delegate, withPolicyWriter) in cases) {
             runner.run { context ->
                 val audit = context.getBean(AuditWriter::class.java)
-                audit.shouldBeInstanceOf<OperatorSessionAuditStager>().delegate::class shouldBe delegate
+                audit
+                    .shouldBeInstanceOf<OperatorSessionAuditStager>()
+                    .delegate
+                    .shouldBeInstanceOf<SecurityEventAuditStager>()
+                    .delegate::class shouldBe delegate
                 if (withPolicyWriter) {
                     // the wired policy writer stages an installation value's audit entry through this bean (INV-Q-4254
                     // A)
@@ -669,6 +682,8 @@ class CompositionRootTest {
                         AuditWriter::class.java,
                     ).shouldBeInstanceOf<OperatorSessionAuditWriter>()
                     .delegate
+                    .shouldBeInstanceOf<SecurityEventAuditWriter>()
+                    .delegate
                     .shouldBeInstanceOf<LocalAuditWriter>()
             }
     }
@@ -679,6 +694,8 @@ class CompositionRootTest {
         context
             .getBean(AuditWriter::class.java)
             .shouldBeInstanceOf<OperatorSessionAuditWriter>()
+            .delegate
+            .shouldBeInstanceOf<SecurityEventAuditWriter>()
             .delegate
 
     @Test

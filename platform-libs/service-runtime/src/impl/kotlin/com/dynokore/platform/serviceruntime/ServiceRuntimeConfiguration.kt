@@ -14,6 +14,7 @@ import com.dynokore.platform.serviceruntime.logging.LoggingAutoConfiguration
 import com.dynokore.platform.serviceruntime.pool.PoolLaneWiring
 import com.dynokore.platform.serviceruntime.replica.ReplicaAutoConfiguration
 import com.dynokore.platform.serviceruntime.resilience.ResilienceAutoConfiguration
+import com.dynokore.platform.serviceruntime.securityevents.SecurityEventsConfiguration
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Import
@@ -70,6 +71,7 @@ import org.springframework.context.annotation.PropertySource
     InternalRestClientAutoConfiguration::class,
     ReplicaAutoConfiguration::class,
     EndUserIdentityAutoConfiguration::class,
+    SecurityEventsConfiguration::class,
 )
 @PropertySource("classpath:service-runtime-defaults.properties")
 class ServiceRuntimeConfiguration

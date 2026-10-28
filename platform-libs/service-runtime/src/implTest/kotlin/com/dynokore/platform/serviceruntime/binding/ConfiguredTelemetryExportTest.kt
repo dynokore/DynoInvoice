@@ -9,13 +9,19 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.MapPropertySource
+import org.springframework.core.env.StandardEnvironment
 
 /** INV-REQ-1384, INV-Q-11058: one `TelemetryExport`, selected by configuration (ARC-11). */
 class ConfiguredTelemetryExportTest {
     private val selection = "gst.bindings.telemetry-export"
     private val endpoint = "gst.bindings.telemetry-export-otlp-endpoint"
     private val runner =
-        ApplicationContextRunner().withConfiguration(AutoConfigurations.of(BindingAutoConfiguration::class.java))
+        ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(BindingAutoConfiguration::class.java))
+            // The build sets the binding for implTest (INV-Q-11993); these tests assert an absent or invalid one.
+            .withInitializer { context ->
+                context.environment.propertySources.remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME)
+            }
 
     /** Property values kept verbatim: `withPropertyValues("k=v")` trims `v`, which would hide a trailing space. */
     private fun withVerbatim(values: Map<String, String>) =

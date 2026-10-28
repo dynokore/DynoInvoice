@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.19.0] - 2026-10-28
+### Added
+- Security-event emitter (INV-REQ-1384, INV-Q-10945 A, INV-Q-10939; INV-T-10969): `SecurityEventEmitter` and the closed `SecurityClass` enum (`sign_in`, `elevation`, `break_glass`, `credential_use`, `control_relaxation`) in package `securityevents`. The impl half posts an OTLP/HTTP JSON log record (attributes `gst.security.class`, `user.id`, `gst.tenant.id`, body the class wire value) to `<TelemetryExport.otlpEndpoint()>/v1/logs` from a bounded queue with retry; a dropped record is counted in `gst_security_events_dropped_total` and logged at ERROR with `SECURITY_EVENT_DROPPED` and the reason `QUEUE_FULL` or `RETRIES_EXHAUSTED` (INV-Q-11052). Every `AuditWriter` bean raises a record for an action that is a key of `gst.security-events.mapping` (exact string, INV-Q-11054), registered with `TransactionRunner.afterCommit` (INV-Q-11056); the `TransactionRunner` bean is not proxied. Configuration `gst.security-events.*` with its defaults in `service-runtime-security-events-defaults.properties`; the classes with no producer are listed in `SECURITY-EVENTS.md`.
+### Changed
+- A context with the shared runtime but no `TelemetryExport` bean does not start; the message names `TelemetryExport` and `gst.bindings.telemetry-export` (INV-Q-11058).
+
 ## [10.18.0] - 2026-10-28
 ### Added
 - `ConfiguredTelemetryExport`, the one `TelemetryExport` implementation, created by `BindingAutoConfiguration` when `gst.bindings.telemetry-export` is `bundled-otel` or `managed-observability` and no other bean exists; `gst.bindings.telemetry-export-otlp-endpoint` is validated at start-up (scheme compared case-insensitively, INV-Q-11874) and returned unchanged (INV-T-11067, INV-Q-11058, INV-REQ-1384).

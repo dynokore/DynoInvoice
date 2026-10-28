@@ -184,6 +184,9 @@ dependencies {
     add("implTestRuntimeOnly", libs.shedlock.core)
     // The TPL-18 WiringTest's DataSource from Spring Boot's DataSource auto-configuration on a lazy Hikari pool with
     // no database (INV-Q-4196 (A), coordinator ruling INV-Q-4436): spring-boot-jdbc, HikariCP and the driver.
+    // A service gets resilience4j-retry (security-event emitter of service-runtime) from the published impl POM (INV-Q-12141).
+    add("implTestRuntimeOnly", platform(libs.resilience4j.bom))
+    add("implTestRuntimeOnly", libs.resilience4j.retry)
     add("implTestRuntimeOnly", libs.springBoot.starterJdbc)
     add("implTestRuntimeOnly", libs.postgresql)
     add("implTestImplementation", libs.springBoot.test)
@@ -226,6 +229,9 @@ val implTestTask =
         // The contract tests read the staged bundle, the same files the generators used.
         systemProperty("productruntime.contracts", stagedRepo.get().asFile.absolutePath)
         systemProperty("productruntime.contractsVersion", bundleVersion.get())
+        // INV-Q-11993: the contexts need a TelemetryExport (INV-Q-11058); `.invalid` never resolves (RFC 2606, RFC 6761).
+        systemProperty("gst.bindings.telemetry-export", "bundled-otel")
+        systemProperty("gst.bindings.telemetry-export-otlp-endpoint", "http://telemetry-export.invalid:4318")
     }
 
 tasks.named("check") {

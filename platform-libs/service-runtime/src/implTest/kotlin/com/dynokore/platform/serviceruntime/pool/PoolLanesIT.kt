@@ -62,6 +62,9 @@ class PoolLanesIT {
             "spring.datasource.username=$RUNTIME",
             "spring.datasource.hikari.connection-timeout=$TIMEOUT_MS",
             "gst.service=$service",
+            // the security-event emitter needs a TelemetryExport (INV-T-10969, INV-Q-11058)
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://collector:4318",
             *properties,
         ).withMountedLogin(mountRoot, PASSWORD)
 

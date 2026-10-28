@@ -345,3 +345,12 @@ event, zero with none) and `gst.platform.consumer.staleness.threshold`, in secon
 `event_type` only. The incident is raised by the observability bundle's alert rules (INV-T-3035): lag above
 threshold, and a lag gauge that stops being reported. When a measurement fails the lag gauges are withdrawn until
 the next success. A breach is also logged at WARN unless the service declares its own `StalenessBreachSink`.
+
+## Security events (INV-T-10969; INV-REQ-1384, INV-Q-10945 A, INV-Q-11052 to INV-Q-11060)
+
+`SecurityEventEmitter.emit(securityClass, actor, tenantId)` posts one OTLP/HTTP JSON log record to
+`<TelemetryExport.otlpEndpoint()>/v1/logs`. Every `AuditWriter` bean is decorated: an entry whose `action` equals a key of
+`gst.security-events.mapping` raises its record through `TransactionRunner.afterCommit`, so a rolled-back entry raises none.
+A service declares its own audit actions in its own properties (`gst.security-events.mapping[<action>]=<class>`); they merge
+with the shipped entry by key. The context does not start without a `TelemetryExport` bean (`gst.bindings.telemetry-export`).
+`SECURITY-EVENTS.md` holds the configuration, the drop reasons and the producer coverage per class.
