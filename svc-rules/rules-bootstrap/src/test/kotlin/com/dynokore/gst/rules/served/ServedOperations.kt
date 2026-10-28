@@ -1,4 +1,4 @@
-package com.dynokore.gst.rules.bootstrap.served
+package com.dynokore.gst.rules.served
 
 import com.dynokore.gst.rules.adapters.web.EvaluationController
 import com.dynokore.gst.rules.adapters.web.PacksController
@@ -90,7 +90,9 @@ object ContractDocument {
     }
 
     private fun resourceText(): String =
-        checkNotNull(ContractDocument::class.java.classLoader.getResourceAsStream(RESOURCE)) { "no $RESOURCE on the classpath" }
+        checkNotNull(
+            ContractDocument::class.java.classLoader.getResourceAsStream(RESOURCE),
+        ) { "no $RESOURCE on the classpath" }
             .use { String(it.readAllBytes(), Charsets.UTF_8) }
 }
 
@@ -103,14 +105,22 @@ object Probes {
     private val file: Path = Path.of("build/probe.properties")
     private val values: Map<String, String> =
         if (Files.isRegularFile(file)) {
-            Files.readAllLines(file).filter { it.contains('=') }.associate { it.substringBefore('=') to it.substringAfter('=') }
+            Files.readAllLines(file).filter { it.contains('=') }.associate {
+                it.substringBefore('=') to
+                    it.substringAfter('=')
+            }
         } else {
             emptyMap()
         }
 
     fun documentText(): String? = values["document"]?.let { Files.readString(Path.of(it)) }
 
-    fun hidden(): Set<String> = values["hide"]?.split(',')?.filter { it.isNotBlank() }?.toSet().orEmpty()
+    fun hidden(): Set<String> =
+        values["hide"]
+            ?.split(',')
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            .orEmpty()
 
     fun properties(): List<String> = values["properties"]?.split(';')?.filter { it.isNotBlank() }.orEmpty()
 }
@@ -264,13 +274,21 @@ class ServedService(
 
     /** The (method, path pattern) of each handler method the context maps, with the class that serves it. */
     fun mappedHandlers(): List<MappedHandler> =
-        context.getBean("requestMappingHandlerMapping", RequestMappingHandlerMapping::class.java).handlerMethods.flatMap { (info, handler) ->
-            val patterns = info.pathPatternsCondition?.patternValues.orEmpty()
-            // a mapping with no method accepts every method: it can match no operation, so only the framework list passes it
-            val methods = info.methodsCondition.methods.map { it.name }.ifEmpty { listOf("ANY") }
-            check(patterns.isNotEmpty()) { "handler ${handler.shortLogMessage} has no path pattern" }
-            patterns.flatMap { p -> methods.map { m -> MappedHandler(m, p, handler) } }
-        }
+        context
+            .getBean(
+                "requestMappingHandlerMapping",
+                RequestMappingHandlerMapping::class.java,
+            ).handlerMethods
+            .flatMap { (info, handler) ->
+                val patterns = info.pathPatternsCondition?.patternValues.orEmpty()
+                // no method means every method: it can match no operation, so only the framework list passes it
+                val methods =
+                    info.methodsCondition.methods
+                        .map { it.name }
+                        .ifEmpty { listOf("ANY") }
+                check(patterns.isNotEmpty()) { "handler ${handler.shortLogMessage} has no path pattern" }
+                patterns.flatMap { p -> methods.map { m -> MappedHandler(m, p, handler) } }
+            }
 
     fun call(
         operation: ContractOperation,
@@ -307,7 +325,7 @@ data class MappedHandler(
  */
 private val FRAMEWORK_HANDLERS = setOf("org.springframework.boot.webmvc.autoconfigure.error.BasicErrorController")
 
-/** The contract operation each mapped handler serves, matched by method and path template by equality; fails when none. */
+/** The operation a mapped handler serves, by method and path template equality; null when none. */
 fun operationOf(
     handler: MappedHandler,
     document: List<ContractOperation>,
@@ -317,7 +335,7 @@ fun operationOf(
     return found.singleOrNull()
 }
 
-/** The mapped handlers that serve contract operations, each with its operation; a framework handler is skipped only when listed. */
+/** The mapped handlers with their operations; only a listed framework handler may lack one. */
 fun servedOperations(
     service: ServedService,
     document: List<ContractOperation>,
@@ -326,6 +344,7 @@ fun servedOperations(
         if (mapped.handler.beanType.name in FRAMEWORK_HANDLERS) return@mapNotNull null
         mapped to
             checkNotNull(operationOf(mapped, document)) {
-                "the mapped handler ${mapped.key} (${mapped.handler.beanType.name}) has no operation in the contract document"
+                "the mapped handler ${mapped.key} (${mapped.handler.beanType.name}) " +
+                    "has no operation in the contract document"
             }
     }

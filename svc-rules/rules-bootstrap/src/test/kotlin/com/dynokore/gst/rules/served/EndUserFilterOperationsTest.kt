@@ -1,4 +1,4 @@
-package com.dynokore.gst.rules.bootstrap.served
+package com.dynokore.gst.rules.served
 
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -29,46 +29,69 @@ class EndUserFilterOperationsTest {
     @BeforeEach
     fun reset() = Doubles.reset()
 
+    private fun leftAlone(
+        op: ContractOperation,
+        caller: String,
+    ) {
+        Doubles.reset()
+        val bare = service.call(op, workloadToken(caller))
+        Doubles.resolverCalls.get() shouldBe 0
+        withClue(
+            "${op.key} as $caller answered ${bare.statusCode()} ${bare.body()}",
+        ) { Doubles.reached.shouldHaveSize(1) }
+        with(Doubles.reached.single()) {
+            tenant shouldBe null
+            actor shouldBe null
+        }
+        (bare.statusCode() != 401) shouldBe true
+    }
+
+    private fun answers401Without(
+        op: ContractOperation,
+        caller: String,
+        authorization: String?,
+    ) {
+        Doubles.reset()
+        val answer = service.call(op, workloadToken(caller), authorization)
+        withClue("${op.key} with ${authorization ?: "no token"}") {
+            answer.statusCode() shouldBe 401
+            answer.body() shouldContain "SRT-003"
+            Doubles.reached.shouldBeEmpty()
+        }
+    }
+
+    private fun bindsUserA(
+        op: ContractOperation,
+        caller: String,
+    ) {
+        Doubles.reset()
+        service.call(op, workloadToken(caller), USER_A_TOKEN)
+        withClue("${op.key} with the token of user-a") {
+            with(Doubles.reached.single()) {
+                tenant shouldBe TENANT_A.toString()
+                actor shouldBe "user-a"
+            }
+        }
+    }
+
     @Test
     fun `INV-AC-8260 the marker decides whether the filter runs on every mapped operation`() {
         val served = servedOperations(service, document)
         served.isNotEmpty() shouldBe true
         println("INV-AC-8260 mapped operations (class (a) = filter leaves it alone, (b) = end-user token required):")
         served.forEach { (mapped, op) ->
-            println("  ${if (op.untouched) "(a)" else "(b)"} ${mapped.key} ${mapped.handler.beanType.simpleName} ${op.operationId}")
+            val cls = if (op.untouched) "(a)" else "(b)"
+            println("  $cls ${mapped.key} ${mapped.handler.beanType.simpleName} ${op.operationId}")
         }
-        served.forEach { (mapped, op) ->
+        served.forEach { (_, op) ->
             val caller = allowedCaller(op, callers)
-            val workload = workloadToken(caller)
-            Doubles.reset()
-            val bare = service.call(op, workload)
             if (op.untouched) {
-                Doubles.resolverCalls.get() shouldBe 0
-                withClue("${op.key} as $caller answered ${bare.statusCode()} ${bare.body()}") { Doubles.reached.shouldHaveSize(1) }
-                with(Doubles.reached.single()) {
-                    tenant shouldBe null
-                    actor shouldBe null
-                }
-                (bare.statusCode() != 401) shouldBe true
+                leftAlone(op, caller)
             } else {
-                bare.statusCode() shouldBe 401
-                bare.body() shouldContain "SRT-003"
-                Doubles.reached.shouldBeEmpty()
-
-                Doubles.reset()
-                val refused = service.call(op, workload, REFUSED_TOKEN)
-                refused.statusCode() shouldBe 401
-                refused.body() shouldContain "SRT-003"
-                Doubles.reached.shouldBeEmpty()
-
-                Doubles.reset()
-                service.call(op, workload, USER_A_TOKEN)
-                with(Doubles.reached.single()) {
-                    tenant shouldBe TENANT_A.toString()
-                    actor shouldBe "user-a"
-                }
+                answers401Without(op, caller, null)
+                answers401Without(op, caller, REFUSED_TOKEN)
+                bindsUserA(op, caller)
             }
-            (mapped.key == op.key) shouldBe true
         }
     }
 
