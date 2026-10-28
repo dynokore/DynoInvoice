@@ -11,8 +11,8 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.Filter
 import org.assertj.core.api.Assertions.assertThat
-import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
+import org.mockito.ArgumentMatchers
 import org.mockito.stubbing.Answer
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.test.context.FilteredClassLoader
@@ -188,21 +188,12 @@ class ServedDoubles {
             ): Any {
                 // the verifier and the resolver of the composition root are replaced, not joined by a second bean
                 return when {
-                    bean is WorkloadTokenVerifier -> {
-                        TEST_VERIFIER
-                    }
-
-                    bean is EndUserPrincipalResolver -> {
-                        TEST_RESOLVER
-                    }
-
+                    bean is WorkloadTokenVerifier -> TEST_VERIFIER
+                    bean is EndUserPrincipalResolver -> TEST_RESOLVER
                     AnnotatedElementUtils.hasAnnotation(bean.javaClass, RestController::class.java) -> {
                         Mockito.spy(bean)
                     }
-
-                    else -> {
-                        bean
-                    }
+                    else -> bean
                 }
             }
         }
@@ -222,14 +213,9 @@ class ServedContext(
 
     /** The controller beans of the context behind their proxies, each a Mockito spy of the real bean. */
     val spies: List<Any> =
-        context
-            .getBeansWithAnnotation(RestController::class.java)
-            .values
-            .map {
-                AopTestUtils.getUltimateTargetObject<Any>(it)
-            }.onEach {
-                check(Mockito.mockingDetails(it).isSpy) { "${it.javaClass.name} is not a Mockito spy" }
-            }
+        context.getBeansWithAnnotation(RestController::class.java).values.map { AopTestUtils.getUltimateTargetObject<Any>(it) }.onEach {
+            check(Mockito.mockingDetails(it).isSpy) { "${it.javaClass.name} is not a Mockito spy" }
+        }
 
     /** The calls of mapped handler methods that the spies counted during the last [call]. */
     var calls: Int = 0
@@ -293,14 +279,11 @@ class ServedContext(
         // the matchers are created after `when`: Mockito refuses a matcher that is pending when `when` is called
         val stubbed = Mockito.doAnswer(answer).`when`(spy)
         // any() matches null too, which a type matcher of a reference type does not; a primitive needs its own matcher
-        val matchers =
-            handler.method.parameterTypes.map {
-                if (it.isPrimitive) ArgumentMatchers.any(it) else ArgumentMatchers.any()
-            }
+        val matchers = handler.method.parameterTypes.map { if (it.isPrimitive) ArgumentMatchers.any(it) else ArgumentMatchers.any() }
         try {
             handler.method.invoke(stubbed, *matchers.toTypedArray())
         } catch (e: InvocationTargetException) {
-            throw IllegalStateException("cannot stub ${operation.key} (${handler.method})", e)
+            throw IllegalStateException("cannot stub ${operation.key} (${handler.method})", e.targetException)
         }
     }
 
