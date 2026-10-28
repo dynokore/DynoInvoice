@@ -22,7 +22,8 @@ fun namedCallers(document: List<ContractOperation>): Set<String> =
             when {
                 element == "any" -> {
                     error(
-                        "${op.key} (${op.operationId}): an `any` edge needs the service list of the model; this service has none",
+                        "${op.key} (${op.operationId}): an `any` edge needs the service list of the model; " +
+                            "this service has none",
                     )
                 }
 
