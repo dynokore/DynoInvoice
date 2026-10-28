@@ -49,4 +49,3 @@ operation	decideOverrideRelease	INV-T-4936	open
 operation	getMappingAcknowledgement	INV-T-4936	open
 operation	recordInstallationApproverFact	INV-T-4936	open
 operation	getInstallationApproverFact	INV-T-4936	open
-channel	accessAuthorityHeadObserved	INV-T-9054	open
