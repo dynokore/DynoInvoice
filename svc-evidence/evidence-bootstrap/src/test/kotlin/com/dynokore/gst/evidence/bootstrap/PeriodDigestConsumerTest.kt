@@ -79,12 +79,6 @@ class PeriodDigestConsumerTest {
         val retention: MaxRetention? = null,
     )
 
-    /** The failure injections of a test: the absent-key failure of the object store and a digest store wrapper. */
-    private class Faults(
-        val absent: () -> Throwable = { S3NoSuchKey.builder().message("no such key").build() },
-        val wrapStore: (PeriodDigestStore) -> PeriodDigestStore = { it },
-    )
-
     private class Objects(
         private val absent: () -> Throwable = { S3NoSuchKey.builder().message("no such key").build() },
     ) : ObjectStore {
@@ -121,13 +115,14 @@ class PeriodDigestConsumerTest {
     private class Boundary(
         context: ApplicationContext,
         seams: Seams? = null,
-        faults: Faults = Faults(),
+        absent: () -> Throwable = { S3NoSuchKey.builder().message("no such key").build() },
+        wrapStore: (PeriodDigestStore) -> PeriodDigestStore = { it },
     ) {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val log = Log()
-        val objects = (seams?.objectStore as? Objects) ?: Objects(faults.absent)
+        val objects = (seams?.objectStore as? Objects) ?: Objects(absent)
         val consumerName = LocatorConsumerConfiguration.CONSUMER + "-" + UUID.randomUUID()
         val consumer =
             JdbcInboxConsumer(
@@ -140,7 +135,7 @@ class PeriodDigestConsumerTest {
                     GstReturnRecordedHandler(
                         PeriodDigestRecorder(
                             JooqChainTails(dsl),
-                            faults.wrapStore(JooqPeriodDigestStore(dsl)),
+                            wrapStore(JooqPeriodDigestStore(dsl)),
                             ObjectStoreDigestObjects(objects),
                             MaxRetention { RetentionPeriod(10) },
                         ),
@@ -162,14 +157,15 @@ class PeriodDigestConsumerTest {
         dir: Path,
         version: EvidenceDb.Version,
         seams: Seams? = null,
-        faults: Faults = Faults(),
+        absent: () -> Throwable = { S3NoSuchKey.builder().message("no such key").build() },
+        wrapStore: (PeriodDigestStore) -> PeriodDigestStore = { it },
         block: Boundary.(TenantId) -> Unit,
     ) {
         var runner = EvidenceContext.online(dir).withPropertyValues("spring.datasource.url=${version.jdbcUrl}")
         seams?.objectStore?.let { runner = runner.withBean(ObjectStore::class.java, { it }) }
         seams?.retention?.let { runner = runner.withBean(MaxRetention::class.java, { it }) }
         runner.run { context ->
-            Boundary(context, seams, faults).block(TenantId(UUID.randomUUID()))
+            Boundary(context, seams, absent, wrapStore).block(TenantId(UUID.randomUUID()))
         }
     }
 
@@ -399,7 +395,7 @@ class PeriodDigestConsumerTest {
     fun `a get that fails with another package's NoSuchKeyException propagates and stores no digest`(
         version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir, version, faults = Faults(absent = { NoSuchKeyException() })) { tenant ->
+    ) = run(dir, version, absent = { NoSuchKeyException() }) { tenant ->
         chains(tenant)
         pollFails(tenant)
         digests(tenant).size shouldBe 0
@@ -413,7 +409,7 @@ class PeriodDigestConsumerTest {
     fun `a get that fails with an IllegalStateException propagates and stores no digest`(
         version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir, version, faults = Faults(absent = { IllegalStateException("store down") })) { tenant ->
+    ) = run(dir, version, absent = { IllegalStateException("store down") }) { tenant ->
         chains(tenant)
         pollFails(tenant)
         digests(tenant).size shouldBe 0
@@ -429,10 +425,7 @@ class PeriodDigestConsumerTest {
     ) = run(
         dir,
         version,
-        faults =
-            Faults(
-                absent = { IllegalStateException("wrapped", S3NoSuchKey.builder().message("no such key").build()) },
-            ),
+        absent = { IllegalStateException("wrapped", S3NoSuchKey.builder().message("no such key").build()) },
     ) { tenant ->
         chains(tenant)
         log.add(returnRecorded(tenant, "ret-1"))
@@ -544,7 +537,7 @@ class PeriodDigestConsumerTest {
     fun `when the insert of the third chain row fails neither table holds a row of the event`(
         version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir, version, faults = Faults(wrapStore = ::FailingOnThirdChainRow)) { tenant ->
+    ) = run(dir, version, wrapStore = ::FailingOnThirdChainRow) { tenant ->
         chains(tenant)
         pollFails(tenant)
         digests(tenant).size shouldBe 0
