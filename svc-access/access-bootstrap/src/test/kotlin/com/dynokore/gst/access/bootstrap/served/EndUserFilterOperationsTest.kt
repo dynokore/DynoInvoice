@@ -125,9 +125,11 @@ class EndUserFilterOperationsTest {
         served.reset()
         val allowed = served.call(op, caller, USER_A_TOKEN, stubHandler = true)
         if (!served.isBuilt(op)) assertThat(allowed.status).describedAs("${op.key} a stub").isEqualTo(501)
-        assertThat(served.calls).describedAs("${op.key} spy calls after the token of user-a")
+        assertThat(served.calls)
+            .describedAs("${op.key} spy calls after the token of user-a")
             .isEqualTo(served.reachedCalls(op))
-        assertThat(Doubles.reached).describedAs("${op.key} double after the token of user-a")
+        assertThat(Doubles.reached)
+            .describedAs("${op.key} double after the token of user-a")
             .hasSize(served.reachedCalls(op))
         Doubles.reached.forEach {
             assertThat(it.tenant).describedAs("${op.key} tenant").isEqualTo(TENANT_A.toString())
