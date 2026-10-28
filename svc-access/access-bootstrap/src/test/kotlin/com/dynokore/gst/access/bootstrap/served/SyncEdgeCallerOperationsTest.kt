@@ -152,32 +152,52 @@ fun callerLiteralOffenders(
     names: Set<String>,
 ): List<String> = sources.filter { (_, text) -> stringLiterals(text).any { it in names } }.keys.sorted()
 
-private val TOKEN =
-    listOf(
-        "[/][*]",
-        "[/][/][^\\n]*",
-        "\"\"\"[\\s\\S]*?\"\"\"",
-        "\"(?:\\\\.|[^\"\\\\\\n])*\"",
-        "'(?:\\\\.|[^'\\\\\\n])+'",
-    ).joinToString("|").toRegex()
-
-/** The index after the block comment that opens just before [from]; block comments nest in Kotlin. */
-private fun afterBlockComment(
-    text: String,
-    from: Int,
-): Int {
-    var depth = 1
-    var i = from
-    while (depth > 0 && i < text.length) {
+/** The contents of the string literals of Kotlin [text], skipping line comments and nested block comments. */
+fun stringLiterals(text: String): List<String> {
+    val found = mutableListOf<String>()
+    var i = 0
+    var depth = 0
+    while (i < text.length) {
+        val rest = text.substring(i)
         when {
-            text.startsWith("/*", i) -> {
+            depth > 0 && rest.startsWith("/*") -> {
                 depth++
                 i += 2
             }
 
-            text.startsWith("*/", i) -> {
+            depth > 0 && rest.startsWith("*/") -> {
                 depth--
                 i += 2
+            }
+
+            depth > 0 -> {
+                i++
+            }
+
+            rest.startsWith("/*") -> {
+                depth = 1
+                i += 2
+            }
+
+            rest.startsWith("//") -> {
+                i = text.indexOf('\n', i).let { if (it < 0) text.length else it }
+            }
+
+            rest.startsWith("\"\"\"") -> {
+                val end = text.indexOf("\"\"\"", i + 3).let { if (it < 0) text.length else it }
+                found.add(text.substring(i + 3, end))
+                i = end + 3
+            }
+
+            rest.startsWith("\"") -> {
+                var j = i + 1
+                while (j < text.length && text[j] != '"') j += if (text[j] == '\\') 2 else 1
+                found.add(text.substring(i + 1, minOf(j, text.length)))
+                i = j + 1
+            }
+
+            text[i] == '\'' -> {
+                i += if (rest.startsWith("'\\")) 4 else 3
             }
 
             else -> {
@@ -185,22 +205,5 @@ private fun afterBlockComment(
             }
         }
     }
-    return i
-}
-
-/** The contents of the string literals of Kotlin [text], skipping line comments and nested block comments. */
-fun stringLiterals(text: String): List<String> {
-    val found = mutableListOf<String>()
-    var i = 0
-    while (true) {
-        val token = TOKEN.find(text, i) ?: return found
-        val value = token.value
-        i = token.range.last + 1
-        when {
-            value == "/*" -> i = afterBlockComment(text, i)
-            value.startsWith("//") || value.startsWith("'") -> Unit
-            value.startsWith("\"\"\"") -> found.add(value.removeSurrounding("\"\"\""))
-            else -> found.add(value.removeSurrounding("\""))
-        }
-    }
+    return found
 }
