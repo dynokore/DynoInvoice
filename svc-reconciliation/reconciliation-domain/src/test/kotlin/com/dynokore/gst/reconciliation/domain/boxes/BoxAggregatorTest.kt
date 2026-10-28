@@ -127,6 +127,20 @@ class BoxAggregatorTest {
     }
 
     @Test
+    fun `INV-AC-677 a three-decimal amount on an unmapped line fails`() {
+        shouldThrow<IllegalArgumentException> {
+            BoxAggregator.aggregate(entries, listOf(line("A", "XX", Direction.SALE, "1.005" to "0.00")))
+        }
+    }
+
+    @Test
+    fun `INV-AC-677 a three-decimal amount that no Box feeds fails`() {
+        shouldThrow<IllegalArgumentException> {
+            BoxAggregator.aggregate(entries, listOf(line("A", "ZR", Direction.SALE, "30.00" to "0.005")))
+        }
+    }
+
+    @Test
     fun `INV-AC-677 the result does not depend on input order`() {
         val extra = listOf(line("D", "XX", Direction.SALE, "1.00" to "0.10", at = 9 to 1))
         val forward = BoxAggregator.aggregate(entries, standardLines + extra)

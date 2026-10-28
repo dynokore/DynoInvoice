@@ -36,6 +36,10 @@ object BoxAggregator {
                 "entry ${entry.categoryCode}/${entry.direction} lists a box twice"
             }
         }
+        lines.forEach { line ->
+            requireScale(line.line.taxableAmountSgd)
+            requireScale(line.line.taxAmountSgd)
+        }
         val sums = mutableMapOf<String, BigDecimal>()
         val unmapped = mutableListOf<UnmappedLine>()
         for (line in lines) {
@@ -50,9 +54,6 @@ object BoxAggregator {
                         Basis.TAXABLE_AMOUNT -> line.line.taxableAmountSgd
                         Basis.TAX_AMOUNT -> line.line.taxAmountSgd
                     }
-                require(amount.scale() <= SCALE || amount.stripTrailingZeros().scale() <= SCALE) {
-                    "amount $amount has more than $SCALE decimal places"
-                }
                 sums.merge(feed.box, amount.setScale(SCALE)) { a, b -> a + b }
             }
         }
@@ -62,4 +63,9 @@ object BoxAggregator {
                 unmapped.sortedWith(compareBy({ it.docUuid }, { it.version }, { it.lineNumber })),
         )
     }
+
+    private fun requireScale(amount: BigDecimal) =
+        require(amount.scale() <= SCALE || amount.stripTrailingZeros().scale() <= SCALE) {
+            "amount $amount has more than $SCALE decimal places"
+        }
 }
