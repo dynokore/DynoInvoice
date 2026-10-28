@@ -1,7 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
-import com.dynokore.gst.tenancy.adapters.election.UnboundApprovers
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
@@ -133,11 +132,6 @@ class ReplicaActionAuthorityTest {
         assertThat(
             ReplicaActionAuthority(lagging, tenants, late).holds("identity:USR-004", "E1", ElectionPermissions.CONFIRM),
         ).isFalse()
-    }
-
-    @Test
-    fun `the production approver binding answers false for everybody`() {
-        assertThat(UnboundApprovers().holds("identity:USR-009", "E1", "tax.approver")).isFalse()
     }
 
     private class MutableClock(

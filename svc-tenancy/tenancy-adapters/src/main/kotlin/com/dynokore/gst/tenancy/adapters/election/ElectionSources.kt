@@ -2,7 +2,6 @@ package com.dynokore.gst.tenancy.adapters.election
 
 import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
-import com.dynokore.gst.tenancy.application.election.ApproverSource
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.domain.FactAnswer
@@ -76,16 +75,4 @@ class ReplicaActionAuthority(
     private companion object {
         val ANSWERED = setOf(DecisionSource.LOCAL, DecisionSource.FALLBACK)
     }
-}
-
-/**
- * The production [ApproverSource]: nobody holds the approving role until the owner question INV-Q-10027 is answered,
- * so a change of VP-22, VP-23 or VP-24 is refused 403 SRT-004 there and a first election is not affected.
- */
-class UnboundApprovers : ApproverSource {
-    override fun holds(
-        person: String,
-        entityRef: String,
-        role: String,
-    ) = false
 }

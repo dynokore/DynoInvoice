@@ -261,7 +261,7 @@ class ElectionPolicyTest {
             e.mode(entity, SetIssuanceModeRequest.Mode.valueOf(option), on)
         } else {
             e.facts.set(entity.entityRef, "claimsInputTaxOnPostingBasis", FactAnswer.TRUE)
-            e.elect(entity, option, on, if (e.history(entity, kindOf(id)).isEmpty()) null else APPROVER)
+            e.elect(entity, option, on)
         }
     }
 
@@ -282,8 +282,14 @@ class ElectionPolicyTest {
         val owned = id in setOf("VP-25", "VP-22", "VP-23")
         val refusal =
             if (owned && definition.status == VpStatus.AVAILABLE) {
-                elect(row.e, row.entity, id, option.key)
-                assertThat(row.e.history(row.entity, kindOf(id)).map { it.value }).contains(option.key)
+                if (id != "VP-25" && row.e.history(row.entity, kindOf(id)).isNotEmpty()) {
+                    // the first option is stored; every other option is a change, which waits for the two-step flow
+                    assertThat(row.e.reason { elect(row.e, row.entity, id, option.key) }).contains("two-step flow")
+                    assertThat(row.e.history(row.entity, kindOf(id)).map { it.value }).doesNotContain(option.key)
+                } else {
+                    elect(row.e, row.entity, id, option.key)
+                    assertThat(row.e.history(row.entity, kindOf(id)).map { it.value }).contains(option.key)
+                }
                 null
             } else {
                 refusalOf { writeShared(row.env, definition, option.key, scope) }

@@ -37,18 +37,6 @@ fun interface ActionAuthority {
 }
 
 /**
- * Whether [person] holds the approving [role] for the entity (rulings INV-Q-9702, INV-Q-9704). The production binding
- * answers false until the owner question INV-Q-10027 is answered; an exception is treated as false (fail closed).
- */
-fun interface ApproverSource {
-    fun holds(
-        person: String,
-        entityRef: String,
-        role: String,
-    ): Boolean
-}
-
-/**
  * The entity-level facts of the onboarding questionnaire the elections depend on (owner answer INV-Q-9696 B). The
  * default binding answers NOT_RECORDED for every fact; INV-T-4933 replaces it with the stored answers. Each method
  * is asked for an entity of the caller's tenant only.

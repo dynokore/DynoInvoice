@@ -40,7 +40,7 @@ sealed interface ElectionOutcome {
         val reason: String,
     ) : ElectionOutcome
 
-    /** 403 SRT-004: a caller, confirmer or approver who lacks the role, is the caller or cannot be proven. */
+    /** 403 SRT-004: a caller or confirmer who lacks the role, is the caller or cannot be proven. */
     data class Forbidden(
         val reason: String,
     ) : ElectionOutcome
@@ -62,7 +62,6 @@ class ElectionCommands(
     private val routes: AccessPointRouteStore,
     private val scopePacks: ScopePackStore,
     private val authority: ActionAuthority,
-    private val approvers: ApproverSource,
     private val caller: CallerSource,
 ) {
     /** Elects the Type 1A issuance mode from [effectiveFrom]; the second confirmation is required every time. */
@@ -84,10 +83,10 @@ class ElectionCommands(
                 authority.holds(secondConfirmationBy, entity.ref, ElectionPermissions.CONFIRM)
             }?.let { return@inTransaction it }
             val before = elections.history(entity.ref, ElectionKind.ISSUANCE_MODE)
-            repeated(before, mode.name, effectiveFrom)?.let { return@inTransaction it }
             if (mode == IssuanceMode.OBSERVE) {
                 observeRefusal(entity.ref)?.let { return@inTransaction it }
             }
+            repeated(before, mode.name, effectiveFrom)?.let { return@inTransaction it }
             val reason = "VP-25 election by $actor, second confirmation by $secondConfirmationBy"
             store(
                 entity.ref,
@@ -110,7 +109,6 @@ class ElectionCommands(
         entityRef: String,
         election: String,
         effectiveFrom: LocalDate,
-        approvedBy: String?,
     ): ElectionOutcome =
         tx.inTransaction {
             val kind =
@@ -126,7 +124,7 @@ class ElectionCommands(
             }
             val before = elections.history(entity.ref, kind)
             repeated(before, election, effectiveFrom)?.let { return@inTransaction it }
-            approval(before, approvedBy, actor, entity.ref)?.let { return@inTransaction it }
+            change(before, election, null)?.let { return@inTransaction it }
             store(
                 entity.ref,
                 entity.groupRef,
@@ -135,7 +133,7 @@ class ElectionCommands(
                 null,
                 effectiveFrom,
                 actor,
-                electionReason(kind, actor, approvedBy),
+                "${kind.variationPoint} election by $actor",
             )?.let { return@inTransaction it }
             ElectionOutcome.Done(elections.history(entity.ref, kind).single { it.effectiveFrom == effectiveFrom })
         }
@@ -146,7 +144,6 @@ class ElectionCommands(
         source: String,
         basis: String,
         effectiveFrom: LocalDate,
-        approvedBy: String?,
     ): ElectionOutcome =
         tx.inTransaction {
             val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
@@ -157,7 +154,7 @@ class ElectionCommands(
             before
                 .firstOrNull { it.effectiveFrom == effectiveFrom && it.value == source && it.basis == basis }
                 ?.let { return@inTransaction ElectionOutcome.Done(it, repeated = true) }
-            approval(before, approvedBy, actor, entity.ref)?.let { return@inTransaction it }
+            change(before, source, basis)?.let { return@inTransaction it }
             store(
                 entity.ref,
                 entity.groupRef,
@@ -166,7 +163,7 @@ class ElectionCommands(
                 basis,
                 effectiveFrom,
                 actor,
-                electionReason(ElectionKind.EXCHANGE_RATE_SOURCE, actor, approvedBy),
+                "${ElectionKind.EXCHANGE_RATE_SOURCE.variationPoint} election by $actor",
             )?.let { return@inTransaction it }
             ElectionOutcome.Done(
                 elections
@@ -174,13 +171,6 @@ class ElectionCommands(
                     .single { it.effectiveFrom == effectiveFrom },
             )
         }
-
-    private fun electionReason(
-        kind: ElectionKind,
-        actor: String,
-        approvedBy: String?,
-    ) = "${kind.variationPoint} election by $actor" +
-        approvedBy?.takeIf { it.isNotEmpty() }?.let { ", approved by $it" }.orEmpty()
 
     /** The caller must hold `entity-config.manage` (entity.admin only) on the entity (ruling INV-Q-10025). */
     private fun gate(
@@ -227,33 +217,20 @@ class ElectionCommands(
         }
 
     /**
-     * A change of an election already recorded needs a tax.approver other than the caller (INV-Q-9702, INV-Q-9704).
-     * An `approvedBy` that is absent is refused 422; one that is present, empty or blank included, goes to the approver
-     * check (INV-Q-10029).
+     * A change of an election already recorded (a stored version exists and the value differs, on the stored date or
+     * on another) is not stored here: it needs the approval of the two-step flow of INV-T-10125 (rulings INV-Q-10029,
+     * INV-Q-10105, INV-Q-11870). Nothing is stored and no audit entry is written.
      */
-    private fun approval(
+    private fun change(
         before: List<ElectionRecord>,
-        approvedBy: String?,
-        actor: String,
-        entityRef: String,
-    ): ElectionOutcome? =
-        when {
-            before.isEmpty() -> {
-                null
-            }
-
-            approvedBy == null -> {
-                ElectionOutcome.Refused(
-                    "a change of an election needs approval: name approvedBy, a person other than the caller who " +
-                        "holds ${ElectionRoles.TAX_APPROVER}",
-                )
-            }
-
-            else -> {
-                person(approvedBy, actor, "approver", entityRef, ElectionRoles.TAX_APPROVER) {
-                    approvers.holds(approvedBy, entityRef, ElectionRoles.TAX_APPROVER)
-                }
-            }
+        value: String,
+        basis: String?,
+    ): ElectionOutcome.Refused? =
+        before.lastOrNull()?.takeIf { it.value != value || it.basis != basis }?.let {
+            ElectionOutcome.Refused(
+                "a change of an election already recorded needs the approval of the two-step flow of INV-T-10125; " +
+                    "nothing is stored",
+            )
         }
 
     private fun repeated(

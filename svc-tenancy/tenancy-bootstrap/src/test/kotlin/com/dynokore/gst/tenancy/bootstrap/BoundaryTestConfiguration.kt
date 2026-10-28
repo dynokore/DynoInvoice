@@ -1,7 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
-import com.dynokore.gst.tenancy.application.election.ApproverSource
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
@@ -69,13 +68,6 @@ class TestPeople :
         }
     }
 
-    /** The approver port, standing in for the production binding that answers false until INV-Q-10027 is answered. */
-    fun approvers(): ApproverSource =
-        ApproverSource { person, entityRef, role ->
-            role in
-                granted[person to entityRef].orEmpty()
-        }
-
     private companion object {
         val CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TENANT_ADMIN, ElectionRoles.TAX_APPROVER)
     }
@@ -114,10 +106,6 @@ class BoundaryTestConfiguration {
     @Bean
     @Primary
     fun testPeople(): TestPeople = TestPeople()
-
-    @Bean
-    @Primary
-    fun testApprovers(people: TestPeople): ApproverSource = people.approvers()
 
     @Bean
     @Primary

@@ -210,7 +210,7 @@ open class EntitiesController(
             )
         val done = elected(outcome)
         return ResponseEntity
-            .status(HttpStatus.CREATED)
+            .status(created(outcome))
             .body(IssuanceModeResponse(entityRef, IssuanceModeResponse.Mode.valueOf(done.value), done.effectiveFrom))
     }
 
@@ -219,19 +219,12 @@ open class EntitiesController(
         idempotencyKey: UUID,
         electionRequest: ElectionRequest,
     ): ResponseEntity<ElectionResponse> {
-        val done =
-            elected(
-                electionCommands.recordElection(
-                    entityRef,
-                    electionRequest.election,
-                    electionRequest.effectiveFrom,
-                    electionRequest.approvedBy,
-                ),
-            )
+        val outcome =
+            electionCommands.recordElection(entityRef, electionRequest.election, electionRequest.effectiveFrom)
+        val done = elected(outcome)
         return ResponseEntity
-            .status(
-                HttpStatus.CREATED,
-            ).body(ElectionResponse(entityRef, done.value, done.effectiveFrom))
+            .status(created(outcome))
+            .body(ElectionResponse(entityRef, done.value, done.effectiveFrom))
     }
 
     override fun electRateSource(
@@ -239,18 +232,16 @@ open class EntitiesController(
         idempotencyKey: UUID,
         rateSourceElectionRequest: RateSourceElectionRequest,
     ): ResponseEntity<RateSourceElectionResponse> {
-        val done =
-            elected(
-                electionCommands.electRateSource(
-                    entityRef,
-                    rateSourceElectionRequest.source,
-                    rateSourceElectionRequest.basis.value,
-                    rateSourceElectionRequest.effectiveFrom,
-                    rateSourceElectionRequest.approvedBy,
-                ),
+        val outcome =
+            electionCommands.electRateSource(
+                entityRef,
+                rateSourceElectionRequest.source,
+                rateSourceElectionRequest.basis.value,
+                rateSourceElectionRequest.effectiveFrom,
             )
+        val done = elected(outcome)
         return ResponseEntity
-            .status(HttpStatus.CREATED)
+            .status(created(outcome))
             .body(RateSourceElectionResponse(entityRef, done.value, done.effectiveFrom))
     }
 
@@ -261,6 +252,10 @@ open class EntitiesController(
         val report = electionQueries.status(entityRef, on ?: LocalDate.now(SINGAPORE)) ?: notFound()
         return ResponseEntity.ok(electionStatusResponse(report))
     }
+
+    /** 201 for an election that was written, 200 for a replay that wrote nothing (RFC 9110 sec. 15.3.2, INV-Q-11868). */
+    private fun created(outcome: ElectionOutcome): HttpStatus =
+        if (outcome is ElectionOutcome.Done && outcome.repeated) HttpStatus.OK else HttpStatus.CREATED
 
     private fun elected(outcome: ElectionOutcome): ElectionRecord =
         when (outcome) {

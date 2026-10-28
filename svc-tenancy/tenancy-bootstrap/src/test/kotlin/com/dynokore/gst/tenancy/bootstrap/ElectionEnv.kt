@@ -77,19 +77,17 @@ internal class ElectionEnv(
         entity: EntityResponse,
         election: String,
         from: LocalDate = TODAY,
-        approvedBy: String? = null,
-    ) = env.api.recordElection(entity.entityRef, UUID.randomUUID(), ElectionRequest(election, from, approvedBy))
+    ) = env.api.recordElection(entity.entityRef, UUID.randomUUID(), ElectionRequest(election, from))
 
     fun rate(
         entity: EntityResponse,
         source: String,
         basis: RateSourceElectionRequest.Basis,
         from: LocalDate = TODAY,
-        approvedBy: String? = null,
     ) = env.api.electRateSource(
         entity.entityRef,
         UUID.randomUUID(),
-        RateSourceElectionRequest(source, basis, from, approvedBy),
+        RateSourceElectionRequest(source, basis, from),
     )
 
     fun history(
