@@ -3,10 +3,7 @@
 -- The period digest of a filed return and its three chain rows. Both stores are append-only and tenant-isolated the
 -- way the other evidence tables are (the trailer of EvidenceLedgerSchema.trailerDdl: row-level security, REVOKE
 -- UPDATE/DELETE/TRUNCATE, the append-only trigger, then the grant). A chain row names its digest by the same four
--- key columns. There is no foreign key from period_digest_chain to period_digest (INV-Q-12053): both tables belong to
--- the separable evidence store, the schema as built relates no tables by a foreign key, the generic separable-store
--- test inserts rows into each table independently, and the referential rule is tested in the consumer
--- (PeriodDigestConsumerTest).
+-- key columns; no foreign key, as the other stores of the schema have none (each row is written once, with its digest).
 
 create table evidence.period_digest (
     tenant_id uuid not null,

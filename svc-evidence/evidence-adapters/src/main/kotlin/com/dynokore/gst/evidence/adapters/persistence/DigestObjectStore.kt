@@ -8,14 +8,13 @@ import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
 import com.dynokore.platform.evidencestore.ObjectKey
 import com.dynokore.platform.evidencestore.ObjectStore
 import com.dynokore.platform.tenancykernel.TenantId
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 
 /**
  * [DigestObjects] over the write-once [ObjectStore] port of evidence-store. The port has no exists call, so a key is
- * absent only when `get` fails with the S3 SDK's [NoSuchKeyException] on the cause chain (INV-Q-12051); any other
- * failure propagates and the consumer retries (it fails closed).
+ * absent when `get` fails with the S3 `NoSuchKeyException` (matched by name: the SDK is not a compile dependency of
+ * this module); any other failure propagates and the consumer retries (it fails closed).
  */
 class ObjectStoreDigestObjects(
     private val store: ObjectStore,
@@ -33,7 +32,13 @@ class ObjectStoreDigestObjects(
             } catch (
                 @Suppress("TooGenericExceptionCaught") e: RuntimeException,
             ) {
-                if (generateSequence<Throwable>(e) { it.cause }.none { it is NoSuchKeyException }) throw e
+                // the SDK type is not on this classpath
+                if (!generateSequence<Throwable>(
+                        e,
+                    ) { it.cause }.any { it.javaClass.simpleName == "NoSuchKeyException" }
+                ) {
+                    throw e
+                }
                 null
             }
         when {

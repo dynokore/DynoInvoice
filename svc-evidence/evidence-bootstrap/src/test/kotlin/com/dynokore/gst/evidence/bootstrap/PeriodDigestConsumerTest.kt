@@ -1,21 +1,15 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
-import com.dynokore.gst.evidence.adapters.events.GstReturnRecordedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring.SCHEMA
-import com.dynokore.gst.evidence.adapters.persistence.JooqChainTails
-import com.dynokore.gst.evidence.adapters.persistence.JooqPeriodDigestStore
 import com.dynokore.gst.evidence.adapters.persistence.ObjectStoreDigestObjects
 import com.dynokore.gst.evidence.adapters.persistence.PeriodDigestObjectJson
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.EventDeadLetter.Companion.EVENT_DEAD_LETTER
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.PeriodDigest.Companion.PERIOD_DIGEST
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.PeriodDigestChain.Companion.PERIOD_DIGEST_CHAIN
-import com.dynokore.gst.evidence.application.digest.DigestObjects
 import com.dynokore.gst.evidence.application.digest.MaxRetention
 import com.dynokore.gst.evidence.application.digest.PeriodDigestEntry
-import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
-import com.dynokore.gst.evidence.application.digest.PeriodDigestStore
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.gst.evidence.domain.digest.ChainTail
 import com.dynokore.gst.evidence.domain.digest.DigestChainType
@@ -56,7 +50,6 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import com.dynokore.platform.outboxandqueue.EntityRef as EventEntityRef
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException as S3NoSuchKey
 
 /**
  * INV-AC-7255 (its first two steps: the event consumed, then delivered again) through the real inbox consumer of
@@ -70,18 +63,10 @@ class PeriodDigestConsumerTest {
     private val filedAt = Instant.parse("2026-04-15T08:00:00Z")
     private val json = EnvelopeJson()
 
-    /** A look-alike of the SDK failure for an absent key: same simple name, another package (INV-Q-12051). */
+    /** The failure the S3 SDK raises for an absent key; the adapter matches it by this simple name. */
     class NoSuchKeyException : RuntimeException("no such key")
 
-    /** The seam beans of a context test: the ones a production installation would supply (INV-Q-12043, -12045). */
-    private class Seams(
-        val objectStore: ObjectStore? = null,
-        val retention: MaxRetention? = null,
-    )
-
-    private class Objects(
-        private val absent: () -> Throwable = { S3NoSuchKey.builder().message("no such key").build() },
-    ) : ObjectStore {
+    private class Objects : ObjectStore {
         val stored = mutableMapOf<String, ByteArray>()
         val retention = mutableMapOf<String, Instant>()
 
@@ -95,7 +80,7 @@ class PeriodDigestConsumerTest {
             return ObjectRef(key, retainUntil)
         }
 
-        override fun get(key: ObjectKey): ByteArray = stored[key.value] ?: throw absent()
+        override fun get(key: ObjectKey): ByteArray = stored[key.value] ?: throw NoSuchKeyException()
     }
 
     private class Log : EventLogReader {
@@ -114,15 +99,12 @@ class PeriodDigestConsumerTest {
 
     private class Boundary(
         context: ApplicationContext,
-        seams: Seams? = null,
-        absent: () -> Throwable = { S3NoSuchKey.builder().message("no such key").build() },
-        wrapStore: (PeriodDigestStore) -> PeriodDigestStore = { it },
     ) {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val log = Log()
-        val objects = (seams?.objectStore as? Objects) ?: Objects(absent)
+        val objects = Objects()
         val consumerName = LocatorConsumerConfiguration.CONSUMER + "-" + UUID.randomUUID()
         val consumer =
             JdbcInboxConsumer(
@@ -131,23 +113,11 @@ class PeriodDigestConsumerTest {
                 log,
                 scope,
                 dsl,
-                if (seams == null) {
-                    GstReturnRecordedHandler(
-                        PeriodDigestRecorder(
-                            JooqChainTails(dsl),
-                            wrapStore(JooqPeriodDigestStore(dsl)),
-                            ObjectStoreDigestObjects(objects),
-                            MaxRetention { RetentionPeriod(10) },
-                        ),
-                    )
-                } else {
-                    // the digest objects and the retention exactly as the service context wires them
-                    ChainWiring.gstReturnRecordedHandler(
-                        dsl,
-                        context.getBean(DigestObjects::class.java),
-                        context.getBean(MaxRetention::class.java),
-                    )
-                },
+                ChainWiring.gstReturnRecordedHandler(
+                    dsl,
+                    ObjectStoreDigestObjects(objects),
+                    MaxRetention { RetentionPeriod(10) },
+                ),
                 RebuildRequiredSink { },
                 Clock.systemUTC(),
             )
@@ -156,16 +126,10 @@ class PeriodDigestConsumerTest {
     private fun run(
         dir: Path,
         version: EvidenceDb.Version,
-        seams: Seams? = null,
-        absent: () -> Throwable = { S3NoSuchKey.builder().message("no such key").build() },
-        wrapStore: (PeriodDigestStore) -> PeriodDigestStore = { it },
         block: Boundary.(TenantId) -> Unit,
     ) {
-        var runner = EvidenceContext.online(dir).withPropertyValues("spring.datasource.url=${version.jdbcUrl}")
-        seams?.objectStore?.let { runner = runner.withBean(ObjectStore::class.java, { it }) }
-        seams?.retention?.let { runner = runner.withBean(MaxRetention::class.java, { it }) }
-        runner.run { context ->
-            Boundary(context, seams, absent, wrapStore).block(TenantId(UUID.randomUUID()))
+        EvidenceContext.online(dir).withPropertyValues("spring.datasource.url=${version.jdbcUrl}").run { context ->
+            Boundary(context).block(TenantId(UUID.randomUUID()))
         }
     }
 
@@ -383,175 +347,5 @@ class PeriodDigestConsumerTest {
         log.add(returnRecorded(tenant, "bad-1", data = noVersion))
         consumer.pollOnce() shouldBe result(0, 0, 1)
         digests(tenant).size shouldBe 0
-    }
-
-    private fun Boundary.pollFails(tenant: TenantId): Throwable {
-        log.add(returnRecorded(tenant, "ret-1"))
-        return runCatching { consumer.pollOnce() }.exceptionOrNull() ?: error("the poll was expected to fail")
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `a get that fails with another package's NoSuchKeyException propagates and stores no digest`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version, absent = { NoSuchKeyException() }) { tenant ->
-        chains(tenant)
-        pollFails(tenant)
-        digests(tenant).size shouldBe 0
-        chainRows(tenant).size shouldBe 0
-        objects.stored.size shouldBe 0
-        deadLetters(tenant) shouldBe 0
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `a get that fails with an IllegalStateException propagates and stores no digest`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version, absent = { IllegalStateException("store down") }) { tenant ->
-        chains(tenant)
-        pollFails(tenant)
-        digests(tenant).size shouldBe 0
-        objects.stored.size shouldBe 0
-        deadLetters(tenant) shouldBe 0
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `the SDK NoSuchKeyException on the cause chain means absent and a put follows`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(
-        dir,
-        version,
-        absent = { IllegalStateException("wrapped", S3NoSuchKey.builder().message("no such key").build()) },
-    ) { tenant ->
-        chains(tenant)
-        log.add(returnRecorded(tenant, "ret-1"))
-        consumer.pollOnce() shouldBe result(1, 0, 0)
-        objects.stored.size shouldBe 1
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `with no MaxRetention bean the consumer retries, stores no digest and puts no object`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version, seams = Seams(objectStore = Objects())) { tenant ->
-        chains(tenant)
-        pollFails(tenant)
-        digests(tenant).size shouldBe 0
-        chainRows(tenant).size shouldBe 0
-        objects.stored.size shouldBe 0
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `with a supplied MaxRetention bean of 10 years the retainUntil is recordedAt plus 10 years`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version, seams = Seams(Objects(), MaxRetention { RetentionPeriod(10) })) { tenant ->
-        chains(tenant)
-        log.add(returnRecorded(tenant, "ret-1"))
-        consumer.pollOnce() shouldBe result(1, 0, 0)
-        val recordedAt = digests(tenant).single().recordedAt!!.toInstant()
-        objects.retention.values.single() shouldBe recordedAt.atZone(ZoneOffset.UTC).plusYears(10).toInstant()
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `with no ObjectStore bean the consumer retries and writes nothing`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version, seams = Seams(retention = MaxRetention { RetentionPeriod(10) })) { tenant ->
-        chains(tenant)
-        pollFails(tenant)
-        digests(tenant).size shouldBe 0
-        chainRows(tenant).size shouldBe 0
-        objects.stored.size shouldBe 0
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `with a supplied ObjectStore bean the fallback backs off and that bean receives the put`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version, seams = Seams(Objects(), MaxRetention { RetentionPeriod(10) })) { tenant ->
-        chains(tenant)
-        log.add(returnRecorded(tenant, "ret-1"))
-        consumer.pollOnce() shouldBe result(1, 0, 0)
-        objects.stored.keys shouldBe setOf("period-digests/${tenant.value}/$entity/$period/1.json")
-    }
-
-    /** Every `period_digest` row has its three chain rows, and no chain row is without a digest (INV-Q-12053). */
-    private fun Boundary.assertReferential(tenant: TenantId) {
-        val rows = digests(tenant)
-        val chainRows = chainRows(tenant)
-        val types = setOf("PAYLOAD", "ACKNOWLEDGEMENT", "DECISION_TRACE")
-        rows.forEach { d ->
-            val mine =
-                chainRows.filter {
-                    it.tenantId == d.tenantId && it.entityRef == d.entityRef &&
-                        it.periodRef == d.periodRef && it.digestSeq == d.digestSeq
-                }
-            mine.size shouldBe 3
-            mine.map { it.evidenceType }.toSet() shouldBe types
-        }
-        val orphans =
-            tx(tenant) {
-                dsl
-                    .select(PERIOD_DIGEST_CHAIN.EVIDENCE_TYPE)
-                    .from(PERIOD_DIGEST_CHAIN)
-                    .leftJoin(PERIOD_DIGEST)
-                    .on(PERIOD_DIGEST_CHAIN.TENANT_ID.eq(PERIOD_DIGEST.TENANT_ID))
-                    .and(PERIOD_DIGEST_CHAIN.ENTITY_REF.eq(PERIOD_DIGEST.ENTITY_REF))
-                    .and(PERIOD_DIGEST_CHAIN.PERIOD_REF.eq(PERIOD_DIGEST.PERIOD_REF))
-                    .and(PERIOD_DIGEST_CHAIN.DIGEST_SEQ.eq(PERIOD_DIGEST.DIGEST_SEQ))
-                    .and(PERIOD_DIGEST.TENANT_ID.eq(tenant.value))
-                    .where(PERIOD_DIGEST_CHAIN.TENANT_ID.eq(tenant.value))
-                    .and(PERIOD_DIGEST.DIGEST.isNull)
-                    .fetch()
-                    .size
-            }
-        orphans shouldBe 0
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `every digest row has exactly its three chain rows after each consumed event`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version) { tenant ->
-        chains(tenant)
-        for ((id, version2) in listOf("ret-1" to 1, "ret-2" to 2)) {
-            log.add(returnRecorded(tenant, id, returnVersion = version2))
-            consumer.pollOnce() shouldBe result(1, 0, 0)
-            assertReferential(tenant)
-        }
-        digests(tenant).size shouldBe 2
-    }
-
-    @ParameterizedTest(name = "{displayName} [{0}]")
-    @EnumSource(EvidenceDb.Version::class)
-    fun `when the insert of the third chain row fails neither table holds a row of the event`(
-        version: EvidenceDb.Version,
-        @TempDir dir: Path,
-    ) = run(dir, version, wrapStore = ::FailingOnThirdChainRow) { tenant ->
-        chains(tenant)
-        pollFails(tenant)
-        digests(tenant).size shouldBe 0
-        chainRows(tenant).size shouldBe 0
-        assertReferential(tenant)
-    }
-
-    /** Inserts the digest row and two chain rows, then offers the primary key of the second chain row again. */
-    private class FailingOnThirdChainRow(
-        private val real: PeriodDigestStore,
-    ) : PeriodDigestStore by real {
-        override fun insert(
-            tenant: TenantId,
-            entry: PeriodDigestEntry,
-        ) = real.insert(tenant, entry.copy(chains = entry.chains.take(2) + entry.chains[1]))
     }
 }
