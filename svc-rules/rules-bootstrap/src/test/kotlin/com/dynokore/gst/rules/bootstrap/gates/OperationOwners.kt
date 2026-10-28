@@ -2,7 +2,8 @@ package com.dynokore.gst.rules.bootstrap.gates
 
 /**
  * INV-Q-7442 (A): the column `task` of operations.tsv, compared by equality row by row with the owners the published
- * INV-T-4965 lists (platform-contracts origin/main 980af706: rules/openapi.yaml, rules/asyncapi.yaml).
+ * INV-T-4965 lists (platform-contracts origin/main 980af706: rules/openapi.yaml, rules/asyncapi.yaml). The row
+ * listActiveRegulatoryPacks is owned by INV-T-9880 (added to the contract by INV-T-9882; still a 501 stub).
  */
 internal object OperationOwners {
     val expected =
@@ -26,6 +27,7 @@ internal object OperationOwners {
             "operation\treprocessPopulation\tINV-T-4978",
             "operation\tdryRun\tINV-T-4974",
             "operation\tgetDryRun\tINV-T-4974",
+            "operation\tlistActiveRegulatoryPacks\tINV-T-9880",
             "channel\tgst.rules.rule-pack-staged.v1\tINV-T-4976",
             "channel\tgst.rules.rule-pack-activated.v1\tINV-T-4977",
             "channel\tgst.rules.pack-currency-changed.v1\tINV-T-4976",

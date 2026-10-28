@@ -18,6 +18,7 @@ operation	rollbackPack	INV-T-4978
 operation	reprocessPopulation	INV-T-4978
 operation	dryRun	INV-T-4974
 operation	getDryRun	INV-T-4974
+operation	listActiveRegulatoryPacks	INV-T-9880
 channel	gst.rules.rule-pack-staged.v1	INV-T-4976
 channel	gst.rules.rule-pack-activated.v1	INV-T-4977
 channel	gst.rules.pack-currency-changed.v1	INV-T-4976
