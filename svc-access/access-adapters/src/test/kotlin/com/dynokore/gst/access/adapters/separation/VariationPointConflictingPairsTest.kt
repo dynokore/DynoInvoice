@@ -23,8 +23,8 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * The reader of VP-82 (INV-T-12356, INV-AC-12355, INV-REQ-9271): the value of the Asia/Singapore date of the service clock, mapped by
- * string equality; anything else throws (an unknown key, an empty selection, equal roles, a name that is no role).
+ * The reader of VP-82 (INV-T-12356, INV-AC-12355, INV-REQ-9271): the value of the Asia/Singapore date of the service
+ * clock, mapped by string equality; anything else throws (an unknown key, an empty selection, equal roles, a name that is no role).
  * The stand-in reader answers as config-resolver does: the latest value whose
  * effective date is not after the date asked for, else the catalogue default.
  */
