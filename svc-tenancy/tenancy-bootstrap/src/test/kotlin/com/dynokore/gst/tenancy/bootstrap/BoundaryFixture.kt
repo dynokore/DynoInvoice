@@ -6,8 +6,12 @@ import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.flywaydb.core.Flyway
+import org.springframework.boot.WebApplicationType
+import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
+import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.core.io.DefaultResourceLoader
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
@@ -234,4 +238,34 @@ object BoundaryFixture {
                 "service-runtime.datasource.credential=db/tenancy_runtime",
                 "spring.profiles.active=test",
             )
+
+    /**
+     * The service started by SpringApplication in an embedded servlet container on a free port over the same database,
+     * for a test that calls it over HTTP. [configurations] are added to the application; [loader] is the class loader
+     * of the context. The caller closes the context.
+     */
+    fun startServlet(
+        mountRoot: Path,
+        configurations: List<Class<*>>,
+        properties: Array<String>,
+        loader: ClassLoader,
+    ): ConfigurableApplicationContext {
+        val secrets = TestSecrets.mount(RUNTIME_PASSWORD, mountRoot = mountRoot)
+        return SpringApplicationBuilder(TenancyApplication::class.java, *configurations.toTypedArray())
+            .web(WebApplicationType.SERVLET)
+            .resourceLoader(DefaultResourceLoader(loader))
+            .properties(
+                "spring.datasource.url=${container.jdbcUrl}",
+                "spring.datasource.username=tenancy_runtime",
+                "service-runtime.workload-identity.audience=tenancy-svc",
+                "gst.service=tenancy-svc",
+                "gst.instance-id=tenancy-svc-0",
+                "service-runtime.pool.profile=minimal",
+                "service-runtime.event-loops.enabled=false",
+                "gst.bindings.secret-store.mount-root=$secrets",
+                "service-runtime.datasource.credential=db/tenancy_runtime",
+                "server.port=0",
+                *properties,
+            ).run()
+    }
 }

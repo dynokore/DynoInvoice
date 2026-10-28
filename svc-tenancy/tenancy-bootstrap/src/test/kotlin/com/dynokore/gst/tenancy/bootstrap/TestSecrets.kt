@@ -10,11 +10,12 @@ object TestSecrets {
     fun mount(
         databasePassword: String = "unused-in-composition-tests",
         bindingKey: String = BINDING_KEY,
+        mountRoot: Path? = null,
     ): Path {
-        val root = Files.createTempDirectory("tenancy-secrets")
+        val root = mountRoot ?: Files.createTempDirectory("tenancy-secrets")
         write(root, "tenancy/binding-key-current", bindingKey)
         write(root, "db/tenancy_runtime", databasePassword)
-        root.toFile().deleteOnExit()
+        if (mountRoot == null) root.toFile().deleteOnExit()
         return root
     }
 

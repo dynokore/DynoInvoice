@@ -42,3 +42,4 @@ PeriodExtended	channel	INV-T-4930	pending
 PeriodDueDateChanged	channel	INV-T-4930	pending
 InstallationStatusChanged	channel	INV-T-4933	pending
 approveElectionChange	operation	INV-T-10125	done
+recordEntitlement	operation	INV-T-4933	pending

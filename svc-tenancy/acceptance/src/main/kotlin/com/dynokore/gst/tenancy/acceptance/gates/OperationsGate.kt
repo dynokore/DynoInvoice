@@ -231,6 +231,7 @@ internal object Assignments {
                 "answerQuestionnaire",
                 "recordAppliedOperatingProfile",
                 "getAppliedOperatingProfile",
+                "recordEntitlement",
             ) +
             of("INV-T-8142", "openTenant") +
             of("INV-T-8179", "closeTenant") +

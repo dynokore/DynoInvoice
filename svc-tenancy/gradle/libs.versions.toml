@@ -4,8 +4,8 @@
 # The platform modules are versioned by platform-libs-bom: a service bumps `platformLibsBom` only.
 
 [versions]
-platformBuild = "0.23.1"
-platformLibsBom = "0.120.0"
+platformBuild = "0.23.3"
+platformLibsBom = "0.125.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"
@@ -19,8 +19,8 @@ konsist = "0.17.3"
 swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
-# INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+6b339bef"
+# INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876, 3030c14b adds the INV-T-8269 marker rule and the recordEntitlement operation); bumped deliberately, like platform-libs' product-runtime does.
+platformContractsBundle = "0.0.0-dev+3030c14b"
 gstCatalogue = "1.32.0"
 
 [libraries]
