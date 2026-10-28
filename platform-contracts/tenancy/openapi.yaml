@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.19.0
+  version: 1.20.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -916,6 +916,18 @@ paths:
                   basis: DAILY
                   effectiveFrom: "2026-10-01"
       responses:
+        "200":
+          description: "Replay: the same election is already stored for the entity and the effective date; the stored record is returned and nothing is written, audited or published (INV-Q-11868)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateSourceElectionResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    source: MAS
+                    effectiveFrom: "2026-10-01"
         "201":
           description: Election recorded
           content:
@@ -930,7 +942,7 @@ paths:
                     effectiveFrom: "2026-10-01"
         "202":
           description: >-
-            A CHANGE of an election already recorded is pending approval and takes effect only when approved (approveElectionChange). 201 stays the answer to a first election and to a repeat of the stored value (INV-Q-10046).
+            A CHANGE of an election already recorded is pending approval and takes effect only when approved (approveElectionChange). 201 stays the answer to a first election that is written; a repeat of the stored value answers 200 (INV-Q-11868).
           content:
             application/json:
               schema:
@@ -1353,6 +1365,18 @@ paths:
                   election: POSTING_DATE
                   effectiveFrom: "2026-10-01"
       responses:
+        "200":
+          description: "Replay: the same election is already stored for the entity and the effective date; the stored record is returned and nothing is written, audited or published (INV-Q-11868)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElectionResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    election: POSTING_DATE
+                    effectiveFrom: "2026-10-01"
         "201":
           description: Election recorded
           content:
@@ -1367,7 +1391,7 @@ paths:
                     effectiveFrom: "2026-10-01"
         "202":
           description: >-
-            A CHANGE of an election already recorded is pending approval and takes effect only when approved (approveElectionChange). 201 stays the answer to a first election and to a repeat of the stored value (INV-Q-10046).
+            A CHANGE of an election already recorded is pending approval and takes effect only when approved (approveElectionChange). 201 stays the answer to a first election that is written; a repeat of the stored value answers 200 (INV-Q-11868).
           content:
             application/json:
               schema:
@@ -1732,6 +1756,18 @@ paths:
                   effectiveFrom: "2026-10-01"
                   secondConfirmationBy: identity:USR-004
       responses:
+        "200":
+          description: "Replay: the same election is already stored for the entity and the effective date; the stored record is returned and nothing is written, audited or published (INV-Q-11868)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuanceModeResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    mode: RELAY
+                    effectiveFrom: "2026-10-01"
         "201":
           description: Issuance mode recorded
           content:
