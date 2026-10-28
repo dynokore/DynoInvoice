@@ -31,3 +31,5 @@
 ../openapi.yaml#/components/schemas/ElectionChangeApproved election-change-approved-*.json
 ../openapi.yaml#/components/schemas/CreateTenantRequest create-tenant-request-*.json
 ../openapi.yaml#/components/schemas/TenantResponse tenant-response-*.json
+../openapi.yaml#/components/schemas/RecordEntitlementRequest record-entitlement-request-*.json
+../openapi.yaml#/components/schemas/UsageCountersResponse usage-counters-response-*.json

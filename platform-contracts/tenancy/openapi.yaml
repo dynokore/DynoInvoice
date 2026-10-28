@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.20.0
+  version: 1.21.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1866,11 +1866,93 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/tenants/{tenantRef}/entitlements:
+    post:
+      operationId: recordEntitlement
+      summary: Store a tenant's plan limits (SaaS only; called by control-plane-svc after managePlan, FR-G.12)
+      description: >-
+        control-plane-svc calls this after managePlan to store the plan limits for the tenant
+        (INV-Q-9817 A); the body names are those of ManagePlanRequest. A repeat for the same tenant
+        replaces the stored limits. Tenancy compares the usage counters with the stored limits and may
+        raise billing events and alerts. No limit stored means no comparison and nothing raised. The
+        limits never block a submission and never produce a 429 (INV-REQ-879).
+      tags:
+      - tenants
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 5000
+      x-requirements:
+      - FR-G.11
+      - FR-G.12
+      x-error-codes: []
+      x-sync-edge: control-plane-svc->tenancy-svc
+      x-operation:
+        role: control-plane-svc
+        scope: platform
+        precondition: The tenant exists.
+        reversibility: UNDOABLE
+        repeatKey: tenantRef — a repeat for the same tenant replaces the stored limits
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: tenantRef
+        in: path
+        required: true
+        description: The tenant's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: TEN-7B1004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordEntitlementRequest'
+            examples:
+              default:
+                value:
+                  planVersion: "2026.1"
+                  maxEntities: 10
+                  maxDocumentsPerMonth: 50000
+      responses:
+        "200":
+          description: Limits stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitlementResponse'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    planVersion: "2026.1"
+                    maxEntities: 10
+                    maxDocumentsPerMonth: 50000
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/tenancy/tenants/{tenantRef}/usage-counters:
     get:
       operationId: getUsageCounters
       summary: Read a tenant's usage counters for billing (SDS §28.11, FR-G.11)
-      description: Read by control-plane-svc (SaaS) for metering; never blocks submission.
+      description: >-
+        Read by control-plane-svc (SaaS) for metering; never blocks submission (INV-REQ-879).
+
+
+        The counters come from SubmissionAcknowledged events (INV-Q-9815 A). The envelope id dedupes,
+        because delivery is at-least-once. An event with testmode true is not counted. The entity is the
+        envelope entityref. The period is the UTC calendar month (YYYY-MM) of the payload timestamp;
+        the query parameter period selects it and defaults to the current UTC month. A payload version
+        of 1 counts as a document submitted and a version above 1 as a resubmission. activeEntities
+        counts the tenant's entities not deregistered at read time. The query parameter entityRef,
+        when given, restricts entities to that entity.
       tags:
       - tenants
       x-principal: filing-workflow
@@ -1881,6 +1963,12 @@ paths:
       - FR-G.11
       x-error-codes: []
       x-sync-edge: control-plane-svc->tenancy-svc
+      x-operation:
+        role: billing.contact
+        scope: tenant
+        precondition: None.
+        reversibility: UNDOABLE
+        repeatKey: None — a read.
       parameters:
       - name: tenantRef
         in: path
@@ -1890,6 +1978,22 @@ paths:
           type: string
           maxLength: 64
         example: TEN-7B1004
+      - name: period
+        in: query
+        required: false
+        description: The UTC calendar month, YYYY-MM. Default the current UTC month.
+        schema:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+        example: 2026-10
+      - name: entityRef
+        in: query
+        required: false
+        description: When given, entities holds only this entity.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A91
       responses:
         "200":
           description: Usage counters
@@ -1903,6 +2007,12 @@ paths:
                     tenantRef: TEN-7B1004
                     documentsThisPeriod: 18422
                     activeEntities: 6
+                    period: 2026-10
+                    resubmissions: 112
+                    entities:
+                    - entityRef: ENT-3F2A91
+                      documentsThisPeriod: 3100
+                      resubmissions: 18
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -3872,6 +3982,70 @@ components:
           type: integer
           minimum: 0
         activeEntities:
+          type: integer
+          minimum: 0
+        period:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+        resubmissions:
+          type: integer
+          minimum: 0
+        entities:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/EntityUsage'
+    EntityUsage:
+      type: object
+      required:
+      - entityRef
+      - documentsThisPeriod
+      - resubmissions
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        documentsThisPeriod:
+          type: integer
+          minimum: 0
+        resubmissions:
+          type: integer
+          minimum: 0
+    RecordEntitlementRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - planVersion
+      - maxEntities
+      - maxDocumentsPerMonth
+      properties:
+        planVersion:
+          type: string
+          maxLength: 16
+        maxEntities:
+          type: integer
+          minimum: 0
+        maxDocumentsPerMonth:
+          type: integer
+          minimum: 0
+    EntitlementResponse:
+      type: object
+      required:
+      - tenantRef
+      - planVersion
+      - maxEntities
+      - maxDocumentsPerMonth
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        planVersion:
+          type: string
+          maxLength: 16
+        maxEntities:
+          type: integer
+          minimum: 0
+        maxDocumentsPerMonth:
           type: integer
           minimum: 0
     OffboardTenantRequest:
