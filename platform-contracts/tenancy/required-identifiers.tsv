@@ -121,11 +121,14 @@ StructureNode.environment	schema_property	openapi.yaml	INV-REQ-1125
 StructureNode.environment.SANDBOX	schema_enum_value	openapi.yaml	INV-REQ-1125
 environment	property	schemas/organisation-structure-changed-payload.schema.json	INV-REQ-1125
 SANDBOX	enum_value	schemas/organisation-structure-changed-payload.schema.json	INV-REQ-1125
-# INV-T-9835 adds nine rows (INV-REQ-878, INV-REQ-879). EntityUsage (INV-REQ-878) and RecordEntitlementRequest (INV-REQ-879) are schema names; the checker has no kind for a schema name, so they add no row (reported as a gap in the MR). The other names add no row: UsageCountersResponse, activeEntities, documentsThisPeriod, getUsageCounters, tenantRef (rows or kinds already covered), SubmissionAcknowledged (an event of the submission contract), tenancy-svc (a service), 429 (a status code), billing.contact (a role of the access permission catalogue).
+# INV-T-9835 adds ten rows (INV-REQ-878, INV-REQ-879; INV-Q-11882 A). The checker has no kind for a bare schema name, so EntityUsage and RecordEntitlementRequest are carried by schema_property rows (the schema must exist in components.schemas and own the property); plain property rows for planVersion, maxEntities and maxDocumentsPerMonth are not added because EntitlementResponse satisfies them. The other names add no row: UsageCountersResponse, activeEntities, documentsThisPeriod, getUsageCounters, tenantRef (rows already on main), SubmissionAcknowledged (an event of the submission contract), tenancy-svc (a service), 429 (a status code), billing.contact (a role of the access permission catalogue).
 period	property	openapi.yaml	INV-REQ-878
 resubmissions	property	openapi.yaml	INV-REQ-878
 entities	property	openapi.yaml	INV-REQ-878
 recordEntitlement	operation	openapi.yaml	INV-REQ-879
-planVersion	property	openapi.yaml	INV-REQ-879
-maxEntities	property	openapi.yaml	INV-REQ-879
-maxDocumentsPerMonth	property	openapi.yaml	INV-REQ-879
+EntityUsage.entityRef	schema_property	openapi.yaml	INV-REQ-878
+EntityUsage.documentsThisPeriod	schema_property	openapi.yaml	INV-REQ-878
+EntityUsage.resubmissions	schema_property	openapi.yaml	INV-REQ-878
+RecordEntitlementRequest.planVersion	schema_property	openapi.yaml	INV-REQ-879
+RecordEntitlementRequest.maxEntities	schema_property	openapi.yaml	INV-REQ-879
+RecordEntitlementRequest.maxDocumentsPerMonth	schema_property	openapi.yaml	INV-REQ-879

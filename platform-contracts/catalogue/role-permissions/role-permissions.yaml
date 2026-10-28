@@ -1126,3 +1126,15 @@ permissions:
     cells:
       - {role: security.officer, form: SAAS, allowance: PERMITTED}
       - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: sample-copy.request
+    kind: WRITE
+    row: "Request an anonymised production sample copy"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: sample-copy.approve
+    kind: WRITE
+    row: "Approve an anonymised production sample copy"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}

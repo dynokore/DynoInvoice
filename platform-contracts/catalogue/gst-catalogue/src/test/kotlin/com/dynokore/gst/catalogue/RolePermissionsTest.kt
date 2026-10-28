@@ -248,6 +248,21 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `the two sample copy keys have their kinds and exact holders in both forms and a third key is absent`() {
+        val expected = mapOf("sample-copy.request" to "tenant.admin", "sample-copy.approve" to "security.officer")
+        expected.forEach { (key, role) ->
+            assertEquals(PermissionKind.WRITE, RolePermissions.kind(key), key)
+            both.forEach { form ->
+                val holders = RolePermissions.cells(form).filter { (_, perms) -> perms[key] != null }.keys
+                assertEquals(setOf(role), holders, "$key $form")
+                assertEquals(RoleAllowance.PERMITTED, RolePermissions.cells(form).getValue(role)[key], "$key $form")
+            }
+        }
+        assertNull(RolePermissions.kind("sample-copy.cancel"))
+        assertNull(RolePermissions.kind("sample-copy.requests"))
+    }
+
+    @Test
     fun `vp keys outside 01 to 82 are absent`() {
         assertNull(RolePermissions.kind("vp-83.set"))
         assertNull(RolePermissions.kind("vp-0.set"))

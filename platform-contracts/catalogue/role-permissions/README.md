@@ -70,3 +70,5 @@ The keys `regulatory-pack.author` (held by `regulatory.author`) and `regulatory-
 The generated `RolePermission.kt` also declares `OperationRoles` (INV-T-10641, INV-NOTE-10639 R3). `OperationRoles.rolesFor(form, permissionKey)` returns the roles with a cell on that key in that form, with each cell's allowance, and `OperationRoles.keys(form)` returns the keys that have at least one cell in that form. The map is generated as a literal from the same yaml file in the same run as `RolePermissions`, in the order of the file. A key that is not in the table, or has no cell in the form, has no roles (an empty map).
 
 The key `security-case.record` (row of `privacy-request.handle`, WRITE) is held by `security.officer` in SAAS and PRIVATE and was added under INV-Q-11686 A.
+
+The keys `sample-copy.request` (row "Request an anonymised production sample copy") and `sample-copy.approve` (row "Approve an anonymised production sample copy"), both WRITE, are held by `tenant.admin` and `security.officer` respectively, alone, in SAAS and PRIVATE. INV-NOTE-10136 is the text of record for both labels (INV-T-11910, INV-Q-11901 A, INV-Q-11899 A).

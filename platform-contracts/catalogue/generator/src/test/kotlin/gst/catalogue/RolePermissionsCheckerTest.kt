@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(15, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(17, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -362,7 +362,7 @@ class RolePermissionsCheckerTest {
     fun `the six operation keys carry their labels and addedRows holds its labels`() {
         opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
         assertEquals(
-            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries",
+            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries" + sampleCopyLabels,
             RolePermissionsChecker.addedRows.toSet(),
         )
     }
@@ -425,6 +425,7 @@ class RolePermissionsCheckerTest {
 
     private val ackLabel = "Acknowledge a control relaxation"
     private val bumpLabel = "Run the authority incarnation command"
+    private val sampleCopyLabels = setOf("Request an anonymised production sample copy", "Approve an anonymised production sample copy")
     private val lookupLabels = setOf("Look up an enquiry by Acknowledgement ID", "Reverse-look up an enquiry", "Record a rendition sample check")
 
     private val ackKeys =
@@ -463,7 +464,7 @@ class RolePermissionsCheckerTest {
                 bumpLabel,
                 "Author a regulatory pack",
                 "Approve a regulatory pack",
-            ) + lookupLabels + "Purge audit entries",
+            ) + lookupLabels + "Purge audit entries" + sampleCopyLabels,
             RolePermissionsChecker.addedRows.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
@@ -820,6 +821,82 @@ class RolePermissionsCheckerTest {
         assertReported(real.copy(permissions = real.permissions.filter { it.key != scKey }), "key $scKey: missing")
         for (alias in listOf("security-cases.record", "security-case.record ", "Security-case.record", "security.case.record")) {
             assertReported(withPermission(scKey) { it.copy(key = alias) }, "key $scKey: missing")
+        }
+    }
+
+    private val scReq = "sample-copy.request"
+    private val scApp = "sample-copy.approve"
+
+    @Test
+    fun `INV-T-11910 the two keys are WRITE with their pinned rows and exact cells`() {
+        RolePermissionsChecker.sampleCopyPairs.forEach { (k, row) ->
+            assertEquals(row, permission(real, k).row, k)
+            assertEquals(PermissionKind.WRITE, permission(real, k).kind, k)
+        }
+        assertEquals(setOf(scReq, scApp), RolePermissionsChecker.sampleCopyPairs.keys)
+        fun cells(role: String) = setOf(CellRow(role, DeploymentForm.SAAS, RoleAllowance.PERMITTED), CellRow(role, DeploymentForm.PRIVATE, RoleAllowance.PERMITTED))
+        assertEquals(cells("tenant.admin"), permission(real, scReq).cells.toSet())
+        assertEquals(cells("security.officer"), permission(real, scApp).cells.toSet())
+        assertEquals(2, permission(real, scReq).cells.size)
+        assertEquals(2, permission(real, scApp).cells.size)
+    }
+
+    @Test
+    fun `INV-T-11910 probe a security officer cell on request is reported naming the key`() {
+        assertReported(cellAdd(scReq, "security.officer", saasF), "role security.officer key $scReq form SAAS", "extra")
+    }
+
+    @Test
+    fun `INV-T-11910 probe a tenant admin cell on approve is reported naming the key`() {
+        assertReported(cellAdd(scApp, "tenant.admin", saasF), "role tenant.admin key $scApp form SAAS", "extra")
+    }
+
+    @Test
+    fun `INV-T-11910 probe the security officer PRIVATE cell removed from approve is reported`() {
+        assertReported(cellRemove(scApp, "security.officer", privF), "role security.officer key $scApp form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `INV-T-11910 probe the allowance WITHIN_SCOPE is reported on each key`() {
+        listOf(scReq to "tenant.admin", scApp to "security.officer").forEach { (k, role) ->
+            val t = withPermission(k) { p -> p.copy(cells = p.cells.map { if (it.role == role && it.form == DeploymentForm.SAAS) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it }) }
+            assertReported(t, "role $role key $k form SAAS", "WITHIN_SCOPE")
+        }
+    }
+
+    @Test
+    fun `INV-T-11910 probe the kind READ is reported on each key`() {
+        assertReported(withKind(scReq, PermissionKind.READ), "key $scReq: kind READ")
+        assertReported(withKind(scApp, PermissionKind.READ), "key $scApp: kind READ")
+    }
+
+    @Test
+    fun `INV-T-11910 probe the row of one key written as the row of the other is reported naming the key`() {
+        val reqRow = RolePermissionsChecker.sampleCopyPairs.getValue(scReq)
+        val appRow = RolePermissionsChecker.sampleCopyPairs.getValue(scApp)
+        assertReported(withPermission(scReq) { it.copy(row = appRow) }, "key $scReq", "differs")
+        assertReported(withPermission(scApp) { it.copy(row = reqRow) }, "key $scApp", "differs")
+    }
+
+    @Test
+    fun `INV-T-11910 probe a renamed key is reported missing and the new name is reported`() {
+        assertReported(withPermission(scReq) { it.copy(key = "sample-copy.requests") }, "key $scReq: missing")
+        assertReported(withPermission(scReq) { it.copy(key = "sample-copy.requests") }, "key sample-copy.requests")
+    }
+
+    @Test
+    fun `INV-T-11910 probe a third key sample-copy cancel is reported naming the key`() {
+        val third = permission(real, scReq).copy(key = "sample-copy.cancel")
+        assertReported(real.copy(permissions = real.permissions + third), "key sample-copy.cancel")
+        val ownRow = permission(real, scReq).copy(key = "sample-copy.cancel", row = permission(real, "ap-credential.manage").row)
+        assertReported(real.copy(permissions = real.permissions + ownRow), "key sample-copy.cancel")
+    }
+
+    @Test
+    fun `INV-T-11910 each sample copy label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.sampleCopyPairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }
     }
 }
