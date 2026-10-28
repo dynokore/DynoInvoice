@@ -156,9 +156,9 @@ class ReconciliationRunnerTest {
                 mapOf("1" to "100.00"),
                 doc("A", version(1, true, lines("SR", "100.00")), version(2, false, lines("SR", "999.00"))),
             )
-        outcome.result.lines
-            .single()
-            .comparison.submittedAmount shouldBe d("100.00")
+        outcome.result.comparison
+            .single { it.key == "1" }
+            .submittedAmount shouldBe d("100.00")
         outcome.raisesPer003 shouldBe false
     }
 
