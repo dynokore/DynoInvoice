@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.21.0
+  version: 1.22.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1221,6 +1221,219 @@ paths:
                     licenceId: LIC-2026-04
                     status: ACTIVE
                     expiresAt: "2027-09-30"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getLicenceStatus
+      summary: Read the installation's latest installed licence status (INV-REQ-907)
+      description: >-
+        Returns the latest licence installed by installLicence, with the status and the expiry computed as
+        installLicence records them. billing.contact sees licence status in the private form (INV-REQ-907);
+        deployment.operator may read it too. 404 when no licence is installed. A read; never blocks submission.
+      tags:
+      - installation
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-AF.29
+      x-error-codes: []
+      x-operation:
+        role: billing.contact, deployment.operator
+        scope: installation
+        precondition: None.
+        reversibility: UNDOABLE
+        repeatKey: None — a read.
+      responses:
+        "200":
+          description: The latest installed licence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicenceResponse'
+              examples:
+                default:
+                  value:
+                    licenceId: LIC-2026-04
+                    status: ACTIVE
+                    expiresAt: "2027-09-30"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/installation/platform:
+    post:
+      operationId: electPlatform
+      summary: Elect the platform of a private installation (INV-REQ-1313)
+      description: >-
+        The deployment.operator elects the platform of a private installation at qualification (INV-REQ-1313).
+        There is no default election. CUSTOMER_KUBERNETES is the only platform accepted. SUPPLIED_APPLIANCE is
+        declared and is refused while the appliance is deferred until demand is shown (INV-NOTE-3 §25.1); the SaaS
+        form refuses every election. A refusal is 422 POL-011 (the row does not offer the option). A repeat
+        replaces the election.
+      tags:
+      - installation
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1313
+      x-error-codes:
+      - POL-011
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: A private installation is qualifying
+        reversibility: UNDOABLE
+        repeatKey: The installation — a repeat replaces the stored election
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElectPlatformRequest'
+            examples:
+              default:
+                value:
+                  platform: CUSTOMER_KUBERNETES
+      responses:
+        "201":
+          description: Platform elected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformElectionResponse'
+              examples:
+                default:
+                  value:
+                    platform: CUSTOMER_KUBERNETES
+                    electedAt: "2026-10-16T08:30:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getPlatformElection
+      summary: Read the platform elected for the installation (INV-REQ-1313)
+      description: >-
+        Returns the stored election. 404 before any election: there is no default election.
+      tags:
+      - installation
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1313
+      x-error-codes: []
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: None.
+        reversibility: UNDOABLE
+        repeatKey: None — a read.
+      responses:
+        "200":
+          description: The elected platform
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformElectionResponse'
+              examples:
+                default:
+                  value:
+                    platform: CUSTOMER_KUBERNETES
+                    electedAt: "2026-10-16T08:30:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/installation/facts:
+    post:
+      operationId: recordInstallationFacts
+      summary: Record the installation release train and its supported window (INV-REQ-1095)
+      description: >-
+        Reports the installation facts the shipped release carries: its release train and the shipped copy of the
+        control-plane support window (INV-REQ-1095). DEP-004 is raised iff trainVersion is not an element of
+        supportedTrainVersions, compared by equality, and cleared when it becomes one; each raise or clearing
+        publishes InstallationStatusChanged with depCode DEP-004. No report means nothing is raised: a warning
+        fails open and no submission is ever blocked. A repeat replaces the stored facts.
+      tags:
+      - installation
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1095
+      x-error-codes:
+      - DEP-004
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: None.
+        reversibility: UNDOABLE
+        repeatKey: the installation — a repeat replaces the stored facts
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallationFactsRequest'
+            examples:
+              default:
+                value:
+                  trainVersion: "2026.10"
+                  supportedTrainVersions:
+                  - "2026.10"
+                  - "2026.07"
+      responses:
+        "200":
+          description: Facts stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationFactsResponse'
+              examples:
+                default:
+                  value:
+                    trainVersion: "2026.10"
+                    supportedTrainVersions:
+                    - "2026.10"
+                    - "2026.07"
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -3492,6 +3705,69 @@ components:
         expiresAt:
           type: string
           format: date
+    ElectPlatformRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - platform
+      properties:
+        platform:
+          type: string
+          description: The platform of the private installation. SUPPLIED_APPLIANCE is declared and is refused while
+            the appliance is deferred until demand is shown (INV-NOTE-3 §25.1); the SaaS form refuses every election.
+          enum:
+          - CUSTOMER_KUBERNETES
+          - SUPPLIED_APPLIANCE
+          x-extensible-enum: true
+    PlatformElectionResponse:
+      type: object
+      required:
+      - platform
+      - electedAt
+      properties:
+        platform:
+          type: string
+          enum:
+          - CUSTOMER_KUBERNETES
+          - SUPPLIED_APPLIANCE
+          x-extensible-enum: true
+        electedAt:
+          type: string
+          format: date-time
+    InstallationFactsRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - trainVersion
+      - supportedTrainVersions
+      properties:
+        trainVersion:
+          type: string
+          maxLength: 32
+          description: The release train the installation runs.
+        supportedTrainVersions:
+          type: array
+          maxItems: 20
+          description: The shipped copy of the control-plane support window. DEP-004 is raised iff trainVersion is not
+            an element of this array, compared by equality.
+          items:
+            type: string
+            maxLength: 32
+    InstallationFactsResponse:
+      type: object
+      required:
+      - trainVersion
+      - supportedTrainVersions
+      properties:
+        trainVersion:
+          type: string
+          maxLength: 32
+        supportedTrainVersions:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 32
     ElectionRequest:
       type: object
       required:

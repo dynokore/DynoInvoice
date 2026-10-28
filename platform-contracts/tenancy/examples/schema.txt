@@ -33,3 +33,6 @@
 ../openapi.yaml#/components/schemas/TenantResponse tenant-response-*.json
 ../openapi.yaml#/components/schemas/RecordEntitlementRequest record-entitlement-request-*.json
 ../openapi.yaml#/components/schemas/UsageCountersResponse usage-counters-response-*.json
+../openapi.yaml#/components/schemas/ElectPlatformRequest elect-platform-request-*.json
+../openapi.yaml#/components/schemas/PlatformElectionResponse platform-election-response-*.json
+../openapi.yaml#/components/schemas/InstallationFactsRequest installation-facts-request-*.json

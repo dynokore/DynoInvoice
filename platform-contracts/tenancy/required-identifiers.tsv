@@ -132,3 +132,14 @@ EntityUsage.resubmissions	schema_property	openapi.yaml	INV-REQ-878
 RecordEntitlementRequest.planVersion	schema_property	openapi.yaml	INV-REQ-879
 RecordEntitlementRequest.maxEntities	schema_property	openapi.yaml	INV-REQ-879
 RecordEntitlementRequest.maxDocumentsPerMonth	schema_property	openapi.yaml	INV-REQ-879
+# INV-T-9836 adds ten rows (INV-REQ-907, INV-REQ-1313, INV-REQ-1095; INV-Q-9821 A, INV-Q-9823 A, INV-Q-9825 A). The checker has no kind for a bare schema name, so ElectPlatformRequest, PlatformElectionResponse and InstallationFactsRequest are carried by schema_property rows. The other names add no row: LicenceResponse, licenceId, status, expiresAt, installLicence, InstallationStatusChanged, depCode, recordInstallationAction (rows or definitions already on main); LicenceCheck, owns, deployment.operator, billing.contact, tenancy-svc (not carried by this contract).
+getLicenceStatus	operation	openapi.yaml	INV-REQ-907
+electPlatform	operation	openapi.yaml	INV-REQ-1313
+getPlatformElection	operation	openapi.yaml	INV-REQ-1313
+ElectPlatformRequest.platform	schema_property	openapi.yaml	INV-REQ-1313
+platform	property	openapi.yaml	INV-REQ-1313
+PlatformElectionResponse.platform	schema_property	openapi.yaml	INV-REQ-1313
+recordInstallationFacts	operation	openapi.yaml	INV-REQ-1095
+InstallationFactsRequest.trainVersion	schema_property	openapi.yaml	INV-REQ-1095
+trainVersion	property	openapi.yaml	INV-REQ-1095
+supportedTrainVersions	property	openapi.yaml	INV-REQ-1095
