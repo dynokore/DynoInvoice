@@ -150,3 +150,9 @@ limit	property	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
 observed	property	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
 DOCUMENTS_PER_MONTH	enum_value	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
 ENTITIES	enum_value	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
+loadCredential	operation	openapi.yaml	INV-REQ-1126
+recordSampleApproval	operation	openapi.yaml	INV-REQ-1130
+requestSampleCopy	operation	openapi.yaml	INV-REQ-1130
+LoadCredentialRequest.environmentTag	schema_property	openapi.yaml	INV-REQ-1126
+RecordSampleApprovalRequest.sampleRef	schema_property	openapi.yaml	INV-REQ-1130
+RequestSampleCopyRequest.sampleRef	schema_property	openapi.yaml	INV-REQ-1130

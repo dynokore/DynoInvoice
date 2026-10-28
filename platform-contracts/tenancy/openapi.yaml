@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.22.0
+  version: 1.23.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -866,6 +866,202 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/credentials:
+    post:
+      operationId: loadCredential
+      summary: Load a credential, refused when its environment tag differs from the environment of the tenant or workspace (INV-REQ-1126, INV-REQ-1377)
+      description: >-
+        Loads a credential label for the tenant or workspace. Only the label and the environment tag are carried; the secret never enters tenancy. Refusal: 422 TNC-005 when the tag differs from the environment of the target or the credential has no tag. SRT codes are not listed in x-error-codes.
+      tags:
+      - workspaces
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AG.26
+      x-error-codes:
+      - TNC-005
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: The tenant or workspace exists
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, name) — a repeat returns the original result
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoadCredentialRequest'
+            examples:
+              default:
+                value:
+                  name: iras-ap-key
+                  environmentTag: SANDBOX
+      responses:
+        "200":
+          description: Credential loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoadCredentialResponse'
+              examples:
+                default:
+                  value:
+                    name: iras-ap-key
+                    environment: SANDBOX
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/sample-approvals:
+    post:
+      operationId: recordSampleApproval
+      summary: Record the approval of an anonymised production sample (INV-REQ-1130)
+      description: >-
+        Records the approval of a sample by the acting user; the approver is the user ID, never a role. A repeat records no second approval. Refusal: 422 TNC-006 when anonymised production samples are off for the tenant.
+      tags:
+      - workspaces
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AG.30
+      x-error-codes:
+      - TNC-006
+      x-operation:
+        role: security.officer
+        scope: tenant
+        precondition: Anonymised production samples are on for the tenant
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, sampleRef) — a repeat records no second approval
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordSampleApprovalRequest'
+            examples:
+              default:
+                value:
+                  sampleRef: SMP-20261001
+      responses:
+        "201":
+          description: Approval recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SampleApprovalResponse'
+              examples:
+                default:
+                  value:
+                    sampleRef: SMP-20261001
+                    approvedBy: USR-4C21
+        "200":
+          description: 'Approval already recorded: no second approval'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SampleApprovalResponse'
+              examples:
+                default:
+                  value:
+                    sampleRef: SMP-20261001
+                    approvedBy: USR-4C21
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/workspaces/{workspaceRef}/sample-copies:
+    post:
+      operationId: requestSampleCopy
+      summary: Request a copy of an approved anonymised production sample into a workspace (INV-REQ-1130)
+      description: >-
+        Requests the copy of an anonymised production sample into the workspace; each copy spends one approval. Refusals: 422 TNC-006 when anonymised production samples are off for the tenant; 422 TNC-007 when the sample has no unspent approval.
+      tags:
+      - workspaces
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AG.30
+      x-error-codes:
+      - TNC-006
+      - TNC-007
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Anonymised production samples are on for the tenant and the sample has an unspent approval
+        reversibility: UNDOABLE
+        repeatKey: (workspaceRef, sampleRef)
+      parameters:
+      - name: workspaceRef
+        in: path
+        required: true
+        description: The workspace's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: WS-AA10
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestSampleCopyRequest'
+            examples:
+              default:
+                value:
+                  sampleRef: SMP-20261001
+      responses:
+        "202":
+          description: Copy requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SampleCopyResponse'
+              examples:
+                default:
+                  value:
+                    workspaceRef: WS-AA10
+                    sampleRef: SMP-20261001
+                    status: REQUESTED
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "422":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -3592,6 +3788,83 @@ components:
           - PRODUCTION
           - SANDBOX
           x-extensible-enum: true
+    LoadCredentialRequest:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          maxLength: 64
+        environmentTag:
+          type: string
+          description: The credential's own environment tag; absent for an untagged credential.
+          enum:
+          - PRODUCTION
+          - SANDBOX
+          x-extensible-enum: true
+    LoadCredentialResponse:
+      type: object
+      required:
+      - name
+      - environment
+      properties:
+        name:
+          type: string
+          maxLength: 64
+        environment:
+          type: string
+          description: The environment of the target tenant or workspace.
+          enum:
+          - PRODUCTION
+          - SANDBOX
+          x-extensible-enum: true
+    RecordSampleApprovalRequest:
+      type: object
+      required:
+      - sampleRef
+      properties:
+        sampleRef:
+          type: string
+          maxLength: 64
+    SampleApprovalResponse:
+      type: object
+      required:
+      - sampleRef
+      - approvedBy
+      properties:
+        sampleRef:
+          type: string
+          maxLength: 64
+        approvedBy:
+          type: string
+          description: The acting user ID, never a role.
+          maxLength: 64
+    RequestSampleCopyRequest:
+      type: object
+      required:
+      - sampleRef
+      properties:
+        sampleRef:
+          type: string
+          maxLength: 64
+    SampleCopyResponse:
+      type: object
+      required:
+      - workspaceRef
+      - sampleRef
+      - status
+      properties:
+        workspaceRef:
+          type: string
+          maxLength: 64
+        sampleRef:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum:
+          - REQUESTED
     RateSourceElectionRequest:
       type: object
       required:
