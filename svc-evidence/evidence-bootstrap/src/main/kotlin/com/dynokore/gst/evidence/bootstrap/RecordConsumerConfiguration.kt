@@ -85,6 +85,7 @@ class RecordConsumerConfiguration {
             ),
         )
 
+    @Suppress("LongParameterList")
     private fun recording(
         topic: String,
         scope: TenantScope,

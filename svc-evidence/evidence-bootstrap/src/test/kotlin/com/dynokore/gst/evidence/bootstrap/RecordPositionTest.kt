@@ -39,7 +39,6 @@ import com.dynokore.platform.outboxandqueue.EntityRef as EventEntityRef
  * `eventlog.purge_batch()` run by the purge login.
  */
 class RecordPositionTest {
-    private val actor = "svc:evidence-svc"
     private val audit = RecordConsumerConfiguration.AUDIT_ENTRY_TOPIC
     private val trace = RecordConsumerConfiguration.DECISION_TRACE_TOPIC
     private val doc = UUID.fromString("0b1f2c3d-0000-4000-8000-000000000003")
@@ -50,7 +49,7 @@ class RecordPositionTest {
         val url: String,
     ) {
         val tenant = TenantId(UUID.randomUUID())
-        val consumers = context.getBeansOfType(InboxConsumer::class.java)
+        val consumers: Map<String, InboxConsumer> = context.getBeansOfType(InboxConsumer::class.java)
         val auditConsumer: InboxConsumer = consumers.getValue("auditEntryConsumer")
         val traceConsumer: InboxConsumer = consumers.getValue("decisionTraceConsumer")
         val scope: TenantScope = context.getBean(TenantScope::class.java)
@@ -135,6 +134,7 @@ class RecordPositionTest {
         }
     }
 
+    @Suppress("LongParameterList") // the fields of the envelope a test varies
     private fun Env.emit(
         topic: String,
         type: String,
