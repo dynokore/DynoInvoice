@@ -142,4 +142,4 @@ PlatformElectionResponse.platform	schema_property	openapi.yaml	INV-REQ-1313
 recordInstallationFacts	operation	openapi.yaml	INV-REQ-1095
 InstallationFactsRequest.trainVersion	schema_property	openapi.yaml	INV-REQ-1095
 trainVersion	property	openapi.yaml	INV-REQ-1095
-supportedTrainVersions	property	openapi.yaml	INV-REQ-1095
+InstallationFactsRequest.supportedTrainVersions	schema_property	openapi.yaml	INV-REQ-1095
