@@ -97,14 +97,15 @@ object ContractDocument {
 }
 
 /**
- * Probe switches, read from the untracked file `build/probe.properties` of the module (absent in a normal run):
+ * Probe switches (test source set only). Honoured only when the environment variable `SERVED_PROBES=1` is set and the
+ * untracked file `build/probe.properties` of the module exists; a normal or CI run ignores the file:
  * `document=<path>` replaces the contract document, `hide=<resource>,<resource>` removes classpath resources,
  * `properties=<k=v;k=v>` adds test properties.
  */
 object Probes {
     private val file: Path = Path.of("build/probe.properties")
     private val values: Map<String, String> =
-        if (Files.isRegularFile(file)) {
+        if (System.getenv("SERVED_PROBES") == "1" && Files.isRegularFile(file)) {
             Files.readAllLines(file).filter { it.contains('=') }.associate {
                 it.substringBefore('=') to
                     it.substringAfter('=')
@@ -320,10 +321,15 @@ data class MappedHandler(
 }
 
 /**
- * The framework handlers that are not operations of the contract: the Spring Boot error page. Deny by default (P140):
- * any other mapped handler outside the service's own controllers fails the test.
+ * The mapped handlers that are not operations of the contract, by exact fully-qualified class name, each with its
+ * reason. Deny by default (P140): any other mapped handler without an operation fails the test. The test context is
+ * the production composition, and production serves /error, so the entry stays instead of switching the page off.
  */
-private val FRAMEWORK_HANDLERS = setOf("org.springframework.boot.webmvc.autoconfigure.error.BasicErrorController")
+val FRAMEWORK_HANDLERS: Map<String, String> =
+    mapOf(
+        "org.springframework.boot.webmvc.autoconfigure.error.BasicErrorController" to
+            "Spring Boot error page /error, served in production, not an operation of the contract",
+    )
 
 /** The operation a mapped handler serves, by method and path template equality; null when none. */
 fun operationOf(
@@ -339,9 +345,15 @@ fun operationOf(
 fun servedOperations(
     service: ServedService,
     document: List<ContractOperation>,
+): List<Pair<MappedHandler, ContractOperation>> = operationsOf(service.mappedHandlers(), document)
+
+/** The pairing rule of [servedOperations] on a given handler list. */
+fun operationsOf(
+    handlers: List<MappedHandler>,
+    document: List<ContractOperation>,
 ): List<Pair<MappedHandler, ContractOperation>> =
-    service.mappedHandlers().mapNotNull { mapped ->
-        if (mapped.handler.beanType.name in FRAMEWORK_HANDLERS) return@mapNotNull null
+    handlers.mapNotNull { mapped ->
+        if (mapped.handler.beanType.name in FRAMEWORK_HANDLERS.keys) return@mapNotNull null
         mapped to
             checkNotNull(operationOf(mapped, document)) {
                 "the mapped handler ${mapped.key} (${mapped.handler.beanType.name}) " +
