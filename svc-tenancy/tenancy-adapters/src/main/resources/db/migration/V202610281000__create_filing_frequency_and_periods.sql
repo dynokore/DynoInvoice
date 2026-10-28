@@ -1,4 +1,4 @@
--- V202610241000: the filing-frequency history (INV-REQ-705), the frequency-change proposals and their raised review
+-- V202610281000: the filing-frequency history (INV-REQ-705), the frequency-change proposals and their raised review
 -- items (INV-REQ-688, INV-REQ-708) and the period records (INV-REQ-83, INV-REQ-84, INV-REQ-707) of a registered
 -- entity. Every table is tenant-scoped with forced RLS on the signed binding (INV-REQ-854 b1), insert-only for the
 -- runtime role except for the one state column each table lists below (a state moves forward; no value is
