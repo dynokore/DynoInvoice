@@ -48,12 +48,12 @@ class SyncEdgeCallerOperationsTest {
         request: Attempt,
         what: String,
     ) {
-        Doubles.reset()
+        served.reset()
         val before = served.stored()
         val answer = served.call(op, request.workload, request.authorization, request.extra)
         assertThat(answer.status).describedAs("${op.key}: $what").isEqualTo(403)
         assertThat(answer.contentAsString).describedAs("${op.key}: $what").contains("SRT-004")
-        assertThat(Doubles.reached).describedAs("${op.key}: $what, use case double").isEmpty()
+        assertThat(served.calls).describedAs("${op.key}: $what, spy calls").isZero()
         assertThat(served.stored()).describedAs("${op.key}: $what, stored rows and events").isEqualTo(before)
     }
 
@@ -62,10 +62,14 @@ class SyncEdgeCallerOperationsTest {
         op: ContractOperation,
         allowed: List<String>,
     ) = allowed.forEach { caller ->
-        Doubles.reset()
-        val answer = served.call(op, workloadToken(caller), USER_A_TOKEN)
-        assertThat(Doubles.reached).describedAs("${op.key}: the token of $caller").hasSize(1)
-        assertThat(answer.status).describedAs("${op.key}: the token of $caller").isNotIn(401, 403)
+        served.reset()
+        val answer = served.call(op, workloadToken(caller), USER_A_TOKEN, stubHandler = true)
+        assertThat(served.calls).describedAs("${op.key}: the token of $caller").isEqualTo(served.reachedCalls(op))
+        if (served.isBuilt(op)) {
+            assertThat(answer.status).describedAs("${op.key}: the token of $caller").isNotIn(401, 403)
+        } else {
+            assertThat(answer.status).describedAs("${op.key}: the token of $caller, a stub").isEqualTo(501)
+        }
     }
 
     private fun refusesOthers(
@@ -84,10 +88,10 @@ class SyncEdgeCallerOperationsTest {
         refused(served, op, Attempt(stranger, authorization = null), "an unnamed service, no token")
         val header = mapOf("X-Caller-Service" to allowed.first())
         refused(served, op, Attempt(stranger, extra = header), "X-Caller-Service naming a caller, unnamed token")
-        Doubles.reset()
+        served.reset()
         val none = served.call(op, null, USER_A_TOKEN)
         assertThat(none.status).describedAs("${op.key}: no workload token").isEqualTo(401)
-        assertThat(Doubles.reached).describedAs("${op.key}: no workload token, double").isEmpty()
+        assertThat(served.calls).describedAs("${op.key}: no workload token, spy calls").isZero()
     }
 
     @Test
@@ -152,52 +156,32 @@ fun callerLiteralOffenders(
     names: Set<String>,
 ): List<String> = sources.filter { (_, text) -> stringLiterals(text).any { it in names } }.keys.sorted()
 
-/** The contents of the string literals of Kotlin [text], skipping line comments and nested block comments. */
-fun stringLiterals(text: String): List<String> {
-    val found = mutableListOf<String>()
-    var i = 0
-    var depth = 0
-    while (i < text.length) {
-        val rest = text.substring(i)
+private val TOKEN =
+    listOf(
+        "[/][*]",
+        "[/][/][^\\n]*",
+        "\"\"\"[\\s\\S]*?\"\"\"",
+        "\"(?:\\\\.|[^\"\\\\\\n])*\"",
+        "'(?:\\\\.|[^'\\\\\\n])+'",
+    ).joinToString("|").toRegex()
+
+/** The index after the block comment that opens just before [from]; block comments nest in Kotlin. */
+private fun afterBlockComment(
+    text: String,
+    from: Int,
+): Int {
+    var depth = 1
+    var i = from
+    while (depth > 0 && i < text.length) {
         when {
-            depth > 0 && rest.startsWith("/*") -> {
+            text.startsWith("/*", i) -> {
                 depth++
                 i += 2
             }
 
-            depth > 0 && rest.startsWith("*/") -> {
+            text.startsWith("*/", i) -> {
                 depth--
                 i += 2
-            }
-
-            depth > 0 -> {
-                i++
-            }
-
-            rest.startsWith("/*") -> {
-                depth = 1
-                i += 2
-            }
-
-            rest.startsWith("//") -> {
-                i = text.indexOf('\n', i).let { if (it < 0) text.length else it }
-            }
-
-            rest.startsWith("\"\"\"") -> {
-                val end = text.indexOf("\"\"\"", i + 3).let { if (it < 0) text.length else it }
-                found.add(text.substring(i + 3, end))
-                i = end + 3
-            }
-
-            rest.startsWith("\"") -> {
-                var j = i + 1
-                while (j < text.length && text[j] != '"') j += if (text[j] == '\\') 2 else 1
-                found.add(text.substring(i + 1, minOf(j, text.length)))
-                i = j + 1
-            }
-
-            text[i] == '\'' -> {
-                i += if (rest.startsWith("'\\")) 4 else 3
             }
 
             else -> {
@@ -205,5 +189,22 @@ fun stringLiterals(text: String): List<String> {
             }
         }
     }
-    return found
+    return i
+}
+
+/** The contents of the string literals of Kotlin [text], skipping line comments and nested block comments. */
+fun stringLiterals(text: String): List<String> {
+    val found = mutableListOf<String>()
+    var i = 0
+    while (true) {
+        val token = TOKEN.find(text, i) ?: return found
+        val value = token.value
+        i = token.range.last + 1
+        when {
+            value == "/*" -> i = afterBlockComment(text, i)
+            value.startsWith("//") || value.startsWith("'") -> Unit
+            value.startsWith("\"\"\"") -> found.add(value.removeSurrounding("\"\"\""))
+            else -> found.add(value.removeSurrounding("\""))
+        }
+    }
 }
