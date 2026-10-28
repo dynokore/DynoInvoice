@@ -86,6 +86,7 @@ class AccessTokenVerifier(
             issuedAt = issuedAt,
             tenantId = stringClaim(claims, "tenant_id"),
             machineScope = machineScope,
+            environment = stringClaim(claims, "environment"),
         )
     }
 

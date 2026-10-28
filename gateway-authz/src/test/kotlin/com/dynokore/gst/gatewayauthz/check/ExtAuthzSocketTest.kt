@@ -136,7 +136,8 @@ class ExtAuthzSocketTest {
                 AttributeContext
                     .newBuilder()
                     .setRequest(AttributeContext.Request.newBuilder().setHttp(http))
-                    .putContextExtensions("route-class", "machine-api"),
+                    .putContextExtensions("route-class", "machine-api")
+                    .putContextExtensions("required-scope", "ingest"),
             ).build()
     }
 

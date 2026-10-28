@@ -31,6 +31,7 @@ class TestTokens(
         subject: String? = clientId,
         scope: String? = "ingest",
         tenantId: String? = "tenant-1",
+        environment: String? = null,
         jti: String = "jti-${counter++}",
         issuer: String = ISSUER,
         audience: String = AUDIENCE,
@@ -51,6 +52,7 @@ class TestTokens(
                     clientId?.let { claim("client_id", it) }
                     scope?.let { claim("scope", it) }
                     tenantId?.let { claim("tenant_id", it) }
+                    environment?.let { claim("environment", it) }
                 }.build()
         val header =
             JWSHeader

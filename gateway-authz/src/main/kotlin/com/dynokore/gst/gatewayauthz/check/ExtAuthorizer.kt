@@ -6,6 +6,7 @@ import com.dynokore.gst.gatewayauthz.ratelimit.RateLimitFields
 import com.dynokore.gst.gatewayauthz.ratelimit.RouteClass
 import com.dynokore.gst.gatewayauthz.refresh.KeyMaterialCache
 import com.dynokore.gst.gatewayauthz.token.AccessTokenVerifier
+import com.dynokore.gst.gatewayauthz.token.VerifiedToken
 import java.time.Clock
 
 /**
@@ -59,11 +60,45 @@ class ExtAuthorizer(
             }
 
             else -> {
+                scopeChecked(request, token)
+            }
+        }
+    }
+
+    /** The scope check (INV-Q-9038 A): after the token checks, before the limiter. */
+    private fun scopeChecked(
+        request: AuthzRequest,
+        token: VerifiedToken,
+    ): AuthzDecision {
+        val required = request.context[AuthzRequest.REQUIRED_SCOPE]
+        val also = request.context[AuthzRequest.ALSO_SCOPE]
+        val configured =
+            required in VerifiedToken.MACHINE_SCOPES &&
+                (also == null || (also == CERTIFICATION && required == INGEST))
+        return when {
+            !configured -> {
+                configurationFault(request)
+            }
+
+            !admits(token, required, also) -> {
+                envelopes.accessDenied(request.correlationId)
+            }
+
+            else -> {
                 val decision = limiter.checkMachine(token.machineScope, token.principal, token.tenantId)
                 limited(decision, request.correlationId)
             }
         }
     }
+
+    /** Equal scope, or `certification` on a route that names it, in a SANDBOX token (INV-Q-9032 A). */
+    private fun admits(
+        token: VerifiedToken,
+        required: String?,
+        also: String?,
+    ): Boolean =
+        token.machineScope == required ||
+            (token.machineScope == CERTIFICATION && also == CERTIFICATION && token.environment == SANDBOX)
 
     private fun tokenless(
         request: AuthzRequest,
@@ -117,5 +152,8 @@ class ExtAuthorizer(
     private companion object {
         const val BEARER = "Bearer"
         const val HTTP_OK = 200
+        const val INGEST = "ingest"
+        const val CERTIFICATION = "certification"
+        const val SANDBOX = "SANDBOX"
     }
 }

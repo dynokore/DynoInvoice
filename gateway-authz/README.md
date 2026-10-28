@@ -20,7 +20,11 @@ INV-Q-4087, INV-Q-4089; contract INV-API-4001 (getRevocationList, getVerificatio
   path template; on a signed-link route `link-parameter` = the path parameter that carries the link reference. A
   missing or unknown class or a path off its template is a platform configuration fault (INV-Q-4095): 500 SRT-010
   without detail, logged at error level and counted on `gateway_authz_route_configuration_faults_total`. Machine API
-  routes need a bearer token (none: 401 SRT-003); signed-link and AP notification routes take none and are counted
+  routes need a bearer token (none: 401 SRT-003) and a `required-scope` = one of the six API-23 scopes (INV-Q-9038 A):
+  a token of another scope is 403 SRT-004 without detail and is not counted by any limit; a missing, empty or unknown
+  `required-scope` is a configuration fault (500 SRT-010). `also-scope` = `certification` (only with `required-scope`
+  `ingest`) admits a `certification` token whose `environment` claim equals `SANDBOX` (INV-Q-9032 A); any other
+  `also-scope` is a configuration fault. Other route classes ignore both keys; signed-link and AP notification routes take none and are counted
   per link and per `{adapterId}`; console routes take no token check and no limit at the gateway (owner ruling
   INV-Q-4085 A: the console session is a cookie, and console-bff applies the console limits).
 - **Tokens** (INV-Q-4081, RFC 9068): `typ` `at+jwt`, a signature by the cached key matched by `kid` and `alg` (the

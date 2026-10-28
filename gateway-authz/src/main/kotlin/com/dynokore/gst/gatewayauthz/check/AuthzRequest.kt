@@ -21,6 +21,12 @@ data class AuthzRequest(
         /** The route's contract path template, for example `/v1/ap/{adapterId}/notifications`. */
         const val PATH_TEMPLATE = "path-template"
 
+        /** On a machine-api route, the one API-23 machine scope its callers hold (INV-Q-9038 A); missing is a fault. */
+        const val REQUIRED_SCOPE = "required-scope"
+
+        /** On a machine-api route, the one additional scope admitted, `certification` (INV-Q-9032 A). */
+        const val ALSO_SCOPE = "also-scope"
+
         /** On a signed-link page route, the name of the path parameter that carries the link reference. */
         const val LINK_PARAMETER = "link-parameter"
 

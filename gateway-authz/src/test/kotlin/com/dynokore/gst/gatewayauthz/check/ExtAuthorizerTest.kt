@@ -37,7 +37,7 @@ class ExtAuthorizerTest {
         AuthzRequest(
             headers = listOfNotNull(token?.let { "authorization" to "Bearer $it" }).toMap() + ("traceparent" to TRACE),
             path = "/v1/invoices",
-            context = mapOf("route-class" to "machine-api"),
+            context = mapOf("route-class" to "machine-api", "required-scope" to "ingest"),
         )
 
     private fun loaded() = refresher.refreshOnce()

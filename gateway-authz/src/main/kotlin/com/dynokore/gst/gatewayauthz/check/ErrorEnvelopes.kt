@@ -22,6 +22,9 @@ class ErrorEnvelopes {
         return denied(code, correlationId)
     }
 
+    /** A token whose scope the route does not admit (INV-Q-9038 A): 403 SRT-004, no detail. */
+    fun accessDenied(correlationId: String): AuthzDecision = denied(ClosedErrorCode.ACCESS_DENIED, correlationId)
+
     /**
      * A route configuration fault (coordinator ruling INV-Q-4095): 500 SRT-010, no detail.
      */
