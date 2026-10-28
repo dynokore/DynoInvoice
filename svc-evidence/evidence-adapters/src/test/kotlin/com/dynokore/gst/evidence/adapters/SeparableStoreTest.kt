@@ -44,7 +44,17 @@ class SeparableStoreTest {
         }
 
     /** The columns the generator constrains to a closed set of texts (check constraints of the consumer side). */
-    private val constrained = mapOf("event_dead_letter.status" to "OPEN", "consumer_replay.mode" to "SCOPE")
+    private val constrained: Map<String, Any> =
+        mapOf(
+            "event_dead_letter.status" to "OPEN",
+            "consumer_replay.mode" to "SCOPE",
+            "case_register.case_kind" to "SECURITY",
+            "case_register.status" to "OPEN",
+            "idempotency_key.status" to 200,
+        )
+
+    /** Columns left unset: a SECURITY case has no subject (the shape check of `case_register`). */
+    private val unset = setOf("case_register.subject_ref")
 
     private val byType: Map<Class<*>, (TableField<*, *>) -> Any> =
         mapOf(
@@ -59,6 +69,7 @@ class SeparableStoreTest {
             OffsetDateTime::class.java to
                 { _ -> OffsetDateTime.of(2026, 3, 20, 10, 15, 30, 123_000_000, ZoneOffset.UTC) },
             Array<String>::class.java to { f -> arrayOf("evidence-${f.name}") },
+            Array<UUID>::class.java to { _ -> arrayOf(UUID.randomUUID()) },
             ByteArray::class.java to { f -> "evidence-${f.name}".toByteArray() },
             java.time.LocalDate::class.java to { _ -> java.time.LocalDate.of(2026, 3, 20) },
             org.jooq.JSONB::class.java to { _ -> org.jooq.JSONB.valueOf("""{"payload": "evidence"}""") },
@@ -76,6 +87,7 @@ class SeparableStoreTest {
         when (value) {
             is OffsetDateTime -> value.toInstant()
             is ByteArray -> value.toList()
+            is Array<*> -> value.toList()
             else -> value
         }
 
@@ -177,7 +189,8 @@ class SeparableStoreTest {
     ): R {
         val record = dsl.newRecord(table)
         table.fields().filterIsInstance<TableField<R, *>>().forEach { field ->
-            if ("${table.name}.${field.name}" !in identity) setValue(record, field)
+            val name = "${table.name}.${field.name}"
+            if (name !in identity && name !in unset) setValue(record, field)
         }
         return dsl
             .insertInto(table)
