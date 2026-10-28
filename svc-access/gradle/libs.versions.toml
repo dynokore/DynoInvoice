@@ -3,11 +3,11 @@
 
 [versions]
 # The gst.* convention plugins and platform-build's Konsist rule set: one train, one version (P11).
-platformBuild = "0.23.1"
+platformBuild = "0.23.3"
 # The tested set of platform-libs modules (STK-60): platform-libs-bom.
 platformLibsBom = "0.131.0"
 # The published platform-contracts bundle this service stages its contract from (STK-46, API-01).
-platformContractsBundle = "0.0.0-dev+21fc1bf0"
+platformContractsBundle = "0.0.0-dev+3030c14b"
 gstCatalogue = "2.13.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
