@@ -216,7 +216,7 @@
         },
         "state": {
           "type": "string",
-          "description": "ACTIVE replaces whole what a replica holds for the key; REMOVED is the removal that a replica keeps as a tombstone with its authorityVersion until its tombstone time-to-live, which is longer than the event-log retention. Fail-closed: a replica treats any value it does not recognise as REMOVED.",
+          "description": "ACTIVE replaces whole what a replica holds for the key; REMOVED is the removal that a replica keeps as a tombstone with its authorityVersion until its tombstone time-to-live, which is longer than the event-log retention. Fail-closed: a replica treats any value other than ACTIVE as REMOVED.",
           "enum": [
             "ACTIVE",
             "REMOVED"
