@@ -213,29 +213,7 @@ class PeriodGenerationTest {
                 context.startupFailure?.let { throw it }
                 val env = ProfileEnv(context)
                 val period = PeriodEnv(env)
-                // the production binding of the port: no replica is bound, so every question is answered false
-                val access =
-                    PeriodAccess(
-                        ReplicaActionAuthority(null, context.getBean(TenantContext::class.java)),
-                        context.getBean(CallerSource::class.java),
-                    )
-                val commands =
-                    FilingFrequencyCommands(
-                        context.getBean(TransactionRunner::class.java),
-                        context.getBean(StructureStore::class.java),
-                        context.getBean(PeriodPlanner::class.java),
-                        context.getBean(PeriodGeneration::class.java),
-                        access,
-                        context.getBean(PeriodStores::class.java),
-                    )
-                val confirm =
-                    ConfirmPeriods(
-                        context.getBean(TransactionRunner::class.java),
-                        context.getBean(StructureStore::class.java),
-                        access,
-                        context.getBean(PeriodStores::class.java),
-                        context.getBean(FilingFrequencyChangePublisher::class.java),
-                    )
+                val (commands, confirm) = unboundAuthorityUseCases(context)
                 env.withEntity { _, entity ->
                     period.register(entity, "2026-01-01")
                     val rows = period.rows(entity)
@@ -254,5 +232,27 @@ class PeriodGenerationTest {
                     assertThat(period.rows(entity)).isEqualTo(rows).isEmpty()
                 }
             }
+    }
+
+    /** The two use cases over the production binding of the authority port: no replica is bound, every check is false. */
+    private fun unboundAuthorityUseCases(
+        context: AssertableWebApplicationContext,
+    ): Pair<FilingFrequencyCommands, ConfirmPeriods> {
+        val access =
+            PeriodAccess(
+                ReplicaActionAuthority(null, context.getBean(TenantContext::class.java)),
+                context.getBean(CallerSource::class.java),
+            )
+        val tx = context.getBean(TransactionRunner::class.java)
+        val structure = context.getBean(StructureStore::class.java)
+        val stores = context.getBean(PeriodStores::class.java)
+        return FilingFrequencyCommands(
+            tx,
+            structure,
+            context.getBean(PeriodPlanner::class.java),
+            context.getBean(PeriodGeneration::class.java),
+            access,
+            stores,
+        ) to ConfirmPeriods(tx, structure, access, stores, context.getBean(FilingFrequencyChangePublisher::class.java))
     }
 }

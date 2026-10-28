@@ -183,7 +183,9 @@ class FilingFrequencyCommands(
         val codes =
             listOf(RaisedCode.PER_004) +
                 if (affected.any { PeriodKind.TRANSITIONAL in it.kinds }) listOf(RaisedCode.PER_005) else emptyList()
-        return if (confirmationOf(affected, codes, effectiveFrom) == null || affected.none { it.start == effectiveFrom }) {
+        return if (confirmationOf(affected, codes, effectiveFrom) == null ||
+            affected.none { it.start == effectiveFrom }
+        ) {
             FrequencyOutcome.Refused("no period of the new frequency starts on $effectiveFrom")
         } else {
             pending?.let {
