@@ -101,7 +101,9 @@ class ElectionReplayTest {
                     { e.elect(entity, "POSTING_DATE", TODAY.plusDays(3)) },
                 ).forEach { call -> assertThat(e.refusal(call)!!.first).isEqualTo(422) }
                 assertThat(e.reason { e.elect(entity, "POSTING_DATE") }).contains("two-step flow")
-                assertThat(listOf("VP-22", "VP-23", "VP-24").map { versions(env, tenant, entity, it) }).isEqualTo(before)
+                assertThat(
+                    listOf("VP-22", "VP-23", "VP-24").map { versions(env, tenant, entity, it) },
+                ).isEqualTo(before)
                 assertThat(listOf("VP-22", "VP-23", "VP-24").map { e.auditEntries(entity, it) }).isEqualTo(audits)
                 // the same value on another date is a new election, not a change
                 assertThat(e.elect(entity, "INVOICE_DATE", TODAY.plusDays(4)).statusCode).isEqualTo(HttpStatus.CREATED)
