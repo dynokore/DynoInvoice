@@ -37,3 +37,4 @@
 ../openapi.yaml#/components/schemas/PlatformElectionResponse platform-election-response-*.json
 ../openapi.yaml#/components/schemas/InstallationFactsRequest installation-facts-request-*.json
 ../schemas/plan-limit-exceeded-payload.schema.json plan-limit-exceeded-payload-*.json
+../openapi.yaml#/components/schemas/QuestionnaireAnswersResponse questionnaire-answers-response-*.json

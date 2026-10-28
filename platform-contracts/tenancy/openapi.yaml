@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.25.0
+  version: 1.26.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -3623,18 +3623,47 @@ components:
         recommendedProfile:
           type: string
           maxLength: 64
+          description: 'Superseded by recommendations; the service returns the empty string (Inference of INV-T-9951 under INV-Q-9831 B, no single profile is recommended, the person picks).'
         reasons:
           type: array
           maxItems: 20
           items:
             type: string
             maxLength: 200
+          description: Superseded by recommendations; the service returns the empty array (Inference of INV-T-9951 under INV-Q-9831 B).
         entityRef:
           type: string
           maxLength: 64
         entityFacts:
           $ref: '#/components/schemas/EntityFacts'
           description: The facts as stored after the call; a fact never recorded is absent.
+        recommendations:
+          type: array
+          maxItems: 100
+          description: 'One entry per variation point or profile that the questionnaire table names for a submitted answer. An entry carries no value for a variation point, and the person picks the value at confirmation. A planned profile never appears as an entry and is replaced by its member variation points. Nothing applies until a person confirms (INV-REQ-1246).'
+          items:
+            $ref: '#/components/schemas/QuestionnaireRecommendation'
+    QuestionnaireRecommendation:
+      type: object
+      required:
+      - kind
+      - ref
+      - reason
+      properties:
+        kind:
+          type: string
+          enum:
+          - VARIATION_POINT
+          - PROFILE
+          x-extensible-enum: true
+        ref:
+          type: string
+          maxLength: 16
+          description: The identifier named by the questionnaire table, for example VP-03 or PRF-1.
+        reason:
+          type: string
+          maxLength: 256
+          description: 'The question key and the submitted answer as <questionKey>=<answer>, for example OQ-1=YES (Inference of INV-T-9951 under INV-Q-9831 B). The maximum length follows from an answer of at most 200 characters.'
     FilingFrequencyChangeRequest:
       type: object
       required:
