@@ -18,9 +18,11 @@ class DrainOrderTest {
         period: String = "2026-Q1",
         due: LocalDate = LocalDate.of(2026, 4, 30),
         opens: LocalDate = LocalDate.of(2026, 4, 20),
-        queued: Instant = t0,
-        version: Int = 1,
-    ) = DrainItem(doc, version, entity, period, due, opens, queued)
+    ) = DrainItem(doc, 1, entity, period, due, opens, t0)
+
+    private fun DrainItem.queuedAt(at: Instant) = copy(queuedAt = at)
+
+    private fun DrainItem.versioned(version: Int) = copy(version = version)
 
     private fun docs(r: List<RankedItem>) = r.map { it.item.docUuid }
 
@@ -54,10 +56,9 @@ class DrainOrderTest {
                 period = "2026-Q2",
                 due = LocalDate.of(2026, 5, 31),
                 opens = LocalDate.of(2026, 5, 21),
-                queued = t0.minusSeconds(3600),
-            )
+            ).queuedAt(t0.minusSeconds(3600))
         val a1 = item("a1", opens = LocalDate.of(2026, 4, 25))
-        val a2 = item("a2", opens = LocalDate.of(2026, 4, 26), queued = t0.plusSeconds(60))
+        val a2 = item("a2", opens = LocalDate.of(2026, 4, 26)).queuedAt(t0.plusSeconds(60))
         val r = DrainOrder.rank(listOf(c, a2, a1), drained, apr20)
         docs(r) shouldBe listOf("a1", "a2", "c")
         r.last().tier shouldBe Tier.ROUTINE
@@ -71,10 +72,9 @@ class DrainOrderTest {
                 period = "2026-Q2",
                 due = LocalDate.of(2026, 5, 10),
                 opens = LocalDate.of(2026, 5, 1),
-                queued = t0,
             )
         val mine =
-            item("m", due = LocalDate.of(2026, 6, 30), opens = LocalDate.of(2026, 6, 20), queued = t0.plusSeconds(500))
+            item("m", due = LocalDate.of(2026, 6, 30), opens = LocalDate.of(2026, 6, 20)).queuedAt(t0.plusSeconds(500))
         val r = DrainOrder.rank(listOf(routine, mine), drained, apr20)
         docs(r) shouldBe listOf("m", "r")
         r.map { it.tier } shouldBe listOf(Tier.DRAINED_PERIOD, Tier.ROUTINE)
@@ -127,15 +127,15 @@ class DrainOrderTest {
 
     @Test
     fun `INV-AC-145 window open tier is ordered by due date then queue time not by queue time first`() {
-        val late = item("x", due = LocalDate.of(2026, 5, 2), queued = t0)
-        val early = item("y", due = LocalDate.of(2026, 4, 25), queued = t0.plusSeconds(10))
+        val late = item("x", due = LocalDate.of(2026, 5, 2))
+        val early = item("y", due = LocalDate.of(2026, 4, 25)).queuedAt(t0.plusSeconds(10))
         docs(DrainOrder.rank(listOf(late, early), drained, apr20)) shouldBe listOf("y", "x")
     }
 
     @Test
     fun `INV-AC-145 equal due date is ordered by queuedAt`() {
-        val a = item("a", queued = t0.plusSeconds(5))
-        val b = item("b", queued = t0)
+        val a = item("a").queuedAt(t0.plusSeconds(5))
+        val b = item("b")
         docs(DrainOrder.rank(listOf(a, b), drained, apr20)) shouldBe listOf("b", "a")
     }
 
@@ -146,7 +146,7 @@ class DrainOrderTest {
 
     @Test
     fun `INV-AC-145 equal docUuid is ordered by version`() {
-        val r = DrainOrder.rank(listOf(item("a", version = 3), item("a", version = 2)), drained, apr20)
+        val r = DrainOrder.rank(listOf(item("a").versioned(3), item("a").versioned(2)), drained, apr20)
         r.map { it.item.version } shouldBe listOf(2, 3)
     }
 
@@ -161,14 +161,44 @@ class DrainOrderTest {
                     period = if (it % 4 == 0) "2026-Q2" else "2026-Q1",
                     due = LocalDate.of(2026, 4, 25 + it % 3),
                     opens = LocalDate.of(2026, 4, 15 + it % 12),
-                    queued = t0.plusSeconds((it % 5).toLong()),
-                    version = it / 7 + 1,
-                )
+                ).queuedAt(t0.plusSeconds((it % 5).toLong())).versioned(it / 7 + 1)
             }
         val expected = DrainOrder.rank(items, drained, apr20)
         expected.size shouldBe 20
         expected.map { it.item }.toSet() shouldBe items.toSet()
         repeat(50) { DrainOrder.rank(items.shuffled(rnd), drained, apr20) shouldBe expected }
+    }
+
+    @Test
+    fun `INV-AC-10579 a drain despatches window open first then the drained period then routine each by due date`() {
+        fun at(day: Int) = Instant.parse("2026-04-%02dT10:00:00Z".format(day))
+
+        fun d(
+            month: Int,
+            day: Int,
+        ) = LocalDate.of(2026, month, day)
+        val w1 = item("w1", entity = "B", due = d(4, 25), opens = d(4, 15)).queuedAt(at(3))
+        val w3 = item("w3", entity = "C", due = d(4, 30), opens = d(4, 18)).queuedAt(at(2))
+        val w2 = item("w2", due = d(5, 12), opens = d(4, 20)).queuedAt(at(1))
+        val d1 = item("d1", due = d(4, 30), opens = d(4, 25)).queuedAt(at(2))
+        val d2 = item("d2", due = d(5, 10), opens = d(5, 5)).queuedAt(at(1))
+        val r2 = item("r2", entity = "B", period = "2026-Q2", due = d(5, 15), opens = d(5, 5)).queuedAt(at(2))
+        val r1 = item("r1", entity = "C", period = "2026-Q2", due = d(5, 31), opens = d(5, 21)).queuedAt(at(1))
+        val r = DrainOrder.rank(listOf(r1, r2, d2, d1, w2, w3, w1), drained, apr20)
+        docs(r) shouldBe listOf("w1", "w3", "w2", "d1", "d2", "r2", "r1")
+        r.map { it.tier } shouldBe
+            listOf(
+                Tier.WINDOW_OPEN,
+                Tier.WINDOW_OPEN,
+                Tier.WINDOW_OPEN,
+                Tier.DRAINED_PERIOD,
+                Tier.DRAINED_PERIOD,
+                Tier.ROUTINE,
+                Tier.ROUTINE,
+            )
+        val lastWindow = r.indexOfLast { it.tier == Tier.WINDOW_OPEN }
+        val firstOther = r.indexOfFirst { it.tier != Tier.WINDOW_OPEN }
+        (lastWindow < firstOther) shouldBe true
     }
 
     @Test
@@ -192,7 +222,7 @@ class DrainOrderTest {
         shouldThrow<IllegalArgumentException> { item(" ") }
         shouldThrow<IllegalArgumentException> { item("a", entity = "") }
         shouldThrow<IllegalArgumentException> { item("a", period = " ") }
-        shouldThrow<IllegalArgumentException> { item("a", version = 0) }
+        shouldThrow<IllegalArgumentException> { item("a").versioned(0) }
         shouldThrow<IllegalArgumentException> { DrainScope("", "p") }
     }
 }
