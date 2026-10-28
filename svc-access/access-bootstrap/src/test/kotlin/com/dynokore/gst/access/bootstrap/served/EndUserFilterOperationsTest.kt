@@ -15,7 +15,7 @@ fun namedCallers(document: List<ContractOperation>): Set<String> =
                 when {
                     element == "any" -> {
                         error(
-                            "${op.key} (${op.operationId}): an `any` edge needs the service list of the model; this service has none",
+                            "${op.key} (${op.operationId}): an `any` edge needs the service list of the model",
                         )
                     }
 
@@ -77,37 +77,49 @@ class EndUserFilterOperationsTest {
             operations.forEach { (_, op) ->
                 // a caller the edge allows, so that only the marker decides what the end-user filter does
                 val caller = workloadToken(allowedCallers(op, named).first())
-                if (op.untouched) {
-                    Doubles.reset()
-                    val answer = served.call(op, caller)
-                    assertThat(answer.status).describedAs("${op.key} (a) without a token").isNotIn(401, 403)
-                    assertThat(Doubles.resolverCalls.get()).describedAs("${op.key} resolver calls").isZero()
-                    assertThat(Doubles.reached).describedAs("${op.key} reached").hasSize(1)
-                    assertThat(Doubles.reached.single().tenant).describedAs("${op.key} tenant bound").isNull()
-                    assertThat(Doubles.reached.single().actor).describedAs("${op.key} actor bound").isNull()
-                } else {
-                    Doubles.reset()
-                    val before = served.stored()
-                    val none = served.call(op, caller)
-                    assertThat(none.status).describedAs("${op.key} (b) without a token").isEqualTo(401)
-                    assertThat(none.contentAsString).describedAs("${op.key} (b) without a token").contains("SRT-003")
-                    assertThat(Doubles.reached).describedAs("${op.key} double after no token").isEmpty()
-                    Doubles.reset()
-                    val refused = served.call(op, caller, REFUSED_TOKEN)
-                    assertThat(refused.status).describedAs("${op.key} (b) refused token").isEqualTo(401)
-                    assertThat(refused.contentAsString).describedAs("${op.key} (b) refused token").contains("SRT-003")
-                    assertThat(Doubles.reached).describedAs("${op.key} double after refused token").isEmpty()
-                    assertThat(served.stored()).describedAs("${op.key} (b) refused sweep stored").isEqualTo(before)
-                    Doubles.reset()
-                    served.call(op, caller, USER_A_TOKEN)
-                    assertThat(Doubles.reached).describedAs("${op.key} double after the token of user-a").hasSize(1)
-                    assertThat(
-                        Doubles.reached.single().tenant,
-                    ).describedAs("${op.key} tenant").isEqualTo(TENANT_A.toString())
-                    assertThat(Doubles.reached.single().actor).describedAs("${op.key} actor").isEqualTo("user-a")
-                }
+                if (op.untouched) assertUntouched(served, op, caller) else assertFiltered(served, op, caller)
             }
         }
+
+    private fun assertUntouched(
+        served: ServedContext,
+        op: ContractOperation,
+        caller: String,
+    ) {
+        Doubles.reset()
+        val answer = served.call(op, caller)
+        assertThat(answer.status).describedAs("${op.key} (a) without a token").isNotIn(401, 403)
+        assertThat(Doubles.resolverCalls.get()).describedAs("${op.key} resolver calls").isZero()
+        assertThat(Doubles.reached).describedAs("${op.key} reached").hasSize(1)
+        assertThat(Doubles.reached.single().tenant).describedAs("${op.key} tenant bound").isNull()
+        assertThat(Doubles.reached.single().actor).describedAs("${op.key} actor bound").isNull()
+    }
+
+    private fun assertFiltered(
+        served: ServedContext,
+        op: ContractOperation,
+        caller: String,
+    ) {
+        Doubles.reset()
+        val before = served.stored()
+        val none = served.call(op, caller)
+        assertThat(none.status).describedAs("${op.key} (b) without a token").isEqualTo(401)
+        assertThat(none.contentAsString).describedAs("${op.key} (b) without a token").contains("SRT-003")
+        assertThat(Doubles.reached).describedAs("${op.key} double after no token").isEmpty()
+        Doubles.reset()
+        val refused = served.call(op, caller, REFUSED_TOKEN)
+        assertThat(refused.status).describedAs("${op.key} (b) refused token").isEqualTo(401)
+        assertThat(refused.contentAsString).describedAs("${op.key} (b) refused token").contains("SRT-003")
+        assertThat(Doubles.reached).describedAs("${op.key} double after refused token").isEmpty()
+        assertThat(served.stored()).describedAs("${op.key} (b) refused sweep stored").isEqualTo(before)
+        Doubles.reset()
+        served.call(op, caller, USER_A_TOKEN)
+        assertThat(Doubles.reached).describedAs("${op.key} double after the token of user-a").hasSize(1)
+        assertThat(
+            Doubles.reached.single().tenant,
+        ).describedAs("${op.key} tenant").isEqualTo(TENANT_A.toString())
+        assertThat(Doubles.reached.single().actor).describedAs("${op.key} actor").isEqualTo("user-a")
+    }
 
     @Test
     fun `INV-AC-8260 the content comparison sees an update that keeps every row count and a delete plus insert`() =
