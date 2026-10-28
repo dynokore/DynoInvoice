@@ -134,3 +134,7 @@ ApproveBreakGlassUnlockRequest.tenantRef	schema_property	openapi.yaml	INV-REQ-89
 ApproveBreakGlassUnlockResponse.approvalRef	schema_property	openapi.yaml	INV-REQ-896
 ApproveBreakGlassUnlockResponse.madeAt	schema_property	openapi.yaml	INV-REQ-896
 ApproveBreakGlassUnlockResponse.expiresAt	schema_property	openapi.yaml	INV-REQ-896
+flowId	property	schemas/flow-context.schema.json	INV-REQ-1202
+callerService	property	schemas/flow-context.schema.json	INV-REQ-1202
+principalKind	property	schemas/flow-context.schema.json	INV-REQ-1202
+TENANT_WIDE	enum_value	schemas/flow-context.schema.json	INV-REQ-1202

@@ -1,0 +1,11 @@
+{
+  "tenant": "t-1001",
+  "entity": {
+    "kind": "TENANT_WIDE"
+  },
+  "principalKind": "MACHINE",
+  "callerService": "control-plane-svc",
+  "flowId": "f-7002",
+  "iat": 1793000000,
+  "exp": 1793000600
+}

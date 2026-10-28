@@ -1,0 +1,12 @@
+{
+  "tenant": "t-1001",
+  "entity": {
+    "kind": "ENTITY",
+    "ref": "e-2002"
+  },
+  "principalKind": "HUMAN",
+  "callerService": "canonical-svc",
+  "flowId": "f-7001",
+  "iat": 1793000000,
+  "exp": 1793000600
+}

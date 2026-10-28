@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/flow-context.schema.json",
+  "title": "FlowContext",
+  "description": "Flow context of a system flow (owner answer on INV-Q-9241, option B; INV-REQ-1202). A system flow is authorised once at its entry (API-25); the service that sends the call attaches this signed flow context so that the callee can bind it to row-level security. It travels in the HTTP header X-Flow-Context as a signed compact form (JWS compact serialization) whose payload holds these claims. The callee verifies the signature and the claims (the issuer of the signature is the open question INV-Q-9249 and is not decided here), refuses a call whose entity is outside the flow context, and logs the caller and the context per call. A context outside its lifetime (iat to exp, in seconds) or naming another tenant than the token is refused. The lifetime exp - iat is at most 900 seconds. entity.ref is present exactly when entity.kind is ENTITY: a flow such as createTenant has no entity and carries TENANT_WIDE. principalKind is the kind of the originating principal; a flow with no person is MACHINE (Inference). Within a major version this schema is additive-only (API-41).",
+  "type": "object",
+  "properties": {
+    "tenant": {
+      "type": "string",
+      "description": "The tenant of the flow; it must equal the tenant of the token.",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "entity": {
+      "type": "object",
+      "description": "The entity scope of the flow. kind ENTITY names one entity in ref; kind TENANT_WIDE has no ref.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "ENTITY: the flow is bound to one entity. TENANT_WIDE: the flow has no entity.",
+          "enum": [
+            "ENTITY",
+            "TENANT_WIDE"
+          ],
+          "x-extensible-enum": true
+        },
+        "ref": {
+          "type": "string",
+          "description": "The entity reference; present exactly when kind is ENTITY.",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ENTITY"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "ref"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "ref"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "principalKind": {
+      "type": "string",
+      "description": "The kind of the originating principal. A flow with no person is MACHINE (Inference).",
+      "enum": [
+        "HUMAN",
+        "CONSENT_AGENT",
+        "MACHINE",
+        "OPERATOR_SESSION",
+        "SIGNATORY_LINK"
+      ],
+      "x-extensible-enum": true
+    },
+    "callerService": {
+      "type": "string",
+      "description": "The service that sends the call.",
+      "minLength": 1
+    },
+    "flowId": {
+      "type": "string",
+      "description": "The identifier of the flow.",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "iat": {
+      "type": "integer",
+      "description": "Issued at, in seconds since the epoch.",
+      "minimum": 0
+    },
+    "exp": {
+      "type": "integer",
+      "description": "Expiry, in seconds since the epoch. exp - iat is at most 900.",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "tenant",
+    "entity",
+    "principalKind",
+    "callerService",
+    "flowId",
+    "iat",
+    "exp"
+  ],
+  "additionalProperties": true
+}
