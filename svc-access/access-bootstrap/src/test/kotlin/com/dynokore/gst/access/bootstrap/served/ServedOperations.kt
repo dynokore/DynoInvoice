@@ -276,24 +276,33 @@ class ServedContext(
         return checkNotNull(examples?.values?.firstOrNull()?.get("value")) { "${operation.key}: no request example" }
     }
 
-    /** The rows of every table of the access schema, and the events captured, as one comparable value. */
-    fun stored(): Map<String, Long> =
+    /**
+     * The content of every table of the access schema (the md5 of its rows as ordered jsonb text, so an update that
+     * keeps the row count changes it) and the captured outbox envelopes themselves, as one comparable value.
+     */
+    fun stored(): Map<String, String> =
         BoundaryFixture.asSuperuser { connection ->
-            val counts = sortedMapOf<String, Long>()
+            val content = sortedMapOf<String, String>()
             connection.createStatement().use { s ->
+                val tables = mutableListOf<String>()
                 s
                     .executeQuery(
-                        "SELECT table_name, (xpath('/row/c/text()', query_to_xml(" +
-                            "format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))" +
-                            "[1]" +
-                            "::text::bigint FROM information_schema.tables " +
+                        "SELECT table_name FROM information_schema.tables " +
                             "WHERE table_schema = 'access' AND table_type = 'BASE TABLE'",
-                    ).use {
-                        while (it.next()) counts[it.getString(1)] = it.getLong(2)
-                    }
+                    ).use { while (it.next()) tables.add(it.getString(1)) }
+                check(tables.isNotEmpty()) { "the access schema has no table" }
+                tables.forEach { table ->
+                    s
+                        .executeQuery(
+                            "SELECT coalesce(md5(string_agg(to_jsonb(t)::text, ',' ORDER BY to_jsonb(t)::text)), '') " +
+                                "FROM access.\"$table\" t",
+                        ).use {
+                            it.next()
+                            content["access.$table"] = it.getString(1)
+                        }
+                }
             }
-            check(counts.isNotEmpty()) { "the access schema has no table" }
-            counts + ("captured events" to events.envelopes.size.toLong())
+            content + ("captured events" to events.envelopes.joinToString("\n") { it.toString() })
         }
 
     private companion object {
