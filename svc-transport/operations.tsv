@@ -7,6 +7,8 @@ operation	rotateCredential	INV-T-4983
 operation	testConnection	INV-T-4983
 operation	failoverAdapter	INV-T-4983
 operation	setConnectionEntities	INV-T-4983
+operation	electAcknowledgementRoute	INV-T-4982
+operation	clearAcknowledgementRoute	INV-T-4982
 channel	gst.transport.acknowledgement-received.v1	INV-T-4982
 channel	gst.transport.network-document-received.v1	INV-T-4982
 channel	gst.transport.access-point-route-changed.v1	INV-T-4982
