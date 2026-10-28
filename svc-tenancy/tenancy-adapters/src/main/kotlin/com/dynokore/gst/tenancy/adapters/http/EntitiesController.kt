@@ -253,7 +253,7 @@ open class EntitiesController(
         return ResponseEntity.ok(electionStatusResponse(report))
     }
 
-    /** 201 for an election that was written, 200 for a replay that wrote nothing (RFC 9110 sec. 15.3.2, INV-Q-11868). */
+    /** 201 for a written election, 200 for a replay that wrote nothing (RFC 9110 sec. 15.3.2, INV-Q-11868). */
     private fun created(outcome: ElectionOutcome): HttpStatus =
         if (outcome is ElectionOutcome.Done && outcome.repeated) HttpStatus.OK else HttpStatus.CREATED
 
