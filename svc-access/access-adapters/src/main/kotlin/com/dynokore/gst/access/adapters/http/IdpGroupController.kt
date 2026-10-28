@@ -68,6 +68,10 @@ open class IdpGroupController(
             MapIdpGroupOutcome.WindowInvalid -> {
                 GrantRequests.invalid("validTo must be after validFrom")
             }
+
+            MapIdpGroupOutcome.OperatorRoleRefused -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, OPERATOR_ROLE_REFUSED_DETAIL)
+            }
         }
     }
 

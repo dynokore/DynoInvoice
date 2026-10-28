@@ -29,6 +29,9 @@ import org.springframework.web.bind.annotation.RestController
 import java.time.ZoneOffset
 import java.util.UUID
 
+/** The detail of the 403 for an Operator role in grantRole and mapIdpGroup (INV-Q-9069 A). */
+internal const val OPERATOR_ROLE_REFUSED_DETAIL = "an operator role cannot be granted in a customer tenant"
+
 /**
  * TPL-08. grantRole and revokeGrant: the caller must be allowed to manage grants ([GrantManagerCheck]); a grant without
  * a
@@ -84,6 +87,10 @@ open class GrantsController(
             // the contract lists 403 and 409 for grantRole; no catalogue error code names these refusals (INV-REQ-891)
             GrantRoleOutcome.SecondHolderRefused, GrantRoleOutcome.SoleOperatorAckRequired -> {
                 throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, separationDetail(outcome))
+            }
+
+            GrantRoleOutcome.OperatorRoleRefused -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, OPERATOR_ROLE_REFUSED_DETAIL)
             }
         }
     }

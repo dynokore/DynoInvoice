@@ -12,6 +12,7 @@ import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.access.domain.role.SeparationOfDuty
+import com.dynokore.gst.access.domain.role.TenantGrantableRoles
 import com.dynokore.platform.tenancykernel.TransactionRunner
 
 /** What `grantRole` checks beyond the grant itself: the roles of the installation's form and the separation of duty. */
@@ -28,7 +29,8 @@ class GrantRoleEffects(
 )
 
 /**
- * `grantRole` (INV-REQ-864, INV-REQ-859): refuses a grant without a scope or with an unknown role; otherwise stores the
+ * `grantRole` (INV-REQ-864, INV-REQ-859): refuses a grant without a scope, with an unknown role or with an Operator
+ * role (INV-Q-9069 A, before any lock or write); otherwise stores the
  * grant (a repeat of the same identity, role and scope returns the original), publishes AuthorityChanged for every
  * entity
  * the scope reaches in the same transaction, and writes the audit entry (INV-REQ-861). The identity row is locked
@@ -51,6 +53,7 @@ class GrantRoleUseCase(
         return when {
             scope == null -> GrantRoleOutcome.ScopeMissing
             role == null || !rules.catalogue.contains(role) -> GrantRoleOutcome.UnknownRole(command.roleWire)
+            TenantGrantableRoles.refuses(role) -> GrantRoleOutcome.OperatorRoleRefused
             else -> tx.inTransaction { issue(command, role, scope) }
         }
     }

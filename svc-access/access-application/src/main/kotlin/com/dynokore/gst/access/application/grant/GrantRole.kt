@@ -47,6 +47,9 @@ sealed interface GrantRoleOutcome {
     data class UnknownRole(
         val roleWire: String,
     ) : GrantRoleOutcome
+
+    /** The role is one of the six Operator roles, which are never granted in a customer tenant (INV-Q-9069 A). */
+    data object OperatorRoleRefused : GrantRoleOutcome
 }
 
 sealed interface RevokeGrantOutcome {

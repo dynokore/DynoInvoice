@@ -20,6 +20,7 @@ import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.access.domain.role.SeparationOfDuty
+import com.dynokore.gst.access.domain.role.TenantGrantableRoles
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 import java.time.LocalDate
@@ -118,6 +119,8 @@ class GroupGrantReconciler(
         mapping: IdpGroupMapping,
         identity: IdentityRef,
     ) {
+        // INV-Q-12013 A: a stored mapping of an Operator role writes no grant, before the identity lock
+        if (TenantGrantableRoles.refuses(mapping.role)) return
         grants.lockIdentity(identity, GranteeKind.STAFF)
         val existing = grants.findByRepeatKey(identity, mapping.role.wire, mapping.scope)
         if (existing != null && existing.status != GrantStatus.REVOKED) return
@@ -194,6 +197,9 @@ sealed interface MapIdpGroupOutcome {
 
     /** `validTo` is not after `validFrom`. */
     data object WindowInvalid : MapIdpGroupOutcome
+
+    /** The role is one of the six Operator roles, which are never mapped in a customer tenant (INV-Q-9069 A). */
+    data object OperatorRoleRefused : MapIdpGroupOutcome
 }
 
 /** What the caller asks `mapIdpGroup` for, before any rule is applied. */
@@ -243,6 +249,10 @@ class MapIdpGroupUseCase private constructor(
 
             role == null || !catalogue.contains(role) -> {
                 MapIdpGroupOutcome.UnknownRole(command.roleWire)
+            }
+
+            TenantGrantableRoles.refuses(role) -> {
+                MapIdpGroupOutcome.OperatorRoleRefused
             }
 
             validTo != null && !validTo.isAfter(from) -> {
