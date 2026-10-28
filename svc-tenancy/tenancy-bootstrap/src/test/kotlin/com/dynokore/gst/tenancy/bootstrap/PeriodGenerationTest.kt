@@ -234,7 +234,7 @@ class PeriodGenerationTest {
             }
     }
 
-    /** The two use cases over the production binding of the authority port: no replica is bound, every check is false. */
+    /** The two use cases over the production binding of the authority port: no replica, so every check is false. */
     private fun unboundAuthorityUseCases(
         context: AssertableWebApplicationContext,
     ): Pair<FilingFrequencyCommands, ConfirmPeriods> {

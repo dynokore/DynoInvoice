@@ -6,7 +6,7 @@ import com.dynokore.gst.tenancy.application.election.CallerSource
 /**
  * The permission check of the period operations (INV-Q-10004, INV-Q-10006, INV-Q-10127 A): the caller of the request
  * (the end-user token's subject) must hold the permission key on the entity, as `AuthorityReplica.decide` answers it
- * through [ActionAuthority]. An exception and a denial refuse; in production without a replica the authority answers false.
+ * through [ActionAuthority]. An exception and a denial refuse; with no replica bound the authority answers false.
  */
 class PeriodAccess(
     private val authority: ActionAuthority,

@@ -199,7 +199,7 @@ class FilingFrequencyCommands(
         }
     }
 
-    /** The response for [entry]: one stored with a proposal presents it, whatever its state now; else its state only. */
+    /** The response for [entry]: one stored with a proposal presents it in any state; else its state only. */
     private fun view(
         entity: EntityRecord,
         entry: FrequencyEntry,

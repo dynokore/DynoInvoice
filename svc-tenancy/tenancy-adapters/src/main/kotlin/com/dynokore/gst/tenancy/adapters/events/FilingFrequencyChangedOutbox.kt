@@ -13,7 +13,8 @@ import tools.jackson.databind.node.ObjectNode
  * TPL-05: maps a confirmed filing-frequency change to the contract event FilingFrequencyChanged and appends it through
  * outbox-and-queue, in the transaction of `confirmPeriods` that applies it (CS-17). The payload is the
  * `filing-frequency-changed-payload` schema of platform-contracts: `entityRef`, `oldFrequency`, `newFrequency` and the
- * open-ended `affectedSpan` (`fromPeriod`, the periodRef of the stored record that starts on the effective date; as the schema describes `toPeriod` absent when open-ended).
+ * open-ended `affectedSpan` (`fromPeriod`, the periodRef of the stored record that starts on the effective date;
+ * `toPeriod` is absent when open-ended, as the schema describes).
  */
 class FilingFrequencyChangedOutbox(
     private val outbox: OutboxWriter,
