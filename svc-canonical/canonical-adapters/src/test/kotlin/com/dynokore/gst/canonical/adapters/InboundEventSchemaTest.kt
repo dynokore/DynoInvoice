@@ -151,14 +151,10 @@ class InboundEventSchemaTest {
         DocumentSql.execute(insert())
         CanonicalDb.connect(CanonicalDb.MIGRATE, CanonicalDb.MIGRATE_PASSWORD).use { owner ->
             owner.createStatement().use { it.execute("grant update on canonical.inbound_event to canonical_runtime") }
-            val refusedWithGrant =
-                try {
-                    updateAndDeleteAreRefused()
-                } finally {
-                    owner.createStatement().use {
-                        it.execute("revoke update on canonical.inbound_event from canonical_runtime")
-                    }
-                }
+            val refusedWithGrant = updateAndDeleteAreRefused()
+            owner.createStatement().use {
+                it.execute("revoke update on canonical.inbound_event from canonical_runtime")
+            }
             refusedWithGrant shouldBe false // the probe: the committed test would fail here
         }
         updateAndDeleteAreRefused() shouldBe true
