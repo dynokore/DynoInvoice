@@ -1,0 +1,6 @@
+{
+  "tenantRef": "T-0001",
+  "limitKind": "DOCUMENTS_PER_MONTH",
+  "limit": 1000,
+  "period": "2026-10"
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/plan-limit-exceeded-payload.schema.json",
+  "title": "PlanLimitExceededPayload",
+  "description": "Payload of the PlanLimitExceeded event (INV-Q-9819 A, INV-REQ-879): a tenant exceeded a plan limit. Raising it never stops or delays a submission. Authored by INV-T-9837. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "tenantRef": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "The tenant that exceeded the limit."
+    },
+    "limitKind": {
+      "type": "string",
+      "description": "Which plan limit was exceeded.",
+      "enum": [
+        "DOCUMENTS_PER_MONTH",
+        "ENTITIES"
+      ]
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The plan limit that was exceeded."
+    },
+    "observed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The observed count when the limit was found exceeded."
+    },
+    "period": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "description": "The calendar month (YYYY-MM) the count refers to. Present for DOCUMENTS_PER_MONTH and absent for ENTITIES; the producer enforces this rule, the schema does not (it stays additive-only)."
+    }
+  },
+  "required": [
+    "tenantRef",
+    "limitKind",
+    "limit",
+    "observed"
+  ],
+  "additionalProperties": true
+}

@@ -655,6 +655,16 @@ topics:
     subscribers:
       - console-bff
       - submission-svc
+  - topic: gst.tenancy.plan-limit-exceeded.v1
+    event_type: com.dynokore.gst.tenancy.PlanLimitExceeded.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - tenancy-svc
+    subscribers:
+      - console-bff
+      - notification-svc
   - topic: gst.transport.access-point-route-changed.v1
     event_type: com.dynokore.gst.transport.AccessPointRouteChanged.v1
     content_topic: false
@@ -1591,6 +1601,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
       - com.dynokore.gst.tenancy.PeriodDueDateChanged.v1
       - com.dynokore.gst.tenancy.PeriodExtended.v1
+      - com.dynokore.gst.tenancy.PlanLimitExceeded.v1
     content_topic: false
     record_topic: false
     retained_while_resolvable: false
@@ -1653,6 +1664,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.EntityProfileChanged.v1
       - com.dynokore.gst.tenancy.InstallationStatusChanged.v1
       - com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
+      - com.dynokore.gst.tenancy.PlanLimitExceeded.v1
     content_topic: false
     record_topic: false
     retained_while_resolvable: false

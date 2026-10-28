@@ -143,3 +143,10 @@ recordInstallationFacts	operation	openapi.yaml	INV-REQ-1095
 InstallationFactsRequest.trainVersion	schema_property	openapi.yaml	INV-REQ-1095
 trainVersion	property	openapi.yaml	INV-REQ-1095
 InstallationFactsRequest.supportedTrainVersions	schema_property	openapi.yaml	INV-REQ-1095
+tenantRef	property	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
+limitKind	property	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
+period	property	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
+limit	property	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
+observed	property	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
+DOCUMENTS_PER_MONTH	enum_value	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879
+ENTITIES	enum_value	schemas/plan-limit-exceeded-payload.schema.json	INV-REQ-879

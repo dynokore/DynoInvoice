@@ -1,0 +1,6 @@
+{
+  "tenantRef": "T-0001",
+  "limitKind": "ENTITIES",
+  "limit": 5,
+  "observed": 6
+}
