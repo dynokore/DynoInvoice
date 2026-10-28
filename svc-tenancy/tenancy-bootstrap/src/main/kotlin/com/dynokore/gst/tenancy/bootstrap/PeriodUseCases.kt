@@ -96,6 +96,7 @@ class PeriodUseCases {
     ): PeriodGeneration = PeriodGeneration(tx, structure, planner, history, periods)
 
     @Bean
+    @Suppress("LongParameterList") // one provider per collaborator of the use case, as in ElectionUseCases
     fun filingFrequencyCommands(
         tx: TransactionRunner,
         structure: StructureStore,
