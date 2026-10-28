@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.21.0] - 2026-10-29
+### Added
+- `TenancyErrorCode` gains TNC-005 `CREDENTIAL_ENVIRONMENT_MISMATCH`, TNC-006 `SAMPLE_COPY_OFF` and TNC-007 `SAMPLE_COPY_NOT_APPROVED` (status 422; INV-T-11911, INV-Q-11899 A), and `Owner` gains `SECURITY_OFFICER("security.officer")`, so that a service renders the refusals with `Problems.renderTenancy` and writes no code of its own. The catalogue snapshot is re-vendored at platform-contracts 082db546 (INV-T-11909).
+
 ## [10.20.0] - 2026-10-28
 ### Added
 - The `S3Client` of the `ObjectStore` binding is built from configuration (INV-T-12057, INV-Q-12045 A): `service-runtime.object-store.region` (the declaration), `.endpoint`, `.path-style-access` (default false), `.access-key-id-credential` and `.secret-access-key-credential`. Both credential references are read through `SecretStore` on every request (STK-29) and once at creation, so a missing secret refuses the start. A user-supplied `S3Client` bean replaces the built one; with `region` absent nothing changes.

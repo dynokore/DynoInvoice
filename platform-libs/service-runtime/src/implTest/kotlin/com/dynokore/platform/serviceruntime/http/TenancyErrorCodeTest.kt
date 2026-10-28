@@ -9,9 +9,9 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * The tenancy refusals against the pinned catalogue snapshot (`src/implTest/resources/contracts/catalogue/errors/
- * error-codes.yaml`, README there): the three codes equal the snapshot's TNC rows, and for each row the title is the
+ * error-codes.yaml`, README there): the codes equal the snapshot's TNC rows, and for each row the title is the
  * condition before its first ": ", the status the "HTTP nnn" of the condition and the owner the row's owner
- * (coordinator ruling INV-Q-7553 A). Each code renders as a 409 envelope that validates against the pinned schema.
+ * (coordinator ruling INV-Q-7553 A). Each code renders as an envelope of its own status that validates against the pinned schema.
  */
 class TenancyErrorCodeTest {
     private class Row(
@@ -40,13 +40,13 @@ class TenancyErrorCodeTest {
         }.filter { it.code.startsWith("TNC-") }
 
     @Test
-    fun `the codes equal the 4 TNC rows of the pinned catalogue snapshot, in order`() {
-        rows.size shouldBe 4
+    fun `the codes equal the 7 TNC rows of the pinned catalogue snapshot, in order`() {
+        rows.size shouldBe 7
         TenancyErrorCode.entries.map { it.code } shouldBe rows.map { it.code }
     }
 
     @Test
-    fun `the title, status and owner of each code are the snapshot row's, and the titles are distinct`() {
+    fun `the title, status and owner of each code are the snapshot row's, and the titles are the snapshot's`() {
         val byCode = TenancyErrorCode.entries.associateBy { it.code }
         rows.forEach { row ->
             val code = byCode.getValue(row.code)
@@ -59,21 +59,20 @@ class TenancyErrorCodeTest {
         }
         TenancyErrorCode.entries
             .map { it.title }
-            .toSet()
-            .size shouldBe 4
+            .toSet() shouldBe rows.map { it.condition.substringBefore(": ") }.toSet()
     }
 
     @Test
-    fun `renderTenancy gives each code a 409 envelope that validates against the pinned schema`() {
+    fun `renderTenancy gives each code an envelope of its status that validates against the pinned schema`() {
         TenancyErrorCode.entries.forEach { code ->
             val response = Problems.renderTenancy(code, "corr-1", "what went wrong")
-            response.status shouldBe 409
+            response.status shouldBe code.httpStatus
             response.headers shouldBe mapOf("Content-Type" to "application/problem+json")
             val body = mapper.readTree(response.body)
             contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
             body.get("code").asString() shouldBe code.code
             body.get("title").asString() shouldBe code.title
-            body.get("status").asInt() shouldBe 409
+            body.get("status").asInt() shouldBe code.httpStatus
             body.get("severity").asString() shouldBe "BLOCK"
             body.get("disposition").asString() shouldBe "TERMINAL"
             body.get("remediationOwner").asString() shouldBe code.owner.text
