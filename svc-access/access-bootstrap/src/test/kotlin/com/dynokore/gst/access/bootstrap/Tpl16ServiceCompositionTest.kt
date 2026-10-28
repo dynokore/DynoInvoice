@@ -41,6 +41,7 @@ class Tpl16ServiceCompositionTest {
                 *TestSecrets.TOKEN_PROPERTIES,
                 "access.installation-roles=",
                 "management.server.port=8081",
+                *BoundaryFixture.TELEMETRY_EXPORT_PROPERTIES,
                 "gst.bindings.secret-store.mount-root=${TestSecrets.mount()}",
                 "service-runtime.datasource.credential=db/access_runtime",
             )

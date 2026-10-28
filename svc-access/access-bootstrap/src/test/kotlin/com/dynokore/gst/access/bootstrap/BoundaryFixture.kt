@@ -244,6 +244,13 @@ class CapturingOutboxWriter(
 
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
+    /** The TelemetryExport binding the deployment supplies (INV-Q-11058); `.invalid` is reserved by RFC 2606. */
+    val TELEMETRY_EXPORT_PROPERTIES: Array<String> =
+        arrayOf(
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://telemetry-export.invalid:4318",
+        )
+
     private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
     val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-8850")
 
@@ -390,6 +397,7 @@ object BoundaryFixture {
                 "access.identity-provider.directory.realm=boundary-test",
                 "access.identity-provider.directory.client-id=access-svc-directory-reader",
                 "access.identity-provider.directory.client-secret-ref=idp/directory-reader-secret",
+                *TELEMETRY_EXPORT_PROPERTIES,
                 "gst.bindings.secret-store.mount-root=$mounted",
                 "service-runtime.datasource.credential=db/access_runtime",
             )
