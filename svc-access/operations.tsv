@@ -43,10 +43,3 @@ operation	provisionFirstAdministrator	INV-T-8226	open
 operation	provisionInstallationFirstAdministrator	INV-T-8226	open
 operation	acceptFirstAdministratorInvitation	INV-T-8227	open
 operation	reissueFirstAdministratorInvitation	UNASSIGNED	open
-operation	approveBreakGlassUnlock	INV-T-9314	open
-operation	decidePackApproval	INV-T-4936	open
-operation	decideOverrideRelease	INV-T-4936	open
-operation	getMappingAcknowledgement	INV-T-4936	open
-operation	recordInstallationApproverFact	INV-T-4936	open
-operation	getInstallationApproverFact	INV-T-4936	open
-channel	accessAuthorityHeadObserved	INV-T-9054	open
