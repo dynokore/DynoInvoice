@@ -42,9 +42,10 @@ sealed interface ConfirmOutcome {
 /**
  * confirmPeriods (INV-REQ-84 b5, INV-REQ-708 b3; INV-Q-9729 A): a caller holding `period.confirm` (entity.admin,
  * tax.approver) confirms an irregular period record. FIRST and FINAL confirm that one record only. TRANSITIONAL
- * or FREQUENCY_CHANGE naming the `confirmationPeriod` of the entity's PENDING proposal applies the change in one transaction: the entry becomes
- * ACTIVE, the raised items RESOLVED, the records from the change are replaced by the proposal and
- * FilingFrequencyChanged is published once. This is the only way a record becomes confirmed (INV-AC-9543).
+ * or FREQUENCY_CHANGE naming the `confirmationPeriod` of the entity's PENDING proposal applies the change in one
+ * transaction: the entry becomes ACTIVE, the raised items RESOLVED, the records from the change are replaced by
+ * the proposal and FilingFrequencyChanged is published once. This is the only way a record becomes confirmed
+ * (INV-AC-9543).
  */
 class ConfirmPeriods(
     private val tx: TransactionRunner,
