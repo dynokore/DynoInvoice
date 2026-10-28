@@ -1,10 +1,13 @@
 package com.dynokore.gst.submission.domain.escalation
 
+import com.dynokore.gst.catalogue.ErrorCode
+import com.dynokore.gst.catalogue.Severity
 import com.dynokore.gst.submission.domain.escalation.EscalationDecision.Escalate
 import com.dynokore.gst.submission.domain.escalation.EscalationDecision.Wait
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Duration
@@ -81,13 +84,17 @@ class HeldEscalationTest {
         decide(dueAt = Instant.MAX, margin = day, asOf = asOf) shouldBe Wait
         decide(dueAt = Instant.MIN.plusSeconds(10), margin = day, asOf = asOf) shouldBe
             Escalate(EscalationReason.MARGIN_REACHED)
-        decide(dueAt = Instant.MAX, margin = day, asOf = Instant.MAX) shouldBe Escalate(EscalationReason.MARGIN_REACHED)
-        decide(dueAt = Instant.MIN, margin = day, asOf = Instant.MIN) shouldBe Escalate(EscalationReason.MARGIN_REACHED)
+        decide(margin = day, asOf = Instant.MAX) shouldBe Escalate(EscalationReason.MARGIN_REACHED)
+        decide(margin = day, asOf = Instant.MIN) shouldBe Wait
     }
 
     @Test
-    fun `HOLD_CODE is ING-016`() {
+    fun `HOLD_CODE is the catalogue code ING-016 with severity HOLD`() {
         HOLD_CODE shouldBe "ING-016"
+        HOLD_CODE shouldBe ErrorCode.ING_016.code
+        ErrorCode.fromCode(HOLD_CODE) shouldBe ErrorCode.ING_016
+        ErrorCode.ING_016.severity shouldBe Severity.HOLD
+        listOf("ING-017", "ING-016 ", "ing-016").forEach { HOLD_CODE shouldNotBe it }
     }
 
     @Test
