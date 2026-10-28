@@ -2,11 +2,12 @@ package com.dynokore.gst.canonical.acceptance
 
 /**
  * The acceptance-criterion key gate (INV-T-5544), fails closed. `ac-keys.tsv` has one row per acceptance criterion
- * the tasks of this service carry: `criterion`, `task`, `wave` (a number; 3 for a criterion this service's tasks run).
+ * the tasks of this service carry: `criterion`, `task`, `wave` (a number; 3 for a criterion this service's tasks run,
+ * 4 for a deferred one).
  *
  * - the table is missing, empty or malformed: a finding;
- * - a row with wave 3 whose key is not a whole token of the name of at least one executed test: a finding naming
- *   the row;
+ * - a row whose wave is at most the run wave and whose key is not a whole token of the name of at least one executed
+ *   test: a finding naming the row;
  * - a test name that holds a key in no row, or a look-alike of a key (`INV-AC-21801`, `INV-AC-2180x`,
  *   `xINV-AC-2180`): a finding naming the test.
  */
@@ -81,7 +82,7 @@ object AcKeyCoverage {
         val findings = problems.toMutableList()
         if (rows.isEmpty()) return findings
         val covered = executedTestNames.flatMap { keysIn(it).first }.toSet()
-        rows.filter { it.wave == RUN_WAVE && it.criterion !in covered }.forEach {
+        rows.filter { it.wave <= RUN_WAVE && it.criterion !in covered }.forEach {
             findings +=
                 "${it.criterion} (task ${it.task}, wave ${it.wave}): no executed test name holds the key as a whole token"
         }

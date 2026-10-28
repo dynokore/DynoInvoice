@@ -2,6 +2,7 @@ package com.dynokore.gst.canonical.acceptance
 
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 
@@ -46,5 +47,51 @@ class AcKeyCoverageProbeTest {
         AcKeyCoverage.findings(table + "INV-AC-5\tTBD\t3\n", names).shouldNotBeEmpty()
         AcKeyCoverage.findings(table + "INV-AC-2177\tINV-T-2\t3\n", names).shouldNotBeEmpty()
         AcKeyCoverage.findings(table + "INV-AC-7\tINV-T-2\tx\n", names).shouldNotBeEmpty()
+    }
+
+    private fun row(
+        key: String,
+        wave: Int,
+    ) = "criterion\ttask\twave\n$key\tINV-T-9\t$wave\n"
+
+    private val unrelated = listOf("an unrelated test()")
+
+    @Test
+    fun `INV-AC-12289 a row of wave 2 without a test gives one finding naming the key, the task and the wave`() {
+        val finding = AcKeyCoverage.findings(table + "INV-AC-2178\tINV-T-8271\t2\n", names).single()
+        finding shouldContain "INV-AC-2178 (task INV-T-8271, wave 2)"
+    }
+
+    @Test
+    fun `INV-AC-12289 a row of wave 2 with an executed test of the key gives no finding`() {
+        val withRow = table + "INV-AC-2178\tINV-T-8271\t2\n"
+        AcKeyCoverage.findings(withRow, names + "INV-AC-2178 holds()").shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-12289 a row of wave 3 without a test still gives its finding`() {
+        AcKeyCoverage.findings(row("INV-AC-2178", 3), unrelated).joinToString() shouldContain
+            "INV-AC-2178 (task INV-T-9, wave 3)"
+    }
+
+    @Test
+    fun `INV-AC-12289 a row of wave 1 and a row of wave 0 without a test each give a finding`() {
+        AcKeyCoverage.findings(row("INV-AC-2178", 1), unrelated).single() shouldContain
+            "INV-AC-2178 (task INV-T-9, wave 1)"
+        AcKeyCoverage.findings(row("INV-AC-2178", 0), unrelated).single() shouldContain
+            "INV-AC-2178 (task INV-T-9, wave 0)"
+    }
+
+    @Test
+    fun `INV-AC-12289 a row of wave 4 without a test gives no finding`() {
+        AcKeyCoverage.findings(row("INV-AC-2178", 4), unrelated).shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-12289 a wave 2 row with a longer look alike test name gives the row and the look alike finding`() {
+        val findings = AcKeyCoverage.findings(row("INV-AC-8260", 2), listOf("INV-AC-82600 grants()"))
+        findings.size shouldBe 2
+        findings.joinToString("\n") shouldContain "INV-AC-8260 (task INV-T-9, wave 2)"
+        findings.joinToString("\n") shouldContain "test 'INV-AC-82600 grants()' holds INV-AC-82600, which is in no row"
     }
 }

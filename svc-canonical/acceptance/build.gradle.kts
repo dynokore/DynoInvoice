@@ -45,7 +45,7 @@ val acKeyCoverage =
     tasks.register<Test>("acKeyCoverage") {
         group = "verification"
         description =
-            "Every wave 3 row of ac-keys.tsv has an executed test named by its key, and no test names a key outside the table."
+            "Every row of ac-keys.tsv whose wave is at most the run wave has an executed test named by its key, and no test names a key outside the table."
         testClassesDirs = sourceSets["test"].output.classesDirs
         classpath = sourceSets["test"].runtimeClasspath
         include("**/AcKeyCoverageGate*")
