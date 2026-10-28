@@ -56,8 +56,8 @@ data class CodeFinding(
  * `gst-SR` are not RUL-010 (INV-Q-11620 ruling 3). `SRX` is not namespaced and so passes authoring.
  *
  * Sign-off (INV-Q-11930, INV-REQ-2429): one finding per entry, in entry order, so that sign-off does not rely on
- * authoring having run. A code containing `:` is RUL-010, whether or not the catalogue holds that string; any other code
- * absent from the catalogue of the pack's version, by string equality, is RUL-009. No override exists for either.
+ * authoring having run. A code containing `:` is RUL-010, whether or not the catalogue holds that string; any other
+ * code absent from the catalogue of the pack's version, by string equality, is RUL-009. No override exists for either.
  */
 object MappingCodeChecks {
     private const val NAMESPACE_SEPARATOR = ':'
