@@ -1,14 +1,14 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
@@ -90,6 +90,12 @@ channels:
     messages:
       BreakGlassSessionChanged:
         $ref: '#/components/messages/BreakGlassSessionChanged'
+
+  platformBreakGlassActionReported:
+    address: 'gst.platform.break-glass-action-reported.v1'
+    messages:
+      BreakGlassActionReported:
+        $ref: '#/components/messages/BreakGlassActionReported'
 
   platformConnectionStatusChanged:
     address: 'gst.platform.connection-status-changed.v1'
@@ -192,6 +198,14 @@ operations:
       $ref: '#/channels/platformBreakGlassSessionChanged'
     messages:
       - $ref: '#/channels/platformBreakGlassSessionChanged/messages/BreakGlassSessionChanged'
+
+  publishBreakGlassActionReported:
+    action: send
+    description: BreakGlassActionReported — an action tenancy-svc carried out under break-glass, reported to access-svc (INV-REQ-897, INV-Q-9117 A, INV-Q-9313 A).
+    channel:
+      $ref: '#/channels/platformBreakGlassActionReported'
+    messages:
+      - $ref: '#/channels/platformBreakGlassActionReported/messages/BreakGlassActionReported'
 
   publishConnectionStatusChanged:
     action: send
@@ -373,6 +387,22 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/break-glass-session-changed-payload.schema.json'
+
+    BreakGlassActionReported:
+      name: com.dynokore.gst.platform.BreakGlassActionReported.v1
+      title: BreakGlassActionReported
+      summary: BreakGlassActionReported
+      description: >-
+        An action a service carried out under an open break-glass session is reported so that access-svc
+        records it once with the same ACC-002 alert and audit entry as a synchronous action
+        (INV-REQ-897, INV-Q-9117 A, INV-Q-9313 A). Class: platform. Written with a real tenant and the
+        tenant-wide entity because a break-glass action concerns a tenant and not one registered entity.
+        Emitted by: tenancy-svc. Consumed by: access-svc. Delivery: At-least-once. One event per reported
+        action; a second delivery of the same reportId records nothing more. The payload carries no
+        invoice content and no credential.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/break-glass-action-reported-payload.schema.json'
 
     ConnectionStatusChanged:
       name: com.dynokore.gst.platform.ConnectionStatusChanged.v1

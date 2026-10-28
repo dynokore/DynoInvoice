@@ -101,3 +101,12 @@ roleGrantRecord	property	schemas/authority-changed-payload.schema.json	INV-REQ-8
 grantRef	property	schemas/authority-changed-payload.schema.json	INV-REQ-864
 INSTALLATION	enum_value	schemas/authority-changed-payload.schema.json	INV-REQ-864
 CLIENT_ENTITY	enum_value	schemas/authority-changed-payload.schema.json	INV-REQ-864
+reportId	property	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+unlockRef	property	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+action	property	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+target	property	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+occurredAt	property	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+VIEW	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+READINESS	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+DRAIN	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+REPLAY	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897

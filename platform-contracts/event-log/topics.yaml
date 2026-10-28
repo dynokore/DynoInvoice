@@ -344,6 +344,15 @@ topics:
       - submission-svc
       - tenancy-svc
       - transport-svc
+  - topic: gst.platform.break-glass-action-reported.v1
+    event_type: com.dynokore.gst.platform.BreakGlassActionReported.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - tenancy-svc
+    subscribers:
+      - access-svc
   - topic: gst.platform.break-glass-alert-raised.v1
     event_type: com.dynokore.gst.platform.BreakGlassAlertRaised.v1
     content_topic: false
@@ -1577,6 +1586,7 @@ replay_topics:
       - tenancy-svc
   - topic: gst.tenancy.replay-access.v1
     event_types:
+      - com.dynokore.gst.platform.BreakGlassActionReported.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.tenancy.EntityProfileChanged.v1
       - com.dynokore.gst.tenancy.OrganisationStructureChanged.v1

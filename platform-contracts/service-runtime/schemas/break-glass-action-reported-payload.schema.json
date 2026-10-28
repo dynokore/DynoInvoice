@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/break-glass-action-reported-payload.schema.json",
+  "title": "BreakGlassActionReportedPayload",
+  "description": "Payload of the BreakGlassActionReported platform event (class: platform; INV-REQ-897, INV-Q-9117 option A, INV-Q-9313 option A). tenancy-svc reports an action it carried out under an open break-glass session; access-svc records it once per reportId with the same ACC-002 alert and audit entry as a synchronous action. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "reportId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Idempotency key of this report, unique per reported action; a second delivery of the same reportId is recorded once."
+    },
+    "unlockRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The break-glass unlock (session) the action ran under."
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "VIEW",
+        "READINESS",
+        "DRAIN",
+        "REPLAY"
+      ],
+      "x-extensible-enum": true,
+      "description": "The break-glass action carried out. Extensible enum (API-41): the consumer drops a member it does not know."
+    },
+    "target": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The method and path template the action was applied to, when it has a target (at most the 128 characters of BreakGlassActionRequest.target)."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the action took place."
+    }
+  },
+  "required": [
+    "reportId",
+    "unlockRef",
+    "action",
+    "occurredAt"
+  ],
+  "additionalProperties": true
+}

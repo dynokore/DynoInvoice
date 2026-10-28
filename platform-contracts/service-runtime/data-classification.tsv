@@ -38,3 +38,8 @@ schemas/break-glass-session-changed-payload.schema.json	status	NONE
 schemas/break-glass-session-changed-payload.schema.json	expiresAt	NONE
 schemas/break-glass-session-changed-payload.schema.json	approvedBy	IDENTIFYING
 schemas/authority-changed-payload.schema.json	roleGrantRecord	NONE
+schemas/break-glass-action-reported-payload.schema.json	reportId	NONE
+schemas/break-glass-action-reported-payload.schema.json	unlockRef	NONE
+schemas/break-glass-action-reported-payload.schema.json	action	NONE
+schemas/break-glass-action-reported-payload.schema.json	target	NONE
+schemas/break-glass-action-reported-payload.schema.json	occurredAt	NONE
