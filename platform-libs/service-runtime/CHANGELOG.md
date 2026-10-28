@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.20.0] - 2026-10-28
+### Added
+- The `S3Client` of the `ObjectStore` binding is built from configuration (INV-T-12057, INV-Q-12045 A): `service-runtime.object-store.region` (the declaration), `.endpoint`, `.path-style-access` (default false), `.access-key-id-credential` and `.secret-access-key-credential`. Both credential references are read through `SecretStore` on every request (STK-29) and once at creation, so a missing secret refuses the start. A user-supplied `S3Client` bean replaces the built one; with `region` absent nothing changes.
+
 ## [10.19.0] - 2026-10-28
 ### Added
 - Security-event emitter (INV-REQ-1384, INV-Q-10945 A, INV-Q-10939; INV-T-10969): `SecurityEventEmitter` and the closed `SecurityClass` enum (`sign_in`, `elevation`, `break_glass`, `credential_use`, `control_relaxation`) in package `securityevents`. The impl half posts an OTLP/HTTP JSON log record (attributes `gst.security.class`, `user.id`, `gst.tenant.id`, body the class wire value) to `<TelemetryExport.otlpEndpoint()>/v1/logs` from a bounded queue with retry; a dropped record is counted in `gst_security_events_dropped_total` and logged at ERROR with `SECURITY_EVENT_DROPPED` and the reason `QUEUE_FULL` or `RETRIES_EXHAUSTED` (INV-Q-11052). Every `AuditWriter` bean raises a record for an action that is a key of `gst.security-events.mapping` (exact string, INV-Q-11054), registered with `TransactionRunner.afterCommit` (INV-Q-11056); the `TransactionRunner` bean is not proxied. Configuration `gst.security-events.*` with its defaults in `service-runtime-security-events-defaults.properties`; the classes with no producer are listed in `SECURITY-EVENTS.md`.

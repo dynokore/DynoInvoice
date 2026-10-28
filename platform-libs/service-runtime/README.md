@@ -42,6 +42,14 @@ Service inputs:
   (`spring.flyway.enabled=false` by default).
 - **Properties:** `gst.service` (TPL-16), `gst.instance-id` (default `HOSTNAME`), `service-runtime.modules.schema`
   (the service's own schema), `service-runtime.modules.evidence.ledger-table`, `.legal-hold-table` and `.bucket`.
+- **Object-store client (INV-T-12057, INV-Q-12045 A):** `service-runtime.object-store.region` declares it (no default;
+  without it no `S3Client` is built and the `ObjectStore` bean exists only if the service supplies an `S3Client`),
+  `.endpoint` (optional, no default; absolute `http`/`https` URI with a host, no user information, query, fragment
+  or trailing slash), `.path-style-access` (default `false`), `.access-key-id-credential` and
+  `.secret-access-key-credential` (no default; both required once `region` is set; each names a `SecretRef`). The
+  credential values come from mounted files through `SecretStore`, are read on every request (rotation without
+  restart, STK-29) and are never in properties or the environment. `service-runtime.modules.evidence.bucket` (no
+  default) names the bucket, which must already have Object Lock enabled (an installer concern, STK-20).
 - **§12.1 selection:** `gst.bindings.event-binding` (`postgres`), `gst.bindings.object-store` (`s3-compatible`),
   `gst.bindings.secret-store.implementation` (`kubernetes`). Each names the one implementation platform-libs ships
   and is the default. `gst.bindings.telemetry-export` (`bundled-otel` or `managed-observability`, no default) and
