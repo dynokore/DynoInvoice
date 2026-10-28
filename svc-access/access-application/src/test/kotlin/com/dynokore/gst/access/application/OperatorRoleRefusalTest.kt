@@ -46,7 +46,7 @@ import kotlin.io.path.name
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
-/** INV-AC-12018 (INV-Q-9069 A, INV-Q-12007, INV-Q-12011, INV-Q-12013): the Operator roles are refused before any write. */
+/** INV-AC-12018 (INV-Q-9069 A, INV-Q-12007, -12011, -12013): the Operator roles are refused before any write. */
 class OperatorRoleRefusalTest {
     private class Marker : RuntimeException("the transaction runner was reached")
 

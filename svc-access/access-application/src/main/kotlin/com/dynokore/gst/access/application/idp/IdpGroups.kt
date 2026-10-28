@@ -120,7 +120,15 @@ class GroupGrantReconciler(
         identity: IdentityRef,
     ) {
         // INV-Q-12013 A: a stored mapping of an Operator role writes no grant, before the identity lock
-        if (TenantGrantableRoles.refuses(mapping.role)) return
+        if (!TenantGrantableRoles.refuses(mapping.role)) provision(actor, tenant, mapping, identity)
+    }
+
+    private fun provision(
+        actor: String,
+        tenant: TenantRef,
+        mapping: IdpGroupMapping,
+        identity: IdentityRef,
+    ) {
         grants.lockIdentity(identity, GranteeKind.STAFF)
         val existing = grants.findByRepeatKey(identity, mapping.role.wire, mapping.scope)
         if (existing != null && existing.status != GrantStatus.REVOKED) return
