@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.24.0
+  version: 1.25.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -4544,6 +4544,12 @@ components:
           maxItems: 1000
           items:
             $ref: '#/components/schemas/EntityUsage'
+        archiveVolumeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >-
+            Retained archive volume of the tenant in bytes (INV-REQ-878, INV-Q-9829 A). Each entity value comes from the latest ArchiveVolumeMeasured event of that entity (latest measuredAt); the tenant value is the sum of the entity values (Inference of the ruling). The property is absent when no event has been received: absent means not yet measured, never zero (Inference of the ruling). It never blocks a submission (INV-REQ-879).
     EntityUsage:
       type: object
       required:
@@ -4560,6 +4566,12 @@ components:
         resubmissions:
           type: integer
           minimum: 0
+        archiveVolumeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >-
+            Retained archive volume of the entity in bytes (INV-REQ-878, INV-Q-9829 A), taken from the latest ArchiveVolumeMeasured event of the entity (latest measuredAt). The property is absent when no event has been received: absent means not yet measured, never zero (Inference of the ruling). It never blocks a submission (INV-REQ-879).
     RecordEntitlementRequest:
       type: object
       additionalProperties: false

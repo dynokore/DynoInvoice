@@ -156,3 +156,6 @@ requestSampleCopy	operation	openapi.yaml	INV-REQ-1130
 LoadCredentialRequest.environmentTag	schema_property	openapi.yaml	INV-REQ-1126
 RecordSampleApprovalRequest.sampleRef	schema_property	openapi.yaml	INV-REQ-1130
 RequestSampleCopyRequest.sampleRef	schema_property	openapi.yaml	INV-REQ-1130
+# INV-T-9908 adds two rows (INV-REQ-878; INV-Q-9829 A): the optional archiveVolumeBytes of UsageCountersResponse and EntityUsage.
+UsageCountersResponse.archiveVolumeBytes	schema_property	openapi.yaml	INV-REQ-878
+EntityUsage.archiveVolumeBytes	schema_property	openapi.yaml	INV-REQ-878
