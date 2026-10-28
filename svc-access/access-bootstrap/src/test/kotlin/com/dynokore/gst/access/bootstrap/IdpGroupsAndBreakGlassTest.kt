@@ -11,23 +11,28 @@ import com.dynokore.gst.access.adapters.http.IdpGroupController
 import com.dynokore.gst.access.adapters.idp.KeycloakDirectoryGroupMembers
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.application.idp.DirectoryGroupMembers
+import com.dynokore.gst.access.application.idp.IdpGroupMappings
 import com.dynokore.gst.access.application.idp.SyncIdpGroupsUseCase
 import com.dynokore.gst.access.contract.model.AuthoriseResponse
 import com.dynokore.gst.access.contract.model.BreakGlassActionRequest
 import com.dynokore.gst.access.contract.model.BreakGlassResponse
 import com.dynokore.gst.access.contract.model.GrantRequest
+import com.dynokore.gst.access.contract.model.GrantRequest.GranteeKind
 import com.dynokore.gst.access.contract.model.IdpGroupMappingRequest
 import com.dynokore.gst.access.contract.model.UnlockBreakGlassRequest
 import com.dynokore.gst.access.domain.grant.GrantSource
 import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EnvelopeJson
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
@@ -458,4 +463,258 @@ class IdpGroupsAndBreakGlassTest {
             }
         }
     }
+}
+
+/**
+ * INV-AC-9076 (INV-T-12020): the six Operator roles in a customer tenant at the service boundary, in an installation
+ * form whose role catalogue is read from the `RoleCatalogue` bean (grantRole, mapIdpGroup and the directory
+ * synchronisation).
+ */
+class OperatorRoleRefusalBoundaryTest {
+    private val tenant = TenantId(UUID.randomUUID())
+    private val admin = "user:tenant-admin"
+    private val directory = MovableDirectory()
+
+    private fun run(block: (Env) -> Unit) {
+        BoundaryFixture
+            .runner(catalogueMatrix = true, form = "SAAS")
+            .withBean(DirectoryGroupMembers::class.java, { directory })
+            .run { context ->
+                context.startupFailure?.let { throw it }
+                block(Env(context))
+            }
+    }
+
+    private inner class Env(
+        val context: AssertableWebApplicationContext,
+    ) {
+        val tenants = context.getBean(TenantContext::class.java)
+        val tx = context.getBean(TransactionRunner::class.java)
+        val idpApi = context.getBean(IdpGroupController::class.java)
+        val grantsApi = context.getBean(GrantsController::class.java)
+        val repository = context.getBean(GrantRepository::class.java)
+        val sync = context.getBean(SyncIdpGroupsUseCase::class.java)
+        val captured = context.getBean(CapturedEvents::class.java)
+        val mappings = context.getBean(IdpGroupMappings::class.java)
+        val catalogue = context.getBean(RoleCatalogue::class.java)
+
+        init {
+            Seeds.grant(context, tenant, SeedSpec(admin, Role.TENANT_ADMIN))
+            context
+                .getBean(StructureReplica::class.java)
+                .accept(
+                    OrganisationStructureChanged(
+                        tenant,
+                        "ENT-1",
+                        StructureChange.CREATED,
+                        BoundaryFixture.entityNode(),
+                    ),
+                )
+        }
+
+        fun <T> asAdmin(block: () -> T): T = tenants.bind(tenant, admin) { block() }
+
+        fun map(
+            group: String,
+            role: String,
+        ) = asAdmin {
+            idpApi.mapIdpGroup(UUID.randomUUID(), IdpGroupMappingRequest(group, role, "entity:ENT-1", null, null))
+        }
+
+        fun grantsOf(identity: String) =
+            tenants.bind(tenant, admin) { tx.inTransaction { repository.findByIdentity(IdentityRef(identity)) } }
+
+        fun mappingsStored() = tenants.bind(tenant, admin) { tx.inTransaction { mappings.listActive() } }
+
+        fun synchronise() = asAdmin { sync.run(admin, TenantRef(tenant.toString())) }
+
+        fun seed(
+            identity: String,
+            role: Role,
+        ) = Seeds.grant(context, tenant, SeedSpec(identity, role))
+
+        fun authorityChanges() =
+            captured.envelopes.filter { it.type == PlatformEventCatalogue.AUTHORITY_CHANGED.eventType }
+    }
+
+    // INV-AC-9076 (INV-T-12020): the six Operator roles in a customer tenant, at the service boundary
+
+    private val operatorWires =
+        listOf(
+            "platform.support",
+            "platform.engineer",
+            "release.manager",
+            "commercial.admin",
+            "regulatory.author",
+            "regulatory.approver",
+        )
+    private val operatorDetail = "an operator role cannot be granted in a customer tenant"
+
+    private fun Env.grantCall(
+        identity: String,
+        role: String,
+        scope: String = "tenant:$tenant",
+    ) = asAdmin {
+        grantsApi.grantRole(
+            UUID.randomUUID(),
+            GrantRequest(
+                GranteeKind.STAFF,
+                identity,
+                role,
+                scope,
+                LocalDate.now(ZoneOffset.UTC).minusDays(1),
+                LocalDate.now(ZoneOffset.UTC).plusDays(400),
+            ),
+        )
+    }
+
+    private fun refusalOf(call: () -> Any?): ApiRefusal {
+        val thrown = catchThrowable { call() }
+        assertThat(thrown).isInstanceOf(ApiRefusal::class.java)
+        return thrown as ApiRefusal
+    }
+
+    @Test
+    fun `INV-AC-9076 grantRole and mapIdpGroup refuse each Operator role the SAAS catalogue holds`() =
+        run { env ->
+            val held = env.catalogue.roles.map { it.wire }
+            val refusedHere = operatorWires.filter { it in held }
+            // the form's catalogue, read from the bean, holds the four SaaS operator roles
+            assertThat(
+                refusedHere,
+            ).contains("platform.support", "platform.engineer", "release.manager", "commercial.admin")
+            refusedHere.forEach { role ->
+                val grantee = "IDN-OP-$role"
+                val mappingsBefore = env.mappingsStored().size
+                env.captured.envelopes.clear()
+                val byGrant = refusalOf { env.grantCall(grantee, role) }
+                assertThat(byGrant.code).describedAs("grantRole $role").isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+                assertThat(byGrant.detail).describedAs("grantRole $role").isEqualTo(operatorDetail)
+                assertThat(env.grantsOf(grantee)).describedAs("grants of $role").isEmpty()
+                val byMapping = refusalOf { env.map("group-$role", role) }
+                assertThat(byMapping.code).describedAs("mapIdpGroup $role").isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+                assertThat(byMapping.detail).describedAs("mapIdpGroup $role").isEqualTo(operatorDetail)
+                assertThat(env.mappingsStored()).describedAs("mappings after $role").hasSize(mappingsBefore)
+                assertThat(env.authorityChanges()).describedAs("AuthorityChanged for $role").isEmpty()
+            }
+            operatorWires.filter { it !in held }.forEach { role ->
+                assertThat(
+                    refusalOf { env.grantCall("IDN-NOT-HELD", role) }.code,
+                ).isEqualTo(ClosedErrorCode.CONTRACT_VIOLATION)
+                assertThat(refusalOf { env.map("group-nh", role) }.code).isEqualTo(ClosedErrorCode.CONTRACT_VIOLATION)
+            }
+        }
+
+    @Test
+    fun `INV-AC-9076 grantRole and mapIdpGroup accept every other role of the SAAS catalogue`() =
+        run { env ->
+            val others =
+                env.catalogue.roles
+                    .map { it.wire }
+                    .filter { it !in operatorWires }
+            assertThat(others).contains("implementation.consultant", "security.officer", "tax.operator")
+            others.forEach { role ->
+                val grantee = "IDN-OK-$role"
+                assertThat(
+                    env.grantCall(grantee, role).statusCode.value(),
+                ).describedAs("grantRole $role").isEqualTo(201)
+                assertThat(env.grantsOf(grantee).map { it.role.wire }).describedAs("row of $role").containsExactly(role)
+                assertThat(
+                    env.map("group-$role", role).statusCode.value(),
+                ).describedAs("mapIdpGroup $role").isEqualTo(201)
+                assertThat(env.mappingsStored().map { it.role.wire }).describedAs("mapping of $role").contains(role)
+            }
+        }
+
+    @Test
+    fun `INV-AC-9076 a trailing space and a changed case keep the 400 and are not an operator refusal`() {
+        run { env ->
+            listOf("platform.support ", "Platform.Support").forEach { role ->
+                assertThat(refusalOf { env.grantCall("IDN-LOOK", role) }.code)
+                    .describedAs("grantRole '$role'")
+                    .isEqualTo(ClosedErrorCode.CONTRACT_VIOLATION)
+                assertThat(refusalOf { env.map("group-look", role) }.code)
+                    .describedAs("mapIdpGroup '$role'")
+                    .isEqualTo(ClosedErrorCode.CONTRACT_VIOLATION)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-9076 a repeat of an operator grant stored before the gate is refused and the row is unchanged`() =
+        run { env ->
+            env.seed("IDN-OLD", Role.PLATFORM_SUPPORT)
+
+            fun stored() = env.grantsOf("IDN-OLD").map { listOf(it.ref, it.role, it.scope, it.window, it.state) }
+            val before = stored()
+            assertThat(before).hasSize(1)
+            val refusal = refusalOf { env.grantCall("IDN-OLD", "platform.support") }
+            assertThat(refusal.code).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            assertThat(refusal.detail).isEqualTo(operatorDetail)
+            assertThat(stored()).isEqualTo(before)
+        }
+
+    @Test
+    fun `INV-AC-9076 the directory synchronisation writes no grant for a stored operator mapping`() =
+        run { env ->
+            directory.set("stored-operator", "IDN-M1")
+            directory.set("stored-tax", "IDN-M2")
+            val today = LocalDate.now(ZoneOffset.UTC)
+            env.asAdmin {
+                env.tx.inTransaction {
+                    env.mappings.insert(
+                        "stored-operator",
+                        Role.PLATFORM_SUPPORT,
+                        Scope.Tenant(TenantRef(tenant.toString())),
+                        today.minusDays(1),
+                        null,
+                    )
+                    env.mappings.insert(
+                        "stored-tax",
+                        Role.TAX_OPERATOR,
+                        Scope.Tenant(TenantRef(tenant.toString())),
+                        today.minusDays(1),
+                        null,
+                    )
+                }
+            }
+            env.synchronise()
+            assertThat(env.grantsOf("IDN-M1")).isEmpty()
+            assertThat(env.grantsOf("IDN-M2").map { it.role }).containsExactly(Role.TAX_OPERATOR)
+        }
+
+    @Test
+    fun `INV-AC-9076 a caller who may not manage grants is refused before the role is tested`() =
+        run { env ->
+            val outsider = "IDN-OUTSIDER"
+            val byGrant =
+                refusalOf {
+                    env.tenants.bind(tenant, outsider) {
+                        env.grantsApi.grantRole(
+                            UUID.randomUUID(),
+                            GrantRequest(
+                                GranteeKind.STAFF,
+                                "IDN-G",
+                                "platform.support",
+                                "tenant:$tenant",
+                                LocalDate.now(ZoneOffset.UTC).minusDays(1),
+                                null,
+                            ),
+                        )
+                    }
+                }
+            assertThat(byGrant.code).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            assertThat(byGrant.detail).isNotEqualTo(operatorDetail)
+            val byMapping =
+                refusalOf {
+                    env.tenants.bind(tenant, outsider) {
+                        env.idpApi.mapIdpGroup(
+                            UUID.randomUUID(),
+                            IdpGroupMappingRequest("g", "platform.support", "tenant:$tenant", null, null),
+                        )
+                    }
+                }
+            assertThat(byMapping.code).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            assertThat(byMapping.detail).isNotEqualTo(operatorDetail)
+        }
 }

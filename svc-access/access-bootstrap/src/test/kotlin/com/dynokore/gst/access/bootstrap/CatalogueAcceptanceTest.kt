@@ -4,10 +4,12 @@ import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.AuthoriseController
 import com.dynokore.gst.access.adapters.http.GrantsController
 import com.dynokore.gst.access.adapters.http.SoleOperatorController
+import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.contract.model.AuthoriseResponse.Decision
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.LandingChoiceRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
+import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
@@ -293,4 +295,32 @@ class CatalogueAcceptanceTest {
             )
         }.hasMessageContaining("tenant.admins")
     }
+
+    @Test
+    fun `INV-AC-9076 a private installation grants deployment operator and the other roles of its catalogue`() =
+        run("PRIVATE") { env ->
+            val operatorWires =
+                setOf(
+                    "platform.support",
+                    "platform.engineer",
+                    "release.manager",
+                    "commercial.admin",
+                    "regulatory.author",
+                    "regulatory.approver",
+                )
+            val others =
+                env.catalogue.roles
+                    .map { it.wire }
+                    .filter { it !in operatorWires }
+            assertThat(others).contains("deployment.operator", "implementation.consultant", "security.officer")
+            others.forEach { role ->
+                val response = env.grant("IDN-9076-$role", role)
+                assertThat(response.statusCode.value()).describedAs("grantRole $role").isEqualTo(201)
+                val tx = env.context.getBean(TransactionRunner::class.java)
+                val repository = env.context.getBean(GrantRepository::class.java)
+                val who = IdentityRef("IDN-9076-$role")
+                val stored = env.asUser(admin) { tx.inTransaction { repository.findByIdentity(who) } }
+                assertThat(stored.map { it.role.wire }).describedAs("stored row of $role").containsExactly(role)
+            }
+        }
 }
