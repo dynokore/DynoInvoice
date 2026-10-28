@@ -1,8 +1,12 @@
 package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.SubmissionDb
+import org.springframework.boot.WebApplicationType
+import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.core.io.DefaultResourceLoader
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -26,18 +30,43 @@ object SubmissionContext {
             // the real application.yaml (TPL-16), then the overrides below
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(SubmissionApplication::class.java)
-            .withPropertyValues(
-                "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
-                "spring.datasource.username=submission_runtime",
-                "service-runtime.workload-identity.audience=submission-svc",
-                "gst.service=submission-svc",
-                "gst.instance-id=submission-svc-0",
-                "service-runtime.pool.profile=minimal",
-                "service-runtime.modules.schema=submission",
-                "service-runtime.idempotency.schema=submission",
-                "service-runtime.datasource.credential=db/submission_runtime",
-                "gst.bindings.secret-store.mount-root=$mountRoot",
-            )
+            .withPropertyValues(*overrides(mountRoot))
+
+    private fun overrides(mountRoot: Path): Array<String> =
+        arrayOf(
+            "spring.datasource.url=jdbc:postgresql://localhost:5432/submission",
+            "spring.datasource.username=submission_runtime",
+            "service-runtime.workload-identity.audience=submission-svc",
+            "gst.service=submission-svc",
+            "gst.instance-id=submission-svc-0",
+            "service-runtime.pool.profile=minimal",
+            "service-runtime.modules.schema=submission",
+            "service-runtime.idempotency.schema=submission",
+            "service-runtime.datasource.credential=db/submission_runtime",
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+        )
+
+    /**
+     * As [online], started by SpringApplication in an embedded servlet container on a free port, for a test that
+     * calls the service over HTTP. The caller closes the context. [loader] is the class loader of the context.
+     */
+    fun startServlet(
+        mountRoot: Path,
+        configurations: List<Class<*>>,
+        properties: Array<String>,
+        loader: ClassLoader,
+    ): ConfigurableApplicationContext {
+        secrets(mountRoot)
+        return SpringApplicationBuilder(SubmissionApplication::class.java, *configurations.toTypedArray())
+            .web(WebApplicationType.SERVLET)
+            .resourceLoader(DefaultResourceLoader(loader))
+            .properties(
+                *overrides(mountRoot),
+                "spring.datasource.url=${SubmissionDb.jdbcUrl}",
+                "server.port=0",
+                *properties,
+            ).run()
+    }
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
     fun online(mountRoot: Path): ApplicationContextRunner {
