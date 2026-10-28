@@ -44,6 +44,8 @@ platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
 platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
 platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
+platform-reconciliationEngine-api = { module = "com.dynokore.platform:reconciliation-engine-api" }
+platform-reconciliationEngine-impl = { module = "com.dynokore.platform:reconciliation-engine" }
 gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }

@@ -5,6 +5,9 @@ plugins {
 }
 
 dependencies {
+    api(platform(libs.platform.bom))
+    api(libs.platform.reconciliationEngine.api)
+    implementation(libs.platform.reconciliationEngine.impl)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
