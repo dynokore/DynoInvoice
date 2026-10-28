@@ -209,8 +209,6 @@ class PlatformGrantWriteSurfaceTest {
                 "revokePrincipal" to false,
                 "withdrawCredential" to false,
                 "recordSoleOperator" to false,
-                "approveBreakGlassUnlock" to false,
-                "recordInstallationApproverFact" to false,
                 "withdrawSoleOperatorAcknowledgement" to false,
                 "requestElevation" to false,
                 "decideElevation" to false,

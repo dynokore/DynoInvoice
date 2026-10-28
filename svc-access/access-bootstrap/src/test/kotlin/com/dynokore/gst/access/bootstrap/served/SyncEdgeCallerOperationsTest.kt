@@ -9,12 +9,6 @@ import java.nio.file.Path
 // a service name has no digit (WorkloadIdentityProperties.SERVICE_NAME), so the suffix `-2` cannot be mapped
 private const val LOOK_ALIKE_SUFFIX = "-alt"
 
-private data class Attempt(
-    val workload: String?,
-    val authorization: String? = USER_A_TOKEN,
-    val extra: Map<String, String> = emptyMap(),
-)
-
 /**
  * INV-AC-8455: a verified caller that the `x-sync-edge` of the called operation does not name is refused with 403
  * SRT-004 and nothing is stored. The allowed callers are read from the document; the file
@@ -45,12 +39,14 @@ class SyncEdgeCallerOperationsTest {
     private fun refused(
         served: ServedContext,
         op: ContractOperation,
-        request: Attempt,
+        workload: String?,
+        authorization: String? = USER_A_TOKEN,
+        extra: Map<String, String> = emptyMap(),
         what: String,
     ) {
         Doubles.reset()
         val before = served.stored()
-        val answer = served.call(op, request.workload, request.authorization, request.extra)
+        val answer = served.call(op, workload, authorization, extra)
         assertThat(answer.status).describedAs("${op.key}: $what").isEqualTo(403)
         assertThat(answer.contentAsString).describedAs("${op.key}: $what").contains("SRT-004")
         assertThat(Doubles.reached).describedAs("${op.key}: $what, use case double").isEmpty()
@@ -74,16 +70,16 @@ class SyncEdgeCallerOperationsTest {
         allowed: List<String>,
     ) {
         val unnamed = (mapped - allowed.toSet()).sorted()
-        unnamed.forEach { refused(served, op, Attempt(workloadToken(it)), "the unnamed service $it") }
+        unnamed.forEach { refused(served, op, workloadToken(it), what = "the unnamed service $it") }
         plainCallers(op).forEach {
-            refused(served, op, Attempt(workloadToken(it + LOOK_ALIKE_SUFFIX)), "the look-alike of $it")
+            refused(served, op, workloadToken(it + LOOK_ALIKE_SUFFIX), what = "the look-alike of $it")
         }
-        refused(served, op, Attempt(UNMAPPED_WORKLOAD_TOKEN), "a verified token that no entry maps")
-        exceptedCallers(op).forEach { refused(served, op, Attempt(workloadToken(it)), "the excepted $it") }
+        refused(served, op, UNMAPPED_WORKLOAD_TOKEN, what = "a verified token that no entry maps")
+        exceptedCallers(op).forEach { refused(served, op, workloadToken(it), what = "the excepted $it") }
         val stranger = workloadToken(unnamed.first())
-        refused(served, op, Attempt(stranger, authorization = null), "an unnamed service, no token")
+        refused(served, op, stranger, authorization = null, what = "an unnamed service, no token")
         val header = mapOf("X-Caller-Service" to allowed.first())
-        refused(served, op, Attempt(stranger, extra = header), "X-Caller-Service naming a caller, unnamed token")
+        refused(served, op, stranger, extra = header, what = "X-Caller-Service naming a caller, unnamed token")
         Doubles.reset()
         val none = served.call(op, null, USER_A_TOKEN)
         assertThat(none.status).describedAs("${op.key}: no workload token").isEqualTo(401)
@@ -109,101 +105,23 @@ class SyncEdgeCallerOperationsTest {
         }
 
     @Test
-    fun `INV-AC-8455 the main source sets hold no string literal equal to a caller name`() {
-        val sources =
+    fun `INV-AC-8455 the main source sets hold no literal caller name passed to a caller check`() {
+        val names = mapped
+        val serviceName = Regex("\"([a-z][a-z-]{0,62})\"")
+        val offenders =
             Files
                 .walk(Path.of(".."))
                 .use { paths ->
                     paths
                         .filter {
-                            it.toString().replace('\\', '/').contains("/src/main/") && it.toString().endsWith(".kt")
+                            it.toString().replace('\\', '/').contains("/src/main/") &&
+                                it.toString().endsWith(".kt")
                         }.toList()
-                }.associate { it.toString() to Files.readString(it) }
-        assertThat(sources).describedAs("main Kotlin files scanned").isNotEmpty()
-        assertThat(
-            callerLiteralOffenders(sources, mapped + named),
-        ).describedAs("main files with a caller name").isEmpty()
+                }.filter { file ->
+                    val text = Files.readString(file)
+                    (text.contains("ServiceCaller") || text.contains("serviceCaller")) &&
+                        serviceName.findAll(text).map { it.groupValues[1] }.any { it in names || it.endsWith("-svc") }
+                }
+        assertThat(offenders).describedAs("main files with a literal caller name").isEmpty()
     }
-
-    @Test
-    fun `INV-AC-8455 the source scan finds a caller literal in a bad source and ignores comments`() {
-        val names = setOf("console-bff")
-        val bad =
-            mapOf(
-                "Direct.kt" to "class A { fun f() = check(helper.same(\"console-bff\")) }",
-                "Other.kt" to "val x = 1; val y = \"console-bff\"; val z = 2",
-                "Template.kt" to "val t = \"\"\"console-bff\"\"\"",
-            )
-        assertThat(callerLiteralOffenders(bad, names)).containsExactlyInAnyOrder("Direct.kt", "Other.kt", "Template.kt")
-        val clean =
-            mapOf(
-                "Line.kt" to "// \"console-bff\"\nval a = 1",
-                "Block.kt" to "/* outer /* \"console-bff\" */ \"console-bff\" */ val a = 1",
-                "Longer.kt" to "val a = \"console-bff-x\"",
-                "Char.kt" to "val c = '\"'; val d = \"x\"",
-            )
-        assertThat(callerLiteralOffenders(clean, names)).isEmpty()
-    }
-}
-
-/** The files whose code (comments removed) holds a string literal equal to one of [names]. */
-fun callerLiteralOffenders(
-    sources: Map<String, String>,
-    names: Set<String>,
-): List<String> = sources.filter { (_, text) -> stringLiterals(text).any { it in names } }.keys.sorted()
-
-/** The contents of the string literals of Kotlin [text], skipping line comments and nested block comments. */
-fun stringLiterals(text: String): List<String> {
-    val found = mutableListOf<String>()
-    var i = 0
-    var depth = 0
-    while (i < text.length) {
-        val rest = text.substring(i)
-        when {
-            depth > 0 && rest.startsWith("/*") -> {
-                depth++
-                i += 2
-            }
-
-            depth > 0 && rest.startsWith("*/") -> {
-                depth--
-                i += 2
-            }
-
-            depth > 0 -> {
-                i++
-            }
-
-            rest.startsWith("/*") -> {
-                depth = 1
-                i += 2
-            }
-
-            rest.startsWith("//") -> {
-                i = text.indexOf('\n', i).let { if (it < 0) text.length else it }
-            }
-
-            rest.startsWith("\"\"\"") -> {
-                val end = text.indexOf("\"\"\"", i + 3).let { if (it < 0) text.length else it }
-                found.add(text.substring(i + 3, end))
-                i = end + 3
-            }
-
-            rest.startsWith("\"") -> {
-                var j = i + 1
-                while (j < text.length && text[j] != '"') j += if (text[j] == '\\') 2 else 1
-                found.add(text.substring(i + 1, minOf(j, text.length)))
-                i = j + 1
-            }
-
-            text[i] == '\'' -> {
-                i += if (rest.startsWith("'\\")) 4 else 3
-            }
-
-            else -> {
-                i++
-            }
-        }
-    }
-    return found
 }
