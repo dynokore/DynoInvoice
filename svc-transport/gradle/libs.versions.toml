@@ -5,7 +5,7 @@
 
 [versions]
 # The gst.* convention plugins and platform-build's konsist-rules ship together as one train.
-platformBuild = "0.23.4"
+platformBuild = "0.24.0"
 # platform-libs' BOM: the one line a service bumps for the L1 modules (platform-libs README, "Releasing").
 platformLibsBom = "0.111.0"
 # The generated ErrorCode / VariationPoint catalogue (STK-61), from platform-contracts' registry (226).

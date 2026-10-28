@@ -94,6 +94,30 @@ class EventPayloadContractTest {
             }
         }
 
+    private val ackBase =
+        """"adapter":"primary","apNotificationId":"N-000002","docUuid":"7d0c1c55-2b1a-4c47-9d40-5f5f1b7f3c01",
+        |"version":1,"acknowledgementId":"IRAS-ACK-0000001""""
+
+    @Test
+    fun `an acknowledgement with outcome REJECTED and two reasons is valid`() {
+        val reasons = """[{"code":"IRAS-01","message":"first"},{"code":"IRAS-02","message":"second"}]"""
+        errors("AcknowledgementReceived", """{$ackBase,"outcome":"REJECTED","reasons":$reasons}""".trimMargin())
+            .shouldBeEmpty()
+    }
+
+    @Test
+    fun `an acknowledgement with outcome PENDING is refused`() {
+        errors("AcknowledgementReceived", """{$ackBase,"outcome":"PENDING"}""".trimMargin()).shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `an acknowledgement whose reason has no code is refused`() {
+        errors(
+            "AcknowledgementReceived",
+            """{$ackBase,"outcome":"REJECTED","reasons":[{"message":"no code"}]}""".trimMargin(),
+        ).shouldNotBeEmpty()
+    }
+
     @Test
     fun `every sample belongs to a channel of the contract`() {
         samples.keys shouldBe channels().values.toSet()

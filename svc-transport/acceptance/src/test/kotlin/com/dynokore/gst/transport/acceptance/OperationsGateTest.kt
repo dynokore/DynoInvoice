@@ -36,7 +36,9 @@ class OperationsGateTest {
 
     @Test
     fun `the real table covers the real contract`() {
-        OperationsGate.contractOperations(openapi).size shouldBe 8
+        OperationsGate.contractOperations(openapi).size shouldBe 10
+        OperationsGate.contractOperations(openapi) shouldContain "electAcknowledgementRoute"
+        OperationsGate.contractOperations(openapi) shouldContain "clearAcknowledgementRoute"
         OperationsGate.contractChannels(asyncapi).size shouldBe 4
         run(done = doneText).shouldBeEmpty()
         doneText shouldBe "INV-T-4981\n"
