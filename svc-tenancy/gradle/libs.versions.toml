@@ -41,7 +41,7 @@ platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
-gstCatalogue = "1.32.0"
+gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
 springBoot-starterWeb = { module = "org.springframework.boot:spring-boot-starter-web" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
