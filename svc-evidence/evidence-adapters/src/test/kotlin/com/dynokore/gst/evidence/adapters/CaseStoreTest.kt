@@ -67,12 +67,11 @@ class CaseStoreTest {
         subjectRef: String = "null",
         outcome: String = "'ok'",
         ids: String = "array[gen_random_uuid()]",
-        kind: String = "SECURITY",
         status: String = "OPEN",
         reviewReference: String = "'R'",
     ) = "insert into evidence.case_register (tenant_id, case_id, case_kind, status, subject_ref, opened_at, " +
         "review_reference, audit_log_entry_ids, outcome, breach_assessment_opened) values ('$owner', " +
-        "gen_random_uuid(), '$kind', '$status', $subjectRef, now(), $reviewReference, $ids, $outcome, false)"
+        "gen_random_uuid(), 'SECURITY', '$status', $subjectRef, now(), $reviewReference, $ids, $outcome, false)"
 
     private fun privacyInsert(
         subjectRef: String = "'s'",
