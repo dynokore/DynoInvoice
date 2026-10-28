@@ -1,6 +1,7 @@
 package com.dynokore.gst.canonical.adapters
 
 import com.dynokore.gst.canonical.adapters.persistence.JooqDocumentStore
+import com.dynokore.gst.canonical.adapters.persistence.JooqInboundEventStore
 import com.dynokore.gst.canonical.application.document.CreateDocumentVersion
 import com.dynokore.gst.canonical.application.document.DerivedTablesRebuild
 import com.dynokore.gst.canonical.application.document.WindowReader
@@ -50,11 +51,13 @@ class DocumentKit {
                 DSL.name("canonical", "document_line") to TableClass.TENANT,
                 DSL.name("canonical", "document_subtotal") to TableClass.TENANT,
                 DSL.name("canonical", "document_party") to TableClass.TENANT,
+                DSL.name("canonical", "inbound_event") to TableClass.TENANT,
             ),
         )
     val dsl =
         TenancyJooq.configure(DefaultConfiguration().set(SQLDialect.POSTGRES), tables, tenants, transaction).dsl()
     val store = JooqDocumentStore(dsl)
+    val inbound = JooqInboundEventStore(dsl, tenants)
     val versions = CreateDocumentVersion(store, transaction)
     val windows = WindowReader(store, transaction)
     val rebuilds = DerivedTablesRebuild(store, transaction)
