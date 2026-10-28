@@ -17,12 +17,22 @@ private const val ANY_EXCEPT = "any-except:"
 /** The services the document names as callers, `any-except:<svc>` contributing `<svc>`. */
 fun namedCallers(document: List<ContractOperation>): Set<String> =
     document
-        .flatMap { it.edgeCallers }
-        .flatMap { element ->
+        .flatMap { op -> op.edgeCallers.map { op to it } }
+        .flatMap { (op, element) ->
             when {
-                element == "any" -> error("an `any` edge needs the service list of the model; this service has none")
-                element.startsWith(ANY_EXCEPT) -> listOf(element.removePrefix(ANY_EXCEPT))
-                else -> listOf(element)
+                element == "any" -> {
+                    error(
+                        "${op.key} (${op.operationId}): an `any` edge needs the service list of the model; this service has none",
+                    )
+                }
+
+                element.startsWith(ANY_EXCEPT) -> {
+                    listOf(element.removePrefix(ANY_EXCEPT))
+                }
+
+                else -> {
+                    listOf(element)
+                }
             }
         }.toSet()
 
