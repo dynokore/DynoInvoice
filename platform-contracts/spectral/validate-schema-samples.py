@@ -68,6 +68,21 @@ class Unsupported(Exception):
 _UNSUPPORTED_KEYWORDS = ("patternProperties", "maxProperties")
 
 
+def _max_difference_rule(schema: dict):
+    """The x-max-difference rule of a schema (INV-Q-12385) as (minuend, subtrahend, max), or None
+    when the schema has none. A value with other keys, other value types, a boolean or a negative
+    max is Unsupported, never silently ignored."""
+    if "x-max-difference" not in schema:
+        return None
+    rule = schema["x-max-difference"]
+    if (not isinstance(rule, dict) or set(rule) != {"minuend", "subtrahend", "max"}
+            or not isinstance(rule["minuend"], str) or not isinstance(rule["subtrahend"], str)
+            or not isinstance(rule["max"], int) or isinstance(rule["max"], bool) or rule["max"] < 0):
+        raise Unsupported("keyword 'x-max-difference' is malformed (needs minuend and subtrahend strings "
+                          "and an integer max of 0 or more)")
+    return rule["minuend"], rule["subtrahend"], rule["max"]
+
+
 def _resolve(schema: dict, root: dict) -> dict:
     if "$ref" in schema:
         ref = schema["$ref"]
@@ -143,6 +158,16 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
         for req in schema.get("required", []):
             if req not in instance:
                 raise Invalid(f"{path}: missing required property '{req}'")
+        rule = _max_difference_rule(schema)
+        if rule is not None:
+            minuend, subtrahend, limit = rule
+            for claim in (minuend, subtrahend):
+                value = instance.get(claim)
+                if not isinstance(value, int) or isinstance(value, bool):
+                    raise Invalid(f"{path}: x-max-difference needs an integer '{claim}', got {value!r}")
+            if instance[minuend] - instance[subtrahend] > limit:
+                raise Invalid(f"{path}: {minuend} - {subtrahend} = {instance[minuend] - instance[subtrahend]} "
+                              f"above max-difference {limit}")
         if "minProperties" in schema and len(instance) < schema["minProperties"]:
             raise Invalid(f"{path}: fewer than minProperties {schema['minProperties']}")
         names = schema.get("propertyNames")
@@ -237,6 +262,7 @@ def _scan_unsupported(schema, root: dict, seen: set[int]) -> None:
     for keyword in _UNSUPPORTED_KEYWORDS:
         if keyword in schema:
             raise Unsupported(f"schema keyword '{keyword}' is not supported by this validator")
+    _max_difference_rule(schema)
     if isinstance(schema.get("$ref"), str) and schema["$ref"].startswith("#/"):
         try:
             _scan_unsupported(_pointer(root, schema["$ref"]), root, seen)

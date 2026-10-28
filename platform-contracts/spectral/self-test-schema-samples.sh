@@ -18,6 +18,9 @@ expect_fail() {
 out=$(python3 validate-schema-samples.py --discover $N/yaml-ref-pass 2>&1) || { echo "gst-ci: FAIL — OpenAPI-pointer fixture rejected:"; echo "$out"; failed=1; }
 out=$(python3 validate-schema-samples.py --discover $N/conditional-pass 2>&1) || { echo "gst-ci: FAIL — if/then/else-not fixture rejected:"; echo "$out"; failed=1; }
 out=$(python3 validate-schema-samples.py --discover $N/map-pass 2>&1) || { echo "gst-ci: FAIL — map-keyword fixture rejected:"; echo "$out"; failed=1; }
+out=$(python3 validate-schema-samples.py --discover $N/max-difference-pass 2>&1) || { echo "gst-ci: FAIL — x-max-difference fixture rejected:"; echo "$out"; failed=1; }
+expect_fail max-difference-valid-over "above max-difference 900"
+expect_fail max-difference-malformed "keyword 'x-max-difference' is malformed"
 expect_fail yaml-ref-unclaimed-sample "matches no sample glob"
 expect_fail valid-sample-fails "expected VALID but failed"
 expect_fail invalid-sample-passes "expected INVALID but passed"

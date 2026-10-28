@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Thing",
+  "type": "object",
+  "properties": {
+    "iat": {"type": "integer"},
+    "exp": {"type": "integer"}
+  },
+  "x-max-difference": {"minuend": "exp", "subtrahend": "iat", "max": -1},
+  "additionalProperties": true
+}

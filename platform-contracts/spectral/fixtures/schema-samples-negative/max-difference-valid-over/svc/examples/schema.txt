@@ -1,0 +1,1 @@
+../schemas/thing.schema.json

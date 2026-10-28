@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/access/schemas/flow-context.schema.json",
   "title": "FlowContext",
-  "description": "Flow context of a system flow (owner answer on INV-Q-9241, option B; INV-REQ-1202). A system flow is authorised once at its entry (API-25); the service that sends the call attaches this signed flow context so that the callee can bind it to row-level security. It travels in the HTTP header X-Flow-Context as a signed compact form (JWS compact serialization) whose payload holds these claims. The callee verifies the signature and the claims (the issuer of the signature is the open question INV-Q-9249 and is not decided here), refuses a call whose entity is outside the flow context, and logs the caller and the context per call. A context outside its lifetime (iat to exp, in seconds) or naming another tenant than the token is refused. The lifetime exp - iat is at most 900 seconds. entity.ref is present exactly when entity.kind is ENTITY: a flow such as createTenant has no entity and carries TENANT_WIDE. principalKind is the kind of the originating principal; a flow with no person is MACHINE (Inference). Within a major version this schema is additive-only (API-41).",
+  "description": "Flow context of a system flow (owner answer on INV-Q-9241, option B; INV-REQ-1202). A system flow is authorised once at its entry (API-25); the service that sends the call attaches this signed flow context so that the callee can bind it to row-level security. It travels in the HTTP header X-Flow-Context as a signed compact form (JWS compact serialization) whose payload holds these claims. The callee verifies the signature and the claims (the issuer of the signature is the open question INV-Q-9249 and is not decided here), refuses a call whose entity is outside the flow context, and logs the caller and the context per call. A context outside its lifetime (iat to exp, in seconds) or naming another tenant than the token is refused. The lifetime exp - iat is at most 900 seconds, stated by the keyword x-max-difference. entity.ref is present exactly when entity.kind is ENTITY: a flow such as createTenant has no entity and carries TENANT_WIDE. principalKind is the kind of the originating principal; a flow with no person is MACHINE (Inference). Within a major version this schema is additive-only (API-41).",
   "type": "object",
   "properties": {
     "tenant": {
@@ -101,5 +101,10 @@
     "iat",
     "exp"
   ],
-  "additionalProperties": true
+  "additionalProperties": true,
+  "x-max-difference": {
+    "minuend": "exp",
+    "subtrahend": "iat",
+    "max": 900
+  }
 }
