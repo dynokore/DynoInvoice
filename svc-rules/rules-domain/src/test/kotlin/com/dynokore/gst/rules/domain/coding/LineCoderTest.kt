@@ -186,7 +186,8 @@ class LineCoderTest {
         val refused = MappingCodeChecks.atAuthoring(entries)
         refused shouldBe listOf(CodeFinding("A", "VENDOR:SR", ErrorCode.RUL_010))
         val signOff = MappingCodeChecks.atSignOff(entries, catalogue(true, "SR", "SRCA-C"))
-        signOff shouldBe listOf(CodeFinding("D", "SRX", ErrorCode.RUL_009))
+        signOff shouldBe
+            listOf(CodeFinding("A", "VENDOR:SR", ErrorCode.RUL_010), CodeFinding("D", "SRX", ErrorCode.RUL_009))
         MappingCodeChecks.atAuthoring(entries.drop(1)).shouldBeEmpty()
     }
 
@@ -252,5 +253,22 @@ class LineCoderTest {
             .code(anyOne)
             .shouldBeInstanceOf<LineCoding.Coded>()
         c.code(LineInput("T", Direction.PURCHASE, "VP-53")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+    }
+
+    @Test
+    fun `INV-Q-11930 sign-off gives RUL-010 to a namespaced code whatever the catalogue holds, in entry order`() {
+        val withNamespaced = catalogue(true, "SR", "gst:SR")
+        listOf("VENDOR:SR", "gst:SR", ":SR").forEach { code ->
+            val e = listOf(MappingEntry("N", code))
+            MappingCodeChecks.atSignOff(e, full) shouldBe listOf(CodeFinding("N", code, ErrorCode.RUL_010))
+            MappingCodeChecks.atSignOff(e, withNamespaced) shouldBe listOf(CodeFinding("N", code, ErrorCode.RUL_010))
+        }
+        // the full-width colon is not the separator
+        val fullWidth = listOf(MappingEntry("F", "gst\uFF1ASR"))
+        MappingCodeChecks.atAuthoring(fullWidth).shouldBeEmpty()
+        MappingCodeChecks.atSignOff(fullWidth, full) shouldBe listOf(CodeFinding("F", "gst\uFF1ASR", ErrorCode.RUL_009))
+        val mixed = listOf(MappingEntry("1", "gst:SR"), MappingEntry("2", "SRX"), MappingEntry("3", "SR"))
+        MappingCodeChecks.atSignOff(mixed, full) shouldBe
+            listOf(CodeFinding("1", "gst:SR", ErrorCode.RUL_010), CodeFinding("2", "SRX", ErrorCode.RUL_009))
     }
 }

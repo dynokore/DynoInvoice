@@ -55,8 +55,9 @@ data class CodeFinding(
  * never normalised. This is the published RUL-010 text; [CODE_SHAPE] is not the test for it, so `sr`, `SR ` and
  * `gst-SR` are not RUL-010 (INV-Q-11620 ruling 3). `SRX` is not namespaced and so passes authoring.
  *
- * Sign-off (INV-REQ-2429, RUL-009): an entry whose code is absent from the catalogue of the pack's version, by string
- * equality, is refused and no override exists. A namespaced code is RUL-010's at authoring and is not repeated here.
+ * Sign-off (INV-Q-11930, INV-REQ-2429): one finding per entry, in entry order, so that sign-off does not rely on
+ * authoring having run. A code containing `:` is RUL-010, whether or not the catalogue holds that string; any other code
+ * absent from the catalogue of the pack's version, by string equality, is RUL-009. No override exists for either.
  */
 object MappingCodeChecks {
     private const val NAMESPACE_SEPARATOR = ':'
@@ -76,7 +77,11 @@ object MappingCodeChecks {
         entries: List<MappingEntry>,
         catalogue: CodeCatalogue,
     ): List<CodeFinding> =
-        entries
-            .filter { !isNamespaced(it.irasCode) && !catalogue.contains(it.irasCode) }
-            .map { CodeFinding(it.internalTaxCode, it.irasCode, ErrorCode.RUL_009) }
+        entries.mapNotNull {
+            when {
+                isNamespaced(it.irasCode) -> CodeFinding(it.internalTaxCode, it.irasCode, ErrorCode.RUL_010)
+                !catalogue.contains(it.irasCode) -> CodeFinding(it.internalTaxCode, it.irasCode, ErrorCode.RUL_009)
+                else -> null
+            }
+        }
 }
