@@ -9,6 +9,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.DecisionReason
 import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
@@ -56,11 +57,9 @@ class ComplianceMetricsQueryTest {
         id: String,
         entity: String = "e1",
         period: String = "2026-Q1",
-        due: LocalDate = today.plusDays(3),
         submitted: Boolean = false,
         versions: Int = 1,
-        kind: RowKind = RowKind.INVOICE,
-    ) = ObligationRow(id, entity, period, due, true, submitted, kind, versions)
+    ) = ObligationRow(id, entity, period, today.plusDays(3), true, submitted, RowKind.INVOICE, versions)
 
     private fun replica(
         principal: Principal,
@@ -227,5 +226,57 @@ class ComplianceMetricsQueryTest {
         val ok = ask(query(source, granted())).shouldBeInstanceOf<ComplianceMetricsResult.Allowed>()
         ok.entries.map { it.metrics.entityRef } shouldBe listOf("mine")
         source.last?.first shouldBe tenantA
+    }
+
+    private fun machine(): Principal =
+        // a machine principal exists only from a verified token (service-runtime); the test builds the same shape
+        Principal::class.java.declaredConstructors
+            .single { it.parameterCount == 4 && !it.isSynthetic }
+            .apply { isAccessible = true }
+            .newInstance("machine", PrincipalKind.MACHINE, null, MachineEntityCoverage.None) as Principal
+
+    @Test
+    fun `INV-AC-12835 with no entity filter a TENANT grant gives Allowed and rows receives a null entityRef`() {
+        val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
+        ask(query(source, granted()), period = "2026-Q1").shouldBeInstanceOf<ComplianceMetricsResult.Allowed>()
+        source.last shouldBe Triple(tenantA, null, "2026-Q1")
+    }
+
+    @Test
+    fun `INV-AC-12835 with no entity filter an ENTITY grant alone is refused and rows is never called`() {
+        val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
+        val q = query(source, replica(holder, ComplianceActions.VIEW, ScopeLevel.ENTITY))
+        ask(q) shouldBe ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
+        ask(q, period = "2026-Q1") shouldBe ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
+        source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-12835 with no entity filter a TENANT grant of another action is refused`() {
+        val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
+        ask(query(source, replica(holder, "other.action", ScopeLevel.TENANT))) shouldBe
+            ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
+        source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-12835 with no entity filter a lag beyond the bound refuses a HUMAN and a MACHINE principal`() {
+        val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
+        val cold = AuthorityReplica(clock)
+        listOf(holder, machine()).forEach {
+            ask(query(source, cold), who = it) shouldBe
+                ComplianceMetricsResult.Forbidden(DecisionReason.AUTHORITY_UNAVAILABLE)
+        }
+        source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-12835 with an entity filter e1 a grant on e1 gives Allowed and a grant on e2 only is refused`() {
+        val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
+        ask(query(source, replica(holder, ComplianceActions.VIEW, ScopeLevel.ENTITY, "e1")), entity = "e1")
+            .shouldBeInstanceOf<ComplianceMetricsResult.Allowed>()
+        ask(query(source, replica(holder, ComplianceActions.VIEW, ScopeLevel.ENTITY, "e2")), entity = "e1") shouldBe
+            ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
+        source.calls shouldBe 1
     }
 }
