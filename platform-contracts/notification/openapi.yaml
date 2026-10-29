@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -59,6 +59,11 @@ info:
     Version 1.13.0 adds the alert trigger BREAK_GLASS_USED, the contract name
     of the alert of a break-glass use, an alert of the class SECURITY
     (INV-Q-8966, INV-REQ-897).
+
+
+    Version 1.14.0 adds the alert trigger COVERAGE_GAP, the contract name of
+    the coverage alert, an alert of the class COVERAGE (INV-Q-12767,
+    INV-REQ-1069).
   contact:
     name: notification (see CODEOWNERS)
 servers:
@@ -288,7 +293,10 @@ paths:
         falls due, without tiers (INV-REQ-1403, INV-REQ-1113). A break-glass
         use is an alert of the class SECURITY with the trigger
         BREAK_GLASS_USED, raised once for each event `BreakGlassAlertRaised`,
-        without tiers (INV-REQ-897, INV-AC-2384).
+        without tiers (INV-REQ-897, INV-AC-2384). A coverage alert is an
+        alert of the class COVERAGE with the trigger COVERAGE_GAP, raised when
+        `ComplianceAlertValuesMeasured` reports documents without submission
+        for an entity and period (INV-REQ-1069).
       tags: [alerts]
       x-principal: reporting
       x-caller-auth: end-user
@@ -1305,7 +1313,7 @@ components:
           format: date-time
         trigger:
           type: string
-          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED, BREAK_GLASS_USED]
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED, BREAK_GLASS_USED, COVERAGE_GAP]
           x-extensible-enum: true
         caseId:
           type: string
