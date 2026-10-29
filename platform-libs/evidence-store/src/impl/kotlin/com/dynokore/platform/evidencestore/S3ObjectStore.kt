@@ -3,6 +3,7 @@ package com.dynokore.platform.evidencestore
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import software.amazon.awssdk.services.s3.model.ObjectLockMode
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import java.time.Instant
@@ -45,5 +46,20 @@ class S3ObjectStore(
                 .key(key.value)
                 .build()
         return client.getObjectAsBytes(request).asByteArray()
+    }
+
+    override fun bytesUnder(prefix: ObjectKeyPrefix): Long {
+        val request =
+            ListObjectsV2Request
+                .builder()
+                .bucket(bucket)
+                .prefix(prefix.value)
+                .build()
+        return client
+            .listObjectsV2Paginator(request)
+            .stream()
+            .flatMap { page -> page.contents().stream() }
+            .mapToLong { it.size() }
+            .sum()
     }
 }

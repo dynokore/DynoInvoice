@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-29
+### Added
+- `ObjectKeyPrefix` (a whole-segment key prefix that must end with `/`) and `ObjectStore.bytesUnder(prefix)`, implemented by `S3ObjectStore` over every page of ListObjectsV2 (INV-Q-12679, INV-T-9909, INV-T-12695). The default body refuses with `UnsupportedOperationException`, so existing implementors compile unchanged.
+
 ## [2.0.10] - 2026-10-26
 ### Changed
 - Metadata-only release (INV-T-11066, INV-Q-11056, G-DVS): depends on `tenancy-kernel 4.2.0`, whose published module metadata changed; no code change.

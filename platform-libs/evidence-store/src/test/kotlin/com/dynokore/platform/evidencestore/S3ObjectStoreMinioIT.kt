@@ -162,4 +162,34 @@ class S3ObjectStoreMinioIT {
             container.stop()
         }
     }
+
+    @Test
+    fun `bytesUnder sums whole key segments only`() {
+        val image = DockerImageName.parse(MINIO_IMAGE).asCompatibleSubstituteFor("minio/minio")
+        val container = MinIOContainer(image)
+        container.start()
+        try {
+            val client = minioClient(container)
+            val bucket = "evidence-store-bytes-under"
+            client.createBucket(
+                CreateBucketRequest
+                    .builder()
+                    .bucket(bucket)
+                    .objectLockEnabledForBucket(true)
+                    .build(),
+            )
+            val store = S3ObjectStore(client, bucket)
+            val retainUntil = Instant.now().plus(1, ChronoUnit.DAYS)
+            store.put(ObjectKey("p/T/E1/a"), ByteArray(100), retainUntil)
+            store.put(ObjectKey("p/T/E1/b"), ByteArray(200), retainUntil)
+            store.put(ObjectKey("p/T/E10/a"), ByteArray(5000), retainUntil)
+            store.put(ObjectKey("p/T2/E1/a"), ByteArray(7000), retainUntil)
+
+            assertEquals(300L, store.bytesUnder(ObjectKeyPrefix("p/T/E1/")))
+            assertEquals(5000L, store.bytesUnder(ObjectKeyPrefix("p/T/E10/")))
+            assertEquals(0L, store.bytesUnder(ObjectKeyPrefix("unused/")))
+        } finally {
+            container.stop()
+        }
+    }
 }

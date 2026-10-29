@@ -26,4 +26,11 @@ interface ObjectStore {
     ): ObjectRef
 
     fun get(key: ObjectKey): ByteArray
+
+    /**
+     * The total size in bytes of every object whose key starts with [prefix], over the
+     * whole listing; 0 when there is none. Read-only, so the port stays append-only.
+     */
+    fun bytesUnder(prefix: ObjectKeyPrefix): Long =
+        throw UnsupportedOperationException("${this.javaClass.name} does not implement bytesUnder")
 }
