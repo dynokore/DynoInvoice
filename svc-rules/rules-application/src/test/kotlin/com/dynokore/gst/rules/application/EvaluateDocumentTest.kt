@@ -118,10 +118,14 @@ class EvaluateDocumentTest {
                 CodeDocumentCommand(
                     null,
                     TransactionDate(date),
-                    listOf(DocumentLine("1", BigDecimal("100.00"), LineInput("STD"))),
+                    listOf(DocumentLine("1", BigDecimal("100.00"), BigDecimal("9.00"), LineInput("STD"))),
                 ),
             )
-        result.shouldBeInstanceOf<DocumentCodingResult.Coded>().document.totalGst shouldBe BigDecimal("9.00")
+        result
+            .shouldBeInstanceOf<DocumentCodingResult.Coded>()
+            .document.subtotals
+            .single()
+            .tax shouldBe BigDecimal("9.00")
         seen shouldBe listOf(date)
     }
 }

@@ -38,7 +38,15 @@ class DocumentCodingTest {
         vararg more: CatalogueEntry,
     ) = CodeCatalogue(
         true,
-        listOf(entry("SR", standard), entry("ZR", "0"), entry("TXCA", standard), entry("SRCA-S", "0")) + more,
+        listOf(
+            entry("SR", standard),
+            entry("ZR", "0"),
+            entry("TXCA", standard),
+            entry("SRCA-S", "0"),
+            entry("NA", "NA", "0"),
+            entry("TXNA", "0"),
+        ) +
+            more,
     )
 
     /** Two catalogue versions: rate 9 from 2026-01-01, rate 10 from 2026-07-01 (test data). */
@@ -60,10 +68,14 @@ class DocumentCodingTest {
             listOf(
                 SchemeTagSide("CA", Side.SUPPLY, Handling.HANDLED),
                 SchemeTagSide("CA", Side.PURCHASE, Handling.HANDLED),
+                SchemeTagSide("MIX", Side.SUPPLY, Handling.HANDLED),
+                SchemeTagSide("SAME", Side.SUPPLY, Handling.HANDLED),
             ),
             listOf(
                 Treatment("CA", Side.SUPPLY, "SRCA-S", RateBasis.FIXED, "0", emptySet(), null, null),
                 Treatment("CA", Side.PURCHASE, "TXCA", RateBasis.PREVAILING, null, emptySet(), null, null),
+                Treatment("MIX", Side.SUPPLY, "SR", RateBasis.FIXED, "0", emptySet(), null, null),
+                Treatment("SAME", Side.SUPPLY, "SR", RateBasis.FIXED, "9.00", emptySet(), null, null),
             ),
         )
 
@@ -73,6 +85,10 @@ class DocumentCodingTest {
             MappingEntry("EXP", "ZR"),
             MappingEntry("CA", "SR", "CA"),
             MappingEntry("UNK", "QQ"),
+            MappingEntry("MIX", "SR", "MIX"),
+            MappingEntry("SAME", "SR", "SAME"),
+            MappingEntry("GMS", "NA"),
+            MappingEntry("GMSC", "TXNA"),
         )
 
     private fun coder(
@@ -89,7 +105,8 @@ class DocumentCodingTest {
         amount: String,
         code: String,
         direction: Direction? = null,
-    ) = DocumentLine(id, BigDecimal(amount), LineInput(code, direction, election = "x"))
+        tax: String = "0.00",
+    ) = DocumentLine(id, BigDecimal(amount), BigDecimal(tax), LineInput(code, direction, election = "x"))
 
     private fun command(
         date: LocalDate,
@@ -100,22 +117,22 @@ class DocumentCodingTest {
 
     @Test
     fun `a back-dated line takes the older rate`() {
-        val doc = coded(coder().code(command(LocalDate.of(2026, 3, 1), line("1", "100.00", "STD"))))
+        val doc = coded(coder().code(command(LocalDate.of(2026, 3, 1), line("1", "100.00", "STD", tax = "9.00"))))
         doc.subtotals
             .single()
             .rate
             .compareTo(BigDecimal("9")) shouldBe 0
-        doc.totalGst shouldBe BigDecimal("9.00")
+        doc.subtotals.single().tax shouldBe BigDecimal("9.00")
     }
 
     @Test
     fun `the same line after the change date takes the newer rate`() {
-        val doc = coded(coder().code(command(changeDate, line("1", "100.00", "STD"))))
+        val doc = coded(coder().code(command(changeDate, line("1", "100.00", "STD", tax = "10.00"))))
         doc.subtotals
             .single()
             .rate
             .compareTo(BigDecimal("10")) shouldBe 0
-        doc.totalGst shouldBe BigDecimal("10.00")
+        doc.subtotals.single().tax shouldBe BigDecimal("10.00")
     }
 
     @Test
@@ -124,33 +141,28 @@ class DocumentCodingTest {
         refused.shouldBeInstanceOf<DocumentCodingResult.Refused>().code shouldBe ErrorCode.RUL_002
     }
 
-    // INV-AC-744
     @Test
-    fun `SR SR and ZR give two groups with correct totals`() {
+    fun `INV-AC-744 SR SR and ZR give two groups with correct totals`() {
         val doc =
             coded(
                 coder().code(
                     command(
                         LocalDate.of(2026, 3, 1),
-                        line("1", "100.00", "STD"),
-                        line("2", "200.00", "STD"),
+                        line("1", "9.00", "STD", tax = "9.00"),
+                        line("2", "18.00", "STD", tax = "18.00"),
                         line("3", "400.00", "EXP"),
                     ),
                 ),
             )
         doc.subtotals.map { it.categoryCode } shouldBe listOf("SR", "ZR")
-        doc.subtotals[0].taxable shouldBe BigDecimal("300.00")
+        doc.subtotals[0].taxable shouldBe BigDecimal("27.00")
         doc.subtotals[0].tax shouldBe BigDecimal("27.00")
         doc.subtotals[1].taxable shouldBe BigDecimal("400.00")
         doc.subtotals[1].tax.compareTo(BigDecimal.ZERO) shouldBe 0
-        doc.totalWithoutGst shouldBe BigDecimal("700.00")
-        doc.totalGst shouldBe BigDecimal("27.00")
-        doc.totalWithGst shouldBe BigDecimal("727.00")
     }
 
-    // INV-AC-1555
     @Test
-    fun `each line gets its code and lines in another order give the same groups`() {
+    fun `INV-AC-1555 each line gets its code and lines in another order give the same groups`() {
         val a = line("1", "100.00", "STD")
         val b = line("2", "200.00", "STD")
         val c = line("3", "400.00", "EXP")
@@ -167,12 +179,11 @@ class DocumentCodingTest {
         result.shouldBeInstanceOf<DocumentCodingResult.LinesRefused>().refusals shouldBe mapOf("1" to ErrorCode.RUL_001)
     }
 
-    // INV-AC-390
     @Test
-    fun `supplier SRCA-S at 0 and customer TXCA at the prevailing rate with no divergence finding`() {
+    fun `INV-AC-390 supplier SRCA-S at 0 and customer TXCA at the prevailing rate with no divergence finding`() {
         val date = LocalDate.of(2026, 3, 1)
         val supplier = coded(coder().code(command(date, line("1", "100.00", "CA", Direction.SALE))))
-        val customer = coded(coder().code(command(date, line("1", "100.00", "CA", Direction.PURCHASE))))
+        val customer = coded(coder().code(command(date, line("1", "100.00", "CA", Direction.PURCHASE, tax = "9.00"))))
         supplier.subtotals.single().categoryCode shouldBe "SRCA-S"
         supplier.subtotals
             .single()
@@ -183,8 +194,8 @@ class DocumentCodingTest {
             .single()
             .rate
             .compareTo(BigDecimal("9")) shouldBe 0
-        supplier.totalGst shouldBe BigDecimal("0.00")
-        customer.totalGst shouldBe BigDecimal("9.00")
+        supplier.subtotals.single().tax shouldBe BigDecimal("0.00")
+        customer.subtotals.single().tax shouldBe BigDecimal("9.00")
     }
 
     @Test
@@ -220,5 +231,105 @@ class DocumentCodingTest {
                 listOf(MappingEntry("N", "NAX")),
             ).code(command(changeDate, line("1", "1.00", "N")))
         }
+    }
+
+    @Test
+    fun `INV-AC-391 supplier NA and customer TXNA both at rate 0 with no divergence finding`() {
+        val date = LocalDate.of(2026, 3, 1)
+        val supplier = coded(coder().code(command(date, line("1", "100.00", "GMS"))))
+        val customer = coded(coder().code(command(date, line("1", "100.00", "GMSC", Direction.PURCHASE))))
+        supplier.subtotals.single().categoryCode shouldBe "NA"
+        supplier.subtotals
+            .single()
+            .rate
+            .compareTo(BigDecimal.ZERO) shouldBe 0
+        customer.subtotals.single().categoryCode shouldBe "TXNA"
+        customer.subtotals
+            .single()
+            .rate
+            .compareTo(BigDecimal.ZERO) shouldBe 0
+    }
+
+    @Test
+    fun `a group tax is the exact sum of the stated line taxAmounts and nothing is rounded`() {
+        val lines = (1..3).map { line("$it", "10.05", "STD", tax = "0.90") }.toTypedArray()
+        val sub = coded(coder().code(command(LocalDate.of(2026, 3, 1), *lines))).subtotals.single()
+        sub.taxable shouldBe BigDecimal("30.15")
+        sub.tax shouldBe BigDecimal("2.70")
+    }
+
+    @Test
+    fun `a stated taxAmount that differs from amount times rate is kept as stated`() {
+        val result = coder().code(command(LocalDate.of(2026, 3, 1), line("1", "100.00", "STD", tax = "8.00")))
+        result
+            .shouldBeInstanceOf<DocumentCodingResult.Coded>()
+            .document.subtotals
+            .single()
+            .tax shouldBe
+            BigDecimal("8.00")
+    }
+
+    @Test
+    fun `the result carries no document total`() {
+        CodedDocument::class.java.declaredFields
+            .filterNot {
+                java.lang.reflect.Modifier
+                    .isStatic(it.modifiers)
+            }.map { it.name }
+            .toSet() shouldBe setOf("lines", "subtotals")
+    }
+
+    @Test
+    fun `a refused line gives LinesRefused for that line and no Coded result`() {
+        val result =
+            coder().code(
+                command(changeDate, line("1", "10.00", "STD"), line("2", "10.00", "EXP"), line("3", "10.00", "ZZ")),
+            )
+        result.shouldBeInstanceOf<DocumentCodingResult.LinesRefused>().refusals shouldBe
+            mapOf("3" to ErrorCode.RUL_001)
+        coder().code(command(changeDate, line("1", "10.00", "STD"), line("2", "10.00", "EXP"))).let {
+            coded(it).subtotals.size shouldBe 2
+        }
+    }
+
+    @Test
+    fun `every refused line is listed`() {
+        val lines = listOf(line("1", "1.00", "ZZ"), line("2", "1.00", "UNK"), line("3", "1.00", "STD"))
+        val expected = mapOf("1" to ErrorCode.RUL_001, "2" to ErrorCode.RUL_006)
+        coder()
+            .code(command(changeDate, *lines.toTypedArray()))
+            .shouldBeInstanceOf<DocumentCodingResult.LinesRefused>()
+            .refusals shouldBe expected
+        coder()
+            .code(command(changeDate, *lines.reversed().toTypedArray()))
+            .shouldBeInstanceOf<DocumentCodingResult.LinesRefused>()
+            .refusals shouldBe expected
+    }
+
+    @Test
+    fun `a document of refused lines only is refused`() {
+        coder()
+            .code(command(changeDate, line("1", "1.00", "ZZ")))
+            .shouldBeInstanceOf<DocumentCodingResult.LinesRefused>()
+            .refusals shouldBe mapOf("1" to ErrorCode.RUL_001)
+    }
+
+    @Test
+    fun `lines of one code with different rates raise DocumentCodingFailure naming the code`() {
+        val failure =
+            assertThrows<DocumentCodingFailure> {
+                coder().code(command(LocalDate.of(2026, 3, 1), line("1", "1.00", "MIX"), line("2", "1.00", "STD")))
+            }
+        failure.message!!.contains("SR") shouldBe true
+    }
+
+    @Test
+    fun `the same rate written differently is one rate`() {
+        val doc =
+            coded(coder().code(command(LocalDate.of(2026, 3, 1), line("1", "1.00", "SAME"), line("2", "1.00", "STD"))))
+        doc.subtotals
+            .single()
+            .rate
+            .compareTo(BigDecimal("9")) shouldBe 0
     }
 }

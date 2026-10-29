@@ -10,7 +10,6 @@ import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.tenancykernel.TenantId
 import java.math.BigDecimal
-import java.math.RoundingMode
 
 /**
  * One side's document to code. [date] is the one resolution date: the caller passes the preceding document's date
@@ -26,12 +25,15 @@ data class DocumentLine(
     val lineId: String,
     /** The line amount without GST. */
     val amount: BigDecimal,
+    /** The GST of the line as the caller states it; kept as stated, never computed here (INV-Q-12717). */
+    val taxAmount: BigDecimal,
     val input: LineInput,
 )
 
 data class CodedDocumentLine(
     val lineId: String,
     val amount: BigDecimal,
+    val taxAmount: BigDecimal,
     val categoryCode: String,
     /** The rate in percent, resolved for the document date. */
     val rate: BigDecimal,
@@ -48,9 +50,6 @@ data class Subtotal(
 data class CodedDocument(
     val lines: List<CodedDocumentLine>,
     val subtotals: List<Subtotal>,
-    val totalWithoutGst: BigDecimal,
-    val totalGst: BigDecimal,
-    val totalWithGst: BigDecimal,
 )
 
 sealed interface DocumentCodingResult {
@@ -125,7 +124,7 @@ class DocumentCoder(
             val coded =
                 codings.map { (line, coding) ->
                     val c = coding as LineCoding.Coded
-                    CodedDocumentLine(line.lineId, line.amount, c.categoryCode, rateOf(c, catalogue))
+                    CodedDocumentLine(line.lineId, line.amount, line.taxAmount, c.categoryCode, rateOf(c, catalogue))
                 }
             DocumentCodingResult.Coded(build(coded))
         }
@@ -156,21 +155,16 @@ class DocumentCoder(
                 .groupBy { it.categoryCode }
                 .toSortedMap()
                 .map { (code, group) ->
-                    val rates = group.map { it.rate.stripTrailingZeros() }.distinct()
-                    if (rates.size != 1) throw DocumentCodingFailure("lines of $code carry different rates")
                     val rate = group.first().rate
-                    val taxable = group.fold(BigDecimal.ZERO) { sum, l -> sum + l.amount }
-                    val tax = taxable.multiply(rate).divide(HUNDRED).setScale(MONEY_SCALE, RoundingMode.HALF_UP)
-                    Subtotal(code, rate, taxable, tax)
+                    if (group.any { it.rate.compareTo(rate) != 0 }) {
+                        throw DocumentCodingFailure("lines of $code carry different rates")
+                    }
+                    Subtotal(code, rate, group.sumOf { it.amount }, group.sumOf { it.taxAmount })
                 }
-        val net = subtotals.fold(BigDecimal.ZERO) { sum, s -> sum + s.taxable }
-        val gst = subtotals.fold(BigDecimal.ZERO) { sum, s -> sum + s.tax }
-        return CodedDocument(lines, subtotals, net, gst, net + gst)
+        return CodedDocument(lines, subtotals)
     }
 
     private companion object {
         const val NOT_APPLICABLE = "NA"
-        const val MONEY_SCALE = 2
-        val HUNDRED: BigDecimal = BigDecimal(100)
     }
 }
