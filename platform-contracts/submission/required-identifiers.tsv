@@ -159,6 +159,12 @@ ComplianceMetricsEntry.resubmissionTrend	schema_property	openapi.yaml	INV-REQ-10
 ComplianceMetricsEntry.resubmissionSignal	schema_property	openapi.yaml	INV-REQ-1070
 Ratio.numerator	schema_property	openapi.yaml	INV-REQ-1070
 Ratio.denominator	schema_property	openapi.yaml	INV-REQ-1070
+entityRef	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
+periodRef	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
+measuredOn	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
+documentsWithoutSubmission	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
+documentsPastDue	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
+daysToNearestDeadline	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
 documentsWithoutSubmission	property	openapi.yaml	INV-REQ-1069
 breached	property	openapi.yaml	INV-REQ-1069
 documentsPastDue	property	openapi.yaml	INV-REQ-1069
