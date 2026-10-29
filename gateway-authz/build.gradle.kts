@@ -8,6 +8,7 @@
 plugins {
     id("gst.bootstrap")
     id("org.springframework.boot")
+    id("gst.pact") version "0.23.1" // STK-40, INV-REQ-1225: consumer pact of the api-gateway -> access-svc edge
 }
 
 group = "com.dynokore.gst"
@@ -64,6 +65,15 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.springBoot.starterTest)
     testRuntimeOnly(libs.junit.platformLauncher)
+
+    // STK-40: Pact JVM 4.6.x, the version and the Netty / httpcore5 alignment platform-build's catalogue pins (the
+    // catalogue entries are not in this repository's version catalogue, so the coordinates are named here).
+    testImplementation("au.com.dius.pact.consumer:junit5:4.6.21")
+    testImplementation(platform("io.netty:netty-bom:4.1.139.Final"))
+    constraints {
+        testImplementation("org.apache.httpcomponents.core5:httpcore5:5.4.4")
+        testImplementation("org.apache.httpcomponents.core5:httpcore5-h2:5.4.4")
+    }
 }
 
 tasks.test {
