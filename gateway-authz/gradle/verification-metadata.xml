@@ -17,6 +17,14 @@
          <ignored-key id="953E02E4F573B46F" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="BBF5AC5A3CDBFD37" reason="Key couldn't be downloaded from any key server"/>
          <ignored-key id="CA62973FBF0451C0" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="073F7A9345756F3B40CDB99E6C70A3B7599C5736" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="0E6E990FD54E8532780086612B183B279DFD639E" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="5DE533CB43DAF8BC3E372283E7AE839CD7C58886" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="AED5EE6C45D0FE8D5D1B164F27DED4BF6216DB8F" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="B47034C19C9B1F3DC3702F8D476634A4694E716A" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="FB35C8D02B4724DADA23DE0AFD116C1969FCCFF3" reason="Key couldn't be downloaded from any key server"/>
+         <ignored-key id="84E913A8E3A748C0" reason="Key couldn't be downloaded from any key server"/>
       </ignored-keys>
       <trusted-keys>
          <trusted-key id="015479E1055341431B4545AB72475FD306B9CAB7" group="com.googlecode.javaewah" name="JavaEWAH" version="1.2.3"/>

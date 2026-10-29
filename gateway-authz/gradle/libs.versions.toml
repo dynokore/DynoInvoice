@@ -18,6 +18,10 @@ mockk = "1.14.11"
 # Envoy's published Java API (envoy.service.auth.v3 messages and stubs) for the extAuth Check service (coordinator
 # ruling INV-Q-4077); grpc-java and protobuf come from the Spring Boot BOM.
 envoyApi = "1.0.55"
+# STK-40 (INV-T-11861): Pact JVM 4.6.x and the Netty / httpcore5 alignment, the values platform-build's catalogue pins.
+pact = "4.6.21"
+httpcore5 = "5.4.4"
+nettyBom = "4.1.139.Final"
 
 [libraries]
 springBoot-starterGrpcServer = { module = "org.springframework.boot:spring-boot-starter-grpc-server" }
@@ -53,3 +57,7 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }
 kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+pact-consumerJunit5 = { module = "au.com.dius.pact.consumer:junit5", version.ref = "pact" }
+httpcore5-core = { module = "org.apache.httpcomponents.core5:httpcore5", version.ref = "httpcore5" }
+httpcore5-h2 = { module = "org.apache.httpcomponents.core5:httpcore5-h2", version.ref = "httpcore5" }
+netty-bom = { module = "io.netty:netty-bom", version.ref = "nettyBom" }

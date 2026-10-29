@@ -36,6 +36,8 @@ pluginManagement {
     plugins {
         // TPL-01: the Spring Boot application module's convention plugin.
         id("gst.bootstrap") version platformBuildVersion
+        // STK-40: the consumer pact of the api-gateway -> access-svc edge (INV-T-11861).
+        id("gst.pact") version platformBuildVersion
         // STK-53: bootBuildImage (Paketo) and the executable jar, at the catalogue's Spring Boot version.
         id("org.springframework.boot") version springBootVersion
     }
