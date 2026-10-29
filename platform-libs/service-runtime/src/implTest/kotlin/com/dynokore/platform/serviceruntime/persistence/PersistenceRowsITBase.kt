@@ -69,7 +69,7 @@ import java.util.concurrent.TimeUnit
 abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
     @Test
     fun `insert then load returns the row and another tenant's id loads null`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             asTenant(a) { accounts.insert(row) }
             asTenant(a) { accounts.load(row.id) } shouldBe row
@@ -78,7 +78,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `insertAll writes one insert statement per row in list order and an empty list runs none`() =
-        withService<Unit> {
+        withService {
             val rows = (1..3).map { account(a, name = "n$it") }
             statements.clear()
             asTenant(a) { accounts.insertAll(rows) }
@@ -91,7 +91,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `update writes only the changed columns and version plus one under the version predicate`() =
-        withService<Unit> {
+        withService {
             val before = account(a)
             asTenant(a) { accounts.insert(before) }
             statements.clear()
@@ -106,7 +106,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `update with equal rows runs no statement`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             asTenant(a) { accounts.insert(row) }
             statements.clear()
@@ -116,7 +116,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `update with a stale version returns the conflict outcome and changes nothing`() =
-        withService<Unit> {
+        withService {
             val first = account(a)
             asTenant(a) { accounts.insert(first) }
             asTenant(a) { accounts.update(first, first.copy(name = "second")) } shouldBe UpdateOutcome.Updated(1)
@@ -128,7 +128,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `two concurrent updates of one row let exactly one succeed`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             asTenant(a) { accounts.insert(row) }
             val barrier = CyclicBarrier(2)
@@ -155,7 +155,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `delete removes the row at its version and a stale version is a conflict`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             asTenant(a) { accounts.insert(row) }
             asTenant(a) { accounts.update(row, row.copy(name = "x")) } shouldBe UpdateOutcome.Updated(1)
@@ -167,7 +167,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `update and delete of another tenant's row change nothing and return the conflict outcome`() =
-        withService<Unit> {
+        withService {
             val theirs = account(b)
             asTenant(b) { accounts.insert(theirs) }
             asTenant(a) { accounts.update(theirs, theirs.copy(name = "taken")) } shouldBe UpdateOutcome.Conflict
@@ -177,7 +177,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `insert of a POJO carrying another tenant's tenant_id is refused before execution`() =
-        withService<Unit> {
+        withService {
             statements.clear()
             shouldThrow<TenantPredicateViolation> { asTenant(a) { accounts.insert(account(b)) } }
             statements.shouldBeEmpty()
@@ -190,7 +190,7 @@ abstract class PersistenceRowsITBase : PersistenceLayerITBase() {
 
     @Test
     fun `any call with no open transaction or no binding is refused before SQL`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             executed.clear()
             shouldThrow<Exception> { inBoundNoTransaction { accounts.load(row.id) } }

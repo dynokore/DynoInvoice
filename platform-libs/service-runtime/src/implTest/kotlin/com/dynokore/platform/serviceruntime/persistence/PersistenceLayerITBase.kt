@@ -103,11 +103,13 @@ abstract class PersistenceLayerITBase {
         }
     }
 
-    protected fun <T> withService(
+    // Returns Unit on purpose: with a generic result, `fun test() = withService { ... }` returns the block's value
+    // and JUnit Jupiter silently skips the method (lesson 2026-10-18). Add a separate generic helper if a test needs a value.
+    protected fun withService(
         clock: Clock = Clock.systemUTC(),
-        block: Fixture.() -> T,
-    ): T {
-        var result: Result<T>? = null
+        block: Fixture.() -> Unit,
+    ) {
+        var result: Result<Unit>? = null
         tpl18Service()
             .withPropertyValues(
                 "spring.datasource.url=${db.jdbcUrl}",
@@ -123,7 +125,7 @@ abstract class PersistenceLayerITBase {
                 result = runCatching { fixture.block() }
                 fixture.close()
             }
-        return result!!.getOrThrow()
+        result!!.getOrThrow()
     }
 
     protected fun account(

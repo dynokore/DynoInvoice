@@ -92,7 +92,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
     @Test
     fun `audit columns are set on every row of insertAll and appendAll`() {
         val at = Instant.parse("2026-03-04T05:06:07Z")
-        withService<Unit>(Clock.fixed(at, ZoneOffset.UTC)) {
+        withService(Clock.fixed(at, ZoneOffset.UTC)) {
             val audited = layer.aggregates<AuditedRecord, Audited, UUID>(AUDITED, Audited::class.java)
             val appender = layer.ledger<AuditedRecord, Audited>(AUDITED, Audited::class.java)
             val viaStore = listOf(freshAudited(), freshAudited())
@@ -111,7 +111,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
 
     @Test
     fun `a row with a caller-set audit actor stops insertAll and appendAll and the transaction keeps nothing`() =
-        withService<Unit> {
+        withService {
             val audited = layer.aggregates<AuditedRecord, Audited, UUID>(AUDITED, Audited::class.java)
             val appender = layer.ledger<AuditedRecord, Audited>(AUDITED, Audited::class.java)
             val label = "t-${UUID.randomUUID()}"
@@ -132,7 +132,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
 
     @Test
     fun `a row of another tenant stops insertAll and appendAll before its statement and nothing is kept`() =
-        withService<Unit> {
+        withService {
             val audited = layer.aggregates<AuditedRecord, Audited, UUID>(AUDITED, Audited::class.java)
             val appender = layer.ledger<AuditedRecord, Audited>(AUDITED, Audited::class.java)
             val label = "t-${UUID.randomUUID()}"
@@ -153,7 +153,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
 
     @Test
     fun `insertAll and appendAll under a binding without a usable actor insert nothing`() =
-        withService<Unit> {
+        withService {
             val audited = layer.aggregates<AuditedRecord, Audited, UUID>(AUDITED, Audited::class.java)
             val appender = layer.ledger<AuditedRecord, Audited>(AUDITED, Audited::class.java)
             val label = "t-${UUID.randomUUID()}"
@@ -181,7 +181,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
 
     @Test
     fun `a table without audit columns is untouched`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             asTenant(a) { accounts.insert(row) }
             statements.single { it.startsWith("insert into") } shouldBe
@@ -191,7 +191,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
 
     @Test
     fun `caller-set audit values that break the rules are refused`() =
-        withService<Unit> {
+        withService {
             val audited = layer.aggregates<AuditedRecord, Audited, UUID>(AUDITED, Audited::class.java)
             val base = Audited(UUID.randomUUID(), a.value, "l", 0, null, null, null, null)
             shouldThrow<AuditColumnViolation> {
@@ -219,7 +219,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
 
     @Test
     fun `the store and appender refuse unsuitable tables at construction`() =
-        withService<Unit> {
+        withService {
             shouldThrow<IllegalArgumentException> {
                 layer.aggregates<LedgerEntryRecord, LedgerEntry, UUID>(LEDGER_ENTRY, LedgerEntry::class.java)
             }.message shouldContain "no numeric 'version' column"
@@ -242,7 +242,7 @@ abstract class PersistenceAuditITBase : PersistenceRowsITBase() {
 
     @Test
     fun `the layer refuses a DSLContext without the tenancy listeners or the layer's configuration`() =
-        withService<Unit> {
+        withService {
             shouldThrow<IllegalArgumentException> { PersistenceLayer(DSL.using(SQLDialect.POSTGRES), guards) }
                 .message shouldContain "not tenancy-jooq's"
             val tenancyOnly =

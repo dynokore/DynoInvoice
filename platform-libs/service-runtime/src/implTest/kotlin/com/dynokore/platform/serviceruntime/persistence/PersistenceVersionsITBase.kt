@@ -69,7 +69,7 @@ import java.util.concurrent.TimeUnit
 abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     @Test
     fun `the appender appends and offers nothing that changes an existing row`() =
-        withService<Unit> {
+        withService {
             val appender = layer.ledger<LedgerEntryRecord, LedgerEntry>(LEDGER_ENTRY, LedgerEntry::class.java)
             val one = LedgerEntry(UUID.randomUUID(), a.value, 5)
             val others = (1..3).map { LedgerEntry(UUID.randomUUID(), a.value, it) }
@@ -93,7 +93,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
 
     @Test
     fun `the appender over a declared append-only table constructs and appends`() =
-        withService<Unit> {
+        withService {
             val appender = layer.ledger<DeclaredLogRecord, DeclaredLog>(DECLARED_LOG, DeclaredLog::class.java)
             val row = DeclaredLog(UUID.randomUUID(), a.value, "entry", 0)
             asTenant(a) { appender.append(row) }
@@ -103,7 +103,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     // VT1: the row stores the version it is given (INV-Q-6770)
     @Test
     fun `insert stores the version it is given`() =
-        withService<Unit> {
+        withService {
             val rows = listOf(0L, 1L, 7L).map { account(a, version = it) }
             rows.forEach { row -> asTenant(a) { accounts.insert(row) } }
             rows.forEach { row -> asTenant(a) { accounts.load(row.id) } shouldBe row }
@@ -112,7 +112,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     // VT2
     @Test
     fun `insertAll stores the versions it is given`() =
-        withService<Unit> {
+        withService {
             val rows = listOf(0L, 1L, 7L).map { account(a, version = it) }
             asTenant(a) { accounts.insertAll(rows) }
             rows.forEach { row -> asTenant(a) { accounts.load(row.id) } shouldBe row }
@@ -121,7 +121,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     // VT3
     @Test
     fun `append and appendAll store the versions they are given and an unversioned table is untouched`() =
-        withService<Unit> {
+        withService {
             val appender = layer.ledger<DeclaredLogRecord, DeclaredLog>(DECLARED_LOG, DeclaredLog::class.java)
             val rows = listOf(0L, 7L, 1L, 3L).map { DeclaredLog(UUID.randomUUID(), a.value, "e$it", it) }
             asTenant(a) {
@@ -153,7 +153,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     // VT4: no reload between updates
     @Test
     fun `the caller's own POJO is the before of its next update`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             asTenant(a) { accounts.insert(row) }
             asTenant(a) { accounts.update(row, row.copy(name = "b")) } shouldBe UpdateOutcome.Updated(1)
@@ -167,7 +167,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     // VT5
     @Test
     fun `update ignores the version of after`() =
-        withService<Unit> {
+        withService {
             val row = account(a)
             asTenant(a) { accounts.insert(row) }
             asTenant(a) { accounts.update(row, row.copy(name = "x", version = 9)) } shouldBe UpdateOutcome.Updated(1)
@@ -177,7 +177,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     // VT6
     @Test
     fun `a negative version is refused before any statement`() =
-        withService<Unit> {
+        withService {
             val appender = layer.ledger<DeclaredLogRecord, DeclaredLog>(DECLARED_LOG, DeclaredLog::class.java)
             val good = account(a)
             val bad = account(a, version = -1)
@@ -202,7 +202,7 @@ abstract class PersistenceVersionsITBase : PersistenceAuditITBase() {
     // VT7: an Int version
     @Test
     fun `an Int version column follows the same rule`() =
-        withService<Unit> {
+        withService {
             val counters = layer.aggregates<CounterRecord, Counter, UUID>(COUNTER, Counter::class.java)
             val rows = listOf(0, 7).map { Counter(UUID.randomUUID(), a.value, "c$it", it) }
             rows.forEach { row -> asTenant(a) { counters.insert(row) } }
