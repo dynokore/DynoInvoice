@@ -120,4 +120,28 @@ class PurgeAuditEntriesTest {
         run(useCase(figures = short), yearsAgo(4)) shouldBe PurgeAuditOutcome.CutOffYoungerThanFloor
         run(useCase(figures = short), yearsAgo(5)) shouldBe PurgeAuditOutcome.Purged(AuditPurgeResult(1, "entry-1"))
     }
+
+    @Test
+    fun `INV-AC-3823 an exception of the purger propagates unchanged and is not mapped to an outcome`() {
+        val failure = IllegalStateException("purge failed")
+        val failing =
+            PurgeAuditEntries(
+                authority = { _, _, _ ->
+                    calls += "authority"
+                    true
+                },
+                floorSource = {
+                    calls += "floor"
+                    listOf(Period.ofYears(5))
+                },
+                purger = { _, _ ->
+                    calls += "purger"
+                    throw failure
+                },
+                clock = clock,
+            )
+        val thrown = runCatching { run(failing, yearsAgo(6)) }.exceptionOrNull()
+        (thrown === failure) shouldBe true
+        calls shouldBe listOf("authority", "floor", "purger")
+    }
 }

@@ -50,4 +50,18 @@ class AuditPurgePolicyTest {
         val floor = floorOf(Period.ofYears(5), Period.ofYears(10)) as PurgeFloor.Determined
         AuditPurgePolicy.allows(yearsAgo(6), floor) shouldBe false
     }
+
+    @Test
+    fun `INV-AC-3823 periods in different units are compared by the instant they reach back from the call`() {
+        val floor = floorOf(Period.ofYears(6), Period.ofDays(2200)) as PurgeFloor.Determined
+        floor.retention shouldBe Period.ofDays(2200)
+        floor.limit shouldBe now.atOffset(ZoneOffset.UTC).minusDays(2200).toInstant()
+    }
+
+    @Test
+    fun `INV-AC-3823 five years back from 29 February is the last day of February`() {
+        val leapDay = Instant.parse("2028-02-29T00:00:00Z")
+        val floor = AuditPurgePolicy.floor(listOf(Period.ofYears(5)), leapDay) as PurgeFloor.Determined
+        floor.limit shouldBe Instant.parse("2023-02-28T00:00:00Z")
+    }
 }
