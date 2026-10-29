@@ -496,6 +496,27 @@ rules:
               type: object
               required: [Deprecation, Sunset, Link]
 
+  inv-high-risk-action-marker:
+    description: >-
+      INV-REQ-1201, INV-Q-9243 B, INV-Q-9245 — an operation marked as a high-risk
+      action (live authorise at access-svc whatever the replica lag) carries
+      `x-high-risk-action: true` and an `x-principal`. The value `false`, a string
+      or any non-boolean is refused (INV-T-9257).
+    message: "x-high-risk-action must be the boolean true and the operation must also declare x-principal (INV-REQ-1201, INV-Q-9243)"
+    given: "$.paths[*][?(@property.match(/^(get|post|put|delete|patch)$/) && @['x-high-risk-action'] !== undefined)]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [x-high-risk-action, x-principal]
+          properties:
+            x-high-risk-action:
+              const: true
+              type: boolean
+
   # --- API-04: examples --------------------------------------------------------
   inv-api-04-examples:
     description: API-04 — every response media type declares an example.

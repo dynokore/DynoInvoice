@@ -323,6 +323,7 @@ paths:
   /v1/entities/{entityRef}/periods/{periodRef}/filing:
     post:
       operationId: confirmFiling
+      x-high-risk-action: true
       summary: Confirm the actual filing date and evidence for a period's GST return
       description: >-
         The actual filing date is derivable from an uploaded return's
