@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: submission events
-  version: 1.3.0
+  version: 1.2.0
   description: >-
     Every event submission produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -47,11 +47,6 @@ channels:
     messages:
       ReadinessChanged:
         $ref: '#/components/messages/ReadinessChanged'
-  submissionComplianceAlertValuesMeasured:
-    address: 'gst.submission.compliance-alert-values-measured.v1'
-    messages:
-      ComplianceAlertValuesMeasured:
-        $ref: '#/components/messages/ComplianceAlertValuesMeasured'
   submissionSubmissionTypeDecided:
     address: 'gst.submission.submission-type-decided.v1'
     messages:
@@ -94,13 +89,6 @@ operations:
       $ref: '#/channels/submissionReadinessChanged'
     messages:
       - $ref: '#/channels/submissionReadinessChanged/messages/ReadinessChanged'
-  publishComplianceAlertValuesMeasured:
-    action: send
-    description: ComplianceAlertValuesMeasured — the alert-driving coverage and deadline values, for notification-svc (INV-REQ-1069, INV-Q-12767 A).
-    channel:
-      $ref: '#/channels/submissionComplianceAlertValuesMeasured'
-    messages:
-      - $ref: '#/channels/submissionComplianceAlertValuesMeasured/messages/ComplianceAlertValuesMeasured'
   publishSubmissionTypeDecided:
     action: send
     description: SubmissionTypeDecided — the submission type submission-svc decided, for payload-svc (INV-Q-6990 A).
@@ -168,19 +156,6 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/readiness-changed-payload.schema.json'
-    ComplianceAlertValuesMeasured:
-      name: com.dynokore.gst.submission.ComplianceAlertValuesMeasured.v1
-      title: ComplianceAlertValuesMeasured
-      summary: The alert-driving coverage and deadline values of an entity and period were measured (INV-REQ-1069).
-      description: >-
-        Event ComplianceAlertValuesMeasured (INV-REQ-1069, INV-Q-12767 A; class: domain).
-        Emitted by: submission-svc. Consumed by: notification-svc. Delivery: At-least-once.
-        Sent at most once per entity, period and measuredOn, and only when documentsWithoutSubmission is at least 1.
-        notification-svc's alert policy raises and escalates the alert from it. No tenant or entity label is a
-        metric label; entity and period are payload fields.
-      contentType: application/cloudevents+json
-      payload:
-        $ref: './schemas/compliance-alert-values-measured-payload.schema.json'
     SubmissionTypeDecided:
       name: com.dynokore.gst.submission.SubmissionTypeDecided.v1
       title: SubmissionTypeDecided

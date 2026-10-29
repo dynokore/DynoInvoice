@@ -3,6 +3,7 @@ post	/v1/aggregates	ingest	certification
 post	/v1/batches	ingest	certification
 get	/v1/batches/{batchId}	ingest	certification
 post	/v1/certification-reports	certification	-
+get	/v1/compliance-metrics	reporting	-
 put	/v1/entities/{entityRef}/periods/{periodRef}/control-totals	ingest	certification
 post	/v1/entities/{entityRef}/periods/{periodRef}/drain	filing-workflow	-
 post	/v1/entities/{entityRef}/periods/{periodRef}/filing	filing-workflow	-

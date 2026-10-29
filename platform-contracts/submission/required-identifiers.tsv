@@ -140,7 +140,7 @@ FilingGateOverrideEntry.releasedBy	schema_property	openapi.yaml	INV-REQ-1293
 FilingGateOverrideEntry.releasedAt	schema_property	openapi.yaml	INV-REQ-1293
 overrideFilingGate.202	operation_response	openapi.yaml	INV-REQ-500
 overrideFilingGate.403	operation_response	openapi.yaml	INV-REQ-500
-# INV-T-12842 (INV-Q-12767 A). Backticked names of INV-REQ-1069 and INV-REQ-1070 that are not rows: `compliance-metrics.view` is a catalogue permission key (INV-T-12840, row of the role-permission table); `AuthorityReplica.decide` is a library method; the event ComplianceAlertValuesMeasured and its operation are asyncapi.yaml names, which the checker has no kind for (the payload properties are rows); `coverage`, `deadline` and `correction` are objects of ComplianceMetricsEntry and are pinned through their schema_property rows; `reporting` is a principal value; `tax.approver` and `finance.viewer` are roles.
+# INV-T-12842 (INV-Q-12767 A). Backticked names of INV-REQ-1069 and INV-REQ-1070 that are not rows: `compliance-metrics.view` is a catalogue permission key (INV-T-12840, row of the role-permission table); `AuthorityReplica.decide` is a library method; `coverage`, `deadline` and `correction` are objects of ComplianceMetricsEntry and are pinned through their schema_property rows; `reporting` is a principal value; `tax.approver` and `finance.viewer` are roles.
 getComplianceMetrics	operation	openapi.yaml	INV-REQ-1069
 getComplianceMetrics.SRT-001	operation_error_code	openapi.yaml	INV-REQ-1069
 getComplianceMetrics.SRT-004	operation_error_code	openapi.yaml	INV-REQ-1069
@@ -159,12 +159,6 @@ ComplianceMetricsEntry.resubmissionTrend	schema_property	openapi.yaml	INV-REQ-10
 ComplianceMetricsEntry.resubmissionSignal	schema_property	openapi.yaml	INV-REQ-1070
 Ratio.numerator	schema_property	openapi.yaml	INV-REQ-1070
 Ratio.denominator	schema_property	openapi.yaml	INV-REQ-1070
-entityRef	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
-periodRef	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
-measuredOn	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
-documentsWithoutSubmission	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
-documentsPastDue	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
-daysToNearestDeadline	property	schemas/compliance-alert-values-measured-payload.schema.json	INV-REQ-1069
 documentsWithoutSubmission	property	openapi.yaml	INV-REQ-1069
 breached	property	openapi.yaml	INV-REQ-1069
 documentsPastDue	property	openapi.yaml	INV-REQ-1069

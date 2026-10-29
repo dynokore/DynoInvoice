@@ -71,10 +71,10 @@ class RouteScopesTest(unittest.TestCase):
         self.assertEqual(lines[0], "method\tpath_template\tscope\talso_scope")
         self.assertEqual(lines[-1], "")
         rows = lines[1:-1]
-        self.assertEqual(len(rows), 20)
+        self.assertEqual(len(rows), 21)
         self.assertIn("post\t/v1/transactions\tingest\tcertification", rows)
         self.assertEqual(sum(r.endswith("\tcertification") for r in rows if r.split("\t")[2] == "ingest"), 7)
-        self.assertEqual(sum(r.endswith("\t-") for r in rows), 13)
+        self.assertEqual(sum(r.endswith("\t-") for r in rows), 14)
         self.assertEqual(rows, sorted(rows, key=lambda r: (r.split("\t")[1], r.split("\t")[0])))
 
     def test_ap_callback_stays_out(self):

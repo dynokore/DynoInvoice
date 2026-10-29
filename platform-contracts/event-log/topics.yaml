@@ -535,15 +535,6 @@ topics:
       - payload-svc
       - reconciliation-svc
       - tenancy-svc
-  - topic: gst.submission.compliance-alert-values-measured.v1
-    event_type: com.dynokore.gst.submission.ComplianceAlertValuesMeasured.v1
-    content_topic: false
-    record_topic: false
-    retained_while_resolvable: false
-    producers:
-      - submission-svc
-    subscribers:
-      - notification-svc
   - topic: gst.submission.readiness-changed.v1
     event_type: com.dynokore.gst.submission.ReadinessChanged.v1
     content_topic: false
@@ -1550,7 +1541,6 @@ replay_topics:
   - topic: gst.submission.replay-notification.v1
     event_types:
       - com.dynokore.gst.platform.ReplayCompleted.v1
-      - com.dynokore.gst.submission.ComplianceAlertValuesMeasured.v1
       - com.dynokore.gst.submission.ReadinessChanged.v1
       - com.dynokore.gst.submission.SubmissionAcknowledged.v1
       - com.dynokore.gst.submission.SubmissionFailed.v1
