@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.application.audit
 
+import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.audit.AuditPurgePolicy
 import com.dynokore.gst.controlPlane.domain.audit.PurgeFloor
 import java.time.Clock
@@ -9,6 +10,8 @@ import java.time.Period
 data class PurgeAuditEntriesCommand(
     val actor: String,
     val cutOff: Instant,
+    val reason: String?,
+    val context: RequestContext,
 )
 
 sealed interface PurgeAuditOutcome {
@@ -47,13 +50,19 @@ class PurgeAuditEntries(
 
                 is PurgeFloor.Determined -> {
                     if (AuditPurgePolicy.allows(command.cutOff, floor)) {
-                        PurgeAuditOutcome.Purged(purger.purge(command.actor, command.cutOff))
+                        PurgeAuditOutcome.Purged(
+                            purger.purge(command.actor, command.cutOff, reasonOf(command), command.context),
+                        )
                     } else {
                         PurgeAuditOutcome.CutOffYoungerThanFloor
                     }
                 }
             }
         }
+
+    /** The caller's text, otherwise the Idempotency-Key (INV-AC-3823). */
+    private fun reasonOf(command: PurgeAuditEntriesCommand): String =
+        command.reason?.takeUnless { it.isBlank() } ?: command.context.causationId
 
     private fun permitted(actor: String): Boolean =
         try {

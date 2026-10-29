@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.application.audit
 
+import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import java.time.Instant
 import java.time.Period
 
@@ -37,5 +38,7 @@ fun interface AuditEntryPurger {
     fun purge(
         actor: String,
         cutOff: Instant,
+        reason: String,
+        context: RequestContext,
     ): AuditPurgeResult
 }

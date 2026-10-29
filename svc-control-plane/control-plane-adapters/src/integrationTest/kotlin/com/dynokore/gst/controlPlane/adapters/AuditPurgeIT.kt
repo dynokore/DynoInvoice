@@ -1,12 +1,12 @@
 package com.dynokore.gst.controlPlane.adapters
 
-import com.dynokore.gst.controlPlane.adapters.audit.AuditPurgeRequest
 import com.dynokore.gst.controlPlane.adapters.audit.AuditPurgeStoreJooq
 import com.dynokore.gst.controlPlane.adapters.audit.UndeterminedRetentionFloorSource
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeFloorSource
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntries
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntriesCommand
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditOutcome
+import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.audit.AuditPurgePolicy
 import com.dynokore.gst.controlPlane.domain.audit.PurgeFloor
 import com.dynokore.platform.auditlog.AuditStager
@@ -19,6 +19,7 @@ import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
 import org.jooq.exception.DataAccessException
@@ -45,8 +46,8 @@ class AuditPurgeIT {
     private val dsl: DSLContext = TenancyJooq.dslContext(emptyMap(), tenants, runner)
     private val stager: AuditStager =
         LocalAuditWriter(dsl, "controlplane", "control-plane-svc", "control-plane-svc-1", clock)
-    private val store =
-        AuditPurgeStoreJooq(dsl, stager) { AuditPurgeRequest(REASON, "corr-purge", "cmd-purge") }
+    private val store = AuditPurgeStoreJooq(dsl, stager)
+    private val context = RequestContext("corr-purge", "cmd-purge")
 
     @BeforeEach
     fun reset() {
@@ -155,7 +156,7 @@ class AuditPurgeIT {
         seed(daysAgo(YEARS_11))
         seed(daysAgo(YEARS_6))
         seed(daysAgo(YEARS_4))
-        val result = asOperator { store.purge(ACTOR, daysAgo(YEARS_6 - 1)) }
+        val result = asOperator { store.purge(ACTOR, daysAgo(YEARS_6 - 1), REASON, context) }
         result.deletedCount shouldBe 2
         count() shouldBe 2
         adminCount(
@@ -165,7 +166,7 @@ class AuditPurgeIT {
         adminCount(
             "select count(*) from controlplane.audit_entry where id = '${result.auditEntryId}' and actor = '$ACTOR' " +
                 "and action = 'purgeAuditEntries' and reason = '$REASON' and tenant_id = '$PLATFORM' " +
-                "and (prior_state->>'rowCount')::int = 2",
+                "and (prior_state->>'rowCount')::int = 2 and correlation_id = 'corr-purge' and causation_id = 'cmd-purge'",
         ) shouldBe 1
         adminCount(
             "select count(*) from controlplane.audit_entry where actor in ('platform.engineer', 'tenant.admin')",
@@ -202,6 +203,47 @@ class AuditPurgeIT {
         count() shouldBe 1
     }
 
+    @Test
+    fun `INV-AC-3823 the own entry lies outside the purged range and a repeat deletes zero rows`() {
+        seed(daysAgo(YEARS_4))
+        seed(daysAgo(YEARS_6))
+        seed(daysAgo(YEARS_11))
+        val cutOff = daysAgo(DAYS_10_5_YEARS)
+        val first = asOperator { store.purge(ACTOR, cutOff, REASON, context) }
+        first.deletedCount shouldBe 1
+        adminCount(
+            "select count(*) from controlplane.audit_entry where id = '${first.auditEntryId}' " +
+                "and action = 'purgeAuditEntries' and recorded_at > '${cutOff.atOffset(ZoneOffset.UTC)}'",
+        ) shouldBe 1
+        val second = asOperator { store.purge(ACTOR, cutOff, REASON, context) }
+        second.deletedCount shouldBe 0
+        second.auditEntryId shouldNotBe first.auditEntryId
+        adminCount("select count(*) from controlplane.audit_entry where id = '${first.auditEntryId}'") shouldBe 1
+        adminCount("select count(*) from controlplane.audit_entry where id = '${second.auditEntryId}'") shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-3823 an entry recorded exactly at the cut-off survives and one 1 microsecond before it is deleted`() {
+        val cutOff = daysAgo(DAYS_10_5_YEARS).truncatedTo(ChronoUnit.MICROS)
+        val r0 = UUID.randomUUID()
+        val r1 = UUID.randomUUID()
+        val r2 = UUID.randomUUID()
+        seed(cutOff.minus(1, ChronoUnit.MICROS), r0)
+        seed(cutOff, r1)
+        seed(cutOff.plus(1, ChronoUnit.MICROS), r2)
+        count() shouldBe 3
+        val first = asOperator { store.purge(ACTOR, cutOff, REASON, context) }
+        first.deletedCount shouldBe 1
+        adminCount("select count(*) from controlplane.audit_entry where id = '$r0'") shouldBe 0
+        adminCount("select count(*) from controlplane.audit_entry where id in ('$r1', '$r2')") shouldBe 2
+        adminCount(
+            "select count(*) from controlplane.audit_entry where id = '${first.auditEntryId}' " +
+                "and (prior_state->>'rowCount')::int = ${first.deletedCount}",
+        ) shouldBe 1
+        asOperator { store.purge(ACTOR, cutOff, REASON, context) }.deletedCount shouldBe 0
+        adminCount("select count(*) from controlplane.audit_entry where id = '$r1'") shouldBe 1
+    }
+
     private fun unboundDsl(): DSLContext = DSL.using(PostgresDb.runtimeDataSource, org.jooq.SQLDialect.POSTGRES)
 
     @Test
@@ -213,6 +255,8 @@ class AuditPurgeIT {
                     PurgeAuditEntriesCommand(
                         ACTOR,
                         daysAgo(YEARS_11 - 1),
+                        REASON,
+                        context,
                     ),
                 )
             }
@@ -228,11 +272,16 @@ class AuditPurgeIT {
         seed(daysAgo(YEARS_11))
         val source = AuditPurgeFloorSource { figures }
         // 2199 days back is older than P6Y but younger than P2200D: refused
-        asOperator { useCase(source).execute(PurgeAuditEntriesCommand(ACTOR, daysAgo(DAYS_2200 - 1L))) } shouldBe
+        asOperator {
+            useCase(source).execute(PurgeAuditEntriesCommand(ACTOR, daysAgo(DAYS_2200 - 1L), REASON, context))
+        } shouldBe
             PurgeAuditOutcome.CutOffYoungerThanFloor
         count() shouldBe 1
-        asOperator { useCase(source).execute(PurgeAuditEntriesCommand(ACTOR, daysAgo(DAYS_2200 + 1L))) }
-            .shouldBeInstanceOf<PurgeAuditOutcome.Purged>()
+        asOperator {
+            useCase(
+                source,
+            ).execute(PurgeAuditEntriesCommand(ACTOR, daysAgo(DAYS_2200 + 1L), REASON, context))
+        }.shouldBeInstanceOf<PurgeAuditOutcome.Purged>()
             .result.deletedCount shouldBe 1
     }
 
@@ -240,6 +289,7 @@ class AuditPurgeIT {
         const val ACTOR = "operator-9"
         const val REASON = "K1"
         val PLATFORM: UUID = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff")
+        const val DAYS_10_5_YEARS = 3834L
         const val YEARS_4 = 4L * 365
         const val YEARS_6 = 6L * 366
         const val YEARS_7 = 7L * 366

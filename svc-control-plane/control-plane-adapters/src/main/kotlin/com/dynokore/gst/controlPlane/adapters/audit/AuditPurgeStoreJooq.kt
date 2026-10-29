@@ -2,6 +2,7 @@ package com.dynokore.gst.controlPlane.adapters.audit
 
 import com.dynokore.gst.controlPlane.application.audit.AuditEntryPurger
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeResult
+import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -36,16 +37,16 @@ fun interface AuditPurgeRequestSource {
 class AuditPurgeStoreJooq(
     private val dsl: DSLContext,
     private val stager: AuditStager,
-    private val requests: AuditPurgeRequestSource,
 ) : AuditEntryPurger {
     override fun purge(
         actor: String,
         cutOff: Instant,
+        reason: String,
+        context: RequestContext,
     ): AuditPurgeResult {
-        val request = requests.current()
         val staged =
             stager.stage(
-                AuditEntry(actor, ACTION, SCOPE, request.reason),
+                AuditEntry(actor, ACTION, SCOPE, reason),
                 EventContext(
                     tenant = TenantId.PLATFORM,
                     entity = EntityRef.PLATFORM,
@@ -53,8 +54,8 @@ class AuditPurgeStoreJooq(
                     transactionDate = null,
                     aggregateKey = AGGREGATE_KEY,
                     aggregateVersion = null,
-                    correlation = CorrelationId(request.correlationId),
-                    causation = CausationId(request.causationId),
+                    correlation = CorrelationId(context.correlationId),
+                    causation = CausationId(context.causationId),
                 ),
             )
         val envelope = staged.envelope
@@ -65,7 +66,7 @@ class AuditPurgeStoreJooq(
                         DSL.name(SCHEMA, FUNCTION),
                         Long::class.java,
                         DSL.`val`(cutOff.atOffset(ZoneOffset.UTC)),
-                        DSL.`val`(request.reason),
+                        DSL.`val`(reason),
                         DSL.`val`(UUID.fromString(envelope.id.value)),
                         DSL.`val`(envelope.source),
                         DSL.`val`(envelope.subject),

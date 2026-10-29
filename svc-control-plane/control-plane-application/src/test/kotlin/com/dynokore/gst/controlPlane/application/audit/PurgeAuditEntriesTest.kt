@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.application.audit
 
+import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Clock
@@ -12,6 +13,8 @@ class PurgeAuditEntriesTest {
     private val now = Instant.parse("2026-10-29T08:30:00Z")
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val calls = ArrayList<String>()
+    private val purged = ArrayList<Triple<Instant, String, RequestContext>>()
+    private val ctx = RequestContext("corr-1", "key-1")
     private val asked = ArrayList<Triple<String, String, String>>()
 
     private fun yearsAgo(years: Long): Instant = now.atOffset(ZoneOffset.UTC).minusYears(years).toInstant()
@@ -34,8 +37,9 @@ class PurgeAuditEntriesTest {
                 figures()
             },
         purger =
-            { _, _ ->
+            { _, cutOff, reason, context ->
                 calls += "purger"
+                purged += Triple(cutOff, reason, context)
                 AuditPurgeResult(1, "entry-1")
             },
         clock = clock,
@@ -44,7 +48,9 @@ class PurgeAuditEntriesTest {
     private fun run(
         useCase: PurgeAuditEntries,
         cutOff: Instant,
-    ) = useCase.execute(PurgeAuditEntriesCommand("platform.engineer", cutOff))
+        reason: String? = null,
+        context: RequestContext = ctx,
+    ) = useCase.execute(PurgeAuditEntriesCommand("platform.engineer", cutOff, reason, context))
 
     @Test
     fun `INV-AC-3823 a refusal of the authority gives NotPermitted and calls no other port`() {
@@ -134,7 +140,7 @@ class PurgeAuditEntriesTest {
                     calls += "floor"
                     listOf(Period.ofYears(5))
                 },
-                purger = { _, _ ->
+                purger = { _, _, _, _ ->
                     calls += "purger"
                     throw failure
                 },
@@ -143,5 +149,30 @@ class PurgeAuditEntriesTest {
         val thrown = runCatching { run(failing, yearsAgo(6)) }.exceptionOrNull()
         (thrown === failure) shouldBe true
         calls shouldBe listOf("authority", "floor", "purger")
+    }
+
+    @Test
+    fun `INV-AC-3823 the reason text of the request is passed to the purger`() {
+        run(useCase(), yearsAgo(11), reason = "annual clean-up")
+        purged.map { it.second } shouldBe listOf("annual clean-up")
+    }
+
+    @Test
+    fun `INV-AC-3823 a missing or blank reason gives the Idempotency-Key as the reason`() {
+        listOf(null, "", "   ").forEach { run(useCase(), yearsAgo(11), reason = it) }
+        purged.map { it.second } shouldBe listOf("key-1", "key-1", "key-1")
+    }
+
+    @Test
+    fun `INV-AC-3823 the request context reaches the purger unchanged`() {
+        run(useCase(), yearsAgo(11))
+        (purged.single().third === ctx) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-3823 the cut-off reaches the purger unchanged to the nanosecond`() {
+        val cutOff = yearsAgo(11).plusNanos(123_456_789)
+        run(useCase(), cutOff)
+        purged.single().first shouldBe cutOff
     }
 }
