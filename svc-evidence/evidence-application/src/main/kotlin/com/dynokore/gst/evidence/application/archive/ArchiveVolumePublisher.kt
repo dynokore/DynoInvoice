@@ -10,12 +10,12 @@ import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.UUID
 
 /**
  * Publishes the measured archive volume of an entity (INV-Q-12683 A, INV-Q-9829 A): in the caller's transaction it
  * records (tenant, entity, bytes, measuredAt) in the ledger and appends one `ArchiveVolumeMeasured` event to the
- * outbox, both with the same `measuredAt`. An unchanged value still appends an event (at-least-once). It catches
+ * outbox, both with the same `measuredAt`. The trace ids come from the caller
+ * (INV-Q-12736 A) and are passed on unchanged. An unchanged value still appends an event (at-least-once). It catches
  * nothing: a failed append reaches the caller, whose transaction rolls the ledger row back.
  */
 class ArchiveVolumePublisher(
@@ -27,6 +27,8 @@ class ArchiveVolumePublisher(
         tenant: TenantId,
         entityRef: String,
         bytes: Long,
+        correlation: CorrelationId,
+        causation: CausationId,
     ) {
         check(bytes >= 0) { "the archive volume is negative" }
         val measuredAt = clock.instant()
@@ -35,10 +37,9 @@ class ArchiveVolumePublisher(
         val payload =
             "{\"tenantRef\":${json(tenant.value.toString())},\"entityRef\":${json(entityRef)}," +
                 "\"bytes\":$bytes,\"measuredAt\":${json(at)}}"
-        val id = UUID.randomUUID().toString()
         outbox.append(
             listOf(OutboundEvent(EVENT_TYPE, payload)),
-            EventContext(tenant, EntityRef(entityRef), null, null, entityRef, null, CorrelationId(id), CausationId(id)),
+            EventContext(tenant, EntityRef(entityRef), null, null, entityRef, null, correlation, causation),
         )
     }
 

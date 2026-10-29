@@ -1,5 +1,7 @@
 package com.dynokore.gst.evidence.application.archive
 
+import com.dynokore.platform.outboxandqueue.CausationId
+import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -16,6 +18,8 @@ import java.util.UUID
 
 class ArchiveVolumePublisherTest {
     private val tenant = TenantId(UUID.fromString("abcdef01-2345-6789-abcd-ef0123456789"))
+    private val corr = CorrelationId("corr-1")
+    private val cause = CausationId("msg-1")
     private val at = Instant.parse("2026-10-29T01:02:03.500Z")
 
     private class Calls {
@@ -76,7 +80,7 @@ class ArchiveVolumePublisherTest {
     fun `publish records the ledger row and appends one event with the same measuredAt`() {
         val calls = Calls()
         val clock = CountingClock(listOf(at, at.plusSeconds(60)))
-        ArchiveVolumePublisher(Ledger(calls), Outbox(calls), clock).publish(tenant, "E-001", 1300L)
+        ArchiveVolumePublisher(Ledger(calls), Outbox(calls), clock).publish(tenant, "E-001", 1300L, corr, cause)
 
         clock.reads shouldBe 1
         calls.recorded.single() shouldBe listOf(tenant, "E-001", 1300L, at)
@@ -95,8 +99,8 @@ class ArchiveVolumePublisherTest {
     fun `an unchanged value still appends an event`() {
         val calls = Calls()
         val publisher = ArchiveVolumePublisher(Ledger(calls), Outbox(calls), Clock.fixed(at, ZoneOffset.UTC))
-        publisher.publish(tenant, "E-001", 5L)
-        publisher.publish(tenant, "E-001", 5L)
+        publisher.publish(tenant, "E-001", 5L, corr, cause)
+        publisher.publish(tenant, "E-001", 5L, corr, cause)
         calls.events.size shouldBe 2
     }
 
@@ -105,7 +109,7 @@ class ArchiveVolumePublisherTest {
         val calls = Calls()
         val boom = IllegalStateException("outbox down")
         val publisher = ArchiveVolumePublisher(Ledger(calls), Outbox(calls, boom), Clock.fixed(at, ZoneOffset.UTC))
-        shouldThrow<IllegalStateException> { publisher.publish(tenant, "E-001", 5L) } shouldBe boom
+        shouldThrow<IllegalStateException> { publisher.publish(tenant, "E-001", 5L, corr, cause) } shouldBe boom
         calls.order shouldBe listOf("record", "append")
         calls.events.size shouldBe 0
     }
@@ -114,7 +118,7 @@ class ArchiveVolumePublisherTest {
     fun `a negative volume is refused before any write`() {
         val calls = Calls()
         val publisher = ArchiveVolumePublisher(Ledger(calls), Outbox(calls), Clock.fixed(at, ZoneOffset.UTC))
-        shouldThrow<IllegalStateException> { publisher.publish(tenant, "E-001", -1L) }
+        shouldThrow<IllegalStateException> { publisher.publish(tenant, "E-001", -1L, corr, cause) }
         calls.order shouldBe emptyList()
     }
 
@@ -122,10 +126,24 @@ class ArchiveVolumePublisherTest {
     fun `an entity reference with quotes is escaped in the payload`() {
         val calls = Calls()
         ArchiveVolumePublisher(Ledger(calls), Outbox(calls), Clock.fixed(at, ZoneOffset.UTC))
-            .publish(tenant, "E\"1\\", 0L)
+            .publish(tenant, "E\"1\\", 0L, corr, cause)
         calls.events
             .single()
             .dataJson
             .contains("\"entityRef\":\"E\\\"1\\\\\"") shouldBe true
+    }
+
+    @Test
+    fun `the trace ids reach the outbox unchanged and differ between calls`() {
+        val calls = Calls()
+        val publisher = ArchiveVolumePublisher(Ledger(calls), Outbox(calls), Clock.fixed(at, ZoneOffset.UTC))
+        publisher.publish(tenant, "E-001", 1L, corr, cause)
+        val job = CorrelationId("job-run:00000000-0000-0000-0000-000000000001")
+        val sched = CausationId("archive-volume-measurement:t:e:SCHEDULED:2026-10-29T01:30:00Z")
+        publisher.publish(tenant, "E-002", 2L, job, sched)
+        calls.contexts[0].correlation shouldBe corr
+        calls.contexts[0].causation shouldBe cause
+        calls.contexts[1].correlation shouldBe job
+        calls.contexts[1].causation shouldBe sched
     }
 }
