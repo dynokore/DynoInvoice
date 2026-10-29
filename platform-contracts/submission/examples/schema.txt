@@ -16,3 +16,5 @@
 ../openapi.yaml#/components/schemas/PendingFilingGateOverride pending-filing-gate-override-*.json
 ../openapi.yaml#/components/schemas/FilingGateOverrideList filing-gate-override-list-*.json
 ../openapi.yaml#/components/schemas/FilingGateOverrideEntry filing-gate-override-entry-*.json
+../openapi.yaml#/components/schemas/ComplianceMetricsPage compliance-metrics-page-*.json
+../schemas/compliance-alert-values-measured-payload.schema.json compliance-alert-values-measured-*.json

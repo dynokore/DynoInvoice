@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "entityRef": "",
+      "periodRef": "2026Q1",
+      "coverage": {"documentsWithoutSubmission": 0, "breached": false},
+      "deadline": {"documentsPastDue": 0, "hasResidualBacklog": false},
+      "correction": {
+        "resubmission": {"numerator": 2, "denominator": 40},
+        "creditNote": {"numerator": 0, "denominator": 40},
+        "manyVersionDocuments": 0
+      },
+      "resubmissionTrend": [],
+      "resubmissionSignal": "NONE"
+    }
+  ]
+}

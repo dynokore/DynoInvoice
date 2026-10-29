@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -38,12 +38,18 @@ info:
     the internal operations approveFilingGateOverride and
     getFilingGateOverrides (INV-REQ-1293, INV-REQ-72, INV-Q-10691); it is
     additive.
+    1.11.0 adds the `reporting` read getComplianceMetrics, the coverage,
+    deadline and correction values per entity and prescribed period with the
+    resubmission trend, behind the permission key `compliance-metrics.view`
+    (INV-REQ-1069, INV-REQ-1070, INV-Q-12767 A); it is additive.
   contact:
     name: submission (see CODEOWNERS)
 servers:
   - url: 'https://api.invoice.internal'
     description: Placeholder — the gateway routes only the operations of a published train (API-26).
 tags:
+  - name: metrics
+    description: Compliance metrics per entity and prescribed period (INV-REQ-1069, INV-REQ-1070).
   - name: readiness
     description: Period readiness, drain and filing confirmation (§33.2, FR-C.8, FR-C.9).
   - name: transactions
@@ -723,6 +729,115 @@ paths:
                 type: string
                 format: binary
               example: "(binary PDF document)"
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/compliance-metrics:
+    get:
+      operationId: getComplianceMetrics
+      summary: Read the compliance metrics per entity and prescribed period
+      description: >-
+        The coverage, deadline and correction values per registered entity and
+        prescribed period, with the resubmission trend and the resubmission
+        signal (INV-REQ-1069, INV-REQ-1070, INV-Q-12767 A). Access is decided
+        per request by the permission key `compliance-metrics.view` through
+        `AuthorityReplica.decide`, never by a role name; the catalogue cells
+        give it to `tax.approver` and `finance.viewer`. A caller without the
+        permission is refused with `403` (SRT-004). The read changes nothing and
+        has no side effect.
+
+
+        The optional filters `entityRef` and `periodRef` are equality filters
+        and combine with AND; with none, every entity and period in the
+        caller's scope is returned. A filter that breaks the contract is `400`
+        (SRT-001); an `entityRef` outside the caller's scope is `404`
+        (SRT-005). Cursor pagination (API-18), no offset and no total count.
+        A high or rising resubmission rate is an upstream data-quality signal,
+        not a fault of the System (INV-REQ-1070).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+        When the gateway's circuit breaker for this service is open, or
+        the call times out, the gateway answers `503` with the API-20
+        envelope; the `503` is retryable, and the client retries by a
+        re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
+      tags: [metrics]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: [SRT-001, SRT-004, SRT-005]
+      x-requirements: [INV-REQ-1069, INV-REQ-1070]
+      parameters:
+        - name: entityRef
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 40
+        - name: periodRef
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of compliance metric values.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceMetricsPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - entityRef: "E-001"
+                        periodRef: "2026Q1"
+                        coverage:
+                          documentsWithoutSubmission: 1
+                          breached: true
+                        deadline:
+                          documentsPastDue: 0
+                          hasResidualBacklog: true
+                          daysToNearestDeadline: 3
+                        correction:
+                          resubmission:
+                            numerator: 2
+                            denominator: 40
+                          creditNote:
+                            numerator: 1
+                            denominator: 40
+                          manyVersionDocuments: 0
+                        resubmissionTrend:
+                          - periodRef: "2025Q4"
+                            resubmission:
+                              numerator: 1
+                              denominator: 38
+                          - periodRef: "2026Q1"
+                            resubmission:
+                              numerator: 2
+                              denominator: 40
+                        resubmissionSignal: "RISING"
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
         '503':
           $ref: '#/components/responses/Error'
         default:
@@ -1643,6 +1758,93 @@ components:
         nextCursor:
           type: string
       required: [items]
+    Ratio:
+      type: object
+      description: An exact ratio of two counts; never a percentage.
+      properties:
+        numerator:
+          type: integer
+          minimum: 0
+        denominator:
+          type: integer
+          minimum: 0
+      required: [numerator, denominator]
+    ComplianceMetricsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/ComplianceMetricsEntry'
+        nextCursor:
+          type: string
+      required: [items]
+    ComplianceMetricsEntry:
+      type: object
+      properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 40
+        periodRef:
+          type: string
+          minLength: 1
+          maxLength: 20
+        coverage:
+          type: object
+          properties:
+            documentsWithoutSubmission:
+              type: integer
+              minimum: 0
+              description: In-scope documents with no submission.
+            breached:
+              type: boolean
+              description: True when documentsWithoutSubmission is not zero.
+          required: [documentsWithoutSubmission, breached]
+        deadline:
+          type: object
+          properties:
+            documentsPastDue:
+              type: integer
+              minimum: 0
+            hasResidualBacklog:
+              type: boolean
+            daysToNearestDeadline:
+              type: integer
+              description: Omitted when no document is without submission.
+          required: [documentsPastDue, hasResidualBacklog]
+        correction:
+          type: object
+          properties:
+            resubmission:
+              $ref: '#/components/schemas/Ratio'
+            creditNote:
+              $ref: '#/components/schemas/Ratio'
+            manyVersionDocuments:
+              type: integer
+              minimum: 0
+              description: Documents with three or more versions.
+          required: [resubmission, creditNote, manyVersionDocuments]
+        resubmissionTrend:
+          type: array
+          maxItems: 24
+          description: Oldest to newest.
+          items:
+            type: object
+            properties:
+              periodRef:
+                type: string
+                maxLength: 20
+              resubmission:
+                $ref: '#/components/schemas/Ratio'
+            required: [periodRef, resubmission]
+        resubmissionSignal:
+          type: string
+          description: The upstream data-quality signal of the resubmission rate; no member names a fault (INV-REQ-1070).
+          enum: [NONE, HIGH, RISING, HIGH_AND_RISING]
+          x-extensible-enum: true
+      required: [entityRef, periodRef, coverage, deadline, correction, resubmissionTrend, resubmissionSignal]
     EntityFinding:
       type: object
       properties:

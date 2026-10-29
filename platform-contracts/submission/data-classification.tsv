@@ -12,3 +12,9 @@ schemas/submission-type-decided-payload.schema.json	docUuid	NONE
 schemas/submission-type-decided-payload.schema.json	version	NONE
 schemas/submission-type-decided-payload.schema.json	docsequence	NONE
 schemas/submission-type-decided-payload.schema.json	submissionType	NONE
+schemas/compliance-alert-values-measured-payload.schema.json	entityRef	NONE
+schemas/compliance-alert-values-measured-payload.schema.json	periodRef	NONE
+schemas/compliance-alert-values-measured-payload.schema.json	measuredOn	NONE
+schemas/compliance-alert-values-measured-payload.schema.json	documentsWithoutSubmission	NONE
+schemas/compliance-alert-values-measured-payload.schema.json	documentsPastDue	NONE
+schemas/compliance-alert-values-measured-payload.schema.json	daysToNearestDeadline	NONE

@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "entityRef": "E-001",
+      "periodRef": "2026Q1",
+      "coverage": {"documentsWithoutSubmission": 1, "breached": true},
+      "deadline": {"documentsPastDue": 0, "hasResidualBacklog": true, "daysToNearestDeadline": 3},
+      "correction": {
+        "resubmission": {"numerator": 2, "denominator": 40},
+        "creditNote": {"numerator": 1, "denominator": 40},
+        "manyVersionDocuments": 0
+      },
+      "resubmissionTrend": [
+        {"periodRef": "2025Q4", "resubmission": {"numerator": 1, "denominator": 38}},
+        {"periodRef": "2026Q1", "resubmission": {"numerator": 2, "denominator": 40}}
+      ],
+      "resubmissionSignal": "HIGH_AND_RISING"
+    }
+  ],
+  "nextCursor": "eyJvIjoxMDB9"
+}

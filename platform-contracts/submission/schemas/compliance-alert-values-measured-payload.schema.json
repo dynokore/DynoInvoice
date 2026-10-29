@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/compliance-alert-values-measured-payload.schema.json",
+  "title": "ComplianceAlertValuesMeasuredPayload",
+  "description": "Payload of the ComplianceAlertValuesMeasured event (INV-REQ-1069, INV-Q-12767 A; class: domain). Sent at most once per entity, period and measuredOn, and only when documentsWithoutSubmission is at least 1. No tenant or entity label is a metric label: entity and period are payload fields. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The registered entity."
+    },
+    "periodRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "The prescribed accounting period reference, e.g. 2026Q1."
+    },
+    "measuredOn": {
+      "type": "string",
+      "format": "date",
+      "description": "The day the values were measured."
+    },
+    "documentsWithoutSubmission": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "In-scope documents with no submission; the event is sent only when this is at least 1."
+    },
+    "documentsPastDue": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Documents past their due date."
+    },
+    "daysToNearestDeadline": {
+      "type": "integer",
+      "description": "Days to the nearest deadline; absent when none."
+    }
+  },
+  "required": [
+    "entityRef",
+    "periodRef",
+    "measuredOn",
+    "documentsWithoutSubmission",
+    "documentsPastDue"
+  ],
+  "additionalProperties": true
+}
