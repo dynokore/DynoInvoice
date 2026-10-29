@@ -117,30 +117,73 @@ class CallerEdgeTest {
     fun `INV-AC-8455 every mapped operation answers the callers its x-sync-edge names and refuses the rest`() =
         assertEdges(document)
 
+    private val callerCheck = Regex("""ServiceCaller|SyncEdgeCallerFilter|callerIs|X-Caller-Service""")
+
+    private fun literalCaller(names: List<String>) = Regex("\"(" + names.joinToString("|") { Regex.escape(it) } + ")\"")
+
+    private fun mainSources(root: Path): List<Path> =
+        Files
+            .list(root)
+            .use { modules ->
+                modules.filter { it.fileName.toString().startsWith("canonical-") }.toList()
+            }.flatMap { module ->
+                val main = module.resolve("src/main")
+                if (!Files.isDirectory(main)) {
+                    emptyList()
+                } else {
+                    Files.walk(main).use { files -> files.filter { it.toString().endsWith(".kt") }.toList() }
+                }
+            }
+
+    private fun offenders(
+        sources: List<Path>,
+        names: List<String>,
+    ): List<Path> {
+        val literal = literalCaller(names)
+        return sources.filter {
+            val text = Files.readString(it)
+            literal.containsMatchIn(text) || callerCheck.containsMatchIn(text)
+        }
+    }
+
+    /** The repository root: the nearest ancestor of the working directory that holds `settings.gradle.kts`. */
+    private fun repositoryRoot(): Path =
+        generateSequence(Path.of("").toAbsolutePath()) { it.parent }.firstOrNull {
+            Files.isRegularFile(it.resolve("settings.gradle.kts"))
+        }
+            ?: error(
+                "no settings.gradle.kts above ${Path.of(
+                    "",
+                ).toAbsolutePath()}: the source scan cannot locate the repository",
+            )
+
     @Test
     fun `INV-AC-8455 the main source sets hold no literal caller name passed to a caller check`() {
         val names = callersOf(ContractDocument.operations(document))
-        val literal = Regex("\"(" + names.joinToString("|") { Regex.escape(it) } + ")\"")
-        val check = Regex("""ServiceCaller|SyncEdgeCallerFilter|callerIs|X-Caller-Service""")
-        val offenders =
-            Files
-                .list(Path.of(".."))
-                .use { modules -> modules.filter { it.fileName.toString().startsWith("canonical-") }.toList() }
-                .flatMap { module ->
-                    val main = module.resolve("src/main")
-                    if (!Files.isDirectory(main)) {
-                        emptyList()
-                    } else {
-                        Files.walk(main).use { files ->
-                            files.filter { it.toString().endsWith(".kt") }.toList()
-                        }
-                    }
-                }.filter {
-                    literal.containsMatchIn(
-                        Files.readString(it),
-                    ) || check.containsMatchIn(Files.readString(it))
-                }
-        assertThat(offenders).isEmpty()
+        val sources = mainSources(repositoryRoot())
+        // fail closed: a scan that found nothing, or missed a module that holds code, proves nothing
+        assertThat(sources).isNotEmpty()
+        listOf("canonical-adapters", "canonical-application").forEach { module ->
+            assertThat(sources.filter { it.toString().contains("/$module/src/main/") })
+                .describedAs("main sources scanned in $module")
+                .isNotEmpty()
+        }
+        assertThat(offenders(sources, names)).isEmpty()
+    }
+
+    @Test
+    fun `INV-AC-8455 probe a planted literal caller name in a temp tree is reported by the source scan`() {
+        val names = callersOf(ContractDocument.operations(document))
+        val root = Files.createTempDirectory("scan-fixture")
+        try {
+            val dir = Files.createDirectories(root.resolve("canonical-x/src/main/kotlin"))
+            val planted = Files.writeString(dir.resolve("Planted.kt"), "val c = callerIs(\"${names.first()}\")\n")
+            val clean = Files.writeString(dir.resolve("Clean.kt"), "val c = 1\n")
+            assertThat(mainSources(root)).containsExactlyInAnyOrder(planted, clean)
+            assertThat(offenders(mainSources(root), names)).containsExactly(planted)
+        } finally {
+            root.toFile().deleteRecursively()
+        }
     }
 
     @Test
