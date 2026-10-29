@@ -23,3 +23,4 @@ operation	getMaxEvidenceRetention	UNASSIGNED
 channel	gst.evidence.evidence-integrity-failed.v1	UNASSIGNED
 channel	gst.evidence.prior-submission-evidence-imported.v1	UNASSIGNED
 channel	gst.evidence.example-happened.v1	UNASSIGNED
+channel	gst.evidence.archive-volume-measured.v1	INV-T-9909

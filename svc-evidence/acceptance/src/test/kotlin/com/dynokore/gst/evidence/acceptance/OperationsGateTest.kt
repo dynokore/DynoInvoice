@@ -45,7 +45,7 @@ class OperationsGateTest {
     @Test
     fun `the real table covers the real contract`() {
         OperationsGate.contractOperations(openapi).size shouldBe 21
-        OperationsGate.contractChannels(asyncapi).size shouldBe 3
+        OperationsGate.contractChannels(asyncapi).size shouldBe 4
         run(done = doneText).shouldBeEmpty()
         doneText shouldBe ""
     }
