@@ -31,7 +31,15 @@ internal object EnvelopeFields {
             correlation = CorrelationId(text(node, "correlationid")),
             causation = CausationId(text(node, "causationid")),
             dataJson = mapper.writeValueAsString(node.get("data") ?: throw ContractViolation("data is missing")),
+            testMode = testMode(node),
         )
+
+    // INV-Q-12635: `testmode` is optional and a JSON boolean; absent means false, any other type is refused.
+    private fun testMode(node: ObjectNode): Boolean {
+        val value = node.get("testmode") ?: return false
+        if (!value.isBoolean) throw ContractViolation("testmode must be a boolean")
+        return value.asBoolean()
+    }
 
     // INV-Q-2927 option D, INV-Q-3018: an absent `tenantid` maps back to the reserved platform tenant, for a
     // platform event type only; a domain event without one is a contract violation (FR-K.3). The reserved id

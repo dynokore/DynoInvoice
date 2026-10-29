@@ -38,6 +38,8 @@ class EnvelopeJson(
         node.put("instanceid", envelope.instanceId)
         node.put("correlationid", envelope.correlation.value)
         node.put("causationid", envelope.causation.value)
+        // INV-Q-12635: written only when true, so the text of every non-test envelope is unchanged.
+        if (envelope.testMode) node.put("testmode", true)
         node.set("data", mapper.readTree(envelope.dataJson))
         return mapper.writeValueAsString(node)
     }

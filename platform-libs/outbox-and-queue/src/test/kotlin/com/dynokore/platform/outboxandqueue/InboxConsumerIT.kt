@@ -134,6 +134,50 @@ class InboxConsumerIT {
         }
     }
 
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-AC-12637 an EventHandler sees the testmode attribute of a stored record`(image: String) {
+        OutboxHarness(image).use { harness ->
+            val producer = harness.payload
+            producer.inTx(ServiceKit.TENANT) {
+                producer.writer.append(
+                    listOf(OutboundEvent(TestCatalogue.PAYLOAD_READY, """{"version":1}""")),
+                    producer.docContext(ServiceKit.TENANT, UUID.randomUUID()),
+                )
+            }
+            harness.drain(producer.relay)
+            val stored = harness.logOf(PAYLOAD_READY_TOPIC).single()
+            assertEquals(false, stored.testMode)
+            val otherDoc = UUID.randomUUID()
+            val flagged =
+                stored.copy(
+                    id = EventId(UuidV7().next(java.time.Instant.now()).toString()),
+                    subject = otherDoc.toString(),
+                    docUuid = DocUuid(otherDoc),
+                    testMode = true,
+                )
+            harness.binding().publish(PAYLOAD_READY_TOPIC, flagged)
+
+            val seen = mutableMapOf<String, Boolean>()
+            val kit = harness.submission
+            val consumer =
+                harness.consumer(
+                    "submission-svc",
+                    PAYLOAD_READY_TOPIC,
+                    "submission",
+                    kit.boundary,
+                    object : EventHandler {
+                        override fun handle(event: Envelope): HandleOutcome {
+                            seen[event.id.value] = event.testMode
+                            return HandleOutcome.IGNORED
+                        }
+                    },
+                )
+            assertEquals(2, consumer.pollOnce().total)
+            assertEquals(mapOf(stored.id.value to false, flagged.id.value to true), seen)
+        }
+    }
+
     private fun acknowledge(
         harness: OutboxHarness,
         doc: UUID,

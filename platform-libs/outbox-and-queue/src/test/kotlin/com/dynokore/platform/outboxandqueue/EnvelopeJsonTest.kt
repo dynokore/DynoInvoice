@@ -38,6 +38,54 @@ class EnvelopeJsonTest {
         assertEquals(envelope, json.read(json.write(envelope)))
     }
 
+    private fun withTestmode(value: String) = json.write(envelope).dropLast(1) + ""","testmode":$value}"""
+
+    @Test
+    fun `a default envelope is written without testmode and a test envelope with the boolean true`() {
+        assertFalse(json.write(envelope).contains("testmode"))
+        assertTrue(json.write(envelope.copy(testMode = true)).contains(""""testmode":true"""))
+    }
+
+    @Test
+    fun `a test envelope round-trips`() {
+        val test = envelope.copy(testMode = true)
+        assertEquals(test, json.read(json.write(test)))
+        assertTrue(json.read(json.write(test)).testMode)
+    }
+
+    @Test
+    fun `an absent testmode reads as false`() {
+        assertFalse(json.read(json.write(envelope)).testMode)
+    }
+
+    @Test
+    fun `testmode true reads as true`() {
+        assertTrue(json.read(withTestmode("true")).testMode)
+    }
+
+    @Test
+    fun `testmode false reads as false`() {
+        assertFalse(json.read(withTestmode("false")).testMode)
+    }
+
+    @Test
+    fun `testmode as the string true is a contract violation`() {
+        val failure = assertThrows(ContractViolation::class.java) { json.read(withTestmode("\"true\"")) }
+        assertTrue(failure.message!!.contains("testmode"))
+    }
+
+    @Test
+    fun `testmode as the integer 1 is a contract violation`() {
+        val failure = assertThrows(ContractViolation::class.java) { json.read(withTestmode("1")) }
+        assertTrue(failure.message!!.contains("testmode"))
+    }
+
+    @Test
+    fun `testmode as null is a contract violation`() {
+        val failure = assertThrows(ContractViolation::class.java) { json.read(withTestmode("null")) }
+        assertTrue(failure.message!!.contains("testmode"))
+    }
+
     @Test
     fun `a record missing a required attribute is a contract violation`() {
         listOf("tenantid", "entityref", "instanceid", "correlationid", "causationid", "id", "type").forEach { field ->

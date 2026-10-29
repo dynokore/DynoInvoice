@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.7.0] - 2026-10-29
+### Added
+- `Envelope.testMode` (last property, default false) carries the CloudEvents attribute `testmode`: `EnvelopeJson.write` emits it only when true, `EnvelopeJson.read` takes absent as false and refuses a non-boolean value with `ContractViolation`, and every `EventHandler` sees it (INV-Q-12635, INV-REQ-829, INV-AC-12637, INV-T-12639).
+
 ## [6.6.0] - 2026-10-27
 ### Changed
 - `JdbcReplayResponder` answers one replay at a time per producing service across all its instances (INV-Q-9087, INV-T-9100, INV-AC-9092): before it answers a request it takes the transaction advisory lock `<service>.replay-answer` through the `ledger.tryLock` mechanism, and a refused request stays unhandled (no inbox row, no position change) until the next run; each `runOnce` starts with the request topic after the one served last, wrapping around.

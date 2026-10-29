@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.21.1] - 2026-10-29
+### Changed
+- Metadata-only change (INV-T-12639, G-DVS): depends on `outbox-and-queue 6.7.0`, whose version steps; no code change.
+
 ## [10.21.0] - 2026-10-29
 ### Added
 - `TenancyErrorCode` gains TNC-005 `CREDENTIAL_ENVIRONMENT_MISMATCH`, TNC-006 `SAMPLE_COPY_OFF` and TNC-007 `SAMPLE_COPY_NOT_APPROVED` (status 422; INV-T-11911, INV-Q-11899 A), and `Owner` gains `SECURITY_OFFICER("security.officer")`, so that a service renders the refusals with `Problems.renderTenancy` and writes no code of its own. The catalogue snapshot is re-vendored at platform-contracts 082db546 (INV-T-11909).

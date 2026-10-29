@@ -17,6 +17,8 @@ import java.time.LocalDate
  * @property docUuid present when the event concerns a document.
  * @property docSequence per-aggregate monotonic sequence (FR-AH.10); absent when the event
  *   is not document-scoped.
+ * @property testMode true when the event was produced in test mode: the CloudEvents attribute `testmode`
+ *   (INV-Q-12635, INV-REQ-829). It is written only when true and read strictly; absent means false.
  */
 data class Envelope(
     val id: EventId,
@@ -33,6 +35,7 @@ data class Envelope(
     val correlation: CorrelationId,
     val causation: CausationId,
     val dataJson: String,
+    val testMode: Boolean = false,
 ) {
     init {
         require(source.matches(SOURCE_PATTERN)) { "source must be /gst/<service>, was '$source'" }
