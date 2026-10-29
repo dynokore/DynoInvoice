@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.adapters
 
 import com.dynokore.platform.tenancyjooq.TenancyProbe
+import org.flywaydb.core.Flyway
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
@@ -13,15 +14,18 @@ import java.nio.file.Path
 import javax.sql.DataSource
 
 /**
- * One PostgreSQL per test JVM. The role family of provisioning (roles.sql, schema.sql) and every migration, applied as
- * controlplane_migrate in version order the way the migration Job does (TPL-12), run once as the container's init
- * script (coordinator ruling INV-Q-5245, route R1), so no test body issues DDL. Tests then act as the runtime login,
+ * One PostgreSQL per test JVM. The role family of provisioning (roles.sql, schema.sql) runs once as the container's
+ * init script (coordinator ruling INV-Q-5245, route R1); then Flyway applies every migration as controlplane_migrate
+ * in version order, the way the migration Job does (TPL-12, twelve-factor dev/prod parity: Flyway drops U+FEFF from
+ * the scripts it reads, so the blank checks here are the ones production gets), so no test body issues DDL. Tests act as the runtime login,
  * controlplane_runtime: NOSUPERUSER, NOBYPASSRLS, owns nothing (S2-05, V-01). Catalog and grant probes go through
  * [TenancyProbe], which refuses a superuser or BYPASSRLS session, so a grant assertion cannot pass vacuously.
  */
 object PostgresDb {
     private const val RUNTIME_LOGIN = "controlplane_runtime"
     private const val RUNTIME_PASSWORD = "controlplane_runtime_pw"
+    private const val MIGRATE_LOGIN = "controlplane_migrate"
+    private const val MIGRATE_PASSWORD = "controlplane_migrate_pw"
 
     private val container: PostgreSQLContainer<*> =
         PostgreSQLContainer(DockerImageName.parse(System.getProperty("gst.pg.image", "postgres:18")))
@@ -36,6 +40,7 @@ object PostgresDb {
                 "/docker-entrypoint-initdb.d/10-init.sql",
             )
             container.start()
+            migrate()
         } finally {
             Files.deleteIfExists(script)
         }
@@ -44,19 +49,21 @@ object PostgresDb {
 
     private fun initSql(): String {
         val sql = Path.of(System.getProperty("gst.sql.dir"))
-        val migrations =
-            Files.list(Path.of(System.getProperty("gst.migrations.dir"))).use { files ->
-                files
-                    .filter { it.fileName.toString().endsWith(".sql") }
-                    .sorted()
-                    .map { Files.readString(it) }
-                    .toList()
-            }
         return listOf(Files.readString(sql.resolve("roles.sql")), Files.readString(sql.resolve("schema.sql")))
-            .plus("SET ROLE controlplane_migrate;")
-            .plus(migrations)
-            .plus("RESET ROLE;")
             .joinToString("\n")
+    }
+
+    /** The migration files of the service, applied by Flyway as the migration login, which owns the schema. */
+    private fun migrate() {
+        Flyway
+            .configure()
+            .dataSource(container.jdbcUrl, MIGRATE_LOGIN, MIGRATE_PASSWORD)
+            .locations("filesystem:" + Path.of(System.getProperty("gst.migrations.dir")))
+            .schemas("controlplane")
+            .baselineOnMigrate(true)
+            .baselineVersion("0")
+            .load()
+            .migrate()
     }
 
     /** The runtime login's data source: every statement of the service under test runs on it. */
@@ -66,6 +73,10 @@ object PostgresDb {
             user = RUNTIME_LOGIN
             password = RUNTIME_PASSWORD
         }
+
+    /** The container's superuser, for tests that read the catalog or count rows past row-level security. */
+    fun adminConnection(): java.sql.Connection =
+        java.sql.DriverManager.getConnection(container.jdbcUrl, container.username, container.password)
 
     /** The catalog and grant probe of TPL-14, on the runtime login. */
     val probe: TenancyProbe by lazy { TenancyProbe.connect(container.jdbcUrl, RUNTIME_LOGIN, RUNTIME_PASSWORD) }

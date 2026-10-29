@@ -87,6 +87,9 @@ dependencies {
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.jooq)
     testFixturesImplementation(libs.postgresql)
+    // PostgresDb builds the test database from the migration files with Flyway, as the migration Job does (INV-T-12238)
+    testFixturesImplementation(libs.flyway.core)
+    testFixturesRuntimeOnly(libs.flyway.databasePostgresql)
     testFixturesImplementation(libs.platform.tenancyKernel)
     testFixturesImplementation(libs.platform.crypto)
     testFixturesImplementation(libs.platform.tenancyJooq.api) {

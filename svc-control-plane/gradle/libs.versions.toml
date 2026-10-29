@@ -3,7 +3,7 @@
 # platform-build's convention plugins and konsist-rules (TPL-01 `libs.versions.platformBuild`).
 platformBuild = "0.23.1"
 # The platform-libs BOM names the module versions tested together; a service bumps this one line (STK-60).
-platformLibsBom = "0.103.0"
+platformLibsBom = "0.120.0"
 gstCatalogue = "1.28.0"
 # The published platform-contracts bundle this service generates from and tests against (INV-T-4984: the fixture takes
 # the feed index schema from the pinned release, never a copy).
