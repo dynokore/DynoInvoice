@@ -24,7 +24,7 @@ data class ComplianceValues(
     }
 }
 
-/** One escalation tier of the entity's alert policy (INV-REQ-1113); a negative [daysToDue] is days after the due date. */
+/** One escalation tier of the entity's alert policy (INV-REQ-1113); a negative [daysToDue] is days after due. */
 data class PolicyTier(
     val tier: Int,
     val daysToDue: Int?,
@@ -55,7 +55,7 @@ sealed interface ComplianceAlertDecision {
 
 /**
  * Decides the coverage and deadline alerts from the measured values (INV-Q-12767 A, INV-REQ-1069, INV-REQ-1113).
- * Reads only its arguments and keeps no state. The escalation thresholds are the entity's policy [PolicyTier]s, never constants.
+ * Reads only its arguments and keeps no state. The thresholds are the entity's policy [PolicyTier]s, never constants.
  */
 object ComplianceAlert {
     private const val FIRST_TIER = 1
@@ -63,10 +63,17 @@ object ComplianceAlert {
     fun decide(
         values: ComplianceValues,
         tiers: List<PolicyTier>,
-    ): ComplianceAlertDecision {
+    ): ComplianceAlertDecision =
         if (values.documentsWithoutSubmission == 0) {
-            return ComplianceAlertDecision.Withhold(WithholdReason.NOTHING_TO_ALERT)
+            ComplianceAlertDecision.Withhold(WithholdReason.NOTHING_TO_ALERT)
+        } else {
+            raise(values, tiers)
         }
+
+    private fun raise(
+        values: ComplianceValues,
+        tiers: List<PolicyTier>,
+    ): ComplianceAlertDecision {
         val coverage =
             ComplianceAlertDraft(
                 alertClass = AlertClass.COVERAGE,
