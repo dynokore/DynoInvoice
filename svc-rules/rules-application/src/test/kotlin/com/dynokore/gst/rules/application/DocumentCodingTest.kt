@@ -124,8 +124,9 @@ class DocumentCodingTest {
         refused.shouldBeInstanceOf<DocumentCodingResult.Refused>().code shouldBe ErrorCode.RUL_002
     }
 
+    // INV-AC-744
     @Test
-    fun `INV-AC-744 SR SR and ZR give two groups with correct totals`() {
+    fun `SR SR and ZR give two groups with correct totals`() {
         val doc =
             coded(
                 coder().code(
@@ -147,8 +148,9 @@ class DocumentCodingTest {
         doc.totalWithGst shouldBe BigDecimal("727.00")
     }
 
+    // INV-AC-1555
     @Test
-    fun `INV-AC-1555 each line gets its code and lines in another order give the same groups`() {
+    fun `each line gets its code and lines in another order give the same groups`() {
         val a = line("1", "100.00", "STD")
         val b = line("2", "200.00", "STD")
         val c = line("3", "400.00", "EXP")
@@ -165,8 +167,9 @@ class DocumentCodingTest {
         result.shouldBeInstanceOf<DocumentCodingResult.LinesRefused>().refusals shouldBe mapOf("1" to ErrorCode.RUL_001)
     }
 
+    // INV-AC-390
     @Test
-    fun `INV-AC-390 supplier SRCA-S at 0 and customer TXCA at the prevailing rate with no divergence finding`() {
+    fun `supplier SRCA-S at 0 and customer TXCA at the prevailing rate with no divergence finding`() {
         val date = LocalDate.of(2026, 3, 1)
         val supplier = coded(coder().code(command(date, line("1", "100.00", "CA", Direction.SALE))))
         val customer = coded(coder().code(command(date, line("1", "100.00", "CA", Direction.PURCHASE))))

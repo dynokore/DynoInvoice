@@ -141,7 +141,7 @@ class DocumentCoder(
             fixed != null && !coded.prevailingRate -> numeric(fixed, "rate of the treatment for ${coded.categoryCode}")
             entry == null -> throw DocumentCodingFailure("code ${coded.categoryCode} is not in the catalogue")
             entry.annexERate != NOT_APPLICABLE -> numeric(entry.annexERate, "annexERate of ${entry.code}")
-            else -> numeric(entry.submissionRate ?: "", "submissionRate of ${entry.code} (annexERate is NA)")
+            else -> numeric(entry.submissionRate.orEmpty(), "submissionRate of ${entry.code} (annexERate is NA)")
         }
     }
 
