@@ -26,7 +26,8 @@ class ArchiveVolumeContentColumnsTest {
     /** Excluded from the retained volume, each with its reason. */
     private val excluded =
         mapOf(
-            "outbox.data" to "transport copy of an event whose content is held by its owner and is deleted once published",
+            "outbox.data" to
+                "transport copy of an event whose content is held by its owner and is deleted once published",
             "event_dead_letter.raw" to "a transient failed delivery, not retained evidence",
         )
 
