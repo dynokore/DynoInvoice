@@ -7,6 +7,8 @@ operation	runSampleCheck	UNASSIGNED
 operation	getPayload	UNASSIGNED
 operation	getRendition	UNASSIGNED
 operation	getRegeneratedPayload	UNASSIGNED
+operation	approveValidationOverride	INV-T-10713
+operation	getValidationOverrides	INV-T-10713
 channel	gst.payload.payload-ready.v1	UNASSIGNED
 channel	gst.payload.payload-rejected.v1	UNASSIGNED
 channel	gst.payload.rendition-finding-changed.v1	UNASSIGNED

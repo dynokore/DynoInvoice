@@ -3,6 +3,7 @@ package com.dynokore.gst.payload.bootstrap
 import com.dynokore.gst.payload.adapters.PayloadDb
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -21,6 +22,28 @@ object PayloadContext {
         return base(mountRoot)
     }
 
+    /** The service over the Testcontainers database as a servlet context, for the tests that call the controllers. */
+    fun web(mountRoot: Path): WebApplicationContextRunner {
+        secrets(mountRoot)
+        return WebApplicationContextRunner()
+            .withInitializer(ConfigDataApplicationContextInitializer())
+            .withUserConfiguration(PayloadApplication::class.java)
+            .withPropertyValues(*properties(mountRoot).toTypedArray(), "spring.datasource.url=${PayloadDb.jdbcUrl}")
+    }
+
+    private fun properties(mountRoot: Path): List<String> =
+        listOf(
+            "spring.datasource.username=payload_runtime",
+            "service-runtime.workload-identity.audience=payload-svc",
+            "gst.service=payload-svc",
+            "gst.instance-id=payload-svc-0",
+            "service-runtime.pool.profile=minimal",
+            "service-runtime.modules.schema=payload",
+            "service-runtime.idempotency.schema=payload",
+            "service-runtime.datasource.credential=db/payload_runtime",
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+        )
+
     private fun base(mountRoot: Path): ApplicationContextRunner =
         ApplicationContextRunner()
             // the real application.yaml (TPL-16), then the overrides below
@@ -28,15 +51,7 @@ object PayloadContext {
             .withUserConfiguration(PayloadApplication::class.java)
             .withPropertyValues(
                 "spring.datasource.url=jdbc:postgresql://localhost:5432/payload",
-                "spring.datasource.username=payload_runtime",
-                "service-runtime.workload-identity.audience=payload-svc",
-                "gst.service=payload-svc",
-                "gst.instance-id=payload-svc-0",
-                "service-runtime.pool.profile=minimal",
-                "service-runtime.modules.schema=payload",
-                "service-runtime.idempotency.schema=payload",
-                "service-runtime.datasource.credential=db/payload_runtime",
-                "gst.bindings.secret-store.mount-root=$mountRoot",
+                *properties(mountRoot).toTypedArray(),
             )
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
