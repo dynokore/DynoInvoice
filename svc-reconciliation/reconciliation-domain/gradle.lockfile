@@ -2,7 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :reconciliation-domain:dependencies --write-locks
-com.dynokore.gst.build:konsist-rules:0.23.1=testCompileClasspath,testRuntimeClasspath
+com.dynokore.gst.build:konsist-rules:0.23.3=testCompileClasspath,testRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
 com.google.errorprone:error_prone_annotations:2.10.0=detekt
 com.lemonappdev:konsist:0.17.3=testCompileClasspath,testRuntimeClasspath
