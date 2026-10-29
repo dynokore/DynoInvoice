@@ -94,6 +94,9 @@ class AgentScopeItemRequirementsTest {
             return client
         }
 
+        /** As [client], with the consent's agent bound to the tenant of the approver's grant (INV-Q-9320 A). */
+        fun approverClient(items: Set<ScopeItem>): String = client(items, consentAgent = tenant.toString())
+
         fun withdraw(consentRef: String) =
             tenants.bind(tenant, signatory) {
                 context
@@ -150,8 +153,8 @@ class AgentScopeItemRequirementsTest {
                 ).describedAs("$permission with $item").isEqualTo(Decision.ALLOW)
             }
             val approve = "mapping-pack.approve"
-            val others = env.client(all - ScopeItem.MAPPING_APPROVAL)
-            val exact = env.client(setOf(ScopeItem.MAPPING_APPROVAL))
+            val others = env.approverClient(all - ScopeItem.MAPPING_APPROVAL)
+            val exact = env.approverClient(setOf(ScopeItem.MAPPING_APPROVAL))
             assertThat(env.decide(approver, others, approve)).isEqualTo(Decision.DENY)
             assertThat(env.decide(approver, exact, approve)).isEqualTo(Decision.ALLOW)
         }
@@ -160,7 +163,7 @@ class AgentScopeItemRequirementsTest {
     fun `INV-Q-8874 probe 2 a permission outside the table is refused with all three items granted`() =
         run { env ->
             val client = env.client(all)
-            val approverClient = env.client(all)
+            val approverClient = env.approverClient(all)
             listOf(
                 "validation.override",
                 "audit-pack.export",
@@ -194,15 +197,17 @@ class AgentScopeItemRequirementsTest {
     fun `INV-Q-8874 probe 6 a consent-derived approver with a live consent holding no item is refused`() =
         run { env ->
             assertThat(
-                env.decide(approver, env.client(emptySet()), "mapping-pack.approve"),
+                env.decide(approver, env.approverClient(emptySet()), "mapping-pack.approve"),
             ).isEqualTo(Decision.DENY)
         }
 
     @Test
-    fun `INV-Q-9320 the approver is decided by the live consent and item, the operator also by the consent agent`() =
+    fun `INV-Q-9320 the approver is decided by the live consent, item and agent tenant, the operator by the consent agent`() =
         run { env ->
             val ofOther = env.client(all, consentAgent = "user:other-agent")
-            assertThat(env.decide(approver, ofOther, "mapping-pack.approve")).isEqualTo(Decision.ALLOW)
+            assertThat(env.decide(approver, ofOther, "mapping-pack.approve")).isEqualTo(Decision.DENY)
+            val ofTenant = env.approverClient(all)
+            assertThat(env.decide(approver, ofTenant, "mapping-pack.approve")).isEqualTo(Decision.ALLOW)
             assertThat(env.decide(agent, ofOther, "submission.replay")).isEqualTo(Decision.DENY)
             val withoutConsent = "CLI-NONE"
             assertThat(env.decide(approver, withoutConsent, "mapping-pack.approve")).isEqualTo(Decision.DENY)

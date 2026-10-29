@@ -57,7 +57,13 @@ class Authorise(
                         }
 
                         it.scope is Scope.ConsentDerived -> {
-                            agentScope.permitsClient(target.entity, permission, today)
+                            // the holder's agent tenant is the tenant of the grant's own consent-derived scope
+                            agentScope.permitsClient(
+                                (it.scope as Scope.ConsentDerived).tenant,
+                                target.entity,
+                                permission,
+                                today,
+                            )
                         }
 
                         else -> {
