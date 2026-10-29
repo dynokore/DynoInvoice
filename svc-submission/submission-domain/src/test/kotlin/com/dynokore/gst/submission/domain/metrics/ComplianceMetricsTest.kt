@@ -31,16 +31,8 @@ class ComplianceMetricsTest {
             "periodsWithResidualBacklog",
         )
 
-    private fun row(
-        entity: String = "E1",
-        period: String = "2026-Q3",
-        due: LocalDate = today.plusDays(10),
-        inScope: Boolean = true,
-        submitted: Boolean = true,
-        kind: RowKind = RowKind.INVOICE,
-        versions: Int = 1,
-        uuid: String = "d${seq++}",
-    ) = ObligationRow(uuid, entity, period, due, inScope, submitted, kind, versions)
+    private fun row(uuid: String = "d${seq++}") =
+        ObligationRow(uuid, "E1", "2026-Q3", today.plusDays(10), true, true, RowKind.INVOICE, 1)
 
     private fun compute(
         rows: List<ObligationRow>,
@@ -49,7 +41,7 @@ class ComplianceMetricsTest {
 
     /** Nine clean entities plus E10 with the given rows. */
     private fun tenEntities(extra: List<ObligationRow>): List<ObligationRow> =
-        (1..9).map { row(entity = "E$it") } + extra.map { it.copy(entityRef = "E10") }
+        (1..9).map { row().copy(entityRef = "E$it") } + extra.map { it.copy(entityRef = "E10") }
 
     private fun pair(
         report: MetricsReport,
@@ -62,8 +54,8 @@ class ComplianceMetricsTest {
             compute(
                 tenEntities(
                     listOf(
-                        row(submitted = false),
-                        row(inScope = false, submitted = false),
+                        row().copy(hasSubmission = false),
+                        row().copy(inScope = false, hasSubmission = false),
                     ),
                 ),
             )
@@ -81,8 +73,8 @@ class ComplianceMetricsTest {
             compute(
                 tenEntities(
                     listOf(
-                        row(submitted = false, due = today.minusDays(3)),
-                        row(submitted = false, due = today.plusDays(5)),
+                        row().copy(hasSubmission = false, dueDate = today.minusDays(3)),
+                        row().copy(hasSubmission = false, dueDate = today.plusDays(5)),
                     ),
                 ),
             )
@@ -100,7 +92,7 @@ class ComplianceMetricsTest {
 
     @Test
     fun `INV-AC-2095 thirty resubmissions of one hundred invoices give an exact ratio and a data-quality signal`() {
-        val rows = (1..100).map { row(versions = if (it <= 30) 2 else 1) }
+        val rows = (1..100).map { row().copy(versionCount = if (it <= 30) 2 else 1) }
         compute(rows)
             .periods
             .single()
@@ -152,9 +144,9 @@ class ComplianceMetricsTest {
         val report =
             compute(
                 listOf(
-                    row(entity = "B", period = "P2"),
-                    row(entity = "B", period = "P1"),
-                    row(entity = "A", period = "P2"),
+                    row().copy(entityRef = "B", periodRef = "P2"),
+                    row().copy(entityRef = "B", periodRef = "P1"),
+                    row().copy(entityRef = "A", periodRef = "P2"),
                 ),
             )
         report.periods.map { it.entityRef to it.periodRef } shouldBe listOf("A" to "P2", "B" to "P1", "B" to "P2")
@@ -162,21 +154,21 @@ class ComplianceMetricsTest {
 
     @Test
     fun `a row due exactly today is not past due and is zero days away`() {
-        val d = compute(listOf(row(submitted = false, due = today))).periods.single().deadline
+        val d = compute(listOf(row().copy(hasSubmission = false, dueDate = today))).periods.single().deadline
         d shouldBe Deadline(0, true, 0L)
     }
 
     @Test
     fun `many versions counts from the parameter`() {
-        compute(listOf(row(versions = 3)), from = 3)
+        compute(listOf(row().copy(versionCount = 3)), from = 3)
             .periods
             .single()
             .correction.manyVersionDocuments shouldBe 1
-        compute(listOf(row(versions = 2)), from = 3)
+        compute(listOf(row().copy(versionCount = 2)), from = 3)
             .periods
             .single()
             .correction.manyVersionDocuments shouldBe 0
-        compute(listOf(row(versions = 3)), from = 4)
+        compute(listOf(row().copy(versionCount = 3)), from = 4)
             .periods
             .single()
             .correction.manyVersionDocuments shouldBe 0
@@ -184,14 +176,17 @@ class ComplianceMetricsTest {
 
     @Test
     fun `a credit note is not a resubmission and counts only in the credit note ratio`() {
-        val c = compute(listOf(row(), row(kind = RowKind.CREDIT_NOTE, versions = 2))).periods.single().correction
+        val c =
+            compute(
+                listOf(row(), row().copy(kind = RowKind.CREDIT_NOTE, versionCount = 2)),
+            ).periods.single().correction
         c.resubmission shouldBe Ratio(0, 1)
         c.creditNote shouldBe Ratio(1, 2)
     }
 
     @Test
     fun `an out-of-scope invoice still enters the correction ratios`() {
-        val c = compute(listOf(row(inScope = false, versions = 2), row())).periods.single().correction
+        val c = compute(listOf(row().copy(inScope = false, versionCount = 2), row())).periods.single().correction
         c.resubmission shouldBe Ratio(1, 2)
     }
 
@@ -202,17 +197,17 @@ class ComplianceMetricsTest {
 
     @Test
     fun `invalid input is refused`() {
-        assertThrows<IllegalArgumentException> { row(entity = " ") }
-        assertThrows<IllegalArgumentException> { row(period = "") }
+        assertThrows<IllegalArgumentException> { row().copy(entityRef = " ") }
+        assertThrows<IllegalArgumentException> { row().copy(periodRef = "") }
         assertThrows<IllegalArgumentException> { row(uuid = "") }
-        assertThrows<IllegalArgumentException> { row(versions = 0) }
+        assertThrows<IllegalArgumentException> { row().copy(versionCount = 0) }
         assertThrows<IllegalArgumentException> { compute(listOf(row(uuid = "x"), row(uuid = "x"))) }
         assertThrows<IllegalArgumentException> { compute(emptyList(), from = 1) }
     }
 
     @Test
     fun `equal input gives equal output`() {
-        val rows = listOf(row(submitted = false), row(entity = "E2", versions = 2))
+        val rows = listOf(row().copy(hasSubmission = false), row().copy(entityRef = "E2", versionCount = 2))
         compute(rows) shouldBe compute(rows)
     }
 }
