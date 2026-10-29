@@ -72,3 +72,5 @@ The generated `RolePermission.kt` also declares `OperationRoles` (INV-T-10641, I
 The key `security-case.record` (row of `privacy-request.handle`, WRITE) is held by `security.officer` in SAAS and PRIVATE and was added under INV-Q-11686 A.
 
 The keys `sample-copy.request` (row "Request an anonymised production sample copy") and `sample-copy.approve` (row "Approve an anonymised production sample copy"), both WRITE, are held by `tenant.admin` and `security.officer` respectively, alone, in SAAS and PRIVATE. INV-NOTE-10136 is the text of record for both labels (INV-T-11910, INV-Q-11901 A, INV-Q-11899 A).
+
+The key `compliance-metrics.view` (row "View coverage, deadline and correction metrics per entity and period", READ) is held by `tax.approver` and `finance.viewer` alone, PERMITTED in SAAS and PRIVATE; every other role is DENIED. INV-NOTE-10136 (section 2, row 15) is the text of record for the label. It is the scoped permission of the read operation `getComplianceMetrics` (INV-REQ-1069, INV-REQ-1070); the roles are those of the row SCR-06.5 of INV-NOTE-7 (INV-T-12840, owner answer INV-Q-12767 A).

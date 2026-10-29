@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(17, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(18, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -362,7 +362,7 @@ class RolePermissionsCheckerTest {
     fun `the six operation keys carry their labels and addedRows holds its labels`() {
         opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
         assertEquals(
-            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries" + sampleCopyLabels,
+            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period",
             RolePermissionsChecker.addedRows.toSet(),
         )
     }
@@ -464,7 +464,7 @@ class RolePermissionsCheckerTest {
                 bumpLabel,
                 "Author a regulatory pack",
                 "Approve a regulatory pack",
-            ) + lookupLabels + "Purge audit entries" + sampleCopyLabels,
+            ) + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period",
             RolePermissionsChecker.addedRows.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
@@ -895,6 +895,71 @@ class RolePermissionsCheckerTest {
     @Test
     fun `INV-T-11910 each sample copy label removed from addedRows while its key stays fails naming the key`() {
         RolePermissionsChecker.sampleCopyPairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
+    }
+
+    private val cm = "compliance-metrics.view"
+
+    @Test
+    fun `INV-T-12840 the key is READ with its pinned row and exactly four cells`() {
+        assertEquals(mapOf(cm to "View coverage, deadline and correction metrics per entity and period"), RolePermissionsChecker.complianceMetricsPairs)
+        assertEquals("View coverage, deadline and correction metrics per entity and period", permission(real, cm).row)
+        assertEquals(PermissionKind.READ, permission(real, cm).kind)
+        val expected = listOf("tax.approver", "finance.viewer").flatMap { r -> listOf(saasF, privF).map { CellRow(r, it, RoleAllowance.PERMITTED) } }.toSet()
+        assertEquals(expected, permission(real, cm).cells.toSet())
+        assertEquals(4, permission(real, cm).cells.size)
+    }
+
+    @Test
+    fun `INV-T-12840 probe a tax operator cell is reported naming the key`() {
+        assertReported(cellAdd(cm, "tax.operator", saasF), "role tax.operator key $cm form SAAS", "extra")
+    }
+
+    @Test
+    fun `INV-T-12840 probe an auditor cell is reported naming the key`() {
+        assertReported(cellAdd(cm, "auditor", saasF), "role auditor key $cm form SAAS", "extra")
+    }
+
+    @Test
+    fun `INV-T-12840 probe the finance viewer PRIVATE cell removed is reported`() {
+        assertReported(cellRemove(cm, "finance.viewer", privF), "role finance.viewer key $cm form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `INV-T-12840 probe the allowance WITHIN_SCOPE is reported`() {
+        val t = withPermission(cm) { p -> p.copy(cells = p.cells.map { if (it.role == "tax.approver" && it.form == saasF) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it }) }
+        assertReported(t, "role tax.approver key $cm form SAAS", "WITHIN_SCOPE")
+    }
+
+    @Test
+    fun `INV-T-12840 probe the kind WRITE is reported`() {
+        assertReported(withKind(cm, PermissionKind.WRITE), "key $cm: kind WRITE")
+    }
+
+    @Test
+    fun `INV-T-12840 probe the row of submission view-status is reported naming the key`() {
+        assertReported(withRow(cm, "View submission status"), "key $cm", "differs")
+    }
+
+    @Test
+    fun `INV-T-12840 probe a renamed key is reported missing and the new name is reported`() {
+        assertReported(withPermission(cm) { it.copy(key = "compliance-metric.view") }, "key $cm: missing")
+        assertReported(withPermission(cm) { it.copy(key = "compliance-metric.view") }, "key compliance-metric.view")
+    }
+
+    @Test
+    fun `INV-T-12840 probe a second key compliance-metrics export is reported naming the key`() {
+        val second = permission(real, cm).copy(key = "compliance-metrics.export")
+        assertReported(real.copy(permissions = real.permissions + second), "key compliance-metrics.export")
+        val ownRow = permission(real, cm).copy(key = "compliance-metrics.export", row = permission(real, "ap-credential.manage").row)
+        assertReported(real.copy(permissions = real.permissions + ownRow), "key compliance-metrics.export")
+    }
+
+    @Test
+    fun `INV-T-12840 the label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.complianceMetricsPairs.forEach { (key, label) ->
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }

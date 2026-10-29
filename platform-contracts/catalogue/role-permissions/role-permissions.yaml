@@ -1138,3 +1138,11 @@ permissions:
     cells:
       - {role: security.officer, form: SAAS, allowance: PERMITTED}
       - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: compliance-metrics.view
+    kind: READ
+    row: "View coverage, deadline and correction metrics per entity and period"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: finance.viewer, form: SAAS, allowance: PERMITTED}
+      - {role: finance.viewer, form: PRIVATE, allowance: PERMITTED}

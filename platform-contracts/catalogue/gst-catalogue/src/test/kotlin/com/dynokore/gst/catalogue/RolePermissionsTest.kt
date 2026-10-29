@@ -263,6 +263,17 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `the compliance metrics key is READ with exactly the four cells and an export key is absent`() {
+        assertEquals(PermissionKind.READ, RolePermissions.kind("compliance-metrics.view"))
+        both.forEach { form ->
+            val holders = RolePermissions.cells(form).filter { (_, perms) -> perms["compliance-metrics.view"] != null }
+            assertEquals(setOf("tax.approver", "finance.viewer"), holders.keys, "$form")
+            holders.values.forEach { assertEquals(RoleAllowance.PERMITTED, it["compliance-metrics.view"], "$form") }
+        }
+        assertNull(RolePermissions.kind("compliance-metrics.export"))
+    }
+
+    @Test
     fun `vp keys outside 01 to 82 are absent`() {
         assertNull(RolePermissions.kind("vp-83.set"))
         assertNull(RolePermissions.kind("vp-0.set"))
