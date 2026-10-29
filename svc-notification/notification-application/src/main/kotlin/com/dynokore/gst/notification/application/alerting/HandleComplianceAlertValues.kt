@@ -34,16 +34,18 @@ class ContractViolation(
     message: String,
 ) : RuntimeException(message)
 
-sealed class HandleComplianceAlertValuesResult {
-    data object Ignored : HandleComplianceAlertValuesResult()
+sealed class HandleComplianceAlertValuesResult(
+    val kind: String,
+) {
+    data object Ignored : HandleComplianceAlertValuesResult("IGNORED")
 
     data class Raised(
         val count: Int,
-    ) : HandleComplianceAlertValuesResult()
+    ) : HandleComplianceAlertValuesResult("RAISED")
 
     data class Withheld(
         val reason: String,
-    ) : HandleComplianceAlertValuesResult()
+    ) : HandleComplianceAlertValuesResult("WITHHELD")
 }
 
 /** Handles ComplianceAlertValuesMeasured (INV-Q-12767 A, INV-REQ-1069, INV-REQ-1113) with [ComplianceAlert]. */
