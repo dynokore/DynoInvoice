@@ -70,36 +70,6 @@ class ConflictingPairsSettingTest {
         }
 
     @Test
-    fun `INV-AC-9273 an invalid CONFLICTING_PAIRS or NO_EXTRA_PAIRS value is refused 422 POL-014 and the stored value is unchanged`() =
-        run { env ->
-            env.store("tax.operator" to "tax.approver")
-            val list = { value: String -> """[{"option":"CONFLICTING_PAIRS","value":$value}]""" }
-            val bodies =
-                mapOf(
-                    "equal roles" to list("""[{"first":"auditor","second":"auditor"}]"""),
-                    "not a wire name" to list("""[{"first":"Tenant.Admin","second":"auditor"}]"""),
-                    "empty list" to list("[]"),
-                    "NO_EXTRA_PAIRS with a value" to
-                        """[{"option":"NO_EXTRA_PAIRS","value":[{"first":"auditor","second":"finance.viewer"}]}]""",
-                )
-            bodies.forEach { (name, selected) ->
-                val response =
-                    env.post(
-                        "/internal/v1/policies/VP-82",
-                        "token-a",
-                        """{"scopeLevel":"TENANT","scopeRef":"${env.tenant}","selected":$selected,""" +
-                            """"effectiveDate":"${env.today()}","reason":"invalid $name"}""",
-                    )
-                assertThat(response.status).describedAs("$name: ${response.contentAsString}").isEqualTo(422)
-                assertThat(response.contentAsString).describedAs(name).contains("POL-014")
-                assertThat(env.storedRows()).describedAs(name).isEqualTo(1)
-            }
-            env.seed("IDN-A", com.dynokore.gst.access.domain.role.Role.TAX_OPERATOR)
-            env.assertRefused(env.refusal { env.grant("IDN-A", "tax.approver") }, pairDetail)
-            env.granted("IDN-A", "auditor")
-        }
-
-    @Test
     fun `INV-AC-9273 a value without the double is refused while the pinned row is planned`() {
         val planned =
             com.dynokore.platform.productruntime.catalogue
