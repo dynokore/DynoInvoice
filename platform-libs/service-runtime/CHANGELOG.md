@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.22.0] - 2026-10-29
+### Added
+- `EventLogScopes.of(eventLog, scope, gate, bindingKey)` is public API of the impl half (INV-T-12071, follow-on of INV-T-4271; INV-AC-12070): the one composition of the scope the event-log adapters use. With no pool it returns the application scope itself; with a pool it returns a scope with its own runner over the pool behind the gate and signed with the binding key (a null key is refused with `IllegalArgumentException`). `OutboxAndQueueWiring` calls it, so there is one owner of the behaviour.
+
 ## [10.21.1] - 2026-10-29
 ### Changed
 - Metadata-only change (INV-T-12639, G-DVS): depends on `outbox-and-queue 6.7.0`, whose version steps; no code change.

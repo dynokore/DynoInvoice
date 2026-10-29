@@ -32,7 +32,8 @@ Service inputs:
   is no role DataSource. Only when `gst.db.event-log-url` names a separate event-log instance (HA, different from
   `spring.datasource.url`) is a second pool created, `eventLogDataSource` (`ServiceDataSources.EVENT_LOG`): the same
   login and credential, at most 3 connections, `service-runtime.event-log-pool.minimum-idle` (default 1, 0..3;
-  INV-Q-4348). Otherwise the event-log adapters use the application DataSource.
+  INV-Q-4348). Otherwise the event-log adapters use the application DataSource. A service that needs an event-log write of its own gets that
+  scope from `EventLogScopes.of(eventLog, scope, gate, bindingKey)`, the one way to compose it (INV-T-12071).
 - **Workload principal:** `svc:<gst.service>` (`WorkloadPrincipal`) is the actor bound for the service's own work (the
   outbox relay, inbox consumers, purges); a scheduled run binds `svc:<svc>/job:<job>` (owner ruling INV-Q-4344 (b)).
   `gst.service` must be a lower-case service name such as `submission-svc`, or start-up fails.

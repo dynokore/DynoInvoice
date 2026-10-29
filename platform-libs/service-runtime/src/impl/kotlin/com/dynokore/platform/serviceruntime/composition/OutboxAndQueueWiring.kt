@@ -58,7 +58,6 @@ import com.dynokore.platform.tenancykernel.LaneGate
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.micrometer.core.instrument.MeterRegistry
 import org.jooq.DSLContext
 import org.springframework.beans.factory.ObjectProvider
@@ -458,10 +457,12 @@ class OutboxAndQueueWiring(
         eventLog: ObjectProvider<DataSource>,
         scope: TenantScope,
     ): TenantScope =
-        eventLog.getIfAvailable()?.let {
-            eventLogScope(handOff(it, eventLogGate.getIfAvailable()), scope, bindingKey.getIfAvailable())
-        }
-            ?: scope
+        EventLogScopes.of(
+            eventLog.getIfAvailable(),
+            scope,
+            eventLogGate.getIfAvailable(),
+            bindingKey.getIfAvailable(),
+        )
 
     /**
      * The module's DSLContext (INV-T-4133, coordinator ruling INV-Q-5275): tenancy-jooq's factory over the
@@ -501,19 +502,5 @@ class OutboxAndQueueWiring(
             pool: DataSource,
             gate: LaneGate?,
         ): DataSource = TenantAwareDataSource(pool, gate)
-
-        /**
-         * A [TenantScope] over the event log's own transactions on [eventLog] (already handed off; its own
-         * [TransactionRunnerImpl], so an event-log transaction never joins an application one), with the service's
-         * [TenantScope.workloadPrincipal].
-         */
-        private fun eventLogScope(
-            eventLog: DataSource,
-            scope: TenantScope,
-            bindingKey: InstallationBindingKey?,
-        ): TenantScope {
-            val transactions = TransactionRunnerImpl(eventLog, scope.tenants, null, bindingKey?.source)
-            return TenantScope(scope.tenants, transactions, transactions, scope.workloadPrincipal, scope.platform)
-        }
     }
 }
