@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -44,9 +44,10 @@ info:
     evidence-svc capabilities, "Security case records concluding a
     credential-compromise review"). No catalogue error code exists yet
     under an EVI- prefix
-    (model/architecture/error-codes.yaml has no such prefix) — every
-    operation below declares `x-error-codes: []`; also flagged as an
-    architecture gap.
+    (model/architecture/error-codes.yaml has no such prefix). Only
+    `getMaxEvidenceRetention` declares a code, `EVD-001` (INV-Q-12582 A);
+    every other operation below still declares `x-error-codes: []`; also
+    flagged as an architecture gap.
 
 
     `appendEvidenceAnnotation` and `getEvidenceAnnotation` carry the evidence
@@ -1487,13 +1488,14 @@ paths:
         default (INV-REQ-1304). Only control-plane-svc may call it, by its
         workload identity (FR-AH.6). It changes no state. When a setting
         cannot be read the answer is `503` with the error envelope and
-        never a partial figure (INV-Q-3263).
+        never a partial figure (INV-Q-3263). The `503` answer carries the
+        catalogue code `EVD-001` (INV-Q-12582 A).
       tags: [retention]
       x-principal: reporting
       x-caller-auth: end-user
       x-sync-edge: control-plane-svc->evidence-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [EVD-001]
       x-requirements: [INV-REQ-3767]
       responses:
         '200':

@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 0c05e262b978bd07fb5f7d4e3e93053867417583 (2026-10-28), the merge of invoice-docs INV-T-11908 adding TNC-005 to TNC-007 (INV-T-11909, coordinator ruling INV-Q-11899 A);
+# pinned at commit de167d5df41f41414e39eea3412ae1b2fecad86c (2026-10-29), the merge of invoice-docs INV-T-12599 adding EVD-001 (INV-T-12600, coordinator ruling INV-Q-12582 A);
+# previously pinned at 0c05e262b978bd07fb5f7d4e3e93053867417583 (2026-10-28), the merge of invoice-docs INV-T-11908 adding TNC-005 to TNC-007 (INV-T-11909, coordinator ruling INV-Q-11899 A);
 # previously pinned at b04d614dfb522d6935e00b203fb0f97d86c6105c (2026-10-27), the merge of invoice-docs INV-T-11268 adding ING-022 (INV-T-11269, coordinator ruling INV-Q-11264 A; this re-vendor also brings SUB-023 from INV-T-9686);
 # previously pinned at 5f36b7c72b9ef9ae68f9488e004999e8dc5586c5 (2026-10-23), the merge of invoice-docs INV-T-8917 adding TNC-004 (INV-T-8919, coordinator ruling INV-Q-8903 A);
 # previously pinned at 419a4ccccdd369dbfd5ada56c4f84e5da8aaa039 (2026-10-20), the merge of invoice-docs INV-T-7555 adding TNC-001 to TNC-003 (INV-T-7556, coordinator ruling INV-Q-7553 A);
@@ -641,6 +642,12 @@ error_codes:
 - code: EVL-004
   condition: 'A replay for the (consumer, producer) pair is pending with another mode or scope; the same mode and scope returns
     the pending replay instead (HTTP 409; INV-Q-3665, INV-Q-3667, INV-API-3656)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: EVD-001
+  condition: 'Maximum evidence retention cannot be determined: a VP-43 setting of the data region cannot be read, so no figure
+    is given and none is partial; retryable (HTTP 503; INV-REQ-3767, INV-Q-3263, INV-Q-12582)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
