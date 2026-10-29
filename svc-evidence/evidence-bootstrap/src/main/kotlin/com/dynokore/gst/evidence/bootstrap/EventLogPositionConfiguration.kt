@@ -31,6 +31,7 @@ class EventLogPositionConfiguration {
         gate: ObjectProvider<EventLogGate>,
         bindingKey: ObjectProvider<InstallationBindingKey>,
     ): EventLogPositions {
+        // copy of service-runtime's event-log scope; INV-T-12072 replaces it with INV-T-12071's EventLogScopes.of
         val eventLogScope =
             eventLog.getIfAvailable()?.let {
                 val transactions =

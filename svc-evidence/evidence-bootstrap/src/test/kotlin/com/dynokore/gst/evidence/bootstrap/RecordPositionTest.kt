@@ -16,6 +16,7 @@ import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
@@ -46,7 +47,10 @@ class RecordPositionTest {
 
     private class Env(
         val context: ApplicationContext,
+        /** The application database: `evidence.*`. */
         val url: String,
+        /** The event-log database: `eventlog.*`; the same as [url] when the event log shares the database. */
+        val eventLogUrl: String = url,
     ) {
         val tenant = TenantId(UUID.randomUUID())
         val consumers: Map<String, InboxConsumer> = context.getBeansOfType(InboxConsumer::class.java)
@@ -73,9 +77,10 @@ class RecordPositionTest {
         fun <T> sql(
             query: String,
             vararg args: Any,
+            on: String = url,
             read: (java.sql.ResultSet) -> T,
         ): T =
-            EvidenceDb.superuserOf(url).use { c ->
+            EvidenceDb.superuserOf(on).use { c ->
                 c.prepareStatement(query).use { s ->
                     args.forEachIndexed { i, a -> s.setObject(i + 1, a) }
                     s.executeQuery().use { rows ->
@@ -86,14 +91,18 @@ class RecordPositionTest {
             }
 
         fun execute(query: String) =
-            EvidenceDb.superuserOf(url).use { c -> c.createStatement().use { it.execute(query) } }
+            EvidenceDb.superuserOf(eventLogUrl).use { c -> c.createStatement().use { it.execute(query) } }
 
-        fun count(query: String): Long = sql(query) { it.getLong(1) }
+        fun count(
+            query: String,
+            on: String = url,
+        ): Long = sql(query, on = on) { it.getLong(1) }
 
         fun position(topic: String): Long =
             sql(
                 "select position from eventlog.record_position where topic_key = ?",
                 EventLogDb.key(topic),
+                on = eventLogUrl,
             ) { it.getLong(1) }
 
         fun committed(topic: String): Long =
@@ -104,11 +113,11 @@ class RecordPositionTest {
                 topic,
             ) { it.getLong(1) }
 
-        fun rows(topic: String): Long = count("select count(*) from eventlog.${EventLogDb.key(topic)}")
+        fun rows(topic: String): Long = count("select count(*) from eventlog.${EventLogDb.key(topic)}", eventLogUrl)
 
         /** The purge login's `eventlog.purge_batch()`; the rows it deleted on [topic]. */
         fun purge(topic: String): Long =
-            DriverManager.getConnection(url, EventLogDb.PURGE, EventLogDb.PURGE_PASSWORD).use { c ->
+            DriverManager.getConnection(eventLogUrl, EventLogDb.PURGE, EventLogDb.PURGE_PASSWORD).use { c ->
                 c.createStatement().use { s ->
                     val named = "purged_topic in ('$topic', '${EventLogDb.key(topic)}')"
                     s
@@ -162,7 +171,7 @@ class RecordPositionTest {
                     dataJson = data,
                 ),
             )
-        EvidenceDb.superuserOf(url).use { c ->
+        EvidenceDb.superuserOf(eventLogUrl).use { c ->
             c
                 .prepareStatement(
                     "insert into eventlog.${EventLogDb.key(topic)} (tenant_id, event_id, subject, envelope) " +
@@ -307,11 +316,13 @@ class RecordPositionTest {
             count(
                 "select count(*) from (select 1 where has_table_privilege('${EvidenceDb.RUNTIME}', 'eventlog.$it', " +
                     "'insert,update,delete,truncate')) p",
+                eventLogUrl,
             ) shouldBe 0
         }
         count(
             "select count(*) from (select 1 where has_function_privilege('${EvidenceDb.RUNTIME}', " +
                 "'eventlog.record_position(text, bigint)', 'execute')) p",
+            eventLogUrl,
         ) shouldBe 1
     }
 
@@ -345,10 +356,37 @@ class RecordPositionTest {
         execute("update eventlog.${EventLogDb.key(audit)} set inserted_at = now() - interval '100 days'")
         purge(audit) shouldBe 3
         rows(audit) shouldBe 2
-        count("select min(log_offset) from eventlog.${EventLogDb.key(audit)}") shouldBe 4
+        count("select min(log_offset) from eventlog.${EventLogDb.key(audit)}", eventLogUrl) shouldBe 4
 
         auditConsumer.pollOnce().applied shouldBe 2 // after the restart every entry is stored
         stored() shouldBe 5
         position(audit) shouldBe 5
+    }
+
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // the name is fixed by the task text
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
+    fun `with gst db event-log-url naming another database the position is written there and the application database holds no eventlog schema`(
+        version: EvidenceDb.Version,
+        @TempDir dir: Path,
+    ) = EvidenceDb.withScratchDatabase(EventLogDb.setup(), version = version) { eventLogUrl ->
+        EvidenceDb.withScratchDatabase("", version = version) { appUrl ->
+            (appUrl == eventLogUrl) shouldBe false
+            EvidenceContext
+                .online(dir)
+                .withPropertyValues("spring.datasource.url=$appUrl", "gst.db.event-log-url=$eventLogUrl")
+                .run { context ->
+                    context.containsBean(ServiceDataSources.EVENT_LOG) shouldBe true
+                    val env = Env(context, appUrl, eventLogUrl)
+                    env.emitAudit("au-1")
+                    env.auditConsumer.pollOnce().applied shouldBe 1
+                    val committed = env.committed(audit)
+                    env.position(audit) shouldBe committed
+                    env.position(audit) shouldBeLessThanOrEqual committed
+                    env.count(
+                        "select count(*) from information_schema.schemata where schema_name = 'eventlog'",
+                    ) shouldBe 0
+                }
+        }
     }
 }
