@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.AuthoriseController
 import com.dynokore.gst.access.adapters.http.ConsentController
 import com.dynokore.gst.access.adapters.http.GrantsController
@@ -18,6 +19,8 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.ScopeLevel
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -30,9 +33,7 @@ import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import java.time.Clock
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -48,14 +49,14 @@ class ConsentDerivedGrantTest {
     private val scopeText = "consent:$tenant"
     private val all = ScopeItem.entries.toSet()
 
-    // noon in Singapore: the business date equals the UTC date, and every date of the test is derived from this clock
-    private val clock: Clock = Clock.fixed(Instant.parse("2026-10-30T04:00:00Z"), ZoneOffset.UTC)
-    private val today: LocalDate = LocalDate.now(clock)
-
     private inner class Env(
         val context: AssertableWebApplicationContext,
     ) {
         val tenants = context.getBean(TenantContext::class.java)
+        private val clock = context.getBean(Clock::class.java)
+
+        // every date of the test is derived from the injected clock
+        private val today = LocalDate.now(clock)
         private var next = 0
 
         init {
@@ -148,15 +149,10 @@ class ConsentDerivedGrantTest {
     }
 
     private fun run(block: (Env) -> Unit) {
-        BoundaryFixture
-            .runner(catalogueMatrix = true, requirements = null)
-            .withAllowBeanDefinitionOverriding(true)
-            .withBean("clock", Clock::class.java, { clock })
-            .run { context ->
-                context.startupFailure?.let { throw it }
-                assertThat(context.getBean(Clock::class.java)).isSameAs(clock)
-                block(Env(context))
-            }
+        BoundaryFixture.runner(catalogueMatrix = true, requirements = null).run { context ->
+            context.startupFailure?.let { throw it }
+            block(Env(context))
+        }
     }
 
     @Test
@@ -221,10 +217,10 @@ class ConsentDerivedGrantTest {
                 )
             refusals.forEach { call ->
                 val thrown = env.tenants.bind(tenant, admin) { runCatching { call() }.exceptionOrNull() }
-                assertThat(thrown)
-                    .isNotNull()
-                    .hasMessageContaining("SRT-001")
-                    .hasMessageContaining("scope is not supported")
+                val refusal = thrown as ApiRefusal
+                assertThat(refusal.code).isEqualTo(ClosedErrorCode.CONTRACT_VIOLATION)
+                assertThat(Problems.render(refusal.code, "c", refusal.detail).status).isEqualTo(400)
+                assertThat(refusal.detail).isEqualTo("scope is not supported")
             }
             assertThat(tables.associateWith { env.count(it) }).isEqualTo(before)
             assertThat(env.rows()).isEmpty()

@@ -12,8 +12,6 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.verifyNoInteractions
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 
 /** The revocation outbox reads no scope from `consent:<tenant>` (INV-Q-8868 A: only grantRole takes it). */
 class PrincipalRevocationConsentScopeTest {
@@ -26,7 +24,7 @@ class PrincipalRevocationConsentScopeTest {
             PrincipalRevocationOutbox(
                 outbox = writer,
                 mapper = JsonMapper.builder().build(),
-                clock = Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"), ZoneOffset.UTC),
+                clock = mock(Clock::class.java),
                 directory = mock(EntityDirectory::class.java),
             )
         val scope = "consent:${tenant.value}"
