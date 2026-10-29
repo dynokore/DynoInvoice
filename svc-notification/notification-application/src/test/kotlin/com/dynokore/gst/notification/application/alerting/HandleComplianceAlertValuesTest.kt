@@ -96,16 +96,19 @@ class HandleComplianceAlertValuesTest {
     }
 
     @Test
-    fun `INV-AC-12838 documentsWithoutSubmission 0 throws ContractViolation and the sink is never called`() {
+    fun `INV-AC-12838 documentsWithoutSubmission 0 throws ContractViolation not Withheld and nothing else is called`() {
         assertThrows<ContractViolation> { handler.handle("ev-1", tenant, payload(without = 0)) }
-        calls.contains("raise") shouldBe false
+        calls shouldBe listOf("firstTime")
         tierReads shouldBe 0
+        raised shouldBe emptyList()
     }
 
     @Test
-    fun `INV-AC-12838 a payload without entityRef throws ContractViolation and the sink is never called`() {
+    fun `INV-AC-12838 a payload without entityRef throws ContractViolation and nothing else is called`() {
         assertThrows<ContractViolation> { handler.handle("ev-1", tenant, payload() - "entityRef") }
-        calls.contains("raise") shouldBe false
+        calls shouldBe listOf("firstTime")
+        tierReads shouldBe 0
+        raised shouldBe emptyList()
     }
 
     @Test
