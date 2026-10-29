@@ -51,6 +51,8 @@ data class AccessTokenClaims(
     val issuedAt: Instant,
     val expiresAt: Instant,
     val tokenId: String,
+    /** The environment of the principal's tenant; absent when the principal has no tenant or it is not known. */
+    val environment: TenantEnvironment? = null,
 )
 
 /** The signing key cannot be used now: unreadable, malformed, or past its signing interval. Fails closed. */
@@ -109,7 +111,10 @@ class IssueAccessTokenUseCase(
     private val clock: Clock,
     private val newTokenId: () -> String = { UUID.randomUUID().toString() },
 ) {
-    fun issue(principal: ServicePrincipal): IssuedToken {
+    fun issue(
+        principal: ServicePrincipal,
+        environment: TenantEnvironment? = null,
+    ): IssuedToken {
         val now = clock.instant()
         val session = signer.open()
         val published =
@@ -141,6 +146,7 @@ class IssueAccessTokenUseCase(
                 issuedAt = now,
                 expiresAt = now.plus(settings.lifetime),
                 tokenId = tokenId,
+                environment = environment,
             )
         return IssuedToken(session.sign(claims), settings.lifetime.seconds.toInt(), session.kid, tokenId)
     }
