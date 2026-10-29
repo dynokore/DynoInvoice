@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -64,9 +65,9 @@ class ArchiveVolumePublisherTest {
     ) : Clock() {
         var reads = 0
 
-        override fun getZone() = ZoneOffset.UTC
+        override fun getZone(): ZoneId = ZoneOffset.UTC
 
-        override fun withZone(zone: java.time.ZoneId?): Clock = this
+        override fun withZone(zone: ZoneId?): Clock = this
 
         override fun instant(): Instant = instants[minOf(reads++, instants.size - 1)]
     }

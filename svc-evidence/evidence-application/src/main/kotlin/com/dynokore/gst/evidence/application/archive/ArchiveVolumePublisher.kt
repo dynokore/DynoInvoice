@@ -9,6 +9,7 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -47,7 +48,7 @@ class ArchiveVolumePublisher(
             when {
                 c == '"' -> out.append("\\\"")
                 c == '\\' -> out.append("\\\\")
-                c < ' ' -> out.append(String.format("\\u%04x", c.code))
+                c < ' ' -> out.append("\\u%04x".format(Locale.ROOT, c.code))
                 else -> out.append(c)
             }
         }
