@@ -88,7 +88,8 @@ class TestIdentity(
                 beanName: String,
             ): Any {
                 if (bean !is DataSource) return bean
-                return Proxy.newProxyInstance(bean.javaClass.classLoader, arrayOf(DataSource::class.java)) { _, method, args ->
+                val types = arrayOf(DataSource::class.java)
+                return Proxy.newProxyInstance(bean.javaClass.classLoader, types) { _, method, args ->
                     if (method.name == "getConnection") Doubles.connections.incrementAndGet()
                     try {
                         method.invoke(bean, *(args ?: emptyArray()))

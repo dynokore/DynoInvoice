@@ -13,7 +13,7 @@ import java.nio.file.Path
  * before a handler runs, and count the connections the pool hands out (see `TestIdentity`).
  */
 object ServletFixture {
-    /** [configurations] are added to the application; [loader] is the class loader of the context. The caller closes it. */
+    /** [configurations] join the application; [loader] is the context's class loader. The caller closes the context. */
     fun start(
         mountRoot: Path,
         configurations: List<Class<*>>,

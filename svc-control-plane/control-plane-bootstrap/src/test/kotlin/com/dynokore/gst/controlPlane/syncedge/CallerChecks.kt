@@ -125,8 +125,8 @@ class CallerChecks(
     }
 
     /**
-     * What the service stored: the connections its pool handed out. The refused call must not open one, so no row and no
-     * event (the outbox rows are written through the same pool) can have been written.
+     * What the service stored: the connections its pool handed out. The refused call must not open one, so no row
+     * and no event (the outbox rows are written through the same pool) can have been written.
      */
     private fun stored(): Map<String, Long> = mapOf("connections" to Doubles.connections.get().toLong())
 
