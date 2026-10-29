@@ -11,6 +11,7 @@ import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import javax.sql.DataSource
 
 /**
@@ -25,12 +26,15 @@ import javax.sql.DataSource
 object PostgresDb {
     private const val RUNTIME_LOGIN = "controlplane_runtime"
     private const val RUNTIME_PASSWORD = "controlplane_runtime_pw"
+    private const val STARTUP_MINUTES = 3L
     private const val MIGRATE_LOGIN = "controlplane_migrate"
     private const val MIGRATE_PASSWORD = "controlplane_migrate_pw"
 
     private val container: PostgreSQLContainer<*> =
         PostgreSQLContainer(DockerImageName.parse(System.getProperty("gst.pg.image", "postgres:18")))
             .withLabel("inv.agent", "c-inv-t-4984")
+            // a saturated CI runner starts the container slowly: the default 60 s start-up wait is too short
+            .withStartupTimeout(Duration.ofMinutes(STARTUP_MINUTES))
 
     init {
         val script = Files.createTempFile("controlplane-init-", ".sql")
