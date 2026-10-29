@@ -2,7 +2,7 @@ package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.events.ControlPlaneEventCatalogue
 import com.dynokore.platform.auditlog.AuditWriter
-import com.dynokore.platform.auditlog.OutboxAuditWriter
+import com.dynokore.platform.auditlog.LocalAuditWriter
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -25,6 +25,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean
+import org.springframework.core.io.ClassPathResource
 import java.nio.file.Path
 import java.time.Duration
 
@@ -33,19 +35,26 @@ class JobRuntimeCompositionTest {
     private val actors = listOf("release.manager", "deployment.operator", "platform.engineer", "")
 
     @Test
-    fun `the composition builds the one JobRuntime over the outbox audit writer`(
+    fun `the composition builds the one JobRuntime over the local audit writer`(
         @TempDir mount: Path,
     ) {
         controlPlaneRunner(mount).run { context ->
             context.startupFailure shouldBe null
             context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
             context.getBean(OutboxWriter::class.java).shouldNotBeNull()
-            // service-runtime wraps each AuditWriter; the wrapped one is the outbox writer
+            // service-runtime wraps each AuditWriter; the wrapped one is the local writer
             val audit = context.getBean(AuditWriter::class.java)
             audit.shouldBeInstanceOf<OperatorSessionAuditWriter>()
-            audit.delegate.shouldBeInstanceOf<OutboxAuditWriter>()
-            context.getBeanNamesForType(AuditWriter::class.java).toList() shouldBe listOf("outboxAuditWriter")
+            audit.delegate.shouldBeInstanceOf<LocalAuditWriter>()
+            context.getBeanNamesForType(AuditWriter::class.java).toList() shouldBe listOf("localAuditWriter")
         }
+    }
+
+    @Test
+    fun `application yaml itself sets service-runtime modules audit writer to local`() {
+        // read from the classpath, so a runner that sets the property itself cannot hide a removed line
+        val yaml = YamlPropertiesFactoryBean().apply { setResources(ClassPathResource("application.yaml")) }.getObject()
+        yaml.shouldNotBeNull().getProperty("service-runtime.modules.audit.writer") shouldBe "local"
     }
 
     @Test

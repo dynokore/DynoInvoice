@@ -16,6 +16,7 @@ spring:
     user: controlplane_migrate                      # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
 service-runtime:
   modules.schema: controlplane
+  modules.audit.writer: local                       # LocalAuditWriter although the service has an outbox: the audit entry commits with the change (INV-Q-2958, INV-Q-11431)
   idempotency.schema: controlplane
   workload-identity.audience: control-plane-svc
   pool:

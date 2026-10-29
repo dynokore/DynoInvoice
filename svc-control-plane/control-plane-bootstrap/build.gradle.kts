@@ -56,7 +56,7 @@ dependencies {
     runtimeOnly(libs.platform.crypto)
     // the OutboxWriter and the relay of service-runtime's OutboxAndQueueWiring, and the tables the job runtime writes its events to
     runtimeOnly(libs.platform.outboxAndQueue)
-    // the OutboxAuditWriter bean of service-runtime's AuditLogWiring (the service has an OutboxWriter, so it binds the outbox audit writer)
+    // the LocalAuditWriter bean of service-runtime's AuditLogWiring (service-runtime.modules.audit.writer: local binds the local audit writer although the service has an OutboxWriter)
     runtimeOnly(libs.platform.auditLog)
     // the platform-scoped tables of config-resolver's ConfigSchema, read by service-runtime's TenancyJooqWiring
     runtimeOnly(libs.platform.configResolver)
@@ -69,7 +69,7 @@ dependencies {
     testImplementation(libs.springBoot.test)
     // AssertableApplicationContext, the result type of ApplicationContextRunner.run, names AssertJ in its supertypes
     testImplementation(libs.assertj.core)
-    // AuditWriter and OutboxAuditWriter, named by the composition test
+    // AuditWriter and LocalAuditWriter, named by the composition test
     testImplementation(libs.platform.auditLog.api)
     testImplementation(libs.platform.auditLog)
 
