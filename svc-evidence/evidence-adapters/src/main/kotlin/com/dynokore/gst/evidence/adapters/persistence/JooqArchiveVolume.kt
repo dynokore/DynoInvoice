@@ -28,40 +28,32 @@ import java.util.UUID
 class JooqStoredContentBytes(
     private val dsl: DSLContext,
 ) : StoredContentBytes {
-    /** One covered content column of a table that carries the entity itself. */
-    private class Column(
-        val table: Table<*>,
-        val content: Field<*>,
-        val tenant: Field<UUID?>,
-        val entity: Field<String?>,
-    )
-
-    private val columns =
-        listOf(
-            Column(EVIDENCE_PAYLOAD, EVIDENCE_PAYLOAD.CONTENT, EVIDENCE_PAYLOAD.TENANT_ID, EVIDENCE_PAYLOAD.ENTITY_REF),
-            Column(ACKNOWLEDGEMENT, ACKNOWLEDGEMENT.CONTENT, ACKNOWLEDGEMENT.TENANT_ID, ACKNOWLEDGEMENT.ENTITY_REF),
-            Column(DECISION_TRACE, DECISION_TRACE.CONTENT, DECISION_TRACE.TENANT_ID, DECISION_TRACE.ENTITY_REF),
-            Column(AUDIT_LOG, AUDIT_LOG.CONTENT, AUDIT_LOG.TENANT_ID, AUDIT_LOG.ENTITY_REF),
-        )
-
     override fun bytes(
         tenant: TenantId,
         entityRef: String,
     ): Long {
-        val total = columns.sumOf { sum(it, tenant, entityRef) } + pending(tenant, entityRef)
+        val total =
+            sum(EVIDENCE_PAYLOAD, EVIDENCE_PAYLOAD.CONTENT, EVIDENCE_PAYLOAD.TENANT_ID, EVIDENCE_PAYLOAD.ENTITY_REF, tenant, entityRef) +
+                sum(ACKNOWLEDGEMENT, ACKNOWLEDGEMENT.CONTENT, ACKNOWLEDGEMENT.TENANT_ID, ACKNOWLEDGEMENT.ENTITY_REF, tenant, entityRef) +
+                sum(DECISION_TRACE, DECISION_TRACE.CONTENT, DECISION_TRACE.TENANT_ID, DECISION_TRACE.ENTITY_REF, tenant, entityRef) +
+                sum(AUDIT_LOG, AUDIT_LOG.CONTENT, AUDIT_LOG.TENANT_ID, AUDIT_LOG.ENTITY_REF, tenant, entityRef) +
+                pending(tenant, entityRef)
         check(total >= 0) { "the stored content bytes are negative" }
         return total
     }
 
     private fun sum(
-        column: Column,
+        table: Table<*>,
+        content: Field<*>,
+        tenantColumn: Field<UUID?>,
+        entityColumn: Field<String?>,
         tenant: TenantId,
         entityRef: String,
     ): Long =
         dsl
-            .select(octetSum(column.content))
-            .from(column.table)
-            .where(column.tenant.eq(tenant.value), column.entity.eq(entityRef))
+            .select(octetSum(content))
+            .from(table)
+            .where(tenantColumn.eq(tenant.value), entityColumn.eq(entityRef))
             .fetchOne(0, Long::class.java) ?: 0L
 
     private fun pending(
@@ -82,10 +74,7 @@ class JooqStoredContentBytes(
             ).fetchOne(0, Long::class.java) ?: 0L
 
     private fun octetSum(column: Field<*>): Field<Long> =
-        DSL.coalesce(
-            DSL.sum(DSL.function(DSL.name("octet_length"), SQLDataType.INTEGER, column)).cast(SQLDataType.BIGINT),
-            0L,
-        )
+        DSL.coalesce(DSL.sum(DSL.function(DSL.name("octet_length"), SQLDataType.INTEGER, column)).cast(SQLDataType.BIGINT), 0L)
 }
 
 /** `archive_volume_published` over the service's tenant-bound [DSLContext] (jOOQ only, STK §3). */

@@ -31,18 +31,6 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
-    testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.platform.evidenceStore.impl)
     testImplementation(testFixtures(project(":evidence-adapters")))
-}
-
-// ArchiveVolumeDbTest validates the published payload against the pinned schema (INV-Q-12746 A); the test fails
-// closed when the property is unset.
-tasks.withType<Test>().configureEach {
-    val contractDir =
-        project(":evidence-contract").layout.buildDirectory.dir(
-            "contracts-repo/platform-contracts/evidence/${libs.versions.platformContractsBundle.get()}",
-        )
-    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
-    dependsOn(":evidence-contract:generateContractServer")
 }

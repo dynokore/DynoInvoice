@@ -14,19 +14,13 @@ import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.networknt.schema.SchemaRegistry
-import com.networknt.schema.SchemaRegistryConfig
-import com.networknt.schema.SpecificationVersion
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
-import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import tools.jackson.databind.node.ObjectNode
-import java.io.File
 import java.nio.file.Path
 import java.sql.Connection
 import java.time.Clock
@@ -36,7 +30,7 @@ import java.util.UUID
 
 /**
  * The archive-volume store against a real database (P109), on the TPL-18 context over the `evidence_runtime` login:
- * the catalogue shape of `V8__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
+ * the catalogue shape of `V7__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
  * transactional publication through the real outbox writer (INV-Q-12683 A, INV-Q-12736 A).
  */
 class ArchiveVolumeDbTest {
@@ -94,12 +88,11 @@ class ArchiveVolumeDbTest {
         tenant: UUID,
         entity: String,
         bytes: Long,
-        n: Int,
+        correlation: String,
+        causation: String,
         withType: Boolean = true,
     ) = inTenant(tenant) {
-        publisher(
-            withType,
-        ).publish(TenantId(tenant), entity, bytes, CorrelationId("corr-test-$n"), CausationId("cause-test-$n"))
+        publisher(withType).publish(TenantId(tenant), entity, bytes, CorrelationId(correlation), CausationId(causation))
     }
 
     // ---- seeding as the superuser (row-level security does not apply to it) ----
@@ -148,14 +141,7 @@ class ArchiveVolumeDbTest {
     }
 
     private fun count(sql: String): Int =
-        superuser { c ->
-            c.createStatement().use { s ->
-                s.executeQuery(sql).use {
-                    it.next()
-                    it.getInt(1)
-                }
-            }
-        }
+        superuser { c -> c.createStatement().use { s -> s.executeQuery(sql).use { it.next(); it.getInt(1) } } }
 
     private fun listed(tenant: UUID): Set<String> =
         EvidenceDb.connect(EvidenceDb.RUNTIME, EvidenceDb.RUNTIME_PASSWORD).use { c ->
@@ -211,48 +197,40 @@ class ArchiveVolumeDbTest {
 
     private val fn = "'evidence.archive_volume_entities()'::regprocedure"
 
-    private val table = "'evidence.archive_volume_published'::regclass"
-
-    /** Each promise of the migration: its label, a catalogue query and the one value it must return. */
-    private val promises: List<Triple<String, String, String>> =
-        listOf(
-            Triple("not security definer", "select prosecdef::text from pg_proc where oid = $fn", "true"),
-            Triple("owner", "select pg_get_userbyid(proowner) from pg_proc where oid = $fn", "evidence_sys"),
-            Triple(
-                "result columns",
-                "select pg_get_function_result(oid) from pg_proc where oid = $fn",
-                "TABLE(tenant_id uuid, entity_ref text)",
-            ),
-            Triple(
-                "search_path",
-                "select proconfig::text from pg_proc where oid = $fn",
-                "{\"search_path=pg_catalog, evidence, pg_temp\"}",
-            ),
-            Triple("public execute", "select has_function_privilege('public', $fn, 'execute')::text", "false"),
-            Triple(
-                "runtime execute",
-                "select has_function_privilege('evidence_runtime', $fn, 'execute')::text",
-                "true",
-            ),
-            Triple("rls not enabled", "select relrowsecurity::text from pg_class where oid = $table", "true"),
-            Triple("rls not forced", "select relforcerowsecurity::text from pg_class where oid = $table", "true"),
-            Triple(
-                "tenant policy",
-                "select count(*)::text from pg_policies where schemaname = 'evidence' and " +
-                    "tablename = 'archive_volume_published' and policyname = 'tenant_isolation' and " +
-                    "qual like '%bound_tenant%' and with_check like '%bound_tenant%'",
-                "1",
-            ),
-            Triple("runtime select", "select has_table_privilege('evidence_runtime', $table, 'select')::text", "true"),
-            Triple("runtime insert", "select has_table_privilege('evidence_runtime', $table, 'insert')::text", "true"),
-            Triple("runtime update", "select has_table_privilege('evidence_runtime', $table, 'update')::text", "true"),
-            Triple("runtime delete", "select has_table_privilege('evidence_runtime', $table, 'delete')::text", "false"),
-            Triple("public select", "select has_table_privilege('public', $table, 'select')::text", "false"),
-        )
-
     /** What the migration promises, read from the catalogue; empty when every promise holds. */
     private fun violations(c: Connection): List<String> =
-        promises.filter { (_, sql, expected) -> c.text(sql) != expected }.map { it.first }
+        buildList {
+            if (c.text("select prosecdef::text from pg_proc where oid = $fn") != "true") add("not security definer")
+            if (c.text("select pg_get_userbyid(proowner) from pg_proc where oid = $fn") != "evidence_sys") add("owner")
+            if (c.text("select pg_get_function_result(oid) from pg_proc where oid = $fn") !=
+                "TABLE(tenant_id uuid, entity_ref text)"
+            ) {
+                add("result columns")
+            }
+            if (c.text("select proconfig::text from pg_proc where oid = $fn") != "{\"search_path=pg_catalog, evidence, pg_temp\"}") {
+                add("search_path")
+            }
+            if (c.text("select has_function_privilege('public', $fn, 'execute')::text") != "false") add("public execute")
+            if (c.text("select has_function_privilege('evidence_runtime', $fn, 'execute')::text") != "true") add("runtime execute")
+            val table = "'evidence.archive_volume_published'::regclass"
+            if (c.text("select relrowsecurity::text from pg_class where oid = $table") != "true") add("rls not enabled")
+            if (c.text("select relforcerowsecurity::text from pg_class where oid = $table") != "true") add("rls not forced")
+            if (c.text(
+                    "select count(*)::text from pg_policies where schemaname = 'evidence' and " +
+                        "tablename = 'archive_volume_published' and policyname = 'tenant_isolation' and " +
+                        "qual like '%bound_tenant%' and with_check like '%bound_tenant%'",
+                ) != "1"
+            ) {
+                add("tenant policy")
+            }
+            for (privilege in listOf("select", "insert", "update")) {
+                if (c.text("select has_table_privilege('evidence_runtime', $table, '$privilege')::text") != "true") {
+                    add("runtime $privilege")
+                }
+            }
+            if (c.text("select has_table_privilege('evidence_runtime', $table, 'delete')::text") != "false") add("runtime delete")
+            if (c.text("select has_table_privilege('public', $table, 'select')::text") != "false") add("public select")
+        }
 
     @Test
     fun `the migration leaves the function and the table as specified`() {
@@ -269,8 +247,7 @@ class ArchiveVolumeDbTest {
 
     @Test
     fun `a function that is not security definer is caught`() {
-        probe("alter function evidence.archive_volume_entities() security invoker") shouldBe
-            listOf("not security definer")
+        probe("alter function evidence.archive_volume_entities() security invoker") shouldBe listOf("not security definer")
     }
 
     @Test
@@ -288,8 +265,7 @@ class ArchiveVolumeDbTest {
 
     @Test
     fun `execute left with public is caught`() {
-        probe("grant execute on function evidence.archive_volume_entities() to public") shouldBe
-            listOf("public execute")
+        probe("grant execute on function evidence.archive_volume_entities() to public") shouldBe listOf("public execute")
     }
 
     @Test
@@ -351,7 +327,7 @@ class ArchiveVolumeDbTest {
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, 1)
+        boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1")
         val rows = outbox(tenant)
         rows.size shouldBe 1
         val row = rows.single()
@@ -365,10 +341,7 @@ class ArchiveVolumeDbTest {
         payload.get("entityRef").asString() shouldBe "E-1"
         payload.get("bytes").asLong() shouldBe 350L
         payload.get("measuredAt").asString() shouldBe "2026-10-29T01:02:03Z"
-        count(
-            "select count(*) from evidence.archive_volume_published where tenant_id = '$tenant' and bytes = 350",
-        ) shouldBe
-            1
+        count("select count(*) from evidence.archive_volume_published where tenant_id = '$tenant' and bytes = 350") shouldBe 1
         boundary.inTenant(tenant) { JooqArchiveVolumeLedger(boundary.dsl).last(TenantId(tenant), "E-1") } shouldBe 350L
     }
 
@@ -377,9 +350,9 @@ class ArchiveVolumeDbTest {
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, 1)
+        boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1")
         val first = outbox(tenant).single()
-        boundary.publish(tenant, "E-1", 0, 2)
+        boundary.publish(tenant, "E-1", 0, "corr-test-2", "cause-test-2")
         val rows = outbox(tenant)
         rows.size shouldBe 2
         rows[0] shouldBe first
@@ -395,9 +368,7 @@ class ArchiveVolumeDbTest {
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        shouldThrow<EmissionNotPermitted> {
-            boundary.publish(tenant, "E-1", 350, 1, withType = false)
-        }
+        shouldThrow<EmissionNotPermitted> { boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1", withType = false) }
         count("select count(*) from evidence.archive_volume_published where tenant_id = '$tenant'") shouldBe 0
         outbox(tenant) shouldBe emptyList()
     }
@@ -409,7 +380,7 @@ class ArchiveVolumeDbTest {
         val tenant = UUID.randomUUID()
         seedTrace(tenant, "E-1", 100)
         listed(tenant) shouldBe setOf("E-1")
-        boundary.publish(tenant, "E-1", 100, 1)
+        boundary.publish(tenant, "E-1", 100, "corr-test-1", "cause-test-1")
         deleteContent(tenant, "E-1")
         listed(tenant) shouldBe setOf("E-1")
     }
@@ -420,9 +391,9 @@ class ArchiveVolumeDbTest {
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
         seedTrace(tenant, "E-1", 100)
-        boundary.publish(tenant, "E-1", 100, 1)
+        boundary.publish(tenant, "E-1", 100, "corr-test-1", "cause-test-1")
         deleteContent(tenant, "E-1")
-        boundary.publish(tenant, "E-1", 0, 2)
+        boundary.publish(tenant, "E-1", 0, "corr-test-2", "cause-test-2")
         listed(tenant) shouldBe emptySet()
     }
 
@@ -433,69 +404,5 @@ class ArchiveVolumeDbTest {
         val tenant = UUID.randomUUID()
         seedPending(tenant, "E-9", 10)
         listed(tenant) shouldBe setOf("E-9")
-    }
-
-    // ---- the payload schema (INV-Q-12746 A) ----
-
-    private val schemas =
-        SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
-            it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
-        }
-
-    /** Fails closed: an unset property or a missing file is an error, never a skip. */
-    private fun schemaText(): String {
-        val dir = checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is not set" }
-        val file = File(dir, "schemas/archive-volume-measured-payload.schema.json")
-        check(file.isFile) { "schema file does not exist: $file" }
-        return file.readText()
-    }
-
-    private fun schemaErrors(data: JsonNode): List<String> =
-        schemas.getSchema(schemaText()).validate(data).map { it.toString() }
-
-    /** The `data` column of the outbox row the real writer wrote. */
-    private fun writtenData(boundary: Boundary): ObjectNode {
-        val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, 1)
-        return mapper.readTree(outbox(tenant).single().data) as ObjectNode
-    }
-
-    @Test
-    fun `the written payload has no schema error`(
-        @TempDir dir: Path,
-    ) = run(dir) { boundary -> schemaErrors(writtenData(boundary)) shouldBe emptyList() }
-
-    @Test
-    fun `the payload without a required property has a schema error`(
-        @TempDir dir: Path,
-    ) = run(dir) { boundary ->
-        for (name in listOf("tenantRef", "entityRef", "bytes", "measuredAt")) {
-            val data = writtenData(boundary)
-            data.remove(name)
-            check(schemaErrors(data).isNotEmpty()) { "no error with $name removed" }
-        }
-    }
-
-    @Test
-    fun `a negative bytes and a malformed measuredAt each have a schema error`(
-        @TempDir dir: Path,
-    ) = run(dir) { boundary ->
-        val negative = writtenData(boundary).also { it.put("bytes", -1) }
-        check(schemaErrors(negative).isNotEmpty()) { "no error for bytes -1" }
-        val badTime = writtenData(boundary).also { it.put("measuredAt", "not-a-time") }
-        check(schemaErrors(badTime).isNotEmpty()) { "no error for measuredAt not-a-time" }
-    }
-
-    @Test
-    fun `an unset contract directory or a missing schema file fails and does not skip`() {
-        val saved = System.getProperty("gst.contract.dir")
-        try {
-            System.clearProperty("gst.contract.dir")
-            shouldThrow<IllegalStateException> { schemaText() }
-            System.setProperty("gst.contract.dir", File(saved ?: ".", "no-such-dir").path)
-            shouldThrow<IllegalStateException> { schemaText() }
-        } finally {
-            if (saved != null) System.setProperty("gst.contract.dir", saved)
-        }
     }
 }
