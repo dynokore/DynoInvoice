@@ -43,6 +43,7 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
     jvmArgs("-Duser.timezone=UTC") // CS-41 baseline
+    maxHeapSize = "1g"
 }
 
 val implJar =
