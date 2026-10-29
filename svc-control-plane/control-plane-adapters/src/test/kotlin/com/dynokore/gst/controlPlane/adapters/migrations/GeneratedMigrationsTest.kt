@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.serviceruntime.jobs.JobSchema
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import org.yaml.snakeyaml.Yaml
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -76,6 +77,23 @@ class GeneratedMigrationsTest {
     fun `the audit entry migration is the DDL audit-log generates for the control-plane schema`() {
         check("V202610271110__create_audit_entry.sql", AuditSchema.auditEntryDdl(SCHEMA, RUNTIME))
         rawFeffLines("V202610271110__create_audit_entry.sql") shouldBe 4
+    }
+
+    @Test
+    fun `the audit purge migration is the DDL audit-log generates for the control-plane schema`() {
+        check(
+            "V202610292340__create_audit_purge.sql",
+            AuditSchema.purgeDdl(SCHEMA, RUNTIME, SYS, serviceName()),
+        )
+    }
+
+    /** The value of `gst.service` in the service's application.yaml, the service argument of the purge DDL. */
+    private fun serviceName(): String {
+        val yaml =
+            Path.of(System.getProperty("gst.repo.root"), "control-plane-bootstrap/src/main/resources/application.yaml")
+        val root = Yaml().load<Map<String, Any?>>(Files.readString(yaml))
+        val gst = root["gst"] as Map<*, *>
+        return gst["service"] as String
     }
 
     private companion object {

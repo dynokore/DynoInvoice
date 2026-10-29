@@ -49,6 +49,8 @@ dependencies {
     implementation(libs.platform.serviceRuntime)
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.outboxAndQueue.api)
+    // AuditStager, the build-only half of the audit writer that stages the purge's own entry (INV-Q-4277)
+    implementation(libs.platform.auditLog.api)
     implementation(libs.platform.crypto.api)
     // JcaSigningKey, the signing key over the JCA provider that holds it (INV-Q-7459)
     implementation(libs.platform.crypto)
@@ -105,6 +107,10 @@ dependencies {
         capabilities { requireCapability("com.dynokore.platform:tenancy-jooq-test-fixtures") }
     }
     integrationTestImplementation(libs.platform.crypto)
+    // AuditPurgeIT: the real LocalAuditWriter stager, and the signed-binding runner the purge function checks
+    integrationTestImplementation(libs.platform.auditLog)
+    integrationTestImplementation(libs.platform.tenancyKernel)
+    integrationTestImplementation(libs.platform.tenancyJooq)
 }
 
 // The feed index schema of the pinned platform-contracts release, staged by control-plane-contract, is a classpath
