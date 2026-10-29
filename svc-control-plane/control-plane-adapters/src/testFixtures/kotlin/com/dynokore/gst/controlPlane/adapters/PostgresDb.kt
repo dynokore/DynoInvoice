@@ -17,9 +17,10 @@ import javax.sql.DataSource
  * One PostgreSQL per test JVM. The role family of provisioning (roles.sql, schema.sql) runs once as the container's
  * init script (coordinator ruling INV-Q-5245, route R1); then Flyway applies every migration as controlplane_migrate
  * in version order, the way the migration Job does (TPL-12, twelve-factor dev/prod parity: Flyway drops U+FEFF from
- * the scripts it reads, so the blank checks here are the ones production gets), so no test body issues DDL. Tests act as the runtime login,
- * controlplane_runtime: NOSUPERUSER, NOBYPASSRLS, owns nothing (S2-05, V-01). Catalog and grant probes go through
- * [TenancyProbe], which refuses a superuser or BYPASSRLS session, so a grant assertion cannot pass vacuously.
+ * the scripts it reads, so the blank checks here are the ones production gets), so no test body issues DDL. Tests act
+ * as the runtime login, controlplane_runtime: NOSUPERUSER, NOBYPASSRLS, owns nothing (S2-05, V-01). Catalog and grant
+ * probes go through [TenancyProbe], which refuses a superuser or BYPASSRLS session, so a grant assertion cannot pass
+ * vacuously.
  */
 object PostgresDb {
     private const val RUNTIME_LOGIN = "controlplane_runtime"
