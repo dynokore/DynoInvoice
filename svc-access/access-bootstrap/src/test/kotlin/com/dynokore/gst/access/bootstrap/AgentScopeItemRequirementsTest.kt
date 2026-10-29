@@ -202,7 +202,7 @@ class AgentScopeItemRequirementsTest {
         }
 
     @Test
-    fun `INV-Q-9320 the approver is decided by the live consent, item and agent tenant, the operator by the consent agent`() =
+    fun `INV-Q-9320 the approver is decided by consent, item and agent tenant, the operator by the consent agent`() =
         run { env ->
             val ofOther = env.client(all, consentAgent = "user:other-agent")
             assertThat(env.decide(approver, ofOther, "mapping-pack.approve")).isEqualTo(Decision.DENY)
