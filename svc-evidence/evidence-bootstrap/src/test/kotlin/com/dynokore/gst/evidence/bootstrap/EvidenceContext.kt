@@ -44,6 +44,8 @@ object EvidenceContext {
             "service-runtime.idempotency.schema=evidence",
             "service-runtime.datasource.credential=db/evidence_runtime",
             "gst.bindings.secret-store.mount-root=$mountRoot",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://telemetry-export.invalid:4318",
         )
 
     /**
