@@ -57,7 +57,10 @@ class ComplianceAlertTest {
 
     @Test
     fun `INV-AC-12838 a tier with null daysToDue is ignored`() {
-        ComplianceAlert.decide(values(days = 3), listOf(PolicyTier(1, 7), PolicyTier(2, 3), PolicyTier(5, null))) shouldBe
+        ComplianceAlert.decide(
+            values(days = 3),
+            listOf(PolicyTier(1, 7), PolicyTier(2, 3), PolicyTier(5, null)),
+        ) shouldBe
             Raise(listOf(coverage(), deadline(2)))
     }
 
