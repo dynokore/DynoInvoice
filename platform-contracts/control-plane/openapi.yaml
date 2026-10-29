@@ -347,7 +347,8 @@ paths:
       operationId: purgeAuditEntries
       summary: Purge audit entries older than a cut-off, never younger than the retention floor (INV-REQ-2588, INV-REQ-1378)
       description: 'The caller must hold the permission `audit-entry.purge`; SaaS only serves it. The purge records itself
-        (one audit entry, committed with the delete) and deletes only entries at or before the cut-off. The cut-off must be
+        (one audit entry, committed with the delete) and deletes only entries recorded strictly before the cut-off; an entry
+        recorded exactly at the cut-off is kept. The cut-off must be
         at or before now minus the floor, the longest retention the data regions report; a younger cut-off is refused with
         CPL-001 and a floor that cannot be determined (a region unreachable or returning no figure) with CPL-002, deleting
         nothing in both cases.'
@@ -2063,7 +2064,7 @@ components:
         cutOff:
           type: string
           format: date-time
-          description: Entries at or before this instant are deleted; it must be at or before now minus the floor.
+          description: Entries recorded strictly before this instant are deleted; an entry recorded exactly at this instant is kept. It must be at or before now minus the floor.
         reason:
           type: string
           maxLength: 500
