@@ -57,13 +57,10 @@ class Authorise(
                         }
 
                         it.scope is Scope.ConsentDerived -> {
-                            // the holder's agent tenant is the tenant of the grant's own consent-derived scope
-                            agentScope.permitsClient(
-                                (it.scope as Scope.ConsentDerived).tenant,
-                                target.entity,
-                                permission,
-                                today,
-                            )
+                            // the grant's tenant must equal the target's membership tenant before any consent is read
+                            val holderTenant = (it.scope as Scope.ConsentDerived).tenant
+                            holderTenant == membership.tenant &&
+                                agentScope.permitsClient(holderTenant, target.entity, permission, today)
                         }
 
                         else -> {

@@ -213,6 +213,25 @@ class AgentScopeItemRequirementsTest {
             assertThat(env.decide(approver, withoutConsent, "mapping-pack.approve")).isEqualTo(Decision.DENY)
         }
 
+    @Test
+    fun `INV-Q-11600 an approver whose grant scope names another tenant is refused, the own tenant is allowed`() =
+        run { env ->
+            val other = "user:other-tenant-approver"
+            val ofOtherTenant = env.client(all, consentAgent = "tenant-other")
+            Seeds.grant(
+                env.context,
+                env.tenant,
+                SeedSpec(
+                    other,
+                    Role.TAX_APPROVER,
+                    Scope.ConsentDerived(TenantRef("tenant-other"), env.context.getBean(ConsentCheck::class.java)),
+                ),
+            )
+            val key = "mapping-pack.approve"
+            env.assertDecision(Decision.DENY, other, ofOtherTenant, key, "grant scope of another tenant")
+            env.assertDecision(Decision.ALLOW, approver, env.approverClient(all), key, "own tenant")
+        }
+
     private val readKeys = listOf("submission.view-status", "doc.view.content", "period-readiness.view")
     private val readLookAlikes =
         listOf(
@@ -313,11 +332,11 @@ class AgentScopeItemRequirementsTest {
     fun `INV-Q-8866 A the consent-derived approver is allowed filing_confirm under FILE_GST_RETURN`() =
         run { env ->
             val key = "filing.confirm"
-            env.assertDecision(Decision.ALLOW, approver, env.client(fileOnly), key, "exact item")
-            env.assertDecision(Decision.DENY, approver, env.client(all - fileOnly), key, "two other items")
-            env.assertDecision(Decision.DENY, approver, env.client(emptySet()), key, "nothing held")
+            env.assertDecision(Decision.ALLOW, approver, env.approverClient(fileOnly), key, "exact item")
+            env.assertDecision(Decision.DENY, approver, env.approverClient(all - fileOnly), key, "two other items")
+            env.assertDecision(Decision.DENY, approver, env.approverClient(emptySet()), key, "nothing held")
             env.assertDecision(Decision.DENY, approver, "CLI-NONE", key, "no consent")
-            val withdrawn = env.client(fileOnly)
+            val withdrawn = env.approverClient(fileOnly)
             env.withdraw(env.lastConsentRef)
             env.assertDecision(Decision.DENY, approver, withdrawn, key, "after withdrawal")
         }
