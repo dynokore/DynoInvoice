@@ -52,7 +52,7 @@ object WebhookRetryWindow {
         operatorMaximum: RetryWindow,
     ): RetryWindow = if (stored.hours <= operatorMaximum.hours) stored else operatorMaximum
 
-    /** Retry while [now] is before first attempt plus window; at or after that instant the delivery is dead-lettered. */
+    /** Retry while [now] is before first attempt plus window; at or after it the delivery is dead-lettered. */
     fun next(
         firstAttemptAt: Instant,
         window: RetryWindow,
