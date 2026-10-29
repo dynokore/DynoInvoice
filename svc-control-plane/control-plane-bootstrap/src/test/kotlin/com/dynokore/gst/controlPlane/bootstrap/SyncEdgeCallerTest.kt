@@ -72,6 +72,7 @@ class SyncEdgeCallerTest {
     ) {
         val operations = operations()
         val services = namedCallers(operations)
+        // "-two", not "-2": SERVICE_NAME of WorkloadIdentityProperties, ^[a-z][a-z-]{0,62}$, stops start-up on a digit.
         val lookAlikes = services.map { "$it-two" }
         val problems = mutableListOf<String>()
         run {
@@ -104,6 +105,18 @@ class SyncEdgeCallerTest {
             }
         }
         assertThat(problems).isEmpty()
+    }
+
+    @Test
+    fun `INV-AC-8455 positive control one direct getConnection call raises the count by exactly 1`(
+        @TempDir dir: Path,
+    ) {
+        serve(dir, namedCallers(operations()), loader) { context ->
+            val checks = CallerChecks(context, emptyList(), emptyList())
+            val before = checks.connectionsHandedOut()
+            runCatching { context.getBean(javax.sql.DataSource::class.java).connection.close() }
+            assertThat(checks.connectionsHandedOut()).isEqualTo(before + 1)
+        }
     }
 
     @Test

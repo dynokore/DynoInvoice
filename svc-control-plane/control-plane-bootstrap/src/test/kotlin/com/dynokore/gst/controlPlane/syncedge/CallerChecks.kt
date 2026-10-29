@@ -88,15 +88,17 @@ class CallerChecks(
         what: String,
         headers: Map<String, String>,
     ): String? {
-        val before = stored()
+        val before = connectionsHandedOut()
         val calls = Doubles.reached.size
         val answer = send(operation, headers)
         val good =
-            answer.statusCode() == 403 && "SRT-004" in answer.body() && before == stored() &&
-                Doubles.reached.size == calls
-        return "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(
-            BODY_SHOWN,
-        )}".takeUnless { good }
+            answer.statusCode() == 403 && "SRT-004" in answer.body() && Doubles.reached.size == calls
+        val opened = connectionsHandedOut() != before
+        return when {
+            opened -> "${operation.label} ($what): a refused call opened a database connection"
+            good -> null
+            else -> "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}"
+        }
     }
 
     fun send(
@@ -128,7 +130,7 @@ class CallerChecks(
      * What the service stored: the connections its pool handed out. The refused call must not open one, so no row
      * and no event (the outbox rows are written through the same pool) can have been written.
      */
-    private fun stored(): Map<String, Long> = mapOf("connections" to Doubles.connections.get().toLong())
+    fun connectionsHandedOut(): Int = Doubles.connections.get()
 
     companion object {
         const val EXCEPT = "any-except:"
