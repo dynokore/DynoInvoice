@@ -166,7 +166,8 @@ class AuditPurgeIT {
         adminCount(
             "select count(*) from controlplane.audit_entry where id = '${result.auditEntryId}' and actor = '$ACTOR' " +
                 "and action = 'purgeAuditEntries' and reason = '$REASON' and tenant_id = '$PLATFORM' " +
-                "and (prior_state->>'rowCount')::int = 2 and correlation_id = 'corr-purge' and causation_id = 'cmd-purge'",
+                "and (prior_state->>'rowCount')::int = 2 and correlation_id = 'corr-purge' " +
+                "and causation_id = 'cmd-purge'",
         ) shouldBe 1
         adminCount(
             "select count(*) from controlplane.audit_entry where actor in ('platform.engineer', 'tenant.admin')",
