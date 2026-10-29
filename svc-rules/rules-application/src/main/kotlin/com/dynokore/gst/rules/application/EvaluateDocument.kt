@@ -46,7 +46,12 @@ class EvaluateDocument(
     private val resolver: PackResolver,
     private val evaluator: Evaluator,
     private val packTypes: List<PackType>,
+    private val documentCoder: DocumentCoder? = null,
 ) {
+    /** Codes one side of a document at the command's one date and builds its subtotals (INV-REQ-362, INV-REQ-363). */
+    fun code(command: CodeDocumentCommand): DocumentCodingResult =
+        checkNotNull(documentCoder) { "no DocumentCoder wired" }.code(command)
+
     fun handle(command: EvaluateCommand): EvaluateResult =
         when (val resolution = resolver.resolve(packTypes, command.tenant, command.dates)) {
             is PackResolution.NoPackEffective -> {

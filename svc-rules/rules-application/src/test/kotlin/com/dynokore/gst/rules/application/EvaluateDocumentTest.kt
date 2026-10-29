@@ -1,6 +1,14 @@
 package com.dynokore.gst.rules.application
 
 import com.dynokore.gst.catalogue.ErrorCode
+import com.dynokore.gst.rules.domain.coding.CatalogueEntry
+import com.dynokore.gst.rules.domain.coding.CodeCatalogue
+import com.dynokore.gst.rules.domain.coding.Direction
+import com.dynokore.gst.rules.domain.coding.LineInput
+import com.dynokore.gst.rules.domain.coding.MappingEntry
+import com.dynokore.gst.rules.domain.coding.ScenarioData
+import com.dynokore.gst.rules.domain.coding.SelfBillingAssignment
+import com.dynokore.gst.rules.domain.coding.SubmissionType
 import com.dynokore.gst.rules.domain.evaluation.EvaluationInputs
 import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.evaluation.Rule
@@ -18,6 +26,7 @@ import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 import java.time.LocalDate
 
 /** The evaluation core at the use-case boundary, over the kernel's registry. */
@@ -89,5 +98,30 @@ class EvaluateDocumentTest {
     fun `INV-AC-1728 the same command evaluated twice gives the identical result`() {
         val uc = useCase(mapping("v1", LocalDate.of(2026, 1, 1)))
         uc.handle(command(LocalDate.of(2026, 3, 1))) shouldBe uc.handle(command(LocalDate.of(2026, 3, 1)))
+    }
+
+    @Test
+    fun `code delegates to the wired DocumentCoder at the explicit date`() {
+        val seen = mutableListOf<LocalDate>()
+        val entry = CatalogueEntry("SR", "TEST", "SUPPLY", "9", null, null, null)
+        val self = SelfBillingAssignment(Direction.SALE, SubmissionType.TYPE_1A)
+        val coder =
+            DocumentCoder(
+                { _, d -> seen.add(d.value).let { listOf(MappingEntry("STD", "SR")) } },
+                { _, _ -> CodeCatalogue(true, listOf(entry)) },
+                { _, _ -> ScenarioData(self, self, emptyList(), emptyList()) },
+            )
+        val uc = EvaluateDocument(PackResolver(InMemoryPackRegistry()), Evaluator(emptyList()), emptyList(), coder)
+        val date = LocalDate.of(2026, 3, 1)
+        val result =
+            uc.code(
+                CodeDocumentCommand(
+                    null,
+                    TransactionDate(date),
+                    listOf(DocumentLine("1", BigDecimal("100.00"), LineInput("STD"))),
+                ),
+            )
+        result.shouldBeInstanceOf<DocumentCodingResult.Coded>().document.totalGst shouldBe BigDecimal("9.00")
+        seen shouldBe listOf(date)
     }
 }
