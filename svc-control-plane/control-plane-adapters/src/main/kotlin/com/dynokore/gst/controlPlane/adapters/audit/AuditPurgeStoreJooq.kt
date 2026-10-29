@@ -16,18 +16,6 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** What the request adds to the purge's own audit entry: the reason (the Idempotency-Key) and the request ids. */
-data class AuditPurgeRequest(
-    val reason: String,
-    val correlationId: String,
-    val causationId: String,
-)
-
-/** The request being served; the controller binds it (INV-T-3099). */
-fun interface AuditPurgeRequestSource {
-    fun current(): AuditPurgeRequest
-}
-
 /**
  * The purger port over `controlplane.purge_audit_entries` (INV-T-3984), through the jOOQ DSL. The envelope fields
  * of the purge's own entry are staged here by audit-log's [AuditStager]; the function checks them, sets actor,
