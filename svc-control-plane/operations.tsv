@@ -24,3 +24,4 @@ operation	listAccreditationTasks	INV-T-7323	pending
 operation	getAccreditationTask	INV-T-7323	pending
 operation	concludeAccreditationTask	INV-T-7323	pending
 channel	control-planeExampleHappened	INV-T-4984	done
+operation	purgeAuditEntries	INV-T-3099	pending

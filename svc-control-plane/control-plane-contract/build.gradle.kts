@@ -81,6 +81,20 @@ fun stageContracts() {
 
 stageContracts()
 
+// The contract document ships as a resource (gst/contracts/control-plane/openapi.yaml), as the other services ship theirs:
+// the tests of the request filter (INV-AC-8260) and of the caller check (INV-AC-8455) read the document the code was generated from.
+val contractResources = layout.buildDirectory.dir("contract-resources")
+val stageContractResources =
+    tasks.register<Sync>("stageContractResources") {
+        from(layout.buildDirectory.dir("contracts-repo/.bundle/control-plane")) {
+            include("openapi.yaml")
+            into("gst/contracts/control-plane")
+        }
+        into(contractResources)
+    }
+sourceSets.main { resources.srcDir(contractResources) }
+tasks.named("processResources") { dependsOn(stageContractResources) }
+
 contractServer {
     generatorSource("platform-contracts:control-plane:openapi.yaml")
 }
