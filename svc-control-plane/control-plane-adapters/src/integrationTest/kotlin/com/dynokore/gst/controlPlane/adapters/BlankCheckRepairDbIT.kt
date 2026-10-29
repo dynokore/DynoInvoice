@@ -188,7 +188,7 @@ class BlankCheckRepairDbIT {
                 assertTrue(name in message(refused), message(refused))
                 val twice = insertAudit(connection, column, "$FEFF$FEFF").exceptionOrNull()
                 assertEquals("23514", sqlState(twice!!), column)
-                assertTrue(insertAudit(connection, column, "⁠").isSuccess, column)
+                assertTrue(insertAudit(connection, column, "\u2060").isSuccess, column)
             }
         }
     }
