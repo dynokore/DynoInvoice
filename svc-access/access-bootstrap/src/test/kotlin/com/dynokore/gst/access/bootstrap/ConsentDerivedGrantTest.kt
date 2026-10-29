@@ -80,7 +80,7 @@ class ConsentDerivedGrantTest {
         /** A fresh client entity, with a live consent of [agent] holding [items] when [items] is not null. */
         fun client(
             items: Set<ScopeItem>?,
-            agent: String = "user:agent",
+            agent: String = tenant.toString(),
         ): String {
             val client = "CLI-${next++}"
             context
@@ -169,6 +169,10 @@ class ConsentDerivedGrantTest {
             env.withdraw()
             assertThat(env.decide(withdrawn)).describedAs("after withdrawConsent").isEqualTo(Decision.DENY)
             assertThat(env.decide(live)).describedAs("the other client is unaffected").isEqualTo(Decision.ALLOW)
+            val otherAgent = env.client(all, agent = "user:other-agent")
+            assertThat(env.decide(otherAgent))
+                .describedAs("consent agentRef differs from the holder's agent tenant (INV-Q-9320 A)")
+                .isEqualTo(Decision.DENY)
         }
 
     @Test
