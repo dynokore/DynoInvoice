@@ -80,6 +80,12 @@ tasks.test {
     jvmArgs("-Duser.timezone=UTC") // CS-41 baseline, as platform-libs' modules
 }
 
+// STK-40: the shared pact-publish job runs `pactPublish` alone, where no pact file exists yet. With a broker URL the task
+// first runs the tests that write build/pacts; without one it still does nothing (gst.pact's onlyIf).
+if (!System.getProperty("pact.broker.url").isNullOrBlank()) {
+    tasks.named("pactPublish") { dependsOn(tasks.test) }
+}
+
 // STK-53: the builder, run image and buildpacks come from gst.bootstrap (platform-build's catalogue, pinned by digest);
 // this block sets only the JVM version and the AOT cache. SOURCE_DATE_EPOCH comes from ci/image's build-image job (STK-72).
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("bootBuildImage") {
