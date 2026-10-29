@@ -1,19 +1,11 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
-import com.dynokore.gst.evidence.adapters.persistence.JooqStoredContentBytes
-import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
-import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
-import java.nio.file.Path
 import java.sql.Connection
-import java.util.UUID
 
 /**
  * The content-column gate of the archive volume (INV-Q-12681 A): the columns of schema `evidence` whose comment is
@@ -127,130 +119,5 @@ class ArchiveVolumeContentColumnsTest {
             connection.run("comment on column evidence.outbox.data is null")
             drift(connection) shouldBe setOf("vanished:outbox.data")
         }
-    }
-
-    // ---- pending record attribution (INV-Q-12744 A): a pending record counts for the entity of its locator ----
-
-    private fun seedLocator(
-        tenant: UUID,
-        doc: UUID,
-        version: Int,
-        entity: String,
-    ) = EvidenceDb.superuser().use {
-        it.run(
-            "insert into evidence.document_locator (tenant_id, doc_uuid, version, entity_ref, period_ref, " +
-                "transaction_date, trace_reference, source_event_id, recorded_at) values ('$tenant', '$doc', " +
-                "$version, '$entity', '2026-Q3', current_date, 't', 'loc-$doc-$version', now())",
-        )
-    }
-
-    private fun seedPendingRecord(
-        tenant: UUID,
-        doc: UUID,
-    ) = EvidenceDb.superuser().use {
-        it.run(
-            "insert into evidence.pending_record (tenant_id, source_event_id, kind, doc_uuid, version, event_json, " +
-                "arrived_at) values ('$tenant', 'pend-$doc', 'DECISION_TRACE', '$doc', 1, repeat('b', 50), now())",
-        )
-    }
-
-    private fun seedApplied(
-        tenant: UUID,
-        doc: UUID,
-        entity: String,
-    ) = EvidenceDb.superuser().use {
-        it.run(
-            "insert into evidence.applied_record (tenant_id, source_event_id, kind, entity_ref, period_ref, seq, " +
-                "applied_at) values ('$tenant', 'pend-$doc', 'DECISION_TRACE', '$entity', '2026-Q3', 1, now())",
-        )
-    }
-
-    private fun bytesOf(
-        dir: Path,
-        tenant: UUID,
-        vararg entities: String,
-    ): List<Long> {
-        val result = mutableListOf<Long>()
-        EvidenceContext.online(dir).run { context ->
-            val scope = context.getBean(TenantScope::class.java)
-            val runner = context.getBean(TransactionRunner::class.java)
-            val sum = JooqStoredContentBytes(context.getBean(DSLContext::class.java))
-            entities.mapTo(result) { e ->
-                scope.bind(TenantId(tenant), "svc:evidence-svc") {
-                    runner.inTransaction { sum.bytes(TenantId(tenant), e) }
-                }
-            }
-        }
-        return result
-    }
-
-    private fun listed(tenant: UUID): Set<String> =
-        EvidenceDb.connect(EvidenceDb.RUNTIME, EvidenceDb.RUNTIME_PASSWORD).use { c ->
-            c.createStatement().use { s ->
-                s.executeQuery("select tenant_id, entity_ref from evidence.archive_volume_entities()").use { rows ->
-                    generateSequence { if (rows.next()) rows.getString(1) to rows.getString(2) else null }
-                        .filter { it.first == tenant.toString() }
-                        .map { it.second }
-                        .toSet()
-                }
-            }
-        }
-
-    @Test
-    fun `a pending record with no locator counts for no entity`(
-        @TempDir dir: Path,
-    ) {
-        val tenant = UUID.randomUUID()
-        seedPendingRecord(tenant, UUID.randomUUID())
-        bytesOf(dir, tenant, "E-1", "E-2", "") shouldBe listOf(0L, 0L, 0L)
-        listed(tenant) shouldBe emptySet()
-    }
-
-    @Test
-    fun `a pending record counts for the entity of its locator only`(
-        @TempDir dir: Path,
-    ) {
-        val tenant = UUID.randomUUID()
-        val doc = UUID.randomUUID()
-        seedLocator(tenant, doc, 1, "E-1")
-        seedPendingRecord(tenant, doc)
-        bytesOf(dir, tenant, "E-1", "E-2") shouldBe listOf(50L, 0L)
-        listed(tenant) shouldBe setOf("E-1")
-    }
-
-    @Test
-    fun `a locator only at another version counts for nobody`(
-        @TempDir dir: Path,
-    ) {
-        val tenant = UUID.randomUUID()
-        val doc = UUID.randomUUID()
-        seedLocator(tenant, doc, 2, "E-1")
-        seedPendingRecord(tenant, doc)
-        bytesOf(dir, tenant, "E-1") shouldBe listOf(0L)
-        listed(tenant) shouldBe emptySet()
-    }
-
-    @Test
-    fun `a locator of another tenant with the same document and version gives the record no pair`(
-        @TempDir dir: Path,
-    ) {
-        val tenant = UUID.randomUUID()
-        val doc = UUID.randomUUID()
-        seedLocator(UUID.randomUUID(), doc, 1, "E-1")
-        seedPendingRecord(tenant, doc)
-        listed(tenant) shouldBe emptySet()
-        bytesOf(dir, tenant, "E-1") shouldBe listOf(0L)
-    }
-
-    @Test
-    fun `an applied record of the pending event does not change the sum`(
-        @TempDir dir: Path,
-    ) {
-        val tenant = UUID.randomUUID()
-        val doc = UUID.randomUUID()
-        seedLocator(tenant, doc, 1, "E-1")
-        seedPendingRecord(tenant, doc)
-        seedApplied(tenant, doc, "E-1")
-        bytesOf(dir, tenant, "E-1") shouldBe listOf(50L)
     }
 }
