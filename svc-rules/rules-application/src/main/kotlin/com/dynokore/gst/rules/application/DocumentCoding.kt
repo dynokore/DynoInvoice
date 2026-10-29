@@ -12,7 +12,10 @@ import com.dynokore.platform.tenancykernel.TenantId
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-/** One side's document to code. [date] is the one resolution date: the caller passes the preceding date for a credit note. */
+/**
+ * One side's document to code. [date] is the one resolution date: the caller passes the preceding document's date
+ * for a credit note.
+ */
 data class CodeDocumentCommand(
     val tenant: TenantId?,
     val date: TransactionDate,
@@ -55,7 +58,7 @@ sealed interface DocumentCodingResult {
         val document: CodedDocument,
     ) : DocumentCodingResult
 
-    /** No version of the pack is effective on the date: RUL-002 (INV-REQ-362), nothing coded against another version. */
+    /** No version of the pack is effective on the date: RUL-002 (INV-REQ-362); nothing is coded against another one. */
     data class Refused(
         val code: ErrorCode,
         val packType: PackType,
@@ -84,52 +87,62 @@ class DocumentCoder(
 ) {
     fun code(command: CodeDocumentCommand): DocumentCodingResult {
         val date = command.date
-        val mapping =
-            mappings.mappingAt(command.tenant, date) ?: return refused(PackTypes.MAPPING, date)
-        val catalogue =
-            catalogues.catalogueAt(command.tenant, date) ?: return refused(PackTypes.CODE_CATALOGUE, date)
-        val scenario =
-            scenarios.scenarioAt(command.tenant, date) ?: return refused(PackTypes.SCENARIO, date)
-        val coder = LineCoder(mapping, catalogue, scenario)
+        val mapping = mappings.mappingAt(command.tenant, date)
+        val catalogue = catalogues.catalogueAt(command.tenant, date)
+        val scenario = scenarios.scenarioAt(command.tenant, date)
+        return mapping?.let { m ->
+            catalogue?.let { c ->
+                scenario?.let { sc -> codeWith(command, LineCoder(m, c, sc), c) }
+            }
+        } ?: DocumentCodingResult.Refused(
+            ErrorCode.RUL_002,
+            if (mapping ==
+                null
+            ) {
+                PackTypes.MAPPING
+            } else if (catalogue == null) {
+                PackTypes.CODE_CATALOGUE
+            } else {
+                PackTypes.SCENARIO
+            },
+            date,
+        )
+    }
 
+    private fun codeWith(
+        command: CodeDocumentCommand,
+        coder: LineCoder,
+        catalogue: CodeCatalogue,
+    ): DocumentCodingResult {
         val codings = command.lines.map { it to coder.code(it.input) }
         val refusals =
             codings
                 .mapNotNull { (line, coding) -> (coding as? LineCoding.Refused)?.let { line.lineId to it.code } }
                 .toMap()
-        if (refusals.isNotEmpty()) return DocumentCodingResult.LinesRefused(refusals)
-
-        val coded =
-            codings.map { (line, coding) ->
-                val c = coding as LineCoding.Coded
-                CodedDocumentLine(line.lineId, line.amount, c.categoryCode, rateOf(c, catalogue))
-            }
-        return DocumentCodingResult.Coded(build(coded))
+        return if (refusals.isNotEmpty()) {
+            DocumentCodingResult.LinesRefused(refusals)
+        } else {
+            val coded =
+                codings.map { (line, coding) ->
+                    val c = coding as LineCoding.Coded
+                    CodedDocumentLine(line.lineId, line.amount, c.categoryCode, rateOf(c, catalogue))
+                }
+            DocumentCodingResult.Coded(build(coded))
+        }
     }
-
-    private fun refused(
-        packType: PackType,
-        date: TransactionDate,
-    ) = DocumentCodingResult.Refused(ErrorCode.RUL_002, packType, date)
 
     private fun rateOf(
         coded: LineCoding.Coded,
         catalogue: CodeCatalogue,
     ): BigDecimal {
         val fixed = coded.rate
-        if (fixed != null &&
-            !coded.prevailingRate
-        ) {
-            return numeric(fixed, "rate of the treatment for ${coded.categoryCode}")
+        val entry = catalogue.entryOf(coded.categoryCode)
+        return when {
+            fixed != null && !coded.prevailingRate -> numeric(fixed, "rate of the treatment for ${coded.categoryCode}")
+            entry == null -> throw DocumentCodingFailure("code ${coded.categoryCode} is not in the catalogue")
+            entry.annexERate != NOT_APPLICABLE -> numeric(entry.annexERate, "annexERate of ${entry.code}")
+            else -> numeric(entry.submissionRate ?: "", "submissionRate of ${entry.code} (annexERate is NA)")
         }
-        val entry =
-            catalogue.entryOf(coded.categoryCode)
-                ?: throw DocumentCodingFailure("code ${coded.categoryCode} is not in the catalogue")
-        if (entry.annexERate != NOT_APPLICABLE) return numeric(entry.annexERate, "annexERate of ${entry.code}")
-        val submission =
-            entry.submissionRate
-                ?: throw DocumentCodingFailure("annexERate of ${entry.code} is NA and has no submissionRate")
-        return numeric(submission, "submissionRate of ${entry.code}")
     }
 
     private fun numeric(
