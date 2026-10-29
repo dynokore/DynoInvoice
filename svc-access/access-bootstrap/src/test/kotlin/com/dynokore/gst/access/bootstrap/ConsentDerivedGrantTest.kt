@@ -25,9 +25,14 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
+import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -42,6 +47,10 @@ class ConsentDerivedGrantTest {
     private val signatory = "user:signatory"
     private val scopeText = "consent:$tenant"
     private val all = ScopeItem.entries.toSet()
+
+    // noon in Singapore: the business date equals the UTC date, and every date of the test is derived from this clock
+    private val clock: Clock = Clock.fixed(Instant.parse("2026-10-30T04:00:00Z"), ZoneOffset.UTC)
+    private val today: LocalDate = LocalDate.now(clock)
 
     private inner class Env(
         val context: AssertableWebApplicationContext,
@@ -64,8 +73,8 @@ class ConsentDerivedGrantTest {
                             approver,
                             "tax.approver",
                             scope,
-                            LocalDate.now().minusDays(1),
-                            LocalDate.now().plusDays(30),
+                            today.minusDays(1),
+                            today.plusDays(30),
                         ),
                     )
             }
@@ -74,6 +83,14 @@ class ConsentDerivedGrantTest {
             tenants.bind(tenant, admin) {
                 context.getBean(TransactionRunner::class.java).inTransaction {
                     context.getBean(GrantRepository::class.java).findByIdentity(IdentityRef(approver))
+                }
+            }
+
+        /** The number of rows of [table] the bound tenant sees (row-level security limits the count to it). */
+        fun count(table: String): Int =
+            tenants.bind(tenant, admin) {
+                context.getBean(TransactionRunner::class.java).inTransaction {
+                    context.getBean(DSLContext::class.java).fetchCount(DSL.table(DSL.name("access", table)))
                 }
             }
 
@@ -98,7 +115,7 @@ class ConsentDerivedGrantTest {
                         GrantConsentRequest(
                             clientRef = client,
                             agentRef = agent,
-                            validFrom = LocalDate.of(2026, 1, 1),
+                            validFrom = today.minusDays(1),
                             authorisingPersonEmail = "director@client.example",
                             submitInvoiceData = ScopeItem.SUBMIT_INVOICE_DATA in items,
                             fileGstReturn = ScopeItem.FILE_GST_RETURN in items,
@@ -131,10 +148,15 @@ class ConsentDerivedGrantTest {
     }
 
     private fun run(block: (Env) -> Unit) {
-        BoundaryFixture.runner(catalogueMatrix = true, requirements = null).run { context ->
-            context.startupFailure?.let { throw it }
-            block(Env(context))
-        }
+        BoundaryFixture
+            .runner(catalogueMatrix = true, requirements = null)
+            .withAllowBeanDefinitionOverriding(true)
+            .withBean("clock", Clock::class.java, { clock })
+            .run { context ->
+                context.startupFailure?.let { throw it }
+                assertThat(context.getBean(Clock::class.java)).isSameAs(clock)
+                block(Env(context))
+            }
     }
 
     @Test
@@ -180,6 +202,8 @@ class ConsentDerivedGrantTest {
         run { env ->
             val idp = env.context.getBean(IdpGroupController::class.java)
             val principals = env.context.getBean(PrincipalsController::class.java)
+            val tables = listOf("role_grant", "idp_group_mapping", "service_principal")
+            val before = tables.associateWith { env.count(it) }
             val refusals =
                 listOf(
                     {
@@ -202,6 +226,7 @@ class ConsentDerivedGrantTest {
                     .hasMessageContaining("SRT-001")
                     .hasMessageContaining("scope is not supported")
             }
+            assertThat(tables.associateWith { env.count(it) }).isEqualTo(before)
             assertThat(env.rows()).isEmpty()
         }
 }
