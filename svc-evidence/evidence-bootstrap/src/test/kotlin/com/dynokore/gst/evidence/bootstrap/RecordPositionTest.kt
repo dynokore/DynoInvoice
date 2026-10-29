@@ -369,24 +369,26 @@ class RecordPositionTest {
     fun `with gst db event-log-url naming another database the position is written there and the application database holds no eventlog schema`(
         version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = EvidenceDb.withScratchDatabase(EventLogDb.setup(), version = version) { eventLogUrl ->
-        EvidenceDb.withScratchDatabase("", version = version) { appUrl ->
-            (appUrl == eventLogUrl) shouldBe false
-            EvidenceContext
-                .online(dir)
-                .withPropertyValues("spring.datasource.url=$appUrl", "gst.db.event-log-url=$eventLogUrl")
-                .run { context ->
-                    context.containsBean(ServiceDataSources.EVENT_LOG) shouldBe true
-                    val env = Env(context, appUrl, eventLogUrl)
-                    env.emitAudit("au-1")
-                    env.auditConsumer.pollOnce().applied shouldBe 1
-                    val committed = env.committed(audit)
-                    env.position(audit) shouldBe committed
-                    env.position(audit) shouldBeLessThanOrEqual committed
-                    env.count(
-                        "select count(*) from information_schema.schemata where schema_name = 'eventlog'",
-                    ) shouldBe 0
-                }
+    ) {
+        EvidenceDb.withScratchDatabase(EventLogDb.setup(), version = version) { eventLogUrl ->
+            EvidenceDb.withScratchDatabase("", version = version) { appUrl ->
+                (appUrl == eventLogUrl) shouldBe false
+                EvidenceContext
+                    .online(dir)
+                    .withPropertyValues("spring.datasource.url=$appUrl", "gst.db.event-log-url=$eventLogUrl")
+                    .run { context ->
+                        context.containsBean(ServiceDataSources.EVENT_LOG) shouldBe true
+                        val env = Env(context, appUrl, eventLogUrl)
+                        env.emitAudit("au-1")
+                        env.auditConsumer.pollOnce().applied shouldBe 1
+                        val committed = env.committed(audit)
+                        env.position(audit) shouldBe committed
+                        env.position(audit) shouldBeLessThanOrEqual committed
+                        env.count(
+                            "select count(*) from information_schema.schemata where schema_name = 'eventlog'",
+                        ) shouldBe 0
+                    }
+            }
         }
     }
 }
