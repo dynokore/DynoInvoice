@@ -36,7 +36,7 @@ import java.util.UUID
 
 /**
  * The archive-volume store against a real database (P109), on the TPL-18 context over the `evidence_runtime` login:
- * the catalogue shape of `V8__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
+ * the catalogue shape of `V7__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
  * transactional publication through the real outbox writer (INV-Q-12683 A, INV-Q-12736 A).
  */
 class ArchiveVolumeDbTest {
