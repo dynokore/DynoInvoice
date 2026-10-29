@@ -38,6 +38,10 @@ class EventPayloadContractTest {
                 """.trimMargin(),
             "PriorSubmissionEvidenceImported" to PRIOR_IMPORTED,
             "ExampleHappened" to """{"entityRef":"E-001"}""",
+            "ArchiveVolumeMeasured" to
+                """{"tenantRef":"00000000-0000-0000-0000-000000000001","entityRef":"E-001","bytes":1024,
+                |"measuredAt":"2026-10-29T01:30:00Z"}
+                """.trimMargin(),
         )
 
     private fun map(value: Any?): Map<String, Any?> {
