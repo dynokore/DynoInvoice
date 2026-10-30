@@ -114,27 +114,17 @@ object RetryPlanner {
     private val ACCEPTING = setOf(LifecycleState.QUEUED, LifecycleState.RETRY)
     private val RAISED = listOf(Raise(RetryCode.SUB_001))
 
-    fun onTransientFailure(input: FailureInput): FailureResult =
-        when {
-            input.state !in ACCEPTING -> FailureResult.Anomaly(AnomalyReason.FAILURE_IN_STATE)
-            input.boundary == null -> deadLetter(input, DeadLetterReason.BOUNDARY_MISSING)
-            else -> plan(input, input.boundary)
-        }
-
-    private fun plan(
-        input: FailureInput,
-        boundary: Duration,
-    ): FailureResult {
+    fun onTransientFailure(input: FailureInput): FailureResult {
+        if (input.state !in ACCEPTING) return FailureResult.Anomaly(AnomalyReason.FAILURE_IN_STATE)
+        val boundary =
+            input.boundary ?: return deadLetter(input, DeadLetterReason.BOUNDARY_MISSING)
         val attempt = input.failures + 1
         val half = ceilingMillis(input.policy, attempt) / 2
         val delay = half + (input.jitter * half).toLong()
         val nextAttemptAt = input.now.plusMillis(delay)
         val windowEnd = (input.firstFailureAt ?: input.now).plus(boundary)
-        return if (nextAttemptAt.isAfter(windowEnd)) {
-            deadLetter(input, DeadLetterReason.RETRY_WINDOW_EXHAUSTED)
-        } else {
-            FailureResult.Retry(input.docUuid, input.version, input.state, attempt, nextAttemptAt, RAISED)
-        }
+        if (nextAttemptAt.isAfter(windowEnd)) return deadLetter(input, DeadLetterReason.RETRY_WINDOW_EXHAUSTED)
+        return FailureResult.Retry(input.docUuid, input.version, input.state, attempt, nextAttemptAt, RAISED)
     }
 
     fun onReplay(
@@ -145,17 +135,10 @@ object RetryPlanner {
         require(docUuid.isNotBlank()) { "docUuid must not be blank" }
         require(version >= 1) { "version must be at least 1" }
         return when (state) {
-            LifecycleState.DEAD_LETTERED -> {
+            LifecycleState.DEAD_LETTERED ->
                 ReplayResult.Replayed(docUuid, version, LifecycleState.DEAD_LETTERED, LifecycleState.QUEUED)
-            }
-
-            LifecycleState.QUEUED -> {
-                ReplayResult.Unchanged
-            }
-
-            else -> {
-                ReplayResult.Anomaly(AnomalyReason.REPLAY_IN_STATE)
-            }
+            LifecycleState.QUEUED -> ReplayResult.Unchanged
+            else -> ReplayResult.Anomaly(AnomalyReason.REPLAY_IN_STATE)
         }
     }
 
