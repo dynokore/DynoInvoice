@@ -74,6 +74,23 @@ class CalendarPackDecoderTest {
     ): CalendarPackDecoding.Refused =
         decoder.decode(payload(contents, packType)).shouldBeInstanceOf<CalendarPackDecoding.Refused>()
 
+    private fun date(text: String) = LocalDate.parse(text)
+
+    private fun entrySource(
+        contents: ObjectNode,
+        sourceClass: String,
+    ) {
+        contents
+            .putArray("entrySources")
+            .addObject()
+            .put("section", "finalReturnForm")
+            .put("sourceClass", sourceClass)
+            .put("sourceReference", "IRAS")
+    }
+
+    private fun refusedItem(payloadJson: String): String =
+        decoder.decode(payloadJson).shouldBeInstanceOf<CalendarPackDecoding.Refused>().item
+
     private fun withThresholdsAndMargin(): ObjectNode {
         val c = base()
         c.putObject("alertThresholds").also {
@@ -96,15 +113,15 @@ class CalendarPackDecoderTest {
     )
 
     @Test
-    fun `INV-AC-13079 INV-AC-113 INV-AC-153 the decoded pack carries the payload version and generates the periods and forms of its fixture`() {
+    fun `INV-AC-13079 INV-AC-113 INV-AC-153 the pack has the payload version and generates its fixture periods`() {
         val decoded = pack(base())
         decoded.version shouldBe "2026.1"
         val generator = PackPeriodGenerator(decoded)
         val periods = generator.generate(request("2026-01-01"))
         periods.map { listOf(it.start, it.end, it.returnForm, it.dueDate) }.take(2) shouldContainExactly
             listOf(
-                listOf(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-03-31"), "F5", LocalDate.parse("2026-04-30")),
-                listOf(LocalDate.parse("2026-04-01"), LocalDate.parse("2026-06-30"), "F5", LocalDate.parse("2026-07-31")),
+                listOf(date("2026-01-01"), date("2026-03-31"), "F5", date("2026-04-30")),
+                listOf(date("2026-04-01"), date("2026-06-30"), "F5", date("2026-07-31")),
             )
         val last = generator.generate(request("2026-01-01", "2026-08-15")).last()
         last.start shouldBe LocalDate.parse("2026-07-01")
@@ -117,15 +134,15 @@ class CalendarPackDecoderTest {
         listOf("Calendar", "calendar-pack", "CALENDAR", " calendar", "calendar ", "", "rate").forEach {
             refusal(base(), it).item shouldBe "packType"
         }
-        decoder.decode("""{"version":"1","artefact":{"contents":${base()}}}""").shouldBeInstanceOf<CalendarPackDecoding.Refused>().item shouldBe "packType"
-        decoder.decode("""{"packType":1,"version":"1"}""").shouldBeInstanceOf<CalendarPackDecoding.Refused>().item shouldBe "packType"
+        refusedItem("""{"version":"1","artefact":{"contents":${base()}}}""") shouldBe "packType"
+        refusedItem("""{"packType":1,"version":"1"}""") shouldBe "packType"
     }
 
     @Test
     fun `a payload without a version, without contents or not JSON is refused`() {
-        decoder.decode("""{"packType":"calendar","artefact":{"contents":${base()}}}""").shouldBeInstanceOf<CalendarPackDecoding.Refused>().item shouldBe "version"
-        decoder.decode("""{"packType":"calendar","version":"1","artefact":{}}""").shouldBeInstanceOf<CalendarPackDecoding.Refused>().item shouldBe "artefact.contents"
-        decoder.decode("not json").shouldBeInstanceOf<CalendarPackDecoding.Refused>().item shouldBe "payload"
+        refusedItem("""{"packType":"calendar","artefact":{"contents":${base()}}}""") shouldBe "version"
+        refusedItem("""{"packType":"calendar","version":"1","artefact":{}}""") shouldBe "artefact.contents"
+        refusedItem("not json") shouldBe "payload"
     }
 
     @Test
@@ -183,7 +200,7 @@ class CalendarPackDecoderTest {
     }
 
     @Test
-    fun `INV-AC-13078 INV-AC-109 INV-AC-203 the thresholds of each frequency are returned for its own frequency and the first monthly item is 5`() {
+    fun `INV-AC-13078 INV-AC-109 INV-AC-203 thresholds are returned per own frequency, first MONTHLY item 5`() {
         val decoded = pack(withThresholdsAndMargin())
         decoded.defaultAlertThresholds(monthly) shouldContainExactly listOf(5, 2)
         decoded.defaultAlertThresholds(quarterly) shouldContainExactly listOf(10, 5)
@@ -191,7 +208,7 @@ class CalendarPackDecoderTest {
     }
 
     @Test
-    fun `INV-AC-13078 a list that is not strictly descending or a key that is not a window key is refused naming the constructor message`() {
+    fun `INV-AC-13078 a list not strictly descending or a key not in windows is refused by the constructor`() {
         val ascending = withThresholdsAndMargin()
         (ascending.get("alertThresholds") as ObjectNode).putArray("QUARTERLY").add(5).add(10)
         refusal(ascending).let {
@@ -207,7 +224,7 @@ class CalendarPackDecoderTest {
     }
 
     @Test
-    fun `INV-AC-13077 INV-AC-2265 the margin is Duration ofDays 10 for DAYS and Duration ofHours 48 for HOURS and none without it`() {
+    fun `INV-AC-13077 INV-AC-2265 the margin is ofDays 10 for DAYS and ofHours 48 for HOURS and none without it`() {
         pack(withThresholdsAndMargin()).defaultSafetyMargin() shouldBe Duration.ofDays(10)
         val hours = base()
         hours.putObject("safetyMargin").put("value", 48).put("unit", "HOURS")
@@ -229,10 +246,10 @@ class CalendarPackDecoderTest {
     fun `an entrySources array is checked by the schema and decodes to a pack equal to the one without it`() {
         val without = withThresholdsAndMargin()
         val with = without.deepCopy()
-        with.putArray("entrySources").addObject().put("section", "finalReturnForm").put("sourceClass", "PRIMARY").put("sourceReference", "IRAS")
+        entrySource(with, "PRIMARY")
         sameFields(pack(with), pack(without))
         val broken = without.deepCopy()
-        broken.putArray("entrySources").addObject().put("section", "finalReturnForm").put("sourceClass", "primary").put("sourceReference", "IRAS")
+        entrySource(broken, "primary")
         refusal(broken).item shouldContain "entrySources"
     }
 

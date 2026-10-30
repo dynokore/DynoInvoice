@@ -44,26 +44,35 @@ class CalendarPackDecoder(
     private val schema: Schema = contentsSchema(),
 ) {
     /** Decodes a whole RulePackStaged payload given as JSON text. */
-    fun decode(payloadJson: String): CalendarPackDecoding {
+    fun decode(payloadJson: String): CalendarPackDecoding =
+        try {
+            val (version, contents) = envelope(payloadJson)
+            decodeContents(version, contents)
+        } catch (e: PackRefusal) {
+            CalendarPackDecoding.Refused(e.item, e.message)
+        }
+
+    /** The version and the `artefact.contents` of a payload of [PACK_TYPE]; a [PackRefusal] otherwise. */
+    private fun envelope(payloadJson: String): Pair<String, JsonNode> {
         val payload =
             try {
                 mapper.readTree(payloadJson)
             } catch (e: tools.jackson.core.JacksonException) {
-                return refused("payload", "the payload is not JSON: ${e.originalMessage}")
+                throw PackRefusal("payload", "the payload is not JSON: ${e.originalMessage}")
             }
-        if (!payload.isObject) return refused("payload", "the payload is not a JSON object")
+        if (!payload.isObject) throw PackRefusal("payload", "the payload is not a JSON object")
         val packType = payload.get("packType")
         if (packType == null || !packType.isString || packType.asString() != PACK_TYPE) {
-            return refused("packType", "the decoder applies only to packType $PACK_TYPE, found ${packType ?: "none"}")
+            throw PackRefusal("packType", "only packType $PACK_TYPE is decoded, found ${packType ?: "none"}")
         }
         val version = payload.get("version")
         if (version == null || !version.isString || version.asString().isBlank()) {
-            return refused("version", "the payload has no version")
+            throw PackRefusal("version", "the payload has no version")
         }
         val contents =
             payload.get("artefact")?.get("contents")
-                ?: return refused("artefact.contents", "the payload has no artefact.contents")
-        return decodeContents(version.asString(), contents)
+                ?: throw PackRefusal("artefact.contents", "the payload has no artefact.contents")
+        return version.asString() to contents
     }
 
     private fun decodeContents(
@@ -83,7 +92,7 @@ class CalendarPackDecoder(
         } catch (e: DateTimeParseException) {
             refused("contents", "not a date: ${e.parsedString}")
         } catch (e: IllegalArgumentException) {
-            // The CalendarPack constructor refuses what no schema expresses (thresholds, weekend); its message names it.
+            // The CalendarPack constructor refuses what no schema expresses; its message names the item.
             refused("CalendarPack", e.message ?: "refused by CalendarPack")
         }
     }
@@ -98,7 +107,10 @@ class CalendarPackDecoder(
         windows.forEach { (frequency, list) ->
             list.forEachIndexed { index, w ->
                 if (w.returnForm !in dueRules) {
-                    throw PackRefusal("contents/windows/${frequency.code}/$index", "return form ${w.returnForm} has no due rule")
+                    throw PackRefusal(
+                        "contents/windows/${frequency.code}/$index",
+                        "return form ${w.returnForm} has no due rule",
+                    )
                 }
             }
         }
@@ -124,13 +136,21 @@ class CalendarPackDecoder(
                     val at = "contents/windows/$code/$index"
                     val start = LocalDate.parse(w.get("start").asString())
                     val end = LocalDate.parse(w.get("end").asString())
-                    if (end.isBefore(start)) throw PackRefusal("$at/end", "the window ends $end, before it starts $start")
+                    if (end.isBefore(
+                            start,
+                        )
+                    ) {
+                        throw PackRefusal("$at/end", "the window ends $end, before it starts $start")
+                    }
                     StandardWindow(start, end, w.get("returnForm").asString())
                 }
             val sorted = list.sortedBy { it.start }
             sorted.zipWithNext().forEach { (a, b) ->
                 if (!a.end.isBefore(b.start)) {
-                    throw PackRefusal("contents/windows/$code", "the windows ${a.start}..${a.end} and ${b.start}..${b.end} overlap")
+                    throw PackRefusal(
+                        "contents/windows/$code",
+                        "the windows ${a.start}..${a.end} and ${b.start}..${b.end} overlap",
+                    )
                 }
             }
             FilingFrequency(code) to list
@@ -138,15 +158,26 @@ class CalendarPackDecoder(
 
     private fun dueRules(node: JsonNode): Map<String, DueRule> =
         node.properties().associate { (form, r) ->
-            form to DueRule(r.get("monthsAfterEnd").asInt(), r.get("endOfMonth").asBoolean(), r.get("daysAfterEnd").asInt())
+            form to
+                DueRule(r.get("monthsAfterEnd").asInt(), r.get("endOfMonth").asBoolean(), r.get("daysAfterEnd").asInt())
         }
 
     private fun weekend(node: JsonNode): Set<DayOfWeek> = node.values().map { DayOfWeek.valueOf(it.asString()) }.toSet()
 
-    private fun holidays(node: JsonNode?): Set<LocalDate> = node?.values()?.map { LocalDate.parse(it.asString()) }?.toSet().orEmpty()
+    private fun holidays(node: JsonNode?): Set<LocalDate> =
+        node
+            ?.values()
+            ?.map {
+                LocalDate.parse(it.asString())
+            }?.toSet()
+            .orEmpty()
 
     private fun alertThresholds(node: JsonNode?): Map<FilingFrequency, List<Int>> =
-        node?.properties()?.associate { (code, days) -> FilingFrequency(code) to days.values().map { it.asInt() } }.orEmpty()
+        node
+            ?.properties()
+            ?.associate { (code, days) ->
+                FilingFrequency(code) to days.values().map { it.asInt() }
+            }.orEmpty()
 
     /** DAYS by [Duration.ofDays], HOURS by [Duration.ofHours] (INV-Q-6554). */
     private fun margin(node: JsonNode): Duration {

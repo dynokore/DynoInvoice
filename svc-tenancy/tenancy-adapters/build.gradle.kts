@@ -37,7 +37,12 @@ val stageRulesSchemas =
     }
 
 sourceSets.main {
-    resources.srcDir(layout.buildDirectory.dir("generated/rules-schemas").map { it.asFile }.get())
+    resources.srcDir(
+        layout.buildDirectory
+            .dir("generated/rules-schemas")
+            .map { it.asFile }
+            .get(),
+    )
 }
 
 tasks.named("processResources") { dependsOn(stageRulesSchemas) }
