@@ -9,9 +9,12 @@ import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.application.digest.DigestObjects
 import com.dynokore.gst.evidence.application.digest.MaxRetention
 import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
+import com.dynokore.gst.evidence.application.integrity.ChainVerification
+import com.dynokore.gst.evidence.application.integrity.DigestCopies
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
 import com.dynokore.platform.outboxandqueue.EventHandler
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import org.jooq.DSLContext
 import java.time.Clock
 
@@ -63,5 +66,22 @@ object ChainWiring {
     ): EventHandler =
         GstReturnRecordedHandler(
             PeriodDigestRecorder(JooqChainTails(dsl), JooqPeriodDigestStore(dsl), objects, retention, clock),
+        )
+
+    /** The routine verification of the chains (INV-Q-7251 A (4)), to run in a tenant transaction per period. */
+    fun chainVerification(
+        dsl: DSLContext,
+        copies: DigestCopies,
+        outbox: OutboxWriter,
+        clock: Clock = Clock.systemUTC(),
+    ): ChainVerification =
+        ChainVerification(
+            RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table) },
+            JooqChainReads(dsl),
+            JooqDigestReads(dsl),
+            copies,
+            JooqIntegrityStore(dsl),
+            outbox,
+            clock,
         )
 }

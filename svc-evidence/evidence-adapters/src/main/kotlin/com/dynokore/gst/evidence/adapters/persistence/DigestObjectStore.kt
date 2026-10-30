@@ -5,6 +5,7 @@ import com.dynokore.gst.evidence.application.digest.DigestObjectConflict
 import com.dynokore.gst.evidence.application.digest.DigestObjects
 import com.dynokore.gst.evidence.application.digest.PeriodDigestEntry
 import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
+import com.dynokore.gst.evidence.application.integrity.DigestCopies
 import com.dynokore.platform.evidencestore.ObjectKey
 import com.dynokore.platform.evidencestore.ObjectStore
 import com.dynokore.platform.tenancykernel.TenantId
@@ -27,20 +28,44 @@ class ObjectStoreDigestObjects(
     ) {
         val key = PeriodDigestObjectJson.key(tenant, entry)
         val bytes = PeriodDigestObjectJson.bytes(tenant, entry)
-        val present =
-            try {
-                store.get(ObjectKey(key))
-            } catch (
-                @Suppress("TooGenericExceptionCaught") e: RuntimeException,
-            ) {
-                if (generateSequence<Throwable>(e) { it.cause }.none { it is NoSuchKeyException }) throw e
-                null
-            }
+        val present = readIfPresent(store, key)
         when {
             present == null -> store.put(ObjectKey(key), bytes, retainUntil)
             !present.contentEquals(bytes) -> throw DigestObjectConflict(key)
         }
     }
+}
+
+/**
+ * The bytes under [key], or null when the key is absent. The port has no exists call, so a key is absent only when
+ * `get` fails with the S3 SDK's [NoSuchKeyException] on the cause chain (INV-Q-12051); any other failure propagates.
+ */
+private fun readIfPresent(
+    store: ObjectStore,
+    key: String,
+): ByteArray? =
+    try {
+        store.get(ObjectKey(key))
+    } catch (
+        @Suppress("TooGenericExceptionCaught") e: RuntimeException,
+    ) {
+        if (generateSequence<Throwable>(e) { it.cause }.none { it is NoSuchKeyException }) throw e
+        null
+    }
+
+/**
+ * [DigestCopies] over the same [ObjectStore]: the copy matches when it holds the bytes the stored rows give. A copy
+ * that is absent or altered does not match; a copy that cannot be read raises, so the verification fails closed.
+ */
+class ObjectStoreDigestCopies(
+    private val store: ObjectStore,
+) : DigestCopies {
+    override fun matches(
+        tenant: TenantId,
+        entry: PeriodDigestEntry,
+    ): Boolean =
+        readIfPresent(store, PeriodDigestObjectJson.key(tenant, entry))
+            ?.contentEquals(PeriodDigestObjectJson.bytes(tenant, entry)) == true
 }
 
 /** The key and the content of the object copy of a period digest (INV-Q-7251 A (3)). */
