@@ -40,13 +40,7 @@ class ConflictingPairsConstraints(
             }
 
             option.key == CONFLICTING_PAIRS -> {
-                if (option.valueJson ==
-                    null
-                ) {
-                    refuse(LIST_REQUIRED)
-                } else {
-                    pairsVerdict(option.valueJson!!)
-                }
+                option.valueJson?.let { pairsVerdict(it) } ?: refuse(LIST_REQUIRED)
             }
 
             else -> {
