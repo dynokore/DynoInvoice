@@ -19,12 +19,6 @@ create table submission.submission (
     attempt_count integer not null default 0,
     next_attempt_at timestamptz,
     acknowledgement_id text,
-    -- INV-Q-13469 (A): the entity and the transaction date of the PayloadReady envelope, filled by the consumer slice
-    -- (INV-T-7276); the SubmissionDespatched event takes its context from this row. The platform entity and the
-    -- tenant-wide entity are refused (EntityRef.kt), as is a blank value (the blank class of the repair migration).
-    entity_ref text not null check (entity_ref !~ '^[\u0001-\u001F\u007F-\u009F \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$'
-        and entity_ref not in ('ffffffff-ffff-ffff-ffff-ffffffffffff', '00000000-0000-0000-0000-000000000000')),
-    transaction_date date,
     primary key (doc_uuid, version)
 );
 comment on column submission.submission.state is 'class: operational';
