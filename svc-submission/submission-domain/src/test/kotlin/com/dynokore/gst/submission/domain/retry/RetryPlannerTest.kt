@@ -202,22 +202,79 @@ class RetryPlannerTest {
     }
 
     @Test
-    fun `INV-AC-13070 invalid input is refused`() {
+    fun `INV-AC-13070 negative failure count is refused`() {
         assertThrows<IllegalArgumentException> { input(failures = -1) }
+    }
+
+    @Test
+    fun `INV-AC-13070 failures without firstFailureAt is refused`() {
         assertThrows<IllegalArgumentException> { input(failures = 1).copy(firstFailureAt = null) }
+    }
+
+    @Test
+    fun `INV-AC-13070 firstFailureAt without failures is refused`() {
         assertThrows<IllegalArgumentException> { input().copy(firstFailureAt = t0) }
+    }
+
+    @Test
+    fun `INV-AC-13070 firstFailureAt after now is refused`() {
         assertThrows<IllegalArgumentException> { input(failures = 1).copy(firstFailureAt = t0.plusSeconds(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 zero boundary is refused`() {
         assertThrows<IllegalArgumentException> { input(boundary = Duration.ZERO) }
+    }
+
+    @Test
+    fun `INV-AC-13070 negative boundary is refused`() {
         assertThrows<IllegalArgumentException> { input(boundary = Duration.ofSeconds(-1)) }
-        for (j in listOf(-0.1, 1.0, 1.5, Double.NaN)) assertThrows<IllegalArgumentException> { input(jitter = j) }
+    }
+
+    @Test
+    fun `INV-AC-13070 zero base delay is refused`() {
         assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ZERO, 2, Duration.ofMinutes(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 negative base delay is refused`() {
         assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(-1), 2, Duration.ofMinutes(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 multiplier below 2 is refused`() {
         assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(1), 1, Duration.ofMinutes(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 cap below base delay is refused`() {
         assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(10), 2, Duration.ofSeconds(9)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 blank docUuid is refused`() {
         assertThrows<IllegalArgumentException> { input().copy(docUuid = " ") }
+    }
+
+    @Test
+    fun `INV-AC-13070 version below 1 is refused`() {
         assertThrows<IllegalArgumentException> { input().copy(version = 0) }
+    }
+
+    @Test
+    fun `INV-AC-13070 onReplay blank docUuid is refused`() {
         assertThrows<IllegalArgumentException> { RetryPlanner.onReplay(" ", 1, LifecycleState.QUEUED) }
+    }
+
+    @Test
+    fun `INV-AC-13070 onReplay version below 1 is refused`() {
         assertThrows<IllegalArgumentException> { RetryPlanner.onReplay(doc, 0, LifecycleState.QUEUED) }
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = [-0.1, 1.0, 1.5, Double.NaN])
+    fun `INV-AC-13070 jitter outside 0 to below 1 is refused`(jitter: Double) {
+        assertThrows<IllegalArgumentException> { input(jitter = jitter) }
     }
 
     @Test
