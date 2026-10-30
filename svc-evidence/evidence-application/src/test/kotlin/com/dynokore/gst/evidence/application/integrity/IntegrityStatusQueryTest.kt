@@ -56,8 +56,9 @@ class IntegrityStatusQueryTest {
     private fun status(vararg rows: IntegrityRunRow) =
         IntegrityStatusQueryHandler(Runs(rows.toList())).handle(tenant, IntegrityStatusQuery("E", "2026-Q1"))
 
+    // INV-AC-12970 (its key joins ac-keys.tsv with INV-T-7261, which owns that file)
     @Test
-    fun `a VERIFIED run followed by a later FAILED run returns FAILED with the later run's facts INV-AC-12970`() {
+    fun `a VERIFIED run followed by a later FAILED run returns FAILED with the later run's facts`() {
         val later = "2026-05-02T01:00:00Z"
         val laterDigest = "sha256:" + "b".repeat(64)
         status(
