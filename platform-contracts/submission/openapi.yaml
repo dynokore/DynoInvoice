@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -42,6 +42,12 @@ info:
     deadline and correction values per entity and prescribed period with the
     resubmission trend, behind the permission key `compliance-metrics.view`
     (INV-REQ-1069, INV-REQ-1070, INV-Q-12767 A); it is additive.
+    1.12.0 adds the internal write replaySubmissionsByScope, which replays
+    the dead-lettered versions of one entity by period, Doc UUID or failure
+    class behind the permission key `submission.replay`, and leaves
+    replaySubmissions unchanged (INV-REQ-563, INV-REQ-575, INV-REQ-1348,
+    the question on INV-REQ-563 attrs.verification, option A, task
+    INV-T-13146); it is additive.
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -1385,6 +1391,89 @@ paths:
                     replayedAt: "2026-03-20T03:21:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/entities/{entityRef}/replay:
+    post:
+      operationId: replaySubmissionsByScope
+      summary: Replay the dead-lettered versions of one entity by period, Doc UUID or failure class
+      description: >-
+        Re-enqueues the DEAD_LETTERED versions of the entity named by the
+        path that match the optional `periodRef`, `docUuid` and
+        `failureClass` of the body (INV-REQ-563 behaviour #2, INV-REQ-575,
+        INV-REQ-1348). Access is decided per request by the permission key
+        `submission.replay` through `AuthorityReplica.decide`, never by a
+        role name (INV-Q-10027). The entity is always named by the path, so
+        a scope is never empty. A repeat creates no new version or Doc UUID:
+        the same version overwrites itself at IRAS (INV-REQ-1010 behaviour
+        #3). SENT_UNCONFIRMED versions are never selected. A version with
+        another in-flight version of its Doc UUID is not replayed; it is
+        listed in `skipped` with its reason code. `limit` caps the number of
+        versions replayed by one call (default and maximum 500); `truncated`
+        is true when more versions matched than were handled and the caller
+        repeats the call. `replaySubmissions` is unchanged.
+      tags: [transactions]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: [SRT-001, SRT-004, SRT-005]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-563, INV-REQ-575, INV-REQ-1348]
+      x-operation:
+        role: operator
+        scope: entity
+        precondition: >-
+          Each selected version is DEAD_LETTERED; a version with another
+          in-flight version of its Doc UUID is skipped and listed, never
+          replayed.
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (docUuid, version) of each selected version — a repeat overwrites
+          itself at IRAS (INV-REQ-1010 behaviour #3).
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayScopeRequest'
+            examples:
+              default:
+                value:
+                  periodRef: "2026-Q1"
+                  failureClass: "SUB-008"
+                  limit: 100
+      responses:
+        '200':
+          description: The matching dead-lettered versions were returned to QUEUED on the replay lane; the skipped ones are listed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayScopeResult'
+              examples:
+                default:
+                  value:
+                    entityRef: "E-001"
+                    matchedCount: 1
+                    truncated: false
+                    replayed:
+                      - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        version: 2
+                        state: "QUEUED"
+                        replayedAt: "2026-03-20T03:21:00Z"
+                    skipped: []
+        '400':
+          description: SRT-001 — a body property is malformed or not allowed; nothing is replayed.
+          $ref: '#/components/responses/Error'
+        '403':
+          description: SRT-004 — the caller does not hold the permission submission.replay on the entity; nothing is replayed.
+          $ref: '#/components/responses/Error'
+        '404':
+          description: SRT-005 — no entity with the reference.
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     EntityRef:
@@ -2083,6 +2172,60 @@ components:
           type: string
           format: date-time
       required: [docUuid, version, state, replayedAt]
+    ReplayScopeRequest:
+      type: object
+      additionalProperties: false
+      description: The scope of a replay; the entity is named by the path and is not a body property.
+      properties:
+        periodRef:
+          type: string
+          maxLength: 20
+          description: Opaque, calendar-issued (API-11); clients never construct it.
+        docUuid:
+          type: string
+          format: uuid
+        failureClass:
+          type: string
+          pattern: '^[A-Z]{3}-[0-9]{3}$'
+          description: A code of the error catalogue.
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+    ReplaySkip:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        reasonCode:
+          type: string
+          pattern: '^[A-Z]{3}-[0-9]{3}$'
+      required: [docUuid, version, reasonCode]
+    ReplayScopeResult:
+      type: object
+      properties:
+        entityRef:
+          type: string
+          maxLength: 40
+        matchedCount:
+          type: integer
+          minimum: 0
+        truncated:
+          type: boolean
+        replayed:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/ReplayResult'
+        skipped:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/ReplaySkip'
+      required: [entityRef, matchedCount, truncated, replayed, skipped]
     SubmissionSummary:
       type: object
       properties:
