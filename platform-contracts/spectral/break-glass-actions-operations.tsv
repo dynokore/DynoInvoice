@@ -1,1 +1,7 @@
 directory	method	path	action
+submission	GET	/v1/entities/{entityRef}/periods/{periodRef}/readiness	READINESS
+submission	GET	/v1/entities/{entityRef}/periods/{periodRef}/readiness/checks	READINESS
+submission	POST	/v1/entities/{entityRef}/periods/{periodRef}/drain	DRAIN
+submission	POST	/internal/v1/transactions/{docUuid}/versions/{version}/replay	REPLAY
+submission	GET	/v1/entities/{entityRef}/periods/{periodRef}/submissions	VIEW
+submission	GET	/v1/entities/{entityRef}/periods/{periodRef}/submissions/summary	VIEW

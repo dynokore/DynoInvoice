@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.13.0
+  version: 1.13.1
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -103,6 +103,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [readiness]
       x-principal: filing-workflow
+      x-break-glass-action: READINESS
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [SRT-004]
@@ -204,6 +205,7 @@ paths:
         deleteAtRetentionEnd.
       tags: [readiness]
       x-principal: filing-workflow
+      x-break-glass-action: DRAIN
       x-degraded-allow: true
       x-caller-auth: end-user
       x-timeout: 3000
@@ -283,6 +285,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [readiness]
       x-principal: filing-workflow
+      x-break-glass-action: READINESS
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
@@ -469,6 +472,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-break-glass-action: VIEW
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
@@ -560,6 +564,7 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-break-glass-action: VIEW
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
@@ -1357,6 +1362,7 @@ paths:
         grant (INV-T-2858, T14).
       tags: [transactions]
       x-principal: filing-workflow
+      x-break-glass-action: REPLAY
       x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
