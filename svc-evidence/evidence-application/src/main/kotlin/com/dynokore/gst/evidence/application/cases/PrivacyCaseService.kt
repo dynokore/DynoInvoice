@@ -140,7 +140,7 @@ class PrivacyCaseService(
         existing: CaseRecord,
         closure: CaseClosure,
     ): CloseResult {
-        val facts = requireNotNull(existing.privacy) { "case ${existing.caseId} was not opened by openPrivacyCase" }
+        val facts = existing.privacy ?: throw NotAPrivacyCase(existing.caseId)
         if (existing.status != CaseStatus.CLOSED) {
             val closed = existing.copy(status = CaseStatus.CLOSED, privacy = facts.copy(closure = closure))
             store.update(tenant, closed)

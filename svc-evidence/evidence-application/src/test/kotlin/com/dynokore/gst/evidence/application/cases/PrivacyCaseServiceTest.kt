@@ -207,16 +207,28 @@ class PrivacyCaseServiceTest {
     @Test
     fun `INV-AC-11707 close stores CLOSED with the closure and the deadline unchanged`() {
         val store = MemoryStore()
-        val record = opened(store)
+        val policy = FakePolicy(14)
+        val record = opened(store, policy)
+        policy.tenantDays = 7
         val later = Clock.fixed(now.plusSeconds(60), ZoneOffset.UTC)
-        val result = service(store, clock = later).close(tenantA, principal, caseId, CaseOutcome.ANSWERED, "answered")
+        val result = service(store, policy = policy, clock = later).close(tenantA, principal, caseId, CaseOutcome.ANSWERED, "answered")
         val closed = (result as Closed).record
         closed.status shouldBe CaseStatus.CLOSED
         closed.privacy!!.closure!!.closedAt shouldBe now.plusSeconds(60)
         closed.privacy!!.closure!!.outcome shouldBe CaseOutcome.ANSWERED
         closed.privacy!!.responseDeadline shouldBe record.privacy!!.responseDeadline
-        closed.privacy!!.deadlinePeriodDays shouldBe 30
+        closed.privacy!!.responseDeadline shouldBe LocalDate.parse("2026-03-15")
+        closed.privacy!!.deadlinePeriodDays shouldBe 14
         store.rows.getValue(tenantA to caseId) shouldBe closed
+    }
+
+    @Test
+    fun `INV-AC-11707 a PRIVACY record without privacy facts throws NotAPrivacyCase and stays unchanged`() {
+        val store = MemoryStore()
+        val bare = CaseRecord(caseId, CaseKind.PRIVACY, CaseStatus.OPEN, "subject-1", now, null, null)
+        store.insert(tenantA, bare)
+        shouldThrow<NotAPrivacyCase> { service(store).close(tenantA, principal, caseId, CaseOutcome.ANSWERED, "b") }
+        store.rows.getValue(tenantA to caseId) shouldBe bare
     }
 
     @Test
