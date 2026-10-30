@@ -24,14 +24,26 @@ class RetryPlannerTest {
     private fun input(
         state: LifecycleState = LifecycleState.QUEUED,
         failures: Int = 0,
-        firstFailureAt: Instant? = if (failures > 0) t0 else null,
         now: Instant = t0,
         boundary: Duration? = Duration.ofHours(4),
-        policy: BackoffPolicy = BackoffPolicy.DEFAULT,
         jitter: Double = 0.0,
-        docUuid: String = doc,
-        version: Int = 1,
-    ) = FailureInput(docUuid, version, state, failures, firstFailureAt, now, boundary, policy, jitter)
+    ) = FailureInput(
+        doc,
+        1,
+        state,
+        failures,
+        if (failures >
+            0
+        ) {
+            t0
+        } else {
+            null
+        },
+        now,
+        boundary,
+        BackoffPolicy.DEFAULT,
+        jitter,
+    )
 
     private fun plan(
         failures: Int,
@@ -63,7 +75,7 @@ class RetryPlannerTest {
     @ValueSource(ints = [1, 2, 7])
     fun `INV-AC-605 INV-AC-13070 the result keeps docUuid and version and mints no identifier`(version: Int) {
         for (state in listOf(LifecycleState.QUEUED, LifecycleState.RETRY)) {
-            val r = RetryPlanner.onTransientFailure(input(state, version = version)) as Retry
+            val r = RetryPlanner.onTransientFailure(input(state).copy(version = version)) as Retry
             r.docUuid shouldBe doc
             r.version shouldBe version
             r.from shouldBe state
@@ -96,7 +108,7 @@ class RetryPlannerTest {
     fun `INV-AC-13071 window end is inclusive and one millisecond later is exhausted`() {
         fun at(now: Instant) =
             RetryPlanner.onTransientFailure(
-                input(failures = 7, firstFailureAt = t0, now = now, boundary = Duration.ofHours(1)),
+                input(failures = 7, now = now, boundary = Duration.ofHours(1)),
             )
         val ok = at(t0.plusSeconds(3150)) as Retry
         ok.nextAttemptAt shouldBe t0.plusSeconds(3600)
@@ -126,7 +138,7 @@ class RetryPlannerTest {
     }
 
     @Test
-    fun `INV-AC-611 dead lettered replays to QUEUED and a second replay is unchanged`() {
+    fun `INV-AC-611 INV-AC-13072 dead lettered replays to QUEUED and a second replay is unchanged`() {
         RetryPlanner.onReplay(doc, 3, LifecycleState.DEAD_LETTERED) shouldBe
             ReplayResult.Replayed(doc, 3, LifecycleState.DEAD_LETTERED, LifecycleState.QUEUED)
         RetryPlanner.onReplay(doc, 3, LifecycleState.QUEUED) shouldBe ReplayResult.Unchanged
@@ -152,12 +164,185 @@ class RetryPlannerTest {
     }
 
     @Test
-    fun `INV-AC-611 after a replay a failure with failures 0 gets a fresh window`() {
+    fun `INV-AC-611 INV-AC-13072 after a replay a failure with failures 0 gets a fresh window`() {
         val replayed = RetryPlanner.onReplay(doc, 3, LifecycleState.DEAD_LETTERED) as ReplayResult.Replayed
         val now = t0.plusSeconds(5L * 86_400)
         val r =
             RetryPlanner.onTransientFailure(
-                input(replayed.to, failures = 0, firstFailureAt = null, now = now, boundary = Duration.ofHours(1)),
+                input(replayed.to, failures = 0, now = now, boundary = Duration.ofHours(1)),
+            )
+        r shouldBe Retry(doc, 1, LifecycleState.QUEUED, 1, now.plusSeconds(15), raise)
+    }
+
+    @Test
+    fun `INV-AC-611 golden table of 36 cells`() {
+        var cells = 0
+        LifecycleState.entries.forEach { s ->
+            val f = RetryPlanner.onTransientFailure(input(s))::class
+            val expectedF =
+                if (s == LifecycleState.QUEUED ||
+                    s == LifecycleState.RETRY
+                ) {
+                    Retry::class
+                } else {
+                    Anomaly::class
+                }
+            f shouldBe expectedF
+            val p = RetryPlanner.onReplay(doc, 1, s)::class
+            val expectedP =
+                when (s) {
+                    LifecycleState.DEAD_LETTERED -> ReplayResult.Replayed::class
+                    LifecycleState.QUEUED -> ReplayResult.Unchanged::class
+                    else -> ReplayResult.Anomaly::class
+                }
+            p shouldBe expectedP
+            cells += 2
+        }
+        cells shouldBe 36
+    }
+
+    @Test
+    fun `INV-AC-13070 negative failure count is refused`() {
+        assertThrows<IllegalArgumentException> { input(failures = -1) }
+    }
+
+    @Test
+    fun `INV-AC-13070 failures without firstFailureAt is refused`() {
+        assertThrows<IllegalArgumentException> { input(failures = 1).copy(firstFailureAt = null) }
+    }
+
+    @Test
+    fun `INV-AC-13070 firstFailureAt without failures is refused`() {
+        assertThrows<IllegalArgumentException> { input().copy(firstFailureAt = t0) }
+    }
+
+    @Test
+    fun `INV-AC-13070 firstFailureAt after now is refused`() {
+        assertThrows<IllegalArgumentException> { input(failures = 1).copy(firstFailureAt = t0.plusSeconds(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 zero boundary is refused`() {
+        assertThrows<IllegalArgumentException> { input(boundary = Duration.ZERO) }
+    }
+
+    @Test
+    fun `INV-AC-13070 negative boundary is refused`() {
+        assertThrows<IllegalArgumentException> { input(boundary = Duration.ofSeconds(-1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 zero base delay is refused`() {
+        assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ZERO, 2, Duration.ofMinutes(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 negative base delay is refused`() {
+        assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(-1), 2, Duration.ofMinutes(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 multiplier below 2 is refused`() {
+        assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(1), 1, Duration.ofMinutes(1)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 cap below base delay is refused`() {
+        assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(10), 2, Duration.ofSeconds(9)) }
+    }
+
+    @Test
+    fun `INV-AC-13070 blank docUuid is refused`() {
+        assertThrows<IllegalArgumentException> { input().copy(docUuid = " ") }
+    }
+
+    @Test
+    fun `INV-AC-13070 version below 1 is refused`() {
+        assertThrows<IllegalArgumentException> { input().copy(version = 0) }
+    }
+
+    @Test
+    fun `INV-AC-13070 onReplay blank docUuid is refused`() {
+        assertThrows<IllegalArgumentException> { RetryPlanner.onReplay(" ", 1, LifecycleState.QUEUED) }
+    }
+
+    @Test
+    fun `INV-AC-13070 onReplay version below 1 is refused`() {
+        assertThrows<IllegalArgumentException> { RetryPlanner.onReplay(doc, 0, LifecycleState.QUEUED) }
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = [-0.1, 1.0, 1.5, Double.NaN])
+    fun `INV-AC-13070 jitter outside 0 to below 1 is refused`(jitter: Double) {
+        assertThrows<IllegalArgumentException> { input(jitter = jitter) }
+    }
+
+    @Test
+    fun `INV-AC-13071 window end is inclusive and one millisecond later is exhausted`() {
+        fun at(now: Instant) =
+            RetryPlanner.onTransientFailure(
+                input(failures = 7, now = now, boundary = Duration.ofHours(1)),
+            )
+        val ok = at(t0.plusSeconds(3150)) as Retry
+        ok.nextAttemptAt shouldBe t0.plusSeconds(3600)
+        ok.attempt shouldBe 8
+        val late = DeadLetter(doc, 1, LifecycleState.QUEUED, DeadLetterReason.RETRY_WINDOW_EXHAUSTED, raise)
+        at(t0.plusSeconds(3150).plusMillis(1)) shouldBe late
+        at(t0.plusSeconds(4000)) shouldBe late
+    }
+
+    @Test
+    fun `INV-AC-13071 first failure window of 10 seconds is exhausted and 15 seconds retries`() {
+        RetryPlanner.onTransientFailure(input(boundary = Duration.ofSeconds(10))) shouldBe
+            DeadLetter(doc, 1, LifecycleState.QUEUED, DeadLetterReason.RETRY_WINDOW_EXHAUSTED, raise)
+        RetryPlanner.onTransientFailure(input(boundary = Duration.ofSeconds(15))) shouldBe
+            Retry(doc, 1, LifecycleState.QUEUED, 1, t0.plusSeconds(15), raise)
+    }
+
+    @ParameterizedTest
+    @EnumSource(LifecycleState::class)
+    fun `INV-AC-13071 failure table over all 18 states`(state: LifecycleState) {
+        val r = RetryPlanner.onTransientFailure(input(state))
+        if (state == LifecycleState.QUEUED || state == LifecycleState.RETRY) {
+            (r is Retry) shouldBe true
+        } else {
+            r shouldBe Anomaly(AnomalyReason.FAILURE_IN_STATE)
+        }
+    }
+
+    @Test
+    fun `INV-AC-611 INV-AC-13072 dead lettered replays to QUEUED and a second replay is unchanged`() {
+        RetryPlanner.onReplay(doc, 3, LifecycleState.DEAD_LETTERED) shouldBe
+            ReplayResult.Replayed(doc, 3, LifecycleState.DEAD_LETTERED, LifecycleState.QUEUED)
+        RetryPlanner.onReplay(doc, 3, LifecycleState.QUEUED) shouldBe ReplayResult.Unchanged
+    }
+
+    @ParameterizedTest
+    @EnumSource(LifecycleState::class)
+    fun `INV-AC-611 INV-AC-13072 replay table over all 18 states`(state: LifecycleState) {
+        val r = RetryPlanner.onReplay(doc, 3, state)
+        when (state) {
+            LifecycleState.DEAD_LETTERED -> {
+                r shouldBe ReplayResult.Replayed(doc, 3, LifecycleState.DEAD_LETTERED, LifecycleState.QUEUED)
+            }
+
+            LifecycleState.QUEUED -> {
+                r shouldBe ReplayResult.Unchanged
+            }
+
+            else -> {
+                r shouldBe ReplayResult.Anomaly(AnomalyReason.REPLAY_IN_STATE)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-611 INV-AC-13072 after a replay a failure with failures 0 gets a fresh window`() {
+        val replayed = RetryPlanner.onReplay(doc, 3, LifecycleState.DEAD_LETTERED) as ReplayResult.Replayed
+        val now = t0.plusSeconds(5L * 86_400)
+        val r =
+            RetryPlanner.onTransientFailure(
+                input(replayed.to, failures = 0, now = now, boundary = Duration.ofHours(1)),
             )
         r shouldBe Retry(doc, 1, LifecycleState.QUEUED, 1, now.plusSeconds(15), raise)
     }
@@ -191,10 +376,10 @@ class RetryPlannerTest {
 
     @Test
     fun `INV-AC-13070 invalid input is refused`() {
-        assertThrows<IllegalArgumentException> { input(failures = -1, firstFailureAt = t0) }
-        assertThrows<IllegalArgumentException> { input(failures = 1, firstFailureAt = null) }
-        assertThrows<IllegalArgumentException> { input(failures = 0, firstFailureAt = t0) }
-        assertThrows<IllegalArgumentException> { input(failures = 1, firstFailureAt = t0.plusSeconds(1)) }
+        assertThrows<IllegalArgumentException> { input(failures = -1) }
+        assertThrows<IllegalArgumentException> { input(failures = 1).copy(firstFailureAt = null) }
+        assertThrows<IllegalArgumentException> { input().copy(firstFailureAt = t0) }
+        assertThrows<IllegalArgumentException> { input(failures = 1).copy(firstFailureAt = t0.plusSeconds(1)) }
         assertThrows<IllegalArgumentException> { input(boundary = Duration.ZERO) }
         assertThrows<IllegalArgumentException> { input(boundary = Duration.ofSeconds(-1)) }
         for (j in listOf(-0.1, 1.0, 1.5, Double.NaN)) assertThrows<IllegalArgumentException> { input(jitter = j) }
@@ -202,8 +387,8 @@ class RetryPlannerTest {
         assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(-1), 2, Duration.ofMinutes(1)) }
         assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(1), 1, Duration.ofMinutes(1)) }
         assertThrows<IllegalArgumentException> { BackoffPolicy(Duration.ofSeconds(10), 2, Duration.ofSeconds(9)) }
-        assertThrows<IllegalArgumentException> { input(docUuid = " ") }
-        assertThrows<IllegalArgumentException> { input(version = 0) }
+        assertThrows<IllegalArgumentException> { input().copy(docUuid = " ") }
+        assertThrows<IllegalArgumentException> { input().copy(version = 0) }
         assertThrows<IllegalArgumentException> { RetryPlanner.onReplay(" ", 1, LifecycleState.QUEUED) }
         assertThrows<IllegalArgumentException> { RetryPlanner.onReplay(doc, 0, LifecycleState.QUEUED) }
     }
