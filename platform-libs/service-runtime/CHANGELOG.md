@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.25.1] - 2026-10-30
+### Changed
+- Metadata-only change (INV-T-13299, G-DVS): depends on `outbox-and-queue 6.8.0`, whose version steps; no code change.
+
 ## [10.25.0] - 2026-10-31
 ### Changed
 - `AuthorityReplica` degraded mode (INV-T-9078, INV-Q-9065 A; INV-AC-9075): a MACHINE request is allowed (source DEGRADED, reason MACHINE_FLOW_CONTINUES) only when its `AuthorizationRequest.operation` is a row of `META-INF/gst/degraded-allow-operations.tsv`, the token scope equals that operation's principal, the token tenant equals the request tenant and the token's entity coverage covers the entity; every other MACHINE case, and HUMAN and CONSENT_AGENT, stay AUTHORITY_UNAVAILABLE. No resource means every MACHINE case is denied with one WARN; a malformed or repeated line stops the start-up, naming the line and never its content. Each allow writes one structured line and counts `authority_degraded_allow_total{operation}`.

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.8.0] - 2026-10-30
+### Added
+- `TenantWideEvidenceIntegrityFailed` joins the closed platform event class, so an `Envelope` of `com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1` may carry `EntityRef.TENANT_WIDE` with a real tenant (INV-Q-12994, INV-REQ-1226 b1, INV-AC-13291, INV-T-13299).
+
 ## [6.7.0] - 2026-10-29
 ### Added
 - `Envelope.testMode` (last property, default false) carries the CloudEvents attribute `testmode`: `EnvelopeJson.write` emits it only when true, `EnvelopeJson.read` takes absent as false and refuses a non-boolean value with `ContractViolation`, and every `EventHandler` sees it (INV-Q-12635, INV-REQ-829, INV-AC-12637, INV-T-12639).

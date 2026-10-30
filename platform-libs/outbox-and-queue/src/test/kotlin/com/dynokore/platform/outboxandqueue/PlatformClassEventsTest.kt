@@ -28,6 +28,7 @@ class PlatformClassEventsTest {
             "AccreditationAlertRaised",
             "BreakGlassAlertRaised",
             "AuthorityChanged",
+            "TenantWideEvidenceIntegrityFailed",
         )
     private val refused =
         listOf(
@@ -43,6 +44,11 @@ class PlatformClassEventsTest {
             "com.dynokore.gst.platform.AuthorityChangedX.v1",
             "com.dynokore.gst.platform.authorityChanged.v1",
             "com.dynokore.gst.evidence.AuthorityChanged.v1",
+            "com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1",
+            "com.dynokore.gst.evidence.TenantWideEvidenceIntegrityFailed.v1",
+            "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailedX.v1",
+            "com.dynokore.gst.platform.tenantWideEvidenceIntegrityFailed.v1",
+            "com.dynokore.gst.platform.EvidenceIntegrityFailed.v1",
         )
 
     private fun envelope(
@@ -151,6 +157,24 @@ class PlatformClassEventsTest {
     @Test
     fun `INV-AC-1404 look-alike and other-package types are refused with the tenant-wide entity`() {
         refused.subList(2, 4).forEach {
+            assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-13291 TenantWideEvidenceIntegrityFailed is tenant-wide, omits entityref and reads back tenant-wide`() {
+        val e =
+            envelope("com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1", tenant, EntityRef.TENANT_WIDE)
+        val text = json.write(e)
+        assertFalse(text.contains("entityref"), text)
+        assertTrue(text.contains("tenantid"), text)
+        assertEquals(e, json.read(text))
+        assertEquals(EntityRef.TENANT_WIDE, json.read(text).entity)
+    }
+
+    @Test
+    fun `INV-AC-13291 TenantWideEvidenceIntegrityFailed domain, look-alike, case and sibling types are refused`() {
+        refused.takeLast(5).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
         }
     }

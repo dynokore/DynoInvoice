@@ -39,6 +39,7 @@ class ProductConfigurationTest {
                 "AccreditationAlertRaised",
                 "BreakGlassAlertRaised",
                 "AuthorityChanged",
+                "TenantWideEvidenceIntegrityFailed",
             )
         PlatformEventCatalogue.PRIVACY_NOTICE_DUE.topic shouldBe "gst.platform.privacy-notice-due.v1"
         PlatformEventCatalogue.ACCREDITATION_ALERT_RAISED.topic shouldBe "gst.platform.accreditation-alert-raised.v1"
@@ -52,11 +53,23 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.AUTHORITY_CHANGED
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED
         PlatformEventCatalogue.AUTHORITY_CHANGED.topic shouldBe "gst.platform.authority-changed.v1"
         PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.access.AuthorityChanged.v1") shouldBe false
+    }
+
+    @Test
+    fun `the catalogue holds TenantWideEvidenceIntegrityFailed last (INV-Q-12994)`() {
+        PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED.topic shouldBe
+            "gst.platform.tenant-wide-evidence-integrity-failed.v1"
+        PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED.eventType shouldBe
+            "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1"
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1") shouldBe
+            true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.evidence.TenantWideEvidenceIntegrityFailed.v1") shouldBe
+            false
     }
 
     @Test
