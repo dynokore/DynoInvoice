@@ -113,6 +113,14 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-T-11912 VP-44 is available with the option keys OFF then ON`() {
+        val vp44 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-44" }
+        assertEquals("INV-REQ-1305", vp44.requirement)
+        assertEquals(VpStatus.AVAILABLE, vp44.status)
+        assertEquals(listOf("OFF", "ON"), vp44.fields!!.options.map { it.key })
+    }
+
+    @Test
     fun `INV-T-3148 every LOOSER option carries the ruled acknowledgers`() {
         val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
         val looser =

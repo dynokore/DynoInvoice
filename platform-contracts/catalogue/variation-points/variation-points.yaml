@@ -46,6 +46,7 @@
 # Re-extracted 2026-10-23 (INV-T-8828; Keel INV-CS-8818): VP-08 becomes available (INV-REQ-1269 io_contract.status, coordinator ruling INV-Q-8841 A); 81 rows.
 # Re-extracted 2026-10-25 (INV-T-10183; Keel INV-CS-10180): VP-29, VP-38 and VP-65 are available (INV-REQ-1290, INV-REQ-1299, INV-REQ-1548 io_contract.status, coordinator ruling INV-Q-10167 A); 82 rows.
 # Re-extracted 2026-10-30 (INV-T-13488; INV-Q-13483 A): re-vendors the 14 rows that drifted from published Keel with check-drift.py --write: VP-06, VP-17, VP-18, VP-39, VP-57, VP-66, VP-67, VP-68, VP-70, VP-71 and VP-80 (revision only), VP-21 and VP-44 become available (INV-Q-12264, INV-Q-11897 A), VP-36 unit text (owner answer INV-Q-13173, option A); 82 rows.
+# Re-extracted 2026-10-31 (INV-T-11912; Keel INV-CS-11906): checks that VP-44 is available (INV-REQ-1305 io_contract.status, coordinator ruling INV-Q-11897 A) after the INV-T-13488 re-vendor; no row changes; 82 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
