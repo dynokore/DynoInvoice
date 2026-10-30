@@ -82,6 +82,9 @@ gstCatalogue = "2.11.0"
 # product-runtime (INV-T-2876, INV-Q-3852): the published platform-contracts bundle its event types and fallback
 # clients are generated from; a main build including INV-T-3298 (fadead4). Bumped deliberately, like gstCatalogue.
 platformContractsBundle = "0.0.0-dev+fadead44"
+# service-runtime (INV-T-12602): the bundle whose service-runtime/openapi.yaml its sync-edge-callers.tsv is generated from;
+# the first main build with setPolicy's x-sync-edge (platform-contracts 3cdff63e). Bumped deliberately.
+platformContractsServiceRuntimeBundle = "0.0.0-dev+3cdff63e"
 # contract-tests (INV-T-2877; STK-40): Pact JVM 4.6.x, the version platform-build's gst.pact applies (4.6.21).
 pact = "4.6.21"
 # contract-tests (INV-T-2877; CS-38): JSON Schema 2020-12 validation of message payloads against the pinned
@@ -98,6 +101,7 @@ snakeyaml = { module = "org.yaml:snakeyaml" }
 jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 gstCatalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }
+platformContracts-serviceRuntimeBundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsServiceRuntimeBundle" }
 # Generated contract code's Kotlin (de)serialisation (gst.event-types / gst.contract-client, `serializationLibrary
 # jackson`); version managed by the Spring Boot BOM, as codegen-self-test pins it (Jackson 3).
 jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }

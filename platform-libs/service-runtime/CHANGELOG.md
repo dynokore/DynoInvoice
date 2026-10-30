@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.23.0] - 2026-10-30
+### Added
+- The jar ships `META-INF/gst/sync-edge-callers.tsv`, generated at build time from `service-runtime/openapi.yaml` of the pinned platform-contracts bundle (`GenerateOperationListTask`, kind `sync-edge`), so a service that mounts `setPolicy` (POST `/internal/v1/policies/{variationPoint}`, callers `console-bff`) declares no caller line of its own (INV-T-12602, INV-Q-12586 A). `SyncEdgeCallerFilter` counts an identical line in a service's own resource as one. A consumer that asserts a refusal of a path now listed adapts that test when it adopts this release.
+
 ## [10.22.0] - 2026-10-29
 ### Added
 - `EventLogScopes.of(eventLog, scope, gate, bindingKey)` is public API of the impl half (INV-T-12071, follow-on of INV-T-4271; INV-AC-12070): the one composition of the scope the event-log adapters use. With no pool it returns the application scope itself; with a pool it returns a scope with its own runner over the pool behind the gate and signed with the binding key (a null key is refused with `IllegalArgumentException`). `OutboxAndQueueWiring` calls it, so there is one owner of the behaviour.

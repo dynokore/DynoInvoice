@@ -292,6 +292,7 @@ org.testcontainers:jdbc:1.21.4=implTestCompileClasspath,implTestRuntimeClasspath
 org.testcontainers:postgresql:1.21.4=implTestCompileClasspath,implTestRuntimeClasspath
 org.testcontainers:testcontainers:1.21.4=implTestCompileClasspath,implTestRuntimeClasspath
 org.yaml:snakeyaml:2.6=implCompileClasspath,implRuntimeClasspath,implTestCompileClasspath,implTestRuntimeClasspath
+platform-contracts-bundle:platform-contracts:0.0.0-dev+3cdff63e=contractsBundle
 software.amazon.awssdk:annotations:2.55.6=implCompileClasspath,implTestCompileClasspath,implTestRuntimeClasspath
 software.amazon.awssdk:apache5-client:2.55.6=implTestRuntimeClasspath
 software.amazon.awssdk:arns:2.55.6=implCompileClasspath,implTestCompileClasspath,implTestRuntimeClasspath
