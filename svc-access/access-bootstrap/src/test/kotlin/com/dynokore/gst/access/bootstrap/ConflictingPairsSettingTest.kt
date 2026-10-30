@@ -69,6 +69,39 @@ class ConflictingPairsSettingTest {
             assertThat(firstAudit.get("reason").asString()).isNotEqualTo(stored.get("reason").asString())
         }
 
+    private fun assertInvalidRefused(selected: (String) -> String) =
+        run { env ->
+            env.store("tax.operator" to "tax.approver")
+            val response =
+                env.post(
+                    "/internal/v1/policies/VP-82",
+                    "token-a",
+                    """{"scopeLevel":"TENANT","scopeRef":"${env.tenant}","selected":${selected(
+                        "CONFLICTING_PAIRS",
+                    )},""" +
+                        """"effectiveDate":"${env.today()}","reason":"invalid value"}""",
+                )
+            assertThat(response.status).describedAs(response.contentAsString).isEqualTo(422)
+            assertThat(response.contentAsString).contains("POL-014")
+            assertThat(env.storedRows()).isEqualTo(1)
+            env.seed("IDN-A", com.dynokore.gst.access.domain.role.Role.TAX_OPERATOR)
+            env.assertRefused(env.refusal { env.grant("IDN-A", "tax.approver") }, pairDetail)
+        }
+
+    @Test
+    fun `INV-AC-9273 equal roles is refused 422 POL-014 and the stored value is unchanged`() =
+        assertInvalidRefused { _ ->
+            val lst = { value: String -> """[{"option":"CONFLICTING_PAIRS","value":$value}]""" }
+            lst("""[{"first":"auditor","second":"auditor"}]""")
+        }
+
+    @Test
+    fun `INV-AC-9273 a role name that is not a wire name is refused 422 POL-014 and the stored value is unchanged`() =
+        assertInvalidRefused { _ ->
+            val lst = { value: String -> """[{"option":"CONFLICTING_PAIRS","value":$value}]""" }
+            lst("""[{"first":"Tenant.Admin","second":"auditor"}]""")
+        }
+
     @Test
     fun `INV-AC-9273 a value without the double is refused while the pinned row is planned`() {
         val planned =
