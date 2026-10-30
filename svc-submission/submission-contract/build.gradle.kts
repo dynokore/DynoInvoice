@@ -106,3 +106,17 @@ fun stageContracts() {
     marker.writeText(version)
 }
 stageContracts()
+
+// The contract document ships as a resource (gst/contracts/submission/openapi.yaml), as the other services ship theirs:
+// the test of the caller check (INV-AC-8455) reads the x-sync-edge of the document the code was generated from.
+val contractResources = layout.buildDirectory.dir("contract-resources")
+val stageContractResources =
+    tasks.register<Sync>("stageContractResources") {
+        from(layout.buildDirectory.dir("contracts-repo/.bundle/submission")) {
+            include("openapi.yaml")
+            into("gst/contracts/submission")
+        }
+        into(contractResources)
+    }
+sourceSets.main { resources.srcDir(contractResources) }
+tasks.named("processResources") { dependsOn(stageContractResources) }
