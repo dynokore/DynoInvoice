@@ -28,18 +28,49 @@ class OperationsGateTest {
         stubSet: Set<String> = stubs,
     ) = OperationsGate.findings(table, spec, asyncapi, stubSet, done)
 
+    private fun operationRows(table: String): List<List<String>> =
+        table
+            .lines()
+            .drop(1)
+            .map { it.split("\t") }
+            .filter { it.size >= 3 && it[0] == "operation" }
+
+    /** Tasks of the operations that are no stub: each of them must be a line of done-tasks.txt. */
+    private fun expectedDone(
+        table: String,
+        stubSet: Set<String>,
+    ): Set<String> = operationRows(table).filter { it[1] !in stubSet }.map { it[2] }.toSet()
+
+    /** Operations whose task is a line of done-tasks.txt: they must not be stubs. */
+    private fun expectedImplemented(
+        table: String,
+        done: String?,
+    ): Set<String> {
+        val lines =
+            done
+                .orEmpty()
+                .lines()
+                .filter { it.isNotBlank() }
+                .toSet()
+        return operationRows(table).filter { it[2] in lines }.map { it[1] }.toSet()
+    }
+
     @Test
     fun `the real table covers the real contract`() {
         OperationsGate.contractOperations(openapi).size shouldBe 2
         OperationsGate.contractChannels(asyncapi).size shouldBe 3
         run(done = doneText).shouldBeEmpty()
         OperationsGate.assignmentFindings(tsv).shouldBeEmpty()
-        doneText shouldBe ""
+        doneText
+            .orEmpty()
+            .lines()
+            .filter { it.isNotBlank() }
+            .toSet() shouldBe expectedDone(tsv, stubs)
     }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi)
+        stubs shouldBe OperationsGate.contractOperations(openapi) - expectedImplemented(tsv, doneText)
     }
 
     @Test
@@ -177,5 +208,41 @@ class OperationsGateTest {
                 "getAggregateDrillDown\tINV-T-9998\topen",
             )
         run(table = table, done = "INV-T-9998\n", stubSet = stubs - "getAggregateDrillDown").shouldBeEmpty()
+    }
+
+    private val header = "kind\tid\ttask\tstate\n"
+    private val drillDownRow = "operation\tgetAggregateDrillDown\tINV-T-9998\topen\n"
+
+    @Test
+    fun `an override without a done line makes expectedDone differ from the empty set`() {
+        val expected = expectedDone(header + drillDownRow, emptySet())
+        expected shouldContain "INV-T-9998"
+        (expected == emptySet<String>()) shouldBe false
+    }
+
+    @Test
+    fun `a done line over a stub makes expectedImplemented hold the operation`() {
+        val implemented = expectedImplemented(header + drillDownRow, "INV-T-9998\n")
+        implemented shouldContain "getAggregateDrillDown"
+        (setOf("getAggregateDrillDown") - implemented == setOf("getAggregateDrillDown")) shouldBe false
+    }
+
+    @Test
+    fun `a look-alike done key implements nothing`() {
+        expectedImplemented(header + "operation\tintakeAggregationBatch\tINV-T-8473\topen\n", "INV-T-84730\n") shouldBe
+            emptySet()
+    }
+
+    @Test
+    fun `a channel row whose task is done implements nothing`() {
+        val table = header + "channel\taggregationExampleHappened\tINV-T-9998\topen\n"
+        expectedImplemented(table, "INV-T-9998\n") shouldBe emptySet()
+        expectedDone(table, emptySet()) shouldBe emptySet()
+    }
+
+    @Test
+    fun `the header line is not read as a row`() {
+        expectedDone("operation\tid\ttask\tstate\n", emptySet()) shouldBe emptySet()
+        expectedImplemented("operation\tid\ttask\tstate\n", "task\n") shouldBe emptySet()
     }
 }
