@@ -22,6 +22,7 @@ import com.dynokore.gst.access.application.grant.RevokeGrantUseCase
 import com.dynokore.gst.access.application.landing.LandingChoices
 import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.application.landing.RolePrecedence
+import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorUseCase
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
@@ -115,7 +116,8 @@ class UseCases {
         catalogue: RoleCatalogue,
         soleOperators: SoleOperatorAcks,
         soleOperatorScope: SoleOperatorScopePolicy,
-    ) = GrantRoleRules(catalogue, soleOperators, soleOperatorScope)
+        conflictingPairs: ConflictingRolePairs,
+    ) = GrantRoleRules(catalogue, soleOperators, soleOperatorScope, conflictingPairs)
 
     @Bean
     fun grantRoleUseCase(

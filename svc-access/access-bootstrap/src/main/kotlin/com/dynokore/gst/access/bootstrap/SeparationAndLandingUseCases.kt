@@ -7,6 +7,7 @@ import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
+import com.dynokore.gst.access.adapters.separation.VariationPointConflictingPairs
 import com.dynokore.gst.access.adapters.separation.VariationPointSoleOperatorScope
 import com.dynokore.gst.access.adapters.structure.ReplicaEntityDirectory
 import com.dynokore.gst.access.application.authorise.Authorise
@@ -19,6 +20,7 @@ import com.dynokore.gst.access.application.grant.RevokeGrantUseCase
 import com.dynokore.gst.access.application.landing.LandingChoices
 import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.application.landing.RolePrecedence
+import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorUseCase
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
@@ -73,6 +75,15 @@ class SeparationAndLandingUseCases {
         tenants: TenantContext,
         clock: Clock,
     ): SoleOperatorScopePolicy = VariationPointSoleOperatorScope(reader, tenants, clock)
+
+    /** VP-82 as `setPolicy` of service-runtime stores it and the config-resolver resolves it (INV-REQ-9271). */
+    @Bean
+    fun conflictingRolePairs(
+        reader: PolicyReader,
+        tenants: TenantContext,
+        clock: Clock,
+        mapper: ObjectMapper,
+    ): ConflictingRolePairs = VariationPointConflictingPairs(reader, tenants, clock, mapper)
 
     @Bean
     fun landingChoices(

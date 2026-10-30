@@ -22,6 +22,7 @@ import com.dynokore.gst.access.application.idp.MapIdpGroupUseCase
 import com.dynokore.gst.access.application.idp.MappedGrants
 import com.dynokore.gst.access.application.idp.SyncIdpGroupsUseCase
 import com.dynokore.gst.access.application.idp.UnmapIdpGroupUseCase
+import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
@@ -69,7 +70,8 @@ class IdpAndBreakGlassUseCases {
         audit: GrantAudit,
         catalogue: RoleCatalogue,
         mapped: MappedGrants,
-    ) = IdpProvisioningEffects(publisher, audit, catalogue, mapped)
+        conflictingPairs: ConflictingRolePairs,
+    ) = IdpProvisioningEffects(publisher, audit, catalogue, mapped, conflictingPairs)
 
     @Bean
     fun mapIdpGroupUseCase(

@@ -22,7 +22,7 @@ class GrantRoleRules(
     val catalogue: RoleCatalogue,
     val soleOperators: SoleOperatorAcks,
     val soleOperatorScope: SoleOperatorScopePolicy,
-    val conflictingPairs: ConflictingRolePairs = ConflictingRolePairs.NONE,
+    val conflictingPairs: ConflictingRolePairs,
 )
 
 /** What a granted role writes besides the grant: the AuthorityChanged events and the audit entry. */

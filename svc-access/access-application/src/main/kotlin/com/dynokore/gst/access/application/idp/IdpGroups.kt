@@ -85,7 +85,7 @@ class IdpProvisioningEffects(
     val audit: GrantAudit,
     val catalogue: RoleCatalogue,
     val mapped: MappedGrants,
-    val conflictingPairs: ConflictingRolePairs = ConflictingRolePairs.NONE,
+    val conflictingPairs: ConflictingRolePairs,
 )
 
 /**
