@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter
  * prescribed period; which entries an audit pack holds is decided by the pack slice from the period's time window.
  */
 object AuditChainKey {
-    private const val PREFIX = "AUDIT-"
+    const val PREFIX = "AUDIT-"
     private val MONTH = DateTimeFormatter.ofPattern("yyyy-MM").withZone(ZoneOffset.UTC)
 
     /**
