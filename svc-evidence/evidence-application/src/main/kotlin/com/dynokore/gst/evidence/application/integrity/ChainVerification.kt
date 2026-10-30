@@ -114,7 +114,15 @@ class ChainVerification(
         val digestFault =
             if (recomputed == entry.digest) emptyList() else perChain(tenant, entry, FailureKind.DIGEST_MISMATCH)
         val copyFault =
-            if (copies.matches(tenant, entry)) emptyList() else perChain(tenant, entry, FailureKind.RETAINED_COPY_MISMATCH)
+            if (copies.matches(
+                    tenant,
+                    entry,
+                )
+            ) {
+                emptyList()
+            } else {
+                perChain(tenant, entry, FailureKind.RETAINED_COPY_MISMATCH)
+            }
         return tails + digestFault + copyFault
     }
 

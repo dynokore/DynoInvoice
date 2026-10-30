@@ -69,7 +69,8 @@ class IntegrityStatusQueryTest {
     @Test
     fun `only a VERIFIED run returns VERIFIED with length 8 and the digest`() {
         val at = "2026-05-01T01:00:00Z"
-        status(run(at, RunResult.VERIFIED)) shouldBe IntegrityStatus(IntegrityState.VERIFIED, Instant.parse(at), 8, digest)
+        status(run(at, RunResult.VERIFIED)) shouldBe
+            IntegrityStatus(IntegrityState.VERIFIED, Instant.parse(at), 8, digest)
     }
 
     @Test

@@ -42,7 +42,8 @@ class ChainVerificationTest {
         val period: String,
         val kind: RecordKind,
     ) {
-        override fun equals(other: Any?) = other is Key && entity == other.entity && period == other.period && kind == other.kind
+        override fun equals(other: Any?) =
+            other is Key && entity == other.entity && period == other.period && kind == other.kind
 
         override fun hashCode() = listOf(entity, period, kind).hashCode()
     }
@@ -105,13 +106,19 @@ class ChainVerificationTest {
                 override fun periods(
                     tenant: TenantId,
                     entityRef: String,
-                ) = chains.keys.filter { it.entity == entityRef }.map { it.period }.distinct()
+                ) = chains.keys
+                    .filter { it.entity == entityRef }
+                    .map { it.period }
+                    .distinct()
 
                 override fun kinds(
                     tenant: TenantId,
                     entityRef: String,
                     period: String,
-                ) = chains.keys.filter { it.entity == entityRef && it.period == period }.map { it.kind }.sorted()
+                ) = chains.keys
+                    .filter { it.entity == entityRef && it.period == period }
+                    .map { it.kind }
+                    .sorted()
 
                 override fun facts(
                     tenant: TenantId,
