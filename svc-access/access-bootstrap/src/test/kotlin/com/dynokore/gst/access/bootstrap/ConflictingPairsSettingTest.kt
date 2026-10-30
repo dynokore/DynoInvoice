@@ -69,35 +69,34 @@ class ConflictingPairsSettingTest {
             assertThat(firstAudit.get("reason").asString()).isNotEqualTo(stored.get("reason").asString())
         }
 
-    private fun assertInvalidRefused(selected: (String) -> String) =
+    @Test
+    fun `INV-AC-9273 an invalid CONFLICTING_PAIRS or NO_EXTRA_PAIRS value is refused 422 POL-014 and the stored value is unchanged`() =
         run { env ->
             env.store("tax.operator" to "tax.approver")
-            val response =
-                env.post(
-                    "/internal/v1/policies/VP-82",
-                    "token-a",
-                    """{"scopeLevel":"TENANT","scopeRef":"${env.tenant}","selected":${selected("CONFLICTING_PAIRS")},""" +
-                        """"effectiveDate":"${env.today()}","reason":"invalid value"}""",
+            val list = { value: String -> """[{"option":"CONFLICTING_PAIRS","value":$value}]""" }
+            val bodies =
+                mapOf(
+                    "equal roles" to list("""[{"first":"auditor","second":"auditor"}]"""),
+                    "not a wire name" to list("""[{"first":"Tenant.Admin","second":"auditor"}]"""),
+                    "empty list" to list("[]"),
+                    "NO_EXTRA_PAIRS with a value" to
+                        """[{"option":"NO_EXTRA_PAIRS","value":[{"first":"auditor","second":"finance.viewer"}]}]""",
                 )
-            assertThat(response.status).describedAs(response.contentAsString).isEqualTo(422)
-            assertThat(response.contentAsString).contains("POL-014")
-            assertThat(env.storedRows()).isEqualTo(1)
+            bodies.forEach { (name, selected) ->
+                val response =
+                    env.post(
+                        "/internal/v1/policies/VP-82",
+                        "token-a",
+                        """{"scopeLevel":"TENANT","scopeRef":"${env.tenant}","selected":$selected,""" +
+                            """"effectiveDate":"${env.today()}","reason":"invalid $name"}""",
+                    )
+                assertThat(response.status).describedAs("$name: ${response.contentAsString}").isEqualTo(422)
+                assertThat(response.contentAsString).describedAs(name).contains("POL-014")
+                assertThat(env.storedRows()).describedAs(name).isEqualTo(1)
+            }
             env.seed("IDN-A", com.dynokore.gst.access.domain.role.Role.TAX_OPERATOR)
             env.assertRefused(env.refusal { env.grant("IDN-A", "tax.approver") }, pairDetail)
-        }
-
-    @Test
-    fun `INV-AC-9273 equal roles is refused 422 POL-014 and the stored value is unchanged`() =
-        assertInvalidRefused { _ ->
-            val lst = { value: String -> """[{"option":"CONFLICTING_PAIRS","value":$value}]""" }
-            lst("""[{"first":"auditor","second":"auditor"}]""")
-        }
-
-    @Test
-    fun `INV-AC-9273 a role name that is not a wire name is refused 422 POL-014 and the stored value is unchanged`() =
-        assertInvalidRefused { _ ->
-            val lst = { value: String -> """[{"option":"CONFLICTING_PAIRS","value":$value}]""" }
-            lst("""[{"first":"Tenant.Admin","second":"auditor"}]""")
+            env.granted("IDN-A", "auditor")
         }
 
     @Test
