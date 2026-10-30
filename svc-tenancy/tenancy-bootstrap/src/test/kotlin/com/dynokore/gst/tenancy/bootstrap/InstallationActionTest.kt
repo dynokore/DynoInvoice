@@ -380,6 +380,12 @@ class InstallationActionTest {
         // an unconfigured installer subject refuses every caller, also one whose subject is blank
         assertThat(filterOutcome(installer, "", token)).isEqualTo(403 to false)
         assertThat(filterOutcome({ WorkloadVerification.Verified("") }, "", token)).isEqualTo(403 to false)
+        // other paths and methods are not this filter's
+        assertThat(
+            filterOutcome({
+                WorkloadVerification.Refused("x")
+            }, "installer-sa", path = "/internal/v1/tenancy/installation-actions/x"),
+        ).isEqualTo(200 to true)
     }
 
     @Test

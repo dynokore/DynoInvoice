@@ -277,7 +277,6 @@ open class BoundaryDatabase(
                 "gst.bindings.secret-store.mount-root=$secrets",
                 "service-runtime.datasource.credential=db/tenancy_runtime",
                 "server.port=0",
-                "inv.installer.subject=sa-installer",
                 *properties,
             ).run()
     }

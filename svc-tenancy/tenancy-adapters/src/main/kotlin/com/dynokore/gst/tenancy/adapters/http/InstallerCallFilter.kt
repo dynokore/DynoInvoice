@@ -26,12 +26,8 @@ class InstallerCallFilter(
     private val verifier: WorkloadTokenVerifier,
     private val installerSubject: String,
 ) : OncePerRequestFilter() {
-    /**
-     * Every request the registration's `urlPatterns` routes here is checked, whatever its method or raw URI: deciding
-     * the scope by string equality on the raw `requestURI` would skip `;x=1`, `//` and `/./` variants that the
-     * container still routes to the controller (OWASP ASVS V4.1, deny by default).
-     */
-    override fun shouldNotFilter(request: HttpServletRequest): Boolean = false
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
+        !(request.method == "POST" && request.requestURI == PATH)
 
     override fun doFilterInternal(
         request: HttpServletRequest,

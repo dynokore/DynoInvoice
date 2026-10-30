@@ -1,4 +1,4 @@
--- V202610311000: the installer run-record steps tenancy-svc has recorded (INV-T-3290; INV-REQ-1101 b5, INV-REQ-861,
+-- V202610281000: the installer run-record steps tenancy-svc has recorded (INV-T-3290; INV-REQ-1101 b5, INV-REQ-861,
 -- coordinator ruling INV-Q-3245 A). Installation-scoped, not tenant data. Append-only: one row per (run id, step),
 -- written once, never updated or deleted; the primary key is the permanent idempotency key of recordInstallationAction.
 SET lock_timeout = '5s';
