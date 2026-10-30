@@ -4,14 +4,14 @@
 # canonical-svc, ingestion-svc and submission-svc (not identifiers of this contract).
 # INV-T-6501: rows for the backticked names of INV-REQ-805, INV-REQ-649, INV-REQ-440, INV-REQ-1319 and INV-AC-1860,
 # INV-AC-1813, INV-AC-458, INV-AC-2307 that this contract carries (INV-Q-6496, INV-Q-6515 A). Not rows, and why:
-# ADJUSTMENT and NOT_A_BILL (members of the caller vocabulary of INV-REQ-371, not members of this schema; INV-Q-6507
-# decides); POST /v1/transactions, POST /v1/batches and POST /v1/aggregates (paths, not identifiers); canonical-svc,
+# POST /v1/transactions, POST /v1/batches and POST /v1/aggregates (paths, not identifiers); canonical-svc,
 # aggregation-svc, payload-svc and evidence-svc (services); tenant.admin (a role); 400 (an HTTP status code).
 # INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` (rows in the canonical table) and `inputTaxClaimed` (row above) already have rows; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
 # INV-T-6645. Rows for INV-REQ-693 (read from Keel). Its backticked `SR` is an IRAS category code, seed content, not an identifier of this contract.
 # INV-T-13328. Rows for the backticked names of INV-REQ-324 and INV-AC-13327 that this contract carries: `flags`, `docUuid`,
 # `requestIssuance`. Not rows, and why: POST /v1/issuances (a path, not an identifier); NOT_SUBMITTABLE and ISSUANCE_REFUSED
 # (owned by the canonical contract, notSubmittableReason); 422 and 202 (HTTP status codes); rules-svc, masterdata-svc (services).
+# INV-T-13670 (INV-Q-6507 A). Rows for INV-REQ-371: ADJUSTMENT and NOT_A_BILL are now members of documentFunction in the schema and in DraftDocument.
 identifier	kind	file	requirement
 declaredCount	property	openapi.yaml	INV-REQ-811
 declaredNetTotal	property	openapi.yaml	INV-REQ-811
@@ -101,3 +101,19 @@ sendTestEvent	operation	openapi.yaml	INV-REQ-2588
 flags	property	openapi.yaml	INV-REQ-324
 docUuid	property	openapi.yaml	INV-REQ-324
 requestIssuance	operation	openapi.yaml	INV-REQ-324
+documentFunction	property	schemas/transaction-request.schema.json	INV-REQ-371
+INVOICE	enum_value	schemas/transaction-request.schema.json	INV-REQ-371
+CREDIT_NOTE	enum_value	schemas/transaction-request.schema.json	INV-REQ-371
+DEBIT_NOTE	enum_value	schemas/transaction-request.schema.json	INV-REQ-371
+BILL_FOR_PAYMENT	enum_value	schemas/transaction-request.schema.json	INV-REQ-371
+ADJUSTMENT	enum_value	schemas/transaction-request.schema.json	INV-REQ-371
+NOT_A_BILL	enum_value	schemas/transaction-request.schema.json	INV-REQ-371
+precedingBlankJustification	property	schemas/transaction-request.schema.json	INV-REQ-371
+evidenceRef	property	schemas/transaction-request.schema.json	INV-REQ-371
+DraftDocument.documentFunction	schema_property	openapi.yaml	INV-REQ-371
+DraftDocument.documentFunction.INVOICE	schema_enum_value	openapi.yaml	INV-REQ-371
+DraftDocument.documentFunction.CREDIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+DraftDocument.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+DraftDocument.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+DraftDocument.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+DraftDocument.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371

@@ -7,3 +7,6 @@ openapi.yaml	/components/schemas/IssuanceResult/properties/flags/items/enum	equa
 openapi.yaml	/components/schemas/IssuanceResult/properties/flags/items/x-extensible-enum	equals	true	INV-REQ-324
 openapi.yaml	/components/schemas/IssuanceRequest/allOf/1/properties/flags	absent	-	INV-REQ-324
 openapi.yaml	/components/schemas/IssuanceResult/properties/verdict/enum	equals	["PASS","NOT_SUBMITTABLE"]	INV-REQ-324
+schemas/transaction-request.schema.json	/properties/documentFunction/enum	equals	["INVOICE","CREDIT_NOTE","DEBIT_NOTE","BILL_FOR_PAYMENT","ADJUSTMENT","NOT_A_BILL"]	INV-REQ-371
+openapi.yaml	/components/schemas/DraftDocument/properties/documentFunction/enum	equals	["INVOICE","CREDIT_NOTE","DEBIT_NOTE","BILL_FOR_PAYMENT","ADJUSTMENT","NOT_A_BILL"]	INV-REQ-371
+schemas/transaction-request.schema.json	/allOf/1/then/properties/documentFunction/enum	equals	["CREDIT_NOTE","ADJUSTMENT"]	INV-REQ-371

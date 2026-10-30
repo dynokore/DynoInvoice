@@ -1,0 +1,34 @@
+{
+  "entityRef": "E-001",
+  "sourceSystem": "erp-acme",
+  "sourceKey": "REM-2026-000012",
+  "sourceRevision": 1,
+  "documentFunction": "NOT_A_BILL",
+  "transactionDate": "2026-03-25",
+  "currency": "SGD",
+  "counterparty": {
+    "supplier": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201912345A"
+    },
+    "buyer": {
+      "identifierScheme": "UEN",
+      "identifierValue": "201954321B"
+    }
+  },
+  "lines": [
+    {
+      "lineNumber": 1,
+      "description": "Payment received against INV-2026-000123",
+      "quantity": 1,
+      "unitPrice": "1090.00",
+      "lineAmount": "1090.00"
+    }
+  ],
+  "declaredTotals": {
+    "totalExcludingTax": "1090.00",
+    "totalTax": "0.00",
+    "totalIncludingTax": "1090.00"
+  },
+  "documentKind": "REMITTANCE"
+}

@@ -19,7 +19,8 @@
     },
     "documentFunction": {
       "type": "string",
-      "enum": ["INVOICE", "CREDIT_NOTE", "DEBIT_NOTE", "BILL_FOR_PAYMENT"]
+      "enum": ["INVOICE", "CREDIT_NOTE", "DEBIT_NOTE", "BILL_FOR_PAYMENT", "ADJUSTMENT", "NOT_A_BILL"],
+      "description": "The caller's assertion of the document's function; rules reclassify it (INV-REQ-371 behavior 5), so the canonical value is the classification result, not this assertion. ADJUSTMENT is treated as a credit note for the conditions of INV-REQ-561, INV-REQ-558 and INV-REQ-693. Mapping into the function vocabulary of rules-svc: INVOICE and BILL_FOR_PAYMENT map to BILL_FOR_PAYMENT; CREDIT_NOTE, DEBIT_NOTE and ADJUSTMENT map to ADJUSTMENT; NOT_A_BILL maps to NOT_A_BILL (INV-Q-6507)."
     },
     "documentNumber": {
       "type": "string",
@@ -78,22 +79,22 @@
     "precedingDocumentNumber": {
       "type": "string",
       "maxLength": 64,
-      "description": "Preceding Invoice Number (IBT-025): the number of the invoice a credit note corrects, where the original is known (INV-REQ-560). Optional; a number without precedingDocumentDate is valid, canonical-svc looks the original up or raises RUL-008 (INV-REQ-701). On a credit note with neither preceding field, precedingBlankJustification and evidenceRef are required (ING-019)."
+      "description": "Preceding Invoice Number (IBT-025): the number of the invoice a credit note corrects, where the original is known (INV-REQ-560). Optional; a number without precedingDocumentDate is valid, canonical-svc looks the original up or raises RUL-008 (INV-REQ-701). On a credit note, or a document sent as ADJUSTMENT (treated as a credit note, INV-REQ-371 behavior 7), with neither preceding field, precedingBlankJustification and evidenceRef are required (ING-019)."
     },
     "precedingDocumentDate": {
       "type": "string",
       "format": "date",
-      "description": "Preceding Invoice Date (IBT-026): the date of the invoice a credit note corrects, where the original is known (INV-REQ-560). The credit note resolves its rate and category code from this date (INV-REQ-701). On a credit note with neither preceding field, precedingBlankJustification and evidenceRef are required (ING-019)."
+      "description": "Preceding Invoice Date (IBT-026): the date of the invoice a credit note corrects, where the original is known (INV-REQ-560). The credit note resolves its rate and category code from this date (INV-REQ-701). On a credit note, or a document sent as ADJUSTMENT (treated as a credit note, INV-REQ-371 behavior 7), with neither preceding field, precedingBlankJustification and evidenceRef are required (ING-019)."
     },
     "precedingBlankJustification": {
       "type": "string",
       "maxLength": 512,
-      "description": "Why a credit note leaves precedingDocumentNumber and precedingDocumentDate blank, e.g. a volume rebate not attributable to one invoice; notes that a rate-change straddle was considered (INV-REQ-561, INV-REQ-702). Required, together with evidenceRef, when documentFunction is CREDIT_NOTE and neither precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional; refused with ING-019 (INV-REQ-561, INV-Q-1677, INV-Q-3450, INV-Q-3488). The condition is enforced by the receiving service, not by this schema (as documentNumber states ING-009)."
+      "description": "Why a credit note leaves precedingDocumentNumber and precedingDocumentDate blank, e.g. a volume rebate not attributable to one invoice; notes that a rate-change straddle was considered (INV-REQ-561, INV-REQ-702). Required, together with evidenceRef, when documentFunction is CREDIT_NOTE or ADJUSTMENT (an ADJUSTMENT is treated as a credit note, INV-REQ-371 behavior 7) and neither precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional; refused with ING-019 (INV-REQ-561, INV-Q-1677, INV-Q-3450, INV-Q-3488). The condition is enforced by the receiving service, not by this schema (as documentNumber states ING-009)."
     },
     "evidenceRef": {
       "type": "string",
       "maxLength": 256,
-      "description": "Reference to the business's other documentary evidence that GST was accounted for on the original supplies, for a blank-linked credit note (INV-REQ-561). Required, together with precedingBlankJustification, when documentFunction is CREDIT_NOTE and neither precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional; refused with ING-019 (INV-REQ-561, INV-Q-1677, INV-Q-3450, INV-Q-3488). The condition is enforced by the receiving service, not by this schema (as documentNumber states ING-009)."
+      "description": "Reference to the business's other documentary evidence that GST was accounted for on the original supplies, for a blank-linked credit note (INV-REQ-561). Required, together with precedingBlankJustification, when documentFunction is CREDIT_NOTE or ADJUSTMENT (an ADJUSTMENT is treated as a credit note, INV-REQ-371 behavior 7) and neither precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional; refused with ING-019 (INV-REQ-561, INV-Q-1677, INV-Q-3450, INV-Q-3488). The condition is enforced by the receiving service, not by this schema (as documentNumber states ING-009)."
     },
     "documentKind": {
       "type": "string",
@@ -123,11 +124,11 @@
       "maxItems": 50,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1, "maxLength": 128 },
-      "description": "The sourceKey values of the credit notes, posted by the same entityRef and sourceSystem, that this revised invoice nets. Allowed only when documentFunction is INVOICE; any other combination is a contract violation, refused with 400 and SRT-001. The System never infers a netting: the ERP declares it. It has an effect only while the original has not been transmitted (INV-Q-6614, INV-REQ-558)."
+      "description": "The sourceKey values of the credit notes, posted by the same entityRef and sourceSystem, that this revised invoice nets. Allowed only when documentFunction is INVOICE (CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, ADJUSTMENT and NOT_A_BILL are refused; an ADJUSTMENT is treated as a credit note, INV-REQ-371 behavior 7); any other combination is a contract violation, refused with 400 and SRT-001. The System never infers a netting: the ERP declares it. It has an effect only while the original has not been transmitted (INV-Q-6614, INV-REQ-558)."
     },
     "gstNotAdjusted": {
       "type": "boolean",
-      "description": "The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639)."
+      "description": "The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE or ADJUSTMENT (an ADJUSTMENT is treated as a credit note, INV-REQ-371 behavior 7); any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639)."
     },
     "sourceDocumentRef": {
       "type": "string",
@@ -151,7 +152,7 @@
     },
     {
       "if": { "required": ["gstNotAdjusted"] },
-      "then": { "properties": { "documentFunction": { "const": "CREDIT_NOTE" } } }
+      "then": { "properties": { "documentFunction": { "enum": ["CREDIT_NOTE", "ADJUSTMENT"] } } }
     },
     {
       "if": { "required": ["networkIssuance"] },

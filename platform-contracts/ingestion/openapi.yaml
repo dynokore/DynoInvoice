@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -130,9 +130,11 @@ paths:
         revised invoice nets; it is allowed on an INVOICE only and any other
         `documentFunction` is refused with `400` and SRT-001 (INV-REQ-558).
         The optional `gstNotAdjusted` boolean declares a credit note issued
-        without GST adjustment; it is allowed on a CREDIT_NOTE only and any
-        other `documentFunction` is refused with `400` and SRT-001
-        (INV-REQ-693).
+        without GST adjustment; it is allowed on a CREDIT_NOTE or an
+        ADJUSTMENT only and any other `documentFunction` is refused with
+        `400` and SRT-001 (INV-REQ-693). A credit note sent as ADJUSTMENT is
+        held to the linkage of ING-019 like a CREDIT_NOTE (INV-REQ-371
+        behavior 7, INV-REQ-561).
         The optional `buyerInvoiceRefs` array carries the references the
         customer gave the self-billing invoices a document derives from; it
         is required for a SALE document of an entity that the Scope pack's
@@ -1327,7 +1329,7 @@ components:
         entityRef: { type: string, maxLength: 40 }
         documentFunction:
           type: string
-          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
         currency: { type: string, minLength: 3, maxLength: 3 }
         totalIncludingTax:
           type: string
