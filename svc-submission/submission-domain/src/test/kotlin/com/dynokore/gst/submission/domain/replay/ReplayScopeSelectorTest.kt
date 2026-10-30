@@ -15,11 +15,9 @@ class ReplayScopeSelectorTest {
         version: Int = 1,
         entity: String = "E-001",
         period: String = "2026-Q1",
-        state: LifecycleState = LifecycleState.DEAD_LETTERED,
-        failure: String? = "SUB-008",
-        due: LocalDate = LocalDate.of(2026, 4, 30),
-        queued: Instant = t0,
-    ) = ReplayCandidate(doc, version, entity, period, state, failure, due, queued)
+    ) = ReplayCandidate(
+        doc, version, entity, period, LifecycleState.DEAD_LETTERED, "SUB-008", LocalDate.of(2026, 4, 30), t0,
+    )
 
     private fun scope(
         entity: String = "E-001",
@@ -32,10 +30,10 @@ class ReplayScopeSelectorTest {
 
     private val fixture =
         listOf(
-            cand("d-q2", period = "2026-Q2", due = LocalDate.of(2026, 7, 31)),
-            cand("d-q1b", due = LocalDate.of(2026, 4, 30), queued = t0.plusSeconds(5)),
-            cand("d-q1a", due = LocalDate.of(2026, 4, 15)),
-            cand("d-unconfirmed", state = LifecycleState.SENT_UNCONFIRMED),
+            cand("d-q2", period = "2026-Q2").copy(dueDate = LocalDate.of(2026, 7, 31)),
+            cand("d-q1b").copy(queuedAt = t0.plusSeconds(5)),
+            cand("d-q1a").copy(dueDate = LocalDate.of(2026, 4, 15)),
+            cand("d-unconfirmed").copy(state = LifecycleState.SENT_UNCONFIRMED),
             cand("d-other", entity = "E-002"),
         )
 
@@ -62,10 +60,10 @@ class ReplayScopeSelectorTest {
     fun `failure class matches by exact equality and never matches null`() {
         val cs =
             listOf(
-                cand("a", failure = "SUB-008"),
-                cand("b", failure = "sub-008"),
-                cand("c", failure = "SUB-0080"),
-                cand("d", failure = null),
+                cand("a"),
+                cand("b").copy(failureClass = "sub-008"),
+                cand("c").copy(failureClass = "SUB-0080"),
+                cand("d").copy(failureClass = null),
             )
         ids(ReplayScopeSelector.select(cs, scope(failure = "SUB-008"), 10)) shouldBe listOf("a" to 1)
     }
@@ -89,7 +87,7 @@ class ReplayScopeSelectorTest {
 
     @Test
     fun `equal due dates are ordered by queuedAt`() {
-        val cs = listOf(cand("a", queued = t0.plusSeconds(9)), cand("z", queued = t0))
+        val cs = listOf(cand("a").copy(queuedAt = t0.plusSeconds(9)), cand("z"))
         ids(ReplayScopeSelector.select(cs, scope(), 10)) shouldBe listOf("z" to 1, "a" to 1)
     }
 
@@ -105,7 +103,7 @@ class ReplayScopeSelectorTest {
         shouldThrow<IllegalArgumentException> { scope(period = "") }
         shouldThrow<IllegalArgumentException> { scope(doc = " ") }
         shouldThrow<IllegalArgumentException> { scope(failure = "") }
-        shouldThrow<IllegalArgumentException> { cand("a", failure = " ") }
+        shouldThrow<IllegalArgumentException> { cand("a").copy(failureClass = " ") }
         shouldThrow<IllegalArgumentException> { cand("a", version = 0) }
         shouldThrow<IllegalArgumentException> { ReplayScopeSelector.select(listOf(cand("a")), scope(), 0) }
         shouldThrow<IllegalArgumentException> { ReplayScopeSelector.select(listOf(cand("a"), cand("a")), scope(), 5) }
