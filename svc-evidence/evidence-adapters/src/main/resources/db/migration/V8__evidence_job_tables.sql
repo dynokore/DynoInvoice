@@ -1,4 +1,4 @@
--- V9__evidence_job_tables.sql: platform-generated DDL (TPL-12); regenerate with GeneratedJobMigrationTest, never edit by hand.
+-- V8__evidence_job_tables.sql: platform-generated DDL (TPL-12); regenerate with GeneratedJobMigrationTest, never edit by hand.
 -- Generated: service-runtime's JobSchema.ddl("evidence", "evidence_runtime", "evidence_sys") of the platform-libs-bom 0.120.0 train.
 create table evidence.shedlock (
     name varchar(255) not null primary key,

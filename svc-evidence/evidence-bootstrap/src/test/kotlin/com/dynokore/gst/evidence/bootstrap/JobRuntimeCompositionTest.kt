@@ -65,8 +65,7 @@ class JobRuntimeCompositionTest {
             JobCommand.entries.forEach { command ->
                 actors.forEach { actor ->
                     authorizer.isPlatformOperator(actor, command) shouldBe false
-                    authorizer.mayCommandEntity(actor, TenantId.PLATFORM, EventEntityRef.PLATFORM, command) shouldBe
-                        false
+                    authorizer.mayCommandEntity(actor, TenantId.PLATFORM, EventEntityRef.PLATFORM, command) shouldBe false
                 }
             }
         }
@@ -104,7 +103,7 @@ class JobRuntimeCompositionTest {
         EvidenceContext
             .offline(dir)
             .withInitializer { context ->
-                (context as GenericApplicationContext).addBeanFactoryPostProcessor {
+                (context as GenericApplicationContext).beanFactory.addBeanFactoryPostProcessor {
                     (it as BeanDefinitionRegistry).removeBeanDefinition("eventCatalogue")
                 }
             }.run { context -> (context.startupFailure != null) shouldBe true }
@@ -199,23 +198,10 @@ class JobRuntimeCompositionTest {
     ) = scope.bind(tenant, "svc:evidence-svc") {
         runner.inTransaction {
             val ledger = JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, RecordKind.EVIDENCE_PAYLOAD.table)
-            val record =
-                ledger.append(
-                    tenant,
-                    EntityRef(entity),
-                    PeriodRef("2026-Q1"),
-                    EvidenceType.PAYLOAD,
-                    "{}".toByteArray(),
-                )
+            val record = ledger.append(tenant, EntityRef(entity), PeriodRef("2026-Q1"), EvidenceType.PAYLOAD, "{}".toByteArray())
             JooqAppliedStore(dsl).insert(
                 tenant,
-                AppliedRecord(
-                    "ev-$entity",
-                    RecordKind.EVIDENCE_PAYLOAD,
-                    ChainKey(entity, "2026-Q1"),
-                    record.sequence,
-                    Instant.now(),
-                ),
+                AppliedRecord("ev-$entity", RecordKind.EVIDENCE_PAYLOAD, ChainKey(entity, "2026-Q1"), record.sequence, Instant.now()),
             )
         }
     }
