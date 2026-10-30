@@ -55,6 +55,8 @@ object GraceWindow {
         return GraceEnd.Ends(if (byDays.isBefore(effectiveFrom)) byDays else effectiveFrom)
     }
 
+    // The signature is fixed by INV-T-13143: every set-point and date is an argument (12-factor III), no clock.
+    @Suppress("LongParameterList")
     fun decide(
         form: DeploymentForm,
         policy: ReviewPolicy,
