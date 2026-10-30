@@ -71,7 +71,7 @@ class EndUserFilterTest {
         return listOfNotNull(
             "the resolver was called".takeIf { Doubles.resolverCalls.get() != resolver },
             "refused 401 SRT-003".takeIf { answer.statusCode() == 401 && "SRT-003" in answer.body() },
-            "something is bound".takeIf { seen.any { it.tenant != null || it.actor != null } },
+            "something is bound".takeIf { seen.any { hit -> hit.tenant != null || hit.actor != null } },
         ).map { "${operation.label}: $it" }
     }
 
