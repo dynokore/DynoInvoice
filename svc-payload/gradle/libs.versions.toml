@@ -50,6 +50,7 @@ platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-
 platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
+platform-integrationCanon-api = { module = "com.dynokore.platform:integration-canon-api", version.ref = "integrationCanon" }
 platform-integrationCanon-impl = { module = "com.dynokore.platform:integration-canon", version.ref = "integrationCanon" }
 platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
 platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }

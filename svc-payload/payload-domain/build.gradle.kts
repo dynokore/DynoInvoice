@@ -5,6 +5,7 @@ plugins {
 }
 
 dependencies {
+    implementation(libs.platform.integrationCanon.api)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
