@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -232,7 +232,7 @@ paths:
         role: entity.admin
         scope: entity
         precondition: "Constitution known. The call proposes the change; confirmIdentityTripleChange confirms it by another entity.admin/tenant.admin or a tax.approver (FR-AC.16, VP-09)."
-        reversibility: UNDOABLE
+        reversibility: COMPENSABLE
         repeatKey: "(entityRef, constitution, effectiveFrom) — a repeat replaces the same effective-dated change for that constitution."
       parameters:
         - name: entityRef

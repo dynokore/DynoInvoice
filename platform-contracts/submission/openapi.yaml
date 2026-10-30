@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -213,7 +213,7 @@ paths:
         role: filing-workflow
         scope: filing-workflow
         precondition: The entity and period exist and have queued or held items to attempt (FR-C.8).
-        reversibility: COMPENSABLE
+        reversibility: IRREVERSIBLE
         repeatKey: >-
           (entityRef, periodRef) — a repeat re-attempts whatever remains
           queued or held; nothing already drained is repeated (INV-REQ-554).
@@ -1368,7 +1368,7 @@ paths:
         precondition: >-
           The version is DEAD_LETTERED (INV-REQ-575); no other version of the
           same Doc UUID is currently in flight (FR-C.2, SUB-008).
-        reversibility: COMPENSABLE
+        reversibility: IRREVERSIBLE
         repeatKey: >-
           (docUuid, version) — the repeat overwrites itself at IRAS
           (INV-REQ-1010 behaviour #3).
@@ -1424,7 +1424,7 @@ paths:
           Each selected version is DEAD_LETTERED; a version with another
           in-flight version of its Doc UUID is skipped and listed, never
           replayed.
-        reversibility: COMPENSABLE
+        reversibility: IRREVERSIBLE
         repeatKey: >-
           (docUuid, version) of each selected version — a repeat overwrites
           itself at IRAS (INV-REQ-1010 behaviour #3).
