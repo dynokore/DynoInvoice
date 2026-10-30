@@ -3,7 +3,7 @@ package com.dynokore.gst.submission.domain.readiness
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import java.time.LocalDate
 
-/** One document of the period: its version states in version order (the single document-level state when no version exists). */
+/** One document of the period: version states in version order (the document-level state when no version exists). */
 data class ReadinessEntry(
     val docUuid: String,
     val versions: List<LifecycleState>,
@@ -45,7 +45,7 @@ data class Residual(
     val overridden: Boolean,
 )
 
-/** The single readiness verdict (INV-REQ-945): ready, blocked with the count of outstanding items, or unable to determine. */
+/** The single readiness verdict (INV-REQ-945): ready, blocked with the outstanding count, or unable to determine. */
 sealed interface ReadinessResult {
     data class Ready(
         val counts: Counts,
@@ -105,6 +105,10 @@ object ReadinessCounter {
         }
     }
 
+    /** A rejected latest version is acknowledged when an earlier version of the entry was acknowledged. */
+    private fun rejectedBucket(versions: List<LifecycleState>): Bucket =
+        if (LifecycleState.ACKNOWLEDGED in versions.dropLast(1)) Bucket.ACKNOWLEDGED else Bucket.BLOCKED_OR_ERROR
+
     /** The bucket of the latest state, or null when the entry is not counted. */
     private fun bucketOf(versions: List<LifecycleState>): Bucket? =
         when (versions.last()) {
@@ -126,13 +130,7 @@ object ReadinessCounter {
             }
 
             LifecycleState.REJECTED -> {
-                if (LifecycleState.ACKNOWLEDGED in
-                    versions.dropLast(1)
-                ) {
-                    Bucket.ACKNOWLEDGED
-                } else {
-                    Bucket.BLOCKED_OR_ERROR
-                }
+                rejectedBucket(versions)
             }
 
             LifecycleState.HELD,
