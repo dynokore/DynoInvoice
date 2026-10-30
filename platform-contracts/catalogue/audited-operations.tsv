@@ -16,7 +16,7 @@ resealBreakGlass	resealBreakGlass	access	-
 runAccessReview	runAccessReview	access	-
 unlockBreakGlass	unlockBreakGlass	access	-
 applyOperatingProfile	recordAppliedOperatingProfile	tenancy	-
-copyAnonymisedSample	UNCONTRACTED	console-bff	-
+copyAnonymisedSample	copyAnonymisedSample	console-bff	-
 correctPersonalData	correctPersonalData	console-bff	-
 exportSupportBundle	UNCONTRACTED	console-bff	-
 promoteConfiguration	UNCONTRACTED	console-bff	-
