@@ -10,6 +10,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.File
 import java.util.UUID
 
 class HandleComplianceAlertValuesTest {
@@ -144,9 +145,25 @@ class HandleComplianceAlertValuesTest {
     }
 
     @Test
-    fun `INV-AC-12838 the ports are exactly the three declared interfaces`() {
-        val names =
-            listOf(PolicyTiers::class, AlertSink::class, ProcessedEvents::class).map { it.java.simpleName }
-        names shouldBe listOf("PolicyTiers", "AlertSink", "ProcessedEvents")
+    fun `INV-AC-12838 the interfaces the file declares are exactly the three ports`() {
+        val source = "HandleComplianceAlertValues.kt"
+        val dir =
+            File(
+                HandleComplianceAlertValues::class.java.protectionDomain.codeSource.location
+                    .toURI(),
+            ).resolve(HandleComplianceAlertValues::class.java.packageName.replace('.', '/'))
+        val declared =
+            dir
+                .listFiles { f -> f.extension == "class" && '$' !in f.name }
+                .orEmpty()
+                .filter { String(it.readBytes(), Charsets.ISO_8859_1).contains(source) }
+                .map {
+                    Class.forName(
+                        HandleComplianceAlertValues::class.java.packageName + "." + it.nameWithoutExtension,
+                    )
+                }.filter { it.isInterface }
+                .map { it.simpleName }
+                .sorted()
+        declared shouldBe listOf("AlertSink", "PolicyTiers", "ProcessedEvents")
     }
 }
