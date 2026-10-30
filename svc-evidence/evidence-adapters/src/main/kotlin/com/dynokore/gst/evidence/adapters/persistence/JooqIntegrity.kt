@@ -9,6 +9,8 @@ import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.IntegrityFailu
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.IntegrityRun.Companion.INTEGRITY_RUN
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.PeriodDigest.Companion.PERIOD_DIGEST
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.PeriodDigestChain.Companion.PERIOD_DIGEST_CHAIN
+import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.records.PeriodDigestChainRecord
+import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.records.PeriodDigestRecord
 import com.dynokore.gst.evidence.application.digest.PeriodDigestEntry
 import com.dynokore.gst.evidence.application.integrity.ChainFacts
 import com.dynokore.gst.evidence.application.integrity.ChainReads
@@ -25,6 +27,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Table
+import org.jooq.TableField
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.time.OffsetDateTime
@@ -36,20 +39,20 @@ class JooqChainReads(
 ) : ChainReads {
     /** The columns of one chain table that the verification reads. */
     private class Columns(
-        val table: Table<*>,
         val tenant: Field<UUID?>,
         val entity: Field<String?>,
         val period: Field<String?>,
-        val seq: Field<Long?>,
+        val seq: TableField<*, Long?>,
         val hash: Field<String?>,
         val recordedAt: Field<OffsetDateTime?>,
-    )
+    ) {
+        val table: Table<*> get() = checkNotNull(seq.table)
+    }
 
     private val columns =
         mapOf(
             RecordKind.EVIDENCE_PAYLOAD to
                 Columns(
-                    EVIDENCE_PAYLOAD,
                     EVIDENCE_PAYLOAD.TENANT_ID,
                     EVIDENCE_PAYLOAD.ENTITY_REF,
                     EVIDENCE_PAYLOAD.PERIOD_REF,
@@ -59,7 +62,6 @@ class JooqChainReads(
                 ),
             RecordKind.ACKNOWLEDGEMENT to
                 Columns(
-                    ACKNOWLEDGEMENT,
                     ACKNOWLEDGEMENT.TENANT_ID,
                     ACKNOWLEDGEMENT.ENTITY_REF,
                     ACKNOWLEDGEMENT.PERIOD_REF,
@@ -69,7 +71,6 @@ class JooqChainReads(
                 ),
             RecordKind.DECISION_TRACE to
                 Columns(
-                    DECISION_TRACE,
                     DECISION_TRACE.TENANT_ID,
                     DECISION_TRACE.ENTITY_REF,
                     DECISION_TRACE.PERIOD_REF,
@@ -79,7 +80,6 @@ class JooqChainReads(
                 ),
             RecordKind.AUDIT_LOG to
                 Columns(
-                    AUDIT_LOG,
                     AUDIT_LOG.TENANT_ID,
                     AUDIT_LOG.ENTITY_REF,
                     AUDIT_LOG.PERIOD_REF,
@@ -185,36 +185,33 @@ class JooqDigestReads(
             ).orderBy(PERIOD_DIGEST.DIGEST_SEQ)
             .fetch()
             .map { row ->
-                PeriodDigestEntry(
-                    entityRef = entityRef,
-                    period = period,
-                    digestSequence = checkNotNull(row.digestSeq),
-                    returnVersion = checkNotNull(row.returnVersion),
-                    filedAt = checkNotNull(row.filedAt).toInstant(),
-                    recordedAt = checkNotNull(row.recordedAt).toInstant(),
-                    eventId = checkNotNull(row.sourceEventId),
-                    chains =
-                        chainRows[row.digestSeq]
-                            .orEmpty()
-                            .sortedBy {
-                                DigestChainType.valueOf(
-                                    checkNotNull(it.evidenceType),
-                                )
-                            }.map {
-                                val length = checkNotNull(it.chainLength)
-                                ChainTail(
-                                    DigestChainType.valueOf(checkNotNull(it.evidenceType)),
-                                    length,
-                                    it.tailHash.takeIf { length > 0 },
-                                )
-                            },
-                    digest = checkNotNull(row.digest),
-                )
+                entryOf(row, entityRef, period, chainRows[row.digestSeq].orEmpty())
             }
     }
 }
 
-/** `integrity_run` and `integrity_failure` over the service's tenant-bound [DSLContext]; nothing here rewrites a row. */
+private fun entryOf(
+    row: PeriodDigestRecord,
+    entityRef: String,
+    period: String,
+    chainRows: List<PeriodDigestChainRecord>,
+) = PeriodDigestEntry(
+    entityRef = entityRef,
+    period = period,
+    digestSequence = checkNotNull(row.digestSeq),
+    returnVersion = checkNotNull(row.returnVersion),
+    filedAt = checkNotNull(row.filedAt).toInstant(),
+    recordedAt = checkNotNull(row.recordedAt).toInstant(),
+    eventId = checkNotNull(row.sourceEventId),
+    chains =
+        chainRows.sortedBy { DigestChainType.valueOf(checkNotNull(it.evidenceType)) }.map {
+            val length = checkNotNull(it.chainLength)
+            ChainTail(DigestChainType.valueOf(checkNotNull(it.evidenceType)), length, it.tailHash.takeIf { length > 0 })
+        },
+    digest = checkNotNull(row.digest),
+)
+
+/** `integrity_run` and `integrity_failure` over the tenant-bound [DSLContext]; nothing here rewrites a row. */
 class JooqIntegrityStore(
     private val dsl: DSLContext,
 ) : IntegrityStore {

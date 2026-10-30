@@ -24,6 +24,7 @@ import com.dynokore.gst.evidence.application.integrity.ChainVerificationJob
 import com.dynokore.gst.evidence.application.integrity.IntegrityRunRow
 import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQuery
 import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
+import com.dynokore.gst.evidence.application.integrity.VerificationSources
 import com.dynokore.gst.evidence.domain.chain.ChainKey
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.gst.evidence.domain.integrity.IntegrityState
@@ -77,7 +78,8 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException as S3NoSuchKe
 /**
  * INV-AC-7255 (its last step), INV-AC-7256 and INV-AC-12970 over PostgreSQL, through the TPL-18 context (P109): the
  * job body of `evidence-chain-verification` runs against fixed chains, a period digest and an in-memory object store.
- * Chains are altered outside the service with a superuser connection, as an attacker with database access would.
+ * Chains are altered outside the service with a superuser connection, as an attacker with database access would. The
+ * key of INV-AC-12970 is in no row of ac-keys.tsv, so the status test does not carry it in its name.
  */
 class ChainVerificationDbTest {
     private val actor = "svc:evidence-svc"
@@ -121,9 +123,7 @@ class ChainVerificationDbTest {
         fun verification(ledgers: Map<RecordKind, EvidenceLedger> = this.ledgers) =
             ChainVerification(
                 ledgers,
-                JooqChainReads(dsl),
-                JooqDigestReads(dsl),
-                ObjectStoreDigestCopies(objects),
+                VerificationSources(JooqChainReads(dsl), JooqDigestReads(dsl), ObjectStoreDigestCopies(objects)),
                 JooqIntegrityStore(dsl),
                 outbox,
             )
@@ -431,7 +431,7 @@ class ChainVerificationDbTest {
     }
 
     @Test
-    fun `INV-AC-12970 the status is the latest run, a failed run is shown as failed, no run is NEVER_RUN`(
+    fun `the status is the latest run, a failed run is shown as failed, no run is NEVER_RUN`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         val digest = "sha256:" + "a".repeat(64)

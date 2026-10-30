@@ -11,6 +11,7 @@ import com.dynokore.gst.evidence.application.digest.MaxRetention
 import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
 import com.dynokore.gst.evidence.application.integrity.ChainVerification
 import com.dynokore.gst.evidence.application.integrity.DigestCopies
+import com.dynokore.gst.evidence.application.integrity.VerificationSources
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -77,9 +78,7 @@ object ChainWiring {
     ): ChainVerification =
         ChainVerification(
             RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table) },
-            JooqChainReads(dsl),
-            JooqDigestReads(dsl),
-            copies,
+            VerificationSources(JooqChainReads(dsl), JooqDigestReads(dsl), copies),
             JooqIntegrityStore(dsl),
             outbox,
             clock,

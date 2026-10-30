@@ -56,6 +56,10 @@ class SeparableStoreTest {
             "period_digest.digest" to "sha256:" + "a".repeat(HASH_LENGTH),
             "period_digest_chain.evidence_type" to "PAYLOAD",
             "period_digest_chain.tail_hash" to "a".repeat(HASH_LENGTH),
+            "integrity_run.result" to "VERIFIED",
+            "integrity_run.period_digest" to "sha256:" + "a".repeat(HASH_LENGTH),
+            "integrity_failure.evidence_type" to "PAYLOAD",
+            "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows
         )
 
     /** Columns left unset: a SECURITY case has no subject (the shape check of `case_register`). */
