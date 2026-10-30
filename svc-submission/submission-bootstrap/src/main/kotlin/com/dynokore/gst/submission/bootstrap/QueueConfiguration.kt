@@ -21,10 +21,7 @@ import org.springframework.context.annotation.Configuration
  * unlimited, and the task that owns a lane's rate adds its entry here.
  */
 @Configuration(proxyBeanMethods = false)
-class QueueConfiguration(
-    private val outbox: OutboxWriter,
-    private val principal: WorkloadPrincipal,
-) {
+class QueueConfiguration {
     @Bean
     fun laneLimits(): LaneLimits = LaneLimits()
 
@@ -45,6 +42,8 @@ class QueueConfiguration(
         transactions: TransactionRunner,
         store: SubmissionStore,
         queue: WorkQueue,
+        outbox: OutboxWriter,
+        principal: WorkloadPrincipal,
     ): SentTransaction = SentTransaction(tenants, transactions, store, queue, outbox, principal)
 
     @Bean
