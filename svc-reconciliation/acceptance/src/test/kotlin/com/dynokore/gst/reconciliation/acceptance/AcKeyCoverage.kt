@@ -4,6 +4,7 @@ package com.dynokore.gst.reconciliation.acceptance
  * The acceptance-criterion key gate (INV-T-5970), fails closed. `ac-keys.tsv` has one row per acceptance criterion
  * the tasks of this service carry: `criterion`, `task`, `wave` (a number; 4 for a criterion this service's tasks run).
  *
+ * - the `task` cell of a row is one or more task keys joined by a single comma, strictly ascending by number;
  * - the table is missing, empty or malformed: a finding;
  * - a row with wave 4 whose key is not a whole token of the name of at least one executed test: a finding naming
  *   the row;
@@ -13,7 +14,7 @@ package com.dynokore.gst.reconciliation.acceptance
 object AcKeyCoverage {
     const val RUN_WAVE = 4
     private val KEY = Regex("INV-AC-[0-9]+")
-    private val TASK = Regex("INV-T-[0-9]+")
+    private val TASK = Regex("INV-T-([0-9]+)")
     private val CANDIDATE = Regex("INV-AC-[0-9][0-9A-Za-z_]*")
     private val WORD = Regex("[A-Za-z0-9_]")
     private val HEADER = listOf("criterion", "task", "wave")
@@ -36,10 +37,26 @@ object AcKeyCoverage {
         return whole to lookAlikes
     }
 
+    /**
+     * One or more keys `INV-T-<n>` joined by a single comma (no space, no empty element), each at most once, strictly
+     * ascending by n compared as a number.
+     */
+    private fun validTaskCell(cell: String): Boolean {
+        val numbers =
+            cell.split(',').map {
+                TASK
+                    .matchEntire(it)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toBigInteger()
+            }
+        return numbers.none { it == null } && numbers.zipWithNext().all { (a, b) -> a!! < b!! }
+    }
+
     private fun parseRow(line: String): Row? {
         val cells = line.split('\t')
         val wave = cells.getOrNull(2)?.toIntOrNull()
-        val valid = cells.size == HEADER.size && KEY.matches(cells[0]) && TASK.matches(cells[1])
+        val valid = cells.size == HEADER.size && KEY.matches(cells[0]) && validTaskCell(cells[1])
         return if (valid && wave != null) Row(cells[0], cells[1], wave) else null
     }
 

@@ -48,4 +48,49 @@ class AcKeyCoverageProbeTest {
         AcKeyCoverage.findings(table + "INV-AC-7\tINV-T-2\tx\n", names).shouldNotBeEmpty()
         AcKeyCoverage.findings(table + "INV-AC-8\tINV-T-2\t3\n", names).shouldBeEmpty()
     }
+
+    private fun withTask(cell: String) = "criterion\ttask\twave\nINV-AC-677\t$cell\t4\n"
+
+    private val named = listOf("INV-AC-677 other()")
+
+    @Test
+    fun `a multi task cell in ascending order passes`() {
+        AcKeyCoverage.findings(withTask("INV-T-7232,INV-T-7246"), named).shouldBeEmpty()
+        AcKeyCoverage.findings(withTask("INV-T-8460,INV-T-11788"), named).shouldBeEmpty()
+        AcKeyCoverage.findings(withTask("INV-T-7232,INV-T-7245,INV-T-7246"), named).shouldBeEmpty()
+    }
+
+    @Test
+    fun `a malformed multi task cell fails`() {
+        listOf(
+            "INV-T-7232, INV-T-7246",
+            "INV-T-7232,",
+            ",INV-T-7232",
+            "INV-T-7232,,INV-T-7246",
+            "INV-T-7232,INV-T-7232",
+            "INV-T-7246,INV-T-7232",
+            "INV-T-11788,INV-T-8460",
+            "INV-T-7232;INV-T-7246",
+            "INV-T-7232|INV-T-7246",
+            "INV-T-7232,INV-T-72x",
+            "INV-T-7232,INV-T-7246x",
+            "INV-T-7232,UNASSIGNED",
+            "UNASSIGNED",
+            "",
+        ).forEach { cell ->
+            AcKeyCoverage.findings(withTask(cell), named).joinToString() shouldContain "malformed row"
+        }
+    }
+
+    @Test
+    fun `two rows for one key still fail as a duplicate`() {
+        val table = withTask("INV-T-7232") + "INV-AC-677\tINV-T-7246\t4\n"
+        AcKeyCoverage.findings(table, named).joinToString() shouldContain "duplicate row"
+    }
+
+    @Test
+    fun `an uncovered multi task row names the whole cell`() {
+        val findings = AcKeyCoverage.findings(withTask("INV-T-7232,INV-T-7246"), listOf("an unrelated test()"))
+        findings.single() shouldContain "INV-AC-677 (task INV-T-7232,INV-T-7246, wave 4)"
+    }
 }
