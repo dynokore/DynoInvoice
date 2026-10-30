@@ -10,6 +10,7 @@ import com.dynokore.gst.reconciliation.domain.sgd.SgdAllocation
 import com.dynokore.gst.reconciliation.domain.sgd.SgdLine
 import com.dynokore.gst.reconciliation.domain.variance.DocumentFacts
 import com.dynokore.gst.reconciliation.domain.variance.VarianceClass
+import com.dynokore.gst.reconciliation.domain.variance.VarianceClasses
 import com.dynokore.platform.reconciliationengine.MissingSide
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -238,7 +239,10 @@ class ReconciliationRunnerTest {
             .map { it.category.code }
             .toSet() shouldBe verdicts.keys
         outcome.raisesPer003 shouldBe false
-        VarianceClass.entries.count { it != VarianceClass.UNEXPLAINED } shouldBe 8
+        val eight = VarianceClass.entries.filter { it != VarianceClass.UNEXPLAINED }.toSet()
+        eight.size shouldBe 8
+        (VarianceClasses.derived + VarianceClasses.assignable) shouldBe eight
+        VarianceClasses.derived.map { it.name }.toSet() shouldBe verdicts.keys
     }
 
     @Test
