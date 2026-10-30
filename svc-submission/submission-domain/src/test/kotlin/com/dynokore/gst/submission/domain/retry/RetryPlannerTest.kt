@@ -42,7 +42,8 @@ class RetryPlannerTest {
 
     @Test
     fun `INV-AC-605 QUEUED first failure retries at 15 seconds and raises SUB-001`() {
-        RetryPlanner.onTransientFailure(input()) shouldBe Retry(doc, 1, LifecycleState.QUEUED, 1, t0.plusSeconds(15), raise)
+        RetryPlanner.onTransientFailure(input()) shouldBe
+            Retry(doc, 1, LifecycleState.QUEUED, 1, t0.plusSeconds(15), raise)
     }
 
     @Test
@@ -68,7 +69,10 @@ class RetryPlannerTest {
             r.from shouldBe state
             r.signals shouldBe raise
         }
-        val names = Retry::class.java.declaredFields.filter { !Modifier.isStatic(it.modifiers) }.map { it.name }
+        val names =
+            Retry::class.java.declaredFields
+                .filter { !Modifier.isStatic(it.modifiers) }
+                .map { it.name }
         names shouldContainExactlyInAnyOrder listOf("docUuid", "version", "from", "attempt", "nextAttemptAt", "signals")
     }
 
@@ -90,9 +94,10 @@ class RetryPlannerTest {
 
     @Test
     fun `INV-AC-13071 window end is inclusive and one millisecond later is exhausted`() {
-        fun at(now: Instant) = RetryPlanner.onTransientFailure(
-            input(failures = 7, firstFailureAt = t0, now = now, boundary = Duration.ofHours(1)),
-        )
+        fun at(now: Instant) =
+            RetryPlanner.onTransientFailure(
+                input(failures = 7, firstFailureAt = t0, now = now, boundary = Duration.ofHours(1)),
+            )
         val ok = at(t0.plusSeconds(3150)) as Retry
         ok.nextAttemptAt shouldBe t0.plusSeconds(3600)
         ok.attempt shouldBe 8
@@ -132,10 +137,17 @@ class RetryPlannerTest {
     fun `INV-AC-611 INV-AC-13072 replay table over all 18 states`(state: LifecycleState) {
         val r = RetryPlanner.onReplay(doc, 3, state)
         when (state) {
-            LifecycleState.DEAD_LETTERED ->
+            LifecycleState.DEAD_LETTERED -> {
                 r shouldBe ReplayResult.Replayed(doc, 3, LifecycleState.DEAD_LETTERED, LifecycleState.QUEUED)
-            LifecycleState.QUEUED -> r shouldBe ReplayResult.Unchanged
-            else -> r shouldBe ReplayResult.Anomaly(AnomalyReason.REPLAY_IN_STATE)
+            }
+
+            LifecycleState.QUEUED -> {
+                r shouldBe ReplayResult.Unchanged
+            }
+
+            else -> {
+                r shouldBe ReplayResult.Anomaly(AnomalyReason.REPLAY_IN_STATE)
+            }
         }
     }
 
@@ -143,9 +155,10 @@ class RetryPlannerTest {
     fun `INV-AC-611 after a replay a failure with failures 0 gets a fresh window`() {
         val replayed = RetryPlanner.onReplay(doc, 3, LifecycleState.DEAD_LETTERED) as ReplayResult.Replayed
         val now = t0.plusSeconds(5L * 86_400)
-        val r = RetryPlanner.onTransientFailure(
-            input(replayed.to, failures = 0, firstFailureAt = null, now = now, boundary = Duration.ofHours(1)),
-        )
+        val r =
+            RetryPlanner.onTransientFailure(
+                input(replayed.to, failures = 0, firstFailureAt = null, now = now, boundary = Duration.ofHours(1)),
+            )
         r shouldBe Retry(doc, 1, LifecycleState.QUEUED, 1, now.plusSeconds(15), raise)
     }
 
@@ -154,7 +167,14 @@ class RetryPlannerTest {
         var cells = 0
         LifecycleState.entries.forEach { s ->
             val f = RetryPlanner.onTransientFailure(input(s))::class
-            val expectedF = if (s == LifecycleState.QUEUED || s == LifecycleState.RETRY) Retry::class else Anomaly::class
+            val expectedF =
+                if (s == LifecycleState.QUEUED ||
+                    s == LifecycleState.RETRY
+                ) {
+                    Retry::class
+                } else {
+                    Anomaly::class
+                }
             f shouldBe expectedF
             val p = RetryPlanner.onReplay(doc, 1, s)::class
             val expectedP =
