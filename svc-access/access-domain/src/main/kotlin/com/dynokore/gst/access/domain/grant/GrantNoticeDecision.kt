@@ -24,7 +24,6 @@ object GrantNoticeDecision {
             schedule.notices
                 .filter { it.daysBefore !in recorded && !it.noticeDate.isAfter(today) }
                 .sortedBy { it.noticeDate }
-        val send = due.lastOrNull()
-        return NoticeDecision(schedule.expiryDate, listOfNotNull(send), due.filter { it != send })
+        return NoticeDecision(schedule.expiryDate, due.takeLast(1), due.dropLast(1))
     }
 }
