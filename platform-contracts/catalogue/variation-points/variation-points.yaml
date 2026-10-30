@@ -45,6 +45,7 @@
 # Re-extracted 2026-10-22 (INV-T-8291; Keel INV-CS-8286): adds VP-81, the sole-operator acknowledgement scope, as a planned row (INV-REQ-8287, owner answer INV-Q-8239); 81 rows.
 # Re-extracted 2026-10-23 (INV-T-8828; Keel INV-CS-8818): VP-08 becomes available (INV-REQ-1269 io_contract.status, coordinator ruling INV-Q-8841 A); 81 rows.
 # Re-extracted 2026-10-25 (INV-T-10183; Keel INV-CS-10180): VP-29, VP-38 and VP-65 are available (INV-REQ-1290, INV-REQ-1299, INV-REQ-1548 io_contract.status, coordinator ruling INV-Q-10167 A); 82 rows.
+# Re-extracted 2026-10-30 (INV-T-13488; INV-Q-13483 A): re-vendors the 14 rows that drifted from published Keel with check-drift.py --write: VP-06, VP-17, VP-18, VP-39, VP-57, VP-66, VP-67, VP-68, VP-70, VP-71 and VP-80 (revision only), VP-21 and VP-44 become available (INV-Q-12264, INV-Q-11897 A), VP-36 unit text (owner answer INV-Q-13173, option A); 82 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -252,7 +253,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1266: \"never less often than quarterly\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-06
   requirement: INV-REQ-1267
-  revision: 0f07b14a-39e9-4b15-859a-b562e59184ae
+  revision: 90990e86-1629-4adb-b20f-9f8863092032
   title: "Grant expiry notices go 14 and 3 days ahead by default, and at least one notice is always 3 or more days ahead"
   class: PARAMETER
   class_modifiers: []
@@ -679,7 +680,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-1277; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-17
   requirement: INV-REQ-1278
-  revision: e3180b3e-6d6b-41d0-8581-dd771b7e5603
+  revision: 388ac0d0-ac1b-4975-b2e4-0d467e1a925e
   title: "Deadline alert thresholds default to the calendar pack per filing frequency and can only be made earlier, per entity"
   class: PARAMETER
   class_modifiers:
@@ -724,7 +725,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1278; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-18
   requirement: INV-REQ-1279
-  revision: 183903a8-a096-4c48-9241-07aa45c558e8
+  revision: cc52c935-f5ec-441f-9c00-723bd6980fd2
   title: "The safety margin before a due date is the calendar-pack default, or larger, and the latest despatch never falls after the due date minus the margin"
   class: PARAMETER
   class_modifiers:
@@ -850,7 +851,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1281 (WEEKLY refusal is a cross-row check, not a bound); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-21
   requirement: INV-REQ-1282
-  revision: bb3d07ea-d9a5-446d-894f-b29ba4d372e1
+  revision: a08c7e37-1c15-408c-bd23-796e4d7bf70a
   title: "Voluntary over-submission is off by default; when on, OS lines transmit and DS lines never do"
   class: POLICY
   class_modifiers: []
@@ -864,7 +865,7 @@ variation_points:
     - "Off"
     - "on"
   bounds: "When on, OS lines transmit and DS lines never do (SRS INV-REQ-494, INV-AC-523, INV-AC-396); SRRC stays suppressed until INV-NOTE-4#row:Q-13 is answered (INV-NOTE-3#row:DD-4). Corrected 25 Sep 2026"
-  status: planned
+  status: available
   status_note: null
   governs:
     - "INV-REQ-375"
@@ -877,7 +878,7 @@ variation_points:
         strictness: "DEFAULT"
       - key: "ON"
         strictness: "NEUTRAL"
-    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1282; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
+    basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1282; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; status available: owner answer INV-Q-12264 option (A) (2026-10-28), for INV-T-4928"
 - id: VP-22
   requirement: INV-REQ-1283
   revision: 37b84e97-b885-4cc6-8cb2-e07931a842e0
@@ -1419,7 +1420,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1296; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-36
   requirement: INV-REQ-1297
-  revision: e0ee7d04-9cb3-4465-9108-3cd651ca9be4
+  revision: 56506916-d9ff-46c8-825e-76391536cfa1
   title: "The line-to-total tolerance is a per-currency default, or a tenant value within the ceiling, and a difference only warns"
   class: PARAMETER
   class_modifiers: []
@@ -1454,10 +1455,10 @@ variation_points:
             ref: "currencies with a scope-pack line-to-total entry"
           value:
             type: "amount"
-            unit: "as the source datum states it (the datum carries value and unit) in the scope-pack entry for the currency"
+            unit: "`amount`, an absolute amount in the document currency, the only unit supported (owner answer INV-Q-13173, option A); the scope-pack entry for the currency carries it as the source datum states it (the datum carries value and unit), and an entry in any other unit is refused as unsupported"
             min: 0
             max: "the scope-pack ceiling for the currency"
-    note: "the per-currency defaults and ceilings are scope-pack data"
+    note: "the per-currency defaults and ceilings are scope-pack data; a line-to-total entry states the unit `amount` only and any other unit is refused as unsupported (owner answer INV-Q-13173, option A); the Singapore entry for SGD has default 0 and ceiling 0 (owner values on INV-Q-13171 (chat, 2026-10-30): \"13171, default 0\" and \"ceiling 0\")"
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1297; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-37
   requirement: INV-REQ-1298
@@ -1547,7 +1548,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1299; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; status available: coordinator ruling INV-Q-10167 (HIGH, delegated, owner 2026-10-14), for INV-T-4946"
 - id: VP-39
   requirement: INV-REQ-1300
-  revision: 2471d6e4-2911-4e6b-b8d8-cc51819625fa
+  revision: a53ebca1-15c5-4b99-9729-3e9f9b37202c
   title: "A regulatory pack is reviewed in the grace window and then activated by default, or activated at its effective date with notice only"
   class: POLICY
   class_modifiers: []
@@ -1748,7 +1749,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1304: \"never shorter than 5 years\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; per-tier record of three durations and the single writer setPolicy: Coordinator ruling (owner delegation 2026-10-18) INV-Q-6527"
 - id: VP-44
   requirement: INV-REQ-1305
-  revision: 6bbf9f32-256d-4c9a-be52-ddc39d712317
+  revision: 307200fe-49e4-4040-9700-f51d82e3847b
   title: "Anonymised production samples in workspaces are off by default; turning them on is looser and every copy then needs security.officer approval"
   class: CONTROL
   class_modifiers: []
@@ -1762,7 +1763,7 @@ variation_points:
     - "Off"
     - "on, each copy approved by security.officer"
   bounds: "Anonymisation always applies (INV-REQ-1130)"
-  status: planned
+  status: available
   status_note: null
   governs:
     - "INV-REQ-1130"
@@ -2314,7 +2315,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1317; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-57
   requirement: INV-REQ-1318
-  revision: c878de1e-7cb8-44f2-af75-e67b40fb9a65
+  revision: c4ab9559-2b72-4b87-b654-322faf96938e
   title: "The grace window for reviewing a regulatory pack delta is the platform maximum by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -2700,7 +2701,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1548; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; status available: coordinator ruling INV-Q-10167 (HIGH, delegated, owner 2026-10-14), for INV-T-4946"
 - id: VP-66
   requirement: INV-REQ-2462
-  revision: 6402641f-6f67-40e9-96b2-10b2dbb0511c
+  revision: 4e0e0289-2d8a-46d5-99fe-313170746706
   title: "The notice window for a custody holder's legal-hold request before retention deletion is 90 days by default at installation level; lengthening is free, shortening needs a recorded acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -2754,7 +2755,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2462; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-66 by form (security.officer in SaaS, the customer's tax.approver in private), distinct from the setter; one person holding both roles uses the recorded sole-operator acknowledgement: INV-Q-2480, INV-Q-3134; for INV-T-3148"
 - id: VP-67
   requirement: INV-REQ-2463
-  revision: e4030543-5152-4e58-8921-8ab5ced06e9a
+  revision: a67a65ec-d6da-4829-946a-c135ae610bf3
   title: "A webhook delivery is retried for 72 hours by default before dead-letter, set per subscription and never beyond the operator's maximum"
   class: PARAMETER
   class_modifiers: []
@@ -2798,7 +2799,7 @@ variation_points:
       requirement: "INV-REQ-3211"
 - id: VP-68
   requirement: INV-REQ-2464
-  revision: bcad0d0a-dff1-404f-8b0e-2acc81e9bb57
+  revision: ae147861-6c3d-40f3-87c6-22b3524ae34f
   title: "Credential-expiry reminders go 14 and 3 days ahead by default, and at least one reminder is always 3 or more days ahead"
   class: PARAMETER
   class_modifiers: []
@@ -2878,7 +2879,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2465; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-70
   requirement: INV-REQ-2466
-  revision: 9fa2898e-1e0f-458e-b436-5553d9f17e6d
+  revision: f653111a-14d0-4aed-b324-4fb49830a9cd
   title: "Evidence retrieval time per storage tier is the storage class's documented time by default, or a stated time per tier, set at installation level"
   class: PARAMETER
   class_modifiers: []
@@ -2919,7 +2920,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-2466; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-71
   requirement: INV-REQ-2467
-  revision: c7b38b88-0c4c-4354-82bb-d0aa49686e44
+  revision: d1e5d128-1ad9-4ce7-b4e0-69961438024f
   title: "Each Access Point connection elects the specification family, PINT_SG by default or SG_PEPPOL_BIS for a connection certified only for it; the release within it follows the submission date"
   class: POLICY
   class_modifiers: []
@@ -3350,7 +3351,7 @@ variation_points:
     basis: "Coordinator ruling (HIGH, owner rule 2026-10-11) on INV-Q-3202, option D; values from INV-Q-3059 (A); minimum 1 day as on VP-57; for INV-T-3176; private form: no effect, read-only on SCR-41.8, owner ruling INV-Q-3218; default option typed as fixed 14 days: coordinator ruling INV-Q-3223"
 - id: VP-80
   requirement: INV-REQ-3211
-  revision: 826780ba-5855-490f-a33e-d9a1bfec4371
+  revision: f792b950-49d5-4a6b-bb81-8940c8d756df
   title: "The operator maximum webhook retry window is 168 hours by default, from 72 to 720 hours, set at installation level"
   class: PARAMETER
   class_modifiers: []

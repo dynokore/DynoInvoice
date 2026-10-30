@@ -212,4 +212,13 @@ class RealVariationPointCatalogueSelfTest {
         assertTrue(!VariationPointCatalogueArtefact.render(rows.values.toList(), "1.1.0").contains("setBy"))
         assertTrue(!VariationPointKotlinEmitter.emit("com.dynokore.gst.catalogue", rows.values.toList()).contains("setBy"))
     }
+
+    @Test
+    fun `INV-T-13488 VP-36 states the ruled unit of its second option`() {
+        val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
+        val row = rows.getValue("VP-36")
+        assertEquals("INV-REQ-1297", row.requirement)
+        val unit = row.fields!!.options[1].typedValue!!.value!!.unit
+        assertTrue(unit != null && unit.contains("owner answer INV-Q-13173, option A"), "VP-36 unit: $unit")
+    }
 }
