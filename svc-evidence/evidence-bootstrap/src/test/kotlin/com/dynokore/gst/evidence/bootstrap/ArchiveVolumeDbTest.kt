@@ -14,13 +14,19 @@ import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
+import com.networknt.schema.SpecificationVersion
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.node.ObjectNode
+import java.io.File
 import java.nio.file.Path
 import java.sql.Connection
 import java.time.Clock
@@ -30,7 +36,7 @@ import java.util.UUID
 
 /**
  * The archive-volume store against a real database (P109), on the TPL-18 context over the `evidence_runtime` login:
- * the catalogue shape of `V7__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
+ * the catalogue shape of `V8__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
  * transactional publication through the real outbox writer (INV-Q-12683 A, INV-Q-12736 A).
  */
 class ArchiveVolumeDbTest {
@@ -88,11 +94,12 @@ class ArchiveVolumeDbTest {
         tenant: UUID,
         entity: String,
         bytes: Long,
-        correlation: String,
-        causation: String,
+        n: Int,
         withType: Boolean = true,
     ) = inTenant(tenant) {
-        publisher(withType).publish(TenantId(tenant), entity, bytes, CorrelationId(correlation), CausationId(causation))
+        publisher(
+            withType,
+        ).publish(TenantId(tenant), entity, bytes, CorrelationId("corr-test-$n"), CausationId("cause-test-$n"))
     }
 
     // ---- seeding as the superuser (row-level security does not apply to it) ----
@@ -344,7 +351,7 @@ class ArchiveVolumeDbTest {
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 350, 1)
         val rows = outbox(tenant)
         rows.size shouldBe 1
         val row = rows.single()
@@ -370,9 +377,9 @@ class ArchiveVolumeDbTest {
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 350, 1)
         val first = outbox(tenant).single()
-        boundary.publish(tenant, "E-1", 0, "corr-test-2", "cause-test-2")
+        boundary.publish(tenant, "E-1", 0, 2)
         val rows = outbox(tenant)
         rows.size shouldBe 2
         rows[0] shouldBe first
@@ -389,7 +396,7 @@ class ArchiveVolumeDbTest {
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
         shouldThrow<EmissionNotPermitted> {
-            boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1", withType = false)
+            boundary.publish(tenant, "E-1", 350, 1, withType = false)
         }
         count("select count(*) from evidence.archive_volume_published where tenant_id = '$tenant'") shouldBe 0
         outbox(tenant) shouldBe emptyList()
@@ -402,7 +409,7 @@ class ArchiveVolumeDbTest {
         val tenant = UUID.randomUUID()
         seedTrace(tenant, "E-1", 100)
         listed(tenant) shouldBe setOf("E-1")
-        boundary.publish(tenant, "E-1", 100, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 100, 1)
         deleteContent(tenant, "E-1")
         listed(tenant) shouldBe setOf("E-1")
     }
@@ -413,9 +420,9 @@ class ArchiveVolumeDbTest {
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
         seedTrace(tenant, "E-1", 100)
-        boundary.publish(tenant, "E-1", 100, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 100, 1)
         deleteContent(tenant, "E-1")
-        boundary.publish(tenant, "E-1", 0, "corr-test-2", "cause-test-2")
+        boundary.publish(tenant, "E-1", 0, 2)
         listed(tenant) shouldBe emptySet()
     }
 
@@ -426,5 +433,69 @@ class ArchiveVolumeDbTest {
         val tenant = UUID.randomUUID()
         seedPending(tenant, "E-9", 10)
         listed(tenant) shouldBe setOf("E-9")
+    }
+
+    // ---- the payload schema (INV-Q-12746 A) ----
+
+    private val schemas =
+        SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
+            it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
+        }
+
+    /** Fails closed: an unset property or a missing file is an error, never a skip. */
+    private fun schemaText(): String {
+        val dir = checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is not set" }
+        val file = File(dir, "schemas/archive-volume-measured-payload.schema.json")
+        check(file.isFile) { "schema file does not exist: $file" }
+        return file.readText()
+    }
+
+    private fun schemaErrors(data: JsonNode): List<String> =
+        schemas.getSchema(schemaText()).validate(data).map { it.toString() }
+
+    /** The `data` column of the outbox row the real writer wrote. */
+    private fun writtenData(boundary: Boundary): ObjectNode {
+        val tenant = UUID.randomUUID()
+        boundary.publish(tenant, "E-1", 350, 1)
+        return mapper.readTree(outbox(tenant).single().data) as ObjectNode
+    }
+
+    @Test
+    fun `the written payload has no schema error`(
+        @TempDir dir: Path,
+    ) = run(dir) { boundary -> schemaErrors(writtenData(boundary)) shouldBe emptyList() }
+
+    @Test
+    fun `the payload without a required property has a schema error`(
+        @TempDir dir: Path,
+    ) = run(dir) { boundary ->
+        for (name in listOf("tenantRef", "entityRef", "bytes", "measuredAt")) {
+            val data = writtenData(boundary)
+            data.remove(name)
+            check(schemaErrors(data).isNotEmpty()) { "no error with $name removed" }
+        }
+    }
+
+    @Test
+    fun `a negative bytes and a malformed measuredAt each have a schema error`(
+        @TempDir dir: Path,
+    ) = run(dir) { boundary ->
+        val negative = writtenData(boundary).also { it.put("bytes", -1) }
+        check(schemaErrors(negative).isNotEmpty()) { "no error for bytes -1" }
+        val badTime = writtenData(boundary).also { it.put("measuredAt", "not-a-time") }
+        check(schemaErrors(badTime).isNotEmpty()) { "no error for measuredAt not-a-time" }
+    }
+
+    @Test
+    fun `an unset contract directory or a missing schema file fails and does not skip`() {
+        val saved = System.getProperty("gst.contract.dir")
+        try {
+            System.clearProperty("gst.contract.dir")
+            shouldThrow<IllegalStateException> { schemaText() }
+            System.setProperty("gst.contract.dir", File(saved ?: ".", "no-such-dir").path)
+            shouldThrow<IllegalStateException> { schemaText() }
+        } finally {
+            if (saved != null) System.setProperty("gst.contract.dir", saved)
+        }
     }
 }

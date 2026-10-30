@@ -1,4 +1,4 @@
--- V7__evidence_archive_volume.sql (INV-T-12698; INV-Q-12683 A, INV-Q-12685 A, INV-Q-12687 A).
+-- V8__evidence_archive_volume.sql (INV-T-12698; INV-Q-12683 A, INV-Q-12685 A, INV-Q-12687 A).
 --
 -- The last published archive volume of each entity, and the catalogue of the entities that may hold volume. The
 -- ledger row is rewritten in place (select, insert, update; no delete) and is tenant-isolated the way the other
