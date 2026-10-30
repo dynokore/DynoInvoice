@@ -40,6 +40,7 @@ class ProductConfigurationTest {
                 "BreakGlassAlertRaised",
                 "AuthorityChanged",
                 "TenantWideEvidenceIntegrityFailed",
+                "BreakGlassSessionChanged",
             )
         PlatformEventCatalogue.PRIVACY_NOTICE_DUE.topic shouldBe "gst.platform.privacy-notice-due.v1"
         PlatformEventCatalogue.ACCREDITATION_ALERT_RAISED.topic shouldBe "gst.platform.accreditation-alert-raised.v1"
@@ -53,7 +54,7 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED
         PlatformEventCatalogue.AUTHORITY_CHANGED.topic shouldBe "gst.platform.authority-changed.v1"
         PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true
@@ -61,7 +62,16 @@ class ProductConfigurationTest {
     }
 
     @Test
-    fun `the catalogue holds TenantWideEvidenceIntegrityFailed last (INV-Q-12994)`() {
+    fun `INV-AC-9303 the catalogue holds BreakGlassSessionChanged last with its topic and type`() {
+        PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.topic shouldBe "gst.platform.break-glass-session-changed.v1"
+        PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.eventType shouldBe
+            "com.dynokore.gst.platform.BreakGlassSessionChanged.v1"
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.BreakGlassSessionChanged.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.access.BreakGlassSessionChanged.v1") shouldBe false
+    }
+
+    @Test
+    fun `the catalogue holds TenantWideEvidenceIntegrityFailed before BreakGlassSessionChanged (INV-Q-12994)`() {
         PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED.topic shouldBe
             "gst.platform.tenant-wide-evidence-integrity-failed.v1"
         PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED.eventType shouldBe

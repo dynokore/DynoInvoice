@@ -29,6 +29,7 @@ class PlatformClassEventsTest {
             "BreakGlassAlertRaised",
             "AuthorityChanged",
             "TenantWideEvidenceIntegrityFailed",
+            "BreakGlassSessionChanged",
         )
     private val refused =
         listOf(
@@ -44,6 +45,10 @@ class PlatformClassEventsTest {
             "com.dynokore.gst.platform.AuthorityChangedX.v1",
             "com.dynokore.gst.platform.authorityChanged.v1",
             "com.dynokore.gst.evidence.AuthorityChanged.v1",
+            "com.dynokore.gst.access.BreakGlassSessionChanged.v1",
+            "com.dynokore.gst.platform.BreakGlassSessionChangedX.v1",
+            "com.dynokore.gst.platform.breakGlassSessionChanged.v1",
+            "com.dynokore.gst.evidence.BreakGlassSessionChanged.v1",
             "com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1",
             "com.dynokore.gst.evidence.TenantWideEvidenceIntegrityFailed.v1",
             "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailedX.v1",
@@ -119,7 +124,7 @@ class PlatformClassEventsTest {
 
     @Test
     fun `INV-AC-9359 AuthorityChanged old access type, look-alike, case and other-package types are refused`() {
-        val types = refused.takeLast(4)
+        val types = refused.subList(8, 12)
         types.forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
         }
@@ -175,6 +180,23 @@ class PlatformClassEventsTest {
     @Test
     fun `INV-AC-13291 TenantWideEvidenceIntegrityFailed domain, look-alike, case and sibling types are refused`() {
         refused.takeLast(5).forEach {
+            assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-9303 BreakGlassSessionChanged is tenant-wide for a real tenant and reads back tenant-wide`() {
+        val e = envelope("com.dynokore.gst.platform.BreakGlassSessionChanged.v1", tenant, EntityRef.TENANT_WIDE)
+        val text = json.write(e)
+        assertFalse(text.contains("entityref"), text)
+        assertTrue(text.contains("tenantid"), text)
+        assertEquals(e, json.read(text))
+        assertEquals(EntityRef.TENANT_WIDE, json.read(text).entity)
+    }
+
+    @Test
+    fun `INV-AC-9303 BreakGlassSessionChanged old access type, look-alike, case and other-package types are refused`() {
+        refused.subList(12, 16).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
         }
     }

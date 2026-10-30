@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.9.0] - 2026-10-31
+### Added
+- `BreakGlassSessionChanged` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name; tenant-wide for a real tenant) (INV-Q-9119, INV-REQ-1226, INV-AC-9303, INV-T-9316).
+
 ## [6.8.0] - 2026-10-30
 ### Added
 - `TenantWideEvidenceIntegrityFailed` joins the closed platform event class, so an `Envelope` of `com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1` may carry `EntityRef.TENANT_WIDE` with a real tenant (INV-Q-12994, INV-REQ-1226 b1, INV-AC-13291, INV-T-13299).

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.26.1] - 2026-10-31
+### Changed
+- Metadata-only change (INV-T-9316, G-DVS): depends on `outbox-and-queue 6.9.0`, whose version steps; no code change.
+
 ## [10.26.0] - 2026-10-31
 ### Added
 - `ReplicaColdStartWiring` in the L1 composition (INV-T-13608; INV-Q-13599 A, INV-Q-13597 A; INV-REQ-1201): defines a `ConsumerRebuildAuthorizer` that refuses every actor (when the service has none), a `ConsumerRebuildRuntime` over the service's `ConsumerSubscription`, `EventCatalogue`, `TenantScope`, `OutboxWriter`, `AuditWriter` and `EventLogHead` beans, and a `ReplicaColdStartSync` over it and the `AuthorityReplica`, so a running service requests the authority full sync at start-up. With no `ConsumerSubscription` bean neither the runtime nor the sync exists; subscriptions of different schemas stop the start with a message naming both.

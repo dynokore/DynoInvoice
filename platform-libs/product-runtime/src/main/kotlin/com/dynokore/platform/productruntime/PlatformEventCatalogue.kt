@@ -41,6 +41,7 @@ object PlatformEventCatalogue {
     val AUTHORITY_CHANGED = fixed("AuthorityChanged", "authority-changed")
     val TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED =
         fixed("TenantWideEvidenceIntegrityFailed", "tenant-wide-evidence-integrity-failed")
+    val BREAK_GLASS_SESSION_CHANGED = fixed("BreakGlassSessionChanged", "break-glass-session-changed")
 
     /** Every platform event, in INV-REQ-1226 b1's order. */
     val ALL: List<PlatformEvent> =
@@ -59,6 +60,7 @@ object PlatformEventCatalogue {
             BREAK_GLASS_ALERT_RAISED,
             AUTHORITY_CHANGED,
             TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED,
+            BREAK_GLASS_SESSION_CHANGED,
         )
 
     /** True when [eventType] is a platform event. */
