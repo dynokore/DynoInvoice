@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationJobBody
+import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationRecorder
 import com.dynokore.gst.evidence.adapters.jobs.VerificationEntitySource
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqIntegrityStore
@@ -35,9 +36,15 @@ class ChainVerificationConfiguration {
     fun chainVerification(
         dsl: DSLContext,
         copies: DigestCopies,
+    ): ChainVerification = ChainWiring.chainVerification(dsl, copies)
+
+    @Bean
+    fun chainVerificationRecorder(
+        dsl: DSLContext,
+        verification: ChainVerification,
         outbox: OutboxWriter,
         clock: Clock,
-    ): ChainVerification = ChainWiring.chainVerification(dsl, copies, outbox, clock)
+    ): ChainVerificationRecorder = ChainWiring.chainVerificationRecorder(dsl, verification, outbox, clock)
 
     @Bean
     fun integrityStatusQuery(dsl: DSLContext): IntegrityStatusQueryHandler =
@@ -52,9 +59,9 @@ class ChainVerificationConfiguration {
         runtime: ObjectProvider<JobRuntime>,
         scope: TenantScope,
         dsl: DSLContext,
-        verification: ChainVerification,
+        recorder: ChainVerificationRecorder,
     ) = SmartInitializingSingleton {
-        runtime.ifAvailable { registerChainVerificationJob(it, scope, dsl, verification) }
+        runtime.ifAvailable { registerChainVerificationJob(it, scope, dsl, recorder) }
     }
 
     companion object {
@@ -63,11 +70,11 @@ class ChainVerificationConfiguration {
             runtime: JobRuntime,
             scope: TenantScope,
             dsl: DSLContext,
-            verification: ChainVerification,
+            recorder: ChainVerificationRecorder,
         ) = runtime.register(
             ChainVerificationJob.DEFINITION,
             VerificationEntitySource(scope, dsl),
-            ChainVerificationJobBody(ChainVerificationJob.DEFINITION.ownerService, scope, verification),
+            ChainVerificationJobBody(ChainVerificationJob.DEFINITION.ownerService, scope, recorder),
         )
     }
 }

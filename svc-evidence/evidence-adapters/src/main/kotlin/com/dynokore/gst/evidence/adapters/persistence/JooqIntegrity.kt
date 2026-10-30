@@ -21,6 +21,7 @@ import com.dynokore.gst.evidence.application.integrity.IntegrityStore
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.gst.evidence.domain.digest.ChainTail
 import com.dynokore.gst.evidence.domain.digest.DigestChainType
+import com.dynokore.gst.evidence.domain.integrity.RunCause
 import com.dynokore.gst.evidence.domain.integrity.RunResult
 import com.dynokore.gst.evidence.domain.integrity.evidenceType
 import com.dynokore.platform.tenancykernel.TenantId
@@ -270,6 +271,7 @@ class JooqIntegrityStore(
             .set(INTEGRITY_RUN.RUN_ID, row.runId)
             .set(INTEGRITY_RUN.RUN_AT, row.runAt.utc())
             .set(INTEGRITY_RUN.RESULT, row.result.name)
+            .set(INTEGRITY_RUN.CAUSE, row.cause.name)
             .set(INTEGRITY_RUN.CHAIN_LENGTH, row.chainLength)
             .set(INTEGRITY_RUN.PERIOD_DIGEST, row.periodDigest)
             .execute()
@@ -296,6 +298,7 @@ class JooqIntegrityStore(
                     checkNotNull(it.runId),
                     checkNotNull(it.runAt).toInstant(),
                     RunResult.valueOf(checkNotNull(it.result)),
+                    RunCause.valueOf(checkNotNull(it.cause)),
                     checkNotNull(it.chainLength),
                     it.periodDigest,
                 )

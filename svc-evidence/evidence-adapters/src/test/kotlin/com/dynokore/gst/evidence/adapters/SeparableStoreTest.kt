@@ -57,6 +57,7 @@ class SeparableStoreTest {
             "period_digest_chain.evidence_type" to "PAYLOAD",
             "period_digest_chain.tail_hash" to "a".repeat(HASH_LENGTH),
             "integrity_run.result" to "VERIFIED",
+            "integrity_run.cause" to "VERIFICATION",
             "integrity_run.period_digest" to "sha256:" + "a".repeat(HASH_LENGTH),
             "integrity_failure.evidence_type" to "PAYLOAD",
             "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows

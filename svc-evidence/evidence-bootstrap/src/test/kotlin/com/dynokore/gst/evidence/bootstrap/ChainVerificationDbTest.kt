@@ -2,6 +2,7 @@ package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationJobBody
+import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationRecorder
 import com.dynokore.gst.evidence.adapters.jobs.VerificationEntitySource
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqAppliedStore
@@ -28,7 +29,9 @@ import com.dynokore.gst.evidence.application.integrity.VerificationSources
 import com.dynokore.gst.evidence.domain.chain.ChainKey
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.gst.evidence.domain.integrity.IntegrityState
+import com.dynokore.gst.evidence.domain.integrity.RunCause
 import com.dynokore.gst.evidence.domain.integrity.RunResult
+import com.dynokore.gst.evidence.domain.integrity.evidenceType
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.evidencestore.ChainVerificationResult
 import com.dynokore.platform.evidencestore.EntityRef
@@ -122,14 +125,15 @@ class ChainVerificationDbTest {
 
         fun verification(ledgers: Map<RecordKind, EvidenceLedger> = this.ledgers) =
             ChainVerification(
-                ledgers,
+                { t, e, p, kind -> ledgers.getValue(kind).verifyChain(t, EntityRef(e), PeriodRef(p)) },
                 VerificationSources(JooqChainReads(dsl), JooqDigestReads(dsl), ObjectStoreDigestCopies(objects)),
-                JooqIntegrityStore(dsl),
-                outbox,
             )
 
-        fun body(verification: ChainVerification = verification()) =
-            ChainVerificationJobBody("evidence-svc", scope, verification)
+        fun recorder(verification: ChainVerification = verification()) =
+            ChainVerificationRecorder(verification, JooqChainReads(dsl), JooqIntegrityStore(dsl), outbox)
+
+        fun body(recorder: ChainVerificationRecorder = recorder()) =
+            ChainVerificationJobBody("evidence-svc", scope, recorder)
 
         /** Runs the job body for one entity the way the job runtime does: no binding, no transaction around it. */
         fun runJob(
@@ -375,10 +379,21 @@ class ChainVerificationDbTest {
         digest(tenant)
         objects.stored.clear()
         runJob(tenant)
-        failures(tenant).map { it.kind }.toSet() shouldBe setOf("RETAINED_COPY_MISMATCH")
-        failures(tenant).all { it.failingSeq == null } shouldBe true
+        val rows = failures(tenant)
+        rows.map { it.kind } shouldBe List(3) { "RETAINED_COPY_MISMATCH" }
+        rows.map { it.evidenceType!! }.sorted() shouldBe listOf("ACKNOWLEDGEMENT", "DECISION_TRACE", "PAYLOAD")
+        rows.all { it.failingSeq == null } shouldBe true
+        rows.forEach {
+            val kind = RecordKind.entries.single { k -> k.evidenceType == it.evidenceType }
+            val recorded =
+                tx(tenant) {
+                    ledgers.getValue(kind).findByEntityAndPeriod(tenant, EntityRef(entity), PeriodRef(period))
+                }.map { r -> r.recordedAt }
+            it.rangeFrom!!.toInstant() shouldBe recorded.min()
+            it.rangeTo!!.toInstant() shouldBe recorded.max()
+        }
         runs(tenant).single().result shouldBe "FAILED"
-        events(tenant).size shouldBe failures(tenant).size
+        events(tenant).size shouldBe 3
     }
 
     @Test
@@ -413,9 +428,18 @@ class ChainVerificationDbTest {
                     ledger
                 }
             }
-        assertThrows<IllegalStateException> { runJob(tenant, body = body(verification(unreadable))) }
-        runs(tenant).size shouldBe 0
-        status(tenant).result shouldBe IntegrityState.NEVER_RUN
+        runJob(tenant) // an earlier intact run is VERIFIED
+        assertThrows<IllegalStateException> { runJob(tenant, body = body(recorder(verification(unreadable)))) }
+        runs(tenant).map { Triple(it.result, it.cause, it.chainLength) } shouldBe
+            listOf(Triple("VERIFIED", "VERIFICATION", 8L), Triple("FAILED", "UNREADABLE", 0L))
+        failures(tenant).size shouldBe 0
+        events(tenant).size shouldBe 0
+        val status = status(tenant)
+        status.result shouldBe IntegrityState.FAILED
+        status.chainLength shouldBe 0L
+        runJob(tenant) // a later successful run appends a VERIFIED row
+        runs(tenant).map { it.result } shouldBe listOf("VERIFIED", "FAILED", "VERIFIED")
+        status(tenant).result shouldBe IntegrityState.VERIFIED
     }
 
     @Test
@@ -424,10 +448,17 @@ class ChainVerificationDbTest {
     ) = run(dir) { tenant ->
         chains(tenant)
         digest(tenant)
+        runJob(tenant)
         objects.readFailure = IllegalStateException("store down")
         assertThrows<IllegalStateException> { runJob(tenant) }
-        runs(tenant).size shouldBe 0
+        runs(tenant).map { Triple(it.result, it.cause, it.chainLength) } shouldBe
+            listOf(Triple("VERIFIED", "VERIFICATION", 8L), Triple("FAILED", "UNREADABLE", 0L))
         failures(tenant).size shouldBe 0
+        events(tenant).size shouldBe 0
+        status(tenant).result shouldBe IntegrityState.FAILED
+        objects.readFailure = null
+        runJob(tenant)
+        runs(tenant).map { it.result } shouldBe listOf("VERIFIED", "FAILED", "VERIFIED")
     }
 
     @Test
@@ -442,7 +473,16 @@ class ChainVerificationDbTest {
             forEntity: String,
             at: Instant,
             result: RunResult,
-        ) = IntegrityRunRow(forEntity, period, UUID.randomUUID().toString(), at, result, 8, digest)
+        ) = IntegrityRunRow(
+            forEntity,
+            period,
+            UUID.randomUUID().toString(),
+            at,
+            result,
+            RunCause.VERIFICATION,
+            8,
+            digest,
+        )
         tx(tenant) {
             val store = JooqIntegrityStore(dsl)
             store.insertRun(tenant, row("E-FAILED", verified, RunResult.VERIFIED))
@@ -475,6 +515,13 @@ class ChainVerificationDbTest {
         val listed = VerificationEntitySource(scope, dsl).entities(ChainVerificationJob.DEFINITION)
         (JobTarget.Entity(tenant, EventEntityRef(entity)) in listed) shouldBe true
         listed.none { it.entity.isTenantWide } shouldBe true
+        // probe: the look-alike entity of the same tenant is an ordinary entity
+        val lookAlikeEntity = "00000000-0000-0000-0000-000000000001"
+        chains(tenant, forEntity = lookAlikeEntity)
+        (
+            JobTarget.Entity(tenant, EventEntityRef(lookAlikeEntity)) in
+                VerificationEntitySource(scope, dsl).entities(ChainVerificationJob.DEFINITION)
+        ) shouldBe true
     }
 
     @Test
@@ -513,7 +560,7 @@ class ChainVerificationDbTest {
                 Executor { it.run() },
             )
         val runtime = runtime()
-        ChainVerificationConfiguration.registerChainVerificationJob(runtime, scope, dsl, verification())
+        ChainVerificationConfiguration.registerChainVerificationJob(runtime, scope, dsl, recorder())
         runtime.registered() shouldBe
             listOf(
                 JobDefinition(

@@ -15,8 +15,11 @@ create table evidence.integrity_run (
     run_id text not null,
     run_at timestamptz not null,
     result text not null check (result in ('VERIFIED', 'FAILED')),
+    cause text not null check (cause in ('VERIFICATION', 'UNREADABLE')),
     chain_length bigint not null check (chain_length >= 0),
     period_digest text check (period_digest is null or period_digest ~ '^sha256:[0-9a-f]{64}$'),
+    -- a chain or copy that could not be read is a FAILED run of length 0 with no digest (INV-Q-12988 A)
+    check (cause = 'VERIFICATION' or (result = 'FAILED' and chain_length = 0 and period_digest is null)),
     unique (tenant_id, entity_ref, period_ref, run_id)
 );
 create index integrity_run_latest on evidence.integrity_run (tenant_id, entity_ref, period_ref, run_at desc, seq desc);

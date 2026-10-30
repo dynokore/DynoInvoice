@@ -4,6 +4,7 @@ import com.dynokore.gst.evidence.adapters.events.AuditEntryRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.evidence.adapters.events.DecisionTraceRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.GstReturnRecordedHandler
+import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationRecorder
 import com.dynokore.gst.evidence.application.chain.LocatorRecorder
 import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.application.digest.DigestObjects
@@ -13,7 +14,9 @@ import com.dynokore.gst.evidence.application.integrity.ChainVerification
 import com.dynokore.gst.evidence.application.integrity.DigestCopies
 import com.dynokore.gst.evidence.application.integrity.VerificationSources
 import com.dynokore.gst.evidence.domain.chain.RecordKind
+import com.dynokore.platform.evidencestore.EntityRef
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
+import com.dynokore.platform.evidencestore.PeriodRef
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import org.jooq.DSLContext
@@ -69,18 +72,26 @@ object ChainWiring {
             PeriodDigestRecorder(JooqChainTails(dsl), JooqPeriodDigestStore(dsl), objects, retention, clock),
         )
 
-    /** The routine verification of the chains (INV-Q-7251 A (4)), to run in a tenant transaction per period. */
+    /** The routine verification of the chains (INV-Q-7251 A (4)); it reads only and writes nothing. */
     fun chainVerification(
         dsl: DSLContext,
         copies: DigestCopies,
+    ): ChainVerification {
+        val ledgers = RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table) }
+        return ChainVerification(
+            { tenant, entityRef, period, kind ->
+                ledgers.getValue(kind).verifyChain(tenant, EntityRef(entityRef), PeriodRef(period))
+            },
+            VerificationSources(JooqChainReads(dsl), JooqDigestReads(dsl), copies),
+        )
+    }
+
+    /** The recording of one verification, to run in a tenant transaction per period. */
+    fun chainVerificationRecorder(
+        dsl: DSLContext,
+        verification: ChainVerification,
         outbox: OutboxWriter,
         clock: Clock = Clock.systemUTC(),
-    ): ChainVerification =
-        ChainVerification(
-            RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table) },
-            VerificationSources(JooqChainReads(dsl), JooqDigestReads(dsl), copies),
-            JooqIntegrityStore(dsl),
-            outbox,
-            clock,
-        )
+    ): ChainVerificationRecorder =
+        ChainVerificationRecorder(verification, JooqChainReads(dsl), JooqIntegrityStore(dsl), outbox, clock)
 }
