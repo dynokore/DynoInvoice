@@ -3,10 +3,16 @@ package com.dynokore.gst.tenancy.adapters.persistence
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.INSTALLATION_FACT
 import com.dynokore.gst.tenancy.application.installation.InstallationFact
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
+import com.dynokore.platform.serviceruntime.persistence.AggregateStore
+import com.dynokore.platform.serviceruntime.persistence.StaleAggregate
+import com.dynokore.platform.serviceruntime.persistence.UpdateOutcome
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import java.time.ZoneOffset
+
+/** The generated POJO of `tenancy.installation_fact`, named apart from the application's fact. */
+typealias InstallationFactRow = com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.pojos.InstallationFact
 
 /**
  * Runs [block] in one transaction bound to the reserved platform tenant: installation facts are installation-scoped,
@@ -20,24 +26,36 @@ class PlatformScope(
     fun <T> run(block: () -> T): T = platform.bindPlatform(actor) { tx.inTransaction(block) }
 }
 
-/** INV-Q-4898: the one installation-fact table, written by INV-T-3290 and the entitlement task through this class. */
+/**
+ * INV-Q-4898: the one installation-fact table, written by INV-T-3290 and the entitlement task through this class.
+ * Simple aggregate CRUD through service-runtime's `AggregateStore` (TPL-11); a stale version is a [StaleAggregate].
+ */
 class JooqInstallationFactRepository(
     private val dsl: DSLContext,
     private val scope: PlatformScope,
+    private val store: AggregateStore<InstallationFactRow, String>,
 ) : InstallationFactRepository {
     override fun put(fact: InstallationFact) {
+        scope.run { write(fact) { true } }
+    }
+
+    override fun putIfNotOlder(fact: InstallationFact) {
         scope.run {
-            dsl
-                .insertInto(INSTALLATION_FACT)
-                .set(INSTALLATION_FACT.FACT_KEY, fact.key)
-                .set(INSTALLATION_FACT.FACT_VALUE, fact.value)
-                .set(INSTALLATION_FACT.RECORDED_AT, fact.recordedAt.atOffset(ZoneOffset.UTC))
-                .onConflict(INSTALLATION_FACT.FACT_KEY)
-                .doUpdate()
-                .set(INSTALLATION_FACT.FACT_VALUE, fact.value)
-                .set(INSTALLATION_FACT.RECORDED_AT, fact.recordedAt.atOffset(ZoneOffset.UTC))
-                .set(INSTALLATION_FACT.VERSION, INSTALLATION_FACT.VERSION.plus(1L))
-                .execute()
+            val at = fact.recordedAt.atOffset(ZoneOffset.UTC)
+            write(fact) { stored -> !stored.recordedAt.column("recorded_at").isAfter(at) }
+        }
+    }
+
+    private fun write(
+        fact: InstallationFact,
+        applies: (InstallationFactRow) -> Boolean,
+    ) {
+        val before = store.load(fact.key)
+        val after = row(fact, before?.version ?: 0L)
+        if (before == null) {
+            store.insert(after)
+        } else if (applies(before) && store.update(before, after) == UpdateOutcome.Conflict) {
+            throw StaleAggregate("InstallationFact", before.version.column("version"))
         }
     }
 
@@ -59,6 +77,11 @@ class JooqInstallationFactRepository(
                 .fetch()
                 .map(::fact)
         }
+
+    private fun row(
+        fact: InstallationFact,
+        version: Long,
+    ) = InstallationFactRow(fact.key, fact.value, fact.recordedAt.atOffset(ZoneOffset.UTC), version)
 
     private fun fact(row: com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.records.InstallationFactRecord) =
         InstallationFact(

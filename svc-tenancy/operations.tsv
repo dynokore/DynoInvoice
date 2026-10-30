@@ -29,7 +29,7 @@ getUsageCounters	operation	INV-T-4933	pending
 recordAppliedOperatingProfile	operation	INV-T-4933	pending
 getAppliedOperatingProfile	operation	INV-T-4933	pending
 answerQuestionnaire	operation	INV-T-4933	pending
-recordInstallationAction	operation	INV-T-3290	pending
+recordInstallationAction	operation	INV-T-3290	done
 recordMigrationCutover	operation	INV-T-7382	pending
 getMigrationCutover	operation	INV-T-7382	pending
 openTenant	operation	INV-T-8142	pending

@@ -229,6 +229,7 @@ class AcceptanceCriteriaTest {
                     "inv.tenancy.platform-scoped-tables[1]",
                     "inv.tenancy.platform-scoped-tables[2]",
                     "inv.tenancy.platform-scoped-tables[3]",
+                    "inv.tenancy.platform-scoped-tables[4]",
                 )
             val names =
                 env.context.environment.propertySources

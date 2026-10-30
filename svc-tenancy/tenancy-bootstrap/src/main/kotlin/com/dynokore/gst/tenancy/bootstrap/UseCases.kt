@@ -1,11 +1,13 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureChangedOutbox
+import com.dynokore.gst.tenancy.adapters.persistence.InstallationFactRow
 import com.dynokore.gst.tenancy.adapters.persistence.JooqEntityStatusStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqInstallationFactRepository
 import com.dynokore.gst.tenancy.adapters.persistence.JooqStructureStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqTenantStore
 import com.dynokore.gst.tenancy.adapters.persistence.PlatformScope
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.INSTALLATION_FACT
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
@@ -16,6 +18,7 @@ import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.tenant.CreateTenant
 import com.dynokore.gst.tenancy.application.tenant.TenantStore
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.persistence.PersistenceLayer
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -40,7 +43,13 @@ class UseCases {
     fun installationFactRepository(
         dsl: DSLContext,
         scope: PlatformScope,
-    ): InstallationFactRepository = JooqInstallationFactRepository(dsl, scope)
+        persistence: PersistenceLayer,
+    ): InstallationFactRepository =
+        JooqInstallationFactRepository(
+            dsl,
+            scope,
+            persistence.aggregates(INSTALLATION_FACT, InstallationFactRow::class.java),
+        )
 
     @Bean
     fun structureChangePublisher(

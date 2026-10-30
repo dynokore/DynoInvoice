@@ -19,10 +19,22 @@ import java.nio.file.Path
 import java.sql.DriverManager
 import java.util.UUID
 
+/** The PostgreSQL major the suite runs on (STK-14 lists 17 and 18); the other major has its own database below. */
+object BoundaryFixture : BoundaryDatabase("postgres:17", "c-inv-t-4927")
+
+/** PostgreSQL 18, for the tests that must pass on both supported majors (INV-T-3290). */
+object BoundaryFixture18 : BoundaryDatabase("postgres:18", "c-inv-t-3290")
+
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
-object BoundaryFixture {
-    private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
-    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4927")
+open class BoundaryDatabase(
+    image: String,
+    agent: String,
+) {
+    private companion object {
+        const val RUNTIME_PASSWORD = "runtime-password-for-tests"
+    }
+
+    val container: PostgreSQLContainer<*> = PostgreSQLContainer(image).withLabel("inv.agent", agent)
 
     /**
      * The tables config-resolver's ConfigSchema.ddl creates (a platform library, INV-T-4926). Their `entity_id` is null
@@ -265,6 +277,7 @@ object BoundaryFixture {
                 "gst.bindings.secret-store.mount-root=$secrets",
                 "service-runtime.datasource.credential=db/tenancy_runtime",
                 "server.port=0",
+                "inv.installer.subject=sa-installer",
                 *properties,
             ).run()
     }

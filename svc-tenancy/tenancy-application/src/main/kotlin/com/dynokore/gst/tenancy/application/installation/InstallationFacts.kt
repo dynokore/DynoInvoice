@@ -30,6 +30,12 @@ interface InstallationFactRepository {
     /** Inserts the fact, or replaces the value of the fact with the same key. */
     fun put(fact: InstallationFact)
 
+    /**
+     * Inserts the fact, or replaces the value of the fact with the same key unless the stored one is newer than
+     * [InstallationFact.recordedAt]: a step that happened earlier never overwrites a later fact (INV-AC-3828).
+     */
+    fun putIfNotOlder(fact: InstallationFact)
+
     fun find(key: String): InstallationFact?
 
     fun all(): List<InstallationFact>
