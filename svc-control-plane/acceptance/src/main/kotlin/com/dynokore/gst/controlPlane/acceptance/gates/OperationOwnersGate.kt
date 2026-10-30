@@ -19,9 +19,17 @@ object OperationOwnersGate {
     fun check(
         owners: String?,
         table: String?,
+    ): List<Finding> =
+        when {
+            owners.isNullOrBlank() -> listOf(Finding(NAME, NAME, "the pin file is missing or empty"))
+            table.isNullOrBlank() -> listOf(Finding(NAME, NAME, "the table is missing or empty"))
+            else -> compare(owners, table)
+        }
+
+    private fun compare(
+        owners: String,
+        table: String,
     ): List<Finding> {
-        if (owners.isNullOrBlank()) return listOf(Finding(NAME, NAME, "the pin file is missing or empty"))
-        if (table.isNullOrBlank()) return listOf(Finding(NAME, NAME, "the table is missing or empty"))
         val pinLines = owners.removeSuffix("\n").split("\n").map { it.split('\t') }
         val findings = ArrayList<Finding>()
         val header = pinLines.first()
@@ -41,24 +49,19 @@ object OperationOwnersGate {
                 .drop(1)
                 .map { it.split('\t') }
                 .filter { it.size == 4 && it.none(String::isEmpty) }
-        val tableTasks = LinkedHashMap<Pair<String, String>, String>()
-        for (row in rows) {
-            val pair = row[0] to row[1]
-            val pinned = pins[pair]
-            when {
-                pinned == null -> {
-                    findings += Finding(NAME, row[1], "the table row has no pin")
-                }
-
-                pinned != row[2] -> {
-                    findings += Finding(NAME, row[1], "task ${row[2]} in operations.tsv differs from $pinned in $NAME")
-                }
-            }
-            tableTasks.putIfAbsent(pair, row[2])
-        }
-        for (pair in pins.keys) {
-            if (pair !in tableTasks) findings += Finding(NAME, pair.second, "the pin has no table row")
-        }
+        findings += rows.mapNotNull { rowFinding(it, pins[it[0] to it[1]]) }
+        val listed = rows.map { it[0] to it[1] }.toSet()
+        findings += pins.keys.filter { it !in listed }.map { Finding(NAME, it.second, "the pin has no table row") }
         return findings
     }
+
+    private fun rowFinding(
+        row: List<String>,
+        pinned: String?,
+    ): Finding? =
+        when {
+            pinned == null -> Finding(NAME, row[1], "the table row has no pin")
+            pinned != row[2] -> Finding(NAME, row[1], "task ${row[2]} in operations.tsv differs from $pinned in $NAME")
+            else -> null
+        }
 }
