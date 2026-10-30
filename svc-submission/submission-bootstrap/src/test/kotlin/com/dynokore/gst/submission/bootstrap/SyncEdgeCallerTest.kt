@@ -91,16 +91,25 @@ class SyncEdgeCallerTest {
                             problems += "${handler.label}: mapped, but the contract document has no such operation"
                         }
 
-                        operation.edge.isEmpty() -> {
-                            if (handler.label in
-                                lines
-                            ) {
-                                problems += "${handler.label}: a generated line, but no x-sync-edge"
+                        handler.pattern.startsWith(INTERNAL) -> {
+                            if (operation.edge.isEmpty()) {
+                                problems += "${handler.label}: internal operation without x-sync-edge"
+                            } else {
+                                problems += checks.problems(operation, lines[operation.label])
+                            }
+                        }
+
+                        handler.pattern.startsWith(PUBLIC) -> {
+                            if (operation.edge.isNotEmpty()) {
+                                problems += "${handler.label}: /v1/ operation with an x-sync-edge"
+                            }
+                            if (handler.label in lines) {
+                                problems += "${handler.label}: /v1/ operation with a line in sync-edge-callers.tsv"
                             }
                         }
 
                         else -> {
-                            problems += checks.problems(operation, lines[operation.label])
+                            problems += "${handler.label}: mapped under neither /internal/v1/ nor /v1/"
                         }
                     }
                 }
@@ -149,5 +158,6 @@ class SyncEdgeCallerTest {
 
     private companion object {
         const val INTERNAL = "/internal/v1/"
+        const val PUBLIC = "/v1/"
     }
 }
