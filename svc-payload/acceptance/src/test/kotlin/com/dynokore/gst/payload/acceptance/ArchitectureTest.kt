@@ -1,6 +1,7 @@
 package com.dynokore.gst.payload.acceptance
 
 import com.lemonappdev.konsist.api.Konsist
+import com.lemonappdev.konsist.api.verify.assertTrue
 import com.lemonappdev.konsist.core.exception.KoAssertionFailedException
 import gst.build.konsist.ArchitectureRules
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
@@ -67,4 +68,28 @@ class ArchitectureTest {
     @Test
     fun `a javax sql import in the domain passes the rule`() =
         assertDomainRule("import javax.sql.DataSource", refused = false)
+
+    // INV-Q-7068 A: payload-domain names no Saxon type; the added rule on top of the layer rule.
+    private fun assertNoSaxonInDomain(scope: com.lemonappdev.konsist.api.container.KoScope) =
+        scope.imports.assertTrue { !it.name.startsWith("net.sf.saxon.") }
+
+    @Test
+    fun `the real domain sources import no Saxon type`() =
+        assertNoSaxonInDomain(Konsist.scopeFromDirectory("payload-domain/src/main"))
+
+    @Test
+    fun `a Saxon import in the domain fails the added rule`() {
+        val dir = File("build/probes/${UUID.randomUUID()}/domain")
+        dir.mkdirs()
+        File(dir, "Probe.kt").writeText("package $root.domain\n\nimport net.sf.saxon.s9api.Processor\n\nclass Probe\n")
+        try {
+            assertThrows(KoAssertionFailedException::class.java) {
+                assertNoSaxonInDomain(
+                    Konsist.scopeFromDirectory("acceptance/build/probes/${dir.parentFile.name}/domain"),
+                )
+            }
+        } finally {
+            dir.parentFile.deleteRecursively()
+        }
+    }
 }
