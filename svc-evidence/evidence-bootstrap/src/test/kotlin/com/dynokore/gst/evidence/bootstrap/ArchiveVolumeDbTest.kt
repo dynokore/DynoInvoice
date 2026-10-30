@@ -14,11 +14,11 @@ import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SchemaRegistryConfig
 import com.networknt.schema.SpecificationVersion
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -36,7 +36,7 @@ import java.util.UUID
 
 /**
  * The archive-volume store against a real database (P109), on the TPL-18 context over the `evidence_runtime` login:
- * the catalogue shape of `V7__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
+ * the catalogue shape of `V8__evidence_archive_volume.sql`, the content-column sum (INV-Q-12681 A) and the
  * transactional publication through the real outbox writer (INV-Q-12683 A, INV-Q-12736 A).
  */
 class ArchiveVolumeDbTest {
@@ -94,11 +94,12 @@ class ArchiveVolumeDbTest {
         tenant: UUID,
         entity: String,
         bytes: Long,
-        correlation: String,
-        causation: String,
+        n: Int,
         withType: Boolean = true,
     ) = inTenant(tenant) {
-        publisher(withType).publish(TenantId(tenant), entity, bytes, CorrelationId(correlation), CausationId(causation))
+        publisher(
+            withType,
+        ).publish(TenantId(tenant), entity, bytes, CorrelationId("corr-test-$n"), CausationId("cause-test-$n"))
     }
 
     // ---- seeding as the superuser (row-level security does not apply to it) ----
@@ -350,7 +351,7 @@ class ArchiveVolumeDbTest {
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 350, 1)
         val rows = outbox(tenant)
         rows.size shouldBe 1
         val row = rows.single()
@@ -376,9 +377,9 @@ class ArchiveVolumeDbTest {
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 350, 1)
         val first = outbox(tenant).single()
-        boundary.publish(tenant, "E-1", 0, "corr-test-2", "cause-test-2")
+        boundary.publish(tenant, "E-1", 0, 2)
         val rows = outbox(tenant)
         rows.size shouldBe 2
         rows[0] shouldBe first
@@ -395,7 +396,7 @@ class ArchiveVolumeDbTest {
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
         shouldThrow<EmissionNotPermitted> {
-            boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1", withType = false)
+            boundary.publish(tenant, "E-1", 350, 1, withType = false)
         }
         count("select count(*) from evidence.archive_volume_published where tenant_id = '$tenant'") shouldBe 0
         outbox(tenant) shouldBe emptyList()
@@ -408,7 +409,7 @@ class ArchiveVolumeDbTest {
         val tenant = UUID.randomUUID()
         seedTrace(tenant, "E-1", 100)
         listed(tenant) shouldBe setOf("E-1")
-        boundary.publish(tenant, "E-1", 100, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 100, 1)
         deleteContent(tenant, "E-1")
         listed(tenant) shouldBe setOf("E-1")
     }
@@ -419,9 +420,9 @@ class ArchiveVolumeDbTest {
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
         seedTrace(tenant, "E-1", 100)
-        boundary.publish(tenant, "E-1", 100, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 100, 1)
         deleteContent(tenant, "E-1")
-        boundary.publish(tenant, "E-1", 0, "corr-test-2", "cause-test-2")
+        boundary.publish(tenant, "E-1", 0, 2)
         listed(tenant) shouldBe emptySet()
     }
 
@@ -455,7 +456,7 @@ class ArchiveVolumeDbTest {
     /** The `data` column of the outbox row the real writer wrote. */
     private fun writtenData(boundary: Boundary): ObjectNode {
         val tenant = UUID.randomUUID()
-        boundary.publish(tenant, "E-1", 350, "corr-test-1", "cause-test-1")
+        boundary.publish(tenant, "E-1", 350, 1)
         return mapper.readTree(outbox(tenant).single().data) as ObjectNode
     }
 
