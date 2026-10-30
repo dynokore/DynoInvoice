@@ -13,6 +13,12 @@ val bindingKernel: Configuration by configurations.creating {
     isCanBeResolved = true
 }
 
+// The xjc tool (INV-Q-7106 A): a build-time dependency on its own resolvable configuration, on no compile or runtime classpath.
+val xjc: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
 gstJooqCodegen {
     schema = "payload"
     initScripts.from("src/testFixtures/resources/db/roles.sql")
@@ -36,6 +42,9 @@ dependencies {
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.integrationCanon.impl)
     implementation(libs.saxon.he)
+    implementation(libs.jakarta.xml.bind.api)
+    implementation(libs.jaxb.runtime)
+    xjc(libs.jaxb.xjc)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)

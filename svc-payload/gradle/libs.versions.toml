@@ -30,6 +30,10 @@ swaggerAnnotations = "2.2.55"
 # declares Saxon-HE itself, at the patch of the platform-libs catalogue.
 integrationCanon = "1.2.0"
 saxon = "12.10"
+# payload-adapters UBL binding (INV-Q-7106 A, STK-12 Jakarta XML Binding 4): the newest 4.x patch on Maven Central (2026-10-31).
+# The API is published separately from the Eclipse implementation (runtime, xjc), so the two version lines differ.
+jakartaXmlBind = "4.0.5"
+jaxb = "4.0.9"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -81,3 +85,6 @@ jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref
 jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 saxon-he = { module = "net.sf.saxon:Saxon-HE", version.ref = "saxon" }
+jakarta-xml-bind-api = { module = "jakarta.xml.bind:jakarta.xml.bind-api", version.ref = "jakartaXmlBind" }
+jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb" }
+jaxb-xjc = { module = "org.glassfish.jaxb:jaxb-xjc", version.ref = "jaxb" }
