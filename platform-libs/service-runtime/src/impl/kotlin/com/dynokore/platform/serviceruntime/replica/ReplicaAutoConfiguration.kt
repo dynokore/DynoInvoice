@@ -1,12 +1,19 @@
 package com.dynokore.platform.serviceruntime.replica
 
+import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.serviceruntime.identity.EntityRefScopeFilter
+import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
+import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
+import com.dynokore.platform.tenancykernel.TenantId
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
+import org.springframework.core.io.ResourceLoader
 import java.time.Clock
 import java.time.Duration
 
@@ -61,10 +68,38 @@ class ReplicaAutoConfiguration {
         properties: ReplicaProperties,
         registry: ResilienceRegistry,
         fallback: ObjectProvider<AuthorityFallback>,
+        structure: ObjectProvider<StructureReplica>,
+        meters: ObjectProvider<MeterRegistry>,
+        resources: ResourceLoader,
     ): AuthorityReplica =
         AuthorityReplica(
             clock,
             properties.authorityLagBound,
             fallback.ifAvailable?.guardedBy(registry.forEdge(ACCESS_EDGE)),
+            DegradedAllowResource.load(
+                checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
+            ),
+            { tenant, entity -> isEntityOf(structure.ifAvailable, clock, tenant, entity) },
+            MicrometerDegradedAllowObserver(meters.ifAvailable),
         )
+
+    /** True when the structure replica answers a node of kind ENTITY for [entity] under [tenant]; anything else is false. */
+    private fun isEntityOf(
+        replica: StructureReplica?,
+        clock: Clock,
+        tenant: TenantId,
+        entity: String,
+    ): Boolean {
+        if (replica == null) return false
+        return try {
+            val deadline = CurrentDeadline.current() ?: Deadline.after(STRUCTURE_BUDGET, clock)
+            EntityRefScopeFilter.isEntityNode(replica.node(tenant, EntityRef(entity).value, deadline))
+        } catch (_: IllegalArgumentException) {
+            false
+        }
+    }
+
+    private companion object {
+        val STRUCTURE_BUDGET: Duration = Duration.ofSeconds(2)
+    }
 }

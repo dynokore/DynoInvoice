@@ -42,7 +42,7 @@ internal sealed interface MachineVerdict {
  *  - `iss` equals the configured issuer and `aud` contains the configured audience (none configured: refused);
  *  - `exp` has not passed and `iat` is present;
  *  - `sub` and `client_id` are the same non-blank string, and `tenant_id` is present for the scopes that need one;
- *  - `scope` is exactly one string.
+ *  - `scope` is exactly one string and `jti` is a non-blank string (RFC 9068 section 2.2; INV-Q-13630 A).
  * Then the scope is checked against the operation line (403 when it differs): it equals the line's scope, or it is
  * `certification` on a line whose additional principal is `certification`. A `certification` token also needs the
  * claim `environment` equal to `SANDBOX` (exact), on every line.
@@ -79,8 +79,17 @@ internal class MachineTokenVerifier(
         val allowed = scope == line.scope || (scope == CERTIFICATION && line.also == CERTIFICATION)
         val sandbox = scope != CERTIFICATION || claims.claims["environment"] == SANDBOX
         if (!allowed || !sandbox) return MachineVerdict.WrongScope
+        val jti = claims.jwtid?.takeIf { it.isNotBlank() } ?: return MachineVerdict.BadToken
         val coverage = MachineEntityCoverage.of(claims.claims["principal_scope"])
-        return MachineVerdict.Verified(Principal.machine(subject, tenant, coverage))
+        return MachineVerdict.Verified(
+            Principal.machine(
+                subject,
+                tenant,
+                coverage,
+                scope,
+                jti,
+            ),
+        )
     }
 
     private fun parse(authorization: String?): SignedJWT? {

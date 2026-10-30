@@ -16,15 +16,18 @@ enum class PrincipalKind { HUMAN, CONSENT_AGENT, MACHINE }
  * A [PrincipalKind.MACHINE] principal exists only as the result of a verified machine access token (coordinator
  * rulings INV-Q-9028 A, INV-Q-9040 A, INV-Q-9032 A): the public constructor refuses that kind and the factory is
  * internal to service-runtime. A machine principal carries the token's [tenant] (null for a scope without one) and
- * the [entityCoverage] its `principal_scope` claim states.
+ * the [entityCoverage] its `principal_scope` claim states, its [scope] and its [tokenId] (`jti`, null when absent;
+ * both are audit data and not part of equality).
  */
 class Principal internal constructor(
     val id: String,
     val kind: PrincipalKind,
     val tenant: TenantId?,
     val entityCoverage: MachineEntityCoverage?,
+    val scope: String? = null,
+    val tokenId: String? = null,
 ) {
-    constructor(id: String, kind: PrincipalKind) : this(id, kind, null, null) {
+    constructor(id: String, kind: PrincipalKind) : this(id, kind, null, null, null, null) {
         require(kind != PrincipalKind.MACHINE) { "a machine principal is made only by a verified machine access token" }
     }
 
@@ -36,12 +39,38 @@ class Principal internal constructor(
 
     override fun toString(): String = "Principal(id=$id, kind=$kind)"
 
+    /**
+     * The one coverage rule of a machine token (INV-Q-10955, INV-Q-13632 A), shared by the entity-ref filter and the
+     * degraded decision: `entity:<ref>` covers that ref only; `tenant:<ref>` covers [value] only when `<ref>` is the
+     * token's own tenant and [entityOfTenant] says [value] is an entity of it; `installation` and the rest cover
+     * nothing.
+     */
+    internal fun coversEntity(
+        value: String,
+        entityOfTenant: (TenantId, String) -> Boolean,
+    ): Boolean =
+        when (val coverage = entityCoverage) {
+            is MachineEntityCoverage.Entity -> {
+                coverage.ref == value
+            }
+
+            is MachineEntityCoverage.Tenant -> {
+                tenant != null && coverage.ref == tenant.toString() && entityOfTenant(tenant, value)
+            }
+
+            else -> {
+                false
+            }
+        }
+
     internal companion object {
         fun machine(
             id: String,
             tenant: TenantId?,
             coverage: MachineEntityCoverage,
-        ) = Principal(id, PrincipalKind.MACHINE, tenant, coverage)
+            scope: String? = null,
+            tokenId: String? = null,
+        ) = Principal(id, PrincipalKind.MACHINE, tenant, coverage, scope, tokenId)
     }
 }
 
@@ -284,7 +313,9 @@ data class AuthorityChanged(
  * ENTITY_PERIOD grant matches (INV-Q-3339). [requiredScopeItem] is the consent scope item the owning
  * service's operation needs (INV-REQ-912 b1-b3, INV-REQ-913): under a CONSENT grant the live consent must
  * list it; null decides on the grant and a live consent alone. service-runtime holds no action-to-item
- * catalogue (INV-Q-3734).
+ * catalogue (INV-Q-3734). [operation] is the method and path template of the route being served, set by
+ * service-runtime (the machine-token filter leaves it in [OperationKey.ATTRIBUTE]); a service cannot build one, and a
+ * request without it is an unmarked operation in degraded mode (INV-Q-9065 A).
  */
 data class AuthorizationRequest(
     val tenant: TenantId,
@@ -293,6 +324,7 @@ data class AuthorizationRequest(
     val action: String,
     val resourcePeriod: DateSpan? = null,
     val requiredScopeItem: ConsentScopeItem? = null,
+    val operation: OperationKey? = null,
 )
 
 enum class DecisionSource { LOCAL, FALLBACK, DEGRADED }
@@ -478,6 +510,9 @@ class AuthorityReplica(
     private val clock: Clock,
     val lagBound: Duration = DEFAULT_LAG_BOUND,
     private val fallback: ReplicaFallback<AuthorizationRequest, AuthorityVerdict>? = null,
+    private val degradedAllow: DegradedAllowTable = DegradedAllowTable.EMPTY,
+    private val entityOfTenant: (TenantId, String) -> Boolean = { _, _ -> false },
+    private val observer: DegradedAllowObserver = DegradedAllowObserver { },
 ) : ReplicaFeedSink<AuthorityChanged> {
     /** One feed, so one lag for all three record kinds. */
     val tracker = ReplicaLagTracker(clock)
@@ -527,7 +562,7 @@ class AuthorityReplica(
             }
 
             FallbackResult.Unavailable -> {
-                degraded(request.principal)
+                degraded(request)
             }
         }
     }
@@ -639,12 +674,33 @@ class AuthorityReplica(
         return AuthorityDecision(allowed, DecisionSource.LOCAL, reason)
     }
 
-    private fun degraded(principal: Principal): AuthorityDecision =
-        if (principal.kind == PrincipalKind.MACHINE) {
-            AuthorityDecision(true, DecisionSource.DEGRADED, DecisionReason.MACHINE_FLOW_CONTINUES)
-        } else {
-            AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+    /**
+     * The answer when no decision can be had (INV-Q-9065 A): a MACHINE request whose operation is a row of the
+     * degraded-allow table, whose token scope is that operation's principal, whose token tenant is the request's and
+     * whose entity the token's coverage covers is allowed, once logged and counted; everything else is denied.
+     */
+    private fun degraded(request: AuthorizationRequest): AuthorityDecision {
+        val principal = request.principal
+        val operation = request.operation
+        if (operation != null && permitted(request, operation)) {
+            val allow = DegradedAllow(operation, request.tenant, principal.id, request.entityRef, principal.tokenId)
+            LOG.log(System.Logger.Level.INFO, allow.line())
+            observer.onAllow(allow)
+            return AuthorityDecision(true, DecisionSource.DEGRADED, DecisionReason.MACHINE_FLOW_CONTINUES)
         }
+        return AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+    }
+
+    /** MACHINE, a marked [operation], the operation's principal as scope, the request's tenant, a covered entity. */
+    private fun permitted(
+        request: AuthorizationRequest,
+        operation: OperationKey,
+    ): Boolean {
+        val principal = request.principal
+        val token = principal.kind == PrincipalKind.MACHINE && principal.scope == operation.principal
+        return token && degradedAllow.marks(operation) && principal.tenant == request.tenant &&
+            principal.coversEntity(request.entityRef, entityOfTenant)
+    }
 
     override fun accept(event: AuthorityChanged) {
         val version = event.authorityVersion
@@ -693,5 +749,7 @@ class AuthorityReplica(
     companion object {
         /** INV-REQ-1201: lag at most one second is decided locally. */
         val DEFAULT_LAG_BOUND: Duration = Duration.ofSeconds(1)
+
+        private val LOG: System.Logger = System.getLogger(AuthorityReplica::class.java.name)
     }
 }

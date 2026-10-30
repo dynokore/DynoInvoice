@@ -118,29 +118,13 @@ class EntityRefScopeFilter private constructor(
         }
 
     /**
-     * A machine token's entity set is its `principal_scope` (INV-AC-9148): `entity:<ref>` covers that ref only;
-     * `tenant:<ref>` covers an entity only when `<ref>` is the token's own tenant and the [StructureReplica] holds the
-     * node under that tenant as an ENTITY (INV-Q-10955; a retired node counts); `installation` and anything else cover
-     * nothing.
+     * A machine token's entity set is its `principal_scope` (INV-AC-9148), decided by [Principal.coversEntity]; the
+     * [StructureReplica] holds the node under the token's tenant as an ENTITY (INV-Q-10955; a retired node counts).
      */
     private fun machineCovers(
         machine: Principal,
         value: String,
-    ): Boolean =
-        when (val coverage = machine.entityCoverage) {
-            is MachineEntityCoverage.Entity -> {
-                coverage.ref == value
-            }
-
-            is MachineEntityCoverage.Tenant -> {
-                val tenant = machine.tenant
-                tenant != null && coverage.ref == tenant.toString() && isEntityOf(tenant, value)
-            }
-
-            else -> {
-                false
-            }
-        }
+    ): Boolean = machine.coversEntity(value, ::isEntityOf)
 
     /** True when the structure replica answers a node of kind ENTITY for [value] under [tenant]; anything else is false. */
     private fun isEntityOf(

@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
+import com.dynokore.platform.serviceruntime.replica.OperationKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
@@ -67,6 +68,7 @@ class MachineTokenFilterTest {
     private val resolverCalls = AtomicInteger()
     private val handled = AtomicInteger()
     private val seen = mutableListOf<Principal?>()
+    private val operations = mutableListOf<OperationKey?>()
     private val bound = mutableListOf<TenantId?>()
     private val tenantContext = TenantContextImpl()
     private val clock = Clock.systemUTC()
@@ -137,6 +139,7 @@ class MachineTokenFilterTest {
             .claim("tenant_id", MT_TENANT.toString())
             .claim("scope", scope)
             .claim("principal_scope", "entity:E1")
+            .jwtID("jti-1")
             .issueTime(Date.from(now))
             .expirationTime(Date.from(now.plusSeconds(600)))
             .apply(block)
@@ -200,6 +203,7 @@ class MachineTokenFilterTest {
                 ) {
                     handled.incrementAndGet()
                     seen += req.getAttribute(MachineTokenFilter.PRINCIPAL_ATTRIBUTE) as? Principal
+                    operations += req.getAttribute(OperationKey.ATTRIBUTE) as? OperationKey
                     bound += runCatching { tenantContext.current() }.getOrNull()
                     res.status = 200
                 }
@@ -226,6 +230,31 @@ class MachineTokenFilterTest {
         seen.single() shouldBe Principal.machine("client-1", MT_TENANT, MachineEntityCoverage.Entity("E1"))
         seen.single()!!.kind shouldBe PrincipalKind.MACHINE
         bound.single() shouldBe MT_TENANT
+    }
+
+    @Test
+    fun `a verified request carries the matched operation, the token scope and the token id`() {
+        publish(item(machineKeys, "mk", "MACHINE_ACCESS"))
+        status(token()) shouldBe 200
+        operations.single() shouldBe OperationKey("POST", "/v1/ingest/a", "ingest")
+        seen.single()!!.scope shouldBe "ingest"
+        seen.single()!!.tokenId shouldBe "jti-1"
+    }
+
+    @Test
+    fun `a token without a jti, or with a blank one, is 401`() {
+        publish(item(machineKeys, "mk", "MACHINE_ACCESS"))
+        status(token(claims { jwtID(null) })) shouldBe 401
+        status(token(claims { jwtID(" ") })) shouldBe 401
+        status(token(claims { jwtID("") })) shouldBe 401
+        operations.size shouldBe 0
+    }
+
+    @Test
+    fun `a refused request carries no operation`() {
+        publish(item(machineKeys, "mk", "MACHINE_ACCESS"))
+        status("Bearer nonsense") shouldBe 401
+        operations.size shouldBe 0
     }
 
     @Test

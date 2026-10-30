@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.identity
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.http.StoredResponse
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.serviceruntime.replica.OperationKey
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.tenancykernel.TenantContext
 import jakarta.servlet.Filter
@@ -29,7 +30,7 @@ internal data class MachineOperation(
  * (`<METHOD><TAB><path template><TAB><scope><TAB><also>`, written by `gst.contract-server`) is verified here by
  * [MachineTokenVerifier] and never reaches the end-user resolver. A bad token is 401 SRT-003, a valid token of the
  * wrong scope or a certification token outside SANDBOX 403 SRT-004; the handler is then not called. A verified
- * [Principal] (kind MACHINE) is left in [PRINCIPAL_ATTRIBUTE], and its tenant is bound to [TenantContext] for the
+ * [Principal] (kind MACHINE) is left in [PRINCIPAL_ATTRIBUTE] and the matched [OperationKey] in [OperationKey.ATTRIBUTE], and its tenant is bound to [TenantContext] for the
  * request when it has one. Any other request, `/v10/...` and `/internal/v1/...` included, passes untouched.
  */
 class MachineTokenFilter internal constructor(
@@ -46,6 +47,7 @@ class MachineTokenFilter internal constructor(
     ) {
         val http = request as HttpServletRequest
         http.removeAttribute(PRINCIPAL_ATTRIBUTE)
+        http.removeAttribute(OperationKey.ATTRIBUTE)
         val path = PathContainer.parsePath(http.requestURI.removePrefix(http.contextPath.orEmpty()))
         val line = operations.serving(http.method, path)
         if (line == null) {
@@ -65,6 +67,7 @@ class MachineTokenFilter internal constructor(
 
             is MachineVerdict.Verified -> {
                 http.setAttribute(PRINCIPAL_ATTRIBUTE, verdict.principal)
+                http.setAttribute(OperationKey.ATTRIBUTE, OperationKey(line.method, line.template, line.payload.scope))
                 val tenant = verdict.principal.tenant
                 if (tenant == null) {
                     chain.doFilter(request, response)

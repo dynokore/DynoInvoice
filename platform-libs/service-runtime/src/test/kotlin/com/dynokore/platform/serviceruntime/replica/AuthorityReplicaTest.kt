@@ -321,20 +321,20 @@ class AuthorityReplicaTest {
     }
 
     @Test
-    fun `a machine flow continues when the replica is stale and access-svc is down`() {
+    fun `a machine request with no marked operation is denied when the replica is stale and access-svc is down`() {
         grantTo(1)
         feed.drop()
         clock.advance(Duration.ofSeconds(30))
         access.answer = { FallbackResult.Unavailable }
         decide(PrincipalKind.MACHINE) shouldBe
-            AuthorityDecision(true, DecisionSource.DEGRADED, DecisionReason.MACHINE_FLOW_CONTINUES)
+            AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
     }
 
     @Test
-    fun `a cold replica with no fallback configured also denies persons and keeps machines`() {
+    fun `a cold replica with no fallback configured denies persons and unmarked machine requests`() {
         val cold = AuthorityReplica(clock)
         cold.decide(request(PrincipalKind.HUMAN), deadline(clock)).allowed shouldBe false
-        cold.decide(request(PrincipalKind.MACHINE), deadline(clock)).allowed shouldBe true
+        cold.decide(request(PrincipalKind.MACHINE), deadline(clock)).allowed shouldBe false
     }
 
     @Test

@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.25.0] - 2026-10-31
+### Changed
+- `AuthorityReplica` degraded mode (INV-T-9078, INV-Q-9065 A; INV-AC-9075): a MACHINE request is allowed (source DEGRADED, reason MACHINE_FLOW_CONTINUES) only when its `AuthorizationRequest.operation` is a row of `META-INF/gst/degraded-allow-operations.tsv`, the token scope equals that operation's principal, the token tenant equals the request tenant and the token's entity coverage covers the entity; every other MACHINE case, and HUMAN and CONSENT_AGENT, stay AUTHORITY_UNAVAILABLE. No resource means every MACHINE case is denied with one WARN; a malformed or repeated line stops the start-up, naming the line and never its content. Each allow writes one structured line and counts `authority_degraded_allow_total{operation}`.
+- `AuthorizationRequest` gains `operation: OperationKey?` (method, path template, principal), set by `MachineTokenFilter` and not constructible by a service; the machine `Principal` also carries `scope` and `tokenId` (`jti`, required by the verifier, RFC 9068 section 2.2).
+
 ## [10.24.0] - 2026-10-30
 ### Changed
 - `JobTarget.Entity` accepts the tenant-wide entity `EntityRef.TENANT_WIDE` with a real tenant, so a job can target the chains keyed by it (INV-T-13295; INV-Q-12984, INV-AC-13288). The platform tenant, the platform entity and a reference over 40 characters are still refused with `IllegalArgumentException`; a widened precondition is backward compatible (MINOR).
