@@ -6,6 +6,7 @@ import com.dynokore.gst.access.adapters.consent.AgentTenancyConstraints
 import com.dynokore.gst.access.adapters.consent.VariationPointAgentTenancy
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.persistence.JooqLiveConsentProbe
+import com.dynokore.gst.access.adapters.separation.ConflictingPairsConstraints
 import com.dynokore.gst.access.application.consent.AgentScope
 import com.dynokore.gst.access.application.consent.AgentTenancy
 import com.dynokore.gst.access.application.consent.ConsentRepository
@@ -51,8 +52,8 @@ class AgentTenancyUseCases {
         properties: GstProperties,
     ): AgentTenancy = VariationPointAgentTenancy(reader, clock, properties.form.name == "SAAS")
 
-    /** The checks `setPolicy` asks of its owning service: VP-73 (INV-Q-3167), the pair of VP-08 and VP-74 (INV-REQ-2757
-     * behaviour 4); no other variation point is checked. */
+    /** The checks `setPolicy` asks of its owning service: VP-73 (INV-Q-3167), the pair of VP-08, VP-74 (INV-REQ-2757
+     * behaviour 4) and VP-82 (INV-REQ-9271); no other variation point is checked. */
     @Bean
     fun valueConstraints(
         catalogue: RoleCatalogue,
@@ -64,6 +65,7 @@ class AgentTenancyUseCases {
                 RolePrecedenceConstraints(catalogue, mapper),
                 BreakGlassPairConstraints(catalogue, mapper),
                 AgentTenancyConstraints(JooqLiveConsentProbe(dsl)),
+                ConflictingPairsConstraints(catalogue, mapper),
             ),
         )
 }
