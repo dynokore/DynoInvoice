@@ -36,17 +36,31 @@ class VersionTransitionsTest {
         ack: String? = null,
     ) = VersionRecord(n, state, ack)
 
+    private data class Plan(
+        val t1: Long = 10,
+        val t2: Long = 30,
+        val latest: Long = 50,
+        val due: Long = 100,
+        val resends: Int = 0,
+        val s5: Boolean = false,
+        val s10: Boolean = false,
+    )
+
     private fun tick(
         now: Instant,
-        t1: Long = 10,
-        t2: Long = 30,
-        latest: Long = 50,
-        due: Long = 100,
-        resends: Int = 0,
-        s5: Boolean = false,
-        s10: Boolean = false,
+        plan: Plan = Plan(),
         version: Int = 1,
-    ) = TimerTick(version, now, at(t1), at(t2), at(latest), at(due), resends, s5, s10)
+    ) = TimerTick(
+        version,
+        now,
+        at(plan.t1),
+        at(plan.t2),
+        at(plan.latest),
+        at(plan.due),
+        plan.resends,
+        plan.s5,
+        plan.s10,
+    )
 
     private fun states(
         list: List<VersionRecord>,
@@ -55,24 +69,24 @@ class VersionTransitionsTest {
 
     private val reasons = listOf(RejectionReason("PINT-001", "IBT-001", "missing"))
 
-    // ---- INV-AC-1851, INV-AC-13076
+    // ---- INV-AC-1851,
 
     @Test
-    fun `INV-AC-1851 INV-AC-13076 AP success on a queued version is SENT with the timer and not ACKNOWLEDGED`() {
+    fun `INV-AC-1851 AP success on a queued version is SENT with the timer and not ACKNOWLEDGED`() {
         val d = VersionTransitions.decide(listOf(v(1, QUEUED)), ApAccepted(1))
         d.transitions shouldBe listOf(Transition(1, QUEUED, SENT))
         d.signals shouldBe listOf(StartAckTimer(1))
     }
 
     @Test
-    fun `INV-AC-1851 INV-AC-13076 an acknowledgement id moves a SENT version to ACKNOWLEDGED`() {
+    fun `INV-AC-1851 an acknowledgement id moves a SENT version to ACKNOWLEDGED`() {
         val d = VersionTransitions.decide(listOf(v(1, SENT)), AcknowledgementReceived(1, "ACK-1"))
         d.transitions shouldBe listOf(Transition(1, SENT, ACKNOWLEDGED))
         d.signals shouldBe listOf(RecordAcknowledgement(1, "ACK-1"))
     }
 
     @Test
-    fun `INV-AC-1851 INV-AC-13076 a blank or whitespace-only id is refused and changes nothing`() {
+    fun `INV-AC-1851 a blank or whitespace-only id is refused and changes nothing`() {
         for (id in listOf("", "   ", "\t\n")) {
             val d = VersionTransitions.decide(listOf(v(1, SENT)), AcknowledgementReceived(1, id))
             d shouldBe Decision(signals = listOf(Refused(RefusalReason.NO_ACKNOWLEDGEMENT_ID)))
@@ -80,14 +94,14 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-1851 INV-AC-13076 a late acknowledgement after SUB-005 still gives ACKNOWLEDGED (INV-REQ-630)`() {
+    fun `INV-AC-1851 a late acknowledgement after SUB-005 still gives ACKNOWLEDGED (INV-REQ-630)`() {
         val d = VersionTransitions.decide(listOf(v(1, SENT_UNCONFIRMED)), AcknowledgementReceived(1, "ACK-1"))
         d.transitions shouldBe listOf(Transition(1, SENT_UNCONFIRMED, ACKNOWLEDGED))
         d.signals shouldBe listOf(RecordAcknowledgement(1, "ACK-1"))
     }
 
     @Test
-    fun `INV-AC-1851 INV-AC-13076 no other event targets ACKNOWLEDGED in any of the 18 states`() {
+    fun `INV-AC-1851 no other event targets ACKNOWLEDGED in any of the 18 states`() {
         for (s in LifecycleState.entries) {
             val list = listOf(v(1, s, "ACK-1"))
             val events =
@@ -95,8 +109,8 @@ class VersionTransitionsTest {
                     ApAccepted(1),
                     Rejected(1, RejectionSource.IRAS, reasons),
                     Rejected(1, RejectionSource.AP, emptyList()),
-                    tick(at(1000), s5 = false, s10 = false),
-                    tick(at(1000), resends = 1),
+                    tick(at(1000), Plan(s5 = false, s10 = false)),
+                    tick(at(1000), Plan(resends = 1)),
                 )
             for (e in events) {
                 VersionTransitions.decide(list, e).transitions.none { it.to == ACKNOWLEDGED } shouldBe true
@@ -104,10 +118,10 @@ class VersionTransitionsTest {
         }
     }
 
-    // ---- INV-AC-613, INV-AC-13073
+    // ---- INV-AC-613,
 
     @Test
-    fun `INV-AC-613 INV-AC-13073 AP success of v2 leaves v1 ACKNOWLEDGED`() {
+    fun `INV-AC-613 AP success of v2 leaves v1 ACKNOWLEDGED`() {
         val list = listOf(v(1, ACKNOWLEDGED, "ACK-1"), v(2, QUEUED))
         val d = VersionTransitions.decide(list, ApAccepted(2))
         d.transitions shouldBe listOf(Transition(2, QUEUED, SENT))
@@ -115,7 +129,7 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-613 INV-AC-13073 acknowledging v2 supersedes the acknowledged v1`() {
+    fun `INV-AC-613 acknowledging v2 supersedes the acknowledged v1`() {
         val list = listOf(v(1, ACKNOWLEDGED, "ACK-1"), v(2, SENT))
         val d = VersionTransitions.decide(list, AcknowledgementReceived(2, "ACK-2"))
         states(list, d) shouldBe listOf(SUPERSEDED, ACKNOWLEDGED)
@@ -123,7 +137,7 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-613 INV-AC-13073 a late acknowledgement of v1 is itself superseded and v2 is unchanged`() {
+    fun `INV-AC-613 a late acknowledgement of v1 is itself superseded and v2 is unchanged`() {
         val list = listOf(v(1, SENT), v(2, ACKNOWLEDGED, "ACK-2"))
         val d = VersionTransitions.decide(list, AcknowledgementReceived(1, "ACK-1"))
         d.transitions shouldBe listOf(Transition(1, SENT, SUPERSEDED))
@@ -132,7 +146,7 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-613 INV-AC-13073 after any decision at most one version is ACKNOWLEDGED`() {
+    fun `INV-AC-613 after any decision at most one version is ACKNOWLEDGED`() {
         val events = { n: Int ->
             listOf(
                 ApAccepted(n),
@@ -155,10 +169,10 @@ class VersionTransitionsTest {
         }
     }
 
-    // ---- INV-AC-608, INV-AC-13074
+    // ---- INV-AC-608,
 
     @Test
-    fun `INV-AC-608 INV-AC-13074 an IRAS rejection gives REJECTED with the reasons in order and SUB-004`() {
+    fun `INV-AC-608 an IRAS rejection gives REJECTED with the reasons in order and SUB-004`() {
         val given =
             listOf(
                 RejectionReason("PINT-009", null, " zeta "),
@@ -173,7 +187,7 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-608 INV-AC-13074 an AP rejection raises SUB-003 and an empty reason list stays empty`() {
+    fun `INV-AC-608 an AP rejection raises SUB-003 and an empty reason list stays empty`() {
         val d = VersionTransitions.decide(listOf(v(1, SENT)), Rejected(1, RejectionSource.AP, reasons))
         d.signals shouldBe listOf(Raise(RaisedCode.SUB_003, 1))
         RaisedCode.SUB_003.code shouldBe "SUB-003"
@@ -183,82 +197,83 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-608 INV-AC-13073 a REJECTED v1 stays REJECTED when v2 is acknowledged`() {
+    fun `INV-AC-608 a REJECTED v1 stays REJECTED when v2 is acknowledged`() {
         val list = listOf(v(1, REJECTED), v(2, QUEUED))
         val d = VersionTransitions.decide(list, AcknowledgementReceived(2, "ACK-2"))
         states(list, d) shouldBe listOf(REJECTED, ACKNOWLEDGED)
     }
 
     @Test
-    fun `INV-AC-608 INV-AC-13074 rejecting v2 leaves the acknowledged v1 ACKNOWLEDGED`() {
+    fun `INV-AC-608 rejecting v2 leaves the acknowledged v1 ACKNOWLEDGED`() {
         val list = listOf(v(1, ACKNOWLEDGED, "ACK-1"), v(2, SENT))
         val d = VersionTransitions.decide(list, Rejected(2, RejectionSource.IRAS, reasons))
         d.transitions shouldBe listOf(Transition(2, SENT, REJECTED))
         states(list, d) shouldBe listOf(ACKNOWLEDGED, REJECTED)
     }
 
-    // ---- INV-AC-665, INV-AC-13075
+    // ---- INV-AC-665,
 
     @Test
-    fun `INV-AC-665 INV-AC-13075 SENT is silent before effective1, resends at it, SUB-005 at effective2`() {
+    fun `INV-AC-665 SENT is silent before effective1, resends at it, SUB-005 at effective2`() {
         val list = listOf(v(1, SENT))
         VersionTransitions.decide(list, tick(at(10).minus(second))) shouldBe Decision()
         val one = VersionTransitions.decide(list, tick(at(10)))
         one.transitions shouldBe listOf(Transition(1, SENT, SENT_UNCONFIRMED))
         one.signals shouldBe listOf(Resend(1))
-        val two = VersionTransitions.decide(list, tick(at(30), resends = 1))
+        val two = VersionTransitions.decide(list, tick(at(30), Plan(resends = 1)))
         two.transitions shouldBe emptyList()
         two.signals shouldBe listOf(Raise(RaisedCode.SUB_005, 1))
-        VersionTransitions.decide(list, tick(at(30).minus(second), resends = 1)) shouldBe Decision()
+        VersionTransitions.decide(list, tick(at(30).minus(second), Plan(resends = 1))) shouldBe Decision()
         RaisedCode.SUB_005.code shouldBe "SUB-005"
     }
 
     @Test
-    fun `INV-AC-667 INV-AC-13075 t1 resends once and t2 raises SUB-005 without a resend`() {
+    fun `INV-AC-667 t1 resends once and t2 raises SUB-005 without a resend`() {
         val sent = VersionTransitions.decide(listOf(v(1, SENT)), tick(at(10)))
         sent.signals shouldBe listOf(Resend(1))
         val afterT1 = listOf(v(1, SENT_UNCONFIRMED))
-        val d = VersionTransitions.decide(afterT1, tick(at(30), resends = 1))
+        val d = VersionTransitions.decide(afterT1, tick(at(30), Plan(resends = 1)))
         d shouldBe Decision(signals = listOf(Raise(RaisedCode.SUB_005, 1)))
     }
 
     @Test
-    fun `INV-AC-667 INV-AC-13075 SUB-005 is raised at latestDespatchAt when t2At is later and not one second later`() {
+    fun `INV-AC-667 SUB-005 is raised at latestDespatchAt when t2At is later and not one second later`() {
         val list = listOf(v(1, SENT_UNCONFIRMED))
-        val before = tick(at(40).minus(second), t2 = 60, latest = 40, resends = 1)
+        val before = tick(at(40).minus(second), Plan(t2 = 60, latest = 40, resends = 1))
         VersionTransitions.decide(list, before) shouldBe Decision()
-        val d = VersionTransitions.decide(list, tick(at(40), t2 = 60, latest = 40, resends = 1))
+        val d = VersionTransitions.decide(list, tick(at(40), Plan(t2 = 60, latest = 40, resends = 1)))
         d.signals shouldBe listOf(Raise(RaisedCode.SUB_005, 1))
     }
 
     @Test
-    fun `INV-AC-667 INV-AC-13075 latestDespatchAt before t1At gives resend and SUB-005 in one tick`() {
-        val d = VersionTransitions.decide(listOf(v(1, SENT)), tick(at(20), t1 = 30, t2 = 40, latest = 20))
+    fun `INV-AC-667 latestDespatchAt before t1At gives resend and SUB-005 in one tick`() {
+        val d = VersionTransitions.decide(listOf(v(1, SENT)), tick(at(20), Plan(t1 = 30, t2 = 40, latest = 20)))
         d.transitions shouldBe listOf(Transition(1, SENT, SENT_UNCONFIRMED))
         d.signals shouldBe listOf(Resend(1), Raise(RaisedCode.SUB_005, 1))
     }
 
     @Test
-    fun `INV-AC-667 INV-AC-13075 a raised SUB-005 is not raised again and no resend follows a done resend`() {
+    fun `INV-AC-667 a raised SUB-005 is not raised again and no resend follows a done resend`() {
         val list = listOf(v(1, SENT))
-        VersionTransitions.decide(list, tick(at(60), s5 = true, resends = 1)) shouldBe Decision()
-        VersionTransitions.decide(list, tick(at(60), resends = 2)).signals shouldBe listOf(Raise(RaisedCode.SUB_005, 1))
+        VersionTransitions.decide(list, tick(at(60), Plan(s5 = true, resends = 1))) shouldBe Decision()
+        val d = VersionTransitions.decide(list, tick(at(60), Plan(resends = 2)))
+        d.signals shouldBe listOf(Raise(RaisedCode.SUB_005, 1))
     }
 
     @Test
-    fun `INV-AC-667 INV-AC-13075 SUB-010 is raised one second after dueAt and not at dueAt and never holds`() {
+    fun `INV-AC-667 SUB-010 is raised one second after dueAt and not at dueAt and never holds`() {
         val list = listOf(v(1, SENT_UNCONFIRMED))
-        val atDue = tick(at(100), resends = 1, s5 = true)
+        val atDue = tick(at(100), Plan(resends = 1, s5 = true))
         VersionTransitions.decide(list, atDue) shouldBe Decision()
-        val after = VersionTransitions.decide(list, tick(at(100).plus(second), resends = 1, s5 = true))
+        val after = VersionTransitions.decide(list, tick(at(100).plus(second), Plan(resends = 1, s5 = true)))
         after shouldBe Decision(signals = listOf(Raise(RaisedCode.SUB_010, 1)))
-        val raised = tick(at(100).plus(second), resends = 1, s5 = true, s10 = true)
+        val raised = tick(at(100).plus(second), Plan(resends = 1, s5 = true, s10 = true))
         VersionTransitions.decide(list, raised) shouldBe Decision()
         RaisedCode.SUB_010.code shouldBe "SUB-010"
     }
 
     @Test
-    fun `INV-AC-13075 a tick never produces a transition other than SENT to SENT_UNCONFIRMED`() {
+    fun `a tick never produces a transition other than SENT to SENT_UNCONFIRMED`() {
         for (s in LifecycleState.entries) {
             val d = VersionTransitions.decide(listOf(v(1, s, "ACK-1")), tick(at(1000)))
             d.transitions.all { it == Transition(1, SENT, SENT_UNCONFIRMED) } shouldBe true
@@ -269,7 +284,7 @@ class VersionTransitionsTest {
     // ---- anomalies and the golden table
 
     @Test
-    fun `INV-AC-13076 an unknown version is an anomaly with no transition`() {
+    fun `an unknown version is an anomaly with no transition`() {
         val events =
             listOf(
                 ApAccepted(9),
@@ -284,7 +299,7 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-13076 an acknowledged version keeps its id and another id is an anomaly`() {
+    fun `an acknowledged version keeps its id and another id is an anomaly`() {
         val list = listOf(v(1, ACKNOWLEDGED, "ACK-1"))
         VersionTransitions.decide(list, AcknowledgementReceived(1, "ACK-1")) shouldBe Decision()
         VersionTransitions.decide(list, AcknowledgementReceived(1, "ACK-2")) shouldBe
@@ -301,7 +316,7 @@ class VersionTransitionsTest {
         }
 
     @Test
-    fun `INV-AC-1851 INV-AC-13076 golden table of 54 cells`() {
+    fun `INV-AC-1851 golden table of 54 cells`() {
         val ackOk = setOf("SENT", "SENT_UNCONFIRMED", "NETWORK_ISSUED", "QUEUED", "RETRY", "DEAD_LETTERED")
         val rejOk = setOf("QUEUED", "SENT", "SENT_UNCONFIRMED", "RETRY")
         var cells = 0
@@ -329,7 +344,7 @@ class VersionTransitionsTest {
     }
 
     @Test
-    fun `INV-AC-13073 LifecycleState equals the union of the schema enums`() {
+    fun `LifecycleState equals the union of the schema enums`() {
         val text = File(System.getProperty("gst.contract.dir"), "schemas/lifecycle-states.schema.json").readText()
 
         fun enumOf(def: String): List<String> {
