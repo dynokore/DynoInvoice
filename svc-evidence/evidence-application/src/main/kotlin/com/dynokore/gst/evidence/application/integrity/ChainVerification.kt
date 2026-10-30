@@ -22,7 +22,7 @@ data class ChainFailure(
     val rangeTo: Instant,
 )
 
-/** What one verification of an (entity, period) found; [failures] is empty unless [result] is FAILED by VERIFICATION. */
+/** What one verification of an (entity, period) found; [failures] is empty unless the cause is VERIFICATION. */
 data class VerificationOutcome(
     val result: RunResult,
     val cause: RunCause,
