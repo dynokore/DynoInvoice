@@ -12,6 +12,7 @@ dependencies {
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.configResolver.api)
     implementation(libs.platform.serviceRuntime.api)
+    implementation(libs.platform.calendarAndPeriods.api)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)

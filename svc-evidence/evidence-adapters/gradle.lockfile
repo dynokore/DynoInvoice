@@ -8,6 +8,7 @@ ch.qos.logback:logback-core:1.5.38=compileClasspath,runtimeClasspath,testCompile
 com.dynokore.gst.build:konsist-rules:0.23.3=testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:audit-log-api:4.0.15=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:audit-log:4.0.15=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
+com.dynokore.platform:calendar-and-periods-api:1.4.1=runtimeClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:config-resolver-api:5.0.12=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:config-resolver:5.0.12=compileClasspath,runtimeClasspath,testCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.dynokore.platform:crypto-api:1.1.1=runtimeClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath

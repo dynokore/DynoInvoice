@@ -9,6 +9,7 @@ com.dynokore.gst.build:konsist-rules:0.23.3=testCompileClasspath,testRuntimeClas
 com.dynokore.gst:gst-catalogue:2.11.0=testRuntimeClasspath
 com.dynokore.platform:audit-log-api:4.0.15=testRuntimeClasspath
 com.dynokore.platform:audit-log:4.0.15=testRuntimeClasspath
+com.dynokore.platform:calendar-and-periods-api:1.4.1=testRuntimeClasspath
 com.dynokore.platform:config-resolver-api:5.0.12=testRuntimeClasspath
 com.dynokore.platform:config-resolver:5.0.12=testRuntimeClasspath
 com.dynokore.platform:crypto-api:1.1.1=testRuntimeClasspath

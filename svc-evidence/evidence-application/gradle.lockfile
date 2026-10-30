@@ -3,6 +3,7 @@
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :evidence-application:dependencies --write-locks
 com.dynokore.platform:audit-log-api:4.0.15=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:calendar-and-periods-api:1.4.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:config-resolver-api:5.0.12=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:crypto-api:1.1.1=runtimeClasspath,testRuntimeClasspath
 com.dynokore.platform:evidence-store-api:2.1.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath

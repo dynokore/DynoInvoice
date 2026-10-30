@@ -36,6 +36,7 @@ data class CaseRecord(
     val subjectRef: String?,
     val openedAt: Instant,
     val security: SecurityCaseFacts?,
+    val privacy: PrivacyCaseFacts? = null,
 ) {
     init {
         when (kind) {
@@ -43,13 +44,19 @@ data class CaseRecord(
                 requireNotNull(security) { "a SECURITY case needs its security facts" }
                 require(subjectRef == null) { "a SECURITY case has no subjectRef" }
                 require(status == CaseStatus.OPEN) { "a SECURITY case opens with status OPEN" }
+                require(privacy == null) { "a SECURITY case has no privacy facts" }
             }
 
             CaseKind.PRIVACY -> {
                 require(security == null) { "a PRIVACY case has no security facts" }
                 requireNotNull(subjectRef) { "a PRIVACY case needs a subjectRef" }
                 require(subjectRef.length <= MAX_SUBJECT_REF) { "subjectRef is longer than $MAX_SUBJECT_REF" }
+                require(privacy == null || subjectRef.isNotEmpty()) { "subjectRef must hold at least 1 character" }
             }
+        }
+        require(privacy?.closure == null || status == CaseStatus.CLOSED) { "a closure needs status CLOSED" }
+        if (kind == CaseKind.PRIVACY && status == CaseStatus.CLOSED) {
+            requireNotNull(privacy?.closure) { "a CLOSED PRIVACY case needs its closure" }
         }
     }
 

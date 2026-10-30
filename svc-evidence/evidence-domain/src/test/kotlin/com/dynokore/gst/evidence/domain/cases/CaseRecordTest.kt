@@ -96,4 +96,49 @@ class CaseRecordTest {
         val given = listOf(other, entry, other)
         facts(ids = given).auditLogEntryIds shouldBe given
     }
+
+    private val day = java.time.LocalDate.parse("2026-03-01")
+
+    private fun pfacts(closure: CaseClosure? = null) =
+        PrivacyCaseFacts(RequestKind.ACCESS, "REQ-1", day, day.plusDays(30), 30, closure, null)
+
+    private fun record(
+        kind: CaseKind = CaseKind.PRIVACY,
+        status: CaseStatus = CaseStatus.OPEN,
+        subjectRef: String? = "subject",
+        privacy: PrivacyCaseFacts? = pfacts(),
+        security: SecurityCaseFacts? = null,
+    ) = CaseRecord(id, kind, status, subjectRef, at, security, privacy)
+
+    @Test
+    fun `INV-AC-11707 a SECURITY case with privacy facts is refused`() {
+        shouldThrow<IllegalArgumentException> {
+            record(kind = CaseKind.SECURITY, subjectRef = null, privacy = pfacts(), security = facts())
+        }
+    }
+
+    @Test
+    fun `INV-AC-11707 a PRIVACY case with privacy facts needs a subjectRef of 1 character`() {
+        shouldThrow<IllegalArgumentException> { record(subjectRef = "") }
+        record(subjectRef = "s").subjectRef shouldBe "s"
+    }
+
+    @Test
+    fun `INV-AC-11707 a closure needs status CLOSED`() {
+        val closure = CaseClosure(at, CaseOutcome.ANSWERED, "b")
+        shouldThrow<IllegalArgumentException> { record(privacy = pfacts(closure)) }
+        shouldThrow<IllegalArgumentException> { record(status = CaseStatus.EXPORT_READY, privacy = pfacts(closure)) }
+        record(status = CaseStatus.CLOSED, privacy = pfacts(closure)).privacy!!.closure shouldBe closure
+    }
+
+    @Test
+    fun `INV-AC-11707 a CLOSED PRIVACY case needs privacy facts and a closure`() {
+        shouldThrow<IllegalArgumentException> { record(status = CaseStatus.CLOSED, privacy = null) }
+        shouldThrow<IllegalArgumentException> { record(status = CaseStatus.CLOSED, privacy = pfacts()) }
+    }
+
+    @Test
+    fun `INV-AC-11707 a PRIVACY case without privacy facts still builds`() {
+        record(privacy = null).privacy shouldBe null
+    }
 }
