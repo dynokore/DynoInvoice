@@ -41,6 +41,7 @@ import org.springframework.context.annotation.Import
     CryptoWiring::class,
     RulepackKernelWiring::class,
     ServiceRuntimeWiring::class,
+    ReplicaColdStartWiring::class,
     JobCommandHttpAutoConfiguration::class,
 )
 class L1CompositionAutoConfiguration

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-31
+### Changed
+- Metadata-only change (INV-T-13608, G-DVS): depends on `service-runtime 10.26.0`, whose version steps; no code change.
+
 ## [2.1.0] - 2026-10-30
 ### Added
 - `PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED` (topic `gst.platform.tenant-wide-evidence-integrity-failed.v1`), last in `ALL` (INV-Q-12994, INV-REQ-1226 b1, INV-AC-13291, INV-T-13299).
