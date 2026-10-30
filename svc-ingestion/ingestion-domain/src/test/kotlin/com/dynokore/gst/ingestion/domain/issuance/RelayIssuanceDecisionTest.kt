@@ -96,12 +96,20 @@ class RelayIssuanceDecisionTest {
 
     @Test
     fun `INV-AC-13326 Warn keeps its flags in order`() {
-        decide(RecordingOutcome.New(doc), ValidationAnswer.Warn(listOf("Z", "A"))) shouldBe HandOff(doc, listOf("Z", "A"))
+        decide(RecordingOutcome.New(doc), ValidationAnswer.Warn(listOf("Z", "A"))) shouldBe
+            HandOff(doc, listOf("Z", "A"))
     }
 
     @Test
     fun `INV-AC-13326 holds other than ING-016 are Refused as DERIVATION_HOLD`() {
-        for (reasons in listOf(listOf("MDM-001"), listOf("PER-011"), emptyList(), listOf("ING-0160"), listOf("ing-016"), listOf("ING-016 "))) {
+        for (reasons in listOf(
+            listOf("MDM-001"),
+            listOf("PER-011"),
+            emptyList(),
+            listOf("ING-0160"),
+            listOf("ing-016"),
+            listOf("ING-016 "),
+        )) {
             val result = decide(RecordingOutcome.Held(doc, 1, reasons), ValidationAnswer.Pass)
             result shouldBe Refused(doc, reasons, RefusalSource.DERIVATION_HOLD)
             result.shouldNotBeInstanceOf<HandOff>()
@@ -116,7 +124,11 @@ class RelayIssuanceDecisionTest {
 
     @Test
     fun `INV-AC-13326 Stale Relayed with another code and Failed are NotRecorded`() {
-        for (recording in listOf(RecordingOutcome.Stale, RecordingOutcome.Relayed(422, "ING-011"), RecordingOutcome.Failed)) {
+        for (recording in listOf(
+            RecordingOutcome.Stale,
+            RecordingOutcome.Relayed(422, "ING-011"),
+            RecordingOutcome.Failed,
+        )) {
             decide(recording, ValidationAnswer.Pass) shouldBe NotRecorded(recording)
         }
     }
@@ -159,7 +171,9 @@ class RelayIssuanceDecisionTest {
     fun `INV-AC-13326 structure pin decide has one IssuanceFacts parameter and facts has two fields`() {
         val method = RelayIssuanceDecision::class.java.declaredMethods.single { it.name == "decide" }
         method.parameterTypes.toList() shouldBe listOf(IssuanceFacts::class.java)
-        IssuanceFacts::class.java.declaredFields.map { it.name }.toSet() shouldBe setOf("recording", "validation")
+        IssuanceFacts::class.java.declaredFields
+            .map { it.name }
+            .toSet() shouldBe setOf("recording", "validation")
         method shouldNotBe null
     }
 }
