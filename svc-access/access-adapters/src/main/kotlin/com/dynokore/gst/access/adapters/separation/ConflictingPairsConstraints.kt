@@ -29,48 +29,62 @@ class ConflictingPairsConstraints(
     ): ConstraintVerdict? = if (key.value == "VP-82") verdictOf(selected) else null
 
     private fun verdictOf(selected: List<SelectedOption>): ConstraintVerdict {
-        val option = selected.singleOrNull() ?: return ConstraintVerdict.Refuse(ONE_OPTION)
-        return when (option.key) {
-            NO_EXTRA_PAIRS -> {
-                if (option.valueJson == null) ConstraintVerdict.Accept else ConstraintVerdict.Refuse(NO_VALUE)
+        val option = selected.singleOrNull()
+        return when {
+            option == null -> {
+                refuse(ONE_OPTION)
             }
 
-            CONFLICTING_PAIRS -> {
-                val json = option.valueJson ?: return ConstraintVerdict.Refuse(LIST_REQUIRED)
-                pairsVerdict(json)
+            option.key == NO_EXTRA_PAIRS -> {
+                if (option.valueJson == null) ConstraintVerdict.Accept else refuse(NO_VALUE)
+            }
+
+            option.key == CONFLICTING_PAIRS -> {
+                if (option.valueJson ==
+                    null
+                ) {
+                    refuse(LIST_REQUIRED)
+                } else {
+                    pairsVerdict(option.valueJson!!)
+                }
             }
 
             else -> {
-                ConstraintVerdict.Refuse(UNKNOWN_OPTION)
+                refuse(UNKNOWN_OPTION)
             }
         }
     }
 
     private fun pairsVerdict(json: String): ConstraintVerdict {
-        val list = runCatching { mapper.readTree(json) }.getOrNull() ?: return ConstraintVerdict.Refuse(NOT_JSON)
-        if (!list.isArray || list.size() == 0) return ConstraintVerdict.Refuse(LIST_REQUIRED)
-        for (index in 0 until list.size()) {
-            val refusal = pairRefusal(list.get(index))
-            if (refusal != null) return ConstraintVerdict.Refuse(refusal)
-        }
-        return ConstraintVerdict.Accept
+        val list = runCatching { mapper.readTree(json) }.getOrNull()
+        val refusal =
+            when {
+                list == null -> NOT_JSON
+                !list.isArray || list.size() == 0 -> LIST_REQUIRED
+                else -> (0 until list.size()).firstNotNullOfOrNull { pairRefusal(list.get(it)) }
+            }
+        return if (refusal == null) ConstraintVerdict.Accept else refuse(refusal)
     }
 
     /** The reason this pair is refused, or null when it is a pair of two different roles of the catalogue. */
     private fun pairRefusal(node: JsonNode): String? {
-        if (!node.isObject || node.propertyNames().asSequence().toSet() != FIELDS) return PAIR_SHAPE
         val first = node.get("first")
         val second = node.get("second")
-        if (!first.isString || !second.isString) return NOT_A_STRING
-        val firstRole = Role.ofWire(first.asString())
-        val secondRole = Role.ofWire(second.asString())
+        val firstRole = roleOf(first)
+        val secondRole = roleOf(second)
         return when {
+            !node.isObject || node.propertyNames().asSequence().toSet() != FIELDS -> PAIR_SHAPE
+            first?.isString != true || second?.isString != true -> NOT_A_STRING
             firstRole == null || secondRole == null -> UNKNOWN_ROLE
             !catalogue.contains(firstRole) || !catalogue.contains(secondRole) -> NOT_IN_CATALOGUE
             firstRole == secondRole -> SAME_ROLE
             else -> null
         }
     }
+
+    private fun roleOf(node: JsonNode?): Role? = node?.takeIf { it.isString }?.let { Role.ofWire(it.asString()) }
+
+    private fun refuse(reason: String) = ConstraintVerdict.Refuse(reason)
 
     companion object {
         const val ONE_OPTION = "VP-82 takes exactly one selected option"
