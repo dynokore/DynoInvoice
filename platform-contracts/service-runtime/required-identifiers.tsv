@@ -110,3 +110,5 @@ VIEW	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-
 READINESS	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
 DRAIN	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
 REPLAY	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-REQ-897
+range	property	schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	INV-REQ-662
+failingRecord	property	schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	INV-REQ-662

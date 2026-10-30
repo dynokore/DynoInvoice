@@ -1,14 +1,14 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
@@ -84,6 +84,12 @@ channels:
     messages:
       BreakGlassAlertRaised:
         $ref: '#/components/messages/BreakGlassAlertRaised'
+
+  platformTenantWideEvidenceIntegrityFailed:
+    address: 'gst.platform.tenant-wide-evidence-integrity-failed.v1'
+    messages:
+      TenantWideEvidenceIntegrityFailed:
+        $ref: '#/components/messages/TenantWideEvidenceIntegrityFailed'
 
   platformBreakGlassSessionChanged:
     address: 'gst.platform.break-glass-session-changed.v1'
@@ -190,6 +196,14 @@ operations:
       $ref: '#/channels/platformBreakGlassAlertRaised'
     messages:
       - $ref: '#/channels/platformBreakGlassAlertRaised/messages/BreakGlassAlertRaised'
+
+  publishTenantWideEvidenceIntegrityFailed:
+    action: send
+    description: TenantWideEvidenceIntegrityFailed — a verification failure of a tenant-wide audit chain opens an integrity_failure row (INV-REQ-662 b3, INV-Q-12994 A).
+    channel:
+      $ref: '#/channels/platformTenantWideEvidenceIntegrityFailed'
+    messages:
+      - $ref: '#/channels/platformTenantWideEvidenceIntegrityFailed/messages/TenantWideEvidenceIntegrityFailed'
 
   publishBreakGlassSessionChanged:
     action: send
@@ -369,6 +383,22 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/break-glass-alert-raised-payload.schema.json'
+
+    TenantWideEvidenceIntegrityFailed:
+      name: com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1
+      title: TenantWideEvidenceIntegrityFailed
+      summary: TenantWideEvidenceIntegrityFailed
+      description: >-
+        The verification of a tenant-wide audit chain failed and a new integrity_failure row was
+        opened for its range (INV-REQ-662 b3, INV-Q-12994 A). Class: platform. Written with a real
+        tenant and the tenant-wide entity because the failed chain is the tenant-wide audit chain and
+        not one registered entity (a domain event cannot carry it). The payload shape equals that of
+        EvidenceIntegrityFailed: range and failingRecord. Emitted by: evidence-svc. Consumed by: console-bff, notification-svc.
+        Delivery: At-least-once. One event per newly opened failure row of a tenant-wide chain. The
+        payload carries no invoice content.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/tenant-wide-evidence-integrity-failed-payload.schema.json'
 
     BreakGlassSessionChanged:
       name: com.dynokore.gst.platform.BreakGlassSessionChanged.v1

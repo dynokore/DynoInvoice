@@ -43,3 +43,5 @@ schemas/break-glass-action-reported-payload.schema.json	unlockRef	NONE
 schemas/break-glass-action-reported-payload.schema.json	action	NONE
 schemas/break-glass-action-reported-payload.schema.json	target	NONE
 schemas/break-glass-action-reported-payload.schema.json	occurredAt	NONE
+schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	range	NONE
+schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	failingRecord	IDENTIFYING

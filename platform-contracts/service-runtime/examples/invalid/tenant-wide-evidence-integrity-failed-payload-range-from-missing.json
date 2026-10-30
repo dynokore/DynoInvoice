@@ -1,0 +1,9 @@
+{
+  "range": {
+    "to": "2026-02-01T00:00:00Z"
+  },
+  "failingRecord": {
+    "periodRef": "AUDIT-2026-01",
+    "sequence": 3
+  }
+}
