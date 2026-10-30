@@ -17,7 +17,7 @@ import com.dynokore.platform.reconciliationengine.ReconciliationEngine
 object ReconciliationRunner {
     private val classes: List<VarianceClass> = VarianceClass.entries.filter { it != VarianceClass.UNEXPLAINED }
 
-    private val categories: Map<VarianceClass, Category> =
+    internal val categories: Map<VarianceClass, Category> =
         mapOf(
             VarianceClass.TIMING_DIFFERENCE to "Timing difference",
             VarianceClass.NO_INVOICE_REQUIRED to "Supplies where invoices are not required",
@@ -95,7 +95,7 @@ object ReconciliationRunner {
                 }
             }.sortedWith(compareBy({ it.docUuid }, { it.version }))
 
-    private fun rulesFor(boxKeys: Set<String>): List<ClassificationRule> =
+    internal fun rulesFor(boxKeys: Set<String>): List<ClassificationRule> =
         boxKeys.flatMap { box ->
             classes.map { cls ->
                 ClassificationRule(

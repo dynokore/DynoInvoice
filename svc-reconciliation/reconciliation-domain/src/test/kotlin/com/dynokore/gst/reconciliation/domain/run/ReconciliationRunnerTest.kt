@@ -11,6 +11,7 @@ import com.dynokore.gst.reconciliation.domain.sgd.SgdLine
 import com.dynokore.gst.reconciliation.domain.variance.DocumentFacts
 import com.dynokore.gst.reconciliation.domain.variance.VarianceClass
 import com.dynokore.gst.reconciliation.domain.variance.VarianceClasses
+import com.dynokore.platform.reconciliationengine.EvidenceRecord
 import com.dynokore.platform.reconciliationengine.MissingSide
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -243,6 +244,49 @@ class ReconciliationRunnerTest {
         eight.size shouldBe 8
         (VarianceClasses.derived + VarianceClasses.assignable) shouldBe eight
         VarianceClasses.derived.map { it.name }.toSet() shouldBe verdicts.keys
+    }
+
+    @Test
+    fun `INV-AC-1807 the eight Category rows and their rules are pinned`() {
+        val expected =
+            mapOf(
+                VarianceClass.TIMING_DIFFERENCE to "Timing difference",
+                VarianceClass.NO_INVOICE_REQUIRED to "Supplies where invoices are not required",
+                VarianceClass.INPUT_TAX_NOT_CLAIMED to "Input tax not claimed or not claimed in full",
+                VarianceClass.ERROR_CORRECTED_VIA_F5 to "Error corrected via F5 rather than F7",
+                VarianceClass.EXCLUDED_TXN to "Excluded transaction",
+                VarianceClass.PRE_OBLIGATION to "Before the obligation start",
+                VarianceClass.OUTSIDE_BY_RULE to "Outside submission by rule",
+                VarianceClass.BUYER_REJECTED to "Not submitted: rejected by the buyer",
+            )
+        val eight = VarianceClass.entries.filter { it != VarianceClass.UNEXPLAINED }.toSet()
+        ReconciliationRunner.categories.size shouldBe 8
+        ReconciliationRunner.categories.keys shouldBe eight
+        ReconciliationRunner.categories.values
+            .map { it.code }
+            .toSet() shouldBe eight.map { it.name }.toSet()
+        val rules = ReconciliationRunner.rulesFor(setOf("3"))
+        rules.size shouldBe 8
+        for ((cls, label) in expected) {
+            val category = ReconciliationRunner.categories.getValue(cls)
+            category.code shouldBe cls.name
+            category.label shouldBe label
+            val own = rules.filter { it.category == category }
+            own.size shouldBe 1
+            own.single().key shouldBe "3"
+            val matches = own.single().matches
+            matches(DocumentEvidence("r", d("1.00"), cls)) shouldBe true
+            for (other in eight - cls) {
+                matches(DocumentEvidence("r", d("1.00"), other)) shouldBe false
+            }
+            matches(DocumentEvidence("r", d("1.00"), null)) shouldBe false
+            matches(PlainEvidence) shouldBe false
+        }
+    }
+
+    private object PlainEvidence : EvidenceRecord {
+        override val reference = "p"
+        override val amount = BigDecimal("1.00")
     }
 
     @Test
