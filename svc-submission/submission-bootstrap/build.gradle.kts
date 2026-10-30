@@ -11,6 +11,7 @@ dependencies {
     implementation(project(":submission-adapters"))
     implementation(project(":submission-application"))
     implementation(project(":submission-contract"))
+    testImplementation(project(":submission-domain"))
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)

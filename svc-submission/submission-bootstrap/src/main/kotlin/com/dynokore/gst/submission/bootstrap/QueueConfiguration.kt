@@ -1,10 +1,14 @@
 package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionStore
+import com.dynokore.gst.submission.application.queue.SentTransaction
 import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.gst.submission.application.queue.SubmissionStore
+import com.dynokore.gst.submission.application.queue.SubmissionWorker
 import com.dynokore.platform.outboxandqueue.LaneLimits
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.WorkQueue
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -17,7 +21,10 @@ import org.springframework.context.annotation.Configuration
  * unlimited, and the task that owns a lane's rate adds its entry here.
  */
 @Configuration(proxyBeanMethods = false)
-class QueueConfiguration {
+class QueueConfiguration(
+    private val outbox: OutboxWriter,
+    private val principal: WorkloadPrincipal,
+) {
     @Bean
     fun laneLimits(): LaneLimits = LaneLimits()
 
@@ -31,4 +38,18 @@ class QueueConfiguration {
         store: SubmissionStore,
         queue: WorkQueue,
     ): SubmissionQueue = SubmissionQueue(tenants, transactions, store, queue)
+
+    @Bean
+    fun sentTransaction(
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+        store: SubmissionStore,
+        queue: WorkQueue,
+    ): SentTransaction = SentTransaction(tenants, transactions, store, queue, outbox, principal)
+
+    @Bean
+    fun submissionWorker(
+        queue: WorkQueue,
+        sent: SentTransaction,
+    ): SubmissionWorker = SubmissionWorker(queue, sent)
 }
