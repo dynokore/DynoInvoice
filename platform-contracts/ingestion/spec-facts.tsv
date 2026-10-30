@@ -1,0 +1,9 @@
+# INV-T-13328 (INV-AC-13327): the register-unavailable flag is optional on IssuanceResult and never required.
+file	pointer	relation	value	requirement
+openapi.yaml	/components/schemas/IssuanceResult/required	equals	["docUuid","version","verdict"]	INV-REQ-324
+openapi.yaml	/components/schemas/IssuanceResult/properties/flags/type	equals	"array"	INV-REQ-324
+openapi.yaml	/components/schemas/IssuanceResult/properties/flags/items/type	equals	"string"	INV-REQ-324
+openapi.yaml	/components/schemas/IssuanceResult/properties/flags/items/enum	equals	["REGISTER_UNAVAILABLE"]	INV-REQ-324
+openapi.yaml	/components/schemas/IssuanceResult/properties/flags/items/x-extensible-enum	equals	true	INV-REQ-324
+openapi.yaml	/components/schemas/IssuanceRequest/allOf/1/properties/flags	absent	-	INV-REQ-324
+openapi.yaml	/components/schemas/IssuanceResult/properties/verdict/enum	equals	["PASS","NOT_SUBMITTABLE"]	INV-REQ-324
