@@ -240,4 +240,57 @@ class ReconciliationRunnerTest {
         outcome.raisesPer003 shouldBe false
         VarianceClass.entries.count { it != VarianceClass.UNEXPLAINED } shouldBe 8
     }
+
+    @Test
+    fun `INV-AC-12968 the three cases classify, leave the residual and fix three parameters`() {
+        val one =
+            completed(mapOf("3" to "1000.00"), doc("X", version(1, false, lines("ES", "1000.00"), "EXCLUDED_TXN")))
+        one.result.classifiedVariances
+            .single()
+            .linkedRecords shouldBe listOf("X")
+        one.result.unexplained shouldBe emptyList()
+        one.raisesPer003 shouldBe false
+        val two =
+            completed(
+                mapOf("3" to "1500.00"),
+                doc("X", version(1, false, lines("ES", "1000.00"), "EXCLUDED_TXN")),
+                doc("Y", version(1, false, lines("ES", "500.00"))),
+            )
+        two.result.classifiedVariances
+            .single()
+            .amount shouldBe d("1000.00")
+        two.result.unexplained
+            .single()
+            .residual shouldBe d("500.00")
+        val three =
+            completed(mapOf("1" to "100.00"), doc("S", version(1, false, lines("SR", "100.00"), "SUBMITTABLE")))
+        three.result.unexplained
+            .single { it.key == "1" }
+            .residual shouldBe d("100.00")
+        three.raisesPer003 shouldBe true
+        ReconciliationRunner::class.java.methods
+            .single { it.name == "run" }
+            .parameterCount shouldBe 3
+    }
+
+    @Test
+    fun `INV-AC-12969 a null return gives NoReturn while an all-zero return is compared`() {
+        val documents =
+            listOf(
+                doc("A", version(1, true, lines("SR", "10.00"))),
+                doc("B", version(1, false, lines("SR", "20.00"))),
+                doc("C", version(1, false, lines("ES", "30.00"), "EXCLUDED_TXN")),
+            )
+        ReconciliationRunner.run(null, entries, documents) shouldBe RunOutcome.NoReturn("PER-008")
+        val zero =
+            ReconciliationRunner
+                .run(ReturnFigures(1, mapOf("1" to d("0.00"), "3" to d("0.00"))), entries, documents)
+                .shouldBeInstanceOf<RunOutcome.Completed>()
+        zero.result.comparison
+            .map { it.key }
+            .containsAll(listOf("1", "3")) shouldBe true
+        zero.result.comparison
+            .single { it.key == "1" }
+            .variance shouldBe d("-10.00")
+    }
 }
