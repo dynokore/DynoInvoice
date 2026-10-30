@@ -129,6 +129,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.params)
+    testImplementation(libs.platform.konsistRules) // the architecture test (TPL-14) only
     testImplementation(libs.kotest.property)
     testImplementation(libs.kotlinx.coroutinesCore)
     testRuntimeOnly(libs.junit.platformLauncher)

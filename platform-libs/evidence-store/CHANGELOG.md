@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-31
+### Added
+- `PackageContentClass`, `PackageItem`, `PackageScope`, `PackageFiles` and `AuditPackWriter` (package `exportpackage`): a pure-code writer of a self-describing BagIt 1.0 package (RFC 8493) of evidence items with six content classes, a `sha256sum`-readable manifest, a tag manifest, bag-info and README (INV-REQ-988, INV-T-13405; INV-AC-13401).
+
 ## [2.2.0] - 2026-10-30
 ### Added
 - `PackageSource`, `PackageProblemCode`, `PackageProblem`, `PackageVerification` and `PackageVerifier` in package `exportpackage`: verify a BagIt 1.0 package (RFC 8493) without the platform, collecting every problem (completeness, SHA-256 checksums, tag manifest, `Payload-Oxum`, the six class counts) and failing closed on any read error (INV-REQ-988, INV-REQ-1347, INV-T-13406; INV-AC-13402).
