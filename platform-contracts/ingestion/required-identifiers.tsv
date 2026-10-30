@@ -9,6 +9,9 @@
 # aggregation-svc, payload-svc and evidence-svc (services); tenant.admin (a role); 400 (an HTTP status code).
 # INV-T-6626. Rows for INV-REQ-558 (read from Keel). Its backticked `NETTED_INTO_REVISION` (rows in the canonical table) and `inputTaxClaimed` (row above) already have rows; the lifecycle states and `ACKNOWLEDGED` named by INV-REQ-559 belong to the submission contract, and `CREDIT_NOTE`, `SUBMITTABLE`, `NOT_SUBMITTABLE` and `PRE_OBLIGATION` are not named by this task's requirements.
 # INV-T-6645. Rows for INV-REQ-693 (read from Keel). Its backticked `SR` is an IRAS category code, seed content, not an identifier of this contract.
+# INV-T-13328. Rows for the backticked names of INV-REQ-324 and INV-AC-13327 that this contract carries: `flags`, `docUuid`,
+# `requestIssuance`. Not rows, and why: POST /v1/issuances (a path, not an identifier); NOT_SUBMITTABLE and ISSUANCE_REFUSED
+# (owned by the canonical contract, notSubmittableReason); 422 and 202 (HTTP status codes); rules-svc, masterdata-svc (services).
 identifier	kind	file	requirement
 declaredCount	property	openapi.yaml	INV-REQ-811
 declaredNetTotal	property	openapi.yaml	INV-REQ-811
@@ -95,3 +98,6 @@ effectiveFrom	property	schemas/transaction-request.schema.json	INV-REQ-2445
 effectiveTo	property	schemas/transaction-request.schema.json	INV-REQ-2445
 replayFeed	operation	openapi.yaml	INV-REQ-2588
 sendTestEvent	operation	openapi.yaml	INV-REQ-2588
+flags	property	openapi.yaml	INV-REQ-324
+docUuid	property	openapi.yaml	INV-REQ-324
+requestIssuance	operation	openapi.yaml	INV-REQ-324

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -618,6 +618,16 @@ paths:
                     specVersion: "PINT-SG-1.2"
                     customizationId: "SG:PINT:1.2"
                     reasons: []
+                registerUnavailable:
+                  summary: Register unavailable — passed and handed to the AP with the flag
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 1
+                    verdict: "PASS"
+                    specVersion: "PINT-SG-1.2"
+                    customizationId: "SG:PINT:1.2"
+                    reasons: []
+                    flags: ["REGISTER_UNAVAILABLE"]
         '422':
           description: Validation failed; nothing is sent to the AP (FR-AE.2, API-21's stated exception) — the document is still recorded, as NOT_SUBMITTABLE / ISSUANCE_REFUSED.
           content:
@@ -1362,6 +1372,15 @@ components:
         reasons:
           type: array
           items: { $ref: '#/components/schemas/ReasonItem' }
+        flags:
+          type: array
+          description: >-
+            Set when the validation passed while the Check GST Register was
+            unavailable (INV-REQ-326); absent otherwise, never required.
+          items:
+            type: string
+            enum: [REGISTER_UNAVAILABLE]
+            x-extensible-enum: true
       required: [docUuid, version, verdict]
     ControlTotalsTaxLine:
       type: object
