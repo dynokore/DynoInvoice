@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -304,8 +304,7 @@ components:
       description: >-
         Catalogued event PolicyChanged (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18, §37,
         INV-REQ-1226; class: platform). Emitted by: every service. Consumed by:
-        none. Only a service owning a variation point emits it (INV-Q-3539). Delivery: At-least-once — platform event (AD-27, §37); feeds runtime replicas directly
-        rather than through a consumer inbox (feeds_runtime_replicas, INV-NOTE-3 §37). Payload (catalogue
+        access-svc, aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Only a service owning a variation point emits it (INV-Q-3539). Delivery: At-least-once — platform event (AD-27, §37); feeds the policy replica of every service (feeds_runtime_replicas, INV-NOTE-3 §37; INV-Q-8998). Payload (catalogue
         text): scope, VP id, value, effective date, source (default, profile or override), relaxation
         acknowledgement reference. Authored by INV-T-2855 (T11).
       contentType: application/cloudevents+json

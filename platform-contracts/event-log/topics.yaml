@@ -471,7 +471,21 @@ topics:
     producers:
       - every service
     subscribers:
-      []
+      - access-svc
+      - aggregation-svc
+      - canonical-svc
+      - console-bff
+      - control-plane-svc
+      - evidence-svc
+      - ingestion-svc
+      - masterdata-svc
+      - notification-svc
+      - payload-svc
+      - reconciliation-svc
+      - rules-svc
+      - submission-svc
+      - tenancy-svc
+      - transport-svc
   - topic: gst.platform.privacy-notice-due.v1
     event_type: com.dynokore.gst.platform.PrivacyNoticeDue.v1
     content_topic: false
@@ -1337,10 +1351,44 @@ replay_topics:
       - payload-svc
     subscribers:
       - submission-svc
+  - topic: gst.platform.replay-access.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - access-svc
+  - topic: gst.platform.replay-aggregation.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - aggregation-svc
+  - topic: gst.platform.replay-canonical.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - canonical-svc
   - topic: gst.platform.replay-console-bff.v1
     event_types:
       - com.dynokore.gst.platform.JobRegistered.v1
       - com.dynokore.gst.platform.JobRunRecorded.v1
+      - com.dynokore.gst.platform.PolicyChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -1349,9 +1397,21 @@ replay_topics:
       - every service
     subscribers:
       - console-bff
+  - topic: gst.platform.replay-control-plane.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - control-plane-svc
   - topic: gst.platform.replay-evidence.v1
     event_types:
       - com.dynokore.gst.platform.AuditEntryRecorded.v1
+      - com.dynokore.gst.platform.PolicyChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -1360,10 +1420,33 @@ replay_topics:
       - every service
     subscribers:
       - evidence-svc
+  - topic: gst.platform.replay-ingestion.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - ingestion-svc
+  - topic: gst.platform.replay-masterdata.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - masterdata-svc
   - topic: gst.platform.replay-notification.v1
     event_types:
       - com.dynokore.gst.platform.JobRegistered.v1
       - com.dynokore.gst.platform.JobRunRecorded.v1
+      - com.dynokore.gst.platform.PolicyChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -1372,6 +1455,72 @@ replay_topics:
       - every service
     subscribers:
       - notification-svc
+  - topic: gst.platform.replay-payload.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - payload-svc
+  - topic: gst.platform.replay-reconciliation.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - reconciliation-svc
+  - topic: gst.platform.replay-rules.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - rules-svc
+  - topic: gst.platform.replay-submission.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - submission-svc
+  - topic: gst.platform.replay-tenancy.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - tenancy-svc
+  - topic: gst.platform.replay-transport.v1
+    event_types:
+      - com.dynokore.gst.platform.PolicyChanged.v1
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - every service
+    subscribers:
+      - transport-svc
   - topic: gst.reconciliation.replay-console-bff.v1
     event_types:
       - com.dynokore.gst.platform.ReplayCompleted.v1
@@ -1853,6 +2002,7 @@ replay_request_topics:
     producers:
       - access-svc
     subscribers:
+      - every service
       - masterdata-svc
       - tenancy-svc
   - topic: gst.aggregation.replay-requested.v1
@@ -1865,6 +2015,7 @@ replay_request_topics:
       - aggregation-svc
     subscribers:
       - access-svc
+      - every service
       - submission-svc
       - tenancy-svc
   - topic: gst.canonical.replay-requested.v1
@@ -1878,6 +2029,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - aggregation-svc
+      - every service
       - masterdata-svc
       - rules-svc
       - submission-svc
@@ -1915,6 +2067,7 @@ replay_request_topics:
       - control-plane-svc
     subscribers:
       - access-svc
+      - every service
       - tenancy-svc
   - topic: gst.evidence.replay-requested.v1
     event_types:
@@ -1945,6 +2098,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - canonical-svc
+      - every service
       - tenancy-svc
       - transport-svc
   - topic: gst.masterdata.replay-requested.v1
@@ -1957,6 +2111,7 @@ replay_request_topics:
       - masterdata-svc
     subscribers:
       - access-svc
+      - every service
       - tenancy-svc
   - topic: gst.notification.replay-requested.v1
     event_types:
@@ -1992,6 +2147,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - canonical-svc
+      - every service
       - masterdata-svc
       - rules-svc
       - submission-svc
@@ -2007,6 +2163,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - canonical-svc
+      - every service
       - rules-svc
       - submission-svc
       - tenancy-svc
@@ -2021,6 +2178,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - canonical-svc
+      - every service
       - notification-svc
       - payload-svc
       - reconciliation-svc
@@ -2037,6 +2195,7 @@ replay_request_topics:
       - access-svc
       - aggregation-svc
       - canonical-svc
+      - every service
       - evidence-svc
       - ingestion-svc
       - masterdata-svc
@@ -2055,6 +2214,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - aggregation-svc
+      - every service
       - evidence-svc
       - rules-svc
       - submission-svc
@@ -2069,4 +2229,5 @@ replay_request_topics:
       - transport-svc
     subscribers:
       - access-svc
+      - every service
       - tenancy-svc
