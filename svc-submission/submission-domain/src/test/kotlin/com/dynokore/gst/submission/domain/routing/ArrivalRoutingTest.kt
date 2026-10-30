@@ -23,8 +23,9 @@ class ArrivalRoutingTest {
         pre: Boolean = false,
         earlier: List<LifecycleState> = emptyList(),
         change: ChangeClass? = if (earlier.isEmpty()) null else ChangeClass.NON_MONETARY,
-        type2: Boolean = false,
-    ) = ArrivalInput(creditNote, periodFiled, pre, earlier, change, type2)
+    ) = ArrivalInput(creditNote, periodFiled, pre, earlier, change, false)
+
+    private fun ArrivalInput.type2() = copy(type2RenditionIssued = true)
 
     private fun routed(
         timing: Timing,
@@ -83,7 +84,7 @@ class ArrivalRoutingTest {
     @Test
     fun `INV-AC-615 QUEUED with MONETARY supersedes and warns only after a Type 2 rendition`() {
         ArrivalRouting.decide(input(earlier = listOf(QUEUED), change = ChangeClass.MONETARY)) shouldBe routine
-        ArrivalRouting.decide(input(earlier = listOf(QUEUED), change = ChangeClass.MONETARY, type2 = true)) shouldBe
+        ArrivalRouting.decide(input(earlier = listOf(QUEUED), change = ChangeClass.MONETARY).type2()) shouldBe
             routed(
                 Timing.ROUTINE,
                 Ordering.NORMAL,
@@ -95,14 +96,14 @@ class ArrivalRoutingTest {
     @Test
     fun `INV-AC-615 the other non-structural classes supersede without a warning`() {
         listOf(ChangeClass.NON_MONETARY, ChangeClass.IDENTITY, ChangeClass.PERIOD_SHIFTING).forEach {
-            ArrivalRouting.decide(input(earlier = listOf(QUEUED), change = it, type2 = true)) shouldBe routine
+            ArrivalRouting.decide(input(earlier = listOf(QUEUED), change = it).type2()) shouldBe routine
         }
     }
 
     @Test
     fun `INV-AC-615 SENT with MONETARY after a Type 2 rendition is after transmission with no warning`() {
         ArrivalRouting.decide(
-            input(earlier = listOf(SENT), change = ChangeClass.MONETARY, type2 = true),
+            input(earlier = listOf(SENT), change = ChangeClass.MONETARY).type2(),
         ) shouldBe after
     }
 
