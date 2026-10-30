@@ -211,7 +211,12 @@ class PrivacyCaseServiceTest {
         val record = opened(store, policy)
         policy.tenantDays = 7
         val later = Clock.fixed(now.plusSeconds(60), ZoneOffset.UTC)
-        val result = service(store, policy = policy, clock = later).close(tenantA, principal, caseId, CaseOutcome.ANSWERED, "answered")
+        val result =
+            service(
+                store,
+                policy = policy,
+                clock = later,
+            ).close(tenantA, principal, caseId, CaseOutcome.ANSWERED, "answered")
         val closed = (result as Closed).record
         closed.status shouldBe CaseStatus.CLOSED
         closed.privacy!!.closure!!.closedAt shouldBe now.plusSeconds(60)
