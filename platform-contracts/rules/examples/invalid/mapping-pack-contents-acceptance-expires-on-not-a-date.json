@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "entryId": "E1",
+      "internalTaxCode": "STD",
+      "irasCode": "SR",
+      "sourceClass": "SECONDARY",
+      "accepted": true,
+      "acceptance": {
+        "rationale": "Vendor guide confirms the code; re-source before expiry.",
+        "expiresOn": "2027-13-45",
+        "acceptedBy": "user-4711"
+      }
+    }
+  ]
+}

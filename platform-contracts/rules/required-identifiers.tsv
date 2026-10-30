@@ -22,6 +22,7 @@
 # Enum members shared by several properties (CLAIMABLE_PORTION, ENTIRE_INVOICE, BILL_FOR_PAYMENT ...) are one row each.
 #   INV-T-6503 (INV-REQ-658, 493, 496, 504, 738, INV-AC-1717, 513, 514, 1510, 761): `tax.approver` is a role; `DS`, `OS`, `SRRC` and `SR` are IRAS category codes, seed content, not elements of the Scope pack contents schema; `sameGroup` and `sameTenant` are counterparty flags of the rules and masterdata contracts, not elements of this schema.
 #   INV-T-10747 (INV-REQ-997): the backticked names of INV-REQ-997 (`acknowledgeMapping`, `authorise`) are operations of the access contract and not rows of this file.
+#   INV-T-11632 (INV-REQ-362, 727, 2444, 728, 684, 770): `effective_from` and `effective_to` are snake_case names of the pack envelope dates (API-09), rows effectiveFrom, effectiveTo of the envelope, not elements of the contents schema; `source_class` is the snake_case name of the requirement (API-09), carried as sourceClass; `NA`, `TXNA`, `DS`, `OS`, `SRRC` and `SRCA-C` are IRAS category codes and `0` a sample value, seed content, not elements of the schema; `ACMT_RECIPIENT_ACCOUNTING`, `ACMT_OVERSEAS_CLIENT_PURCHASE` and `AMCS_SELF_ACCOUNTING` are scheme tag values, scenario pack data, not elements (schemeTag is a string); `ACTIVE` is a pack status of the registry and `resolve(pack_type, entity, resolution_date)` the resolution function of rules-svc, not elements of the schema; `tax.approver` is a role; INV-REQ-684 names no backticked identifier.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
 documentKind	property	openapi.yaml	INV-REQ-371
@@ -346,3 +347,18 @@ ActiveRegulatoryPack.status	schema_property	openapi.yaml	INV-REQ-1105
 ActiveRegulatoryPack.minEngineVersion	schema_property	openapi.yaml	INV-REQ-1105
 lineToTotalTolerances	property	schemas/scope-pack-contents.schema.json	INV-REQ-1297
 ceiling	property	schemas/scope-pack-contents.schema.json	INV-REQ-1297
+entries	property	schemas/mapping-pack-contents.schema.json	INV-REQ-362
+entryId	property	schemas/mapping-pack-contents.schema.json	INV-REQ-362
+internalTaxCode	property	schemas/mapping-pack-contents.schema.json	INV-REQ-362
+irasCode	property	schemas/mapping-pack-contents.schema.json	INV-REQ-362
+sourceClass	property	schemas/mapping-pack-contents.schema.json	INV-REQ-727
+sourceReference	property	schemas/mapping-pack-contents.schema.json	INV-REQ-727
+schemeTag	property	schemas/mapping-pack-contents.schema.json	INV-REQ-2444
+accepted	property	schemas/mapping-pack-contents.schema.json	INV-REQ-728
+acceptance	property	schemas/mapping-pack-contents.schema.json	INV-REQ-728
+rationale	property	schemas/mapping-pack-contents.schema.json	INV-REQ-728
+expiresOn	property	schemas/mapping-pack-contents.schema.json	INV-REQ-728
+acceptedBy	property	schemas/mapping-pack-contents.schema.json	INV-REQ-728
+PRIMARY	enum_value	schemas/mapping-pack-contents.schema.json	INV-REQ-727
+SECONDARY	enum_value	schemas/mapping-pack-contents.schema.json	INV-REQ-727
+INFERRED	enum_value	schemas/mapping-pack-contents.schema.json	INV-REQ-727

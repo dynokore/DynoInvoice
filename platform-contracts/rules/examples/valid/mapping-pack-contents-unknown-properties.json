@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "entryId": "E1",
+      "internalTaxCode": "STD",
+      "irasCode": "SR",
+      "sourceClass": "PRIMARY",
+      "futureField": "x"
+    }
+  ],
+  "packNote": "extra"
+}

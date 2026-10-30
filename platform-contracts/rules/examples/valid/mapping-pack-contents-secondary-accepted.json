@@ -1,0 +1,17 @@
+{
+  "entries": [
+    {
+      "entryId": "E2",
+      "internalTaxCode": "VENDOR",
+      "irasCode": "TX",
+      "sourceClass": "SECONDARY",
+      "sourceReference": "Vendor guide p4",
+      "accepted": true,
+      "acceptance": {
+        "rationale": "Vendor guide confirms the code; re-source before expiry.",
+        "expiresOn": "2027-06-30",
+        "acceptedBy": "user-4711"
+      }
+    }
+  ]
+}

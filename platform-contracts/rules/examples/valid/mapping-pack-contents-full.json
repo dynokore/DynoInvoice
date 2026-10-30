@@ -1,0 +1,25 @@
+{
+  "entries": [
+    {
+      "entryId": "E1",
+      "internalTaxCode": "STD",
+      "irasCode": "SR",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "R1 Annex E p79",
+      "schemeTag": "ARCS"
+    },
+    {
+      "entryId": "E2",
+      "internalTaxCode": "VENDOR",
+      "irasCode": "TX",
+      "sourceClass": "SECONDARY",
+      "sourceReference": "Vendor guide p4",
+      "accepted": true,
+      "acceptance": {
+        "rationale": "Vendor guide confirms the code; re-source before expiry.",
+        "expiresOn": "2027-06-30",
+        "acceptedBy": "user-4711"
+      }
+    }
+  ]
+}

@@ -6,7 +6,7 @@
 ../openapi.yaml#/components/schemas/MapTaxCodeRequest map-tax-code-request-*.json
 ../openapi.yaml#/components/schemas/RegulatoryPack regulatory-pack-*.json
 ../schemas/calendar-pack-contents.schema.json calendar-pack-contents-*.json
-../openapi.yaml#/components/schemas/MappingPack mapping-pack-*.json
+../openapi.yaml#/components/schemas/MappingPack mapping-pack-[!c]*.json
 ../openapi.yaml#/components/schemas/MappingEntryPage entries-page-*.json
 ../openapi.yaml#/components/schemas/DryRunResult dry-run-result-*.json
 ../openapi.yaml#/components/schemas/DryRunChangeTypeTotal dry-run-change-type-total-*.json
@@ -23,3 +23,4 @@
 ../openapi.yaml#/components/schemas/MappingPackApproval pack-approval-*.json
 ../openapi.yaml#/components/schemas/MappingPackActivation pack-activation-*.json
 ../openapi.yaml#/components/schemas/ActiveRegulatoryPackPage active-regulatory-pack-*.json
+../schemas/mapping-pack-contents.schema.json mapping-pack-contents-*.json

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/mapping-pack-contents.schema.json",
+  "title": "MappingPackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is the Mapping pack (INV-REQ-362, INV-REQ-727, INV-REQ-2444): the tenant's tax code mapping, one entry per internal tax code, carrying the IRAS code, the source class, the citation, an optional scheme tag and the acceptance record of a non-PRIMARY entry. The effective dates are those of the pack envelope. Rules JSON Schema cannot express, checked by rules-svc at authoring and sign-off, not here: internalTaxCode and entryId are unique across entries; RUL-010 and RUL-009 on irasCode; the side of schemeTag against the side of the code in the code catalogue. There is no disallowed-expense property: a disallowed expense is an internal code mapped to BL and needs no flag (INV-Q-1636). A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "entries": {
+      "type": "array",
+      "description": "The mapping entries, one per internal tax code.",
+      "minItems": 1,
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "description": "The identifier of the entry within the pack, as MappingEntry.entryId.",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "internalTaxCode": {
+            "type": "string",
+            "description": "The tenant's internal tax code the entry maps.",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "irasCode": {
+            "type": "string",
+            "description": "The bare IRAS category code the internal tax code maps to, in the shape of the code catalogue; a namespaced code is not bare.",
+            "pattern": "^[A-Z][A-Z0-9]{0,9}(-[A-Z0-9]{1,9})?$"
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry (INV-REQ-727).",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The citation of the entry, shown beside its source class (INV-REQ-727).",
+            "minLength": 1
+          },
+          "schemeTag": {
+            "type": "string",
+            "description": "The scheme tag of the entry (INV-REQ-2444), a string and not an enum because the scenario pack lists the handled tags.",
+            "pattern": "^[A-Z][A-Z0-9_]{0,39}$"
+          },
+          "accepted": {
+            "type": "boolean",
+            "description": "True when an authorised approver accepted a non-PRIMARY entry explicitly (INV-REQ-728)."
+          },
+          "acceptance": {
+            "type": "object",
+            "description": "The acceptance record of a non-PRIMARY entry (INV-REQ-728): the rationale, the expiry and the accepting user.",
+            "properties": {
+              "rationale": {
+                "type": "string",
+                "description": "The recorded rationale of the acceptance.",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "expiresOn": {
+                "type": "string",
+                "description": "The date on which the acceptance expires.",
+                "format": "date"
+              },
+              "acceptedBy": {
+                "type": "string",
+                "description": "The user ID of the accepting user, never a role.",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "rationale",
+              "expiresOn",
+              "acceptedBy"
+            ]
+          }
+        },
+        "required": [
+          "entryId",
+          "internalTaxCode",
+          "irasCode",
+          "sourceClass"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "accepted": {
+                  "const": true
+                },
+                "sourceClass": {
+                  "enum": [
+                    "SECONDARY",
+                    "INFERRED"
+                  ]
+                }
+              },
+              "required": [
+                "accepted",
+                "sourceClass"
+              ]
+            },
+            "then": {
+              "required": [
+                "acceptance"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "entries"
+  ]
+}

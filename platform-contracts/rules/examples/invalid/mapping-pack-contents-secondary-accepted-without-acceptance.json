@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "entryId": "E1",
+      "internalTaxCode": "STD",
+      "irasCode": "SR",
+      "sourceClass": "SECONDARY",
+      "accepted": true
+    }
+  ]
+}
