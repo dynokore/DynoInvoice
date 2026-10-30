@@ -200,7 +200,8 @@ class ChainVerificationRecorderTest {
     fun `INV-AC-13293 a broken audit chain of the tenant-wide entity writes one platform event`() {
         val m = brokenAudit(tenantWide)
         m.verify() shouldBe RunCause.VERIFICATION
-        m.types() shouldBe listOf("com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1")
+        m.types() shouldBe listOf(platformType)
+        platformType shouldBe "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1"
         m.events.single().dataJson shouldBe expectedPayload(tenantWide, auditPeriod, "AUDIT_LOG")
         m.contexts.single().entity shouldBe EntityRef.TENANT_WIDE
         m.contexts.single().tenant shouldBe tenant
