@@ -163,7 +163,9 @@ class RelayIssuanceDecisionTest {
 
     @Test
     fun `INV-AC-13326 every RecordingOutcome member is covered by a row`() {
-        RecordingOutcome::class.sealedSubclasses.map { it.simpleName }.toSet() shouldBe
+        RecordingOutcome::class.java.permittedSubclasses
+            .map { it.simpleName }
+            .toSet() shouldBe
             setOf("New", "Replay", "Amend", "Stale", "Held", "Relayed", "Failed")
     }
 
