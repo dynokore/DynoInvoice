@@ -19,7 +19,31 @@ gstJooqCodegen {
     bindingRuntimeRole = "tenancy_runtime"
 }
 
+// The pinned platform-contracts bundle carries the rules contract: the calendar pack decoder validates a release's
+// contents against its calendar-pack-contents schema, staged here as a classpath resource (INV-T-5055).
+val contractsBundle by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
+val stageRulesSchemas =
+    tasks.register<Copy>("stageRulesSchemas") {
+        from(zipTree(contractsBundle.singleFile)) {
+            include("rules/schemas/calendar-pack-contents.schema.json")
+            eachFile { path = name }
+        }
+        includeEmptyDirs = false
+        into(layout.buildDirectory.dir("generated/rules-schemas/gst/contracts/rules/schemas"))
+    }
+
+sourceSets.main {
+    resources.srcDir(layout.buildDirectory.dir("generated/rules-schemas").map { it.asFile }.get())
+}
+
+tasks.named("processResources") { dependsOn(stageRulesSchemas) }
+
 dependencies {
+    contractsBundle(variantOf(libs.platformContracts.bundle) { artifactType("zip") })
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":tenancy-domain"))
@@ -40,17 +64,18 @@ dependencies {
     implementation(libs.springBoot.starterWeb)
     implementation(libs.jackson.databind)
     implementation(libs.jackson.moduleKotlin)
+    implementation(libs.jsonSchemaValidator)
     implementation(libs.jooq)
     bindingKernel(platform(libs.platform.bom))
     bindingKernel(libs.platform.tenancyKernel.impl)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.platform.calendarAndPeriods.impl)
     testImplementation(libs.platform.configResolver.impl)
     testImplementation(libs.platform.serviceRuntime.impl)
     testImplementation(libs.platform.productRuntime.impl)
     testImplementation(libs.kotest.assertionsCore)
-    testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.flyway.core)
     testImplementation(libs.flyway.databasePostgresql)
