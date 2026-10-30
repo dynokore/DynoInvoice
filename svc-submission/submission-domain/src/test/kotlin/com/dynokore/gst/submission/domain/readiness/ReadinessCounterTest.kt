@@ -33,7 +33,7 @@ class ReadinessCounterTest {
         date: LocalDate = day,
         overridden: Boolean = false,
         code: String? = null,
-        id: String = "doc-" + (seq++).toString().padStart(4, '0'),
+        id: String = "doc-%04d".format(seq++),
     ) = ReadinessEntry(id, versions.toList(), date, overridden, code)
 
     private fun run(
