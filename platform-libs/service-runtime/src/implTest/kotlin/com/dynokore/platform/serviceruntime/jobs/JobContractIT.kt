@@ -330,4 +330,27 @@ class JobContractIT : JobContractBase() {
         pauses.map { it["ended_at"] } shouldContainExactly listOf(null, null)
         h.events(AUDIT, "$SERVICE/${def.name}") shouldHaveSize audits
     }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-AC-13288 a run of the tenant-wide entity of a real tenant records its run row and JobRunRecorded`(
+        image: String,
+    ) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(START))
+        val def = job("ac13288-tenant-wide")
+        val wide = JobTarget.Entity(TENANT_A, EntityRef.TENANT_WIDE)
+        replica.runtime.register(def, { listOf(wide) }) { }
+
+        replica.runtime.fire(def.name) shouldBe mapOf(wide to FireResult.RAN)
+
+        val run = h.runs(def.name).single()
+        run["status"] shouldBe "SUCCEEDED"
+        run["tenant_id"] shouldBe TENANT_A.value
+        run["entity_ref"] shouldBe EntityRef.TENANT_WIDE.value
+        val event = h.events(JobPayloads.JOB_RUN_RECORDED, "$SERVICE/${def.name}").single()
+        event["tenant_id"] shouldBe TENANT_A.value
+        event["entity_ref"] shouldBe EntityRef.TENANT_WIDE.value
+        event["data"].toString() shouldContain """"status": "SUCCEEDED""""
+    }
 }

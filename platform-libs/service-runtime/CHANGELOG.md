@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.24.0] - 2026-10-30
+### Changed
+- `JobTarget.Entity` accepts the tenant-wide entity `EntityRef.TENANT_WIDE` with a real tenant, so a job can target the chains keyed by it (INV-T-13295; INV-Q-12984, INV-AC-13288). The platform tenant, the platform entity and a reference over 40 characters are still refused with `IllegalArgumentException`; a widened precondition is backward compatible (MINOR).
+
 ## [10.23.0] - 2026-10-30
 ### Added
 - The jar ships `META-INF/gst/sync-edge-callers.tsv`, generated at build time from `service-runtime/openapi.yaml` of the pinned platform-contracts bundle (`GenerateOperationListTask`, kind `sync-edge`), so a service that mounts `setPolicy` (POST `/internal/v1/policies/{variationPoint}`, callers `console-bff`) declares no caller line of its own (INV-T-12602, INV-Q-12586 A). `SyncEdgeCallerFilter` counts an identical line in a service's own resource as one. A consumer that asserts a refusal of a path now listed adapts that test when it adopts this release.

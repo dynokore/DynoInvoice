@@ -18,14 +18,18 @@ sealed interface JobTarget {
         override val entity: EntityRef get() = EntityRef.PLATFORM
     }
 
-    /** One entity's share; [tenant] is the entity's tenant, never the platform tenant. */
+    /**
+     * One entity's share; [tenant] is the entity's tenant, never the platform tenant. The entity may be
+     * [EntityRef.TENANT_WIDE], the tenant-wide chains of a real tenant (INV-Q-12984); the platform tenant,
+     * the platform entity and a reference longer than [MAX_ENTITY_REF] are refused.
+     */
     data class Entity(
         override val tenant: TenantId,
         override val entity: EntityRef,
     ) : JobTarget {
         init {
-            require(!tenant.isPlatform && !entity.isPlatform && !entity.isTenantWide) {
-                "an entity share needs a real tenant and entity"
+            require(!tenant.isPlatform && !entity.isPlatform) {
+                "an entity share needs a real tenant and a non-platform entity"
             }
             require(entity.value.length <= MAX_ENTITY_REF) { "entity reference longer than $MAX_ENTITY_REF" }
         }

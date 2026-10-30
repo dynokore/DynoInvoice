@@ -53,6 +53,36 @@ class JobContractTypesTest {
     }
 
     @Test
+    fun `an entity share can carry the tenant-wide entity with a real tenant`() {
+        val tenant = TenantId(UUID.randomUUID())
+        val target = JobTarget.Entity(tenant, EntityRef.TENANT_WIDE)
+        target.entity shouldBe EntityRef.TENANT_WIDE
+        target.tenant shouldBe tenant
+    }
+
+    @Test
+    fun `the platform tenant with a real entity is refused`() {
+        assertThrows<IllegalArgumentException> { JobTarget.Entity(TenantId.PLATFORM, EntityRef("E-1")) }
+    }
+
+    @Test
+    fun `a real tenant with the platform entity is refused`() {
+        assertThrows<IllegalArgumentException> { JobTarget.Entity(TenantId(UUID.randomUUID()), EntityRef.PLATFORM) }
+    }
+
+    @Test
+    fun `an entity reference of 41 characters is refused`() {
+        assertThrows<IllegalArgumentException> {
+            JobTarget.Entity(TenantId(UUID.randomUUID()), EntityRef("E".repeat(41)))
+        }
+    }
+
+    @Test
+    fun `the platform tenant with the tenant-wide entity is refused`() {
+        assertThrows<IllegalArgumentException> { JobTarget.Entity(TenantId.PLATFORM, EntityRef.TENANT_WIDE) }
+    }
+
+    @Test
     fun `a command reason is at most 500 characters`() {
         fun request(reason: String?): JobCommandRequest {
             val id = UUID.randomUUID()
