@@ -92,7 +92,7 @@ class BlankCheckRepairMigrationTest {
     }
 
     @Test
-    fun `the file name is the CS-19 name and its version is the greatest in the directory`() {
+    fun `the file name is the CS-19 name and its version is present in the directory`() {
         val directory = Path.of("src/main/resources/db/migration")
         val versions =
             Files
@@ -100,8 +100,7 @@ class BlankCheckRepairMigrationTest {
                 .use { stream ->
                     stream.map { it.fileName.toString() }.filter { it.endsWith(".sql") }.toList()
                 }.associateBy { Regex("""^V(\d+)__""").find(it)!!.groupValues[1].toLong() }
-        assertEquals(file, versions[versions.keys.max()])
-        assertEquals(202610270900L, versions.keys.max())
+        assertEquals(file, versions[202610270900L])
     }
 
     private data class Facts(

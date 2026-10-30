@@ -69,8 +69,11 @@ object SubmissionContext {
     }
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
-    fun online(mountRoot: Path): ApplicationContextRunner {
+    fun online(
+        mountRoot: Path,
+        jdbcUrl: String = SubmissionDb.jdbcUrl,
+    ): ApplicationContextRunner {
         secrets(mountRoot)
-        return base(mountRoot).withPropertyValues("spring.datasource.url=${SubmissionDb.jdbcUrl}")
+        return base(mountRoot).withPropertyValues("spring.datasource.url=$jdbcUrl")
     }
 }

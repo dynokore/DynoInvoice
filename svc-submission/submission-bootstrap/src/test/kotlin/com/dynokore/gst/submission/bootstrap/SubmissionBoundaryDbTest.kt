@@ -65,9 +65,11 @@ class SubmissionBoundaryDbTest {
         runner.inTransaction {
             dsl
                 .insertInto(Submission.SUBMISSION_)
-                .set(Submission.SUBMISSION_.ID, docUuid)
+                .set(Submission.SUBMISSION_.DOC_UUID, docUuid.toString())
+                .set(Submission.SUBMISSION_.VERSION, 1)
                 .set(Submission.SUBMISSION_.TENANT_ID, tenant)
                 .set(Submission.SUBMISSION_.STATE, "QUEUED")
+                .set(Submission.SUBMISSION_.ENTITY_REF, "E-001")
                 .execute()
             queue.enqueue(QueueEntry(docUuid.toString(), Lane.LIVE, "{}"))
             check(!failAfter) { "forced failure after both writes" }

@@ -1,11 +1,22 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionStore
+import com.dynokore.gst.submission.application.queue.SentTransaction
+import com.dynokore.gst.submission.application.queue.SubmissionQueue
+import com.dynokore.gst.submission.application.queue.SubmissionStore
+import com.dynokore.gst.submission.application.queue.SubmissionWorker
 import com.dynokore.platform.outboxandqueue.LaneLimits
+import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.outboxandqueue.WorkQueue
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.DSLContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The partition-ordered queue (`submission.work_queue`, INV-REQ-1194). service-runtime creates `WorkQueue` and
+ * The partition-ordered queue of the `submission` schema (INV-REQ-1194). service-runtime creates `WorkQueue` and
  * `LaneRateLimiter` when the service declares its lane limits. The skeleton sets none: a lane without an entry is
  * unlimited, and the task that owns a lane's rate adds its entry here.
  */
@@ -13,4 +24,31 @@ import org.springframework.context.annotation.Configuration
 class QueueConfiguration {
     @Bean
     fun laneLimits(): LaneLimits = LaneLimits()
+
+    @Bean
+    fun submissionStore(dsl: DSLContext): SubmissionStore = JooqSubmissionStore(dsl)
+
+    @Bean
+    fun submissionQueue(
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+        store: SubmissionStore,
+        queue: WorkQueue,
+    ): SubmissionQueue = SubmissionQueue(tenants, transactions, store, queue)
+
+    @Bean
+    fun sentTransaction(
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+        store: SubmissionStore,
+        queue: WorkQueue,
+        outbox: OutboxWriter,
+        principal: WorkloadPrincipal,
+    ): SentTransaction = SentTransaction(tenants, transactions, store, queue, outbox, principal)
+
+    @Bean
+    fun submissionWorker(
+        queue: WorkQueue,
+        sent: SentTransaction,
+    ): SubmissionWorker = SubmissionWorker(queue, sent)
 }
