@@ -274,6 +274,17 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `the backfill approval key is WRITE with exactly the two tax approver cells`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("backfill.approve"))
+        both.forEach { form ->
+            val holders = RolePermissions.cells(form).filter { (_, perms) -> perms["backfill.approve"] != null }
+            assertEquals(setOf("tax.approver"), holders.keys, "$form")
+            holders.values.forEach { assertEquals(RoleAllowance.PERMITTED, it["backfill.approve"], "$form") }
+        }
+        assertNull(RolePermissions.kind("backfill.run"))
+    }
+
+    @Test
     fun `vp keys outside 01 to 82 are absent`() {
         assertNull(RolePermissions.kind("vp-83.set"))
         assertNull(RolePermissions.kind("vp-0.set"))

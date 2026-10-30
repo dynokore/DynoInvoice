@@ -1146,3 +1146,9 @@ permissions:
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
       - {role: finance.viewer, form: SAAS, allowance: PERMITTED}
       - {role: finance.viewer, form: PRIVATE, allowance: PERMITTED}
+  - key: backfill.approve
+    kind: WRITE
+    row: "Approve a backfill reconciliation before transmission"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}

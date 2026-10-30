@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348).
      */
     val addedRows: List<String> =
         listOf(
@@ -108,6 +108,7 @@ object RolePermissionsChecker {
             "Request an anonymised production sample copy",
             "Approve an anonymised production sample copy",
             "View coverage, deadline and correction metrics per entity and period",
+            "Approve a backfill reconciliation before transmission",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -128,6 +129,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the compliance metrics key (INV-T-12840, INV-Q-12767 A), compared by equality. */
     val complianceMetricsPairs: Map<String, String> =
         mapOf("compliance-metrics.view" to "View coverage, deadline and correction metrics per entity and period")
+
+    /** The (key, row) pair of the backfill approval key (INV-T-13356, INV-Q-13348), compared by equality. */
+    val backfillPairs: Map<String, String> =
+        mapOf("backfill.approve" to "Approve a backfill reconciliation before transmission")
 
     /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
     private val closedRows: Set<String> = setOf("Acknowledge a control relaxation", "Run the authority incarnation command")
@@ -322,6 +327,7 @@ object RolePermissionsChecker {
             "sample-copy.request" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "sample-copy.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "security.officer")),
             "compliance-metrics.view" to Required(PermissionKind.READ, cells(permitted, both, "tax.approver", "finance.viewer")),
+            "backfill.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
         )
 
     fun check(
@@ -396,6 +402,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in complianceMetricsPairs && (it.row in complianceMetricsPairs.values || it.key.startsWith("compliance-metric")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${complianceMetricsPairs.keys.joinToString()}, which alone carry the compliance metrics row (INV-T-12840)."
+        }
+        backfillPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${backfillPairs.keys.joinToString()}, INV-T-13356)."
+        }
+        table.permissions.filter { it.key !in backfillPairs && (it.row in backfillPairs.values || it.key.startsWith("backfill")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${backfillPairs.keys.joinToString()}, which alone carry the backfill approval row (INV-T-13356)."
         }
         table.permissions.firstOrNull { it.key == "election-change.approve" }?.let { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123)."

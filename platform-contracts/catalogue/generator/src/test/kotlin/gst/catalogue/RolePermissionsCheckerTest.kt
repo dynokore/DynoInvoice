@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(18, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(19, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -362,7 +362,7 @@ class RolePermissionsCheckerTest {
     fun `the six operation keys carry their labels and addedRows holds its labels`() {
         opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
         assertEquals(
-            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period",
+            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period" + "Approve a backfill reconciliation before transmission",
             RolePermissionsChecker.addedRows.toSet(),
         )
     }
@@ -464,7 +464,7 @@ class RolePermissionsCheckerTest {
                 bumpLabel,
                 "Author a regulatory pack",
                 "Approve a regulatory pack",
-            ) + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period",
+            ) + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period" + "Approve a backfill reconciliation before transmission",
             RolePermissionsChecker.addedRows.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
@@ -960,6 +960,57 @@ class RolePermissionsCheckerTest {
     @Test
     fun `INV-T-12840 the label removed from addedRows while its key stays fails naming the key`() {
         RolePermissionsChecker.complianceMetricsPairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
+    }
+
+    private val bf = "backfill.approve"
+    private val bfRow = "Approve a backfill reconciliation before transmission"
+
+    @Test
+    fun `INV-T-13356 the key is WRITE with its pinned row and exactly two cells`() {
+        assertEquals(mapOf(bf to bfRow), RolePermissionsChecker.backfillPairs)
+        assertEquals(bfRow, permission(real, bf).row)
+        assertEquals(PermissionKind.WRITE, permission(real, bf).kind)
+        assertEquals(setOf(CellRow("tax.approver", saasF, RoleAllowance.PERMITTED), CellRow("tax.approver", privF, RoleAllowance.PERMITTED)), permission(real, bf).cells.toSet())
+        assertEquals(2, permission(real, bf).cells.size)
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-T-13356 probe a tax operator cell is reported naming the key`() {
+        assertReported(cellAdd(bf, "tax.operator", saasF), "role tax.operator key $bf form SAAS", "extra")
+    }
+
+    @Test
+    fun `INV-T-13356 probe the PRIVATE cell removed is reported`() {
+        assertReported(cellRemove(bf, "tax.approver", privF), "role tax.approver key $bf form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `INV-T-13356 probe finance viewer in place of tax approver is reported`() {
+        val t = withPermission(bf) { p -> p.copy(cells = p.cells.map { it.copy(role = "finance.viewer") }) }
+        assertReported(t, "role finance.viewer key $bf", "extra")
+        assertReported(t, "role tax.approver key $bf", "missing")
+    }
+
+    @Test
+    fun `INV-T-13356 probe a renamed key is reported missing and the new name is reported`() {
+        val t = withPermission(bf) { it.copy(key = "backfill.approved") }
+        assertReported(t, "key $bf: missing")
+        assertReported(t, "key backfill.approved")
+    }
+
+    @Test
+    fun `INV-T-13356 probe a second key backfill run with the same row is reported`() {
+        val second = permission(real, bf).copy(key = "backfill.run")
+        assertReported(real.copy(permissions = real.permissions + second), "key backfill.run")
+    }
+
+    @Test
+    fun `INV-T-13356 the label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.backfillPairs.forEach { (key, label) ->
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }
