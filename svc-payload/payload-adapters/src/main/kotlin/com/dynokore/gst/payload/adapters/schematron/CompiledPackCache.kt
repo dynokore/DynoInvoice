@@ -10,7 +10,8 @@ import com.dynokore.platform.integrationcanon.schematron.SchematronRunner
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Holds one [CompiledSchematron] per pack version in memory (INV-REQ-472 behaviors 2 and 3, INV-REQ-1359, INV-REQ-1210).
+ * Holds one [CompiledSchematron] per pack version in memory (INV-REQ-472 behaviors 2 and 3, INV-REQ-1359,
+ * INV-REQ-1210).
  * A stylesheet is compiled at [activate], or once on the first miss of [validate] from [source]; never per document.
  * No version is evicted, so two or more versions are held at once. Nothing here reaches the `rules` schema.
  */
