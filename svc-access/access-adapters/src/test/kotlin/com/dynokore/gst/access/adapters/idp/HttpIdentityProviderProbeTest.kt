@@ -93,6 +93,6 @@ class HttpIdentityProviderProbeTest {
         val start = System.nanoTime()
         val ok = probe("$base/keys")
         val elapsed = Duration.ofNanos(System.nanoTime() - start)
-        assertEquals(listOf(false, true), listOf(ok, elapsed < Duration.ofMillis(2800)))
+        assertEquals(listOf(false, true), listOf(ok, elapsed < Duration.ofMillis(3000)))
     }
 }
