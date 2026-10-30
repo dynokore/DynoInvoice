@@ -342,6 +342,60 @@
         "sourceReference"
       ]
     },
+    "lineToTotalTolerances": {
+      "type": "array",
+      "description": "The line-to-total tolerance per currency (INV-REQ-1297, VP-36): one entry per currency with a tolerance; the default and the ceiling of VP-36. Unique currency across the array is checked by rules-svc at the pack dry run, not by this schema.",
+      "minItems": 0,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "The ISO 4217 currency code of the entry.",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "value": {
+            "type": "string",
+            "description": "The default tolerance as a decimal string.",
+            "pattern": "^[0-9]{1,15}(\\.[0-9]{1,4})?$"
+          },
+          "ceiling": {
+            "type": "string",
+            "description": "The ceiling of a tenant value as a decimal string.",
+            "pattern": "^[0-9]{1,15}(\\.[0-9]{1,4})?$"
+          },
+          "unit": {
+            "type": "string",
+            "description": "The unit of value and ceiling, as the source datum states it. The only unit the check supports is amount; the check, not the schema, refuses any other unit.",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "sourceClass": {
+            "type": "string",
+            "description": "The source class of the entry (INV-REQ-727).",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "INFERRED"
+            ]
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "The citation of the entry.",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "currency",
+          "value",
+          "ceiling",
+          "unit",
+          "sourceClass",
+          "sourceReference"
+        ]
+      }
+    },
     "intraGroupRule": {
       "type": "object",
       "description": "The intra-group rule (INV-REQ-738).",

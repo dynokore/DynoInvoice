@@ -344,3 +344,5 @@ ActiveRegulatoryPack.packType	schema_property	openapi.yaml	INV-REQ-1105
 ActiveRegulatoryPack.version	schema_property	openapi.yaml	INV-REQ-1105
 ActiveRegulatoryPack.status	schema_property	openapi.yaml	INV-REQ-1105
 ActiveRegulatoryPack.minEngineVersion	schema_property	openapi.yaml	INV-REQ-1105
+lineToTotalTolerances	property	schemas/scope-pack-contents.schema.json	INV-REQ-1297
+ceiling	property	schemas/scope-pack-contents.schema.json	INV-REQ-1297
