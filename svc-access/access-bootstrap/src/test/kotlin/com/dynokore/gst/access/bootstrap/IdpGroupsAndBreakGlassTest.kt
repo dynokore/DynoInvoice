@@ -382,6 +382,17 @@ class IdpGroupsAndBreakGlassTest {
             assertThat(alerts.map { it.dataJson.substringAfter("\"action\":\"").substringBefore("\"") })
                 .containsExactly("UNLOCK", "VIEW", "REPLAY")
             assertThat(env.audits("unlockBreakGlass") + env.audits("recordBreakGlassAction")).hasSize(3)
+            // the audit detail of an action names the calling service (INV-Q-9113 A)
+            val details =
+                env.audits("recordBreakGlassAction").map {
+                    tools.jackson.databind.json.JsonMapper
+                        .builder()
+                        .build()
+                        .readTree(it.dataJson)
+                        .path("reason")
+                        .asString()
+                }
+            assertThat(details).containsExactly("VIEW by ingestion-svc", "REPLAY by ingestion-svc")
             // after the expiry nothing more is raised or written
             env.clock.advance(Duration.ofHours(5))
             assertThatThrownBy { record(env, ref, "DRAIN") }.isInstanceOf(ApiConflict::class.java)
