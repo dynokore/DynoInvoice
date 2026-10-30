@@ -98,7 +98,22 @@ class ChainVerificationRecorder(
         store.lock(tenant, entityRef, period)
         val runAt = clock.instant().truncatedTo(ChronoUnit.MICROS) // the precision of timestamptz
         val outcome = verification.verifyPeriod(tenant, entityRef, period)
-        outcome.failures.forEach { record(tenant, entityRef, period, it, runAt, runId) }
+        outcome.failures.forEach {
+            record(
+                tenant,
+                IntegrityFailureRow(
+                    entityRef,
+                    period,
+                    it.kind,
+                    it.failure,
+                    it.failingSequence,
+                    it.rangeFrom,
+                    it.rangeTo,
+                    runAt,
+                    runId,
+                ),
+            )
+        }
         store.insertRun(
             tenant,
             IntegrityRunRow(
@@ -117,37 +132,21 @@ class ChainVerificationRecorder(
 
     private fun record(
         tenant: TenantId,
-        entityRef: String,
-        period: String,
-        failure: ChainFailure,
-        runAt: Instant,
-        runId: String,
+        row: IntegrityFailureRow,
     ) {
-        val row =
-            IntegrityFailureRow(
-                entityRef,
-                period,
-                failure.kind,
-                failure.failure,
-                failure.failingSequence,
-                failure.rangeFrom,
-                failure.rangeTo,
-                runAt,
-                runId,
-            )
         if (store.failureExists(tenant, row)) return
         store.insertFailure(tenant, row)
         outbox.append(
             listOf(OutboundEvent(EVENT_TYPE, payload(row))),
             EventContext(
                 tenant,
-                EntityRef(entityRef),
+                EntityRef(row.entityRef),
                 null,
                 null,
-                "$entityRef:$period",
+                "${row.entityRef}:${row.period}",
                 null,
-                CorrelationId(runId),
-                CausationId(runId),
+                CorrelationId(row.runId),
+                CausationId(row.runId),
             ),
         )
     }
