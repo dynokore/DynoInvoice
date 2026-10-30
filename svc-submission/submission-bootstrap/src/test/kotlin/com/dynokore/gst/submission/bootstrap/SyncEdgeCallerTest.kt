@@ -4,6 +4,7 @@ import com.dynokore.gst.submission.adapters.SubmissionDb
 import com.dynokore.gst.submission.syncedge.CallerChecks
 import com.dynokore.gst.submission.syncedge.ContractDocument
 import com.dynokore.gst.submission.syncedge.Mapped
+import com.dynokore.gst.submission.syncedge.MappedHandler
 import com.dynokore.gst.submission.syncedge.Operation
 import com.dynokore.gst.submission.syncedge.SourceScan
 import com.dynokore.gst.submission.syncedge.TestIdentity
@@ -84,39 +85,46 @@ class SyncEdgeCallerTest {
                 val lines = generatedLines()
                 val handlers = Mapped.handlers(context)
                 (handlers.isNotEmpty()) shouldBe true
-                handlers.forEach { handler ->
-                    val operation = byLabel[handler.label]
-                    when {
-                        operation == null -> {
-                            problems += "${handler.label}: mapped, but the contract document has no such operation"
-                        }
-
-                        handler.pattern.startsWith(INTERNAL) -> {
-                            if (operation.edge.isEmpty()) {
-                                problems += "${handler.label}: internal operation without x-sync-edge"
-                            } else {
-                                problems += checks.problems(operation, lines[operation.label])
-                            }
-                        }
-
-                        handler.pattern.startsWith(PUBLIC) -> {
-                            if (operation.edge.isNotEmpty()) {
-                                problems += "${handler.label}: /v1/ operation with an x-sync-edge"
-                            }
-                            if (handler.label in lines) {
-                                problems += "${handler.label}: /v1/ operation with a line in sync-edge-callers.tsv"
-                            }
-                        }
-
-                        else -> {
-                            problems += "${handler.label}: mapped under neither /internal/v1/ nor /v1/"
-                        }
-                    }
-                }
+                handlers.forEach { problems += handlerProblems(it, byLabel[it.label], checks, lines) }
             }
         }
         problems.shouldBeEmpty()
     }
+
+    /** The fail-closed rule per mapped handler: `/internal/v1/` needs an `x-sync-edge`; `/v1/` has none and no line. */
+    private fun handlerProblems(
+        handler: MappedHandler,
+        operation: Operation?,
+        checks: CallerChecks,
+        lines: Map<String, String>,
+    ): List<String> =
+        when {
+            operation == null -> {
+                listOf("${handler.label}: mapped, but the contract document has no such operation")
+            }
+
+            handler.pattern.startsWith(INTERNAL) -> {
+                if (operation.edge.isEmpty()) {
+                    listOf("${handler.label}: internal operation without x-sync-edge")
+                } else {
+                    checks.problems(operation, lines[operation.label])
+                }
+            }
+
+            handler.pattern.startsWith(PUBLIC) -> {
+                listOfNotNull(
+                    "${handler.label}: /v1/ operation with an x-sync-edge".takeIf { operation.edge.isNotEmpty() },
+                    "${handler.label}: /v1/ operation with a line in sync-edge-callers.tsv".takeIf {
+                        handler.label in
+                            lines
+                    },
+                )
+            }
+
+            else -> {
+                listOf("${handler.label}: mapped under neither /internal/v1/ nor /v1/")
+            }
+        }
 
     @Test
     fun `INV-AC-8455 with the generated resource off the classpath every internal operation answers 403 SRT-004`(
