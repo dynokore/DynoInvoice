@@ -29,6 +29,10 @@ object GateMain {
                             File(dir("--table"), DoneTasksGate.NAME).takeIf { it.isFile }?.readText(),
                             table,
                             code,
+                        ) +
+                        OperationOwnersGate.check(
+                            File(dir("--table"), OperationOwnersGate.NAME).takeIf { it.isFile }?.readText(),
+                            table,
                         )
                 }
 

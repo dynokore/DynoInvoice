@@ -48,6 +48,7 @@ val operationsGate =
         inputs.dir(rootProject.layout.projectDirectory.dir("control-plane-adapters/src/main"))
         inputs.files(rootProject.layout.projectDirectory.file("operations.tsv")).optional()
         inputs.files(rootProject.layout.projectDirectory.file("done-tasks.txt")).optional()
+        inputs.files(rootProject.layout.projectDirectory.file("operation-owners.tsv")).optional()
         outputs.upToDateWhen { false }
         dependsOn(":control-plane-contract:prepareContractServerSpec")
     }
