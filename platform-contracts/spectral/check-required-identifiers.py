@@ -37,7 +37,12 @@ that commit must still exist, and every data row of it, keyed by the trimmed (id
 still be a data row of the same table at the head. A removed row is a finding naming the table, the identifier,
 the kind and the file. Comment lines, blank lines and the header are not rows; added rows and a changed
 requirement cell are not findings. A table missing at the head, an empty sha, and an sha that is not a commit of
-the repository at the root each exit 1. There is no exemption for a retired row: removing one is an owner matter.
+the repository at the root each exit 1. A removed row is exempt only through a line of the rename map
+`spectral/required-identifiers-renames.tsv` read from the base commit (never the working tree; INV-T-13510, INV-Q-11109 A): the
+map has exactly one line for that table and old (identifier, kind, file), and the table at the head holds a data row with the
+new triple of that line and the requirement cell of the removed row; every comparison is by equality of the trimmed cell. Every
+data line of the base map is checked and a malformed, unruled, duplicated or self-mapping line is a finding naming its line
+number. The map exempts rows, never a table.
 Without --base the behaviour is the plain check above.
 
 Audited-operation completeness (INV-T-7643, INV-Q-7641 A; made unconditional by INV-T-7650), with and without --base:
@@ -178,6 +183,72 @@ def row_keys(text: str) -> set[tuple[str, str, str]]:
     return keys
 
 
+RENAMES = "spectral/required-identifiers-renames.tsv"
+RENAME_HEADER = ("table", "old_identifier", "old_kind", "old_file", "new_identifier", "new_kind", "new_file", "ruling")
+
+
+def row_reqs(text: str) -> dict[tuple[str, str, str], set[str]]:
+    """The requirement cells of every data row of a table, by its (identifier, kind, file) key."""
+    out: dict[tuple[str, str, str], set[str]] = {}
+    first = True
+    for raw in text.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        cells = raw.split("\t")
+        if first and tuple(c.strip().lower() for c in cells[:3]) == HEADER[:3]:
+            first = False
+            continue
+        first = False
+        if len(cells) == 4 and all(c.strip() for c in cells):
+            out.setdefault(tuple(c.strip() for c in cells[:3]), set()).add(cells[3].strip())
+    return out
+
+
+def rename_lines(text: str) -> list[tuple[int, list[str]]]:
+    """(line number, trimmed cells) of every data line of the rename map; comments, blanks and the header are not data lines."""
+    out: list[tuple[int, list[str]]] = []
+    first = True
+    for no, raw in enumerate(text.splitlines(), 1):
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        cells = [c.strip() for c in raw.split("\t")]
+        if first and tuple(cells) == RENAME_HEADER:
+            first = False
+            continue
+        first = False
+        out.append((no, cells))
+    return out
+
+
+def rename_findings(lines: list[tuple[int, list[str]]]) -> list[str]:
+    """Map checks: each bad line is a finding naming its line number."""
+    found: list[str] = []
+    seen: dict[tuple[str, ...], int] = {}
+    for no, c in lines:
+        tag = f"{RENAMES}: map line {no}"
+        if len(c) != 8 or not all(c):
+            found.append(f"{tag}: needs exactly eight non-empty cells")
+            continue
+        if not re.fullmatch(r"INV-[A-Z]+-[0-9]+", c[7]):
+            found.append(f"{tag}: the ruling cell {c[7]!r} is not an INV-<KIND>-<number> key")
+        if not re.fullmatch(r"[^/]+/required-identifiers\.tsv", c[0]) or c[0].split("/")[0] in (".", ".."):
+            found.append(f"{tag}: the table cell {c[0]!r} is not of the form <dir>/required-identifiers.tsv")
+        if c[1:4] == c[4:7]:
+            found.append(f"{tag}: the old triple equals the new triple")
+        key = tuple(c[:4])
+        if key in seen:
+            found.append(f"{tag}: the same table and old triple as map line {seen[key]}")
+        else:
+            seen[key] = no
+    return found
+
+
+def valid_rename(c: list[str]) -> bool:
+    return (len(c) == 8 and all(c) and re.fullmatch(r"INV-[A-Z]+-[0-9]+", c[7]) is not None
+            and re.fullmatch(r"[^/]+/required-identifiers\.tsv", c[0]) is not None and c[0].split("/")[0] not in (".", "..")
+            and c[1:4] != c[4:7])
+
+
 def check_base(root: Path, sha: str) -> list[str]:
     """INV-Q-7027 A: a row of a table at the base commit must still be a row of the same table at the head."""
     if not sha.strip() or sha.startswith("-"):
@@ -192,6 +263,9 @@ def check_base(root: Path, sha: str) -> list[str]:
     if listing.returncode != 0:
         return [f"--base {sha!r}: git ls-tree failed: {listing.stderr.strip()}"]
     findings: list[str] = []
+    mapped = git("show", f"{sha}:{RENAMES}") if RENAMES in listing.stdout.splitlines() else None
+    lines = rename_lines(mapped.stdout) if mapped is not None and mapped.returncode == 0 else []
+    findings += rename_findings(lines)
     for name in sorted(n for n in listing.stdout.splitlines() if re.fullmatch(r"[^/]+/required-identifiers\.tsv", n)):
         head = root / name
         if not head.is_file():
@@ -201,8 +275,13 @@ def check_base(root: Path, sha: str) -> list[str]:
         if before.returncode != 0:
             findings.append(f"{name}: cannot read it at {sha}: {before.stderr.strip()}")
             continue
-        now = row_keys(head.read_text())
-        for ident, kind, file in sorted(row_keys(before.stdout) - now):
+        head_reqs = row_reqs(head.read_text())
+        base_reqs = row_reqs(before.stdout)
+        for key in sorted(set(base_reqs) - set(head_reqs)):
+            ident, kind, file = key
+            hits = [c for _, c in lines if len(c) == 8 and all(c) and c[0] == name and tuple(c[1:4]) == key]
+            if len(hits) == 1 and valid_rename(hits[0]) and base_reqs[key] <= head_reqs.get(tuple(hits[0][4:7]), set()):
+                continue
             findings.append(f"{name}: row removed since {sha}: {ident!r} ({kind}, {file})")
     return findings
 

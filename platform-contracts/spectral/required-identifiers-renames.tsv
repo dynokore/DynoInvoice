@@ -1,0 +1,3 @@
+table	old_identifier	old_kind	old_file	new_identifier	new_kind	new_file	ruling
+control-plane/required-identifiers.tsv	classifiedByRole	property	openapi.yaml	classifiedBy	property	openapi.yaml	INV-Q-10647
+control-plane/required-identifiers.tsv	GateRunResponse.recordedByRole	schema_property	openapi.yaml	GateRunResponse.recordedBy	schema_property	openapi.yaml	INV-Q-10647

@@ -271,5 +271,40 @@ case "$out" in *"$FIND1"*) [ $rc -eq 1 ] && echo "gst-ci: self-test audited 'aud
 mka aud-plain; printf "${HEADL}op1\top1\tsvc\t-\n" > "$T/aud-plain/$AUD"
 out=$(python3 check-required-identifiers.py "$T/aud-plain" 2>&1); rc=$?
 case "$out" in *"$FIND1"*) [ $rc -eq 1 ] && echo "gst-ci: self-test audited 'aud-plain' (no --base) failed as expected" || { echo "gst-ci: FAIL — aud-plain rc $rc"; failed=1; };; *) echo "gst-ci: FAIL — aud-plain without the finding:"; echo "$out"; failed=1;; esac
+# INV-T-13510 (INV-Q-11109 A, INV-AC-13509): the rename map. Each case is a throwaway git repository whose base commit holds
+# svc/openapi.yaml, the rows alpha, beta, gamma and the map; the mutation runs before the check with --base.
+RH='table\told_identifier\told_kind\told_file\tnew_identifier\tnew_kind\tnew_file\truling\n'
+RL='svc/required-identifiers.tsv\tbeta\tproperty\topenapi.yaml\tdelta\tproperty\topenapi.yaml\tINV-Q-10647\n'
+mkm() { # name, map lines (printf format) -> $T/<name>; the map is committed at the base
+  mkdir -p "$T/$1/svc" "$T/$1/spectral"
+  printf 'openapi: 3.1.0\ninfo: {title: f, version: 1.0.0}\npaths:\n  /x:\n    get:\n      operationId: op\n      responses:\n        "200":\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  alpha: {type: string}\n                  beta: {type: string}\n                  gamma: {type: string}\n' > "$T/$1/svc/openapi.yaml"
+  printf 'identifier\tkind\tfile\trequirement\nalpha\tproperty\topenapi.yaml\tR-6\nbeta\tproperty\topenapi.yaml\tR-6\ngamma\tproperty\topenapi.yaml\tR-6\n' > "$T/$1/svc/required-identifiers.tsv"
+  [ -n "$2" ] && printf "${RH}$2" > "$T/$1/spectral/required-identifiers-renames.tsv"
+  git -C "$T/$1" init -q && git -C "$T/$1" add -A && git -C "$T/$1" -c user.name=t -c user.email=t@t commit -q -m base
+}
+rename_case() { # name, expected rc, expected text, map lines at the base, mutation run in $T/<name>
+  n=$1; want=$2; txt=$3; ml=$4; mkm "$n" "$ml"; shift 4; (cd "$T/$n" && eval "$*")
+  out=$(python3 check-required-identifiers.py --base "$(git -C "$T/$n" rev-parse HEAD)" "$T/$n" 2>&1); rc=$?
+  if [ "$want" = 0 ] && [ $rc -ne 0 ]; then echo "gst-ci: FAIL — INV-AC-13509 rename case '$n' rejected:"; echo "$out"; failed=1
+  elif [ "$want" = 1 ] && [ $rc -eq 0 ]; then echo "gst-ci: FAIL — INV-AC-13509 rename case '$n' was accepted"; failed=1
+  elif [ "$want" = 1 ] && ! case "$out" in *"$txt"*) true;; *) false;; esac; then echo "gst-ci: FAIL — INV-AC-13509 rename case '$n' failed, but not with '$txt':"; echo "$out"; failed=1
+  else echo "gst-ci: self-test INV-AC-13509 rename '$n' behaved as expected"; fi
+}
+SWAP="sed -i 's/^beta\tproperty\topenapi.yaml\tR-6/delta\tproperty\topenapi.yaml\tR-6/' svc/required-identifiers.tsv; sed -i '/^ *beta: /a\                  delta: {type: string}' svc/openapi.yaml"
+GONE="'beta' (property, openapi.yaml)"
+rename_case rename-mapped 0 "" "$RL" "$SWAP"
+rename_case rename-map-added-in-change 1 "row removed since" "" "$SWAP; printf \"\$(printf '$RH$RL')\" > spectral/required-identifiers-renames.tsv"
+rename_case rename-unmapped-delete 1 "$GONE" "$RL" "sed -i '/^beta/d' svc/required-identifiers.tsv"
+rename_case rename-lookalike-old 1 "$GONE" 'svc/required-identifiers.tsv\tbetax\tproperty\topenapi.yaml\tdelta\tproperty\topenapi.yaml\tINV-Q-10647\n' "$SWAP"
+rename_case rename-kind-differs 1 "$GONE" "$RL" "$SWAP; sed -i 's/^delta\tproperty/delta\toperation/' svc/required-identifiers.tsv"
+rename_case rename-file-differs 1 "$GONE" "$RL" "$SWAP; sed -i 's/^delta\tproperty\topenapi.yaml/delta\tproperty\topenapi.yml/' svc/required-identifiers.tsv; cp svc/openapi.yaml svc/openapi.yml"
+rename_case rename-other-table 1 "$GONE" 'other/required-identifiers.tsv\tbeta\tproperty\topenapi.yaml\tdelta\tproperty\topenapi.yaml\tINV-Q-10647\n' "$SWAP"
+rename_case rename-requirement-differs 1 "$GONE" "$RL" "$SWAP; sed -i 's/^delta\(.*\)R-6/delta\1R-7/' svc/required-identifiers.tsv"
+rename_case rename-new-property-missing 1 "not found as a property" "$RL" "sed -i 's/^beta\tproperty\topenapi.yaml/delta\tproperty\topenapi.yaml/' svc/required-identifiers.tsv"
+rename_case map-malformed 1 "map line 2" 'svc/required-identifiers.tsv\tbeta\tproperty\topenapi.yaml\tdelta\tproperty\tINV-Q-10647\n' "true"
+rename_case map-bad-ruling 1 "map line 2" 'svc/required-identifiers.tsv\tbeta\tproperty\topenapi.yaml\tdelta\tproperty\topenapi.yaml\tnone\n' "true"
+rename_case map-duplicate-old 1 "map line 3" "$RL$RL" "true"
+rename_case map-self 1 "map line 2" 'svc/required-identifiers.tsv\tbeta\tproperty\topenapi.yaml\tbeta\tproperty\topenapi.yaml\tINV-Q-10647\n' "true"
+rename_case map-unused-line 0 "" "$RL" "true"
 [ "$failed" -eq 0 ] && echo "gst-ci: check-required-identifiers.py self-test passed."
 exit $failed
