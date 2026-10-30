@@ -76,9 +76,7 @@ class ConflictingPairsSettingTest {
                 env.post(
                     "/internal/v1/policies/VP-82",
                     "token-a",
-                    """{"scopeLevel":"TENANT","scopeRef":"${env.tenant}","selected":${selected(
-                        "CONFLICTING_PAIRS",
-                    )},""" +
+                    """{"scopeLevel":"TENANT","scopeRef":"${env.tenant}","selected":${selected("CONFLICTING_PAIRS")},""" +
                         """"effectiveDate":"${env.today()}","reason":"invalid value"}""",
                 )
             assertThat(response.status).describedAs(response.contentAsString).isEqualTo(422)
