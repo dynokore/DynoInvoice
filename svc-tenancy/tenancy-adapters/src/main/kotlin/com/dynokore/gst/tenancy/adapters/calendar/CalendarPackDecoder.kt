@@ -54,25 +54,35 @@ class CalendarPackDecoder(
 
     /** The version and the `artefact.contents` of a payload of [PACK_TYPE]; a [PackRefusal] otherwise. */
     private fun envelope(payloadJson: String): Pair<String, JsonNode> {
+        val payload = parse(payloadJson)
+        val packType = payload.get("packType")
+        refuseUnless(packType?.takeIf { it.isString }?.asString() == PACK_TYPE, "packType") {
+            "only packType $PACK_TYPE is decoded, found ${packType ?: "none"}"
+        }
+        val version = payload.get("version")?.takeIf { it.isString }?.asString()
+        refuseUnless(!version.isNullOrBlank(), "version") { "the payload has no version" }
+        val contents = payload.get("artefact")?.get("contents")
+        refuseUnless(contents != null, "artefact.contents") { "the payload has no artefact.contents" }
+        return checkNotNull(version) to checkNotNull(contents)
+    }
+
+    private fun parse(payloadJson: String): JsonNode {
         val payload =
             try {
                 mapper.readTree(payloadJson)
             } catch (e: tools.jackson.core.JacksonException) {
-                throw PackRefusal("payload", "the payload is not JSON: ${e.originalMessage}")
+                throw PackRefusal("payload", "the payload is not JSON: ${e.originalMessage}", e)
             }
-        if (!payload.isObject) throw PackRefusal("payload", "the payload is not a JSON object")
-        val packType = payload.get("packType")
-        if (packType == null || !packType.isString || packType.asString() != PACK_TYPE) {
-            throw PackRefusal("packType", "only packType $PACK_TYPE is decoded, found ${packType ?: "none"}")
-        }
-        val version = payload.get("version")
-        if (version == null || !version.isString || version.asString().isBlank()) {
-            throw PackRefusal("version", "the payload has no version")
-        }
-        val contents =
-            payload.get("artefact")?.get("contents")
-                ?: throw PackRefusal("artefact.contents", "the payload has no artefact.contents")
-        return version.asString() to contents
+        refuseUnless(payload.isObject, "payload") { "the payload is not a JSON object" }
+        return payload
+    }
+
+    private fun refuseUnless(
+        ok: Boolean,
+        item: String,
+        reason: () -> String,
+    ) {
+        if (!ok) throw PackRefusal(item, reason())
     }
 
     private fun decodeContents(
@@ -197,7 +207,8 @@ class CalendarPackDecoder(
     private class PackRefusal(
         val item: String,
         override val message: String,
-    ) : RuntimeException(message)
+        cause: Throwable? = null,
+    ) : RuntimeException(message, cause)
 
     companion object {
         /** The only pack type this decoder applies to, by equality. */
