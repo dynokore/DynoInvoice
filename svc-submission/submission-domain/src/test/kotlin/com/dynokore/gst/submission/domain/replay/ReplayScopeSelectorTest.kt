@@ -16,7 +16,14 @@ class ReplayScopeSelectorTest {
         entity: String = "E-001",
         period: String = "2026-Q1",
     ) = ReplayCandidate(
-        doc, version, entity, period, LifecycleState.DEAD_LETTERED, "SUB-008", LocalDate.of(2026, 4, 30), t0,
+        doc,
+        version,
+        entity,
+        period,
+        LifecycleState.DEAD_LETTERED,
+        "SUB-008",
+        LocalDate.of(2026, 4, 30),
+        t0,
     )
 
     private fun scope(
