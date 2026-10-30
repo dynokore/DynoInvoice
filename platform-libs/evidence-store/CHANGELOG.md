@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-30
+### Added
+- `PackageSource`, `PackageProblemCode`, `PackageProblem`, `PackageVerification` and `PackageVerifier` in package `exportpackage`: verify a BagIt 1.0 package (RFC 8493) without the platform, collecting every problem (completeness, SHA-256 checksums, tag manifest, `Payload-Oxum`, the six class counts) and failing closed on any read error (INV-REQ-988, INV-REQ-1347, INV-T-13406; INV-AC-13402).
+
 ## [2.1.0] - 2026-10-29
 ### Added
 - `ObjectKeyPrefix` (a whole-segment key prefix that must end with `/`) and `ObjectStore.bytesUnder(prefix)`, implemented by `S3ObjectStore` over every page of ListObjectsV2 (INV-Q-12679, INV-T-9909, INV-T-12695). The default body refuses with `UnsupportedOperationException`, so existing implementors compile unchanged.
