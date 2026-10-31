@@ -62,8 +62,8 @@ data class PublishTrainCommand(
 
 /**
  * publishTrain (SCR-37.2): a holder of the publish permission publishes a release train or patch train. The internal
- * gates run first (INV-REQ-2657): a train not certified in both reference environments is refused (INV-AC-1943), and so is one with a
- * failed gate, except that an exposure-reducing train is held back only by a failure it introduced. Accreditation
+ * gates run first (INV-REQ-2657): a train not certified in both reference environments is refused (INV-AC-1943), and
+ * so is one with a failed gate, except that an exposure-reducing train is held back only by a failure it introduced. Accreditation
  * currency, an external rule change and an open question are no gate; the re-accreditation assessment is opened as a
  * tracked task with an alert (INV-REQ-1365). The train is distributed by platform-release, never over the pack feed.
  */
