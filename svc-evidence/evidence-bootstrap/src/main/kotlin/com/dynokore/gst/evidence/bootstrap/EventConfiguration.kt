@@ -7,10 +7,10 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events evidence-svc may emit (INV-REQ-815 behaviour 2): the two its AsyncAPI contract publishes,
- * EvidenceIntegrityFailed (model/architecture/events.yaml) and PriorSubmissionEvidenceImported (INV-REQ-1109), each on
- * the topic its channel names. The ExampleHappened placeholder channel is not catalogued. The emission guard of the
- * outbox refuses any other type.
+ * The events evidence-svc may emit (INV-REQ-815 behaviour 2): the three its AsyncAPI contract publishes,
+ * EvidenceIntegrityFailed (model/architecture/events.yaml), PriorSubmissionEvidenceImported (INV-REQ-1109) and
+ * ArchiveVolumeMeasured (INV-Q-9829 A, INV-Q-14067 A), each on the topic its channel names. The ExampleHappened
+ * placeholder channel is not catalogued. The emission guard of the outbox refuses any other type.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
@@ -31,6 +31,7 @@ object EvidenceEvents {
         listOf(
             "EvidenceIntegrityFailed" to "gst.evidence.evidence-integrity-failed.v1",
             "PriorSubmissionEvidenceImported" to "gst.evidence.prior-submission-evidence-imported.v1",
+            "ArchiveVolumeMeasured" to "gst.evidence.archive-volume-measured.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
     /**
