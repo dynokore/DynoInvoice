@@ -37,11 +37,11 @@ object EvidenceEvents {
      * The platform events that have a topic (`PlatformEventCatalogue.ALL`, producer every service): the job runtime of
      * service-runtime writes `JobRegistered` and `JobRunRecorded` through the outbox, and the emission guard refuses
      * any type the catalogue lacks (INV-Q-12992 A, INV-Q-10922 A). `AuditEntryRecorded` is already a record entry, so
-     * it is left out here.
+     * it is left out here, and `PolicyChanged` is the hand-written entry of [platformEntries].
      */
-    val platformEntries: List<CatalogueEntry> =
+    private val jobEntries: List<CatalogueEntry> =
         PlatformEventCatalogue.ALL
-            .filterNot { it == PlatformEventCatalogue.AUDIT_ENTRY_RECORDED }
+            .filterNot { it == PlatformEventCatalogue.AUDIT_ENTRY_RECORDED || it == PlatformEventCatalogue.POLICY_CHANGED }
             .mapNotNull { event ->
                 event.topic?.let {
                     CatalogueEntry(event.eventType, it, setOf(CatalogueEntry.EVERY_SERVICE), contentTopic = false)
@@ -99,7 +99,7 @@ object EvidenceEvents {
      * `setPolicy` of service-runtime emits it on a stored change, so the emission guard needs the entry.
      */
     val platformEntries: List<CatalogueEntry> =
-        listOf(
+        jobEntries +
             CatalogueEntry(
                 "com.dynokore.gst.platform.PolicyChanged.v1",
                 "gst.platform.policy-changed.v1",
@@ -107,6 +107,5 @@ object EvidenceEvents {
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,
-            ),
-        )
+            )
 }
