@@ -75,7 +75,9 @@ class CallerChecks(
             val expected = reached[operation.label]?.status ?: STUB
             val changed = stored().entries.count { before[it.key] != it.value }
             val once = calls.count(operation.label) - reachedBefore
-            "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}, double called $once times".takeIf {
+            "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(
+                BODY_SHOWN,
+            )}, double called $once times".takeIf {
                 answer.statusCode() != expected || once != 1 || (expected == STUB && changed != 0)
             }
         }
