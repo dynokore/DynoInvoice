@@ -166,7 +166,7 @@ class RelayIssuanceDecisionTest {
         RecordingOutcome::class.java.permittedSubclasses
             .map { it.simpleName }
             .toSet() shouldBe
-            setOf("New", "Replay", "Amend", "Stale", "Held", "Relayed", "Failed")
+            setOf("New", "Replay", "Amend", "Stale", "Held", "Relayed", "Failed", "Unavailable")
     }
 
     @Test
@@ -177,5 +177,32 @@ class RelayIssuanceDecisionTest {
             .map { it.name }
             .toSet() shouldBe setOf("recording", "validation")
         method shouldNotBe null
+    }
+
+    @Test
+    fun `INV-AC-14089 an Unavailable recording is ApiUnavailable CANONICAL_UNAVAILABLE whatever the validation`() {
+        val want = ApiUnavailable(UnavailableCause.CANONICAL_UNAVAILABLE)
+        for (answer in listOf(null, ValidationAnswer.Unavailable, ValidationAnswer.Pass, warn, blocked)) {
+            decide(RecordingOutcome.Unavailable, answer) shouldBe want
+        }
+        decide(RecordingOutcome.Unavailable, ValidationAnswer.Pass).shouldNotBeInstanceOf<NotRecorded>()
+    }
+
+    @Test
+    fun `INV-AC-14089 the new cause is distinct and the cause set has four names`() {
+        val cause = UnavailableCause.CANONICAL_UNAVAILABLE
+        listOf(
+            UnavailableCause.FACTS_MISSING,
+            UnavailableCause.DEPENDENCY_HOLD,
+            UnavailableCause.VALIDATION_UNAVAILABLE,
+        ).forEach { (it == cause) shouldBe false }
+        UnavailableCause.values().map { it.name }.toSet() shouldBe
+            setOf("FACTS_MISSING", "DEPENDENCY_HOLD", "VALIDATION_UNAVAILABLE", "CANONICAL_UNAVAILABLE")
+    }
+
+    @Test
+    fun `INV-AC-14089 Failed and Stale with a Pass stay NotRecorded`() {
+        decide(RecordingOutcome.Failed, ValidationAnswer.Pass) shouldBe NotRecorded(RecordingOutcome.Failed)
+        decide(RecordingOutcome.Stale, ValidationAnswer.Pass) shouldBe NotRecorded(RecordingOutcome.Stale)
     }
 }

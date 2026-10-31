@@ -30,6 +30,7 @@ enum class UnavailableCause {
     FACTS_MISSING,
     DEPENDENCY_HOLD,
     VALIDATION_UNAVAILABLE,
+    CANONICAL_UNAVAILABLE,
 }
 
 enum class RefusalSource {
@@ -112,6 +113,10 @@ object RelayIssuanceDecision {
 
             is RecordingOutcome.Replay -> {
                 validated(recording.docUuid, facts.validation)
+            }
+
+            is RecordingOutcome.Unavailable -> {
+                IssuanceDecision.ApiUnavailable(UnavailableCause.CANONICAL_UNAVAILABLE)
             }
         }
     }
