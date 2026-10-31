@@ -247,6 +247,8 @@ open class BoundaryDatabase(
                 "service-runtime.pool.profile=minimal",
                 "service-runtime.event-loops.enabled=false",
                 "gst.bindings.secret-store.mount-root=${TestSecrets.mount(RUNTIME_PASSWORD)}",
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
                 "service-runtime.datasource.credential=db/tenancy_runtime",
                 "spring.profiles.active=test",
             )
@@ -275,6 +277,8 @@ open class BoundaryDatabase(
                 "service-runtime.pool.profile=minimal",
                 "service-runtime.event-loops.enabled=false",
                 "gst.bindings.secret-store.mount-root=$secrets",
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
                 "service-runtime.datasource.credential=db/tenancy_runtime",
                 "server.port=0",
                 "inv.installer.subject=sa-installer",

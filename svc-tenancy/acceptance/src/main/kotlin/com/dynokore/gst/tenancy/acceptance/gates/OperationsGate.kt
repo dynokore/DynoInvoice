@@ -223,7 +223,14 @@ internal object Assignments {
                 "recordRenditionResponsibility",
                 "offboardTenant",
             ) +
-            of("INV-T-4932", "createWorkspace", "archiveWorkspace", "loadCredential", "recordSampleApproval", "requestSampleCopy") +
+            of(
+                "INV-T-4932",
+                "createWorkspace",
+                "archiveWorkspace",
+                "loadCredential",
+                "recordSampleApproval",
+                "requestSampleCopy",
+            ) +
             of(
                 "INV-T-4933",
                 "installLicence",
