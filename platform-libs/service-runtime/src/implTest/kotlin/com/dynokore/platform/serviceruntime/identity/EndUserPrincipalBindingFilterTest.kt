@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.identity
 
+import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
 import com.dynokore.platform.serviceruntime.resilience.ResilienceAutoConfiguration
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -62,12 +63,16 @@ private val TENANT_B = TenantId.of("0b000000-0000-0000-0000-00000000000b")
     EndUserIdentityAutoConfiguration::class,
 )
 internal class ProbeConfig {
+    @Bean fun breakGlassSessionView(): BreakGlassSessionView = BreakGlassSessionView { _, _, _ -> null }
+
     @Bean fun tenantContext(): TenantContextImpl = TenantContextImpl()
 }
 
 /** For the order test: the four filters of the identity and resilience configurations, listed before them. */
 @Configuration(proxyBeanMethods = false)
 internal class OrderStubs {
+    @Bean fun breakGlassSessionView(): BreakGlassSessionView = BreakGlassSessionView { _, _, _ -> null }
+
     @Bean fun clock(): java.time.Clock = java.time.Clock.systemUTC()
 
     @Bean fun workloadTokenVerifier(): WorkloadTokenVerifier =

@@ -178,6 +178,7 @@ class TenantDecisionTest {
                 "accept",
                 "decide",
                 "decideTenant",
+                "getBreakGlassSessions",
                 "getConsents",
                 "getGrants",
                 "getKeySets",

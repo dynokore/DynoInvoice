@@ -83,7 +83,13 @@ class ReplicaAutoConfiguration {
             ),
             { tenant, entity -> isEntityOf(structure.ifAvailable, clock, tenant, entity) },
             MicrometerDegradedAllowObserver(meters.ifAvailable),
+            MicrometerBreakGlassCounter(meters.ifAvailable),
         )
+
+    /** The session view of the restricted break-glass mode; a service may replace it (access-svc does, INV-Q-9298 B). */
+    @Bean
+    @ConditionalOnMissingBean
+    fun breakGlassSessionView(authority: AuthorityReplica): BreakGlassSessionView = authority.breakGlassSessions
 
     /** True when the structure replica answers a node of kind ENTITY for [entity] under [tenant]; anything else is false. */
     private fun isEntityOf(

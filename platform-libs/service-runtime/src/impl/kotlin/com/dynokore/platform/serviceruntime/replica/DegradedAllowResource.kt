@@ -73,3 +73,12 @@ internal class MicrometerDegradedAllowObserver(
         const val METER_NAME = "authority_degraded_allow_total"
     }
 }
+
+/** Counts the break-glass counters by name (`break_glass_event_ignored_total`, `break_glass_refused_total`); no registry, no count. */
+internal class MicrometerBreakGlassCounter(
+    private val meters: MeterRegistry?,
+) : BreakGlassCounter {
+    override fun increment(name: String) {
+        meters?.counter(name)?.increment()
+    }
+}

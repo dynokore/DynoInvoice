@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.29.0] - 2026-11-01
+### Added
+- Restricted break-glass mode (INV-T-9310; INV-Q-9119 A, INV-Q-9298 B, INV-Q-9300 A; INV-REQ-896, INV-AC-9303, INV-AC-9304): `BreakGlassSessionReplica` (`AuthorityReplica.breakGlassSessions`) holds the sessions of `BreakGlassSessionChanged` (a sealed session is never reopened, an unknown status is ignored and counted in `break_glass_event_ignored_total`, expiry is checked locally); `BreakGlassSessionView` (defaults to the replica, a service may replace it) and `BreakGlassActionReporter` ports; `PlatformEventReader.breakGlassSessionChanged` and `PlatformEventTypes.BREAK_GLASS_SESSION_CHANGED`; `BreakGlassRestrictionFilter` (order -47) reads `META-INF/gst/break-glass-actions.tsv` and `META-INF/gst/break-glass-lifecycle-operations.tsv`: an approver of an open session is refused 403 on an unmarked operation (`break_glass_refused_total`), a marked one is reported once before it runs (500 `SRT-010` if the report fails), a lifecycle operation passes; the filter never grants.
+
 ## [10.28.1] - 2026-10-31
 ### Changed
 - Metadata-only change (INV-T-9352, G-DVS): depends on `outbox-and-queue 6.11.0`, whose version steps; no code change.

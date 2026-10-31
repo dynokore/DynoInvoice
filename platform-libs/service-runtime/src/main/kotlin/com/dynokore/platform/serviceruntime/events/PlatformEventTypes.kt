@@ -15,6 +15,7 @@ object PlatformEventTypes {
     const val EVIDENCE_ARTEFACT_RECORDED = "${PREFIX}EvidenceArtefactRecorded.v1"
     const val POLICY_CHANGED = "${PREFIX}PolicyChanged.v1"
     const val PACK_READINESS_ACKNOWLEDGED = "${PREFIX}PackReadinessAcknowledged.v1"
+    const val BREAK_GLASS_SESSION_CHANGED = "${PREFIX}BreakGlassSessionChanged.v1"
 
     /** The topics of the three events INV-T-2875 adds readers or a publisher for (INV-API-3306, 3308, 3310). */
     const val POLICY_CHANGED_TOPIC = "gst.platform.policy-changed.v1"

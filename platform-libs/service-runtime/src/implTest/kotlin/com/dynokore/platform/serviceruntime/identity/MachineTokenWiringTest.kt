@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.Lag
 import com.dynokore.platform.serviceruntime.replica.Lookup
@@ -48,6 +49,7 @@ class MachineTokenWiringTest {
             .withBean(Clock::class.java, { clock })
             .withBean(StructureReplica::class.java, { structure })
             .withBean(AuthorityReplica::class.java, { AuthorityReplica(clock) })
+            .withBean(BreakGlassSessionView::class.java, { BreakGlassSessionView { _, _, _ -> null } })
             .withBean(TenantContextImpl::class.java, { TenantContextImpl() })
             .withConfiguration(AutoConfigurations.of(EndUserIdentityAutoConfiguration::class.java))
     }

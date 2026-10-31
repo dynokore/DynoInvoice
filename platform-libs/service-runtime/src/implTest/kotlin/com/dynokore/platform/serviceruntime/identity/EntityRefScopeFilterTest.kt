@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
 import com.dynokore.platform.serviceruntime.resilience.ResilienceAutoConfiguration
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TenantId
@@ -51,6 +52,8 @@ internal object ErProbe {
 @Configuration(proxyBeanMethods = false)
 @Import(TomcatServletWebServerAutoConfiguration::class, EndUserIdentityAutoConfiguration::class)
 internal class ErConfig {
+    @Bean fun breakGlassSessionView(): BreakGlassSessionView = BreakGlassSessionView { _, _, _ -> null }
+
     @Bean fun tenantContext(): TenantContextImpl = TenantContextImpl()
 
     @Bean
@@ -114,6 +117,8 @@ internal class ErConfig {
 
 @Configuration(proxyBeanMethods = false)
 internal class ErOrderStubs {
+    @Bean fun breakGlassSessionView(): BreakGlassSessionView = BreakGlassSessionView { _, _, _ -> null }
+
     @Bean fun clock(): java.time.Clock = java.time.Clock.systemUTC()
 
     @Bean fun workloadTokenVerifier(): WorkloadTokenVerifier =

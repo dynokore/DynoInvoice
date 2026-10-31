@@ -2,6 +2,9 @@ package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.BreakGlassActionReporter
+import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
+import com.dynokore.platform.serviceruntime.replica.MicrometerBreakGlassCounter
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.nimbusds.jose.JWSAlgorithm
@@ -15,6 +18,7 @@ import com.nimbusds.jose.proc.SecurityContext
 import com.nimbusds.jose.util.DefaultResourceRetriever
 import com.nimbusds.jose.util.JSONObjectUtils
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -146,7 +150,39 @@ class EndUserIdentityAutoConfiguration {
             urlPatterns = listOf("/*")
         }
 
+    /**
+     * The restricted break-glass mode (INV-Q-9119 A, INV-Q-9300 A), after the principal is bound (-50) and before the
+     * entity-reference check (-45). It only refuses or passes on.
+     */
+    @Bean
+    fun breakGlassRestrictionFilter(
+        view: BreakGlassSessionView,
+        reporter: ObjectProvider<BreakGlassActionReporter>,
+        meters: ObjectProvider<MeterRegistry>,
+        clock: ObjectProvider<Clock>,
+        resources: ResourceLoader,
+    ): FilterRegistrationBean<BreakGlassRestrictionFilter> {
+        val loader = checkNotNull(resources.classLoader) { "no class loader to read the contract resources" }
+        val marked = BreakGlassActions.from(loader)
+        return FilterRegistrationBean(
+            BreakGlassRestrictionFilter(
+                view,
+                reporter,
+                marked,
+                BreakGlassLifecycleOperations.from(loader, marked),
+                MicrometerBreakGlassCounter(meters.ifAvailable),
+                clock.getIfAvailable { Clock.systemUTC() },
+            ),
+        ).apply {
+            order = ORDER_BREAK_GLASS_RESTRICTION
+            urlPatterns = listOf("/*")
+        }
+    }
+
     companion object {
+        /** After the binding of the end-user principal (-50), before the entity-reference check (-45). */
+        const val ORDER_BREAK_GLASS_RESTRICTION = -47
+
         /** After the binding of the end-user principal. */
         const val ORDER_ENTITY_REF_SCOPE = -45
 

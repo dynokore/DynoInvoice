@@ -513,6 +513,7 @@ class AuthorityReplica(
     private val degradedAllow: DegradedAllowTable = DegradedAllowTable.EMPTY,
     private val entityOfTenant: (TenantId, String) -> Boolean = { _, _ -> false },
     private val observer: DegradedAllowObserver = DegradedAllowObserver { },
+    breakGlassCounter: BreakGlassCounter = BreakGlassCounter.NONE,
 ) : ReplicaFeedSink<AuthorityChanged> {
     /** One feed, so one lag for all three record kinds. */
     val tracker = ReplicaLagTracker(clock)
@@ -539,6 +540,9 @@ class AuthorityReplica(
 
     /** access-svc's operator-session signing keys (INV-Q-4162, INV-Q-4171). */
     val operatorSessionKeys = keySets.operator
+
+    /** The break-glass sessions, fed by `BreakGlassSessionChanged` (INV-Q-9119 A). */
+    val breakGlassSessions = BreakGlassSessionReplica(clock, breakGlassCounter)
 
     /** The machine-access signing keys; a key is in exactly one of the two sets (INV-Q-9028 A). */
     val machineAccessKeys = keySets.machine

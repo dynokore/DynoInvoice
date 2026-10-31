@@ -6,8 +6,10 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EnvelopeJson
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.serviceruntime.connection.ConnectionFailure
+import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionChanged
 import com.dynokore.platform.serviceruntime.replica.PolicyChanged
 import com.dynokore.platform.serviceruntime.replica.PolicySource
+import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
@@ -88,6 +90,40 @@ class PlatformEventReader(
                     ),
                 time = envelope.time,
             )
+        }
+    }
+
+    /** A `BreakGlassSessionChanged` (INV-Q-9119 A) from its envelope JSON; an unknown status text is passed on to the replica. */
+    fun breakGlassSessionChanged(envelopeJson: String): BreakGlassSessionChanged =
+        breakGlassSessionChanged(envelope(envelopeJson, PlatformEventTypes.BREAK_GLASS_SESSION_CHANGED))
+
+    /** A `BreakGlassSessionChanged` from an envelope the consumer's inbox already read. */
+    fun breakGlassSessionChanged(envelope: Envelope): BreakGlassSessionChanged {
+        if (envelope.type != PlatformEventTypes.BREAK_GLASS_SESSION_CHANGED) {
+            throw ContractViolation("expected ${PlatformEventTypes.BREAK_GLASS_SESSION_CHANGED}, was ${envelope.type}")
+        }
+        val data = data(envelope)
+        return wrapped {
+            BreakGlassSessionChanged(
+                unlockRef = text(data, "unlockRef"),
+                tenant = TenantId.of(text(data, "tenantRef")),
+                status = text(data, "status"),
+                expiresAt = Instant.parse(text(data, "expiresAt")),
+                approvedBy = textArray(data, "approvedBy"),
+            )
+        }
+    }
+
+    private fun textArray(
+        node: JsonNode,
+        field: String,
+    ): List<String> {
+        val value = node.get(field)
+        if (value == null || !value.isArray) throw ContractViolation("$field must be an array of strings")
+        return (0 until value.size()).map { index ->
+            val element = value.get(index)
+            if (!element.isString) throw ContractViolation("$field must be an array of strings")
+            element.asString()
         }
     }
 
