@@ -5,7 +5,6 @@ import com.dynokore.gst.evidence.adapters.persistence.JooqArchiveVolumeLedger
 import com.dynokore.gst.evidence.adapters.persistence.JooqStoredContentBytes
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.DecisionTrace.Companion.DECISION_TRACE
 import com.dynokore.gst.evidence.application.archive.ArchiveVolumePublisher
-import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EmissionNotPermitted
@@ -66,22 +65,7 @@ class ArchiveVolumeDbTest {
     ): T = scope.bind(TenantId(tenant), actor) { runner.inTransaction { block() } }
 
     private fun catalogue(withType: Boolean): EventCatalogue =
-        EventCatalogue(
-            EvidenceEvents.entries +
-                if (withType) {
-                    listOf(
-                        CatalogueEntry(
-                            eventType,
-                            "gst.evidence.archive-volume-measured.v1",
-                            setOf("evidence-svc"),
-                            contentTopic = false,
-                            retainedWhileResolvable = false,
-                        ),
-                    )
-                } else {
-                    emptyList()
-                },
-        )
+        EventCatalogue(EvidenceEvents.entries.filter { withType || it.eventType != eventType })
 
     private fun Boundary.publisher(withType: Boolean = true) =
         ArchiveVolumePublisher(

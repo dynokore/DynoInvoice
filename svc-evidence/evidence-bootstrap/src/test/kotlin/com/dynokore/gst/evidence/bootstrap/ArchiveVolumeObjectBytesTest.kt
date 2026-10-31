@@ -18,7 +18,7 @@ import java.util.UUID
 /** `ObjectStoreBytes` over a fake [ObjectStore] (INV-Q-12679 A): the sum of one (tenant, entity) prefix only. */
 class ArchiveVolumeObjectBytesTest {
     private class Fake(
-        private val sizes: Map<String, Int> = emptyMap(),
+        sizes: Map<String, Int> = emptyMap(),
     ) : ObjectStore {
         val stored = sizes.mapValues { ByteArray(it.value) }.toMutableMap()
 
