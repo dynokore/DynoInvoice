@@ -11,11 +11,13 @@ import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.resolution.PackResolver
+import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
 import org.jooq.Schema
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -55,11 +57,14 @@ class RulesConfiguration {
     fun evaluateDocument(
         dsl: DSLContext,
         reader: PackContentsReader,
+        scopeVerdicts: ObjectProvider<ScopeVerdictPort>,
     ): EvaluateDocument =
         EvaluateDocument(
             PackResolver(ArmedPackLookup(dsl)),
             Evaluator(emptyList()),
             emptyList(),
             DocumentCoder(reader, reader, reader),
+            // no scope rules bean: no verdict is ever invented, the evaluation fails closed (ScopeRulesMissing)
+            scopeVerdicts.getIfAvailable(),
         )
 }
