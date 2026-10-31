@@ -357,6 +357,8 @@ contract-tests:
     - when: on_success
   script:
     - ./gradlew -p "$GRADLE_PROJECT_DIR" :contract-tests:check --stacktrace
+    # The nightly schedule (owner 2026-10-31 "A") re-runs the suite only; it never publishes pacts or verification results.
+    - if [ "$CI_PIPELINE_SOURCE" = schedule ]; then echo "gst-ci nightly schedule, pacts not published"; exit 0; fi
     - |
       if [ -z "${PACT_BROKER_BASE_URL:-}" ]; then
         echo "gst-ci: PACT_BROKER_BASE_URL is not set: the pacts cannot be published (INV-REQ-1225 b1, INV-Q-3305)"
@@ -600,7 +602,7 @@ maven-publish:
   rules:
     - if: '$MAVEN_PUBLISH != "true"'
       when: never
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE != "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
     - ci/bom-version.sh
     - |
@@ -731,7 +733,7 @@ consumer-check:
   rules:
     - if: '$MAVEN_PUBLISH != "true"'
       when: never
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE != "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
     - |
       test -n "${BOM_VERSION:-}" || { echo "gst-ci: maven-publish passed no BOM_VERSION (P20/P28)"; exit 1; }
