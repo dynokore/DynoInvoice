@@ -42,7 +42,7 @@ channel	accessExampleHappened	UNASSIGNED	open
 operation	provisionFirstAdministrator	INV-T-8226	open
 operation	provisionInstallationFirstAdministrator	INV-T-8226	open
 operation	acceptFirstAdministratorInvitation	INV-T-8227	open
-operation	reissueFirstAdministratorInvitation	UNASSIGNED	open
+operation	reissueFirstAdministratorInvitation	INV-T-8282	open
 operation	approveBreakGlassUnlock	INV-T-9314	open
 operation	decidePackApproval	INV-T-4936	open
 operation	decideOverrideRelease	INV-T-4936	open
