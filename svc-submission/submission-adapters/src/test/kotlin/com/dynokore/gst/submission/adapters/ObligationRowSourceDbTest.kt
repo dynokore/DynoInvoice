@@ -60,10 +60,11 @@ class ObligationRowSourceDbTest {
         val entity: String,
         val period: String,
         val kind: RowKind = RowKind.INVOICE,
-        val inScope: Boolean = true,
         val states: List<String> = emptyList(),
         val has: Boolean = false,
-    )
+    ) {
+        var inScope: Boolean = true
+    }
 
     @AfterEach
     fun close() = connection.close()
@@ -111,7 +112,7 @@ class ObligationRowSourceDbTest {
     ): List<Entry> {
         val (e1, e2, e3) = listOf("e1-$p", "e2-$p", "e3-$p")
         return listOf(
-            Entry("d01", e1, p, inScope = false, states = listOf("READY")),
+            Entry("d01", e1, p, states = listOf("READY")).apply { inScope = false },
             Entry("d02", e2, q, states = listOf("HELD")),
             Entry("d03", e1, p, states = listOf("ACKNOWLEDGED"), has = true),
             Entry("d04", e1, p, states = listOf("QUEUED")),
