@@ -205,3 +205,11 @@ replaySubmissionsByScope.200	operation_response	openapi.yaml	INV-REQ-563
 replaySubmissionsByScope.400	operation_response	openapi.yaml	INV-REQ-563
 replaySubmissionsByScope.403	operation_response	openapi.yaml	INV-REQ-563
 replaySubmissionsByScope.404	operation_response	openapi.yaml	INV-REQ-563
+# INV-T-13671 (INV-Q-6507 A). Rows for INV-REQ-371: ADJUSTMENT and NOT_A_BILL are members of documentFunction in TransactionStatus.
+TransactionStatus.documentFunction	schema_property	openapi.yaml	INV-REQ-371
+TransactionStatus.documentFunction.INVOICE	schema_enum_value	openapi.yaml	INV-REQ-371
+TransactionStatus.documentFunction.CREDIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+TransactionStatus.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+TransactionStatus.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+TransactionStatus.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+TransactionStatus.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371

@@ -165,3 +165,25 @@ ZERO_RATED	enum_value	schemas/canonical-version-created-payload.schema.json	INV-
 EXEMPT	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
 OUT_OF_SCOPE	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
 IMPORTS	enum_value	schemas/canonical-version-created-payload.schema.json	INV-Q-10703
+# INV-T-13671 (INV-Q-6507 A). Rows for INV-REQ-371: ADJUSTMENT and NOT_A_BILL are members of documentFunction in the three canonical schemas. upstreamFunction belongs to the rules contract; nettedCreditNoteKeys and gstNotAdjusted have rows above under INV-REQ-558 and INV-REQ-693.
+RecordDocumentRequest.documentFunction	schema_property	openapi.yaml	INV-REQ-371
+RecordDocumentRequest.documentFunction.INVOICE	schema_enum_value	openapi.yaml	INV-REQ-371
+RecordDocumentRequest.documentFunction.CREDIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+RecordDocumentRequest.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+RecordDocumentRequest.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+RecordDocumentRequest.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+RecordDocumentRequest.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentSummary.documentFunction	schema_property	openapi.yaml	INV-REQ-371
+DocumentSummary.documentFunction.INVOICE	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentSummary.documentFunction.CREDIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentSummary.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentSummary.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentSummary.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentSummary.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentVersion.documentFunction	schema_property	openapi.yaml	INV-REQ-371
+DocumentVersion.documentFunction.INVOICE	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentVersion.documentFunction.CREDIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentVersion.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentVersion.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentVersion.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
+DocumentVersion.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371

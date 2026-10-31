@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.13.1
+  version: 1.14.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -2375,7 +2375,7 @@ components:
           type: integer
         documentFunction:
           type: string
-          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
           x-extensible-enum: true
         transactionDate:
           type: string

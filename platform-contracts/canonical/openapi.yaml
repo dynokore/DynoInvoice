@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -546,7 +546,7 @@ components:
             (the identity of the source record and its revision) and are never the number.
         documentFunction:
           type: string
-          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
         transactionDate:
           type: string
           format: date
@@ -589,7 +589,7 @@ components:
           description: >-
             Justification for a credit note sent with neither preceding field (INV-REQ-561,
             INV-TERM-302).
-            Required, together with evidenceRef, when documentFunction is CREDIT_NOTE and neither
+            Required, together with evidenceRef, when documentFunction is CREDIT_NOTE or ADJUSTMENT and neither
             precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional (INV-REQ-561,
             INV-Q-1677, INV-Q-3450, INV-Q-3488); refused with ING-019. Enforced by canonical-svc, not by
             this schema (as for TransactionRequest).
@@ -599,7 +599,7 @@ components:
           description: >-
             Reference to the documentary evidence that GST was accounted for on the original supplies,
             for a blank-linked credit note (INV-REQ-561).
-            Required, together with precedingBlankJustification, when documentFunction is CREDIT_NOTE and neither
+            Required, together with precedingBlankJustification, when documentFunction is CREDIT_NOTE or ADJUSTMENT and neither
             precedingDocumentNumber nor precedingDocumentDate is present; otherwise optional (INV-REQ-561,
             INV-Q-1677, INV-Q-3450, INV-Q-3488); refused with ING-019. Enforced by canonical-svc, not by
             this schema (as for TransactionRequest).
@@ -617,7 +617,7 @@ components:
         gstNotAdjusted:
           type: boolean
           description: >-
-            The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639).
+            The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE or ADJUSTMENT; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639).
         direction:
           type: string
           enum: [SALE, PURCHASE]
@@ -814,7 +814,7 @@ components:
           type: integer
         documentFunction:
           type: string
-          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
           x-extensible-enum: true
         scopeVerdict:
           type: string
@@ -855,7 +855,7 @@ components:
           type: integer
         documentFunction:
           type: string
-          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT]
+          enum: [INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
           x-extensible-enum: true
         scopeVerdict:
           type: string
@@ -925,7 +925,7 @@ components:
         gstNotAdjusted:
           type: boolean
           description: >-
-            The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639).
+            The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE or ADJUSTMENT; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639).
         buyerInvoiceRefs:
           type: array
           minItems: 1

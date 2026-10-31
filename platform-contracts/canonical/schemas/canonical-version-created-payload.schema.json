@@ -583,7 +583,7 @@
         },
         "gstNotAdjusted": {
           "type": "object",
-          "description": "The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639). Optional. Wrapped with its FR-AE.72 classification tag.",
+          "description": "The caller's declaration that supplier and customer agreed not to adjust the GST charged on the original invoice and the conditions for doing so are met. Allowed only when documentFunction is CREDIT_NOTE or ADJUSTMENT; any other combination is a contract violation, refused with 400 and SRT-001. Absent means false. The System does not verify the conditions and never infers the marker (INV-REQ-693, INV-Q-6639). Optional. Wrapped with its FR-AE.72 classification tag.",
           "properties": {
             "value": {
               "type": "boolean",

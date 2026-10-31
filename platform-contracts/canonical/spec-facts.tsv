@@ -1,0 +1,7 @@
+# INV-T-13671 (INV-Q-6507 A, INV-AC-13666): the three canonical documentFunction enums carry the six values of INV-REQ-371; the read models stay extensible.
+file	pointer	relation	value	requirement
+openapi.yaml	/components/schemas/RecordDocumentRequest/properties/documentFunction/enum	equals	["INVOICE","CREDIT_NOTE","DEBIT_NOTE","BILL_FOR_PAYMENT","ADJUSTMENT","NOT_A_BILL"]	INV-REQ-371
+openapi.yaml	/components/schemas/DocumentSummary/properties/documentFunction/enum	equals	["INVOICE","CREDIT_NOTE","DEBIT_NOTE","BILL_FOR_PAYMENT","ADJUSTMENT","NOT_A_BILL"]	INV-REQ-371
+openapi.yaml	/components/schemas/DocumentSummary/properties/documentFunction/x-extensible-enum	equals	true	INV-REQ-371
+openapi.yaml	/components/schemas/DocumentVersion/properties/documentFunction/enum	equals	["INVOICE","CREDIT_NOTE","DEBIT_NOTE","BILL_FOR_PAYMENT","ADJUSTMENT","NOT_A_BILL"]	INV-REQ-371
+openapi.yaml	/components/schemas/DocumentVersion/properties/documentFunction/x-extensible-enum	equals	true	INV-REQ-371
