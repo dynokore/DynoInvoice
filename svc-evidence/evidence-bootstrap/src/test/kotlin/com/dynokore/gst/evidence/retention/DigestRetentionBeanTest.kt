@@ -9,7 +9,6 @@ import com.dynokore.gst.evidence.application.retention.MaxRetention
 import com.dynokore.gst.evidence.bootstrap.LocatorConsumerConfiguration
 import com.dynokore.gst.evidence.bootstrap.ReturnConsumerConfiguration
 import com.dynokore.platform.configresolver.OptionValueMaximum
-import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.evidencestore.ObjectKey
 import com.dynokore.platform.evidencestore.ObjectRef
 import com.dynokore.platform.evidencestore.ObjectStore
@@ -44,7 +43,6 @@ import com.dynokore.gst.evidence.domain.retention.RetentionTier.ACKNOWLEDGEMENTS
 import com.dynokore.gst.evidence.domain.retention.RetentionTier.SOURCE_DOCUMENT_REFERENCES as SOURCE
 import com.dynokore.gst.evidence.domain.retention.RetentionTier.STRUCTURED_SUBMISSIONS as STRUCTURED
 import com.dynokore.platform.outboxandqueue.EntityRef as EventEntityRef
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException as S3NoSuchKey
 
 /**
  * The digest consumer with the production [DigestMaxRetention] bean of the service context (INV-Q-12043), and the
@@ -69,7 +67,7 @@ class DigestRetentionBeanTest {
             return ObjectRef(key, retainUntil)
         }
 
-        override fun get(key: ObjectKey): ByteArray = throw S3NoSuchKey.builder().message("no such key").build()
+        override fun get(key: ObjectKey): ByteArray = error("no such key")
     }
 
     private class Log(
@@ -143,12 +141,7 @@ class DigestRetentionBeanTest {
             val objects = Objects()
             val consumer = s.consumer(tenant, s.bean(DigestMaxRetention::class.java), objects)
             consumer.pollOnce().applied shouldBe 1
-            val recordedAt =
-                s
-                    .digests(tenant)
-                    .single()
-                    .recordedAt!!
-                    .toInstant()
+            val recordedAt = s.digests(tenant).single().recordedAt!!.toInstant()
             objects.retention.values.single() shouldBe recordedAt.atZone(ZoneOffset.UTC).plusYears(10).toInstant()
         }
 
@@ -159,16 +152,7 @@ class DigestRetentionBeanTest {
         RetentionService.start(dir).use { s ->
             s.clearAll()
             val tenant = s.newTenant()
-            val never =
-                object : OptionValueMaximum {
-                    override fun maximum(
-                        key: VariationPointKey,
-                        option: String,
-                    ): BigDecimal? {
-                        Thread.sleep(Long.MAX_VALUE)
-                        return null
-                    }
-                }
+            val never = OptionValueMaximum { _, _ -> Thread.sleep(Long.MAX_VALUE).let { BigDecimal.ONE } }
             val platform = PlatformMaxRetention(MaxRetention(never, 5), s.bean(TenantScope::class.java))
             val bean = DigestMaxRetention { platform.readIndependently { it.period() } }
 
