@@ -1,4 +1,4 @@
--- V8__evidence_privacy_case.sql (INV-T-11705; INV-REQ-1403, INV-Q-6834 A, INV-Q-6836 A, INV-Q-6851 A, INV-Q-11688 A):
+-- V9__evidence_privacy_case.sql (INV-T-11705; INV-REQ-1403, INV-Q-6834 A, INV-Q-6836 A, INV-Q-6851 A, INV-Q-11688 A):
 -- the privacy facts of a case, on the case_register of V4. All nine columns are nullable; the table check ties them to
 -- the kind of the case. Policy, forced row-level security and the V4 grants stay.
 alter table evidence.case_register
