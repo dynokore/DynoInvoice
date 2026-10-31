@@ -38,7 +38,7 @@ class ConfigResolverPolicyValuesTest {
         lead: Int?,
     ) = SelectedOption(
         "SHORTER",
-        "{\"responseDays\":$days" + (lead?.let { ",\"noticeLeadDays\":$it" } ?: "") + "}",
+        "{\"responseDays\":$days" + lead?.let { ",\"noticeLeadDays\":$it" }.orEmpty() + "}",
     )
 
     @Test
