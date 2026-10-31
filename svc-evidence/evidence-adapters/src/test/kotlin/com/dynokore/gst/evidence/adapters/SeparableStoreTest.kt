@@ -186,7 +186,14 @@ class SeparableStoreTest {
             val after =
                 bound(url) { connection ->
                     val dsl = DSL.using(connection, SQLDialect.POSTGRES)
-                    written.associate { table -> table.name to dsl.selectFrom(table).fetch().toList() }
+                    // a table the runtime login may not select (job_retention) is read by the owner, as it is written
+                    EvidenceDb.superuserOf(url).use { superuser ->
+                        val owner = DSL.using(superuser, SQLDialect.POSTGRES)
+                        written.associate { table ->
+                            table.name to
+                                (if (runtimeMaySelect(dsl, table)) dsl else owner).selectFrom(table).fetch().toList()
+                        }
+                    }
                 }
             written.forEach { table ->
                 val rows = after.getValue(table.name)
@@ -210,6 +217,16 @@ class SeparableStoreTest {
                 }
             }
         }
+
+    private fun runtimeMaySelect(
+        dsl: org.jooq.DSLContext,
+        table: Table<*>,
+    ): Boolean =
+        dsl.fetchValue(
+            "select has_table_privilege(?, ?, 'SELECT')",
+            EvidenceDb.RUNTIME,
+            "${EvidenceDb.SCHEMA}.${table.name}",
+        ) as Boolean
 
     private fun runtimeMayInsert(
         dsl: org.jooq.DSLContext,

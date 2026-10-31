@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test
  * changes the generated text, or one changed character in the file, fails here until the file is regenerated.
  */
 class GeneratedJobMigrationTest {
-    private val migration = "V10__evidence_job_tables.sql"
+    private val migration = "V11__evidence_job_tables.sql"
 
     private fun text(): String =
         checkNotNull(javaClass.getResource("/db/migration/$migration")) { "no migration $migration" }.readText()
