@@ -216,6 +216,10 @@ invoice-docs-checks:
   # - x-timeout-check (INV-T-3431, INV-Q-3429 A, INV-REQ-1232 b4, INV-REQ-1204): every operation's x-timeout is a
   #   figure of its edge's INV-NOTE-3 section 36.6 row (sync-edges.yaml resilience_policy on main). Public operations,
   #   edges without a row and rows without a figure are listed as unchecked.
+  # - model-subscribers-check (INV-T-13621, INV-Q-9000 A, INV-AC-13637): every consumer and producer of invoice-docs
+  #   model/architecture/events.yaml is a subscriber or producer of its topic in event-log/topics.yaml, the replica
+  #   feeds (feeds_runtime_replicas true) are subscribed by every service but their producers, and the exemptions
+  #   must not be stale.
   # - lifecycle-states-drift-check (INV-T-2859 T15): submission/schemas/lifecycle-states.schema.json is regenerated
   #   from invoice-docs main model/architecture/lifecycle-states.yaml and must equal the committed file.
   # - catalogue-drift-check (INV-T-2851 T7): the data of the vendored catalogue/errors/error-codes.yaml (from
@@ -241,6 +245,7 @@ invoice-docs-checks:
     - gst_check principal-also-check python3 spectral/check-principal-also.py .
     - gst_check caller-auth-inv-ac-8259 python3 spectral/check-x-caller-auth.py .
     - gst_check x-timeout-check python3 spectral/check-timeouts.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
+    - gst_check model-subscribers-check python3 event-log/check-model-subscribers.py /tmp/invoice-docs/model/architecture .
     - >
       gst_check lifecycle-states-drift-check python3 submission/schemas/generate-lifecycle-states.py
       /tmp/invoice-docs/model/architecture/lifecycle-states.yaml

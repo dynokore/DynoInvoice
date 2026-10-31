@@ -44,3 +44,15 @@ diffs it.
   it (INV-REQ-1210, INV-Q-6281). A message declaring both this marker and
   `x-invoice-content: true`, and a replay topic whose types make both true,
   fail the generator. The purge itself is outside this contract.
+
+## Model check (INV-T-13621, INV-Q-9000 A)
+
+`check-model-subscribers.py <model-architecture-dir> <contracts-root>` (job
+`invoice-docs-checks`, run on merge requests and on main) compares invoice-docs
+`events.yaml` and `services.yaml` with `topics.yaml`: every consumer and
+producer of a model event must be a subscriber or producer of its topic, and
+every event with `feeds_runtime_replicas: true` must be subscribed by every
+service except `console-web` and its producers. Order of work: the check
+accepts a contract that is ahead of the model and rejects a model that is
+ahead of the contract, so for a new consumer or producer the contract task
+merges first and the model task second.
