@@ -55,22 +55,26 @@ class JobRuntimeConfiguration {
 
 /**
  * Fires `evidence-chain-verification` at its declared schedule. The cron and the zone are read from
- * [ChainVerificationJob.DEFINITION], not copied as text: the build refuses a string attribute on @Scheduled (SpEL
- * templates included, INV-Q-4690), so the method wakes once a minute and [fire] runs the job only when a tick of the
- * definition's cron, in the definition's zone, lies in the minute that ends at the clock. A clock off every tick makes
- * no run.
+ * [ChainVerificationJob.DEFINITION], not copied as text. `TimeZone.getTimeZone(ZoneId)` gives the id Spring parses
+ * (`ZoneOffset.UTC` prints as `Z`, which Spring refuses). [fire] also checks the clock against the same schedule, so a
+ * firing whose clock is not on a tick of the definition's zone makes no run.
  */
 class ChainVerificationSchedule(
     private val runtime: ObjectProvider<JobRuntime>,
     private val clock: Clock,
 ) {
-    @Scheduled(fixedRate = POLL_MILLIS)
+    @Scheduled(
+        cron = "#{T(com.dynokore.gst.evidence.application.integrity.ChainVerificationJob).DEFINITION.schedule.cron}",
+        zone =
+            "#{T(java.util.TimeZone).getTimeZone(" +
+                "T(com.dynokore.gst.evidence.application.integrity.ChainVerificationJob).DEFINITION.schedule.zone).ID}",
+    )
     fun fire() {
         val now = clock.instant()
         if (onTick(now)) runtime.ifAvailable { it.fire(ChainVerificationJob.NAME, now) }
     }
 
-    /** True when a tick of the definition's cron lies in the minute that ends at [now], in the definition's zone. */
+    /** True when a tick of the definition's schedule lies in the minute that ends at [now], in the definition's zone. */
     private fun onTick(now: Instant): Boolean {
         val schedule = ChainVerificationJob.DEFINITION.schedule
         val tick = CronExpression.parse(schedule.cron).next(now.minus(WINDOW).atZone(schedule.zone))
@@ -78,7 +82,6 @@ class ChainVerificationSchedule(
     }
 
     private companion object {
-        const val POLL_MILLIS = 60_000L
-        val WINDOW: Duration = Duration.ofMillis(POLL_MILLIS)
+        val WINDOW: Duration = Duration.ofMinutes(1)
     }
 }

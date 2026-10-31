@@ -2,7 +2,6 @@ package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqAppliedStore
-import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.JobRun.Companion.JOB_RUN
 import com.dynokore.gst.evidence.application.chain.AppliedRecord
 import com.dynokore.gst.evidence.application.integrity.ChainVerificationJob
 import com.dynokore.gst.evidence.domain.chain.ChainKey
@@ -32,10 +31,9 @@ import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.context.support.GenericApplicationContext
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor
-import org.springframework.scheduling.config.FixedRateTask
+import org.springframework.scheduling.config.CronTask
 import java.nio.file.Path
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -145,10 +143,10 @@ class JobRuntimeCompositionTest {
     ) {
         EvidenceContext.offline(dir).run { context ->
             val tasks = context.getBean(ScheduledAnnotationBeanPostProcessor::class.java).scheduledTasks
-            // the one @Scheduled method is a one-minute poll; the cron it acts on is the registered definition's
-            tasks.mapNotNull { it.task as? FixedRateTask }.single().intervalDuration shouldBe Duration.ofMinutes(1)
+            val cron = tasks.mapNotNull { it.task as? CronTask }.single()
             val registered = context.getBean(JobRuntime::class.java).registered().single()
-            registered.schedule.cron shouldBe "0 0 1 * * *"
+            cron.expression shouldBe registered.schedule.cron
+            cron.expression shouldBe "0 0 1 * * *"
             context.getBeansOfType(ScheduledAnnotationBeanPostProcessor::class.java).size shouldBe 1
         }
     }
@@ -169,10 +167,10 @@ class JobRuntimeCompositionTest {
                 scope.bind(tenant, "svc:evidence-svc") {
                     runner.inTransaction {
                         dsl
-                            .select(JOB_RUN.ENTITY_REF)
-                            .from(JOB_RUN)
-                            .where(JOB_RUN.JOB.eq(ChainVerificationJob.NAME))
-                            .fetch(JOB_RUN.ENTITY_REF)
+                            .fetch(
+                                "select entity_ref from evidence.job_run where job = ?",
+                                ChainVerificationJob.NAME,
+                            ).map { it.get(0, String::class.java) }
                     }
                 }
 
