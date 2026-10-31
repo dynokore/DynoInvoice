@@ -58,7 +58,10 @@ open class EvaluationController(
                 counterpartyApprovedSchemes = request.counterpartySchemeData?.approvedSchemes?.toSet(),
             )
         return transactions.inTransaction {
-            val result = evaluate.code(CodeDocumentCommand(tenant, date, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input))))
+            val result =
+                evaluate.code(
+                    CodeDocumentCommand(tenant, date, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input))),
+                )
             val coding = codingOf(result, tenant, date, input)
             val verdict = evaluate.scopeVerdictOf(tenant, date, coding)
             answer(verdict, coding, result, versionsApplied(tenant, date))
@@ -73,14 +76,21 @@ open class EvaluationController(
         input: LineInput,
     ): LineCoding =
         when (result) {
-            is DocumentCodingResult.Refused -> LineCoding.Refused(result.code)
-            is DocumentCodingResult.LinesRefused -> LineCoding.Refused(result.refusals.getValue(LINE_ID))
-            is DocumentCodingResult.Coded ->
+            is DocumentCodingResult.Refused -> {
+                LineCoding.Refused(result.code)
+            }
+
+            is DocumentCodingResult.LinesRefused -> {
+                LineCoding.Refused(result.refusals.getValue(LINE_ID))
+            }
+
+            is DocumentCodingResult.Coded -> {
                 LineCoder(
                     checkNotNull(packs.mappingAt(tenant, date)),
                     checkNotNull(packs.catalogueAt(tenant, date)),
                     checkNotNull(packs.scenarioAt(tenant, date)),
                 ).code(input)
+            }
         }
 
     private fun versionsApplied(

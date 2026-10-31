@@ -74,7 +74,7 @@ private object BoundaryPacks {
         iras: String,
         tag: String? = null,
     ) = """{"entryId":"$id","internalTaxCode":"$internal","irasCode":"$iras","sourceClass":"PRIMARY"""" +
-        (tag?.let { ""","schemeTag":"$it"""" } ?: "") + "}"
+        tag?.let { ""","schemeTag":"$it"""" }.orEmpty() + "}"
 
     private fun mapping(change: String) =
         "{\"entries\":[" +

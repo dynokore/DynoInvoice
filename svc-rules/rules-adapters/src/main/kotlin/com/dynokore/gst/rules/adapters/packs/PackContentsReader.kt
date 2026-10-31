@@ -134,6 +134,7 @@ internal class ContentsNode(
         oneOf: Set<String>? = null,
     ): String? = member(name)?.let { checkedText(name, it, pattern, min, max, oneOf) }
 
+    @Suppress("LongParameterList") // the one member check shared by the required and optional readers
     fun checkedText(
         name: String,
         value: JsonNode,
