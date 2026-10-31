@@ -3,6 +3,7 @@ package com.dynokore.gst.access.application.breakglass
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.idp.IdentityProviderAvailability
 import com.dynokore.gst.access.domain.breakglass.BreakGlassAction
 import com.dynokore.gst.access.domain.breakglass.BreakGlassPairing
 import com.dynokore.gst.access.domain.breakglass.BreakGlassRules
@@ -90,6 +91,7 @@ sealed interface UnlockBreakGlassOutcome {
  * does not hold the roles of the VP-08 pairing; otherwise opens a session whose length is the VP-08 value (never the
  * caller's), raises ACC-002 and writes the audit entry in the same transaction.
  */
+@Suppress("LongParameterList") // one collaborator per port; the availability is read from INV-T-9188 on
 class UnlockBreakGlassUseCase(
     private val tx: TransactionRunner,
     private val sessions: BreakGlassSessions,
@@ -97,6 +99,7 @@ class UnlockBreakGlassUseCase(
     private val settings: BreakGlassSettings,
     private val effects: BreakGlassEffects,
     private val clock: Clock,
+    @Suppress("UnusedPrivateProperty") private val availability: IdentityProviderAvailability,
 ) {
     fun handle(
         actor: String,

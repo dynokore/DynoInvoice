@@ -15,6 +15,7 @@ import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.idp.DirectoryGroupMembers
+import com.dynokore.gst.access.application.idp.IdentityProviderAvailability
 import com.dynokore.gst.access.application.idp.IdpGroupCollaborators
 import com.dynokore.gst.access.application.idp.IdpGroupMappings
 import com.dynokore.gst.access.application.idp.IdpProvisioningEffects
@@ -128,13 +129,15 @@ class BreakGlassUseCases {
     ) = BreakGlassEffects(alerts, audit)
 
     @Bean
+    @Suppress("LongParameterList") // one collaborator per port of the use case, as its constructor
     fun unlockBreakGlassUseCase(
         dependencies: GrantDependencies,
         sessions: BreakGlassSessions,
         settings: BreakGlassSettings,
         effects: BreakGlassEffects,
         clock: Clock,
-    ) = UnlockBreakGlassUseCase(dependencies.tx, sessions, dependencies.grants, settings, effects, clock)
+        availability: IdentityProviderAvailability,
+    ) = UnlockBreakGlassUseCase(dependencies.tx, sessions, dependencies.grants, settings, effects, clock, availability)
 
     @Bean
     fun recordBreakGlassActionUseCase(

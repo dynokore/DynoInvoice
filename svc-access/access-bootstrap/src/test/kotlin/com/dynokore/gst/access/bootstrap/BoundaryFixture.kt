@@ -3,6 +3,8 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.consent.ScopeItemRequirements
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.idp.IdentityProviderAvailability
+import com.dynokore.gst.access.application.idp.IdentityProviderProbe
 import com.dynokore.gst.access.application.token.AccessTokenClaims
 import com.dynokore.gst.access.application.token.AccessTokenSigner
 import com.dynokore.gst.access.application.token.SigningSession
@@ -161,6 +163,10 @@ class BoundaryTestConfiguration {
 
     @Bean
     fun capturedEvents(): CapturedEvents = CapturedEvents()
+
+    /** The break-glass tests unlock with the identity provider unavailable (INV-T-11575); see [UnavailableIdp]. */
+    @Bean
+    fun identityProviderAvailability(): IdentityProviderAvailability = UnavailableIdp.build()
 
     @Bean
     fun signerCalls(): SignerCalls = SignerCalls()
@@ -566,4 +572,11 @@ class BoundaryServiceCallerTest {
         withCaller { caller, _ -> caller.value = "ingestion-svc2" }
         withCaller { caller, _ -> assertThat(caller.current()).isEqualTo("ingestion-svc") }
     }
+}
+
+/** A test-only availability that answers unavailable: its one probe fails and its failure limit is 1. */
+object UnavailableIdp {
+    fun build(): IdentityProviderAvailability =
+        IdentityProviderAvailability("http://127.0.0.1:1/realms/boundary-test", IdentityProviderProbe { false }, 1)
+            .also { it.probeOnce() }
 }

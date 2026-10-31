@@ -1,7 +1,9 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.idp.HttpIdentityProviderProbe
 import com.dynokore.gst.access.adapters.idp.KeycloakDirectoryGroupMembers
 import com.dynokore.gst.access.application.idp.DirectoryGroupMembers
+import com.dynokore.gst.access.application.idp.IdentityProviderAvailability
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.binding.OidcIssuer
 import com.dynokore.platform.serviceruntime.binding.SecretRef
@@ -67,6 +69,7 @@ data class IdpGroupSyncProperties(
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(
     IdentityProviderProperties::class,
+    IdentityProviderAvailabilityProperties::class,
     DirectoryProperties::class,
     IdpGroupSyncProperties::class,
 )
@@ -74,6 +77,18 @@ class IdentityAndSync {
     @Bean
     fun identityProvider(properties: IdentityProviderProperties): IdentityProvider =
         IdentityProvider { OidcIssuer(properties.issuerUri, properties.jwkSetUri) }
+
+    /** One availability per installation (INV-Q-11557 A); a test context may supply its own. */
+    @Bean
+    @ConditionalOnMissingBean
+    fun identityProviderAvailability(
+        properties: IdentityProviderProperties,
+        availability: IdentityProviderAvailabilityProperties,
+    ) = IdentityProviderAvailability(
+        properties.issuerUri,
+        HttpIdentityProviderProbe(properties.issuerUri, properties.jwkSetUri, availability.probeTimeout),
+        availability.failureCount,
+    )
 
     /** The Keycloak reader of directory groups; the secret is read through SecretStore at every token request. */
     @Bean
