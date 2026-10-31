@@ -86,7 +86,8 @@ class EventFedReplica<K : Any, V : Any>(
     private val versionOf: ((V) -> Long)? = null,
     private val partitionOf: ((K) -> Any)? = null,
 ) {
-    private val store = PartitionedStore<K, V>(partitionOf)
+    /** The map behind this replica: the versioned and counted reads of the role book go through it. */
+    internal val store = PartitionedStore<K, V>(partitionOf)
 
     /** Entries examined so far by [heldIn], [tombstoneIn], [heldWhere] and [tombstoneIf] (test-visible). */
     val visitCount: Long get() = store.visitCount
@@ -128,10 +129,11 @@ class EventFedReplica<K : Any, V : Any>(
     fun tombstoneIn(partition: Any) = store.tombstone(partition) { true }
 
     /** Every value held (removals left out) whose key matches [predicate], with no fallback and no lag check. */
-    fun heldWhere(predicate: (K) -> Boolean): Map<K, V> = store.held(null, predicate)
+    fun heldWhere(predicate: (K) -> Boolean): Map<K, V> =
+        store.heldEntries(null, predicate).mapValues { it.value.value }
 
     /** Every value held in [partition] only (removals left out); other partitions are not visited. */
-    fun heldIn(partition: Any): Map<K, V> = store.held(partition) { true }
+    fun heldIn(partition: Any): Map<K, V> = store.heldEntries(partition) { true }.mapValues { it.value.value }
 
     /** What is held for [key] with no fallback and no lag check; null for a miss or a held removal. */
     fun peek(key: K): V? = store.get(key)?.value

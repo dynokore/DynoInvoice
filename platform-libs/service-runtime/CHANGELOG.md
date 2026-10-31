@@ -6,6 +6,9 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.30.0] - 2026-11-01
+### Added
+- Role grants in the authority replica (INV-T-9232; INV-Q-8972 A, INV-REQ-864): `GrantScope`, `RoleGrantState`, `RoleGrant`, `RoleGrantKey`, `AuthorityRecord.RoleGrantRecord` and the store `AuthorityReplica.roleGrants`; the holder queries `holdersAt` and `holdersOn` over a (tenant, role) index; an internal `rolesAt` for the decision (INV-Q-10107 C). The structure replica reaches `AuthorityReplica` through an internal primary constructor with no default (INV-Q-13889 A); the public constructor is unchanged and delegates with null. The optional `service-runtime.replica.authority-tombstone-ttl` evicts role-grant tombstones; it must exceed the event-log retention read from the `Retention` bean. `decide` is unchanged.
 ## [10.29.0] - 2026-11-01
 ### Added
 - Restricted break-glass mode (INV-T-9310; INV-Q-9119 A, INV-Q-9298 B, INV-Q-9300 A; INV-REQ-896, INV-AC-9303, INV-AC-9304): `BreakGlassSessionReplica` (`AuthorityReplica.breakGlassSessions`) holds the sessions of `BreakGlassSessionChanged` (a sealed session is never reopened, an unknown status is ignored and counted in `break_glass_event_ignored_total`, expiry is checked locally); `BreakGlassSessionView` (defaults to the replica, a service may replace it) and `BreakGlassActionReporter` ports; `PlatformEventReader.breakGlassSessionChanged` and `PlatformEventTypes.BREAK_GLASS_SESSION_CHANGED`; `BreakGlassRestrictionFilter` (order -47) reads `META-INF/gst/break-glass-actions.tsv` and `META-INF/gst/break-glass-lifecycle-operations.tsv`: an approver of an open session is refused 403 on an unmarked operation (`break_glass_refused_total`), a marked one is reported once before it runs (500 `SRT-010` if the report fails), a lifecycle operation passes; the filter never grants.

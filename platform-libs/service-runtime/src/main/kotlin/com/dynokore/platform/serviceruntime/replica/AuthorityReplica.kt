@@ -289,6 +289,16 @@ sealed interface AuthorityRecord {
         }
     }
 
+    /**
+     * The state of one role grant of a principal, named by [grantRef] (INV-Q-8972 A): ACTIVE upserts it, REMOVED and
+     * UNKNOWN remove it.
+     */
+    data class RoleGrantRecord(
+        val grantRef: String,
+        val state: RoleGrantState,
+        val grant: RoleGrant,
+    ) : AuthorityRecord
+
     /** A principal deleted or revoked: voids every grant record of the principal with a lower version. */
     data class PrincipalRecord(
         val state: PrincipalState,
@@ -506,15 +516,52 @@ data class PrincipalRevocation(
  * carries the whole key set and replaces the one held. Holding no valid key refuses every operator-session token.
  */
 @Suppress("TooManyFunctions") // one decision per scope: decide, decideTenant; INV-Q-11688 A (CS-50)
-class AuthorityReplica(
+class AuthorityReplica internal constructor(
     private val clock: Clock,
-    val lagBound: Duration = DEFAULT_LAG_BOUND,
-    private val fallback: ReplicaFallback<AuthorizationRequest, AuthorityVerdict>? = null,
-    private val degradedAllow: DegradedAllowTable = DegradedAllowTable.EMPTY,
-    private val entityOfTenant: (TenantId, String) -> Boolean = { _, _ -> false },
-    private val observer: DegradedAllowObserver = DegradedAllowObserver { },
-    breakGlassCounter: BreakGlassCounter = BreakGlassCounter.NONE,
+    val lagBound: Duration,
+    private val fallback: ReplicaFallback<AuthorizationRequest, AuthorityVerdict>?,
+    private val degradedAllow: DegradedAllowTable,
+    private val entityOfTenant: (TenantId, String) -> Boolean,
+    private val observer: DegradedAllowObserver,
+    breakGlassCounter: BreakGlassCounter,
+    internal val tombstoneTtl: Duration?,
+    internal val eventLogRetention: Duration?,
+    structure: StructureReplica?,
 ) : ReplicaFeedSink<AuthorityChanged> {
+    constructor(
+        clock: Clock,
+        lagBound: Duration = DEFAULT_LAG_BOUND,
+        fallback: ReplicaFallback<AuthorizationRequest, AuthorityVerdict>? = null,
+        degradedAllow: DegradedAllowTable = DegradedAllowTable.EMPTY,
+        entityOfTenant: (TenantId, String) -> Boolean = { _, _ -> false },
+        observer: DegradedAllowObserver = DegradedAllowObserver { },
+        breakGlassCounter: BreakGlassCounter = BreakGlassCounter.NONE,
+        tombstoneTtl: Duration? = null,
+        eventLogRetention: Duration? = null,
+    ) : this(
+        clock,
+        lagBound,
+        fallback,
+        degradedAllow,
+        entityOfTenant,
+        observer,
+        breakGlassCounter,
+        tombstoneTtl,
+        eventLogRetention,
+        null,
+    )
+
+    init {
+        require((tombstoneTtl == null) == (eventLogRetention == null)) {
+            "tombstoneTtl and eventLogRetention are set together or not at all, " +
+                "was tombstoneTtl=$tombstoneTtl, eventLogRetention=$eventLogRetention"
+        }
+        require(tombstoneTtl == null || eventLogRetention == null || tombstoneTtl > eventLogRetention) {
+            "tombstoneTtl must be strictly greater than eventLogRetention, " +
+                "was tombstoneTtl=$tombstoneTtl, eventLogRetention=$eventLogRetention"
+        }
+    }
+
     /** One feed, so one lag for all three record kinds. */
     val tracker = ReplicaLagTracker(clock)
     val grants =
@@ -534,6 +581,11 @@ class AuthorityReplica(
         )
     val principals =
         EventFedReplica<PrincipalKey, PrincipalRevocation>("authority-principal", clock, lagBound, tracker = tracker)
+
+    private val roleBook = RoleBook(clock, lagBound, tracker, consents, principals, structure, tombstoneTtl)
+
+    /** The role grants per (tenant, principal, grantRef), fed beside [grants] (INV-Q-8972 A). */
+    val roleGrants: EventFedReplica<RoleGrantKey, RoleGrant> get() = roleBook.grants
 
     /** Both key sets, fed by one `OperatorSessionKeysChanged` (INV-Q-4162, INV-Q-4171, INV-Q-9028 A). */
     val keySets = AuthorityKeySets(clock)
@@ -609,6 +661,36 @@ class AuthorityReplica(
             }
         }
     }
+
+    /**
+     * The roles [principalId] holds in [tenant] at [level] (INV-Q-8972 A, INV-Q-8913 A). Internal: read by the
+     * decision and by tests, never a public role answer (INV-Q-10107 C). [scopeRef] is not read; the level and
+     * [entityRef] decide. Beyond the lag bound it throws and reads nothing.
+     */
+    @Suppress("UnusedParameter")
+    internal fun rolesAt(
+        tenant: TenantId,
+        principalId: String,
+        level: com.dynokore.platform.configresolver.ScopeLevel,
+        scopeRef: String?,
+        entityRef: String?,
+        deadline: Deadline,
+    ): Set<String> = roleBook.rolesAt(tenant, principalId, level, entityRef, deadline)
+
+    /** The principals holding [role] at TENANT or INSTALLATION scope in [tenant]; any other [level] holds none. */
+    fun holdersAt(
+        tenant: TenantId,
+        role: String,
+        level: com.dynokore.platform.configresolver.ScopeLevel,
+    ): Set<String> = roleBook.holdersAt(tenant, role, level)
+
+    /** The principals holding [role] on [entityRef] of [tenant]: grants that cover that entity. */
+    fun holdersOn(
+        tenant: TenantId,
+        role: String,
+        entityRef: String,
+        deadline: Deadline,
+    ): Set<String> = roleBook.holdersOn(tenant, role, entityRef, deadline)
 
     private fun decideLocally(request: AuthorizationRequest): AuthorityDecision {
         val held = grants.peek(AuthorityKey(request.tenant, request.principal.id, request.entityRef))
@@ -707,6 +789,7 @@ class AuthorityReplica(
     }
 
     override fun accept(event: AuthorityChanged) {
+        roleBook.tombstones.evictExpired()
         val version = event.authorityVersion
         when (val record = event.record) {
             is AuthorityRecord.GrantRecord -> {
@@ -716,6 +799,10 @@ class AuthorityReplica(
                 } else {
                     grants.apply(ReplicaChange.Upsert(key, GrantState(record.grants, version), version))
                 }
+            }
+
+            is AuthorityRecord.RoleGrantRecord -> {
+                roleBook.accept(event.tenant, event.principalId, version, record)
             }
 
             is AuthorityRecord.ConsentRecord -> {
@@ -729,6 +816,7 @@ class AuthorityReplica(
             null -> {
                 revoke(event, null)
                 grants.tombstoneIn(event.tenant to event.principalId)
+                roleBook.tombstone(event.tenant, event.principalId)
             }
         }
     }

@@ -9,6 +9,12 @@ internal data class Entry<V>(
     val version: Long,
 )
 
+/** A value held and the source version it is held at. */
+internal data class Held<V>(
+    val value: V,
+    val version: Long,
+)
+
 /**
  * The map behind [EventFedReplica]: one map per partition; without [partitionOf] every key sits in the one
  * flat partition. A scan with a null partition reads every entry; with a partition it reads only that
@@ -39,18 +45,43 @@ internal class PartitionedStore<K : Any, V : Any>(
 
     fun size(): Int = partitions.values.sumOf { map -> map.values.count { it.value != null } }
 
-    fun held(
+    /** Every value held in [partition] (every partition when null) whose key matches, with its version. */
+    fun heldEntries(
         partition: Any?,
         predicate: (K) -> Boolean,
-    ): Map<K, V> =
+    ): Map<K, Held<V>> =
         buildMap {
             scope(partition).forEach { map ->
                 map.forEach { (key, entry) ->
                     visits.incrementAndGet()
-                    if (predicate(key)) entry.value?.let { put(key, it) }
+                    if (predicate(key)) entry.value?.let { put(key, Held(it, entry.version)) }
                 }
             }
         }
+
+    /** The entry of [key], counted as one examined entry (a read through a secondary index). */
+    fun examine(key: K): Held<V>? {
+        visits.incrementAndGet()
+        return get(key)?.let { entry -> entry.value?.let { Held(it, entry.version) } }
+    }
+
+    /** The removals still held (test-visible). */
+    fun tombstoneCount(): Int = partitions.values.sumOf { map -> map.values.count { it.value == null } }
+
+    /** Drops the tombstone of [key] for good; a held value is never dropped. Returns whether one was dropped. */
+    fun evictTombstone(key: K): Boolean {
+        val map = partitions[partitionKey(key)] ?: return false
+        var dropped = false
+        map.computeIfPresent(key) { _, old ->
+            if (old.value == null) {
+                dropped = true
+                null
+            } else {
+                old
+            }
+        }
+        return dropped
+    }
 
     /** Turns every matching key into a removal that keeps its held version. */
     fun tombstone(

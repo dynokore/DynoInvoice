@@ -171,6 +171,7 @@ class TenantDecisionTest {
             AuthorityReplica::class.java.methods
                 .filter { Modifier.isPublic(it.modifiers) && !it.isSynthetic }
                 .filter { it.declaringClass == AuthorityReplica::class.java }
+                .filterNot { '$' in it.name } // Kotlin `internal`: JVM name has the module (INV-T-9232)
                 .map { it.name.substringBefore('-') } // a TenantId parameter mangles the JVM name
                 .toSortedSet()
         names shouldBe
@@ -186,8 +187,11 @@ class TenantDecisionTest {
                 "getMachineAccessKeys",
                 "getOperatorSessionKeys",
                 "getPrincipals",
+                "getRoleGrants", // INV-T-9232: the role-grant store
                 "getTracker",
                 "heldEntities",
+                "holdersAt", // INV-T-9232
+                "holdersOn", // INV-T-9232
                 "lag",
                 "observeHead",
                 "onDisconnected",

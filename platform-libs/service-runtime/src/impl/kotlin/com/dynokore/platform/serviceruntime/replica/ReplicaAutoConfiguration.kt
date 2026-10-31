@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.replica
 
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.Retention
 import com.dynokore.platform.serviceruntime.events.PlatformEventTypes
 import com.dynokore.platform.serviceruntime.identity.EntityRefScopeFilter
 import com.dynokore.platform.serviceruntime.resilience.Deadline
@@ -8,6 +9,8 @@ import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantId
 import io.micrometer.core.instrument.MeterRegistry
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -33,6 +36,11 @@ data class ReplicaProperties(
      * replica's lag stays unknown until that topic has reported its snapshot (INV-REQ-1200 sync gate).
      */
     val policyTopics: Set<String> = setOf(PlatformEventTypes.POLICY_CHANGED_TOPIC),
+    /**
+     * How long the authority replica keeps a role-grant tombstone; it must exceed the event-log retention of the
+     * installation (INV-Q-8972 A). Unset: tombstones are not evicted. No default exists (INV-Q-13768 A).
+     */
+    val authorityTombstoneTtl: Duration? = null,
 )
 
 const val TENANCY_EDGE = "tenancy-svc"
@@ -73,8 +81,18 @@ class ReplicaAutoConfiguration {
         structure: ObjectProvider<StructureReplica>,
         meters: ObjectProvider<MeterRegistry>,
         resources: ResourceLoader,
-    ): AuthorityReplica =
-        AuthorityReplica(
+        retention: ObjectProvider<Retention>,
+    ): AuthorityReplica {
+        val ttl = properties.authorityTombstoneTtl
+        val eventLogRetention = ttl?.let { eventLogRetentionOf(retention) }
+        if (ttl ==
+            null
+        ) {
+            log.warn(
+                "service-runtime.replica.authority-tombstone-ttl is not set: authority tombstones are not evicted",
+            )
+        }
+        return AuthorityReplica(
             clock,
             properties.authorityLagBound,
             fallback.ifAvailable?.guardedBy(registry.forEdge(ACCESS_EDGE)),
@@ -84,7 +102,17 @@ class ReplicaAutoConfiguration {
             { tenant, entity -> isEntityOf(structure.ifAvailable, clock, tenant, entity) },
             MicrometerDegradedAllowObserver(meters.ifAvailable),
             MicrometerBreakGlassCounter(meters.ifAvailable),
+            tombstoneTtl = ttl,
+            eventLogRetention = eventLogRetention,
+            structure = structure.ifAvailable,
         )
+    }
+
+    private fun eventLogRetentionOf(retention: ObjectProvider<Retention>): Duration =
+        checkNotNull(retention.ifAvailable?.eventLogRetention) {
+            "service-runtime.replica.authority-tombstone-ttl is set but there is no Retention bean " +
+                "to take the event-log retention from"
+        }
 
     /** The session view of the restricted break-glass mode; a service may replace it (access-svc does, INV-Q-9298 B). */
     @Bean
@@ -108,6 +136,7 @@ class ReplicaAutoConfiguration {
     }
 
     private companion object {
+        val log: Logger = LoggerFactory.getLogger(ReplicaAutoConfiguration::class.java)
         val STRUCTURE_BUDGET: Duration = Duration.ofSeconds(2)
     }
 }
