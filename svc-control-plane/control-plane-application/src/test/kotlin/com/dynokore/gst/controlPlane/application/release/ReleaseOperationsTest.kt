@@ -107,7 +107,7 @@ class ReleaseOperationsTest {
     }
 
     @Test
-    fun `publishTrain with no gate evidence bound is refused and a caller without the publish permission is not permitted`() {
+    fun `publishTrain with no gate evidence bound is refused and a caller without the permission is not permitted`() {
         Refusal.parse(publishAs("rita", "2026.10.0")!!).code shouldBe Refusal.NO_GATE_EVIDENCE
         val command =
             PublishTrainCommand(ActorId("bob"), TrainVersion("2026.10.0"), TrainKind.TRAIN, false, true, request)
@@ -121,8 +121,12 @@ class ReleaseOperationsTest {
         evidence[TrainVersion("2026.10.1")] = evidenceOf()
         publishAs("rita", "2026.10.0") shouldBe null
         publishAs("sam", "2026.10.1") shouldBe null
-        trains.getValue(TrainVersion("2026.10.0")).record.classifiedBy.value shouldBe "rita"
-        trains.getValue(TrainVersion("2026.10.1")).record.classifiedBy.value shouldBe "sam"
+        trains
+            .getValue(TrainVersion("2026.10.0"))
+            .record.classifiedBy.value shouldBe "rita"
+        trains
+            .getValue(TrainVersion("2026.10.1"))
+            .record.classifiedBy.value shouldBe "sam"
     }
 
     @Test

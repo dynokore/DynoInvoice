@@ -10,8 +10,10 @@ import org.junit.jupiter.api.Test
 class ReleasePermissionCatalogueTest {
     private val constants =
         ReleasePermission::class.java.declaredFields
-            .filter { java.lang.reflect.Modifier.isStatic(it.modifiers) && it.type == String::class.java }
-            .onEach { it.isAccessible = true }
+            .filter {
+                java.lang.reflect.Modifier
+                    .isStatic(it.modifiers) && it.type == String::class.java
+            }.onEach { it.isAccessible = true }
             .map { it.get(null) as String }
 
     @Test

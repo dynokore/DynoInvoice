@@ -41,7 +41,11 @@ class ReleaseTrainProfilesTest {
     private val request = RequestContext("corr", "cause")
     private val version = TrainVersion("2026.10.0")
     private val command = PublishTrainCommand(ActorId("rita"), version, TrainKind.TRAIN, false, false, request)
-    private val corpus = mapOf(com.dynokore.gst.controlPlane.domain.release.DocumentId("D1") to "SR")
+    private val corpus =
+        mapOf(
+            com.dynokore.gst.controlPlane.domain.release
+                .DocumentId("D1") to "SR",
+        )
 
     private fun evidenceOf(vararg passed: ReferenceEnvironment) =
         TrainEvidence(
@@ -72,7 +76,10 @@ class ReleaseTrainProfilesTest {
                         .withAllowBeanDefinitionOverriding(true)
                         .withBean("trainRepository", TrainRepository::class.java, { repository })
                 if (evidence != null) {
-                    runner = runner.withBean("trainEvidenceSource", TrainEvidenceSource::class.java, { TrainEvidenceSource { evidence } })
+                    runner =
+                        runner.withBean("trainEvidenceSource", TrainEvidenceSource::class.java, {
+                            TrainEvidenceSource { evidence }
+                        })
                 }
                 if (permissions != null) {
                     runner = runner.withBean("operatorPermissions", OperatorPermissions::class.java, { permissions })
@@ -109,7 +116,9 @@ class ReleaseTrainProfilesTest {
             val publish = context.getBean(PublishTrain::class.java)
             publish.permits("rita", command) shouldBe true
             refusalOf(context) shouldBe null
-            publish.perform(command, null).record.classifiedBy.value shouldBe "rita"
+            publish
+                .perform(command, null)
+                .record.classifiedBy.value shouldBe "rita"
         }
 
     @TestFactory

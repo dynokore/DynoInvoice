@@ -18,16 +18,26 @@ class ReleaseRoleNameGateTest {
         listOf(
             "control-plane-application/src/main/kotlin/com/dynokore/gst/controlPlane/application/release/",
             "control-plane-domain/src/main/kotlin/com/dynokore/gst/controlPlane/domain/release/",
-            "control-plane-bootstrap/src/main/kotlin/com/dynokore/gst/controlPlane/bootstrap/ReleaseOperationsConfiguration.kt",
+            "control-plane-bootstrap/src/main/kotlin/com/dynokore/gst/controlPlane/bootstrap/" +
+                "ReleaseOperationsConfiguration.kt",
         )
 
     private fun filesOf(path: String): List<File> =
-        File(Repository.root, path).let { if (it.isDirectory) it.walkTopDown().filter(File::isFile).toList() else listOf(it) }
+        File(
+            Repository.root,
+            path,
+        ).let { if (it.isDirectory) it.walkTopDown().filter(File::isFile).toList() else listOf(it) }
 
     private fun hits(
         regex: Regex,
         files: List<File>,
-    ) = files.flatMap { f -> f.readLines().withIndex().filter { regex.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" } }
+    ) = files.flatMap { f ->
+        f
+            .readLines()
+            .withIndex()
+            .filter { regex.containsMatchIn(it.value) }
+            .map { "${f.name}:${it.index + 1}" }
+    }
 
     private fun trackedFiles() =
         Repository.root
@@ -44,7 +54,10 @@ class ReleaseRoleNameGateTest {
     @Test
     fun `the pack ports hold no release manager constant`() {
         val ports =
-            File(Repository.root, "control-plane-application/src/main/kotlin/com/dynokore/gst/controlPlane/application/pack/Ports.kt")
+            File(
+                Repository.root,
+                "control-plane-application/src/main/kotlin/com/dynokore/gst/controlPlane/application/pack/Ports.kt",
+            )
         hits(Regex("RELEASE_MANAGER"), listOf(ports)).shouldBeEmpty()
     }
 

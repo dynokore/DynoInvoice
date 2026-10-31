@@ -63,6 +63,13 @@ class NoStagingWriteOperationTest {
                 "provisionTenant", // a tenant provisioning request
                 "recordAccreditation", // the accreditation record
                 "concludeAccreditationTask", // the conclusion of an accreditation task
+                "recordGateRun", // a gate-run result of a train (INV-T-8749); never a pack staging record
+                "purgeAuditEntries", // the purge of expired audit entries
+                "requestFirstAdministratorInvitationReissue", // a request to reissue a tenant's first invitation
+                "setTenantSchedule", // a tenant's maintenance schedule
+                "approveTenantSchedule", // the approval of a tenant schedule
+                "changeTenantSchedule", // a change of a tenant schedule
+                "cancelTenantSchedule", // the cancellation of a tenant schedule
             )
     }
 }
