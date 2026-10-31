@@ -93,7 +93,7 @@ class ArchitectureTest {
         }
     }
 
-    // INV-T-7113, INV-Q-7106 A: payload-domain names no JAXB type and no generated UBL class; the rule covers that module only.
+    // INV-T-7113, INV-Q-7106 A: payload-domain names no JAXB type and no generated UBL class (that module only).
     private fun assertNoJaxbInDomain(scope: com.lemonappdev.konsist.api.container.KoScope) =
         scope.imports.assertTrue {
             !it.name.startsWith("jakarta.xml.bind.") && !it.name.startsWith("com.dynokore.gst.payload.ubl.")
@@ -107,7 +107,8 @@ class ArchitectureTest {
         dir.mkdirs()
         File(dir, "Probe.kt").writeText("package $root.domain\n\n$importLine\n\nclass Probe\n")
         try {
-            val run = { assertNoJaxbInDomain(Konsist.scopeFromDirectory("acceptance/build/probes/${dir.parentFile.name}/domain")) }
+            val scope = Konsist.scopeFromDirectory("acceptance/build/probes/${dir.parentFile.name}/domain")
+            val run = { assertNoJaxbInDomain(scope) }
             if (refused) assertThrows(KoAssertionFailedException::class.java, run) else assertDoesNotThrow(run)
         } finally {
             dir.parentFile.deleteRecursively()

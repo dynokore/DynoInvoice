@@ -1,15 +1,13 @@
 package com.dynokore.gst.payload.adapters.ubl
 
+import com.dynokore.gst.payload.ubl.ubl_21.cbc.CreditNoteTypeCodeType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.IDType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.InvoiceTypeCodeType
-import com.dynokore.gst.payload.ubl.ubl_21.cbc.CreditNoteTypeCodeType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.IssueDateType
 import com.dynokore.gst.payload.ubl.ubl_21.creditnote.CreditNote
 import com.dynokore.gst.payload.ubl.ubl_21.creditnote.CreditNoteType
 import com.dynokore.gst.payload.ubl.ubl_21.invoice.Invoice
 import com.dynokore.gst.payload.ubl.ubl_21.invoice.InvoiceType
-import com.dynokore.gst.payload.ubl.ubl_21.creditnote.ObjectFactory as CreditNoteFactory
-import com.dynokore.gst.payload.ubl.ubl_21.invoice.ObjectFactory as InvoiceFactory
 import com.dynokore.platform.integrationcanon.xml.HardenedXml
 import io.kotest.matchers.shouldBe
 import jakarta.xml.bind.JAXBContext
@@ -20,8 +18,10 @@ import java.io.StringReader
 import java.io.StringWriter
 import javax.xml.datatype.DatatypeFactory
 import javax.xml.stream.XMLStreamException
+import com.dynokore.gst.payload.ubl.ubl_21.creditnote.ObjectFactory as CreditNoteFactory
+import com.dynokore.gst.payload.ubl.ubl_21.invoice.ObjectFactory as InvoiceFactory
 
-/** INV-T-7113, INV-Q-7106 A: the generated UBL 2.1 classes, marshalled to a StringWriter and read back through the hardened StAX factory. */
+/** INV-T-7113, INV-Q-7106 A: the generated UBL 2.1 classes, marshalled and read back through the hardened factory. */
 class UblJaxbRoundTripTest {
     private val base = "com.dynokore.gst.payload.ubl.ubl_21"
 
@@ -54,7 +54,8 @@ class UblJaxbRoundTripTest {
                 issueDate = IssueDateType().apply { value = date() }
                 invoiceTypeCode = InvoiceTypeCodeType().apply { value = "380" }
             }
-        val back = roundTrip(InvoiceFactory().createInvoice(original), InvoiceType::class.java, InvoiceFactory::class.java)
+        val element = InvoiceFactory().createInvoice(original)
+        val back = roundTrip(element, InvoiceType::class.java, InvoiceFactory::class.java)
         back.id.value shouldBe "X1"
         back.issueDate.value shouldBe original.issueDate.value
         back.invoiceTypeCode.value shouldBe "380"
@@ -68,7 +69,8 @@ class UblJaxbRoundTripTest {
                 issueDate = IssueDateType().apply { value = date() }
                 creditNoteTypeCode = CreditNoteTypeCodeType().apply { value = "381" }
             }
-        val back = roundTrip(CreditNoteFactory().createCreditNote(original), CreditNoteType::class.java, CreditNoteFactory::class.java)
+        val element = CreditNoteFactory().createCreditNote(original)
+        val back = roundTrip(element, CreditNoteType::class.java, CreditNoteFactory::class.java)
         back.id.value shouldBe "X1"
         back.issueDate.value shouldBe original.issueDate.value
         back.creditNoteTypeCode.value shouldBe "381"
