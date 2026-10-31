@@ -20,27 +20,50 @@ object BundlePinGate {
     fun check(
         versions: String?,
         record: String?,
+    ): List<Finding> =
+        if (record.isNullOrBlank()) {
+            listOf(Finding(NAME, NAME, "the pin record is missing or empty"))
+        } else {
+            val oneLine = ONE_LINE.matches(record)
+            val shape =
+                if (oneLine) {
+                    emptyList()
+                } else {
+                    listOf(
+                        Finding(NAME, NAME, "the pin record holds exactly one line"),
+                    )
+                }
+            shape + compare(versions, record.removeSuffix("\n"), oneLine)
+        }
+
+    private fun compare(
+        versions: String?,
+        line: String,
+        oneLine: Boolean,
     ): List<Finding> {
-        if (record.isNullOrBlank()) return listOf(Finding(NAME, NAME, "the pin record is missing or empty"))
-        val findings = ArrayList<Finding>()
-        val oneLine = ONE_LINE.matches(record)
-        if (!oneLine) findings += Finding(NAME, NAME, "the pin record holds exactly one line")
-        if (versions.isNullOrBlank()) {
-            return findings + Finding(NAME, "gradle/libs.versions.toml", "gradle/libs.versions.toml is missing or empty")
-        }
-        val values = ASSIGNMENT.findAll(versions).map { it.groupValues[1] }.toList()
-        if (values.size != 1) {
-            return findings + Finding(NAME, KEY, "$KEY is assigned ${values.size} times, expected 1")
-        }
-        val line = record.removeSuffix("\n")
-        if (oneLine && values.single() != line) {
-            findings +=
-                Finding(
-                    NAME,
-                    KEY,
-                    "${values.single()} in gradle/libs.versions.toml differs from $line in bundle-pin.txt",
+        val values = versions?.let { v -> ASSIGNMENT.findAll(v).map { it.groupValues[1] }.toList() }.orEmpty()
+        return when {
+            versions.isNullOrBlank() -> {
+                listOf(Finding(NAME, "gradle/libs.versions.toml", "gradle/libs.versions.toml is missing or empty"))
+            }
+
+            values.size != 1 -> {
+                listOf(Finding(NAME, KEY, "$KEY is assigned ${values.size} times, expected 1"))
+            }
+
+            oneLine && values.single() != line -> {
+                listOf(
+                    Finding(
+                        NAME,
+                        KEY,
+                        "${values.single()} in gradle/libs.versions.toml differs from $line in bundle-pin.txt",
+                    ),
                 )
+            }
+
+            else -> {
+                emptyList()
+            }
         }
-        return findings
     }
 }

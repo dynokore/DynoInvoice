@@ -8,7 +8,8 @@ class BundlePinGateTest {
     private val pin = "0.0.0-dev+3030c14b"
     private val record = "$pin\n"
 
-    private fun toml(line: String = "platformContractsBundle = \"$pin\"") = "springBoot = \"4.1.1\"\n$line\nkotlin = \"2.0\"\n"
+    private fun toml(line: String = "platformContractsBundle = \"$pin\"") =
+        "springBoot = \"4.1.1\"\n$line\nkotlin = \"2.0\"\n"
 
     private fun differs(
         value: String,
@@ -20,7 +21,11 @@ class BundlePinGateTest {
     )
 
     private fun assigned(n: Int) =
-        Finding(BundlePinGate.NAME, "platformContractsBundle", "platformContractsBundle is assigned $n times, expected 1")
+        Finding(
+            BundlePinGate.NAME,
+            "platformContractsBundle",
+            "platformContractsBundle is assigned $n times, expected 1",
+        )
 
     private fun oneLine() = Finding(BundlePinGate.NAME, BundlePinGate.NAME, "the pin record holds exactly one line")
 
@@ -88,7 +93,13 @@ class BundlePinGateTest {
     @Test
     fun `INV-AC-12888 a null versions file is a finding`() {
         BundlePinGate.check(null, record) shouldBe
-            listOf(Finding(BundlePinGate.NAME, "gradle/libs.versions.toml", "gradle/libs.versions.toml is missing or empty"))
+            listOf(
+                Finding(
+                    BundlePinGate.NAME,
+                    "gradle/libs.versions.toml",
+                    "gradle/libs.versions.toml is missing or empty",
+                ),
+            )
     }
 
     @Test
