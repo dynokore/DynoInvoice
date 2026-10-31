@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.adapters.access.AuthoriseOperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
@@ -8,17 +9,26 @@ import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.GoldenDocument
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import java.net.URI
 
 /**
- * The source of a platform operator's roles (regulatory.author, regulatory.approver) is an open question (the report of
- * INV-T-4984, gap G6). Until it is ruled this binding fails closed: nobody holds a role, so every operation
- * answers 403.
+ * The operator roles (INV-Q-8687 A): with `controlplane.access.base-url` set they are decided by the live access-svc
+ * `authorise` query with the platform scope; without it this binding fails closed: nobody holds a role, so every
+ * operation answers 403.
  */
 @Configuration(proxyBeanMethods = false)
 class OperatorRolesConfiguration {
+    @Bean
+    @ConditionalOnProperty(name = ["controlplane.access.base-url"])
+    fun operatorRolesLive(
+        @Value("\${controlplane.access.base-url}") baseUrl: String,
+    ): OperatorRoles = AuthoriseOperatorRoles(URI.create(baseUrl))
+
     @Bean
     @ConditionalOnMissingBean
     fun operatorRoles(): OperatorRoles = OperatorRoles { _, _ -> false }
