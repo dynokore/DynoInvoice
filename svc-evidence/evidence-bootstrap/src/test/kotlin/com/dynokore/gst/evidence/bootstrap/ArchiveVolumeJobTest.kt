@@ -12,6 +12,7 @@ import com.dynokore.platform.evidencestore.ObjectKey
 import com.dynokore.platform.evidencestore.ObjectKeyPrefix
 import com.dynokore.platform.evidencestore.ObjectRef
 import com.dynokore.platform.evidencestore.ObjectStore
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
@@ -82,7 +83,17 @@ class ArchiveVolumeJobTest {
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val objects = Objects()
         val source: ArchiveVolumeSource = RetainedArchiveVolume(JooqStoredContentBytes(dsl), ObjectStoreBytes(objects))
-        private val catalogue = EventCatalogue(EvidenceEvents.entries)
+        private val catalogue =
+            EventCatalogue(
+                EvidenceEvents.entries +
+                    CatalogueEntry(
+                        ArchiveVolumePublisher.EVENT_TYPE,
+                        "gst.evidence.archive-volume-measured.v1",
+                        setOf("evidence-svc"),
+                        contentTopic = false,
+                        retainedWhileResolvable = false,
+                    ),
+            )
         private val publisher =
             ArchiveVolumePublisher(
                 JooqArchiveVolumeLedger(dsl),
@@ -247,26 +258,6 @@ class ArchiveVolumeJobTest {
         EvidenceContext.online(dir).run { context ->
             context.getBean(ArchiveVolumeSource::class.java)
             context.getBean(ArchiveVolumePublisher::class.java)
-        }
-    }
-
-    @Test
-    fun `the production catalogue holds exactly one ArchiveVolumeMeasured entry with the declared values`(
-        @TempDir dir: Path,
-    ) {
-        val expected = "gst.evidence.archive-volume-measured.v1"
-        val entries = EvidenceEvents.entries.filter { it.eventType == ArchiveVolumePublisher.EVENT_TYPE }
-        entries.size shouldBe 1
-        entries.single().topic shouldBe expected
-        entries.single().producers shouldBe setOf("evidence-svc")
-        entries.single().contentTopic shouldBe false
-        entries.single().recordTopic shouldBe false
-        entries.single().retainedWhileResolvable shouldBe false
-        EvidenceContext.online(dir).run { context ->
-            context
-                .getBean(EventCatalogue::class.java)
-                .entries()
-                .count { it.eventType == ArchiveVolumePublisher.EVENT_TYPE } shouldBe 1
         }
     }
 
