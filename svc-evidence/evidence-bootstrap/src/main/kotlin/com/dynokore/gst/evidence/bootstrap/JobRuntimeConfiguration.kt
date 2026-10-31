@@ -1,5 +1,6 @@
 package com.dynokore.gst.evidence.bootstrap
 
+import com.dynokore.gst.evidence.application.integrity.ChainVerificationJob
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.jobs.FixedDeadlineSource
 import com.dynokore.platform.serviceruntime.jobs.JobCommand
@@ -10,10 +11,11 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
-import org.springframework.scheduling.annotation.SchedulingConfigurer
-import org.springframework.scheduling.config.CronTask
-import org.springframework.scheduling.support.CronTrigger
+import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.scheduling.support.CronExpression
 import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 
 /**
  * The ports service-runtime's JobRuntime leaves to the service, and the scheduled firing of the verification job
@@ -44,26 +46,42 @@ class JobRuntimeConfiguration {
     @Bean
     fun deadlineSource(): FixedDeadlineSource = FixedDeadlineSource()
 
-    /**
-     * Registers one cron task per definition the JobRuntime holds, once at startup (INV-AC-2126 asks for no
-     * re-registration). The cron and the zone are read from the registered definition, never copied as text; the build
-     * refuses a string attribute on @Scheduled (INV-Q-4690), so the tasks are registered through the configurer.
-     */
     @Bean
-    fun jobScheduling(
+    fun chainVerificationSchedule(
         runtime: ObjectProvider<JobRuntime>,
         clock: Clock,
-    ): SchedulingConfigurer =
-        SchedulingConfigurer { registrar ->
-            runtime.ifAvailable { jobs ->
-                jobs.registered().forEach { definition ->
-                    registrar.addCronTask(
-                        CronTask(
-                            { jobs.fire(definition.name, clock.instant()) },
-                            CronTrigger(definition.schedule.cron, definition.schedule.zone),
-                        ),
-                    )
-                }
-            }
-        }
+    ): ChainVerificationSchedule = ChainVerificationSchedule(runtime, clock)
+}
+
+/**
+ * Fires `evidence-chain-verification` at its declared schedule. The cron and the zone are read from
+ * [ChainVerificationJob.DEFINITION], not copied as text. `TimeZone.getTimeZone(ZoneId)` gives the id Spring parses
+ * (`ZoneOffset.UTC` prints as `Z`, which Spring refuses). [fire] also checks the clock against the same schedule, so a
+ * firing whose clock is not on a tick of the definition's zone makes no run.
+ */
+class ChainVerificationSchedule(
+    private val runtime: ObjectProvider<JobRuntime>,
+    private val clock: Clock,
+) {
+    @Scheduled(
+        cron = "#{T(com.dynokore.gst.evidence.application.integrity.ChainVerificationJob).DEFINITION.schedule.cron}",
+        zone =
+            "#{T(java.util.TimeZone).getTimeZone(" +
+                "T(com.dynokore.gst.evidence.application.integrity.ChainVerificationJob).DEFINITION.schedule.zone).ID}",
+    )
+    fun fire() {
+        val now = clock.instant()
+        if (onTick(now)) runtime.ifAvailable { it.fire(ChainVerificationJob.NAME, now) }
+    }
+
+    /** True when a tick of the definition's schedule lies in the minute that ends at [now], in the definition's zone. */
+    private fun onTick(now: Instant): Boolean {
+        val schedule = ChainVerificationJob.DEFINITION.schedule
+        val tick = CronExpression.parse(schedule.cron).next(now.minus(WINDOW).atZone(schedule.zone))
+        return tick != null && !tick.toInstant().isAfter(now)
+    }
+
+    private companion object {
+        val WINDOW: Duration = Duration.ofMinutes(1)
+    }
 }
