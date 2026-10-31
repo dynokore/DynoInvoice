@@ -117,7 +117,7 @@ class SecurityEventMappingTest {
                 )
             }
 
-        /** The stored audit rows of [action] of this tenant, read as a superuser (row-level security hides none). */
+        /** The stored audit rows of [action] of this tenant, read as a superuser so that row-level security hides none. */
         fun auditRows(action: String): List<JsonNode> =
             BoundaryFixture.asSuperuser { connection ->
                 connection
