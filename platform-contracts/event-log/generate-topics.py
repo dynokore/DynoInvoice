@@ -534,6 +534,91 @@ def validate_producers(topics: list[dict]) -> list[str]:
     return errors
 
 
+_CONSUMED_KEY = "x-consumed-events"
+_CONSUMED_FIELDS = ("event_type", "topic", "producers")
+
+
+def parse_consumed_events(path: Path) -> tuple[list[dict], list[str]]:
+    """Reads the root extension `x-consumed-events` of one asyncapi.yaml: a
+    sequence of entries with the keys event_type, topic and producers (a block
+    sequence of strings, or `[]`). Returns (entries, errors); an entry is
+    {"keys": [..in file order..], "values": {key: str | list[str]}}. Anything
+    outside that shape is an error, never skipped."""
+    entries: list[dict] = []
+    errors: list[str] = []
+    in_block, cur, in_producers = False, None, False
+    for line in path.read_text().splitlines():
+        if line and not line[0].isspace():
+            in_block = line.rstrip() == f"{_CONSUMED_KEY}:"
+            cur, in_producers = None, False
+            continue
+        if not in_block or not line.strip() or line.lstrip().startswith("#"):
+            continue
+        m = re.match(r"^  - (?P<key>[A-Za-z_]+):(?: (?P<value>.*))?$", line)
+        k = re.match(r"^    (?P<key>[A-Za-z_]+):(?: (?P<value>.*))?$", line)
+        item = re.match(r"^      - (?P<value>\S.*)$", line)
+        if m or k:
+            mm = m or k
+            if m:
+                cur = {"keys": [], "values": {}}
+                entries.append(cur)
+            if cur is None:
+                errors.append(f"{path}: unreadable {_CONSUMED_KEY} line: {line.strip()}")
+                continue
+            key, value = mm.group("key"), (mm.group("value") or "").strip()
+            cur["keys"].append(key)
+            in_producers = key == "producers"
+            if in_producers:
+                cur["values"][key] = [] if value in ("", "[]") else None
+                if value not in ("", "[]"):
+                    errors.append(f"{path}: {_CONSUMED_KEY} producers must be a block sequence or []")
+            else:
+                cur["values"][key] = value.strip("'\"")
+        elif item and cur is not None and in_producers and cur["values"].get("producers") is not None:
+            cur["values"]["producers"].append(item.group("value").strip().strip("'\""))
+        else:
+            errors.append(f"{path}: unreadable {_CONSUMED_KEY} line: {line.strip()}")
+    return entries, errors
+
+
+def validate_consumed_events(repo_root: Path, topics: list[dict]) -> list[str]:
+    """INV-T-14082 (INV-Q-14079 A): every `x-consumed-events` entry of every
+    */asyncapi.yaml names a generated topic by event_type and topic, lists
+    exactly that topic's producers, and is declared by a subscriber of it
+    (directory name + `-svc`). Compared by string equality."""
+    errors: list[str] = []
+    by_type = {t["event_type"]: t for t in topics}
+    for path in sorted(repo_root.glob("*/asyncapi.yaml")):
+        entries, parse_errors = parse_consumed_events(path)
+        errors.extend(parse_errors)
+        declarer = path.parent.name + _SVC_SUFFIX
+        seen: set[str] = set()
+        for e in entries:
+            v = e["values"]
+            et = v.get("event_type", "")
+            tp = v.get("topic") or by_type.get(et, {}).get("topic", "")
+            who = f"{path.parent.name}/{path.name}: {_CONSUMED_KEY} event_type '{et}' topic '{tp}'"
+            if sorted(e["keys"]) != sorted(_CONSUMED_FIELDS):
+                errors.append(f"{who}: keys {e['keys']} must be exactly {list(_CONSUMED_FIELDS)}")
+                continue
+            if et in seen:
+                errors.append(f"{who}: entry declared more than once")
+            seen.add(et)
+            t = by_type.get(et)
+            if t is None:
+                errors.append(f"{who}: event_type is not the event type of any generated topic")
+                continue
+            if tp != t["topic"]:
+                errors.append(f"{who}: topic must be '{t['topic']}'")
+            prod = v["producers"]
+            if not prod or len(set(prod)) != len(prod) or sorted(prod) != sorted(t["producers"]):
+                errors.append(f"{who}: producers {prod} must be non-empty, without duplicates, and equal"
+                              f" {sorted(t['producers'])}")
+            if declarer not in t["subscribers"]:
+                errors.append(f"{who}: {declarer} is not a subscriber of '{t['topic']}'")
+    return errors
+
+
 _TOPIC_ENTRY_RE = re.compile(r"^  - topic: (?P<topic>\S+)$", re.MULTILINE)
 _CONTENT_TOPIC_LINE_RE = re.compile(r"^    content_topic: (?P<value>\S+)$", re.MULTILINE)
 _RECORD_TOPIC_LINE_RE = re.compile(r"^    record_topic: (?P<value>\S+)$", re.MULTILINE)
@@ -639,6 +724,12 @@ def main(argv: list[str]) -> int:
     if producer_errors:
         print("gst-ci: */asyncapi.yaml fails the producer check (INV-Q-3539):")
         for e in producer_errors:
+            print(f"  {e}")
+        return 1
+    consumed_errors = validate_consumed_events(repo_root, topics)
+    if consumed_errors:
+        print("gst-ci: */asyncapi.yaml fails the x-consumed-events check (INV-T-14082):")
+        for e in consumed_errors:
             print(f"  {e}")
         return 1
     derived = derive_all(topics)

@@ -23,6 +23,11 @@ servers:
     host: 'event-log.invoice.internal'
     protocol: kafka
     description: Placeholder — the platform component event-log (SDS §18.14).
+x-consumed-events:
+  - event_type: com.dynokore.gst.platform.BreakGlassActionReported.v1
+    topic: gst.platform.break-glass-action-reported.v1
+    producers:
+      - tenancy-svc
 channels:
   accessAuthorityChanged:
     address: 'gst.access.authority-changed.v1'

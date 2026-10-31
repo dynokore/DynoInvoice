@@ -516,5 +516,83 @@ class CommittedCatalogueTest(unittest.TestCase):
             self.assertEqual(gen.main(["g", str(repo), "--check", str(out)]), 1)
 
 
+class ConsumedEventsTest(unittest.TestCase):
+    """INV-T-14082 (INV-Q-14079 A): the x-consumed-events entry of
+    access/asyncapi.yaml is checked against the generated topics."""
+
+    TOPIC = "gst.platform.break-glass-action-reported.v1"
+    ENTRY = (
+        "  - event_type: com.dynokore.gst.platform.BreakGlassActionReported.v1\n"
+        f"    topic: {TOPIC}\n"
+        "    producers:\n"
+        "      - tenancy-svc\n"
+    )
+
+    def _copy(self) -> Path:
+        tmp = Path(tempfile.mkdtemp())
+        for f in sorted(_HERE.parent.glob("*/asyncapi.yaml")):
+            (tmp / f.parent.name).mkdir()
+            (tmp / f.parent.name / "asyncapi.yaml").write_text(f.read_text())
+        return tmp
+
+    def _run(self, repo: Path, mode: str) -> tuple[int, str]:
+        buf = io.StringIO()
+        out = repo / "topics.yaml"
+        if mode == "--check":
+            out.write_text((_HERE / "topics.yaml").read_text())
+        with redirect_stdout(buf):
+            code = gen.main(["g", str(repo), mode, str(out)])
+        return code, buf.getvalue()
+
+    def _edit(self, old: str, new: str, move: bool = False):
+        for mode in ("--write", "--check"):
+            repo = self._copy()
+            f = repo / "access" / "asyncapi.yaml"
+            text = f.read_text()
+            self.assertIn(old, text)
+            f.write_text(text.replace(old, new, 1))
+            if move:
+                tf = repo / "tenancy" / "asyncapi.yaml"
+                tf.write_text(tf.read_text().replace("\nchannels:\n", "\nx-consumed-events:\n" + self.ENTRY + "channels:\n", 1))
+            code, out = self._run(repo, mode)
+            self.assertEqual(code, 1, (mode, new, out))
+            self.assertIn(self.TOPIC, out)
+
+    def test_committed_documents_pass_and_topics_unchanged(self):
+        self.assertIn("x-consumed-events:\n" + self.ENTRY, (_HERE.parent / "access" / "asyncapi.yaml").read_text())
+        code, out = self._run(self._copy(), "--check")
+        self.assertEqual(code, 0, out)
+        repo = self._copy()
+        self.assertEqual(self._run(repo, "--write")[0], 0)
+        self.assertEqual((repo / "topics.yaml").read_text(), (_HERE / "topics.yaml").read_text())
+
+    def test_look_alike_producer_fails(self):
+        self._edit("      - tenancy-svc\n", "      - tenancy-svc-alt\n")
+
+    def test_extra_producer_fails(self):
+        self._edit("      - tenancy-svc\n", "      - tenancy-svc\n      - access-svc\n")
+
+    def test_empty_producers_fail(self):
+        self._edit("    producers:\n      - tenancy-svc\n", "    producers: []\n")
+
+    def test_other_topic_fails(self):
+        self._edit(f"topic: {self.TOPIC}", "topic: gst.platform.break-glass-alert-raised.v1")
+
+    def test_unknown_event_type_fails(self):
+        self._edit("BreakGlassActionReported.v1\n    topic", "BreakGlassActionReported.v1X\n    topic")
+
+    def test_fourth_key_fails(self):
+        self._edit("      - tenancy-svc\n", "      - tenancy-svc\n    producer: tenancy-svc\n")
+
+    def test_missing_topic_key_fails(self):
+        self._edit(f"    topic: {self.TOPIC}\n", "")
+
+    def test_duplicated_entry_fails(self):
+        self._edit(self.ENTRY, self.ENTRY + self.ENTRY)
+
+    def test_entry_in_a_non_subscriber_fails(self):
+        self._edit("x-consumed-events:\n" + self.ENTRY, "", move=True)
+
+
 if __name__ == "__main__":
     unittest.main()

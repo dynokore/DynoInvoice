@@ -56,3 +56,16 @@ service except `console-web` and its producers. Order of work: the check
 accepts a contract that is ahead of the model and rejects a model that is
 ahead of the contract, so for a new consumer or producer the contract task
 merges first and the model task second.
+
+## Consumed-event producers (INV-T-14082, INV-Q-14079 A)
+
+A service's `asyncapi.yaml` may declare, as a root key before `channels`, the
+extension `x-consumed-events`: a sequence of entries with exactly the keys
+`event_type`, `topic` and `producers` (a non-empty sequence of strings). It is
+not a channel, so a catalogue that reads channels as produced events ignores
+it. `generate-topics.py` checks every entry in both modes (`--write` and
+`--check`) by string equality: `event_type` is the event type of a generated
+topic, `topic` is that topic's address, the sorted `producers` equal the
+topic's `producers`, and the declaring service (directory name plus `-svc`) is
+one of the topic's `subscribers`. A failure exits non-zero and prints the
+file, the event type and the topic. The key adds nothing to `topics.yaml`.
