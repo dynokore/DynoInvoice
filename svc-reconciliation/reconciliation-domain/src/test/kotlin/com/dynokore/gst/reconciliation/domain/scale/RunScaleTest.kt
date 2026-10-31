@@ -97,7 +97,10 @@ class RunScaleTest {
         val byMonth =
             (0 until MONTHS).associate { m ->
                 m to
-                    (cents[m].mapValues { BigDecimal.valueOf(it.value, 2) } + (COUNT_BOX to ONE_CENT.multiply(BigDecimal(lines[m]))))
+                    (
+                        cents[m].mapValues { BigDecimal.valueOf(it.value, 2) } +
+                            (COUNT_BOX to ONE_CENT.multiply(BigDecimal(lines[m])))
+                    )
             }
         val year =
             byMonth.values
@@ -121,10 +124,11 @@ class RunScaleTest {
             assertTimeoutPreemptively(
                 BUDGET,
                 ThrowingSupplier {
-                periods.map { (period, docs) ->
-                    val total = expected.getValue(period)
-                    val figures = ReturnFigures(1, total)
-                    period to ReconciliationRunner.run(figures, entries, docs).shouldBeInstanceOf<RunOutcome.Completed>()
+                    periods.map { (period, docs) ->
+                        val total = expected.getValue(period)
+                        val figures = ReturnFigures(1, total)
+                        period to
+                            ReconciliationRunner.run(figures, entries, docs).shouldBeInstanceOf<RunOutcome.Completed>()
                     }
                 },
             )
