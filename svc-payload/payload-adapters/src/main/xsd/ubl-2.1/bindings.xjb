@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- xjc bindings of the UBL 2.1 set (INV-Q-7106 A): each namespace in its own sub-package of com.dynokore.gst.payload.ubl.ubl_21. -->
+<jaxb:bindings xmlns:jaxb="https://jakarta.ee/xml/ns/jaxb"
+               xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+               version="3.0">
+  <jaxb:bindings schemaLocation="maindoc/UBL-Invoice-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.invoice"/>
+    </jaxb:schemaBindings>
+    <jaxb:bindings node="/xsd:schema/xsd:element[@name='Invoice']">
+      <jaxb:class name="Invoice"/>
+    </jaxb:bindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="maindoc/UBL-CreditNote-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.creditnote"/>
+    </jaxb:schemaBindings>
+    <jaxb:bindings node="/xsd:schema/xsd:element[@name='CreditNote']">
+      <jaxb:class name="CreditNote"/>
+    </jaxb:bindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-CommonAggregateComponents-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.cac"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-CommonBasicComponents-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.cbc"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-CommonExtensionComponents-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.ext"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-CommonSignatureComponents-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.sig"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-SignatureAggregateComponents-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.sac"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-SignatureBasicComponents-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.sbc"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-QualifiedDataTypes-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.qdt"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-UnqualifiedDataTypes-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.udt"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/CCTS_CCT_SchemaModule-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.cct"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-XAdESv132-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.xades132"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-XAdESv141-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.xades141"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+  <jaxb:bindings schemaLocation="common/UBL-xmldsig-core-schema-2.1.xsd" node="/xsd:schema">
+    <jaxb:schemaBindings>
+      <jaxb:package name="com.dynokore.gst.payload.ubl.ubl_21.xmldsig"/>
+    </jaxb:schemaBindings>
+  </jaxb:bindings>
+</jaxb:bindings>

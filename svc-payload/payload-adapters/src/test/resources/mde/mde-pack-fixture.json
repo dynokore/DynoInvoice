@@ -1,0 +1,44 @@
+{
+  "rows": [
+    {
+      "businessTermId": "BT-1",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:ID"
+        },
+        {
+          "specificationVersion": "SG-PEPPOL-BIS-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:ID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "BT-1-CN",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/CreditNote/cbc:ID"
+        },
+        {
+          "specificationVersion": "SG-PEPPOL-BIS-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/CreditNote/cbc:ID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "BT-2",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:IssueDate"
+        }
+      ]
+    }
+  ]
+}

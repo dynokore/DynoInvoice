@@ -92,4 +92,41 @@ class ArchitectureTest {
             dir.parentFile.deleteRecursively()
         }
     }
+
+    // INV-T-7113, INV-Q-7106 A: payload-domain names no JAXB type and no generated UBL class; the rule covers that module only.
+    private fun assertNoJaxbInDomain(scope: com.lemonappdev.konsist.api.container.KoScope) =
+        scope.imports.assertTrue {
+            !it.name.startsWith("jakarta.xml.bind.") && !it.name.startsWith("com.dynokore.gst.payload.ubl.")
+        }
+
+    private fun assertJaxbProbe(
+        importLine: String,
+        refused: Boolean,
+    ) {
+        val dir = File("build/probes/${UUID.randomUUID()}/domain")
+        dir.mkdirs()
+        File(dir, "Probe.kt").writeText("package $root.domain\n\n$importLine\n\nclass Probe\n")
+        try {
+            val run = { assertNoJaxbInDomain(Konsist.scopeFromDirectory("acceptance/build/probes/${dir.parentFile.name}/domain")) }
+            if (refused) assertThrows(KoAssertionFailedException::class.java, run) else assertDoesNotThrow(run)
+        } finally {
+            dir.parentFile.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `the real domain sources import no JAXB type and no generated UBL class`() =
+        assertNoJaxbInDomain(Konsist.scopeFromDirectory("payload-domain/src/main"))
+
+    @Test
+    fun `a jakarta xml bind import in the domain fails the rule`() =
+        assertJaxbProbe("import jakarta.xml.bind.annotation.XmlElement", refused = true)
+
+    @Test
+    fun `a generated UBL import in the domain fails the rule`() =
+        assertJaxbProbe("import com.dynokore.gst.payload.ubl.ubl_21.invoice.Invoice", refused = true)
+
+    @Test
+    fun `a look-alike ublx import in the domain passes the rule`() =
+        assertJaxbProbe("import com.dynokore.gst.payload.ublx.Foo", refused = false)
 }
