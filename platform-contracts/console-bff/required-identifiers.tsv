@@ -2,3 +2,4 @@
 identifier	kind	file	requirement
 correctPersonalData	operation	openapi.yaml	INV-REQ-2588
 copyAnonymisedSample	operation	openapi.yaml	INV-REQ-2588
+exportSupportBundle	operation	openapi.yaml	INV-REQ-2588
