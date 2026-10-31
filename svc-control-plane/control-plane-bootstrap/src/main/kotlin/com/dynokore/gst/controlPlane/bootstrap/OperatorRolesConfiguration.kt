@@ -7,7 +7,6 @@ import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
-import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.GoldenDocument
@@ -62,11 +61,6 @@ class OperatorRolesConfiguration {
         authorise.ifAvailable?.takeIf { environment.containsProperty(ACCESS_BASE_URL) }?.let {
             AuthoriseOperatorPermissions(it)
         } ?: OperatorPermissions { _, _ -> false }
-
-    /** The release evidence source is a Wave 3 binding: unbound, no train has evidence and none is released. */
-    @Bean
-    @ConditionalOnMissingBean
-    fun trainEvidenceSource(): TrainEvidenceSource = TrainEvidenceSource { null }
 
     /** The golden corpus is a Wave 3 binding: unbound it is empty and every signature is refused. */
     @Bean

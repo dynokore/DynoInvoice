@@ -94,6 +94,8 @@ data class Refusal(
         const val GATE_FAILED = "GATE_FAILED"
         const val CORPUS_UNAVAILABLE = "CORPUS_UNAVAILABLE"
         const val CORPUS_FAILED = "CORPUS_FAILED"
+        const val GATE_RUN_INVALID = "GATE_RUN_INVALID"
+        const val GATE_RUN_CONFLICT = "GATE_RUN_CONFLICT"
 
         fun parse(encoded: String): Refusal = Refusal(encoded.substringBefore(' '), encoded.substringAfter(' ', ""))
     }

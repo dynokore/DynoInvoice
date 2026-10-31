@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationRecordsJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.GateRunRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.SupportWindowRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
@@ -8,9 +9,12 @@ import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
+import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
+import com.dynokore.gst.controlPlane.application.release.RecordGateRun
+import com.dynokore.gst.controlPlane.application.release.RecordedTrainEvidence
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SupportWindowRepository
 import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
@@ -25,6 +29,22 @@ import java.time.Clock
 class ReleaseOperationsConfiguration {
     @Bean
     fun trainRepository(dsl: DSLContext): TrainRepository = TrainRepositoryJooq(dsl)
+
+    @Bean
+    fun gateRunRepository(dsl: DSLContext): GateRunRepository = GateRunRepositoryJooq(dsl)
+
+    /** The production binding of the evidence port (replaces the fail-closed default of INV-T-4985): a train with no
+     * recorded gate results has no evidence and is held back. */
+    @Bean
+    fun trainEvidenceSource(runs: GateRunRepository): TrainEvidenceSource = RecordedTrainEvidence(runs)
+
+    @Bean
+    fun recordGateRun(
+        runs: GateRunRepository,
+        trains: TrainRepository,
+        permissions: OperatorPermissions,
+        clock: Clock,
+    ) = RecordGateRun(runs, trains, permissions, clock)
 
     @Bean
     fun supportWindowRepository(

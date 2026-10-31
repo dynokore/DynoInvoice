@@ -11,7 +11,7 @@ operation	recordQualification	INV-T-4986	done
 operation	provisionTenant	INV-T-4986	done
 operation	getTenantProvisioningRequest	INV-T-4986	done
 operation	getLicence	INV-T-4986	done
-operation	recordGateRun	INV-T-8749	pending
+operation	recordGateRun	INV-T-8749	done
 operation	requestFirstAdministratorInvitationReissue	INV-T-8228	pending
 operation	setTenantSchedule	INV-T-8143	pending
 operation	getTenantSchedule	INV-T-8143	pending

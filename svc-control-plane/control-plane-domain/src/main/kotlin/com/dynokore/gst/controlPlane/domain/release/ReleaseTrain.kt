@@ -54,41 +54,21 @@ data class Observation(
     val baselineFindings: Set<String> = emptySet(),
 )
 
+/** What the regeneration gate observed: the run it gives, whichever way the evidence was gathered. */
+sealed interface RegenerationEvidence {
+    fun run(): GateRun
+}
+
 /** Classifications before and after the engine change, for the candidate and for the released version. */
 data class RegenerationObservation(
     val before: Map<DocumentId, String>,
     val after: Map<DocumentId, String>,
     val releasedBefore: Map<DocumentId, String>? = null,
     val releasedAfter: Map<DocumentId, String>? = null,
-)
-
-/**
- * The internal quality evidence of one train (INV-REQ-2657 b1): the scenarios against the simulators, the regeneration
- * invariant, the security checks and the certification. Nothing else enters the gates.
- */
-data class TrainEvidence(
-    val scenarios: Observation,
-    val security: Observation,
-    val regeneration: RegenerationObservation,
-    val certification: Certification,
-    val releasedCertification: Certification? = null,
-) {
-    fun runs(): List<GateRun> =
-        listOf(
-            scenarios.toRun(Gate.SCENARIOS),
-            security.toRun(Gate.SECURITY),
-            regenerationRun(),
-            certificationRun(),
-        )
-
-    private fun Observation.toRun(gate: Gate) = GateRun(gate, candidate, findings, baseline, baselineFindings)
-
-    private fun regenerationRun(): GateRun {
-        val candidate = RegenerationCheck.run(regeneration.before, regeneration.after)
-        val released =
-            regeneration.releasedBefore?.let {
-                RegenerationCheck.run(it, regeneration.releasedAfter.orEmpty())
-            }
+) : RegenerationEvidence {
+    override fun run(): GateRun {
+        val candidate = RegenerationCheck.run(before, after)
+        val released = releasedBefore?.let { RegenerationCheck.run(it, releasedAfter.orEmpty()) }
         return GateRun(
             Gate.REGENERATION,
             if (candidate.isEmpty()) GateOutcome.PASSED else GateOutcome.FAILED,
@@ -97,6 +77,45 @@ data class TrainEvidence(
             released.orEmpty(),
         )
     }
+}
+
+/**
+ * The regeneration result as recorded by the certification runner (INV-T-8749): the result and the identifiers of the
+ * documents whose classification differs, without the classification maps. The recorded result is final.
+ */
+data class RecordedRegeneration(
+    val observation: Observation,
+) : RegenerationEvidence {
+    override fun run() =
+        GateRun(
+            Gate.REGENERATION,
+            observation.candidate,
+            observation.findings,
+            observation.baseline,
+            observation.baselineFindings,
+        )
+}
+
+/**
+ * The internal quality evidence of one train (INV-REQ-2657 b1): the scenarios against the simulators, the regeneration
+ * invariant, the security checks and the certification. Nothing else enters the gates.
+ */
+data class TrainEvidence(
+    val scenarios: Observation,
+    val security: Observation,
+    val regeneration: RegenerationEvidence,
+    val certification: Certification,
+    val releasedCertification: Certification? = null,
+) {
+    fun runs(): List<GateRun> =
+        listOf(
+            scenarios.toRun(Gate.SCENARIOS),
+            security.toRun(Gate.SECURITY),
+            regeneration.run(),
+            certificationRun(),
+        )
+
+    private fun Observation.toRun(gate: Gate) = GateRun(gate, candidate, findings, baseline, baselineFindings)
 
     private fun certificationRun() =
         GateRun(

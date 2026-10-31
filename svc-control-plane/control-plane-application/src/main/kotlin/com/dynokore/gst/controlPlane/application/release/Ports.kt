@@ -3,6 +3,8 @@ package com.dynokore.gst.controlPlane.application.release
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
+import com.dynokore.gst.controlPlane.domain.release.GateRunKey
+import com.dynokore.gst.controlPlane.domain.release.GateRunRecord
 import com.dynokore.gst.controlPlane.domain.release.GoldenDocument
 import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
 import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
@@ -37,6 +39,19 @@ object ReleasePermission {
  */
 fun interface TrainEvidenceSource {
     fun forTrain(version: TrainVersion): TrainEvidence?
+}
+
+/**
+ * The recorded gate results of release trains (INV-T-8749): append-only, one record per train, gate and environment.
+ * The train version is matched whole, never by prefix.
+ */
+interface GateRunRepository {
+    fun find(key: GateRunKey): GateRunRecord?
+
+    /** Stores [record]; false when its key is already taken (nothing is stored then). */
+    fun insert(record: GateRunRecord): Boolean
+
+    fun forTrain(version: TrainVersion): List<GateRunRecord>
 }
 
 interface TrainRepository {

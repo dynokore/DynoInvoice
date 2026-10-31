@@ -2,6 +2,7 @@ package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
+import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
 import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
@@ -75,12 +76,15 @@ class ReleaseTrainProfilesTest {
                     controlPlaneRunner(mount, "spring.profiles.active=$profile")
                         .withAllowBeanDefinitionOverriding(true)
                         .withBean("trainRepository", TrainRepository::class.java, { repository })
-                if (evidence != null) {
-                    runner =
+                runner =
+                    if (evidence != null) {
                         runner.withBean("trainEvidenceSource", TrainEvidenceSource::class.java, {
                             TrainEvidenceSource { evidence }
                         })
-                }
+                    } else {
+                        // the production binding reads the recorded gate runs: none are recorded
+                        runner.withBean("gateRunRepository", GateRunRepository::class.java, { NoGateRuns })
+                    }
                 if (permissions != null) {
                     runner = runner.withBean("operatorPermissions", OperatorPermissions::class.java, { permissions })
                 }
@@ -128,4 +132,13 @@ class ReleaseTrainProfilesTest {
             val window = SetSupportWindowCommand(ActorId("rita"), SupportWindow("2026.2", listOf(version)), request)
             context.getBean(SetSupportWindow::class.java).permits("rita", window) shouldBe false
         }
+}
+
+private object NoGateRuns : GateRunRepository {
+    override fun find(key: com.dynokore.gst.controlPlane.domain.release.GateRunKey) = null
+
+    override fun insert(record: com.dynokore.gst.controlPlane.domain.release.GateRunRecord) = true
+
+    override fun forTrain(version: TrainVersion) =
+        emptyList<com.dynokore.gst.controlPlane.domain.release.GateRunRecord>()
 }

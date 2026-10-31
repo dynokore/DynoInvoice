@@ -10,11 +10,15 @@ import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
 import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
+import com.dynokore.gst.controlPlane.application.release.RecordGateRun
+import com.dynokore.gst.controlPlane.application.release.RecordGateRunCommand
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindowCommand
 import com.dynokore.gst.controlPlane.contract.api.ReleasesApi
 import com.dynokore.gst.controlPlane.contract.model.AccreditationRecord
 import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
+import com.dynokore.gst.controlPlane.contract.model.GateRunRequest
+import com.dynokore.gst.controlPlane.contract.model.GateRunResponse
 import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesResponse
@@ -29,7 +33,10 @@ import com.dynokore.gst.controlPlane.contract.model.SupportWindowResponse
 import com.dynokore.gst.controlPlane.domain.accreditation.SandboxAcknowledgement
 import com.dynokore.gst.controlPlane.domain.accreditation.SubmissionType
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
+import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
+import com.dynokore.gst.controlPlane.domain.release.GateRunRecord
+import com.dynokore.gst.controlPlane.domain.release.ReferenceEnvironment
 import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
 import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
 import com.dynokore.gst.controlPlane.domain.release.SupportWindow
@@ -53,7 +60,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * publishTrain and setSupportWindow (TPL-08). The caller is the verified token's `sub`, never a request field
+ * publishTrain, setSupportWindow and recordGateRun (TPL-08). The caller is the verified token's `sub`, never a request field
  * (API-24); a train is platform data, so the command runs in a transaction bound to the platform tenant. The
  * accreditation task operations of the same contract tag are not overridden here: the generated interface answers
  * 501. recordAccreditation and getAccreditation are (INV-T-7322).
@@ -72,6 +79,7 @@ class ReleasesController(
     private val recordAccreditation: RecordAccreditation,
     private val getAccreditation: GetAccreditation,
     private val purgeAuditEntries: PurgeAuditEntries,
+    private val recordGateRun: RecordGateRun,
 ) : ReleasesApi {
     override fun recordAccreditation(
         idempotencyKey: UUID,
@@ -286,6 +294,38 @@ class ReleasesController(
         )
     }
 
+    override fun recordGateRun(
+        trainVersion: String,
+        idempotencyKey: UUID,
+        gateRunRequest: GateRunRequest,
+    ): ResponseEntity<GateRunResponse> {
+        val caller = caller()
+        val command =
+            commandOf(caller.correlationId) {
+                RecordGateRunCommand(
+                    ActorId(caller.actor),
+                    TrainVersion(trainVersion),
+                    Gate.valueOf(gateRunRequest.gate.name),
+                    gateRunRequest.environment?.let { ReferenceEnvironment.valueOf(it.name) },
+                    GateOutcome.valueOf(gateRunRequest.candidateResult.name),
+                    gateRunRequest.baselineResult?.let { GateOutcome.valueOf(it.name) },
+                    gateRunRequest.candidateFindings.orEmpty(),
+                    gateRunRequest.baselineFindings.orEmpty(),
+                    gateRunRequest.evidenceRef,
+                    RequestContext(caller.correlationId, idempotencyKey.toString()),
+                )
+            }
+        val outcome = platform.bindPlatform(caller.actor) { runner.run(recordGateRun, caller.actor, command) }
+        val record =
+            when (outcome) {
+                is OperationOutcome.Performed -> outcome.result
+                is OperationOutcome.Repeated -> outcome.result
+                OperationOutcome.NotPermitted -> problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+                is OperationOutcome.PreconditionUnmet -> refuse(Refusal.parse(outcome.code), caller.correlationId)
+            }
+        return ResponseEntity.status(HttpStatus.CREATED).body(responseOf(record))
+    }
+
     private companion object {
         const val CUT_OFF_YOUNGER_THAN_FLOOR = "CPL-001"
         const val FLOOR_UNDETERMINABLE = "CPL-002"
@@ -329,7 +369,7 @@ class ReleasesController(
     ): Nothing =
         when (refusal.code) {
             // a release gate holds the train back: the detail names each gate and the finding the train introduced
-            Refusal.GATE_FAILED, Refusal.NO_GATE_EVIDENCE -> {
+            Refusal.GATE_FAILED, Refusal.NO_GATE_EVIDENCE, Refusal.GATE_RUN_INVALID, Refusal.GATE_RUN_CONFLICT -> {
                 problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "${refusal.code}: ${refusal.detail}")
             }
 
@@ -337,6 +377,20 @@ class ReleasesController(
                 error("no response is declared for the refusal ${refusal.code}")
             }
         }
+
+    private fun responseOf(record: GateRunRecord) =
+        GateRunResponse(
+            trainVersion = record.trainVersion.value,
+            gate = GateRunResponse.Gate.valueOf(record.gate.name),
+            candidateResult = GateRunResponse.CandidateResult.valueOf(record.candidate.name),
+            recordedAt = record.recordedAt.atOffset(ZoneOffset.UTC),
+            recordedBy = record.recordedBy.value,
+            environment = record.environment?.let { GateRunResponse.Environment.valueOf(it.name) },
+            baselineResult = record.baseline?.let { GateRunResponse.BaselineResult.valueOf(it.name) },
+            candidateFindings = record.candidateFindings.sorted(),
+            baselineFindings = record.baselineFindings.sorted(),
+            evidenceRef = record.evidenceRef,
+        )
 
     private fun responseOf(train: ReleaseTrain) =
         ReleaseTrainResponse(
