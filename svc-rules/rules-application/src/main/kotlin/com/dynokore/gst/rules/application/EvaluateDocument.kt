@@ -1,6 +1,7 @@
 package com.dynokore.gst.rules.application
 
 import com.dynokore.gst.catalogue.ErrorCode
+import com.dynokore.gst.rules.domain.coding.LineCoding
 import com.dynokore.gst.rules.domain.evaluation.Evaluation
 import com.dynokore.gst.rules.domain.evaluation.EvaluationInputs
 import com.dynokore.gst.rules.domain.evaluation.EvaluationOutcome
@@ -10,6 +11,9 @@ import com.dynokore.gst.rules.domain.resolution.PackResolution
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.ResolutionDates
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
+import com.dynokore.gst.rules.domain.scope.ScopeFacts
+import com.dynokore.gst.rules.domain.scope.ScopeVerdict
+import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.tenancykernel.TenantId
 
@@ -47,10 +51,24 @@ class EvaluateDocument(
     private val evaluator: Evaluator,
     private val packTypes: List<PackType>,
     private val documentCoder: DocumentCoder? = null,
+    private val scopeVerdicts: ScopeVerdictPort? = null,
 ) {
     /** Codes one side of a document at the command's one date and builds its subtotals (INV-REQ-362, INV-REQ-363). */
     fun code(command: CodeDocumentCommand): DocumentCodingResult =
         checkNotNull(documentCoder) { "no DocumentCoder wired" }.code(command)
+
+    /**
+     * The scope verdict of one line, exactly as the port gives it, for a coded and a refused line alike. With no port
+     * it fails closed ([ScopeRulesMissing]); an exception of the port propagates and is never replaced by a verdict.
+     */
+    fun scopeVerdictOf(
+        tenant: TenantId?,
+        date: TransactionDate,
+        line: LineCoding,
+    ): ScopeVerdict {
+        val port = scopeVerdicts ?: throw ScopeRulesMissing()
+        return port.verdictOf(ScopeFacts(tenant, date, line))
+    }
 
     fun handle(command: EvaluateCommand): EvaluateResult =
         when (val resolution = resolver.resolve(packTypes, command.tenant, command.dates)) {
