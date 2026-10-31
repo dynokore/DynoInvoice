@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.configResolver.impl)
+    implementation(libs.gstCatalogue)
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
@@ -57,4 +58,5 @@ dependencies {
     testImplementation(libs.platform.evidenceStore.impl)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
+    testImplementation(libs.jsonSchemaValidator)
 }

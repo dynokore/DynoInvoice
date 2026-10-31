@@ -63,8 +63,20 @@ class SeparableStoreTest {
             "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows
         )
 
-    /** Columns left unset: a SECURITY case has no subject (the shape check of `case_register`). */
-    private val unset = setOf("case_register.subject_ref")
+    /** Columns left unset: a SECURITY case has no subject and no privacy facts (the shape check of `case_register`). */
+    private val unset =
+        setOf(
+            "case_register.subject_ref",
+            "case_register.request_kind",
+            "case_register.request_reference",
+            "case_register.received_on",
+            "case_register.response_deadline",
+            "case_register.deadline_period_days",
+            "case_register.closed_at",
+            "case_register.closure_outcome",
+            "case_register.closure_basis",
+            "case_register.notice_prompted_at",
+        )
 
     private val byType: Map<Class<*>, (TableField<*, *>) -> Any> =
         mapOf(

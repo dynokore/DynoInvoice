@@ -4,6 +4,8 @@ import com.dynokore.gst.evidence.adapters.persistence.JooqCaseStore
 import com.dynokore.gst.evidence.domain.cases.CaseKind
 import com.dynokore.gst.evidence.domain.cases.CaseRecord
 import com.dynokore.gst.evidence.domain.cases.CaseStatus
+import com.dynokore.gst.evidence.domain.cases.PrivacyCaseFacts
+import com.dynokore.gst.evidence.domain.cases.RequestKind
 import com.dynokore.gst.evidence.domain.cases.SecurityCaseFacts
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.Test
 import java.sql.Connection
 import java.sql.SQLException
 import java.time.Instant
+import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
@@ -38,7 +41,23 @@ class CaseStoreTest {
         )
 
     private fun privacy(subjectRef: String = "s".repeat(60)) =
-        CaseRecord(UUID.randomUUID(), CaseKind.PRIVACY, CaseStatus.EXPORT_READY, subjectRef, openedAt, null)
+        CaseRecord(
+            UUID.randomUUID(),
+            CaseKind.PRIVACY,
+            CaseStatus.EXPORT_READY,
+            subjectRef,
+            openedAt,
+            null,
+            PrivacyCaseFacts(
+                RequestKind.ACCESS,
+                "REQ-${UUID.randomUUID()}",
+                LocalDate.parse("2026-03-01"),
+                LocalDate.parse("2026-03-31"),
+                30,
+                null,
+                null,
+            ),
+        )
 
     /** A runtime session bound to [tenant], committed at the end. */
     private fun <T> bound(
@@ -77,8 +96,9 @@ class CaseStoreTest {
         subjectRef: String = "'s'",
         reviewReference: String = "null",
     ) = "insert into evidence.case_register (tenant_id, case_id, case_kind, status, subject_ref, opened_at, " +
-        "review_reference) values ('$owner', gen_random_uuid(), 'PRIVACY', 'OPEN', $subjectRef, now(), " +
-        reviewReference + ")"
+        "review_reference, request_kind, request_reference, received_on, response_deadline, deadline_period_days) " +
+        "values ('$owner', gen_random_uuid(), 'PRIVACY', 'OPEN', $subjectRef, now(), $reviewReference, 'ACCESS', " +
+        "gen_random_uuid()::text, date '2026-03-01', date '2026-03-31', 30)"
 
     @Test
     fun `INV-AC-11697 a SECURITY record reads back equal, ids in the order given with duplicates kept`() {
