@@ -45,6 +45,11 @@
       "description": "Monotonic authority version this change advances to: one access-svc sequence, drawn after access-svc locks the principal row (or, for a consent record, the consent row) in the change's transaction, so versions per key follow commit order (TPL-05). It is the version of the one record this event carries; a replica ignores a record at or below the version it holds for that record's key and measures its lag against the newest version seen (INV-REQ-1201 b1).",
       "minimum": 1
     },
+    "incarnation": {
+      "type": "integer",
+      "description": "Optional incarnation (epoch) of the authority sequence (INV-REQ-1201, INV-Q-9243 B). Versions order within one incarnation; the order across incarnations is by incarnation first, then authorityVersion. An absent value means 1 (a producer that predates this change).",
+      "minimum": 1
+    },
     "grantRecord": {
       "type": "object",
       "description": "Deprecated: access-svc stops publishing it when the publisher task INV-T-9234 merges; a replica built for `roleGrantRecord` neither reads nor drops it. Present when changeKind is GRANT: the full grant state, after the change, of one (tenant, principalRef, entityRef), replacing whole whatever a replica holds for that key (INV-Q-3322 (b), INV-REQ-864). The tenant is the envelope's tenantid (API-40). Tenant and group grants are expanded by access-svc into one grant record per entity under the scope, and re-emitted when an entity is created, moved or retired under it; a replica never resolves a scope through its structure replica. A change touching N entities emits N events in one outbox transaction.",

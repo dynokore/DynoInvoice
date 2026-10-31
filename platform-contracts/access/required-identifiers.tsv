@@ -143,3 +143,4 @@ getSoleOperatorAcknowledgement	operation	openapi.yaml	INV-REQ-875
 SoleOperatorAcknowledgementState.tenantRef	schema_property	openapi.yaml	INV-REQ-875
 SoleOperatorAcknowledgementState.recorded	schema_property	openapi.yaml	INV-REQ-875
 SoleOperatorAcknowledgementState.ackRef	schema_property	openapi.yaml	INV-REQ-875
+incarnation	property	schemas/authority-head-observed-payload.schema.json	INV-REQ-1201

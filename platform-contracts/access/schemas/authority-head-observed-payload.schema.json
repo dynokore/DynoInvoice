@@ -10,6 +10,11 @@
       "description": "The highest authorityVersion among the AuthorityChanged events access-svc has committed; never a drawn sequence value, so a replica at this version has applied every committed change (INV-REQ-1201 b1).",
       "minimum": 1
     },
+    "incarnation": {
+      "type": "integer",
+      "description": "Optional incarnation (epoch) of the authority sequence (INV-REQ-1201, INV-Q-9243 B). Versions order within one incarnation; the order across incarnations is by incarnation first, then authorityVersion. An absent value means 1 (a producer that predates this change).",
+      "minimum": 1
+    },
     "observedAt": {
       "type": "string",
       "description": "When access-svc read the head.",
