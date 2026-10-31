@@ -9,7 +9,7 @@ platformBuild = "0.23.3"
 # platform-libs' BOM: the one line a service bumps for the L1 modules (platform-libs README, "Releasing").
 platformLibsBom = "0.137.0"
 # The generated ErrorCode / VariationPoint catalogue (STK-61), from platform-contracts' registry (226).
-gstCatalogue = "2.11.0"
+gstCatalogue = "1.28.0"
 # The published platform-contracts bundle the contract module generates from (a main build of platform-contracts).
 platformContractsBundle = "0.0.0-dev+b9c910c2"
 springBoot = "4.1.1"
