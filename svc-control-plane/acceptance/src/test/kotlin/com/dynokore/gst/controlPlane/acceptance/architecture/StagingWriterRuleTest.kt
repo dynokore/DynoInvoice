@@ -68,7 +68,7 @@ internal object StagingWriterRule {
     fun findings(root: File): List<String> =
         root
             .walkTopDown()
-            .onEnter { it.name != "build" && it.name != ".git" }
+            .onEnter { it.name !in setOf("build", ".git", ".gradle-cache") }
             .filter { it.isFile && it.extension == "kt" && "/src/main/" in it.invariantSeparatorsPath }
             .filter { file ->
                 val code = SourceText.stripCommentsAndStrings(file.readText())

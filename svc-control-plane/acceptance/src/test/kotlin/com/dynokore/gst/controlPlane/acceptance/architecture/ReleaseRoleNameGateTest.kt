@@ -42,7 +42,8 @@ class ReleaseRoleNameGateTest {
     private fun trackedFiles() =
         Repository.root
             .walkTopDown()
-            .onEnter { it.name !in setOf(".git", "build", ".gradle", ".kotlin", "node_modules") }
+            // .gradle-cache is CI's GRADLE_USER_HOME inside the project dir; other test tasks write it during the walk
+            .onEnter { it.name !in setOf(".git", "build", ".gradle", ".gradle-cache", ".kotlin", "node_modules") }
             .filter { it.isFile && it.length() < MAX_BYTES && !it.name.endsWith(".jar") && !it.name.endsWith(".zip") }
             .toList()
 

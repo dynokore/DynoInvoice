@@ -30,6 +30,9 @@ import java.lang.reflect.Proxy
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.file.Path
+import java.time.Duration
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 
 /**
  * The OperatorRoles and OperatorPermissions bindings in the profiles `test`, `saas`, `private`: live with the base URL,
@@ -39,7 +42,8 @@ class OperatorRolesProfilesTest {
     @TempDir
     lateinit var mount: Path
 
-    private val queries = ArrayList<String>()
+    private val queries = CopyOnWriteArrayList<String>()
+    private val pool = Executors.newCachedThreadPool { r -> Thread(r).apply { isDaemon = true } }
     private var handler: (HttpExchange) -> Pair<Int, String> = { 200 to ALLOW_PUBLISH }
     private val server: HttpServer =
         HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0).apply {
@@ -53,12 +57,14 @@ class OperatorRolesProfilesTest {
                 exchange.sendResponseHeaders(status, bytes.size.toLong())
                 exchange.responseBody.use { it.write(bytes) }
             }
+            executor = pool
             start()
         }
 
     @AfterEach
     fun stop() {
         server.stop(0)
+        pool.shutdownNow()
         RequestContextHolder.resetRequestAttributes()
     }
 
@@ -119,7 +125,14 @@ class OperatorRolesProfilesTest {
         (permissions is AuthoriseOperatorPermissions) shouldBe true
         publish.permits("rita", publishCommand) shouldBe expected
         window.permits("rita", windowCommand) shouldBe expected
+        awaitQueries(observed.size)
         queries shouldBe observed.toList()
+    }
+
+    /** The stub answers on its own threads, so a request the client gave up on may be recorded a moment later. */
+    private fun awaitQueries(count: Int) {
+        val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
+        while (queries.size < count && System.nanoTime() < deadline) Thread.sleep(10)
     }
 
     private val publishQuery = "principalRef=rita&permission=release-train.publish&scope=platform"
@@ -194,7 +207,7 @@ class OperatorRolesProfilesTest {
             publishQuery,
             configure = {
                 handler = {
-                    Thread.sleep(900)
+                    Thread.sleep(3000)
                     200 to ALLOW_PUBLISH
                 }
             },
