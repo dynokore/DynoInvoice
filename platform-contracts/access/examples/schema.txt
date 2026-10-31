@@ -34,4 +34,5 @@
 ../openapi.yaml#/components/schemas/GrantRequest grant-request-*.json
 ../openapi.yaml#/components/schemas/ApproveBreakGlassUnlockRequest approve-break-glass-unlock-request-*.json
 ../openapi.yaml#/components/schemas/ApproveBreakGlassUnlockResponse approve-break-glass-unlock-response-*.json
+../openapi.yaml#/components/schemas/SoleOperatorAcknowledgementState sole-operator-acknowledgement-state-*.json
 ../schemas/flow-context.schema.json flow-context-*.json

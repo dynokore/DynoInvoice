@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.17.0
+  version: 1.18.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
-    `authorise`, `authenticatePrincipal`, `getVerificationKeys`, `getRevocationList` and `resolveLandingScreen` are queries, not FR-AC.1 operations (no persistent state change),
+    `authorise`, `authenticatePrincipal`, `getVerificationKeys`, `getRevocationList`, `resolveLandingScreen` and `getSoleOperatorAcknowledgement` are queries, not FR-AC.1 operations (no persistent state change),
     called by every service and the gateway respectively; every other operation is a console command reached
     through console-bff. Several SDS §7 catalogue rows sharing one shape are consolidated onto one resource
     (noted per operation) to keep the surface small. The `access-contract` module generates its server
@@ -971,6 +971,50 @@ paths:
                     ackRef: SOA-0004
                     tenantRef: TEN-7B1004
                     status: ACTIVE
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: getSoleOperatorAcknowledgement
+      summary: Read whether the sole-operator acknowledgement of a tenant is recorded (INV-REQ-875)
+      description: 'The answer is always 200 for a tenant. `recorded` is true exactly when an acknowledgement of that tenant has the status ACTIVE; the `ackRef` of that acknowledgement is then present. `recorded` is false when none was recorded or the last one is WITHDRAWN, and `ackRef` is then absent. A query: the operation changes nothing.'
+      tags:
+      - separation-of-duty
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - INV-REQ-875
+      x-error-codes: []
+      parameters:
+      - name: tenantRef
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+      responses:
+        "200":
+          description: Sole-operator acknowledgement state of the tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SoleOperatorAcknowledgementState'
+              examples:
+                default:
+                  value:
+                    tenantRef: TEN-7B1004
+                    recorded: true
+                    ackRef: SOA-0004
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -3601,6 +3645,20 @@ components:
           - ACTIVE
           - WITHDRAWN
           x-extensible-enum: true
+    SoleOperatorAcknowledgementState:
+      type: object
+      required:
+      - tenantRef
+      - recorded
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        recorded:
+          type: boolean
+        ackRef:
+          type: string
+          maxLength: 64
     ElevationRequest:
       type: object
       required:
