@@ -51,6 +51,12 @@
     "countedAsUnsubmitted": {
       "type": "boolean",
       "description": "Whether this entry currently counts as unsubmitted for period-readiness computation (FR-AE.9). Derived from `state` per the source design record's per-state `countsAsUnsubmitted` note (lifecycle-states.schema.json's `x-lifecycle-states` catalogue), not independently settable."
+    },
+    "notSubmittableReason": {
+      "type": "string",
+      "enum": ["BUYER_REJECTED", "ISSUANCE_REFUSED", "NETTED_INTO_REVISION"],
+      "x-extensible-enum": true,
+      "description": "Set only when `state` is NOT_SUBMITTABLE. ISSUANCE_REFUSED is set by submission-svc from `PayloadRejected` of a version whose network path is RELAY_ISSUANCE (INV-REQ-324). Absent otherwise; never required."
     }
   },
   "required": [
@@ -62,5 +68,15 @@
     "transactionDate",
     "countedAsUnsubmitted"
   ],
+  "if": {
+    "required": ["notSubmittableReason"]
+  },
+  "then": {
+    "properties": {
+      "state": {
+        "const": "NOT_SUBMITTABLE"
+      }
+    }
+  },
   "additionalProperties": true
 }

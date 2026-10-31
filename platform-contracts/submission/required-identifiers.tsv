@@ -213,3 +213,7 @@ TransactionStatus.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV
 TransactionStatus.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
 TransactionStatus.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
 TransactionStatus.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371
+# INV-T-13337. Rows for INV-REQ-324 and INV-AC-13336 (read from Keel). Owned elsewhere, not rows here: requestIssuance, POST /v1/issuances, sourceKey, sourceRevision (ingestion contract), PayloadReady, PayloadRejected (payload contract), CanonicalVersionCreated (canonical contract), sendNetworkDocument (transport contract), 422, 200, rules-svc, masterdata-svc (not identifiers of this contract).
+notSubmittableReason	property	schemas/obligation-register-entry.schema.json	INV-REQ-324
+ISSUANCE_REFUSED	enum_value	schemas/obligation-register-entry.schema.json	INV-REQ-324
+NOT_SUBMITTABLE	enum_value	schemas/lifecycle-states.schema.json	INV-REQ-324

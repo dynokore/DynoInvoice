@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -606,7 +606,9 @@ paths:
                   lines: [{ lineNumber: 1, lineAmount: "1090.00" }]
       responses:
         '200':
-          description: Validation passed; the payload is built and handed to the AP.
+          description: >-
+            Validation passed and the payload is built. The document is handed on to submission-svc for despatch;
+            the send to the AP follows asynchronously.
           content:
             application/json:
               schema:

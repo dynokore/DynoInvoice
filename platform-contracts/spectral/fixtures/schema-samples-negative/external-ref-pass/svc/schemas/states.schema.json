@@ -1,0 +1,26 @@
+{
+  "$defs": {
+    "state": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/low"
+        },
+        {
+          "$ref": "#/$defs/high"
+        }
+      ]
+    },
+    "low": {
+      "type": "string",
+      "enum": [
+        "LOW"
+      ]
+    },
+    "high": {
+      "type": "string",
+      "enum": [
+        "HIGH"
+      ]
+    }
+  }
+}

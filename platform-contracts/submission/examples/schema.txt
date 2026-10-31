@@ -20,3 +20,4 @@
 ../schemas/compliance-alert-values-measured-payload.schema.json compliance-alert-values-measured-*.json
 ../openapi.yaml#/components/schemas/ReplayScopeRequest replay-scope-request-*.json
 ../openapi.yaml#/components/schemas/ReplayScopeResult replay-scope-result-*.json
+../schemas/obligation-register-entry.schema.json obligation-register-entry-*.json

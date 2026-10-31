@@ -5,11 +5,18 @@ T6's "Schema validation tests with valid and invalid samples pass": a
 minimal, dependency-free JSON Schema (2020-12 subset) validator, covering
 exactly the keywords the two envelope schemas use (type, properties,
 required, additionalProperties, pattern, format, const, enum, minLength,
-minimum, maximum, items, local $ref into #/$defs), plus uniqueItems, the map keywords
+minimum, maximum, items, $ref into #/$defs), plus uniqueItems, the map keywords
 minProperties, propertyNames and schema-valued additionalProperties (INV-T-5054), and a calendar
 check of format: date (a date matching YYYY-MM-DD must also exist, so
 2027-13-45 fails). Numbers (INV-Q-5443): type number (an int or a float that is not a bool, so "120", true, null and an array
 fail; NaN and Infinity fail too) and the keywords exclusiveMinimum, exclusiveMaximum, minimum and maximum on number and on integer.
+oneOf (exactly one subschema valid) and anyOf (at least one) are evaluated (INV-T-13337).
+A $ref is a local '#/...' pointer or a relative file path, optionally with '#/<pointer>'
+(INV-T-13337, INV-Q-14026 A): the path is read from the directory of the file that holds the
+referring schema, and a '#/' ref inside the target resolves against the target. A ref with a URI
+scheme or starting '/' or containing a backslash, a path that leaves the repository (the parent of
+the directory of this file), a missing or unparsable or other-suffix file, a missing pointer, a
+chain of more than 32 refs and an external ref with no base file are Unsupported.
 A schema carrying patternProperties or maxProperties fails every sample
 (Unsupported, never silently ignored). No pip install in CI (mirrors
 check-payload-compat.py's stdlib-only style); networknt json-schema-validator
@@ -83,13 +90,10 @@ def _max_difference_rule(schema: dict):
     return rule["minuend"], rule["subtrahend"], rule["max"]
 
 
-def _resolve(schema: dict, root: dict) -> dict:
-    if "$ref" in schema:
-        ref = schema["$ref"]
-        if not ref.startswith("#/"):
-            raise Invalid(f"unsupported $ref (this validator only resolves local '#/...' pointers): {ref}")
-        return _resolve(_pointer(root, ref), root)
-    return schema
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_MAX_HOPS = 32
+_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+_DOCS: dict[Path, object] = {}
 
 
 def _pointer(doc, ref: str):
@@ -103,17 +107,64 @@ def _pointer(doc, ref: str):
     return node
 
 
+def _read_doc(path: Path):
+    """The parsed .json, .yaml or .yml file at path."""
+    if path.suffix in (".yaml", ".yml"):
+        import yaml  # PyYAML, as in the other spectral checks
+        return yaml.safe_load(path.read_text())
+    return json.loads(path.read_text())
+
+
+def _external(ref: str, base: Path | None):
+    """(target, document, file) of an external $ref: a relative file path, optionally '#/<pointer>'."""
+    file_part, _, pointer = ref.partition("#")
+    if (not file_part or _SCHEME.match(ref) or ref.startswith("/") or "\\" in ref
+            or (pointer and not pointer.startswith("/"))):
+        raise Unsupported(f"$ref {ref} is not a relative file path")
+    if base is None:
+        raise Unsupported(f"$ref {ref} has no base file")
+    path = (Path(base).resolve().parent / file_part).resolve()
+    if _REPO_ROOT not in path.parents:
+        raise Unsupported(f"$ref {ref} leaves the repository")
+    if path.suffix not in (".json", ".yaml", ".yml"):
+        raise Unsupported(f"$ref {ref} names no readable schema file")
+    if path not in _DOCS:
+        try:
+            _DOCS[path] = _read_doc(path)
+        except Exception as e:  # unreadable or unparsable file
+            raise Unsupported(f"$ref {ref} names no readable schema file ({type(e).__name__})") from None
+    doc = _DOCS[path]
+    try:
+        target = _pointer(doc, "#" + pointer) if pointer else doc
+    except Invalid:
+        raise Unsupported(f"$ref {ref} pointer is not found") from None
+    if not isinstance(target, dict):
+        raise Unsupported(f"$ref {ref} pointer is not found")
+    return target, doc, path
+
+
+def _resolve(schema: dict, root: dict, base: Path | None = None):
+    """(schema, root, base) after following $ref chains; a local ref stays in root, an external
+    ref switches root and base to its target file."""
+    for _ in range(_MAX_HOPS + 1):
+        if "$ref" not in schema:
+            return schema, root, base
+        ref = schema["$ref"]
+        if isinstance(ref, str) and ref.startswith("#/"):
+            schema = _pointer(root, ref)
+        else:
+            if not isinstance(ref, str):
+                raise Unsupported(f"$ref {ref!r} is not a relative file path")
+            schema, root, base = _external(ref, base)
+    raise Unsupported(f"$ref {ref} chain longer than {_MAX_HOPS}")
+
+
 def load_schema(spec: str) -> tuple[dict, dict]:
     """(schema, root) for '<file>' or '<file>#/<pointer>'. A .yaml/.yml file (an OpenAPI
     document, so request and response schemas are tested where they are defined, never as
     a copy) needs PyYAML; its local '#/components/...' $refs resolve against the document."""
     file_part, _, pointer = spec.partition("#")
-    path = Path(file_part)
-    if path.suffix in (".yaml", ".yml"):
-        import yaml  # PyYAML, as in the other spectral checks
-        root = yaml.safe_load(path.read_text())
-    else:
-        root = json.loads(path.read_text())
+    root = _read_doc(Path(file_part))
     return (_pointer(root, "#" + pointer) if pointer else root), root
 
 
@@ -124,8 +175,8 @@ def _check_exclusive_bounds(instance, schema: dict, path: str) -> None:
         raise Invalid(f"{path}: {instance} not below exclusiveMaximum {schema['exclusiveMaximum']}")
 
 
-def _check(instance, schema: dict, root: dict, path: str) -> None:
-    schema = _resolve(schema, root)
+def _check(instance, schema: dict, root: dict, path: str, base: Path | None = None) -> None:
+    schema, root, base = _resolve(schema, root, base)
 
     for keyword in _UNSUPPORTED_KEYWORDS:
         if keyword in schema:
@@ -143,14 +194,20 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
 
     # Conditional keywords (INV-T-4909: "entityRef present exactly when scope is ENTITY"):
     # not, and if/then/else. A schema inside them is checked by the same rules.
-    if "not" in schema and _valid(instance, schema["not"], root, path):
+    if "not" in schema and _valid(instance, schema["not"], root, path, base):
         raise Invalid(f"{path}: must not satisfy the 'not' schema")
     for sub in schema.get("allOf", []):
-        _check(instance, sub, root, path)
+        _check(instance, sub, root, path, base)
+    if "oneOf" in schema:
+        if [_valid(instance, sub, root, path, base) for sub in schema["oneOf"]].count(True) != 1:
+            raise Invalid(f"{path}: must satisfy exactly one 'oneOf' schema")
+    if "anyOf" in schema:
+        if not any([_valid(instance, sub, root, path, base) for sub in schema["anyOf"]]):
+            raise Invalid(f"{path}: must satisfy at least one 'anyOf' schema")
     if "if" in schema:
-        branch = schema.get("then") if _valid(instance, schema["if"], root, path) else schema.get("else")
+        branch = schema.get("then") if _valid(instance, schema["if"], root, path, base) else schema.get("else")
         if branch is not None:
-            _check(instance, branch, root, path)
+            _check(instance, branch, root, path, base)
 
     if t == "object":
         if not isinstance(instance, dict):
@@ -175,16 +232,16 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
             raise Invalid(f"{path}: no property name is allowed (propertyNames false)")
         if isinstance(names, dict):
             for key in instance:
-                _check(key, {"type": "string", **names}, root, f"{path}.<name {key!r}>")
+                _check(key, {"type": "string", **names}, root, f"{path}.<name {key!r}>", base)
         props = schema.get("properties", {})
         extra = schema.get("additionalProperties")
         for key, value in instance.items():
             if key in props:
-                _check(value, props[key], root, f"{path}.{key}")
+                _check(value, props[key], root, f"{path}.{key}", base)
             elif extra is False:
                 raise Invalid(f"{path}: additional property '{key}' not allowed")
             elif isinstance(extra, dict):
-                _check(value, extra, root, f"{path}.{key}")
+                _check(value, extra, root, f"{path}.{key}", base)
     elif t == "array":
         if not isinstance(instance, list):
             raise Invalid(f"{path}: expected array, got {type(instance).__name__}")
@@ -202,7 +259,7 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
         items = schema.get("items")
         if items is not None:
             for i, el in enumerate(instance):
-                _check(el, items, root, f"{path}[{i}]")
+                _check(el, items, root, f"{path}[{i}]", base)
     elif t == "string":
         if not isinstance(instance, str):
             raise Invalid(f"{path}: expected string, got {type(instance).__name__}")
@@ -244,15 +301,15 @@ def _check(instance, schema: dict, root: dict, path: str) -> None:
     # t is None (e.g. the envelope's untyped 'data') or another type: no further check.
 
 
-def _valid(instance, schema: dict, root: dict, path: str) -> bool:
+def _valid(instance, schema: dict, root: dict, path: str, base: Path | None = None) -> bool:
     try:
-        _check(instance, schema, root, path)
+        _check(instance, schema, root, path, base)
         return True
     except Invalid:
         return False
 
 
-def _scan_unsupported(schema, root: dict, seen: set[int]) -> None:
+def _scan_unsupported(schema, root: dict, seen: set[int], base: Path | None = None) -> None:
     """Fail closed on a schema whose reachable subschemas (also those no sample reaches, and the
     targets of local $refs) carry an unsupported keyword. Only schema positions are read, so a
     property that happens to be named patternProperties is not a keyword."""
@@ -263,27 +320,32 @@ def _scan_unsupported(schema, root: dict, seen: set[int]) -> None:
         if keyword in schema:
             raise Unsupported(f"schema keyword '{keyword}' is not supported by this validator")
     _max_difference_rule(schema)
-    if isinstance(schema.get("$ref"), str) and schema["$ref"].startswith("#/"):
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#/"):
         try:
-            _scan_unsupported(_pointer(root, schema["$ref"]), root, seen)
+            _scan_unsupported(_pointer(root, ref), root, seen, base)
         except Invalid:
             pass  # an unresolvable $ref is reported by _check when a sample reaches it
+    elif ref is not None:
+        target, target_root, target_base = _external(ref, base) if isinstance(ref, str) else (None, None, None)
+        _scan_unsupported(target, target_root, seen, target_base)
     for key in ("properties", "$defs", "definitions"):
         if isinstance(schema.get(key), dict):
             for sub in schema[key].values():
-                _scan_unsupported(sub, root, seen)
+                _scan_unsupported(sub, root, seen, base)
     for key in ("additionalProperties", "propertyNames", "items", "not", "if", "then", "else"):
-        _scan_unsupported(schema.get(key), root, seen)
+        _scan_unsupported(schema.get(key), root, seen, base)
     for key in ("allOf", "anyOf", "oneOf", "prefixItems"):
         if isinstance(schema.get(key), list):
             for sub in schema[key]:
-                _scan_unsupported(sub, root, seen)
+                _scan_unsupported(sub, root, seen, base)
 
 
-def validate(instance, schema: dict, root: dict | None = None) -> None:
+def validate(instance, schema: dict, root: dict | None = None, base: Path | str | None = None) -> None:
     root = schema if root is None else root
-    _scan_unsupported(schema, root, set())
-    _check(instance, schema, root, "$")
+    base = None if base is None else Path(base)
+    _scan_unsupported(schema, root, set(), base)
+    _check(instance, schema, root, "$", base)
 
 
 def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,
@@ -293,6 +355,7 @@ def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,
     so a schema with no glob tests only the samples nobody else claims."""
     failures: list[str] = []
     schema, root = load_schema(schema_spec)
+    base = Path(schema_spec.partition("#")[0])
 
     def mine(sample: Path) -> bool:
         if pattern is not None:
@@ -304,7 +367,7 @@ def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,
             continue
         instance = json.loads(sample.read_text())
         try:
-            validate(instance, schema, root)
+            validate(instance, schema, root, base)
         except Invalid as e:
             failures.append(f"{sample}: expected VALID but failed: {e}")
         except Unsupported as e:
@@ -315,7 +378,7 @@ def run_dir(schema_spec: str, samples_dir: Path, pattern: str | None = None,
             continue
         instance = json.loads(sample.read_text())
         try:
-            validate(instance, schema, root)
+            validate(instance, schema, root, base)
             failures.append(f"{sample}: expected INVALID but passed")
         except Invalid:
             pass

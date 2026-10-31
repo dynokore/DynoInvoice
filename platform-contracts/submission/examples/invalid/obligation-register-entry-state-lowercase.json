@@ -1,0 +1,12 @@
+{
+  "docUuid": "0b9f5c1e-6d2a-4a57-9c3e-7a1f2e4d8b10",
+  "docSequence": 2,
+  "entityRef": "E-001",
+  "sourceEvent": "CanonicalVersionCreated",
+  "provisional": false,
+  "state": "ready",
+  "scopeVerdict": "SUBMITTABLE",
+  "prescribedPeriodRef": "2026-Q1",
+  "transactionDate": "2026-03-20",
+  "countedAsUnsubmitted": true
+}

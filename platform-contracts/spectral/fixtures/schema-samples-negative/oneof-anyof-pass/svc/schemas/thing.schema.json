@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "a": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 5
+        },
+        {
+          "type": "integer",
+          "maximum": 10
+        }
+      ]
+    },
+    "b": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 3
+        },
+        {
+          "type": "string",
+          "pattern": "^a"
+        }
+      ]
+    }
+  }
+}

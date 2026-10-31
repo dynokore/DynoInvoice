@@ -35,5 +35,27 @@ expect_fail map-property-names "shorter than minLength 1"
 expect_fail map-unsupported-keyword "keyword 'patternProperties' is not supported"
 expect_fail map-unsupported-keyword "keyword 'maxProperties' is not supported"
 expect_fail map-unsupported-keyword "nested-unreached.json: schema keyword 'patternProperties'"
+out=$(python3 validate-schema-samples.py --discover $N/external-ref-pass 2>&1) || { echo "gst-ci: FAIL — external-ref fixture rejected:"; echo "$out"; failed=1; }
+out=$(python3 validate-schema-samples.py --discover $N/oneof-anyof-pass 2>&1) || { echo "gst-ci: FAIL — oneOf/anyOf fixture rejected:"; echo "$out"; failed=1; }
+expect_fail external-ref-missing-file "names no readable schema file"
+expect_fail external-ref-missing-pointer "pointer is not found"
+expect_fail external-ref-absolute-url "is not a relative file path"
+expect_fail external-ref-absolute-path "is not a relative file path"
+expect_fail external-ref-outside-repo "leaves the repository"
+expect_fail external-ref-unsupported-keyword "keyword 'patternProperties' is not supported"
+expect_fail external-ref-cycle "chain longer than 32"
+out=$(python3 - <<'PY' 2>&1
+import importlib.util
+spec = importlib.util.spec_from_file_location("vss", "validate-schema-samples.py")
+vss = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(vss)
+try:
+    vss.validate({"p": 1}, {"type": "object", "properties": {"p": {"$ref": "./x.schema.json"}}})
+except vss.Unsupported as e:
+    print(e)
+PY
+)
+case "$out" in *"has no base file"*) echo "gst-ci: self-test 'external-ref-no-base' failed as expected (has no base file)";;
+  *) echo "gst-ci: FAIL — external-ref-no-base: $out"; failed=1;; esac
 [ "$failed" -eq 0 ] && echo "gst-ci: validate-schema-samples.py self-test passed."
 exit $failed

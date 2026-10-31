@@ -1,0 +1,7 @@
+{
+  "$defs": {
+    "state": {
+      "type": "string"
+    }
+  }
+}
