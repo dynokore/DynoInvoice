@@ -2,8 +2,13 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
+import com.dynokore.gst.rules.application.CodeDocumentCommand
+import com.dynokore.gst.rules.application.DocumentCoder
+import com.dynokore.gst.rules.application.DocumentCodingResult
+import com.dynokore.gst.rules.application.DocumentLine
 import com.dynokore.gst.rules.application.PackEvent
 import com.dynokore.gst.rules.application.PackEventEmitter
+import com.dynokore.gst.rules.domain.coding.LineInput
 import com.dynokore.gst.rules.domain.coding.MappingCodeChecks
 import com.dynokore.gst.rules.domain.coding.MappingEntry
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
@@ -24,6 +29,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -86,13 +92,16 @@ private object BoundaryPacks {
                 mapEntry("e4", "SB", "SR", "SELF_BILLING"),
                 mapEntry("e5", "NEWCODE", "NEWX"),
                 mapEntry("e6", "NOCAT", "SRCA-C"),
+                mapEntry("e7", "CAS", "SRCA-S"),
+                mapEntry("e8", "CAP", "TXCA"),
             ).joinToString(",") + "]}"
 
     private fun code(
         code: String,
         rate: String,
         group: String = "SUPPLY_STANDARD_RATED",
-    ) = """{"code":"$code","group":"$group","side":"SUPPLY","annexERate":"$rate","sourceClass":"PRIMARY",""" +
+        side: String = "SUPPLY",
+    ) = """{"code":"$code","group":"$group","side":"$side","annexERate":"$rate","sourceClass":"PRIMARY",""" +
         """"sourceReference":"invented"}"""
 
     private fun catalogue(
@@ -103,6 +112,8 @@ private object BoundaryPacks {
         listOf(
             code("SR", sr),
             code("SRCA-C", sr),
+            code("SRCA-S", "0"),
+            code("TXCA", sr, "PURCHASE_STANDARD_RATED", "PURCHASE"),
             zero(),
         ) + more
     ).joinToString(",")}]}"""
@@ -343,6 +354,73 @@ class EvaluateDocumentBoundaryTest(
     @Test
     fun `the customer-accounting code stays valid in the catalogue and is coded as given`() {
         evaluate("NOCAT", "2026-09-15").text("categoryCode") shouldBe "SRCA-C"
+    }
+
+    // ---- grouping and the two sides, at DocumentCoder over the persisted packs (INV-Q-14032; no HTTP) ----
+
+    private fun coded(
+        date: String,
+        vararg lines: Triple<String, String, String>,
+    ): DocumentCodingResult =
+        tenants.bind(TENANT_A, "boundary-test") {
+            tx.inTransaction {
+                DocumentCoder(reader, reader, reader).code(
+                    CodeDocumentCommand(
+                        TENANT_A,
+                        TransactionDate(LocalDate.parse(date)),
+                        lines.mapIndexed { i, (code, amount, tax) ->
+                            DocumentLine("l$i", amount.toBigDecimal(), tax.toBigDecimal(), LineInput(code))
+                        },
+                    ),
+                )
+            }
+        }
+
+    /** The subtotals as (code, rate, taxable, tax) with numbers as plain strings, so the comparison is by equality. */
+    private fun DocumentCodingResult.subtotals(): List<List<String>> =
+        shouldBeInstanceOf<DocumentCodingResult.Coded>().document.subtotals.map {
+            listOf(
+                it.categoryCode,
+                it.rate.toPlainString(),
+                it.taxable.toPlainString(),
+                it.tax.toPlainString(),
+            )
+        }
+
+    private fun line(
+        code: String,
+        amount: String,
+        tax: String,
+    ) = Triple(code, amount, tax)
+
+    @Test
+    fun `INV-REQ-363 three lines SR, SR and ZR give exactly two subtotals, SR then ZR, with the sums of the lines`() {
+        // 2026-10-10: mapping m2 (CHG is ZR), catalogue c2 (SR at 9), scenario s2
+        val sr1 = line("STD", "100.00", "9.00")
+        val sr2 = line("STD", "50.50", "4.55")
+        coded("2026-10-10", sr1, sr2, line("CHG", "30.00", "0.00")).subtotals() shouldBe
+            listOf(listOf("SR", "9", "150.50", "13.55"), listOf("ZR", "0", "30.00", "0.00"))
+        // look-alike: SR, SR, SR is one group
+        coded("2026-10-10", sr1, sr2, line("STD", "30.00", "2.70")).subtotals() shouldBe
+            listOf(listOf("SR", "9", "180.50", "16.25"))
+        // look-alike: SR, ZR, ZR is two groups with other sums
+        coded("2026-10-10", sr1, line("CHG", "50.50", "0.00"), line("CHG", "30.00", "0.00")).subtotals() shouldBe
+            listOf(listOf("SR", "9", "100.00", "9.00"), listOf("ZR", "0", "80.50", "0.00"))
+    }
+
+    @Test
+    fun `INV-REQ-363 INV-REQ-365 the two sides of one transaction are coded alone and never forced to agree`() {
+        val supplierLines = arrayOf(line("CAS", "100.00", "0.00"), line("CAS", "20.00", "0.00"))
+        val customerLines = arrayOf(line("CAP", "100.00", "9.00"), line("CAP", "20.00", "1.80"))
+        val supplierAlone = coded("2026-10-10", *supplierLines)
+        val customerAlone = coded("2026-10-10", *customerLines)
+        supplierAlone.subtotals() shouldBe listOf(listOf("SRCA-S", "0", "120.00", "0.00"))
+        customerAlone.subtotals() shouldBe listOf(listOf("TXCA", "9", "120.00", "10.80"))
+        // one transaction: both sides coded in turn, in either order, give the results they gave alone
+        val customerSecond = coded("2026-10-10", *customerLines)
+        val supplierSecond = coded("2026-10-10", *supplierLines)
+        customerSecond shouldBe customerAlone
+        supplierSecond shouldBe supplierAlone
     }
 
     // ---- refused caller leaves nothing stored (INV-Q-12122) ----
