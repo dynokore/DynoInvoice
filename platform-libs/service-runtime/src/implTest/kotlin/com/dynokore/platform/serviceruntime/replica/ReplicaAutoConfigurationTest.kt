@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.replica
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration
 import com.dynokore.platform.serviceruntime.datasource.withBindingKey
+import com.dynokore.platform.serviceruntime.events.PlatformEventTypes
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceProperties
 import com.dynokore.platform.tenancykernel.TenantId
@@ -45,6 +46,26 @@ class ReplicaAutoConfigurationTest {
             replica.lag() shouldBe Lag.Unknown
             replica.onSnapshotComplete("t.two", 0)
             replica.lag() shouldBe Lag.Measured(Duration.ZERO)
+        }
+    }
+
+    @Test
+    fun `the policy replica lists the one platform topic by default`() {
+        ReplicaProperties().policyTopics shouldBe setOf("gst.platform.policy-changed.v1")
+        contextRunner.run { context ->
+            val replica = context.getBean(PolicyReplica::class.java)
+            replica.lag() shouldBe Lag.Unknown
+            replica.onSnapshotComplete(PlatformEventTypes.POLICY_CHANGED_TOPIC, 0)
+            replica.lag() shouldBe Lag.Measured(Duration.ZERO)
+        }
+    }
+
+    @Test
+    fun `a configured policy-topics property replaces the default`() {
+        contextRunner.withPropertyValues("service-runtime.replica.policy-topics=t.one,t.two").run { context ->
+            val replica = context.getBean(PolicyReplica::class.java)
+            replica.onSnapshotComplete(PlatformEventTypes.POLICY_CHANGED_TOPIC, 0)
+            replica.lag() shouldBe Lag.Unknown
         }
     }
 

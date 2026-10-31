@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.replica
 
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.serviceruntime.events.PlatformEventTypes
 import com.dynokore.platform.serviceruntime.identity.EntityRefScopeFilter
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
@@ -27,10 +28,11 @@ import java.time.Duration
 data class ReplicaProperties(
     val authorityLagBound: Duration = AuthorityReplica.DEFAULT_LAG_BOUND,
     /**
-     * The producer topics `PolicyChanged` arrives on (one per owning service, INV-REQ-1241). The policy
-     * replica's lag stays unknown until every one has reported its snapshot (INV-REQ-1200 sync gate).
+     * The topics `PolicyChanged` arrives on. The feed is the one platform topic `gst.platform.policy-changed.v1`,
+     * written by every owning service and read by the policy replica of every service (INV-Q-8998). The
+     * replica's lag stays unknown until that topic has reported its snapshot (INV-REQ-1200 sync gate).
      */
-    val policyTopics: Set<String> = emptySet(),
+    val policyTopics: Set<String> = setOf(PlatformEventTypes.POLICY_CHANGED_TOPIC),
 )
 
 const val TENANCY_EDGE = "tenancy-svc"

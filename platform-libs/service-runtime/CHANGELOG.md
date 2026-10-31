@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.27.0] - 2026-10-31
+### Changed
+- `ReplicaProperties.policyTopics` defaults to `setOf(PlatformEventTypes.POLICY_CHANGED_TOPIC)`, the one platform topic `gst.platform.policy-changed.v1`, so the policy replica's lag is unknown until that topic has synced (INV-T-13620; INV-Q-8998 A; INV-REQ-1241). Its KDoc and the class KDoc of `PolicyReplica` now name the one platform topic instead of one topic per owning service; the code of `PolicyReplica` is unchanged.
+
 ## [10.26.1] - 2026-10-31
 ### Changed
 - Metadata-only change (INV-T-9316, G-DVS): depends on `outbox-and-queue 6.9.0`, whose version steps; no code change.

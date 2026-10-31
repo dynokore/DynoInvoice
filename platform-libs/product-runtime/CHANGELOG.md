@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-31
+### Changed
+- Metadata-only change (INV-T-13620, G-DVS): depends on `service-runtime 10.27.0`, whose version steps; no code change.
+
 ## [2.2.0] - 2026-10-31
 ### Added
 - `PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED` (`gst.platform.break-glass-session-changed.v1`), appended last in `ALL` (INV-Q-9119, INV-REQ-1226, INV-AC-9303, INV-T-9316).

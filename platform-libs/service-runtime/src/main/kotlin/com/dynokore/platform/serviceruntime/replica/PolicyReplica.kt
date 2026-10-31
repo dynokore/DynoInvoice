@@ -74,10 +74,11 @@ interface PolicyFeedSink {
  * within their tenant.
  *
  * Ordering is by event-log offset: per scope level, variation point and effective date a
- * later offset of the same topic wins, so redelivery and reordering are harmless. A variation
- * point has one owning service and so one topic (INV-REQ-1241); if two topics ever set the same
- * slot, the one applied last wins, since offsets of different topics are not comparable.
- * Lag is measured per producer topic and the replica's lag is the worst of them: unknown
+ * later offset of the same topic wins, so redelivery and reordering are harmless. The feed is the
+ * one platform topic `gst.platform.policy-changed.v1` (INV-Q-8998), so the offsets of all writers
+ * are comparable; if a replica is configured with more topics and two of them set the same slot,
+ * the one applied last wins, since offsets of different topics are not comparable.
+ * Lag stays per producer topic for such a replica and its lag is the worst of them: unknown
  * until every topic seen (or listed in [topics]) has reported its snapshot.
  */
 class PolicyReplica(
