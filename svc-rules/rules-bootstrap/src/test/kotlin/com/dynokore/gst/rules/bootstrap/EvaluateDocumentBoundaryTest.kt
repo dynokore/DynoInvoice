@@ -57,7 +57,8 @@ private const val INSERT_MAPPING_PACK =
 private const val INSERT_MAPPING_ARTEFACT =
     "insert into rules.pack_artefact (id, pack_id, pack_type, pack_version, tenant_id, effective_from, effective_to, " +
         "min_engine_version, manifest, checksums, signature, contents, trusted_anchor, registered_by) " +
-        "values (?::uuid, 'mapping-pack', 'MAPPING', ?, ?::uuid, ?::date, ?::date, '1.0.0', '{}'::jsonb, '{}'::jsonb, " +
+        "values (?::uuid, 'mapping-pack', 'MAPPING', ?, ?::uuid, ?::date, ?::date, '1.0.0', " +
+        "'{}'::jsonb, '{}'::jsonb, " +
         "?, ?::jsonb, 'anchor', 'tenancy-probe') returning id"
 
 private const val REGISTER_PLATFORM_REGISTRY =
@@ -119,7 +120,11 @@ private object BoundaryPacks {
     }
 
     /** The mapping versions of the tenant: m1 until 2026-10-01 and m2 from it, which changes the code of CHG. */
-    val mappings = listOf(Triple("m1", "2026-07-01" to "2026-10-01", mapping("SR")), Triple("m2", "2026-10-01" to null, mapping("ZR")))
+    val mappings =
+        listOf(
+            Triple("m1", "2026-07-01" to "2026-10-01", mapping("SR")),
+            Triple("m2", "2026-10-01" to null, mapping("ZR")),
+        )
 
     /** The catalogue versions: c1 (incomplete, SR at 8) and c2 (complete, SR at 9, adds NEWX) from 2026-09-01. */
     val catalogues =
@@ -236,7 +241,10 @@ class EvaluateDocumentBoundaryTest(
     private fun JsonNode.text(name: String): String? = get(name)?.takeUnless { it.isNull }?.asString()
 
     private fun JsonNode.version(packType: String): String? =
-        get("packVersionsApplied")?.firstOrNull { it.get("packType").asString() == packType }?.get("version")?.asString()
+        get("packVersionsApplied")
+            ?.firstOrNull { it.get("packType").asString() == packType }
+            ?.get("version")
+            ?.asString()
 
     @Test
     fun `INV-AC-395 a back-dated invoice is coded under the mapping version in force on its transaction date`() {
@@ -261,7 +269,8 @@ class EvaluateDocumentBoundaryTest(
 
     @Test
     fun `INV-AC-1640 a credit note with its preceding document date is coded under that date's version`() {
-        val creditNote = evaluate("CHG", "2026-10-10", ""","precedingDocumentNumber":"INV-1","precedingDocumentDate":"2026-09-20"""")
+        val preceding = ""","precedingDocumentNumber":"INV-1","precedingDocumentDate":"2026-09-20""""
+        val creditNote = evaluate("CHG", "2026-10-10", preceding)
         creditNote.text("categoryCode") shouldBe "SR"
         creditNote.version("MAPPING") shouldBe "m1"
         // without the preceding-document date the credit note resolves at its own date
@@ -271,7 +280,7 @@ class EvaluateDocumentBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-1641 an unmapped code is RUL-001 and a mapped code absent from the catalogue is RUL-006, whatever the flag`() {
+    fun `INV-AC-1641 an unmapped code is RUL-001 and a code absent from the catalogue RUL-006, whatever the flag`() {
         // c1 is flagged incomplete, c2 complete: the answer is the same
         listOf("2026-08-15", "2026-09-15").forEach { date ->
             val unmapped = evaluate("X-NEW", date)
@@ -297,7 +306,7 @@ class EvaluateDocumentBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-2430 a mapping entry naming a code outside the catalogue is RUL-009 at sign-off and passes once corrected`() {
+    fun `INV-AC-2430 a mapping entry outside the catalogue is RUL-009 at sign-off and passes once corrected`() {
         val catalogue =
             tenants.bind(TENANT_A, "boundary-test") {
                 tx.inTransaction { reader.catalogueAt(TENANT_A, TransactionDate(LocalDate.parse("2026-09-15"))) }
@@ -421,7 +430,15 @@ class EvaluateDocumentBoundaryTest(
             BoundaryPacks.mappings.forEach { (version, window, contents) ->
                 val (from, to) = window
                 probe.inTenant(TENANT_A) {
-                    fetchValue(INSERT_MAPPING_PACK, UUID.randomUUID().toString(), TENANT_A.toString(), version, from, to, null)
+                    fetchValue(
+                        INSERT_MAPPING_PACK,
+                        UUID.randomUUID().toString(),
+                        TENANT_A.toString(),
+                        version,
+                        from,
+                        to,
+                        null,
+                    )
                     fetchValue(
                         INSERT_MAPPING_ARTEFACT,
                         UUID.randomUUID().toString(),
