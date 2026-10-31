@@ -9,12 +9,15 @@ import com.dynokore.gst.controlPlane.application.release.RecordGateRun
 import com.dynokore.gst.controlPlane.application.release.RecordGateRunCommand
 import com.dynokore.gst.controlPlane.application.release.RecordedTrainEvidence
 import com.dynokore.gst.controlPlane.application.release.ReleasePermission
+import com.dynokore.gst.controlPlane.application.release.TrainRepository
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import com.dynokore.gst.controlPlane.domain.release.GateRunKey
 import com.dynokore.gst.controlPlane.domain.release.GateRunRecord
+import com.dynokore.gst.controlPlane.domain.release.GateRunSubmission
 import com.dynokore.gst.controlPlane.domain.release.ReferenceEnvironment
+import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
 import com.dynokore.gst.controlPlane.domain.release.TrainKind
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import io.kotest.assertions.throwables.shouldThrow
@@ -45,20 +48,16 @@ class GateRunPersistenceIT {
         gate: Gate = Gate.SCENARIOS,
         environment: ReferenceEnvironment? = saas,
         candidate: GateOutcome = GateOutcome.PASSED,
-        findings: Set<String> = emptySet(),
-        baseline: GateOutcome? = null,
-        baselineFindings: Set<String> = emptySet(),
-        by: String = "rita",
     ) = GateRunRecord(
         train,
         gate,
         environment,
         candidate,
-        baseline,
-        findings,
-        baselineFindings,
+        null,
+        emptySet(),
+        emptySet(),
         "ev://run",
-        ActorId(by),
+        ActorId("rita"),
         clock.instant(),
     )
 
@@ -88,14 +87,10 @@ class GateRunPersistenceIT {
     fun `a record round-trips with the user ID, both findings sets and the optional fields`() {
         val train = fresh()
         val stored =
-            record(
-                train,
-                Gate.SECURITY,
-                null,
-                GateOutcome.FAILED,
-                setOf("F-9", "F-8"),
-                GateOutcome.FAILED,
-                setOf("F-1"),
+            record(train, Gate.SECURITY, null, GateOutcome.FAILED).copy(
+                candidateFindings = setOf("F-9", "F-8"),
+                baseline = GateOutcome.FAILED,
+                baselineFindings = setOf("F-1"),
             )
         repository.insert(stored) shouldBe true
         repository.find(stored.key) shouldBe stored
@@ -189,90 +184,99 @@ class GateRunPersistenceIT {
         source.forTrain(train)!!.certification.outcome shouldBe GateOutcome.PASSED
     }
 
-    @Test
-    fun `INV-AC-1943 and INV-AC-2658 publishTrain over the recorded runs of the table`() {
-        val certified = fresh()
-        val trains = HashMap<TrainVersion, com.dynokore.gst.controlPlane.domain.release.ReleaseTrain>()
-        val publish =
-            PublishTrain(
-                object : com.dynokore.gst.controlPlane.application.release.TrainRepository {
-                    override fun find(version: TrainVersion) = trains[version]
+    private val trains = HashMap<TrainVersion, ReleaseTrain>()
+    private val publish =
+        PublishTrain(
+            object : TrainRepository {
+                override fun find(version: TrainVersion) = trains[version]
 
-                    override fun save(train: com.dynokore.gst.controlPlane.domain.release.ReleaseTrain) {
-                        trains[train.version] = train
-                    }
-                },
-                { _, key -> key == ReleasePermission.PUBLISH },
-                RecordedTrainEvidence(repository),
-                { error("no accreditation task") },
-                clock,
+                override fun save(train: ReleaseTrain) {
+                    trains[train.version] = train
+                }
+            },
+            { _, key -> key == ReleasePermission.PUBLISH },
+            RecordedTrainEvidence(repository),
+            { error("no accreditation task") },
+            clock,
+        )
+
+    private fun refusal(
+        train: TrainVersion,
+        exposureReducing: Boolean = false,
+    ): Refusal? {
+        val command =
+            PublishTrainCommand(
+                ActorId("rita"),
+                train,
+                TrainKind.TRAIN,
+                exposureReducing,
+                false,
+                RequestContext("c", "k"),
             )
+        return publish.unmetPrecondition(command, publish.load(command))?.let(Refusal::parse)
+    }
 
-        fun refusal(
-            train: TrainVersion,
-            exposureReducing: Boolean = false,
-        ): Refusal? {
-            val command =
-                PublishTrainCommand(
-                    ActorId("rita"),
-                    train,
-                    TrainKind.TRAIN,
-                    exposureReducing,
-                    false,
-                    RequestContext("c", "k"),
+    /** The six records of a train, with [change] applied to each. */
+    private fun store(
+        train: TrainVersion,
+        change: (GateRunRecord) -> GateRunRecord? = { it },
+    ) = records(train).mapNotNull(change).forEach { repository.insert(it) }
+
+    private fun security(
+        findings: Set<String>,
+        baselineFindings: Set<String>,
+    ): (GateRunRecord) -> GateRunRecord =
+        {
+            if (it.gate == Gate.SECURITY) {
+                it.copy(
+                    candidate = GateOutcome.FAILED,
+                    candidateFindings = findings,
+                    baseline = GateOutcome.FAILED,
+                    baselineFindings = baselineFindings,
                 )
-            return publish.unmetPrecondition(command, publish.load(command))?.let(Refusal::parse)
+            } else {
+                it
+            }
         }
-        records(certified).forEach { repository.insert(it) }
-        refusal(certified) shouldBe null
 
-        val noPrivate = fresh()
-        records(noPrivate)
-            .filterNot { it.gate == Gate.CERTIFICATION && it.environment == private }
-            .forEach { repository.insert(it) }
-        refusal(noPrivate)!!.code shouldBe Refusal.NO_GATE_EVIDENCE
+    @Test
+    fun `INV-AC-1943 with the six records of a certified train publishTrain publishes it`() {
+        val train = fresh()
+        store(train)
+        refusal(train) shouldBe null
+    }
 
-        val failedPrivate = fresh()
-        records(failedPrivate)
-            .map {
-                if (it.gate == Gate.CERTIFICATION && it.environment == private) {
-                    it.copy(candidate = GateOutcome.FAILED)
-                } else {
-                    it
-                }
-            }.forEach { repository.insert(it) }
-        refusal(failedPrivate)!!.code shouldBe Refusal.GATE_FAILED
+    @Test
+    fun `INV-AC-1943 with the PRIVATE_MINIMAL certification record absent or FAILED the train is refused`() {
+        val absent = fresh()
+        store(absent) { if (it.gate == Gate.CERTIFICATION && it.environment == private) null else it }
+        refusal(absent)!!.code shouldBe Refusal.NO_GATE_EVIDENCE
+        val failed = fresh()
+        store(failed) {
+            if (it.gate == Gate.CERTIFICATION &&
+                it.environment == private
+            ) {
+                it.copy(candidate = GateOutcome.FAILED)
+            } else {
+                it
+            }
+        }
+        refusal(failed)!!.code shouldBe Refusal.GATE_FAILED
+    }
 
-        val newFinding = fresh()
-        records(newFinding)
-            .map {
-                if (it.gate == Gate.SECURITY) {
-                    it.copy(
-                        candidate = GateOutcome.FAILED,
-                        candidateFindings = setOf("F-9"),
-                        baseline = GateOutcome.FAILED,
-                        baselineFindings = setOf("F-1"),
-                    )
-                } else {
-                    it
-                }
-            }.forEach { repository.insert(it) }
-        refusal(newFinding, exposureReducing = true)!!.detail shouldContain "introduced=[F-9]"
-        val sameFinding = fresh()
-        records(sameFinding)
-            .map {
-                if (it.gate == Gate.SECURITY) {
-                    it.copy(
-                        candidate = GateOutcome.FAILED,
-                        candidateFindings = setOf("F-9"),
-                        baseline = GateOutcome.FAILED,
-                        baselineFindings = setOf("F-9"),
-                    )
-                } else {
-                    it
-                }
-            }.forEach { repository.insert(it) }
-        refusal(sameFinding, exposureReducing = true) shouldBe null
+    @Test
+    fun `INV-AC-2658 a new security finding blocks an exposure-reducing train and names it`() {
+        val train = fresh()
+        store(train, security(setOf("F-9"), setOf("F-1")))
+        refusal(train, exposureReducing = true)!!.detail shouldContain "introduced=[F-9]"
+    }
+
+    @Test
+    fun `INV-AC-2658 the same security finding as the released version does not block an exposure-reducing train`() {
+        val train = fresh()
+        store(train, security(setOf("F-9"), setOf("F-9")))
+        refusal(train, exposureReducing = true) shouldBe null
+        refusal(train, exposureReducing = false)!!.code shouldBe Refusal.GATE_FAILED
     }
 
     @Test
@@ -281,10 +285,10 @@ class GateRunPersistenceIT {
         val operation =
             RecordGateRun(
                 repository,
-                object : com.dynokore.gst.controlPlane.application.release.TrainRepository {
+                object : TrainRepository {
                     override fun find(version: TrainVersion) = null
 
-                    override fun save(train: com.dynokore.gst.controlPlane.domain.release.ReleaseTrain) = Unit
+                    override fun save(train: ReleaseTrain) = Unit
                 },
                 { actor, key -> key == ReleasePermission.CERTIFY && actor in setOf("rita", "sam") },
                 clock,
@@ -294,13 +298,7 @@ class GateRunPersistenceIT {
             RecordGateRunCommand(
                 ActorId(actor),
                 train,
-                Gate.SECURITY,
-                null,
-                GateOutcome.PASSED,
-                null,
-                emptyList(),
-                emptyList(),
-                null,
+                GateRunSubmission(Gate.SECURITY, null, GateOutcome.PASSED),
                 RequestContext("c", "k"),
             )
         val first = command("rita")

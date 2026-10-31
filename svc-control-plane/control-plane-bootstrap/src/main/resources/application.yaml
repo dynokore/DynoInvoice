@@ -39,6 +39,7 @@ inv.tenancy.platform-scoped-tables:                 # INV-ADR-3968 item 4a: the 
   - controlplane.support_window
   - controlplane.pack_release_record
   - controlplane.accreditation_record
+  - controlplane.gate_run
 control-plane:
   tenancy:
     create-timeout: PT1.5S                          # createTenant is bounded inside console-bff's 2 s (INV-REQ-1203, INV-REQ-1204 b7)

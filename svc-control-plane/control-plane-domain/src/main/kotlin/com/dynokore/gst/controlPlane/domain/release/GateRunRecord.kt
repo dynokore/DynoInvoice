@@ -40,25 +40,19 @@ data class GateRunKey(
     val environment: ReferenceEnvironment?,
 )
 
-/** What a gate result must satisfy to be recorded (the 422 rules of recordGateRun). */
-object GateRunRules {
-    /** The gates a caller records; CORPUS and STAGING are produced by the service itself. */
-    val RECORDABLE = setOf(Gate.SCENARIOS, Gate.REGENERATION, Gate.SECURITY, Gate.CERTIFICATION)
-    private val PER_ENVIRONMENT = setOf(Gate.SCENARIOS, Gate.CERTIFICATION)
-    const val MAX_FINDINGS = 500
-    const val MAX_TEXT = 256
-
-    /** The first rule the result breaks, or null. */
+/** A gate result as a caller submits it, before it is stored. */
+data class GateRunSubmission(
+    val gate: Gate,
+    val environment: ReferenceEnvironment?,
+    val candidate: GateOutcome,
+    val baseline: GateOutcome? = null,
+    val candidateFindings: List<String> = emptyList(),
+    val baselineFindings: List<String> = emptyList(),
+    val evidenceRef: String? = null,
+) {
+    /** The first rule of recordGateRun (HTTP 422) the submission breaks, or null. */
     @Suppress("CyclomaticComplexMethod")
-    fun violation(
-        gate: Gate,
-        environment: ReferenceEnvironment?,
-        candidate: GateOutcome,
-        baseline: GateOutcome?,
-        candidateFindings: List<String>,
-        baselineFindings: List<String>,
-        evidenceRef: String?,
-    ): String? =
+    fun violation(): String? =
         when {
             gate !in RECORDABLE -> {
                 "gate $gate is not recordable"
@@ -92,4 +86,12 @@ object GateRunRules {
                 null
             }
         }
+
+    companion object {
+        /** The gates a caller records; CORPUS and STAGING are produced by the service itself. */
+        val RECORDABLE = setOf(Gate.SCENARIOS, Gate.REGENERATION, Gate.SECURITY, Gate.CERTIFICATION)
+        private val PER_ENVIRONMENT = setOf(Gate.SCENARIOS, Gate.CERTIFICATION)
+        const val MAX_FINDINGS = 500
+        const val MAX_TEXT = 256
+    }
 }

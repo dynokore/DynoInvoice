@@ -20,17 +20,26 @@ class RecordedTrainEvidence(
 ) : TrainEvidenceSource {
     override fun forTrain(version: TrainVersion): TrainEvidence? {
         val records = runs.forTrain(version).filter { it.trainVersion == version }
-        val scenarios = perEnvironment(records, Gate.SCENARIOS) ?: return null
-        val certification = perEnvironment(records, Gate.CERTIFICATION) ?: return null
-        val security = single(records, Gate.SECURITY) ?: return null
-        val regeneration = single(records, Gate.REGENERATION) ?: return null
-        return TrainEvidence(
-            scenarios = merged(scenarios),
-            security = observationOf(security),
-            regeneration = RecordedRegeneration(observationOf(regeneration)),
-            certification = Certification(certification.mapValues { it.value.candidate }),
-            releasedCertification = releasedCertification(certification),
-        )
+        val environments =
+            perEnvironment(records, Gate.SCENARIOS)?.let { s ->
+                perEnvironment(records, Gate.CERTIFICATION)?.let {
+                    s to
+                        it
+                }
+            }
+        val singles = single(records, Gate.SECURITY)?.let { s -> single(records, Gate.REGENERATION)?.let { s to it } }
+        return if (environments == null || singles == null) {
+            null
+        } else {
+            val (scenarios, certification) = environments
+            TrainEvidence(
+                scenarios = merged(scenarios),
+                security = observationOf(singles.first),
+                regeneration = RecordedRegeneration(observationOf(singles.second)),
+                certification = Certification(certification.mapValues { it.value.candidate }),
+                releasedCertification = releasedCertification(certification),
+            )
+        }
     }
 
     private fun single(

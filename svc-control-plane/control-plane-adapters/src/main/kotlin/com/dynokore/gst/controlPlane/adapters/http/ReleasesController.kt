@@ -36,6 +36,7 @@ import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import com.dynokore.gst.controlPlane.domain.release.GateRunRecord
+import com.dynokore.gst.controlPlane.domain.release.GateRunSubmission
 import com.dynokore.gst.controlPlane.domain.release.ReferenceEnvironment
 import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
 import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
@@ -305,13 +306,15 @@ class ReleasesController(
                 RecordGateRunCommand(
                     ActorId(caller.actor),
                     TrainVersion(trainVersion),
-                    Gate.valueOf(gateRunRequest.gate.name),
-                    gateRunRequest.environment?.let { ReferenceEnvironment.valueOf(it.name) },
-                    GateOutcome.valueOf(gateRunRequest.candidateResult.name),
-                    gateRunRequest.baselineResult?.let { GateOutcome.valueOf(it.name) },
-                    gateRunRequest.candidateFindings.orEmpty(),
-                    gateRunRequest.baselineFindings.orEmpty(),
-                    gateRunRequest.evidenceRef,
+                    GateRunSubmission(
+                        Gate.valueOf(gateRunRequest.gate.name),
+                        gateRunRequest.environment?.let { ReferenceEnvironment.valueOf(it.name) },
+                        GateOutcome.valueOf(gateRunRequest.candidateResult.name),
+                        gateRunRequest.baselineResult?.let { GateOutcome.valueOf(it.name) },
+                        gateRunRequest.candidateFindings.orEmpty(),
+                        gateRunRequest.baselineFindings.orEmpty(),
+                        gateRunRequest.evidenceRef,
+                    ),
                     RequestContext(caller.correlationId, idempotencyKey.toString()),
                 )
             }
@@ -369,7 +372,11 @@ class ReleasesController(
     ): Nothing =
         when (refusal.code) {
             // a release gate holds the train back: the detail names each gate and the finding the train introduced
-            Refusal.GATE_FAILED, Refusal.NO_GATE_EVIDENCE, Refusal.GATE_RUN_INVALID, Refusal.GATE_RUN_CONFLICT -> {
+            Refusal.GATE_FAILED,
+            Refusal.NO_GATE_EVIDENCE,
+            Refusal.GATE_RUN_INVALID,
+            Refusal.GATE_RUN_CONFLICT,
+            -> {
                 problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "${refusal.code}: ${refusal.detail}")
             }
 

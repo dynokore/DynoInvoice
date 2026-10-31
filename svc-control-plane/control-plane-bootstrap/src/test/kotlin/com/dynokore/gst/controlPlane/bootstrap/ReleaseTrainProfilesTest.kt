@@ -134,7 +134,8 @@ class ReleaseTrainProfilesTest {
         }
 }
 
-private object NoGateRuns : GateRunRepository {
+/** A gate-run store with nothing recorded; the production evidence binding reads it. */
+internal object NoGateRuns : GateRunRepository {
     override fun find(key: com.dynokore.gst.controlPlane.domain.release.GateRunKey) = null
 
     override fun insert(record: com.dynokore.gst.controlPlane.domain.release.GateRunRecord) = true

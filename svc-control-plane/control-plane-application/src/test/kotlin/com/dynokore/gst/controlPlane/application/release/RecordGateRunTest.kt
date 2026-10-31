@@ -8,12 +8,14 @@ import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import com.dynokore.gst.controlPlane.domain.release.GateRunKey
 import com.dynokore.gst.controlPlane.domain.release.GateRunRecord
+import com.dynokore.gst.controlPlane.domain.release.GateRunSubmission
 import com.dynokore.gst.controlPlane.domain.release.ReferenceEnvironment
 import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
 import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
 import com.dynokore.gst.controlPlane.domain.release.TrainKind
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
@@ -53,36 +55,21 @@ class RecordGateRunTest {
         )
     private val version = TrainVersion("2026.10.0")
 
+    private val scenarios = GateRunSubmission(Gate.SCENARIOS, ReferenceEnvironment.SAAS, GateOutcome.PASSED)
+
     private fun command(
+        result: GateRunSubmission = scenarios,
         actor: String = "rita",
         train: TrainVersion = version,
-        gate: Gate = Gate.SCENARIOS,
-        environment: ReferenceEnvironment? = ReferenceEnvironment.SAAS,
-        candidate: GateOutcome = GateOutcome.PASSED,
-        baseline: GateOutcome? = null,
-        candidateFindings: List<String> = emptyList(),
-        baselineFindings: List<String> = emptyList(),
-        evidenceRef: String? = null,
-    ) = RecordGateRunCommand(
-        ActorId(actor),
-        train,
-        gate,
-        environment,
-        candidate,
-        baseline,
-        candidateFindings,
-        baselineFindings,
-        evidenceRef,
-        RequestContext("corr", "cause"),
-    )
+    ) = RecordGateRunCommand(ActorId(actor), train, result, RequestContext("corr", "cause"))
 
     /** What the runner does: permit, load, repeat, precondition, perform. A refusal is returned as its code. */
     private fun run(command: RecordGateRunCommand): Any {
         check(operation.permits(command.actor.value, command)) { "not permitted" }
         val state = operation.load(command)
-        operation.priorResult(command, state)?.let { return it }
-        operation.unmetPrecondition(command, state)?.let { return Refusal.parse(it) }
-        return operation.perform(command, state)
+        val prior = operation.priorResult(command, state)
+        val unmet = if (prior == null) operation.unmetPrecondition(command, state) else null
+        return prior ?: unmet?.let(Refusal::parse) ?: operation.perform(command, state)
     }
 
     private fun refusalOf(command: RecordGateRunCommand) = (run(command) as Refusal).code
@@ -91,15 +78,15 @@ class RecordGateRunTest {
     fun `a valid call stores one row with the caller's user ID and no role name`() {
         val stored = run(command()) as GateRunRecord
         stored.recordedBy.value shouldBe "rita"
-        stored.recordedBy.value shouldBe stored.recordedBy.value.takeIf { it != "release.manager" }
+        stored.recordedBy.value shouldNotBe "release.manager"
         runs.rows shouldBe listOf(stored)
         stored.recordedAt shouldBe clock.instant()
     }
 
     @Test
     fun `two callers that hold the permission record two gates and the rows hold the two user IDs`() {
-        run(command(actor = "rita", gate = Gate.SECURITY, environment = null))
-        run(command(actor = "sam", gate = Gate.REGENERATION, environment = null))
+        run(command(GateRunSubmission(Gate.SECURITY, null, GateOutcome.PASSED), actor = "rita"))
+        run(command(GateRunSubmission(Gate.REGENERATION, null, GateOutcome.PASSED), actor = "sam"))
         runs.rows.map { it.recordedBy.value } shouldBe listOf("rita", "sam")
     }
 
@@ -124,29 +111,27 @@ class RecordGateRunTest {
 
     @Test
     fun `a repeat of the same result returns the stored record and stores nothing`() {
-        val first = run(command(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1"))) as GateRunRecord
-        val again = run(command(actor = "sam", candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1")))
+        val failed = scenarios.copy(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1"))
+        val first = run(command(failed)) as GateRunRecord
+        val again = run(command(failed, actor = "sam"))
         again shouldBe first
         runs.rows.size shouldBe 1
     }
 
     @Test
     fun `the same key with another result or other findings is a conflict`() {
-        run(command(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1")))
-        refusalOf(command(candidate = GateOutcome.PASSED)) shouldBe Refusal.GATE_RUN_CONFLICT
-        refusalOf(command(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-2"))) shouldBe
-            Refusal.GATE_RUN_CONFLICT
-        refusalOf(
-            command(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1"), evidenceRef = "x"),
-        ) shouldBe
-            Refusal.GATE_RUN_CONFLICT
+        val failed = scenarios.copy(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1"))
+        run(command(failed))
+        refusalOf(command(scenarios)) shouldBe Refusal.GATE_RUN_CONFLICT
+        refusalOf(command(failed.copy(candidateFindings = listOf("F-2")))) shouldBe Refusal.GATE_RUN_CONFLICT
+        refusalOf(command(failed.copy(evidenceRef = "x"))) shouldBe Refusal.GATE_RUN_CONFLICT
         runs.rows.size shouldBe 1
     }
 
     @Test
     fun `the other environment, and a train version that only shares a prefix, are other keys`() {
         run(command())
-        run(command(environment = ReferenceEnvironment.PRIVATE_MINIMAL))
+        run(command(scenarios.copy(environment = ReferenceEnvironment.PRIVATE_MINIMAL)))
         run(command(train = TrainVersion("2026.10.01")))
         runs.rows.size shouldBe 3
     }
@@ -168,24 +153,24 @@ class RecordGateRunTest {
     @Test
     fun `an environment is required for SCENARIOS and CERTIFICATION and refused for REGENERATION and SECURITY`() {
         listOf(Gate.SCENARIOS, Gate.CERTIFICATION).forEach {
-            refusalOf(command(gate = it, environment = null)) shouldBe Refusal.GATE_RUN_INVALID
+            refusalOf(command(scenarios.copy(gate = it, environment = null))) shouldBe Refusal.GATE_RUN_INVALID
         }
         listOf(Gate.REGENERATION, Gate.SECURITY).forEach {
-            refusalOf(command(gate = it, environment = ReferenceEnvironment.SAAS)) shouldBe Refusal.GATE_RUN_INVALID
+            refusalOf(command(scenarios.copy(gate = it))) shouldBe Refusal.GATE_RUN_INVALID
         }
         runs.rows shouldBe emptyList()
     }
 
     @Test
     fun `a baseline sent with a PASSED candidate, or a gate the service produces itself, is refused`() {
-        refusalOf(command(baseline = GateOutcome.PASSED)) shouldBe Refusal.GATE_RUN_INVALID
-        refusalOf(command(baselineFindings = listOf("F-1"))) shouldBe Refusal.GATE_RUN_INVALID
+        refusalOf(command(scenarios.copy(baseline = GateOutcome.PASSED))) shouldBe Refusal.GATE_RUN_INVALID
+        refusalOf(command(scenarios.copy(baselineFindings = listOf("F-1")))) shouldBe Refusal.GATE_RUN_INVALID
         listOf(Gate.CORPUS, Gate.STAGING).forEach {
-            refusalOf(command(gate = it, environment = null)) shouldBe Refusal.GATE_RUN_INVALID
-            refusalOf(command(gate = it)) shouldBe Refusal.GATE_RUN_INVALID
+            refusalOf(command(scenarios.copy(gate = it, environment = null))) shouldBe Refusal.GATE_RUN_INVALID
+            refusalOf(command(scenarios.copy(gate = it))) shouldBe Refusal.GATE_RUN_INVALID
         }
-        refusalOf(command(candidateFindings = List(501) { "F-$it" })) shouldBe Refusal.GATE_RUN_INVALID
-        refusalOf(command(evidenceRef = "x".repeat(257))) shouldBe Refusal.GATE_RUN_INVALID
+        refusalOf(command(scenarios.copy(candidateFindings = List(501) { "F-$it" }))) shouldBe Refusal.GATE_RUN_INVALID
+        refusalOf(command(scenarios.copy(evidenceRef = "x".repeat(257)))) shouldBe Refusal.GATE_RUN_INVALID
         runs.rows shouldBe emptyList()
     }
 }

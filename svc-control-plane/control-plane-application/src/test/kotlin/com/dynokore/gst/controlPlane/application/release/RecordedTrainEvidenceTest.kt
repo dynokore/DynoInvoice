@@ -34,21 +34,30 @@ class RecordedTrainEvidenceTest {
         gate: Gate,
         environment: ReferenceEnvironment?,
         candidate: GateOutcome = GateOutcome.PASSED,
-        findings: Set<String> = emptySet(),
-        baseline: GateOutcome? = null,
-        baselineFindings: Set<String> = emptySet(),
         train: TrainVersion = version,
     ) = GateRunRecord(
         train,
         gate,
         environment,
         candidate,
-        baseline,
-        findings,
-        baselineFindings,
+        null,
+        emptySet(),
+        emptySet(),
         null,
         ActorId("rita"),
         clock.instant(),
+    )
+
+    private fun failed(
+        gate: Gate,
+        environment: ReferenceEnvironment?,
+        findings: Set<String>,
+        baseline: GateOutcome? = null,
+        baselineFindings: Set<String> = emptySet(),
+    ) = record(gate, environment, GateOutcome.FAILED).copy(
+        candidateFindings = findings,
+        baseline = baseline,
+        baselineFindings = baselineFindings,
     )
 
     private fun all(train: TrainVersion = version) =
@@ -123,8 +132,8 @@ class RecordedTrainEvidenceTest {
     @Test
     fun `the scenario result is passed only when both environments passed and its findings are the union`() {
         runs.rows += all().filter { it.gate != Gate.SCENARIOS }
-        runs.rows += record(Gate.SCENARIOS, saas, GateOutcome.FAILED, setOf("S-1"))
-        runs.rows += record(Gate.SCENARIOS, private, GateOutcome.PASSED, setOf("S-2"))
+        runs.rows += failed(Gate.SCENARIOS, saas, setOf("S-1"))
+        runs.rows += record(Gate.SCENARIOS, private).copy(candidateFindings = setOf("S-2"))
         val scenarios = source.forTrain(version)!!.scenarios
         scenarios.candidate shouldBe GateOutcome.FAILED
         scenarios.findings shouldBe setOf("S-1", "S-2")
@@ -138,12 +147,12 @@ class RecordedTrainEvidenceTest {
     @Test
     fun `the scenario baseline is absent, FAILED when any holds FAILED, else PASSED, with the union of findings`() {
         runs.rows += all().filter { it.gate != Gate.SCENARIOS }
-        runs.rows += record(Gate.SCENARIOS, saas, GateOutcome.FAILED, setOf("S-1"), GateOutcome.PASSED, setOf("B-1"))
-        runs.rows += record(Gate.SCENARIOS, private, GateOutcome.FAILED, setOf("S-1"))
+        runs.rows += failed(Gate.SCENARIOS, saas, setOf("S-1"), GateOutcome.PASSED, setOf("B-1"))
+        runs.rows += failed(Gate.SCENARIOS, private, setOf("S-1"))
         source.forTrain(version)!!.scenarios.baseline shouldBe GateOutcome.PASSED
         source.forTrain(version)!!.scenarios.baselineFindings shouldBe setOf("B-1")
         runs.rows.removeAll { it.gate == Gate.SCENARIOS && it.environment == private }
-        runs.rows += record(Gate.SCENARIOS, private, GateOutcome.FAILED, setOf("S-1"), GateOutcome.FAILED, setOf("B-2"))
+        runs.rows += failed(Gate.SCENARIOS, private, setOf("S-1"), GateOutcome.FAILED, setOf("B-2"))
         source.forTrain(version)!!.scenarios.baseline shouldBe GateOutcome.FAILED
         source.forTrain(version)!!.scenarios.baselineFindings shouldBe setOf("B-1", "B-2")
     }
@@ -160,7 +169,7 @@ class RecordedTrainEvidenceTest {
     @Test
     fun `the regeneration record carries the result and the differing documents without classification maps`() {
         runs.rows += all().filter { it.gate != Gate.REGENERATION }
-        runs.rows += record(Gate.REGENERATION, null, GateOutcome.FAILED, setOf("D-7"))
+        runs.rows += failed(Gate.REGENERATION, null, setOf("D-7"))
         val regeneration = source.forTrain(version)!!.regeneration
         regeneration shouldBe RecordedRegeneration(Observation(GateOutcome.FAILED, setOf("D-7")))
         refusal()!!.detail.contains("REGENERATION FAILED introduced=[D-7]") shouldBe true
@@ -194,13 +203,13 @@ class RecordedTrainEvidenceTest {
     @Test
     fun `INV-AC-2658 a new security finding blocks an exposure-reducing train and an old one does not`() {
         runs.rows += all().filter { it.gate != Gate.SECURITY }
-        runs.rows += record(Gate.SECURITY, null, GateOutcome.FAILED, setOf("F-9"), GateOutcome.FAILED, setOf("F-1"))
+        runs.rows += failed(Gate.SECURITY, null, setOf("F-9"), GateOutcome.FAILED, setOf("F-1"))
         val blocked = refusal(exposureReducing = true)!!
         blocked.code shouldBe Refusal.GATE_FAILED
         blocked.detail.contains("introduced=[F-9]") shouldBe true
 
         runs.rows.removeAll { it.gate == Gate.SECURITY }
-        runs.rows += record(Gate.SECURITY, null, GateOutcome.FAILED, setOf("F-9"), GateOutcome.FAILED, setOf("F-9"))
+        runs.rows += failed(Gate.SECURITY, null, setOf("F-9"), GateOutcome.FAILED, setOf("F-9"))
         refusal(exposureReducing = true) shouldBe null
         refusal(exposureReducing = false)!!.code shouldBe Refusal.GATE_FAILED
     }

@@ -3,12 +3,9 @@ package com.dynokore.gst.controlPlane.application.release
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
-import com.dynokore.gst.controlPlane.domain.release.Gate
-import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import com.dynokore.gst.controlPlane.domain.release.GateRunKey
 import com.dynokore.gst.controlPlane.domain.release.GateRunRecord
-import com.dynokore.gst.controlPlane.domain.release.GateRunRules
-import com.dynokore.gst.controlPlane.domain.release.ReferenceEnvironment
+import com.dynokore.gst.controlPlane.domain.release.GateRunSubmission
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -23,13 +20,7 @@ import java.time.Clock
 data class RecordGateRunCommand(
     val actor: ActorId,
     val trainVersion: TrainVersion,
-    val gate: Gate,
-    val environment: ReferenceEnvironment?,
-    val candidate: GateOutcome,
-    val baseline: GateOutcome?,
-    val candidateFindings: List<String>,
-    val baselineFindings: List<String>,
-    val evidenceRef: String?,
+    val result: GateRunSubmission,
     val request: RequestContext,
 )
 
@@ -62,11 +53,11 @@ class RecordGateRun(
     ) = permissions.holds(actor, ReleasePermission.CERTIFY) && actor == command.actor.value
 
     override fun repeatKey(command: RecordGateRunCommand) =
-        "${command.trainVersion.value}|${command.gate}|${command.environment?.name ?: "-"}"
+        "${command.trainVersion.value}|${command.result.gate}|${command.result.environment?.name ?: "-"}"
 
     override fun load(command: RecordGateRunCommand) =
         GateRunState(
-            runs.find(GateRunKey(command.trainVersion, command.gate, command.environment)),
+            runs.find(GateRunKey(command.trainVersion, command.result.gate, command.result.environment)),
             trains.find(command.trainVersion) != null,
         )
 
@@ -79,16 +70,7 @@ class RecordGateRun(
         command: RecordGateRunCommand,
         state: GateRunState,
     ): String? {
-        val violation =
-            GateRunRules.violation(
-                command.gate,
-                command.environment,
-                command.candidate,
-                command.baseline,
-                command.candidateFindings,
-                command.baselineFindings,
-                command.evidenceRef,
-            )
+        val violation = command.result.violation()
         return when {
             violation != null -> {
                 Refusal(Refusal.GATE_RUN_INVALID, violation).encode()
@@ -138,16 +120,18 @@ class RecordGateRun(
     )
 
     private fun recordOf(command: RecordGateRunCommand) =
-        GateRunRecord(
-            command.trainVersion,
-            command.gate,
-            command.environment,
-            command.candidate,
-            command.baseline,
-            command.candidateFindings.toSet(),
-            command.baselineFindings.toSet(),
-            command.evidenceRef,
-            command.actor,
-            clock.instant(),
-        )
+        with(command.result) {
+            GateRunRecord(
+                command.trainVersion,
+                gate,
+                environment,
+                candidate,
+                baseline,
+                candidateFindings.toSet(),
+                baselineFindings.toSet(),
+                evidenceRef,
+                command.actor,
+                clock.instant(),
+            )
+        }
 }

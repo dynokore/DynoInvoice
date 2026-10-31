@@ -15,6 +15,7 @@ import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.pack.SignPack
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
+import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
 import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
@@ -78,25 +79,30 @@ class CompositionTest {
     }
 
     @Test
-    fun `publishTrain with the gate evidence unbound is refused and the accreditation task is unbound`(
+    fun `publishTrain with no gate run recorded is refused and the accreditation task is unbound`(
         @TempDir mount: Path,
     ) {
-        runner(mount).run { context ->
-            context.startupFailure shouldBe null
-            val publish = context.getBean(PublishTrain::class.java)
-            val command =
-                PublishTrainCommand(
-                    ActorId("rita"),
-                    TrainVersion("2026.10.0"),
-                    TrainKind.TRAIN,
-                    false,
-                    true,
-                    RequestContext("corr", "cause"),
-                )
-            Refusal.parse(checkNotNull(publish.unmetPrecondition(command, null))).code shouldBe Refusal.NO_GATE_EVIDENCE
-            context.getBean(AccreditationTasks::class.java).open(TrainVersion("2026.10.0")) shouldBe
-                AccreditationCheck(true, null, null)
-        }
+        // the production evidence binding reads the recorded gate runs: none are recorded
+        runner(mount)
+            .withAllowBeanDefinitionOverriding(true)
+            .withBean("gateRunRepository", GateRunRepository::class.java, { NoGateRuns })
+            .run { context ->
+                context.startupFailure shouldBe null
+                val publish = context.getBean(PublishTrain::class.java)
+                val command =
+                    PublishTrainCommand(
+                        ActorId("rita"),
+                        TrainVersion("2026.10.0"),
+                        TrainKind.TRAIN,
+                        false,
+                        true,
+                        RequestContext("corr", "cause"),
+                    )
+                val refusal = Refusal.parse(checkNotNull(publish.unmetPrecondition(command, null)))
+                refusal.code shouldBe Refusal.NO_GATE_EVIDENCE
+                context.getBean(AccreditationTasks::class.java).open(TrainVersion("2026.10.0")) shouldBe
+                    AccreditationCheck(true, null, null)
+            }
     }
 
     @Test
