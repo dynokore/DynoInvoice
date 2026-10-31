@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.application.tenant
 
+import com.dynokore.gst.tenancy.domain.Environment
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.util.UUID
@@ -14,6 +15,12 @@ data class TenantRecord(
     val structureVersion: Long = 1,
     val retired: Boolean = false,
     val dataRegion: String? = null,
+    /** INV-REQ-1125: a workspace is a tenant with environment SANDBOX. */
+    val environment: Environment = Environment.PRODUCTION,
+    /** INV-REQ-1125: the production tenant a SANDBOX workspace is paired to; null on a production tenant. */
+    val pairedProductionTenant: UUID? = null,
+    /** INV-REQ-1125: the workspace's name; null on a production tenant. */
+    val workspaceName: String? = null,
 )
 
 /** What the tenant-creating function answered (INV-Q-7468 A). */
@@ -31,6 +38,9 @@ sealed interface TenantCreation {
     data object Conflict : TenantCreation
 }
 
+/** What archiving a workspace answered. */
+enum class WorkspaceArchival { ARCHIVED, ALREADY_ARCHIVED, MISSING }
+
 /** The binding or the arguments were refused by the function: [invalid] answers the contract's 400, else its 403. */
 class TenantRefused(
     val invalid: Boolean,
@@ -43,6 +53,15 @@ interface TenantStore {
 
     /** The bound tenant's own row; row-level security hides every other. */
     fun current(): TenantRecord?
+}
+
+/** The workspace side of the tenant store (INV-REQ-1125); [TenantStore] keeps its members unchanged. */
+interface WorkspaceStore : TenantStore {
+    /** The workspace [ref] of the bound production tenant, or null when [ref] is no workspace of it. */
+    fun workspace(ref: String): TenantRecord?
+
+    /** Archives the workspace [ref] of the bound production tenant. */
+    fun archiveWorkspace(ref: String): WorkspaceArchival
 }
 
 /** createTenant (scope platform): runs under the reserved platform binding, never under a tenant's. */
