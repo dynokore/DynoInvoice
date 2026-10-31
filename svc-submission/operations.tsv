@@ -21,3 +21,4 @@ channel	gst.submission.example-happened.v1	UNASSIGNED
 operation	resolveAmendmentHold	UNASSIGNED
 operation	approveFilingGateOverride	INV-T-10714
 operation	getFilingGateOverrides	INV-T-10714
+operation	getComplianceMetrics	INV-T-12844
