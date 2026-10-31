@@ -64,4 +64,41 @@ class RecordingMappingTest {
         outcome shouldBe RecordingOutcome.Replay(docUuid)
         outcome.httpStatus shouldBe 200
     }
+
+    @Test
+    fun `INV-AC-14089 an Unavailable answer is 503 ING-023`() {
+        val outcome = RecordingMapping.map(CanonicalAnswer.Unavailable("timed out"))
+        outcome shouldBe RecordingOutcome.Unavailable
+        outcome.httpStatus shouldBe 503
+        RecordingOutcome.Unavailable.ERROR_CODE shouldBe "ING-023"
+    }
+
+    @Test
+    fun `INV-AC-14089 a rejection with status 503 is Unavailable whatever the code`() {
+        rejected(null, 503) shouldBe RecordingOutcome.Unavailable
+        rejected("ING-005", 503) shouldBe RecordingOutcome.Unavailable
+        rejected("SRT-010", 503) shouldBe RecordingOutcome.Unavailable
+    }
+
+    @Test
+    fun `INV-AC-14089 ING-002 with status 503 stays Stale`() {
+        rejected("ING-002", 503) shouldBe RecordingOutcome.Stale
+    }
+
+    @Test
+    fun `INV-AC-14089 statuses 500, 502 and 504 with no code stay Failed`() {
+        listOf(500, 502, 504).forEach { rejected(null, it) shouldBe RecordingOutcome.Failed }
+    }
+
+    @Test
+    fun `INV-AC-14089 a relay code with status 400 is still relayed`() {
+        rejected("ING-005", 400) shouldBe RecordingOutcome.Relayed(400, "ING-005")
+    }
+
+    @Test
+    fun `INV-AC-14089 the Unavailable code is exactly ING-023`() {
+        RecordingOutcome.Unavailable.ERROR_CODE shouldBe "ING-023"
+        (RecordingOutcome.Unavailable.ERROR_CODE == "ING-022") shouldBe false
+        (RecordingOutcome.Unavailable.ERROR_CODE == "ING-0023") shouldBe false
+    }
 }

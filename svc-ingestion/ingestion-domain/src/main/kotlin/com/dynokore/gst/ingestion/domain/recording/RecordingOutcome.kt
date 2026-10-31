@@ -29,6 +29,11 @@ sealed interface CanonicalAnswer {
         val errorCode: String?,
         val httpStatus: Int,
     ) : CanonicalAnswer
+
+    /** canonical-svc gave no answer (timeout, open circuit, transport failure); [reason] is for the log only. */
+    data class Unavailable(
+        val reason: String,
+    ) : CanonicalAnswer
 }
 
 /**
@@ -82,6 +87,12 @@ sealed interface RecordingOutcome {
         val errorCode: String,
     ) : RecordingOutcome
 
+    /** canonical-svc gave no answer or answered 503: 503 ING-023, retryable, nothing recorded (INV-REQ-1193). */
+    data object Unavailable : RecordingOutcome {
+        const val ERROR_CODE = "ING-023"
+        override val httpStatus: Int = HTTP_UNAVAILABLE
+    }
+
     /** Any other canonical answer: 500 SRT-010 with no detail and nothing stored. */
     data object Failed : RecordingOutcome {
         const val ERROR_CODE = "SRT-010"
@@ -94,6 +105,7 @@ sealed interface RecordingOutcome {
         const val HTTP_OK = 200
         const val HTTP_CREATED = 201
         const val HTTP_CONFLICT = 409
+        const val HTTP_UNAVAILABLE = 503
     }
 }
 
@@ -125,6 +137,10 @@ object RecordingMapping {
             is CanonicalAnswer.Rejected -> {
                 mapRejected(answer)
             }
+
+            is CanonicalAnswer.Unavailable -> {
+                RecordingOutcome.Unavailable
+            }
         }
 
     private fun mapRejected(answer: CanonicalAnswer.Rejected): RecordingOutcome {
@@ -132,6 +148,10 @@ object RecordingMapping {
         return when {
             code == RecordingOutcome.Stale.ERROR_CODE -> {
                 RecordingOutcome.Stale
+            }
+
+            answer.httpStatus == RecordingOutcome.Unavailable.httpStatus -> {
+                RecordingOutcome.Unavailable
             }
 
             code != null && code in RELAY_CODES && answer.httpStatus in CLIENT_ERRORS -> {
