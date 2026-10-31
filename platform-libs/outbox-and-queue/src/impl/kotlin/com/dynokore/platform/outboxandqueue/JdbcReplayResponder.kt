@@ -90,8 +90,8 @@ class JdbcReplayResponder
         }
 
         /**
-         * Takes the service-wide answer lock on first need within the open topic transaction (INV-Q-9087): one replay is
-         * answered at a time across all instances of the service. False leaves the request unhandled.
+         * Takes the service-wide answer lock on first need within the open topic transaction (INV-Q-9087): one replay
+         * is answered at a time across all instances of the service. False leaves the request unhandled.
          */
         private fun takeAnswerLock(): Boolean {
             if (!answerLockHeld) answerLockHeld = ledger.tryAnswerLock()

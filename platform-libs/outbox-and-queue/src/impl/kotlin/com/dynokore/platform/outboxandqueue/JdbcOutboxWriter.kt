@@ -161,6 +161,7 @@ class JdbcOutboxWriter(
                     correlation = correlation,
                     causation = causation,
                     dataJson = state.dataJson,
+                    testMode = state.testMode,
                 )
             insert(topic, envelope)
             envelope
@@ -204,6 +205,7 @@ class JdbcOutboxWriter(
         correlation = context.correlation,
         causation = context.causation,
         dataJson = event.dataJson,
+        testMode = context.testMode,
     )
 
     /** Locks the key's counter row and returns the first of [count] consecutive sequence numbers. */
@@ -249,6 +251,7 @@ class JdbcOutboxWriter(
                     CORRELATION_ID to envelope.correlation.value,
                     CAUSATION_ID to envelope.causation.value,
                     DATA to DSL.`val`(envelope.dataJson, SQLDataType.JSONB),
+                    TESTMODE to envelope.testMode,
                 ),
             ).execute()
     }
@@ -271,6 +274,7 @@ class JdbcOutboxWriter(
         val CORRELATION_ID = DSL.field(DSL.name("correlation_id"), SQLDataType.CLOB)
         val CAUSATION_ID = DSL.field(DSL.name("causation_id"), SQLDataType.CLOB)
         val DATA = DSL.field(DSL.name("data"), SQLDataType.JSONB)
+        val TESTMODE = DSL.field(DSL.name("testmode"), SQLDataType.BOOLEAN)
         val AGGREGATE_KEY = DSL.field(DSL.name("aggregate_key"), SQLDataType.CLOB)
         val LAST_VALUE = DSL.field(DSL.name("last_value"), SQLDataType.BIGINT)
     }

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.18] - 2026-10-31
+### Changed
+- Metadata-only change (INV-T-12640, G-DVS): depends on `outbox-and-queue 6.10.0`, whose version steps; no code change.
+
 ## [4.0.17] - 2026-10-31
 ### Changed
 - Metadata-only change (INV-T-9316, G-DVS): depends on `outbox-and-queue 6.9.0`, whose version steps; no code change.

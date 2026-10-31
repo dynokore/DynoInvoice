@@ -27,7 +27,8 @@ internal object OutboxTablesSql {
                 correlation_id text not null,
                 causation_id text not null,
                 data jsonb not null,
-                published_at timestamptz
+                published_at timestamptz,
+                testmode boolean not null default false
             );
             create index ${OutboxSchema.OUTBOX}_unpublished on $s.${OutboxSchema.OUTBOX} (seq) where published_at is null;
             create index ${OutboxSchema.OUTBOX}_published_at on $s.${OutboxSchema.OUTBOX} (published_at) where published_at is not null;

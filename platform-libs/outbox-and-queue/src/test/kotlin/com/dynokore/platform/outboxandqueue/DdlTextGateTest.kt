@@ -35,11 +35,12 @@ class DdlTextGateTest {
             "EventLogSchema.topicDdl" to EventLogSchema.topicDdl(topic, "eventlog_sys"),
             "EventLogSchema.functionsDdl" to EventLogSchema.functionsDdl(listOf(topic), "eventlog_sys", "purge"),
             "EventLogSchema.retentionUpgradeDdl" to EventLogSchema.retentionUpgradeDdl(),
+            "OutboxSchema.testModeUpgradeDdl" to OutboxSchema.testModeUpgradeDdl("svc"),
         )
 
     @Test
     fun `no DDL entry point creates the binding functions or switches role`() {
-        assertEquals(7, outputs.size)
+        assertEquals(8, outputs.size)
         outputs.forEach { (name, text) ->
             assertTrue(text.isNotBlank(), "$name is empty")
             assertEquals(emptyList<String>(), violations(text), name)

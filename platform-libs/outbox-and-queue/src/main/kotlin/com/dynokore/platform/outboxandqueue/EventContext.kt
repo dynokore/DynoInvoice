@@ -13,6 +13,8 @@ import java.time.LocalDate
  * @property aggregateKey the key events are ordered under; becomes the CloudEvents `subject`
  *   (the Doc UUID text where the event concerns a document, FR-AH.10: [docUuid], when given,
  *   must equal it, because the CloudEvents contract has no separate Doc UUID attribute).
+ * @property testMode true when the events are produced in test mode; becomes the outbox column `testmode` and the
+ *   CloudEvents attribute `testmode` (INV-Q-12635, INV-REQ-829).
  * @property aggregateVersion the aggregate's version after the change, or `null`. The outbox
  *   keeps its own per-key counter, so `docsequence` is monotonic whatever the caller passes;
  *   a version ahead of the counter is honoured (TPL-05), a lower one never lowers it.
@@ -26,6 +28,7 @@ data class EventContext(
     val aggregateVersion: Long?,
     val correlation: CorrelationId,
     val causation: CausationId,
+    val testMode: Boolean = false,
 ) {
     init {
         require(aggregateKey.isNotBlank()) { "aggregate key must not be blank" }

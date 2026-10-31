@@ -206,6 +206,16 @@ object OutboxSchema {
     }
 
     /**
+     * The DDL the migration runs at every install and upgrade (INV-Q-12635, INV-REQ-829), like
+     * [EventLogSchema.retentionUpgradeDdl]: adds the `testmode` column to an outbox created before it existed, with
+     * the type and default [ddl] gives it; a no-op where the column exists. Run as the schema owner, like [ddl].
+     */
+    fun testModeUpgradeDdl(schema: String): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        return "alter table $s.$OUTBOX add column if not exists testmode boolean not null default false"
+    }
+
+    /**
      * The read-model clear of a full sync (coordinator rulings INV-Q-3786, INV-Q-4064), for the consuming service's own
      * migration, once per read-model [table] its consumer builds: creates the SECURITY DEFINER function
      * `<schema>.<table>_full_sync_clear` ([readModelClearFunctionName]), owned by [sysRole], from a fixed template.

@@ -94,6 +94,7 @@ data class ReplayedState(
     val docSequence: Long?,
     val docUuid: DocUuid? = null,
     val transactionDate: LocalDate? = null,
+    val testMode: Boolean = false,
 ) {
     init {
         require(aggregateKey.isNotBlank()) { "aggregate key must not be blank" }

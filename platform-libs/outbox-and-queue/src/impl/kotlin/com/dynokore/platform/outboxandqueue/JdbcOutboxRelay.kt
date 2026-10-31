@@ -138,7 +138,7 @@ class JdbcOutboxRelay(
     private fun read(seq: Long): Row? =
         dsl
             .select(TOPIC, ID, TYPE, SOURCE, SUBJECT, EVENT_TIME, TENANT_ID, ENTITY_REF, DOC_UUID)
-            .select(TRANSACTION_DATE, DOCSEQUENCE, INSTANCE_ID, CORRELATION_ID, CAUSATION_ID, DATA_TEXT)
+            .select(TRANSACTION_DATE, DOCSEQUENCE, INSTANCE_ID, CORRELATION_ID, CAUSATION_ID, DATA_TEXT, TESTMODE)
             .from(outbox)
             .where(SEQ.eq(seq).and(PUBLISHED_AT.isNull))
             .fetchOne()
@@ -163,6 +163,7 @@ class JdbcOutboxRelay(
                     correlation = CorrelationId(checkNotNull(rows.get(CORRELATION_ID))),
                     causation = CausationId(checkNotNull(rows.get(CAUSATION_ID))),
                     dataJson = checkNotNull(rows.get(DATA_TEXT)),
+                    testMode = checkNotNull(rows.get(TESTMODE)),
                 ),
         )
 
@@ -205,6 +206,7 @@ class JdbcOutboxRelay(
         val CORRELATION_ID = DSL.field(DSL.name("correlation_id"), SQLDataType.CLOB)
         val CAUSATION_ID = DSL.field(DSL.name("causation_id"), SQLDataType.CLOB)
         val DATA_TEXT = DSL.field(DSL.name("data"), SQLDataType.JSONB).cast(SQLDataType.CLOB)
+        val TESTMODE = DSL.field(DSL.name("testmode"), SQLDataType.BOOLEAN)
         val PUBLISHED_AT = DSL.field(DSL.name("published_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
     }
 }
