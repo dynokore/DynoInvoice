@@ -20,6 +20,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.postgresql.util.PSQLException
 import org.springframework.context.ApplicationContext
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockHttpServletResponse
@@ -161,6 +162,7 @@ class AggregateIntakeBoundaryTest {
             val response = boundary.send(tenant, body())
             response.status shouldBe 202
             json(response).get("entityRef").asString() shouldBe "E-001"
+            json(response).get("windowState").asString() shouldBe "OPEN"
             json(response).get("sequence").asLong() shouldBe
                 json(response)
                     .get("documentNumber")
@@ -181,6 +183,7 @@ class AggregateIntakeBoundaryTest {
             val replay = boundary.send(tenant, body())
             replay.status shouldBe 202
             replay.contentAsString shouldBe first.contentAsString
+            json(replay).get("windowState").asString() shouldBe "OPEN"
             aggregates(tenant) shouldBe 1
             sequenceValue() shouldBe before
         }
@@ -304,7 +307,8 @@ class AggregateIntakeBoundaryTest {
             // the next sequence value repeats the number of the first aggregate: the document_number key refuses it
             val failure = shouldThrow<Exception> { boundary.send(tenant, body(sourceKey = "K-OTHER")) }
             generateSequence<Throwable>(failure) { it.cause }
-                .any { it.message?.contains("aggregate_document_number_key") == true } shouldBe true
+                .filterIsInstance<PSQLException>()
+                .any { it.serverErrorMessage?.constraint == "aggregate_document_number_key" } shouldBe true
             aggregates(tenant) shouldBe 1
         }
 

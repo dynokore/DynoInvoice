@@ -72,7 +72,7 @@ open class IntakeController(
             AggregationReceipt(
                 entityRef = aggregate.entityRef,
                 aggregateType = AggregationReceipt.AggregateType.valueOf(aggregate.aggregateType.name),
-                windowState = AggregationReceipt.WindowState.OPEN,
+                windowState = WINDOW_STATE,
                 documentNumber = aggregate.documentNumber,
                 sequence = aggregate.sequence,
                 issueDate = aggregate.issueDate,
@@ -99,6 +99,12 @@ open class IntakeController(
         CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
 
     private companion object {
+        /**
+         * Until INV-T-8453 builds the windows no window can be closed or late, so every stored aggregate is in an
+         * open window (INV-Q-13907 A). INV-T-8453 replaces this constant with the state of the stored window.
+         */
+        val WINDOW_STATE = AggregationReceipt.WindowState.OPEN
+
         val log: Logger = LoggerFactory.getLogger(IntakeController::class.java)
     }
 }

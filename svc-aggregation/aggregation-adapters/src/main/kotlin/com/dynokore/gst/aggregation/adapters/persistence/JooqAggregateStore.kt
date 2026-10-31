@@ -14,6 +14,7 @@ import org.jooq.Field
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
+import org.postgresql.util.PSQLException
 import java.util.UUID
 
 /**
@@ -89,11 +90,6 @@ class JooqAggregateStore(
         return StoredAggregate(aggregate, id)
     }
 
-    /** Only a unique violation (23505) of the intake key is a replay; any other constraint is a defect. */
-    private fun isIntakeKeyViolation(failure: DataAccessException): Boolean =
-        failure.sqlState() == UNIQUE_VIOLATION &&
-            generateSequence<Throwable>(failure) { it.cause }.any { it.message?.contains("\"$INTAKE_KEY\"") == true }
-
     private fun stored(row: AggregateRecord): StoredAggregate =
         StoredAggregate(
             NewAggregate(
@@ -122,6 +118,18 @@ class JooqAggregateStore(
         const val SEQUENCE_NAME = "aggregate_sequence"
         const val INTAKE_KEY = "aggregate_intake_key"
         private const val UNIQUE_VIOLATION = "23505"
+
+        /**
+         * Only a unique violation (23505) of the intake key is a replay; any other constraint is a defect
+         * (INV-Q-13905 A). Decided by the structured PostgreSQL error fields, never by the localized message text.
+         */
+        internal fun isIntakeKeyViolation(failure: DataAccessException): Boolean {
+            val server =
+                generateSequence<Throwable>(failure) { it.cause }
+                    .filterIsInstance<PSQLException>()
+                    .firstOrNull() ?: return false
+            return server.sqlState == UNIQUE_VIOLATION && server.serverErrorMessage?.constraint == INTAKE_KEY
+        }
 
         /** Read through the hand-written sequence (INV-Q-7449 A); the names equal those of the migration. */
         val SEQUENCE = DSL.sequence(DSL.name(SCHEMA, SEQUENCE_NAME), SQLDataType.BIGINT)

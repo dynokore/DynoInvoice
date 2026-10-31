@@ -28,6 +28,7 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.postgresql)
     testImplementation(libs.spring.test)
     testImplementation(libs.jackson.databind)
     testImplementation(testFixtures(project(":aggregation-adapters")))

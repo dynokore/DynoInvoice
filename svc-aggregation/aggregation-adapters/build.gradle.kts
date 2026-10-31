@@ -40,6 +40,7 @@ dependencies {
     implementation(libs.jooq)
     implementation(libs.flyway.core)
     implementation(libs.flyway.databasePostgresql)
+    implementation(libs.postgresql)
     testFixturesImplementation(platform(libs.platform.bom))
     testFixturesImplementation(libs.platform.tenancyKernel.api)
     testFixturesImplementation(libs.platform.tenancyKernel.impl)
