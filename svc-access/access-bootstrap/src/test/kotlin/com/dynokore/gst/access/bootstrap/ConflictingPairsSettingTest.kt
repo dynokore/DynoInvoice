@@ -69,6 +69,42 @@ class ConflictingPairsSettingTest {
             assertThat(firstAudit.get("reason").asString()).isNotEqualTo(stored.get("reason").asString())
         }
 
+    private fun assertInvalidRefused(
+        selected: String,
+        code: String,
+        other: String,
+    ) = run { env ->
+        val response =
+            env.post(
+                "/internal/v1/policies/VP-82",
+                "token-a",
+                """{"scopeLevel":"TENANT","scopeRef":"${env.tenant}","selected":$selected,""" +
+                    """"effectiveDate":"${env.today()}","reason":"invalid value"}""",
+            )
+        assertThat(response.status).describedAs(response.contentAsString).isEqualTo(422)
+        val codes = Regex("[A-Z]+-[0-9]+").findAll(response.contentAsString).map { it.value }.toSet()
+        assertThat(codes).contains(code).doesNotContain(other)
+        assertThat(env.storedRows()).isZero()
+    }
+
+    private fun conflicting(value: String) = """[{"option":"CONFLICTING_PAIRS","value":$value}]"""
+
+    @Test
+    fun `INV-AC-9273 an empty list is refused 422 POL-013 by the structural check first`() =
+        assertInvalidRefused(conflicting("[]"), "POL-013", "POL-014")
+
+    @Test
+    fun `INV-AC-9273 NO_EXTRA_PAIRS with a value is refused 422 POL-013 by the structural check first`() =
+        assertInvalidRefused("""[{"option":"NO_EXTRA_PAIRS","value":[]}]""", "POL-013", "POL-014")
+
+    @Test
+    fun `INV-AC-9273 equal roles is refused 422 POL-014 by the owning service check`() =
+        assertInvalidRefused(conflicting("""[{"first":"auditor","second":"auditor"}]"""), "POL-014", "POL-013")
+
+    @Test
+    fun `INV-AC-9273 a role name that is not a wire name is refused 422 POL-014 by the owning service check`() =
+        assertInvalidRefused(conflicting("""[{"first":"Tenant.Admin","second":"auditor"}]"""), "POL-014", "POL-013")
+
     @Test
     fun `INV-AC-9273 a value without the double is refused while the pinned row is planned`() {
         val planned =

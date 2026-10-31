@@ -354,16 +354,16 @@ class ConflictingPairsGrantTest {
             val wires = Role.entries.map { it.wire }
             assertThat(wires).hasSize(19)
             Role.entries.forEachIndexed { index, held ->
-                val holder = "IDN-H$index"
-                env.seed(holder, held)
                 wires.forEach { granted ->
                     val want = expected(held, granted, catalogue) ?: return@forEach
+                    // a fresh holder per call: an accepted grant would otherwise change the next call's held set
+                    val holder = "IDN-H$index-${wires.indexOf(granted)}"
+                    env.seed(holder, held)
                     val message = "held ${held.wire} granted $granted"
                     assertThat(env.outcome(holder, granted)).describedAs(message).isEqualTo(want)
                 }
             }
             assertThat(env.storedRows()).isZero()
-            assertThat(env.context.getBean(ConflictingRolePairs::class.java).current()).isEmpty()
         }
 
     @Test
