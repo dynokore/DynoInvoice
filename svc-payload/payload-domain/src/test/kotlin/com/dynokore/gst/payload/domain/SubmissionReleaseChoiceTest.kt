@@ -51,6 +51,19 @@ class SubmissionReleaseChoiceTest {
     }
 
     @Test
+    fun `INV-AC-13164 case 4 chooses v2 not the older accepted v1 and not the newest v3`() {
+        val cal =
+            calendar(
+                listOf(v1, v2, v3),
+                entry(v1, "2026-01-01"),
+                entry(v2, "2026-01-01"),
+                entry(v3, "2026-06-01"),
+            )
+        SubmissionReleaseChoice.choose(pint, cal, v2, july1) shouldBe
+            ReleaseChoice.Chosen(SubmissionRelease(pint, v2))
+    }
+
+    @Test
     fun `INV-AC-13164 case 3 has no accepted release for a v3 transaction-date release`() {
         val cal = calendar(listOf(v1, v2, v3), entry(v1, "2026-01-01"), entry(v2, "2026-01-01"))
         SubmissionReleaseChoice.choose(pint, cal, v3, july1) shouldBe
