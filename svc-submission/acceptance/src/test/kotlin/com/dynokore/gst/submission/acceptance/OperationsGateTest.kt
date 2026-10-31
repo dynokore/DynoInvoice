@@ -29,18 +29,17 @@ class OperationsGateTest {
 
     @Test
     fun `the real table covers the real contract`() {
-        OperationsGate.contractOperations(openapi).size shouldBe 18
+        OperationsGate.contractOperations(openapi).size shouldBe 16
         OperationsGate.contractOperations(openapi) shouldContain "approveFilingGateOverride"
         OperationsGate.contractOperations(openapi) shouldContain "getFilingGateOverrides"
-        OperationsGate.contractChannels(asyncapi).size shouldBe 7
+        OperationsGate.contractChannels(asyncapi).size shouldBe 6
         run(done = doneText).shouldBeEmpty()
         doneText shouldBe ""
     }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        // getComplianceMetrics is implemented by INV-T-12844, so it no longer answers 501.
-        stubs shouldBe OperationsGate.contractOperations(openapi) - "getComplianceMetrics"
+        stubs shouldBe OperationsGate.contractOperations(openapi)
     }
 
     @Test
