@@ -9,11 +9,11 @@ import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.GoldenDocument
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 import java.net.URI
 
 /**
@@ -25,9 +25,8 @@ import java.net.URI
 class OperatorRolesConfiguration {
     @Bean
     @ConditionalOnProperty(name = ["controlplane.access.base-url"])
-    fun operatorRolesLive(
-        @Value("\${controlplane.access.base-url}") baseUrl: String,
-    ): OperatorRoles = AuthoriseOperatorRoles(URI.create(baseUrl))
+    fun operatorRolesLive(environment: Environment): OperatorRoles =
+        AuthoriseOperatorRoles(URI.create(checkNotNull(environment.getProperty("controlplane.access.base-url"))))
 
     @Bean
     @ConditionalOnMissingBean

@@ -21,7 +21,7 @@ import java.time.Duration
 
 /** The live `authorise` binding of OperatorRoles against a stub that answers per (principalRef, permission, scope). */
 class AuthoriseOperatorRolesTest {
-    /** Allowed (principalRef, permission, scope) triples, each answered ALLOW with [allowRole] (default: the role asked). */
+    /** Allowed (principalRef, permission, scope) triples, each answered ALLOW with the role it maps to. */
     private val allowed = LinkedHashMap<Triple<String, String, String>, String>()
     private val requests = ArrayList<Triple<String, String, String>>()
     private var status = 200

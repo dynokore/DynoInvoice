@@ -13,11 +13,11 @@ import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 /**
- * The [OperatorRoles] port over the live access-svc `authorise` query (INV-Q-8687 A, INV-Q-8723 A): for each permission
- * key of the role, `GET /internal/v1/access/authorise?principalRef=<actor>&permission=<key>&scope=platform`. A role is
- * held only if every key answers HTTP 200, `decision` ALLOW and a `role` equal to the role asked. DENY, any other status,
- * a timeout, an unreadable body, a connection error and an actor above the `principalRef` bound all give false; no
- * exception reaches the caller.
+ * The [OperatorRoles] port over the live access-svc `authorise` query (INV-Q-8687 A, INV-Q-8723 A): for each
+ * permission key of the role, `GET /internal/v1/access/authorise?principalRef=<actor>&permission=<key>&scope=platform`.
+ * A role is held only if every key answers HTTP 200, `decision` ALLOW and a `role` equal to the role asked. DENY, any
+ * other status, a timeout, an unreadable body, a connection error and an actor above the `principalRef` bound all give
+ * false; no exception reaches the caller.
  */
 class AuthoriseOperatorRoles(
     private val baseUrl: URI,
@@ -31,9 +31,18 @@ class AuthoriseOperatorRoles(
         actor: String,
         role: String,
     ): Boolean {
-        val keys = ROLE_PERMISSIONS[role] ?: return false
-        if (actor.length > PRINCIPAL_REF_MAX) return false
-        return try {
+        val keys = ROLE_PERMISSIONS[role]
+        return keys != null && actor.length <= PRINCIPAL_REF_MAX && decide(actor, role, keys)
+    }
+
+    // Fail closed on anything that goes wrong: the caller gets false, never an exception.
+    @Suppress("TooGenericExceptionCaught")
+    private fun decide(
+        actor: String,
+        role: String,
+        keys: List<String>,
+    ): Boolean =
+        try {
             keys.all { allows(actor, it, role) }
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -42,7 +51,6 @@ class AuthoriseOperatorRoles(
             log.warn("authorise did not complete: {}", e.javaClass.simpleName)
             false
         }
-    }
 
     private fun allows(
         actor: String,
@@ -80,7 +88,7 @@ class AuthoriseOperatorRoles(
         /** The `x-timeout` of `authorise` in the pinned access contract. */
         val TIMEOUT: Duration = Duration.ofMillis(500)
 
-        /** Catalogue permission keys per operator role, compared by equality (INV-Q-8687 A, INV-Q-9779 A, INV-Q-11433 A). */
+        /** Catalogue keys per operator role, compared by equality (INV-Q-8687 A, INV-Q-9779 A, INV-Q-11433 A). */
         val ROLE_PERMISSIONS: Map<String, List<String>> =
             mapOf(
                 "commercial.admin" to listOf("plan.manage", "entitlement.manage", "licence.manage"),

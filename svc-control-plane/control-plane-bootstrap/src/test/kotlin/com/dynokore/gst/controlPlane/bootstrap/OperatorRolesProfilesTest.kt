@@ -8,7 +8,7 @@ import org.junit.jupiter.api.TestFactory
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 
-/** The OperatorRoles binding in the profiles `test`, `saas` and `private`: live with the base URL, fail closed without. */
+/** The OperatorRoles binding in the profiles `test`, `saas`, `private`: live with the base URL, closed without. */
 class OperatorRolesProfilesTest {
     @TempDir
     lateinit var mount: Path
