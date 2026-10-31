@@ -41,8 +41,10 @@ object EvidenceEvents {
      */
     private val jobEntries: List<CatalogueEntry> =
         PlatformEventCatalogue.ALL
-            .filterNot { it == PlatformEventCatalogue.AUDIT_ENTRY_RECORDED || it == PlatformEventCatalogue.POLICY_CHANGED }
-            .mapNotNull { event ->
+            .filterNot {
+                it == PlatformEventCatalogue.AUDIT_ENTRY_RECORDED ||
+                    it == PlatformEventCatalogue.POLICY_CHANGED
+            }.mapNotNull { event ->
                 event.topic?.let {
                     CatalogueEntry(event.eventType, it, setOf(CatalogueEntry.EVERY_SERVICE), contentTopic = false)
                 }
