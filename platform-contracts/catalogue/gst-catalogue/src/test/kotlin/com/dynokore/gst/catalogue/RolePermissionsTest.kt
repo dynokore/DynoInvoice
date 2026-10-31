@@ -285,6 +285,25 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `the exception deferral key is WRITE with exactly the tax operator and agent operator cells`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("exception.defer"))
+        both.forEach { form ->
+            val holders = RolePermissions.cells(form).filter { (_, perms) -> perms["exception.defer"] != null }
+            assertEquals(
+                mapOf(
+                    "tax.operator" to RoleAllowance.PERMITTED,
+                    "agent.operator" to RoleAllowance.WITHIN_SCOPE,
+                ),
+                holders.mapValues {
+                    it.value["exception.defer"]
+                },
+                "$form",
+            )
+        }
+        assertNull(RolePermissions.kind("exception.undefer"))
+    }
+
+    @Test
     fun `vp keys outside 01 to 82 are absent`() {
         assertNull(RolePermissions.kind("vp-83.set"))
         assertNull(RolePermissions.kind("vp-0.set"))

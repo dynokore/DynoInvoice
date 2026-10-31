@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818).
      */
     val addedRows: List<String> =
         listOf(
@@ -109,6 +109,7 @@ object RolePermissionsChecker {
             "Approve an anonymised production sample copy",
             "View coverage, deadline and correction metrics per entity and period",
             "Approve a backfill reconciliation before transmission",
+            "Defer a document or group in the exception queue",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -133,6 +134,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the backfill approval key (INV-T-13356, INV-Q-13348), compared by equality. */
     val backfillPairs: Map<String, String> =
         mapOf("backfill.approve" to "Approve a backfill reconciliation before transmission")
+
+    /** The (key, row) pair of the exception deferral key (INV-T-13835, INV-Q-13818), compared by equality. */
+    val deferPairs: Map<String, String> =
+        mapOf("exception.defer" to "Defer a document or group in the exception queue")
 
     /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
     private val closedRows: Set<String> = setOf("Acknowledge a control relaxation", "Run the authority incarnation command")
@@ -328,6 +333,7 @@ object RolePermissionsChecker {
             "sample-copy.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "security.officer")),
             "compliance-metrics.view" to Required(PermissionKind.READ, cells(permitted, both, "tax.approver", "finance.viewer")),
             "backfill.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "exception.defer" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(withinScope, both, "agent.operator")),
         )
 
     fun check(
@@ -409,6 +415,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in backfillPairs && (it.row in backfillPairs.values || it.key.startsWith("backfill")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${backfillPairs.keys.joinToString()}, which alone carry the backfill approval row (INV-T-13356)."
+        }
+        deferPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${deferPairs.keys.joinToString()}, INV-T-13835)."
+        }
+        table.permissions.filter { it.key !in deferPairs && (it.row in deferPairs.values || it.key.startsWith("exception.defer")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${deferPairs.keys.joinToString()}, which alone carry the exception deferral row (INV-T-13835)."
         }
         table.permissions.firstOrNull { it.key == "election-change.approve" }?.let { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123)."

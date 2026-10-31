@@ -1152,3 +1152,11 @@ permissions:
     cells:
       - {role: tax.approver, form: SAAS, allowance: PERMITTED}
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: exception.defer
+    kind: WRITE
+    row: "Defer a document or group in the exception queue"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
