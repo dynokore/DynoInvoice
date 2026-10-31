@@ -92,7 +92,7 @@ class OperatorRolesConfiguration {
     private companion object {
         const val ACCESS_BASE_URL = "controlplane.access.base-url"
 
-        /** The operator's own `Authorization` header of the current request (as OperatorCaller.of), null without one. */
+        /** The operator's `Authorization` of the current request (as OperatorCaller.of); null without one. */
         fun currentAuthorization(): String? =
             (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)
                 ?.request

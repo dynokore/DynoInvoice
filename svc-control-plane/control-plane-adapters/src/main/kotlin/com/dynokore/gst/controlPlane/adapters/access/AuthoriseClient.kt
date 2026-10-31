@@ -57,7 +57,7 @@ class AuthoriseClient(
         permission: String,
     ): AuthoriseAnswer? {
         val operator = authorization()?.takeIf { it.isNotBlank() } ?: return null
-        val workload: WorkloadToken = workloadToken.current()
+        val workload = workloadToken.current()
         val query = "principalRef=${encode(actor)}&permission=${encode(permission)}&scope=${encode(SCOPE)}"
         val request =
             HttpRequest
@@ -76,8 +76,11 @@ class AuthoriseClient(
             } finally {
                 future.cancel(true)
             }
-        if (response.statusCode() != HTTP_OK) return null
-        val body = json.readTree(response.body())
+        return if (response.statusCode() == HTTP_OK) answerOf(response.body()) else null
+    }
+
+    private fun answerOf(text: String): AuthoriseAnswer? {
+        val body = json.readTree(text)
         val decision = body.path("decision").asString("")
         return if (decision.isEmpty()) null else AuthoriseAnswer(decision == ALLOW, body.path("role").asString(null))
     }
