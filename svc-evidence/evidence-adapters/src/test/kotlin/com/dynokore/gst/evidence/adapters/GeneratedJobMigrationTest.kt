@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test
  * changes the generated text, or one changed character in the file, fails here until the file is regenerated.
  */
 class GeneratedJobMigrationTest {
-    private val migration = "V9__evidence_job_tables.sql"
+    private val migration = "V10__evidence_job_tables.sql"
 
     private fun text(): String =
         checkNotNull(javaClass.getResource("/db/migration/$migration")) { "no migration $migration" }.readText()
@@ -32,7 +32,7 @@ class GeneratedJobMigrationTest {
         val generated = text().lines().takeWhile { it.startsWith("--") }.filter { it.startsWith("-- Generated:") }
         generated.size shouldBe 1
         generated.single().contains("""JobSchema.ddl("evidence", "evidence_runtime", "evidence_sys")""") shouldBe true
-        generated.single().contains("platform-libs-bom 0.120.0") shouldBe true
+        generated.single().contains("platform-libs-bom 0.137.0") shouldBe true
     }
 
     @Test

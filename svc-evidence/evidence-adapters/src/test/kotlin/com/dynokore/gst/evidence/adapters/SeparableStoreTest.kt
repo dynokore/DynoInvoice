@@ -11,6 +11,8 @@ import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 import java.sql.DriverManager
+import java.time.Instant
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -61,6 +63,12 @@ class SeparableStoreTest {
             "integrity_run.period_digest" to "sha256:" + "a".repeat(HASH_LENGTH),
             "integrity_failure.evidence_type" to "PAYLOAD",
             "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows
+            "job_run.status" to "SUCCEEDED",
+            "job_run.trigger" to "SCHEDULED",
+            "job_pause.paused_until" to OffsetDateTime.of(2026, 3, 21, 10, 15, 30, 123_000_000, ZoneOffset.UTC),
+            "job_retention.job_window" to
+                org.jooq.types.YearToSecond
+                    .valueOf("P30DT0S"),
         )
 
     private val constrained: Map<String, Any> = consumerConstrained + configConstrained()
@@ -112,6 +120,8 @@ class SeparableStoreTest {
             Array<String>::class.java to { f -> arrayOf("evidence-${f.name}") },
             Array<UUID>::class.java to { _ -> arrayOf(UUID.randomUUID()) },
             ByteArray::class.java to { f -> "evidence-${f.name}".toByteArray() },
+            java.time.LocalDateTime::class.java to
+                { _ -> LocalDateTime.ofInstant(Instant.parse("2026-03-20T10:15:30.123Z"), ZoneOffset.UTC) },
             java.time.LocalDate::class.java to { _ -> java.time.LocalDate.of(2026, 3, 20) },
             org.jooq.JSONB::class.java to { _ -> org.jooq.JSONB.valueOf("""{"payload": "evidence"}""") },
         )
@@ -176,7 +186,14 @@ class SeparableStoreTest {
             val after =
                 bound(url) { connection ->
                     val dsl = DSL.using(connection, SQLDialect.POSTGRES)
-                    written.associate { table -> table.name to dsl.selectFrom(table).fetch().toList() }
+                    // a table the runtime login may not select (job_retention) is read by the owner, as it is written
+                    EvidenceDb.superuserOf(url).use { superuser ->
+                        val owner = DSL.using(superuser, SQLDialect.POSTGRES)
+                        written.associate { table ->
+                            table.name to
+                                (if (runtimeMaySelect(dsl, table)) dsl else owner).selectFrom(table).fetch().toList()
+                        }
+                    }
                 }
             written.forEach { table ->
                 val rows = after.getValue(table.name)
@@ -200,6 +217,16 @@ class SeparableStoreTest {
                 }
             }
         }
+
+    private fun runtimeMaySelect(
+        dsl: org.jooq.DSLContext,
+        table: Table<*>,
+    ): Boolean =
+        dsl.fetchValue(
+            "select has_table_privilege(?, ?, 'SELECT')",
+            EvidenceDb.RUNTIME,
+            "${EvidenceDb.SCHEMA}.${table.name}",
+        ) as Boolean
 
     private fun runtimeMayInsert(
         dsl: org.jooq.DSLContext,
