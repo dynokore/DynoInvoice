@@ -4,6 +4,7 @@ import com.dynokore.gst.transport.adapters.TransportDb
 import com.dynokore.gst.transport.domain.AdapterId
 import com.dynokore.gst.transport.syncedge.CallerChecks
 import com.dynokore.gst.transport.syncedge.ContractDocument
+import com.dynokore.gst.transport.syncedge.HandlerCalls
 import com.dynokore.gst.transport.syncedge.Operation
 import com.dynokore.gst.transport.syncedge.SourceScan
 import com.dynokore.gst.transport.syncedge.TestWorkloadVerifier
@@ -104,6 +105,7 @@ class SyncEdgeCallerTest {
         dir: Path,
         services: List<String>,
         classes: ClassLoader,
+        calls: HandlerCalls,
         block: (ConfigurableApplicationContext, AdapterId) -> Unit,
     ) {
         TransportContext.secrets(dir)
@@ -121,6 +123,7 @@ class SyncEdgeCallerTest {
             .initializers(
                 ApplicationContextInitializer<ConfigurableApplicationContext> {
                     it.beanFactory.registerSingleton("withoutCallerTestConfig", WithoutCallerTestConfig())
+                    it.beanFactory.registerSingleton("handlerCalls", calls)
                 },
             ).web(WebApplicationType.SERVLET)
             .resourceLoader(DefaultResourceLoader(classes))
@@ -145,9 +148,10 @@ class SyncEdgeCallerTest {
         val lookAlikes = services.map { "$it-two" }
         val problems = mutableListOf<String>()
         TransportDb.superuser().use { connection ->
-            serve(dir, services + lookAlikes, loader) { context, primary ->
+            val calls = HandlerCalls()
+            serve(dir, services + lookAlikes, loader, calls) { context, primary ->
                 Harness(context, primary, primary).assign(TestWorkloadVerifier.TENANT, "E-001", primary)
-                val checks = CallerChecks(context, connection, services, lookAlikes, built())
+                val checks = CallerChecks(context, connection, services, lookAlikes, calls, built())
                 val byLabel = operations.associateBy { it.label }
                 val lines = generatedLines()
                 val handlers = mapped(context)
@@ -175,8 +179,9 @@ class SyncEdgeCallerTest {
         val without = FilteredClassLoader(ClassPathResource("META-INF/gst/sync-edge-callers.tsv"))
         val problems = mutableListOf<String>()
         TransportDb.superuser().use { connection ->
-            serve(dir, services, without) { context, _ ->
-                val checks = CallerChecks(context, connection, services, emptyList())
+            val calls = HandlerCalls()
+            serve(dir, services, without, calls) { context, _ ->
+                val checks = CallerChecks(context, connection, services, emptyList(), calls)
                 val handlers = mapped(context)
                 (handlers.isNotEmpty()) shouldBe true
                 handlers.forEach { (method, path) ->

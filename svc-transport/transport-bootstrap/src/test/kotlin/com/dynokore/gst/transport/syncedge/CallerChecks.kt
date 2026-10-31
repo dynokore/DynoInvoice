@@ -14,6 +14,7 @@ class CallerChecks(
     private val connection: Connection,
     private val services: List<String>,
     private val lookAlikes: List<String>,
+    private val calls: HandlerCalls,
     private val reached: Map<String, Reach> = emptyMap(),
 ) {
     /** What an operation that is built answers when the request reaches it; the others are stubs (501). */
@@ -45,8 +46,11 @@ class CallerChecks(
         }
         found += reaching(operation, allowed, any)
         if (!any) found += refused(operation, allowed)
+        val reachedBefore = calls.count(operation.label)
         val none = send(operation, mapOf(AUTH to END_USER))
-        if (none.statusCode() != 401) found += "${operation.label} (no workload token): ${none.statusCode()}"
+        if (none.statusCode() != 401 || calls.count(operation.label) != reachedBefore) {
+            found += "${operation.label} (no workload token): ${none.statusCode()}"
+        }
         return found
     }
 
@@ -66,11 +70,13 @@ class CallerChecks(
             }
         return (callers + unmapped).mapNotNull { (what, headers) ->
             val before = stored()
+            val reachedBefore = calls.count(operation.label)
             val answer = send(operation, headers)
             val expected = reached[operation.label]?.status ?: STUB
-            val calls = stored().entries.count { before[it.key] != it.value }
-            "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}".takeIf {
-                answer.statusCode() != expected || (expected == STUB && calls != 0)
+            val changed = stored().entries.count { before[it.key] != it.value }
+            val once = calls.count(operation.label) - reachedBefore
+            "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}, double called $once times".takeIf {
+                answer.statusCode() != expected || once != 1 || (expected == STUB && changed != 0)
             }
         }
     }
@@ -101,11 +107,13 @@ class CallerChecks(
         headers: Map<String, String>,
     ): String? {
         val before = stored()
+        val reachedBefore = calls.count(operation.label)
         val answer = send(operation, headers)
-        val good = answer.statusCode() == 403 && "SRT-004" in answer.body() && before == stored()
+        val reachedBy = calls.count(operation.label) - reachedBefore
+        val good = answer.statusCode() == 403 && "SRT-004" in answer.body() && before == stored() && reachedBy == 0
         return "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(
             BODY_SHOWN,
-        )}".takeUnless { good }
+        )}, double called $reachedBy times".takeUnless { good }
     }
 
     fun send(
