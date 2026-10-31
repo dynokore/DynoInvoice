@@ -1,19 +1,8 @@
 package com.dynokore.gst.evidence.adapters.jobs
 
-import com.dynokore.gst.evidence.application.integrity.ChainFailure
-import com.dynokore.gst.evidence.application.integrity.ChainReads
-import com.dynokore.gst.evidence.application.integrity.ChainVerification
-import com.dynokore.gst.evidence.application.integrity.IntegrityFailureRow
-import com.dynokore.gst.evidence.application.integrity.IntegrityRunRow
-import com.dynokore.gst.evidence.application.integrity.IntegrityStore
+import com.dynokore.gst.evidence.application.integrity.ChainVerificationRecorder
 import com.dynokore.gst.evidence.domain.integrity.RunCause
-import com.dynokore.gst.evidence.domain.integrity.evidenceType
-import com.dynokore.platform.outboxandqueue.CausationId
-import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
-import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.outboxandqueue.OutboundEvent
-import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.serviceruntime.jobs.JobBody
@@ -26,11 +15,6 @@ import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import tools.jackson.databind.json.JsonMapper
-import java.time.Clock
-import java.time.Instant
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.util.Locale
 import java.util.UUID
 
 /**
@@ -69,113 +53,6 @@ class VerificationEntitySource(
                     .map { (entity, tenant) -> JobTarget.Entity(tenant, entity) }
             }
         }
-}
-
-/**
- * Records one verification of an (entity, period) in the caller's tenant transaction (INV-Q-7251 A (4), INV-Q-7253 A
- * (1) to (4)): it runs [ChainVerification], appends each finding that is not open yet to `integrity_failure` with one
- * `EvidenceIntegrityFailed` in the outbox, and appends one `integrity_run` row. A repeat of an open finding appends
- * neither a row nor an event. It stops nothing else: evidence-svc has no call on the submission path.
- */
-class ChainVerificationRecorder(
-    private val verification: ChainVerification,
-    private val chains: ChainReads,
-    private val store: IntegrityStore,
-    private val outbox: OutboxWriter,
-    private val clock: Clock = Clock.systemUTC(),
-) {
-    fun periods(
-        tenant: TenantId,
-        entityRef: String,
-    ): List<String> = chains.periods(tenant, entityRef)
-
-    fun verifyPeriod(
-        tenant: TenantId,
-        entityRef: String,
-        period: String,
-        runId: String,
-    ): RunCause {
-        store.lock(tenant, entityRef, period)
-        val runAt = clock.instant().truncatedTo(ChronoUnit.MICROS) // the precision of timestamptz
-        val outcome = verification.verifyPeriod(tenant, entityRef, period)
-        outcome.failures.forEach {
-            record(
-                tenant,
-                IntegrityFailureRow(
-                    entityRef,
-                    period,
-                    it.kind,
-                    it.failure,
-                    it.failingSequence,
-                    it.rangeFrom,
-                    it.rangeTo,
-                    runAt,
-                    runId,
-                ),
-            )
-        }
-        store.insertRun(
-            tenant,
-            IntegrityRunRow(
-                entityRef,
-                period,
-                runId,
-                runAt,
-                outcome.result,
-                outcome.cause,
-                outcome.chainLength,
-                outcome.periodDigest,
-            ),
-        )
-        return outcome.cause
-    }
-
-    private fun record(
-        tenant: TenantId,
-        row: IntegrityFailureRow,
-    ) {
-        if (store.failureExists(tenant, row)) return
-        store.insertFailure(tenant, row)
-        outbox.append(
-            listOf(OutboundEvent(EVENT_TYPE, payload(row))),
-            EventContext(
-                tenant,
-                EntityRef(row.entityRef),
-                null,
-                null,
-                "${row.entityRef}:${row.period}",
-                null,
-                CorrelationId(row.runId),
-                CausationId(row.runId),
-            ),
-        )
-    }
-
-    /** The payload of `EvidenceIntegrityFailed`: the range and the failing record's key, nothing of its content. */
-    private fun payload(row: IntegrityFailureRow): String =
-        "{\"range\":{\"from\":${quoted(iso(row.rangeFrom))},\"to\":${quoted(iso(row.rangeTo))}}," +
-            "\"failingRecord\":{\"entityRef\":${quoted(row.entityRef)},\"periodRef\":${quoted(row.period)}," +
-            "\"evidenceType\":${quoted(row.kind.evidenceType)},\"sequence\":${row.failingSequence ?: "null"}," +
-            "\"kind\":${quoted(row.failure.name)}}}"
-
-    private fun iso(at: Instant): String = DateTimeFormatter.ISO_INSTANT.format(at)
-
-    private fun quoted(text: String): String {
-        val out = StringBuilder("\"")
-        for (c in text) {
-            when {
-                c == '"' -> out.append("\\\"")
-                c == '\\' -> out.append("\\\\")
-                c < ' ' -> out.append("\\u%04x".format(Locale.ROOT, c.code))
-                else -> out.append(c)
-            }
-        }
-        return out.append('"').toString()
-    }
-
-    companion object {
-        const val EVENT_TYPE = "com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1"
-    }
 }
 
 /**

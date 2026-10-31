@@ -2,7 +2,6 @@ package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationJobBody
-import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationRecorder
 import com.dynokore.gst.evidence.adapters.jobs.VerificationEntitySource
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqAppliedStore
@@ -22,6 +21,7 @@ import com.dynokore.gst.evidence.application.digest.MaxRetention
 import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
 import com.dynokore.gst.evidence.application.integrity.ChainVerification
 import com.dynokore.gst.evidence.application.integrity.ChainVerificationJob
+import com.dynokore.gst.evidence.application.integrity.ChainVerificationRecorder
 import com.dynokore.gst.evidence.application.integrity.IntegrityRunRow
 import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQuery
 import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler

@@ -4,13 +4,13 @@ import com.dynokore.gst.evidence.adapters.events.AuditEntryRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.evidence.adapters.events.DecisionTraceRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.GstReturnRecordedHandler
-import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationRecorder
 import com.dynokore.gst.evidence.application.chain.LocatorRecorder
 import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.application.digest.DigestObjects
 import com.dynokore.gst.evidence.application.digest.MaxRetention
 import com.dynokore.gst.evidence.application.digest.PeriodDigestRecorder
 import com.dynokore.gst.evidence.application.integrity.ChainVerification
+import com.dynokore.gst.evidence.application.integrity.ChainVerificationRecorder
 import com.dynokore.gst.evidence.application.integrity.DigestCopies
 import com.dynokore.gst.evidence.application.integrity.VerificationSources
 import com.dynokore.gst.evidence.domain.chain.RecordKind

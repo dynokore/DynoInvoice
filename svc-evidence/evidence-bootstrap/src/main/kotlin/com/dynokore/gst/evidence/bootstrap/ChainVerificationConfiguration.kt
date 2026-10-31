@@ -1,13 +1,13 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationJobBody
-import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationRecorder
 import com.dynokore.gst.evidence.adapters.jobs.VerificationEntitySource
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqIntegrityStore
 import com.dynokore.gst.evidence.adapters.persistence.ObjectStoreDigestCopies
 import com.dynokore.gst.evidence.application.integrity.ChainVerification
 import com.dynokore.gst.evidence.application.integrity.ChainVerificationJob
+import com.dynokore.gst.evidence.application.integrity.ChainVerificationRecorder
 import com.dynokore.gst.evidence.application.integrity.DigestCopies
 import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
 import com.dynokore.platform.evidencestore.ObjectStore
