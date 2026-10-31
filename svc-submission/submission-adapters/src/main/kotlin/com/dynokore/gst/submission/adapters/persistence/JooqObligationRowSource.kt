@@ -10,6 +10,7 @@ import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.Record
 import org.jooq.impl.DSL
 
 /**
@@ -48,21 +49,27 @@ class JooqObligationRowSource(
                     .orderBy(entry.DOC_UUID.asc(), version.VERSION.asc())
                     .fetch()
             }
-        return records
-            .groupBy { checkNotNull(it.get(entry.DOC_UUID)) }
-            .map { (docUuid, group) ->
-                val first = group.first()
-                val states = group.mapNotNull { it.get(version.STATE) }.map(LifecycleState::valueOf)
-                ObligationRow(
-                    docUuid = docUuid,
-                    entityRef = checkNotNull(first.get(entry.ENTITY_REF)),
-                    periodRef = checkNotNull(first.get(entry.PERIOD_REF)),
-                    dueDate = checkNotNull(first.get(entry.DUE_DATE)),
-                    inScope = checkNotNull(first.get(entry.IN_SCOPE)),
-                    hasSubmission = DocumentCoverage.hasSubmission(states),
-                    kind = RowKind.valueOf(checkNotNull(first.get(entry.KIND))),
-                    versionCount = maxOf(states.size, 1),
-                )
-            }
+        return records.groupBy { checkNotNull(it.get(entry.DOC_UUID)) }.map { (docUuid, group) ->
+            toRow(docUuid, group)
+        }
+    }
+
+    private fun toRow(
+        docUuid: String,
+        group: List<Record>,
+    ): ObligationRow {
+        val entry = ObligationRegisterEntry.OBLIGATION_REGISTER_ENTRY
+        val first = group.first()
+        val states = group.mapNotNull { it.get(Submission.SUBMISSION_.STATE) }.map(LifecycleState::valueOf)
+        return ObligationRow(
+            docUuid = docUuid,
+            entityRef = checkNotNull(first.get(entry.ENTITY_REF)),
+            periodRef = checkNotNull(first.get(entry.PERIOD_REF)),
+            dueDate = checkNotNull(first.get(entry.DUE_DATE)),
+            inScope = checkNotNull(first.get(entry.IN_SCOPE)),
+            hasSubmission = DocumentCoverage.hasSubmission(states),
+            kind = RowKind.valueOf(checkNotNull(first.get(entry.KIND))),
+            versionCount = maxOf(states.size, 1),
+        )
     }
 }

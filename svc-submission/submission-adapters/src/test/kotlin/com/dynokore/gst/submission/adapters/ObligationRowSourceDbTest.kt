@@ -62,6 +62,7 @@ class ObligationRowSourceDbTest {
         val kind: RowKind = RowKind.INVOICE,
         val inScope: Boolean = true,
         val states: List<String> = emptyList(),
+        val has: Boolean = false,
     )
 
     @AfterEach
@@ -76,7 +77,8 @@ class ObligationRowSourceDbTest {
         entries.forEach { e ->
             dsl.execute(
                 "insert into submission.obligation_register_entry " +
-                    "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) values (?, ?, ?, ?, ?, ?, ?)",
+                    "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) " +
+                    "values (?, ?, ?, ?, ?, ?, ?)",
                 tenant,
                 e.doc,
                 e.entity,
@@ -99,11 +101,28 @@ class ObligationRowSourceDbTest {
         }
     }
 
-    private fun expected(
-        e: Entry,
-        hasSubmission: Boolean,
-        versionCount: Int,
-    ) = ObligationRow(e.doc, e.entity, e.period, due, e.inScope, hasSubmission, e.kind, versionCount)
+    private fun expected(e: Entry) =
+        ObligationRow(e.doc, e.entity, e.period, due, e.inScope, e.has, e.kind, maxOf(e.states.size, 1))
+
+    /** Ten entries of tenant A over three entities and two periods; [has] is the expected hasSubmission. */
+    private fun tenantAEntries(
+        p: String,
+        q: String,
+    ): List<Entry> {
+        val (e1, e2, e3) = listOf("e1-$p", "e2-$p", "e3-$p")
+        return listOf(
+            Entry("d01", e1, p, inScope = false, states = listOf("READY")),
+            Entry("d02", e2, q, states = listOf("HELD")),
+            Entry("d03", e1, p, states = listOf("ACKNOWLEDGED"), has = true),
+            Entry("d04", e1, p, states = listOf("QUEUED")),
+            Entry("d05", e1, q),
+            Entry("d06", e2, p, states = listOf("ACKNOWLEDGED", "REJECTED"), has = true),
+            Entry("d07", e3, q, RowKind.CREDIT_NOTE, states = listOf("ACKNOWLEDGED", "SUPERSEDED", "SENT")),
+            Entry("d08", e2, p, states = listOf("EXTERNALLY_SUBMITTED"), has = true),
+            Entry("d09", e3, p, states = listOf("INGESTED", "REJECTED")),
+            Entry("d10", e3, q, states = listOf("CANCELLED"), has = true),
+        )
+    }
 
     @Test
     fun `INV-AC-12839 the reader returns one row per document of the bound tenant filtered by entity and period`() {
@@ -111,46 +130,14 @@ class ObligationRowSourceDbTest {
         val b = UUID.randomUUID()
         val p = "p-${UUID.randomUUID()}".take(12)
         val q = "q-${UUID.randomUUID()}".take(12)
-        val e1 = "e1-$p"
-        val e2 = "e2-$p"
-        val e3 = "e3-$p"
-        // inserted in reverse doc order: the reader sorts by doc_uuid
-        val acknowledged = Entry("d03", e1, p, states = listOf("ACKNOWLEDGED"))
-        val queued = Entry("d04", e1, p, states = listOf("QUEUED"))
-        val noVersion = Entry("d05", e1, q)
-        val rejectedAfterAck = Entry("d06", e2, p, states = listOf("ACKNOWLEDGED", "REJECTED"))
-        val creditNote = Entry("d07", e3, q, RowKind.CREDIT_NOTE, states = listOf("ACKNOWLEDGED", "SUPERSEDED", "SENT"))
-        val others =
-            listOf(
-                Entry("d01", e1, p, inScope = false, states = listOf("READY")),
-                Entry("d02", e2, q, states = listOf("HELD")),
-                Entry("d08", e2, p, states = listOf("EXTERNALLY_SUBMITTED")),
-                Entry("d09", e3, p, states = listOf("INGESTED", "REJECTED")),
-                Entry("d10", e3, q, states = listOf("CANCELLED")),
-            )
-        val all = (others + listOf(acknowledged, queued, noVersion, rejectedAfterAck, creditNote)).sortedBy { it.doc }
-        seed(a, all.reversed())
-        seed(b, listOf(Entry("b01", e1, p, states = listOf("ACKNOWLEDGED")), Entry("zz", "other-$p", p)))
-        val expectedAll =
-            all.map {
-                when (it.doc) {
-                    "d01" -> expected(it, false, 1)
-                    "d02" -> expected(it, false, 1)
-                    "d03" -> expected(it, true, 1)
-                    "d04" -> expected(it, false, 1)
-                    "d05" -> expected(it, false, 1)
-                    "d06" -> expected(it, true, 2)
-                    "d07" -> expected(it, false, 3)
-                    "d08" -> expected(it, true, 1)
-                    "d09" -> expected(it, false, 2)
-                    else -> expected(it, true, 1)
-                }
-            }
+        val entries = tenantAEntries(p, q)
+        seed(a, entries.reversed()) // reverse insertion order: the reader sorts by doc_uuid
+        seed(b, listOf(Entry("b01", "e1-$p", p, states = listOf("ACKNOWLEDGED")), Entry("zz", "other-$p", p)))
+        val expectedAll = entries.map(::expected)
         rowsOf(a) shouldBe expectedAll
-        rowsOf(a, e1) shouldBe expectedAll.filter { it.entityRef == e1 }
-        rowsOf(a, e1, p) shouldBe expectedAll.filter { it.entityRef == e1 && it.periodRef == p }
+        rowsOf(a, "e1-$p") shouldBe expectedAll.filter { it.entityRef == "e1-$p" }
+        rowsOf(a, "e1-$p", p) shouldBe expectedAll.filter { it.entityRef == "e1-$p" && it.periodRef == p }
         rowsOf(a, periodRef = "no-such-period") shouldBe emptyList()
-        rowsOf(a).none { it.entityRef == "other-$p" } shouldBe true
         rowsOf(b, "other-$p") shouldBe listOf(ObligationRow("zz", "other-$p", p, due, true, false, RowKind.INVOICE, 1))
     }
 }
