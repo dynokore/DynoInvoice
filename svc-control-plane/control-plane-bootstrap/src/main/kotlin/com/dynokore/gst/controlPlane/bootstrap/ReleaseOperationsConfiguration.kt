@@ -2,9 +2,9 @@ package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.persistence.SupportWindowRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
-import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
+import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
@@ -31,17 +31,17 @@ class ReleaseOperationsConfiguration {
     @Bean
     fun publishTrain(
         trains: TrainRepository,
-        roles: OperatorRoles,
+        permissions: OperatorPermissions,
         evidence: TrainEvidenceSource,
         accreditation: AccreditationTasks,
         clock: Clock,
-    ) = PublishTrain(trains, roles, evidence, accreditation, clock)
+    ) = PublishTrain(trains, permissions, evidence, accreditation, clock)
 
     @Bean
     fun setSupportWindow(
         windows: SupportWindowRepository,
-        roles: OperatorRoles,
-    ) = SetSupportWindow(windows, roles)
+        permissions: OperatorPermissions,
+    ) = SetSupportWindow(windows, permissions)
 
     @Bean
     fun corpusGate(

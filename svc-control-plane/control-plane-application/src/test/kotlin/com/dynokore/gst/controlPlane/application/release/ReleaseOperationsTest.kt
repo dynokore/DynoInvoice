@@ -1,7 +1,5 @@
 package com.dynokore.gst.controlPlane.application.release
 
-import com.dynokore.gst.controlPlane.application.pack.OperatorRole
-import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
@@ -31,7 +29,8 @@ class ReleaseOperationsTest {
     private val windows = LinkedHashMap<String, SupportWindow>()
     private val evidence = HashMap<TrainVersion, TrainEvidence>()
     private val opened = ArrayList<TrainVersion>()
-    private val roles = OperatorRoles { actor, role -> role == OperatorRole.RELEASE_MANAGER && actor == "rita" }
+    private val permissions =
+        OperatorPermissions { actor, key -> key == ReleasePermission.PUBLISH && actor in setOf("rita", "sam") }
     private val trainRepository =
         object : TrainRepository {
             override fun find(version: TrainVersion) = trains[version]
@@ -53,8 +52,8 @@ class ReleaseOperationsTest {
             opened += version
             AccreditationCheck(true, "ALERT-$version", "TASK-$version")
         }
-    private val publish = PublishTrain(trainRepository, roles, { evidence[it] }, tasks, clock)
-    private val setWindow = SetSupportWindow(windowRepository, roles)
+    private val publish = PublishTrain(trainRepository, permissions, { evidence[it] }, tasks, clock)
+    private val setWindow = SetSupportWindow(windowRepository, permissions)
 
     private val bothCertified =
         Certification(ReferenceEnvironment.entries.associateWith { GateOutcome.PASSED })
@@ -108,12 +107,22 @@ class ReleaseOperationsTest {
     }
 
     @Test
-    fun `publishTrain with no gate evidence bound is refused and a caller without release manager is not permitted`() {
+    fun `publishTrain with no gate evidence bound is refused and a caller without the publish permission is not permitted`() {
         Refusal.parse(publishAs("rita", "2026.10.0")!!).code shouldBe Refusal.NO_GATE_EVIDENCE
         val command =
             PublishTrainCommand(ActorId("bob"), TrainVersion("2026.10.0"), TrainKind.TRAIN, false, true, request)
         publish.permits("bob", command) shouldBe false
         publish.permits("rita", command.copy(actor = ActorId("bob"))) shouldBe false
+    }
+
+    @Test
+    fun `two callers that hold the permission publish two trains and each classifiedBy is its caller's user ID`() {
+        evidence[TrainVersion("2026.10.0")] = evidenceOf()
+        evidence[TrainVersion("2026.10.1")] = evidenceOf()
+        publishAs("rita", "2026.10.0") shouldBe null
+        publishAs("sam", "2026.10.1") shouldBe null
+        trains.getValue(TrainVersion("2026.10.0")).record.classifiedBy.value shouldBe "rita"
+        trains.getValue(TrainVersion("2026.10.1")).record.classifiedBy.value shouldBe "sam"
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.dynokore.gst.controlPlane.bootstrap
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
+import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
@@ -21,6 +22,11 @@ class OperatorRolesConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun operatorRoles(): OperatorRoles = OperatorRoles { _, _ -> false }
+
+    /** Permission-level decisions are bound by INV-T-7322 (live `authorise`); until then nobody holds a key (403). */
+    @Bean
+    @ConditionalOnMissingBean
+    fun operatorPermissions(): OperatorPermissions = OperatorPermissions { _, _ -> false }
 
     /** The release evidence source is a Wave 3 binding: unbound, no train has evidence and none is released. */
     @Bean

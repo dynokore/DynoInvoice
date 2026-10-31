@@ -11,6 +11,26 @@ import com.dynokore.gst.controlPlane.domain.release.TrainEvidence
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 
 /**
+ * Whether an actor holds a permission key, decided per request (INV-NOTE-10639 R5: no code compares a role name). The
+ * binding is the live access-svc `authorise` adapter of INV-T-7322; the default binding holds nothing.
+ */
+fun interface OperatorPermissions {
+    fun holds(
+        actor: String,
+        permissionKey: String,
+    ): Boolean
+}
+
+/** The permission keys of the release operations; each is a row of the catalogue's `OperationRoles`. */
+object ReleasePermission {
+    /** publishTrain and setSupportWindow. */
+    const val PUBLISH = "release-train.publish"
+
+    /** The gate-run operation of INV-T-8749. */
+    const val CERTIFY = "release-train.certify"
+}
+
+/**
  * The internal quality evidence of a train: scenario, regeneration, security and certification results, each with the
  * released version's re-run. Null when the train has no evidence, which holds the release back (fail closed). The
  * binding is a Wave 3 item (the certification runner); until bound, nothing is released.

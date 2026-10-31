@@ -115,7 +115,7 @@ data class AccreditationCheck(
     val taskRef: String?,
 )
 
-/** What release.manager's release record holds: the gate runs, the classification, the acting user ID (INV-Q-10647). */
+/** What a release record holds: the gate runs, the classification, the acting user ID (INV-Q-10647). */
 data class ReleaseRecord(
     val runs: List<GateRun>,
     val exposureReducing: Boolean,

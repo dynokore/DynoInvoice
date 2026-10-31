@@ -1,7 +1,5 @@
 package com.dynokore.gst.controlPlane.application.release
 
-import com.dynokore.gst.controlPlane.application.pack.OperatorRole
-import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
@@ -63,7 +61,7 @@ data class PublishTrainCommand(
 )
 
 /**
- * publishTrain (SCR-37.2): release.manager publishes a release train or patch train. The internal gates run first
+ * publishTrain (SCR-37.2): a holder of the publish permission publishes a release train or patch train. The internal gates run first
  * (INV-REQ-2657): a train not certified in both reference environments is refused (INV-AC-1943), and so is one with a
  * failed gate, except that an exposure-reducing train is held back only by a failure it introduced. Accreditation
  * currency, an external rule change and an open question are no gate; the re-accreditation assessment is opened as a
@@ -71,7 +69,7 @@ data class PublishTrainCommand(
  */
 class PublishTrain(
     private val trains: TrainRepository,
-    private val roles: OperatorRoles,
+    private val permissions: OperatorPermissions,
     private val evidence: TrainEvidenceSource,
     private val accreditation: AccreditationTasks,
     private val clock: Clock,
@@ -83,7 +81,7 @@ class PublishTrain(
     override fun permits(
         actor: String,
         command: PublishTrainCommand,
-    ) = roles.holds(actor, OperatorRole.RELEASE_MANAGER) && actor == command.actor.value
+    ) = permissions.holds(actor, ReleasePermission.PUBLISH) && actor == command.actor.value
 
     override fun repeatKey(command: PublishTrainCommand) = command.version.value
 
@@ -146,10 +144,10 @@ data class SetSupportWindowCommand(
     val request: RequestContext,
 )
 
-/** setSupportWindow (SCR-37.3): release.manager records the supported-version window; a repeat returns the original. */
+/** setSupportWindow (SCR-37.3): a holder of the publish permission records the supported-version window; a repeat returns the original. */
 class SetSupportWindow(
     private val windows: SupportWindowRepository,
-    private val roles: OperatorRoles,
+    private val permissions: OperatorPermissions,
 ) : DeclaredOperation<SetSupportWindowCommand, SupportWindow?, SupportWindow> {
     override val operationId = "setSupportWindow"
     override val reversibility = Reversibility.UNDOABLE
@@ -158,7 +156,7 @@ class SetSupportWindow(
     override fun permits(
         actor: String,
         command: SetSupportWindowCommand,
-    ) = roles.holds(actor, OperatorRole.RELEASE_MANAGER) && actor == command.actor.value
+    ) = permissions.holds(actor, ReleasePermission.PUBLISH) && actor == command.actor.value
 
     override fun repeatKey(command: SetSupportWindowCommand) = command.window.windowVersion
 

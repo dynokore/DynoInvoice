@@ -15,6 +15,7 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.gst.catalogue)
 }
 
 tasks.withType<Test> { useJUnitPlatform() }

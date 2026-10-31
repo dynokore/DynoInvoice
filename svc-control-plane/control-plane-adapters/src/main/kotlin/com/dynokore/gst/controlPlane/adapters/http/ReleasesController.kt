@@ -184,7 +184,7 @@ internal fun gateResultOf(
             )
         },
     exposureReducing = record.exposureReducing,
-    classifiedByRole = null, // the contract field names a role; the record keeps the acting user ID (INV-Q-10647)
+    classifiedBy = record.classifiedBy.value,
     accreditationCheck =
         train?.accreditation?.let {
             ReleaseGateResultAccreditationCheck(it.assessmentNeeded, it.alertRef, it.taskRef)

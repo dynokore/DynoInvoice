@@ -4,10 +4,10 @@
 platformBuild = "0.23.3"
 # The platform-libs BOM names the module versions tested together; a service bumps this one line (STK-60).
 platformLibsBom = "0.125.0"
-gstCatalogue = "1.28.0"
+gstCatalogue = "2.18.0"
 # The published platform-contracts bundle this service generates from and tests against (INV-T-4984: the fixture takes
 # the feed index schema from the pinned release, never a copy).
-platformContractsBundle = "0.0.0-dev+3030c14b"
+platformContractsBundle = "0.0.0-dev+ce6d091a"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"

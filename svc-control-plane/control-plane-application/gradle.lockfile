@@ -2,6 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :control-plane-application:dependencies --write-locks
+com.dynokore.gst:gst-catalogue:2.18.0=testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:audit-log-api:4.0.13=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:config-resolver-api:5.0.10=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:crypto-api:1.1.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
