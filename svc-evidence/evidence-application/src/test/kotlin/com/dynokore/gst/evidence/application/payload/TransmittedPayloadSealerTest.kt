@@ -346,6 +346,12 @@ class TransmittedPayloadSealerTest {
     }
 
     @Test
+    fun `redrive locks before it reads the held payload`() {
+        sealer.redrive(tenant, doc, 1)
+        calls shouldContainExactly listOf("lock", "find")
+    }
+
+    @Test
     fun `a find returning null after a successful insert fails closed`() {
         sealer.onDespatched(tenant, "d1", despatch())
         held.findNullAfterInsert = true
