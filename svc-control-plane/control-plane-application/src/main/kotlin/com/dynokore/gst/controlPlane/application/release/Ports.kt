@@ -12,7 +12,7 @@ import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 
 /**
  * Whether an actor holds a permission key, decided per request (INV-NOTE-10639 R5: no code compares a role name). The
- * binding is the live access-svc `authorise` adapter of INV-T-7322; the default binding holds nothing.
+ * binding is the live access-svc `authorise` adapter of INV-T-9784; the default binding holds nothing.
  */
 fun interface OperatorPermissions {
     fun holds(

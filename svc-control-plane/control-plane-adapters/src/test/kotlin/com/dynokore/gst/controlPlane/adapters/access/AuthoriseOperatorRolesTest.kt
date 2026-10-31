@@ -6,6 +6,9 @@ import com.dynokore.gst.controlPlane.application.pack.SignPack
 import com.dynokore.gst.controlPlane.application.pack.SignPackCommand
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
+import com.dynokore.platform.serviceruntime.identity.WorkloadToken
+import com.dynokore.platform.serviceruntime.identity.WorkloadTokenSource
+import com.dynokore.platform.serviceruntime.identity.WorkloadTokenUnavailable
 import com.sun.net.httpserver.HttpServer
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
@@ -16,6 +19,7 @@ import java.net.InetSocketAddress
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 
@@ -29,7 +33,7 @@ class AuthoriseOperatorRolesTest {
     private var delayMillis = 0L
     private val server: HttpServer =
         HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0).apply {
-            createContext(AuthoriseOperatorRoles.PATH) { exchange ->
+            createContext(AuthoriseClient.PATH) { exchange ->
                 val q =
                     exchange.requestURI.rawQuery
                         .split("&")
@@ -38,6 +42,13 @@ class AuthoriseOperatorRolesTest {
                                 URLDecoder.decode(it.substringAfter("="), StandardCharsets.UTF_8)
                         }
                 val key = Triple(q.getValue("principalRef"), q.getValue("permission"), q.getValue("scope"))
+                if (exchange.requestHeaders.getFirst("X-Workload-Token") != WORKLOAD ||
+                    exchange.requestHeaders.getFirst("Authorization") != OPERATOR
+                ) {
+                    exchange.sendResponseHeaders(401, -1)
+                    exchange.close()
+                    return@createContext
+                }
                 requests += key
                 Thread.sleep(delayMillis)
                 val role = allowed[key]
@@ -52,8 +63,13 @@ class AuthoriseOperatorRolesTest {
     @AfterEach
     fun stop() = server.stop(0)
 
-    private fun roles(timeout: Duration = Duration.ofMillis(500)) =
-        AuthoriseOperatorRoles(URI.create("http://127.0.0.1:${server.address.port}"), timeout)
+    private fun roles(timeout: Duration = Duration.ofSeconds(2)) = AuthoriseOperatorRoles(client(timeout))
+
+    private fun client(
+        timeout: Duration = Duration.ofSeconds(2),
+        tokens: WorkloadTokenSource = WorkloadTokenSource { WorkloadToken(WORKLOAD) },
+        authorization: () -> String? = { OPERATOR },
+    ) = AuthoriseClient(URI.create("http://127.0.0.1:${server.address.port}"), tokens, authorization, timeout)
 
     private fun allow(
         actor: String,
@@ -65,6 +81,11 @@ class AuthoriseOperatorRolesTest {
         actor: String,
         role: String,
     ) = allow(actor, role, *AuthoriseOperatorRoles.ROLE_PERMISSIONS.getValue(role).toTypedArray())
+
+    @Test
+    fun `the default timeout equals the x-timeout of authorise`() {
+        AuthoriseClient.TIMEOUT shouldBe Duration.ofMillis(500)
+    }
 
     @Test
     fun `the table equals the catalogue keys of the ruled roles`() {
@@ -158,7 +179,8 @@ class AuthoriseOperatorRolesTest {
         val dead = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val port = dead.address.port
         dead.stop(0)
-        AuthoriseOperatorRoles(URI.create("http://127.0.0.1:$port")).holds("rita", "release.manager") shouldBe false
+        val client = AuthoriseClient(URI.create("http://127.0.0.1:$port"), { WorkloadToken(WORKLOAD) }, { OPERATOR })
+        AuthoriseOperatorRoles(client).holds("rita", "release.manager") shouldBe false
     }
 
     @Test
@@ -214,9 +236,80 @@ class AuthoriseOperatorRolesTest {
         roles().holds("pete", "platform.engineer") shouldBe false
     }
 
+    @Test
+    fun `permission holds is true for ALLOW whatever the role field and sends no role`() {
+        allowed[Triple("rita", "release-train.publish", "platform")] = "anything"
+        rawBody = """{"decision":"ALLOW"}"""
+        val permissions = AuthoriseOperatorPermissions(client())
+        permissions.holds("rita", "release-train.publish") shouldBe true
+        requests shouldBe listOf(Triple("rita", "release-train.publish", "platform"))
+    }
+
+    @Test
+    fun `permission holds is false for DENY, other statuses, a bad body and a long actor`() {
+        val permissions = AuthoriseOperatorPermissions(client())
+        permissions.holds("rita", "release-train.publish") shouldBe false
+        allowed[Triple("rita", "release-train.publish", "platform")] = "release.manager"
+        permissions.holds("rita", "release-train.publish ") shouldBe false
+        permissions.holds("rita", "Release-Train.publish") shouldBe false
+        status = 500
+        permissions.holds("rita", "release-train.publish") shouldBe false
+        status = 200
+        rawBody = "not json"
+        permissions.holds("rita", "release-train.publish") shouldBe false
+        rawBody = null
+        permissions.holds("a".repeat(65), "release-train.publish") shouldBe false
+    }
+
+    @Test
+    fun `permission holds is false on a timeout`() {
+        allowed[Triple("rita", "release-train.publish", "platform")] = "release.manager"
+        delayMillis = 1500
+        AuthoriseOperatorPermissions(client(Duration.ofMillis(200))).holds("rita", "release-train.publish") shouldBe
+            false
+    }
+
+    @Test
+    fun `both credentials present and expected give true`() {
+        allowAll("rita", "release.manager")
+        roles().holds("rita", "release.manager") shouldBe true
+    }
+
+    @Test
+    fun `a wrong workload token gives false through the 401`() {
+        allowAll("rita", "release.manager")
+        val wrong = client(tokens = { WorkloadToken("other") })
+        AuthoriseOperatorRoles(wrong).holds("rita", "release.manager") shouldBe false
+    }
+
+    @Test
+    fun `a missing, blank or absent Authorization gives false without a call`() {
+        allowAll("rita", "release.manager")
+        listOf<String?>(null, "", "  ").forEach {
+            AuthoriseOperatorRoles(client(authorization = { it })).holds("rita", "release.manager") shouldBe false
+            AuthoriseOperatorPermissions(client(authorization = { it })).holds("rita", "release-train.publish") shouldBe
+                false
+        }
+        requests.size shouldBe 0
+    }
+
+    @Test
+    fun `an unavailable workload token gives false without a call`() {
+        allowAll("rita", "release.manager")
+        val unavailable = client(tokens = { throw WorkloadTokenUnavailable(Path.of("/none")) })
+        AuthoriseOperatorRoles(unavailable).holds("rita", "release.manager") shouldBe false
+        AuthoriseOperatorPermissions(unavailable).holds("rita", "release-train.publish") shouldBe false
+        requests.size shouldBe 0
+    }
+
     @Suppress("UNCHECKED_CAST")
     private inline fun <reified T : Any> unused(): T =
         Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, _, _ ->
             error("not used by permits")
         } as T
+
+    private companion object {
+        const val WORKLOAD = "workload-secret"
+        const val OPERATOR = "Bearer operator-secret"
+    }
 }

@@ -1,5 +1,7 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.adapters.access.AuthoriseClient
+import com.dynokore.gst.controlPlane.adapters.access.AuthoriseOperatorPermissions
 import com.dynokore.gst.controlPlane.adapters.access.AuthoriseOperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
@@ -9,11 +11,15 @@ import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.GoldenDocument
+import com.dynokore.platform.serviceruntime.identity.WorkloadTokenSource
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
+import org.springframework.web.context.request.RequestContextHolder
+import org.springframework.web.context.request.ServletRequestAttributes
 import java.net.URI
 
 /**
@@ -24,18 +30,38 @@ import java.net.URI
 @Configuration(proxyBeanMethods = false)
 class OperatorRolesConfiguration {
     @Bean
-    @ConditionalOnProperty(name = ["controlplane.access.base-url"])
-    fun operatorRolesLive(environment: Environment): OperatorRoles =
-        AuthoriseOperatorRoles(URI.create(checkNotNull(environment.getProperty("controlplane.access.base-url"))))
+    @ConditionalOnProperty(name = [ACCESS_BASE_URL])
+    fun authoriseClient(
+        environment: Environment,
+        workloadTokenSource: WorkloadTokenSource,
+    ): AuthoriseClient =
+        AuthoriseClient(
+            URI.create(checkNotNull(environment.getProperty(ACCESS_BASE_URL))),
+            workloadTokenSource,
+            ::currentAuthorization,
+        )
+
+    @Bean
+    @ConditionalOnProperty(name = [ACCESS_BASE_URL])
+    fun operatorRolesLive(authorise: AuthoriseClient): OperatorRoles = AuthoriseOperatorRoles(authorise)
 
     @Bean
     @ConditionalOnMissingBean
     fun operatorRoles(): OperatorRoles = OperatorRoles { _, _ -> false }
 
-    /** Permission-level decisions are bound by INV-T-7322 (live `authorise`); until then nobody holds a key (403). */
+    /**
+     * Permission-level decisions (INV-T-9784, INV-Q-13897 A): with `controlplane.access.base-url` set they are decided
+     * by the live `authorise` query; without it nobody holds a key (403).
+     */
     @Bean
     @ConditionalOnMissingBean
-    fun operatorPermissions(): OperatorPermissions = OperatorPermissions { _, _ -> false }
+    fun operatorPermissions(
+        environment: Environment,
+        authorise: ObjectProvider<AuthoriseClient>,
+    ): OperatorPermissions =
+        authorise.ifAvailable?.takeIf { environment.containsProperty(ACCESS_BASE_URL) }?.let {
+            AuthoriseOperatorPermissions(it)
+        } ?: OperatorPermissions { _, _ -> false }
 
     /** The release evidence source is a Wave 3 binding: unbound, no train has evidence and none is released. */
     @Bean
@@ -62,4 +88,14 @@ class OperatorRolesConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun accreditationTasks(): AccreditationTasks = AccreditationTasks { AccreditationCheck(true, null, null) }
+
+    private companion object {
+        const val ACCESS_BASE_URL = "controlplane.access.base-url"
+
+        /** The operator's own `Authorization` header of the current request (as OperatorCaller.of), null without one. */
+        fun currentAuthorization(): String? =
+            (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)
+                ?.request
+                ?.getHeader("Authorization")
+    }
 }
