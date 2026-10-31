@@ -356,7 +356,7 @@ catalogue-verify:
   # pipelines pull it. The cache is not separated per branch protection, so merge requests read main's copy.
   # The rules repeat .gst-mr-only-on-catalogue (a job's rules replace the extended ones) with the main rule first.
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE != "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       variables:
         GST_GRADLE_CACHE_POLICY: pull-push
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -433,7 +433,7 @@ catalogue-publish:
     GST_PUBLISH_STAGE: "${CI_PROJECT_DIR}/.gst-publish-stage"
     GST_GENERIC_MANIFEST: "${CI_PROJECT_DIR}/.gst-generic-manifest"
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'
+    - if: '($CI_PIPELINE_SOURCE != "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH) || $CI_COMMIT_TAG'
   script:
     - rm -f "$GST_GENERIC_MANIFEST"
     - !reference [.catalogue-stage, script]
@@ -581,7 +581,7 @@ contracts-codegen-compile:
   # CI-FAST B3: only the main pipeline pushes this cache (about 70 s of archiving per run); merge-request
   # pipelines pull it. The cache is not separated per branch protection, so merge requests read main's copy.
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE != "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       variables:
         GST_GRADLE_CACHE_POLICY: pull-push
     - when: on_success
@@ -621,7 +621,7 @@ bundle-publish:
   variables:
     GST_GENERIC_MANIFEST: "${CI_PROJECT_DIR}/.gst-generic-manifest"
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'   # a train bundle publishes from the merged result, never an MR (CS-47)
+    - if: '($CI_PIPELINE_SOURCE != "schedule" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH) || $CI_COMMIT_TAG'   # a train bundle publishes from the merged result, never an MR (CS-47)
   script:
     - rm -f "$GST_GENERIC_MANIFEST"
     - !reference [.bundle-stage, script]
