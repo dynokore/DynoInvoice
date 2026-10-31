@@ -39,6 +39,12 @@ logging.structured.format.console: ecs             # STK-35
 gst:
   service: access-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+  # The audit actions of access-svc that are security events of class break_glass (INV-REQ-1384, INV-Q-11060); the keys
+  # are the operation strings of the effects.record calls of BreakGlass.kt, and merge by key with the shipped default (INV-Q-11054).
+  security-events:
+    mapping:
+      unlockBreakGlass: break_glass
+      recordBreakGlassAction: break_glass
 inv:
   tenancy:
     # The table-valued functions config-resolver's DDL adds to the schema (INV-T-4935): jOOQ generates them as tables; they
