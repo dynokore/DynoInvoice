@@ -25,18 +25,18 @@ class RolePermissionsPinTest {
     ): Set<String> = cells.filterValues { it.containsKey(permission) }.keys
 
     @Test
-    fun `the gstCatalogue entry of libs_versions_toml equals 2_18_0 by string equality`() {
+    fun `the gstCatalogue entry of libs_versions_toml equals 1_32_0 by string equality`() {
         val toml = Files.readString(Path.of("..", "gradle", "libs.versions.toml"))
         assertThat(pinOf(toml)).isEqualTo(PINNED)
     }
 
     @Test
-    fun `the pin check refuses 1_14_0, 2_17_0, 2_19_0 and a snapshot of 2_18_0`() {
-        listOf("1.14.0", "2.17.0", "2.19.0", "2.18.0-SNAPSHOT", "2.18.0 ", "2.18").forEach { version ->
+    fun `the pin check refuses 1_14_0, 1_30_0, 1_33_0 and a snapshot of 1_32_0`() {
+        listOf("1.14.0", "1.30.0", "1.33.0", "1.32.0-SNAPSHOT", "1.32.0 ", "1.32").forEach { version ->
             assertThat(pinOf("[versions]\ngstCatalogue = \"$version\"\n")).describedAs(version).isNotEqualTo(PINNED)
         }
-        assertThat(pinOf("[versions]\ngstCatalogue = \"2.18.0\"\n")).isEqualTo(PINNED)
-        assertThat(pinOf("[versions]\nother = \"2.18.0\"\n")).isNull()
+        assertThat(pinOf("[versions]\ngstCatalogue = \"1.32.0\"\n")).isEqualTo(PINNED)
+        assertThat(pinOf("[versions]\nother = \"1.32.0\"\n")).isNull()
     }
 
     @Test
@@ -89,6 +89,6 @@ class RolePermissionsPinTest {
         Regex("""(?m)^gstCatalogue\s*=\s*"([^"]*)"\s*$""").find(toml)?.groupValues?.get(1)
 
     private companion object {
-        const val PINNED = "2.18.0"
+        const val PINNED = "1.32.0"
     }
 }
