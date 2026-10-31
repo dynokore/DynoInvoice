@@ -1,6 +1,7 @@
 package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.catalogue.ErrorCode
+import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.application.PackEvent
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.domain.coding.MappingCodeChecks
@@ -9,7 +10,6 @@ import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.gst.rules.domain.scope.ScopeFacts
 import com.dynokore.gst.rules.domain.scope.ScopeVerdict
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
-import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.served.ServedDoubles
 import com.dynokore.gst.rules.served.TENANT_A
 import com.dynokore.gst.rules.served.USER_A_TOKEN
@@ -99,7 +99,13 @@ private object BoundaryPacks {
         complete: Boolean,
         sr: String,
         vararg more: String,
-    ) = """{"complete":$complete,"codes":[${(listOf(code("SR", sr), code("SRCA-C", sr), zero()) + more).joinToString(",")}]}"""
+    ) = """{"complete":$complete,"codes":[${(
+        listOf(
+            code("SR", sr),
+            code("SRCA-C", sr),
+            zero(),
+        ) + more
+    ).joinToString(",")}]}"""
 
     private fun zero() = code("ZR", "0", "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE")
 
