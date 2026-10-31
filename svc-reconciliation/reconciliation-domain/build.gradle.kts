@@ -14,3 +14,5 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.konsistRules)
 }
+
+tasks.withType<Test>().configureEach { maxHeapSize = "2g" }
