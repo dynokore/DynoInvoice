@@ -50,6 +50,8 @@ tasks.register("resolveAndLockAll") {
 val contractDirs =
     layout.projectDirectory.asFileTree.matching {
         include("*/openapi.yaml", "*/asyncapi.yaml", "*/schemas/**", "*/CODEOWNERS")
+        // INV-T-13883: the event-log topic catalogue is the one event-log/ member of the bundle (exact path, no glob).
+        include("event-log/topics.yaml")
     }
 
 // The train version: a real release train names its own tag (STK-71); locally,
@@ -77,6 +79,31 @@ tasks.register<Zip>("bundleContracts") {
     // immutable-release guard would fail a retry on a different byte).
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
+
+    // INV-T-13883 gate (fails closed): the members under event-log/ equal exactly {event-log/topics.yaml}, and that
+    // member is byte-equal to the working-tree file. The message names the missing, extra or differing member.
+    val topicsFile = layout.projectDirectory.file("event-log/topics.yaml").asFile
+    doLast {
+        val expectedName = "event-log/topics.yaml"
+        java.util.zip.ZipFile(archiveFile.get().asFile).use { zip ->
+            val names = zip.entries().toList().filterNot { it.isDirectory }.map { it.name }
+            val eventLog = names.filter { it.startsWith("event-log/") }.toSet()
+            val missing = setOf(expectedName) - eventLog
+            val extra = eventLog - setOf(expectedName)
+            if (missing.isNotEmpty() || extra.isNotEmpty()) {
+                throw GradleException(
+                    "bundleContracts: event-log/ members must equal {$expectedName}; missing=$missing extra=$extra",
+                )
+            }
+            fun sha256(bytes: ByteArray) =
+                java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            val inZip = sha256(zip.getInputStream(zip.getEntry(expectedName)).use { it.readBytes() })
+            val inTree = sha256(topicsFile.readBytes())
+            if (inZip != inTree) {
+                throw GradleException("bundleContracts: member $expectedName differs from the working tree (zip sha256=$inZip, tree sha256=$inTree)")
+            }
+        }
+    }
 }
 
 tasks.register("printTrainVersion") {

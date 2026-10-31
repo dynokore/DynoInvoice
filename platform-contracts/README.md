@@ -131,8 +131,9 @@ platform-build that does not exist yet (ci/README.md, platform-build).
   comparison applies only to files present at the base.
 - `bundle-publish` — `main`/tag pipelines only: packages every directory's
   contracts into one versioned archive (`build.gradle.kts`'s
-  `bundleContracts`) and publishes it to this project's generic package
-  registry — the "versioned contracts bundle per train" done-when item.
+  `bundleContracts`; the bundle also carries `event-log/topics.yaml`) and
+  publishes it to this project's generic package registry — the "versioned
+  contracts bundle per train" done-when item.
 
 Only `ci/stages.gitlab-ci.yml` is included from `platform-build` (the stage
 list, shared variables, pinned tool-image digests): this repository has no
