@@ -6,7 +6,8 @@ import java.io.File
 
 /**
  * The contract pin and the tables of INV-T-8850 (INV-AC-8848). The bundle suffix is compared by equality with the first
- * 8 characters of the platform-contracts main commit that merged INV-T-8849; the operations
+ * 8 characters of the platform-contracts main commit that merged INV-T-8026 (the bundle of INV-T-8849 is contained in
+ * it, so the contract still holds issueAccessToken); the operations
  * row and the criterion row are compared by equality on the task key.
  */
 class TokenPinsTest {
@@ -48,14 +49,14 @@ class TokenPinsTest {
         }.use { it.readBytes().toString(Charsets.UTF_8) }
 
     @Test
-    fun `INV-AC-8848 the bundle pin equals the INV-T-8849 merge commit and the contract holds issueAccessToken`() {
+    fun `INV-AC-8848 the bundle pin equals the INV-T-8026 merge commit and the contract holds issueAccessToken`() {
         assertThat(bundleFindings(toml, MERGE_COMMIT, openapi)).isEmpty()
         // probes: the bundle of f4cb676f has no issueAccessToken; a look-alike suffix of another length differs
         assertThat(bundleFindings(toml.replace(MERGE_COMMIT.take(SHORT), "f4cb676f"), MERGE_COMMIT, openapi))
-            .containsExactly("bundle suffix is not 3030c14b")
+            .containsExactly("bundle suffix is not d3889db2")
         // probe: the previous pin 21fc1bf0 fails
         assertThat(bundleFindings(toml.replace(MERGE_COMMIT.take(SHORT), "21fc1bf0"), MERGE_COMMIT, openapi))
-            .containsExactly("bundle suffix is not 3030c14b")
+            .containsExactly("bundle suffix is not d3889db2")
         assertThat(bundleFindings(toml, MERGE_COMMIT, openapi.replace("issueAccessToken", "x")))
             .containsExactly("operation issueAccessToken is absent")
     }
@@ -71,7 +72,7 @@ class TokenPinsTest {
     }
 
     private companion object {
-        const val MERGE_COMMIT = "3030c14b"
+        const val MERGE_COMMIT = "d3889db2"
         const val SHORT = 8
     }
 }

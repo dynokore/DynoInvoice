@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.http
 
+import com.dynokore.gst.access.application.separation.GetSoleOperatorAcknowledgementUseCase
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorOutcome
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorUseCase
 import com.dynokore.gst.access.application.separation.WithdrawSoleOperatorOutcome
@@ -7,6 +8,7 @@ import com.dynokore.gst.access.application.separation.WithdrawSoleOperatorUseCas
 import com.dynokore.gst.access.contract.api.SeparationOfDutyApi
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckResponse
+import com.dynokore.gst.access.contract.model.SoleOperatorAcknowledgementState
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.HttpStatus
@@ -17,6 +19,7 @@ import java.util.UUID
 /**
  * TPL-08. recordSoleOperator and withdrawSoleOperatorAcknowledgement (INV-REQ-891, INV-REQ-994): `tenant.admin` only
  * ([GrantManagerCheck]), for the bound tenant only. A repeat of recordSoleOperator returns the active acknowledgement.
+ * getSoleOperatorAcknowledgement (INV-REQ-875) is the read of the same stored acknowledgement.
  */
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
@@ -24,6 +27,7 @@ import java.util.UUID
 open class SoleOperatorController(
     private val record: RecordSoleOperatorUseCase,
     private val withdraw: WithdrawSoleOperatorUseCase,
+    private val read: GetSoleOperatorAcknowledgementUseCase,
     private val tenants: TenantContext,
     private val manager: GrantManagerCheck,
 ) : SeparationOfDutyApi {
@@ -53,6 +57,11 @@ open class SoleOperatorController(
                 throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "compensatingControls must not be blank")
             }
         }
+    }
+
+    override fun getSoleOperatorAcknowledgement(tenantRef: String): ResponseEntity<SoleOperatorAcknowledgementState> {
+        val reading = read.handle(tenants.current().toString(), tenantRef)
+        return ResponseEntity.ok(SoleOperatorAcknowledgementState(tenantRef, reading.recorded, reading.ackRef))
     }
 
     override fun withdrawSoleOperatorAcknowledgement(

@@ -21,6 +21,7 @@ import com.dynokore.gst.access.application.landing.LandingChoices
 import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.application.landing.RolePrecedence
 import com.dynokore.gst.access.application.separation.ConflictingRolePairs
+import com.dynokore.gst.access.application.separation.GetSoleOperatorAcknowledgementUseCase
 import com.dynokore.gst.access.application.separation.RecordSoleOperatorUseCase
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.application.separation.SoleOperatorScopePolicy
@@ -59,6 +60,12 @@ class SeparationAndLandingUseCases {
         acks: SoleOperatorAcks,
         audit: GrantAudit,
     ) = RecordSoleOperatorUseCase(tx, acks, audit)
+
+    @Bean
+    fun getSoleOperatorAcknowledgementUseCase(
+        tx: TransactionRunner,
+        acks: SoleOperatorAcks,
+    ) = GetSoleOperatorAcknowledgementUseCase(tx, acks)
 
     @Bean
     fun withdrawSoleOperatorUseCase(

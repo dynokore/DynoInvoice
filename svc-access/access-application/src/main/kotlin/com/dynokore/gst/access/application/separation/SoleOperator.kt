@@ -144,3 +144,28 @@ class WithdrawSoleOperatorUseCase(
         }
     }
 }
+
+/** What `getSoleOperatorAcknowledgement` answers: [ackRef] is present exactly when [recorded] is true. */
+data class SoleOperatorReading(
+    val recorded: Boolean,
+    val ackRef: String?,
+)
+
+/**
+ * `getSoleOperatorAcknowledgement` (INV-REQ-875): reads the one stored acknowledgement that `recordSoleOperator` writes
+ * and `withdrawSoleOperatorAcknowledgement` changes; a query, it writes nothing. Only the bound tenant's rows are
+ * visible, so the acknowledgement of one tenant is never reported for another.
+ */
+class GetSoleOperatorAcknowledgementUseCase(
+    private val tx: TransactionRunner,
+    private val acks: SoleOperatorAcks,
+) {
+    fun handle(
+        boundTenant: String,
+        tenantRef: String,
+    ): SoleOperatorReading {
+        if (tenantRef != boundTenant) return SoleOperatorReading(recorded = false, ackRef = null)
+        val active = tx.inTransaction { acks.findActive() }
+        return SoleOperatorReading(recorded = active != null, ackRef = active?.ref)
+    }
+}

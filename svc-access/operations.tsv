@@ -14,6 +14,7 @@ operation	mapIdpGroup	INV-T-4938	done
 operation	unmapIdpGroup	INV-T-4938	done
 operation	recordSoleOperator	INV-T-4935	open
 operation	withdrawSoleOperatorAcknowledgement	INV-T-4935	open
+operation	getSoleOperatorAcknowledgement	INV-T-8027	done
 operation	chooseLandingScreen	INV-T-4935	open
 operation	resolveLandingScreen	INV-T-4935	open
 operation	clearLandingChoice	INV-T-4935	open
