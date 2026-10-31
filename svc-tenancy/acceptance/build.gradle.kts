@@ -17,21 +17,22 @@ dependencies {
     testImplementation(libs.konsist)
 }
 
-tasks.withType<Test> {
-    dependsOn(":tenancy-contract:generateContractServer")
-    useJUnitPlatform()
-    // The repository root: the tests scan the sources and migrations of the five modules.
-    systemProperty("gst.repo.root", rootProject.layout.projectDirectory.asFile.path)
-}
-
-application { mainClass.set("com.dynokore.gst.tenancy.acceptance.gates.GateMain") }
-
 val contractVersion = libs.versions.platformContractsBundle.get()
 val repoRoot = rootProject.layout.projectDirectory
 val contractDir =
     rootProject.layout.projectDirectory.dir(
         "tenancy-contract/build/contracts-repo/platform-contracts/tenancy/$contractVersion",
     )
+
+tasks.withType<Test> {
+    dependsOn(":tenancy-contract:generateContractServer")
+    useJUnitPlatform()
+    // The repository root: the tests scan the sources and migrations of the five modules.
+    systemProperty("gst.repo.root", rootProject.layout.projectDirectory.asFile.path)
+    systemProperty("gst.contract.dir", contractDir.asFile.path)
+}
+
+application { mainClass.set("com.dynokore.gst.tenancy.acceptance.gates.GateMain") }
 
 val operationsGate =
     tasks.register<JavaExec>("operationsGate") {

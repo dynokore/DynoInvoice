@@ -223,7 +223,7 @@ internal object Assignments {
                 "recordRenditionResponsibility",
                 "offboardTenant",
             ) +
-            of("INV-T-4932", "createWorkspace", "archiveWorkspace") +
+            of("INV-T-4932", "createWorkspace", "archiveWorkspace", "loadCredential", "recordSampleApproval", "requestSampleCopy") +
             of(
                 "INV-T-4933",
                 "installLicence",
@@ -232,6 +232,10 @@ internal object Assignments {
                 "recordAppliedOperatingProfile",
                 "getAppliedOperatingProfile",
                 "recordEntitlement",
+                "electPlatform",
+                "getLicenceStatus",
+                "getPlatformElection",
+                "recordInstallationFacts",
             ) +
             of("INV-T-8142", "openTenant") +
             of("INV-T-8179", "closeTenant") +
@@ -243,7 +247,7 @@ internal object Assignments {
             of("INV-T-4926", "EntityProfileChanged") +
             of("INV-T-4929", "FilingFrequencyChanged") +
             of("INV-T-4930", "PeriodExtended", "PeriodDueDateChanged") +
-            of("INV-T-4933", "InstallationStatusChanged")
+            of("INV-T-4933", "InstallationStatusChanged", "PlanLimitExceeded")
 
     fun of(kind: String): Map<String, String> =
         when (kind) {

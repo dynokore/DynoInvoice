@@ -85,7 +85,7 @@ class InstallationUseCases {
     ): FilterRegistrationBean<InstallerCallFilter> =
         FilterRegistrationBean(InstallerCallFilter(verifier, installer.subject)).apply {
             order = INSTALLER_FILTER_ORDER
-            urlPatterns = listOf(InstallerCallFilter.PATH)
+            urlPatterns = listOf(InstallerCallFilter.PATH, InstallerCallFilter.PATH + "/*")
         }
 
     private companion object {

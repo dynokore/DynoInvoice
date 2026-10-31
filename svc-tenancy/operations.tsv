@@ -43,3 +43,11 @@ PeriodDueDateChanged	channel	INV-T-4930	pending
 InstallationStatusChanged	channel	INV-T-4933	pending
 approveElectionChange	operation	INV-T-10125	done
 recordEntitlement	operation	INV-T-4933	pending
+loadCredential	operation	INV-T-4932	pending
+recordSampleApproval	operation	INV-T-4932	pending
+requestSampleCopy	operation	INV-T-4932	pending
+electPlatform	operation	INV-T-4933	pending
+getLicenceStatus	operation	INV-T-4933	pending
+getPlatformElection	operation	INV-T-4933	pending
+recordInstallationFacts	operation	INV-T-4933	pending
+PlanLimitExceeded	channel	INV-T-4933	pending

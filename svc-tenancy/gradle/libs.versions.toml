@@ -5,7 +5,7 @@
 
 [versions]
 platformBuild = "0.23.3"
-platformLibsBom = "0.125.0"
+platformLibsBom = "0.134.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"
@@ -20,8 +20,8 @@ swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876, 3030c14b adds the INV-T-8269 marker rule and the recordEntitlement operation); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+3030c14b"
-gstCatalogue = "1.32.0"
+platformContractsBundle = "0.0.0-dev+bd057cd0"
+gstCatalogue = "2.18.0"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }

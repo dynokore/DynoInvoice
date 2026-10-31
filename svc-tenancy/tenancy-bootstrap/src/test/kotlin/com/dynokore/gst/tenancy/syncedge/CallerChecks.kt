@@ -48,7 +48,9 @@ class CallerChecks(
         allowed: Set<String>,
         any: Boolean,
     ): List<String> {
-        val callers = allowed.sorted().map { "named caller $it" to mapOf(TOKEN to "token-$it", AUTH to END_USER) }
+        // A workload-principal operation takes no end-user token (recordInstallationAction refuses one)
+        val user = if (operation.principal == "workload") emptyMap() else mapOf(AUTH to END_USER)
+        val callers = allowed.sorted().map { "named caller $it" to mapOf(TOKEN to "token-$it") + user }
         val unmapped =
             if (any) {
                 listOf(
