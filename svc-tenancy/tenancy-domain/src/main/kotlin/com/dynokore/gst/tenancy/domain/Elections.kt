@@ -22,14 +22,13 @@ enum class IssuanceMode { RELAY, OBSERVE, NONE }
 /** The roles the election rules name (INV-REQ-323, INV-REQ-505, INV-Q-9704 A). */
 object ElectionRoles {
     const val ENTITY_ADMIN = "entity.admin"
-    const val TENANT_ADMIN = "tenant.admin"
     const val TAX_APPROVER = "tax.approver"
 }
 
 /**
- * The permissions the election operations ask the authority replica for (rulings INV-Q-9706, INV-Q-10025): MANAGE is
- * held by `entity.admin` only, CONFIRM by `entity.admin`, `tenant.admin` and `tax.approver`
- * (catalogue/role-permissions/role-permissions.yaml).
+ * The permissions the election operations ask the authority replica for (rulings INV-Q-9706, INV-Q-10025). Which
+ * roles hold a key is decided by the catalogue (catalogue/role-permissions/role-permissions.yaml); no domain or
+ * service code names a role (INV-Q-10027).
  */
 object ElectionPermissions {
     const val MANAGE = "entity-config.manage"

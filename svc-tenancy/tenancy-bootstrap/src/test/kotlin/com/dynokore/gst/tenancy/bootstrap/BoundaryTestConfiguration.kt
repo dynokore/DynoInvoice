@@ -1,5 +1,8 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.RoleAllowance
+import com.dynokore.gst.catalogue.RolePermissions
 import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
@@ -48,7 +51,7 @@ class CapturingOutboxWriter(
  * The people of a test: who calls, and which roles each person holds for which entity (the authority replica of the
  * service, here a table). One bean answers the caller and authority ports of the elections: the permissions follow
  * the roles as the
- * RolePermissions cells do (MANAGE: entity.admin; CONFIRM: entity.admin, tenant.admin, tax.approver); APPROVE is
+ * RolePermissions cells do (CONFIRM is read from the generated cells); APPROVE is
  * answered by a real replica holding permission grants only.
  */
 class TestPeople :
@@ -131,7 +134,14 @@ class TestPeople :
     private companion object {
         val PERIOD_CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TAX_APPROVER)
         val TENANT = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000a1"))
-        val CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TENANT_ADMIN, ElectionRoles.TAX_APPROVER)
+        val CONFIRMING: Set<String> =
+            DeploymentForm.entries
+                .flatMap { form ->
+                    RolePermissions
+                        .cells(form)
+                        .filterValues { it[ElectionPermissions.CONFIRM] == RoleAllowance.PERMITTED }
+                        .keys
+                }.toSet()
     }
 }
 
