@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-31
+### Added
+- `PackageCandidate`, `AssemblyRefusal`, `AssemblyResult` and `AuditPackAssembler` (package `exportpackage`): choose the items of an entity-and-period or whole-tenant package from candidates, refuse an item of another tenant and a duplicate class and name, and compose `AuditPackWriter` (INV-REQ-988, INV-REQ-877, INV-T-13407; INV-AC-13403, INV-AC-13404).
+
 ## [2.3.0] - 2026-10-31
 ### Added
 - `PackageContentClass`, `PackageItem`, `PackageScope`, `PackageFiles` and `AuditPackWriter` (package `exportpackage`): a pure-code writer of a self-describing BagIt 1.0 package (RFC 8493) of evidence items with six content classes, a `sha256sum`-readable manifest, a tag manifest, bag-info and README (INV-REQ-988, INV-T-13405; INV-AC-13401).
