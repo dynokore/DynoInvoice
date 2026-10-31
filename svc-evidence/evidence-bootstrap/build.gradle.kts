@@ -17,6 +17,7 @@ dependencies {
     implementation(libs.platform.configResolver.api)
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.serviceRuntime.impl)
+    implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.tenancyKernel.impl)

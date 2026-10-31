@@ -2,6 +2,7 @@ package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -31,6 +32,21 @@ object EvidenceEvents {
             "EvidenceIntegrityFailed" to "gst.evidence.evidence-integrity-failed.v1",
             "PriorSubmissionEvidenceImported" to "gst.evidence.prior-submission-evidence-imported.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
+
+    /**
+     * The platform events that have a topic (`PlatformEventCatalogue.ALL`, producer every service): the job runtime of
+     * service-runtime writes `JobRegistered` and `JobRunRecorded` through the outbox, and the emission guard refuses
+     * any type the catalogue lacks (INV-Q-12992 A, INV-Q-10922 A). `AuditEntryRecorded` is already a record entry, so
+     * it is left out here.
+     */
+    val platformEntries: List<CatalogueEntry> =
+        PlatformEventCatalogue.ALL
+            .filterNot { it == PlatformEventCatalogue.AUDIT_ENTRY_RECORDED }
+            .mapNotNull { event ->
+                event.topic?.let {
+                    CatalogueEntry(event.eventType, it, setOf(CatalogueEntry.EVERY_SERVICE), contentTopic = false)
+                }
+            }
 
     val entries: List<CatalogueEntry> =
         topicByType.map { (type, topic) ->

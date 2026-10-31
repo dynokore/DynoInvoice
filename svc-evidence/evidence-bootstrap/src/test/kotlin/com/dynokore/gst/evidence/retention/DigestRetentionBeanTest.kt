@@ -8,11 +8,16 @@ import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.PeriodDigest.C
 import com.dynokore.gst.evidence.application.retention.MaxRetention
 import com.dynokore.gst.evidence.bootstrap.LocatorConsumerConfiguration
 import com.dynokore.gst.evidence.bootstrap.ReturnConsumerConfiguration
+import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.configresolver.OptionValueMaximum
 import com.dynokore.platform.configresolver.VariationPointKey
+import com.dynokore.platform.evidencestore.EntityRef
+import com.dynokore.platform.evidencestore.EvidenceType
+import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
 import com.dynokore.platform.evidencestore.ObjectKey
 import com.dynokore.platform.evidencestore.ObjectRef
 import com.dynokore.platform.evidencestore.ObjectStore
+import com.dynokore.platform.evidencestore.PeriodRef
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -44,6 +49,7 @@ import com.dynokore.gst.evidence.domain.retention.RetentionTier.ACKNOWLEDGEMENTS
 import com.dynokore.gst.evidence.domain.retention.RetentionTier.SOURCE_DOCUMENT_REFERENCES as SOURCE
 import com.dynokore.gst.evidence.domain.retention.RetentionTier.STRUCTURED_SUBMISSIONS as STRUCTURED
 import com.dynokore.platform.outboxandqueue.EntityRef as EventEntityRef
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException as S3NoSuchKey
 
 /**
  * The digest consumer with the production [DigestMaxRetention] bean of the service context (INV-Q-12043), and the
@@ -68,7 +74,7 @@ class DigestRetentionBeanTest {
             return ObjectRef(key, retainUntil)
         }
 
-        override fun get(key: ObjectKey): ByteArray = error("no such key")
+        override fun get(key: ObjectKey): ByteArray = throw S3NoSuchKey.builder().message("no such key").build()
     }
 
     private class Log(
@@ -130,6 +136,23 @@ class DigestRetentionBeanTest {
             bean(TransactionRunner::class.java).inTransaction { bean(DSLContext::class.java).fetch(PERIOD_DIGEST) }
         }
 
+    /** One record per chain, so the stored digest has no empty chain (other suites tamper every stored chain row). */
+    private fun RetentionService.fill(tenant: TenantId) {
+        val dsl = bean(DSLContext::class.java)
+        bean(TenantScope::class.java).bind(tenant, actor) {
+            bean(TransactionRunner::class.java).inTransaction {
+                mapOf(
+                    RecordKind.EVIDENCE_PAYLOAD to EvidenceType.PAYLOAD,
+                    RecordKind.ACKNOWLEDGEMENT to EvidenceType.ACKNOWLEDGEMENT,
+                    RecordKind.DECISION_TRACE to EvidenceType.DECISION_TRACE,
+                ).forEach { (kind, type) ->
+                    JdbcEvidenceLedger(dsl, SCHEMA, kind.table)
+                        .append(tenant, EntityRef(entity), PeriodRef(period), type, """{"n":1}""".toByteArray())
+                }
+            }
+        }
+    }
+
     @Test
     fun `the production bean with a seeded 10 locks the digest object until recordedAt plus 10 years`(
         @TempDir dir: Path,
@@ -139,6 +162,7 @@ class DigestRetentionBeanTest {
             val tenant = s.newTenant()
             val all = mapOf(STRUCTURED to 10, ACK to 10, SOURCE to 10)
             s.setEntity(tenant, "ENT-A", all, "obligation of the parent").accepted()
+            s.fill(tenant)
             val objects = Objects()
             val consumer = s.consumer(tenant, s.bean(DigestMaxRetention::class.java), objects)
             consumer.pollOnce().applied shouldBe 1
