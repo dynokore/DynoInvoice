@@ -18,7 +18,7 @@ unlockBreakGlass	unlockBreakGlass	access	-
 applyOperatingProfile	recordAppliedOperatingProfile	tenancy	-
 copyAnonymisedSample	copyAnonymisedSample	console-bff	-
 correctPersonalData	correctPersonalData	console-bff	-
-exportSupportBundle	UNCONTRACTED	console-bff	-
+exportSupportBundle	exportSupportBundle	console-bff	-
 promoteConfiguration	UNCONTRACTED	console-bff	-
 authorRegulatoryPack	authorRegulatoryPack	control-plane	-
 issueLicence	issueLicence	control-plane	-

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -63,6 +63,8 @@ tags:
     description: Privacy-request operations console-bff orchestrates against evidence-svc and masterdata-svc (§33.14, NFR-S.6).
   - name: workspaces
     description: Workspace operations console-bff orchestrates (INV-NOTE-7 §7, SCR-21.2).
+  - name: support
+    description: Support operations console-bff orchestrates (INV-NOTE-7 §7, SCR-28.2).
 paths:
   /v1/exceptions:
     get:
@@ -396,6 +398,46 @@ paths:
                     status: "PENDING"
         default:
           $ref: '#/components/responses/Error'
+  /bff/support-bundles:
+    post:
+      operationId: exportSupportBundle
+      summary: Export a support bundle without invoice content
+      description: >-
+        People, through console-bff only (INV-NOTE-7 §7 row
+        exportSupportBundle, SCR-28.2). Assembles logs, metrics and
+        configuration; no invoice content is included. The operation changes
+        no state, so its audit entry is written before the result returns
+        (INV-REQ-2588 behavior 3).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000).
+      tags: [support]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-2588]
+      x-operation:
+        role: deployment.operator
+        scope: installation
+        precondition: "None — logs, metrics and configuration are read; no invoice content is included (INV-NOTE-7 §7 row exportSupportBundle)."
+        reversibility: UNDOABLE
+        repeatKey: "None — a safe query with no persistent state change; a repeat has nothing to make safe (INV-REQ-2588 behavior 3)."
+      responses:
+        '200':
+          description: The support bundle was assembled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportBundle'
+              examples:
+                default:
+                  value:
+                    bundleRef: "SB-2026-04-01-0001"
+                    generatedAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
 components:
   schemas:
     Exception:
@@ -543,6 +585,16 @@ components:
           type: string
           format: date-time
       required: [caseId, field, correctedValue, correctedAt]
+    SupportBundle:
+      type: object
+      properties:
+        bundleRef:
+          type: string
+          maxLength: 64
+        generatedAt:
+          type: string
+          format: date-time
+      required: [bundleRef, generatedAt]
   responses:
     Error:
       description: Error (API-20 envelope)
