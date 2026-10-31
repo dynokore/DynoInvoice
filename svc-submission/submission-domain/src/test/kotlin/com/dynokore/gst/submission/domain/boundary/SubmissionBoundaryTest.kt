@@ -13,6 +13,7 @@ import com.dynokore.gst.submission.domain.ordering.LifecycleState.WITHDRAWN
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.util.Locale
 import java.util.UUID
 
 class SubmissionBoundaryTest {
@@ -29,7 +30,7 @@ class SubmissionBoundaryTest {
             LifecycleState.EXTERNALLY_SUBMITTED,
         )
 
-    private fun uuid(n: Int) = UUID.fromString("00000000-0000-0000-0000-%012d".format(n))
+    private fun uuid(n: Int) = UUID.fromString("00000000-0000-0000-0000-%012d".format(Locale.ROOT, n))
 
     private fun group(vararg versions: List<LifecycleState>): Map<UUID, Collection<LifecycleState>> =
         versions.withIndex().associate { (i, v) -> uuid(i + 1) to v }
