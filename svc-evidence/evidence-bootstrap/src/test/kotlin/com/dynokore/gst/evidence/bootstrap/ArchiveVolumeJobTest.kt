@@ -8,19 +8,24 @@ import com.dynokore.gst.evidence.adapters.persistence.ObjectStoreBytes
 import com.dynokore.gst.evidence.application.archive.ArchiveVolumePublisher
 import com.dynokore.gst.evidence.application.archive.ArchiveVolumeSource
 import com.dynokore.gst.evidence.application.archive.RetainedArchiveVolume
+import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.evidencestore.ObjectKey
 import com.dynokore.platform.evidencestore.ObjectKeyPrefix
 import com.dynokore.platform.evidencestore.ObjectRef
 import com.dynokore.platform.evidencestore.ObjectStore
-import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.jobs.FixedDeadlineSource
+import com.dynokore.platform.serviceruntime.jobs.JobCommand
+import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
 import com.dynokore.platform.serviceruntime.jobs.JobCriticality
 import com.dynokore.platform.serviceruntime.jobs.JobDefinition
 import com.dynokore.platform.serviceruntime.jobs.JobEntityScope
 import com.dynokore.platform.serviceruntime.jobs.JobRunContext
+import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.jobs.JobSchedule
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
 import com.dynokore.platform.serviceruntime.jobs.JobTrigger
@@ -45,6 +50,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.Executor
 
 /**
  * The daily archive-volume job over a real database and a fake [ObjectStore] (P109), on the TPL-18 context:
@@ -76,24 +82,14 @@ class ArchiveVolumeJobTest {
     }
 
     private inner class Boundary(
-        context: ApplicationContext,
+        val context: ApplicationContext,
     ) {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val objects = Objects()
         val source: ArchiveVolumeSource = RetainedArchiveVolume(JooqStoredContentBytes(dsl), ObjectStoreBytes(objects))
-        private val catalogue =
-            EventCatalogue(
-                EvidenceEvents.entries +
-                    CatalogueEntry(
-                        ArchiveVolumePublisher.EVENT_TYPE,
-                        "gst.evidence.archive-volume-measured.v1",
-                        setOf("evidence-svc"),
-                        contentTopic = false,
-                        retainedWhileResolvable = false,
-                    ),
-            )
+        private val catalogue = EventCatalogue(EvidenceEvents.entries)
         private val publisher =
             ArchiveVolumePublisher(
                 JooqArchiveVolumeLedger(dsl),
@@ -258,6 +254,120 @@ class ArchiveVolumeJobTest {
         EvidenceContext.online(dir).run { context ->
             context.getBean(ArchiveVolumeSource::class.java)
             context.getBean(ArchiveVolumePublisher::class.java)
+        }
+    }
+
+    private val denyAll =
+        object : JobCommandAuthorizer {
+            override fun mayCommandEntity(
+                actor: String,
+                tenant: TenantId,
+                entity: EntityRef,
+                command: JobCommand,
+            ) = false
+
+            override fun isPlatformOperator(
+                actor: String,
+                command: JobCommand,
+            ) = false
+        }
+
+    private fun Boundary.newRuntime() =
+        JobRuntime(
+            "evidence-svc",
+            EvidenceDb.SCHEMA,
+            scope,
+            dsl,
+            context.getBean(OutboxWriter::class.java),
+            context.getBean(AuditWriter::class.java),
+            denyAll,
+            FixedDeadlineSource(),
+            clock,
+            Executor { it.run() },
+        )
+
+    @Test
+    fun `the service registers exactly the declared job through the configuration`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val runtime = newRuntime()
+        ArchiveVolumeJobConfiguration.registerArchiveVolumeJob(
+            runtime,
+            scope,
+            dsl,
+            source,
+            ArchiveVolumePublisher(
+                JooqArchiveVolumeLedger(dsl),
+                JdbcOutboxWriter(
+                    dsl,
+                    EvidenceDb.SCHEMA,
+                    "evidence-svc",
+                    "evidence-svc-0",
+                    EventCatalogue(EvidenceEvents.entries),
+                    clock,
+                ),
+                clock,
+            ),
+        )
+        runtime.registered() shouldBe listOf(declared)
+        val registered = runtime.registered().single()
+        registered.name shouldBe "archive-volume-measurement"
+        registered.ownerService shouldBe "evidence-svc"
+        registered.entityScope shouldBe JobEntityScope.ENTITY
+        registered.schedule.cron shouldBe "0 30 1 * * *"
+        registered.schedule.zone shouldBe ZoneOffset.UTC
+        registered.criticality shouldBe JobCriticality.STANDARD
+        registered.tolerance shouldBe Duration.ofHours(6)
+        registered.lockAtMostFor shouldBe Duration.ofHours(2)
+        // probe: a look-alike definition is not the registered one
+        (registered == declared.copy(name = "archive-volume-measure")) shouldBe false
+    }
+
+    @Test
+    fun `the entity source lists only the real pairs and the reserved tenant-wide entity gets no row`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val tenant = UUID.randomUUID()
+        val tenantWide = EntityRef.TENANT_WIDE.value
+        val lookAlike = "00000000-0000-0000-0000-000000000001"
+        seedTrace(tenant, "E1", 10)
+        seedTrace(tenant, tenantWide, 20)
+        seedTrace(tenant, lookAlike, 30)
+        listed(tenant) shouldBe setOf("E1", lookAlike)
+        listed(tenant).forEach { runJob(tenant, it) }
+        outbox(tenant).map { it.entity }.toSet() shouldBe setOf("E1", lookAlike)
+        outbox(tenant).any { it.entity == tenantWide } shouldBe false
+        superuser { c ->
+            c.createStatement().use { s ->
+                s
+                    .executeQuery(
+                        "select count(*) from evidence.archive_volume_published where tenant_id = '$tenant' " +
+                            "and entity_ref = '$tenantWide'",
+                    ).use {
+                        it.next()
+                        it.getInt(1)
+                    }
+            }
+        } shouldBe 0
+    }
+
+    @Test
+    fun `the production catalogue holds exactly one ArchiveVolumeMeasured entry with the declared values`(
+        @TempDir dir: Path,
+    ) {
+        val expected = "gst.evidence.archive-volume-measured.v1"
+        val entries = EvidenceEvents.entries.filter { it.eventType == ArchiveVolumePublisher.EVENT_TYPE }
+        entries.size shouldBe 1
+        entries.single().topic shouldBe expected
+        entries.single().producers shouldBe setOf("evidence-svc")
+        entries.single().contentTopic shouldBe false
+        entries.single().recordTopic shouldBe false
+        entries.single().retainedWhileResolvable shouldBe false
+        EvidenceContext.online(dir).run { context ->
+            context
+                .getBean(EventCatalogue::class.java)
+                .entries()
+                .count { it.eventType == ArchiveVolumePublisher.EVENT_TYPE } shouldBe 1
         }
     }
 
