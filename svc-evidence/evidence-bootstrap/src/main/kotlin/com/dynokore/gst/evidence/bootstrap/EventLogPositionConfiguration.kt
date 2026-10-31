@@ -5,11 +5,10 @@ import com.dynokore.platform.outboxandqueue.EventLogSchema
 import com.dynokore.platform.outboxandqueue.JdbcEventLogPositions
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
-import com.dynokore.platform.serviceruntime.composition.OutboxAndQueueWiring
+import com.dynokore.platform.serviceruntime.composition.EventLogScopes
 import com.dynokore.platform.serviceruntime.composition.ServiceDataSources
 import com.dynokore.platform.serviceruntime.pool.EventLogGate
 import com.dynokore.platform.tenancyjooq.TenancyJooq
-import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
@@ -31,18 +30,8 @@ class EventLogPositionConfiguration {
         gate: ObjectProvider<EventLogGate>,
         bindingKey: ObjectProvider<InstallationBindingKey>,
     ): EventLogPositions {
-        // copy of service-runtime's event-log scope; INV-T-12072 replaces it with INV-T-12071's EventLogScopes.of
         val eventLogScope =
-            eventLog.getIfAvailable()?.let {
-                val transactions =
-                    TransactionRunnerImpl(
-                        OutboxAndQueueWiring.handOff(it, gate.getIfAvailable()),
-                        scope.tenants,
-                        null,
-                        bindingKey.getIfAvailable()?.source,
-                    )
-                TenantScope(scope.tenants, transactions, transactions, scope.workloadPrincipal, scope.platform)
-            } ?: scope
+            EventLogScopes.of(eventLog.getIfAvailable(), scope, gate.getIfAvailable(), bindingKey.getIfAvailable())
         val dsl =
             TenancyJooq.dslContext(
                 EventLogSchema.jooqTables(emptyList()),
