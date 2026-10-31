@@ -121,21 +121,14 @@ class RetentionService(
         reason: String?,
     ): Answer = post(tenant, body("TENANT", tenant.value.toString(), null, record(years), reason), caller)
 
-    /** A POST of an empty object to the relaxations path of VP-43 by the workload [caller], or none if null. */
-    fun relaxAs(
-        caller: String?,
-        tenant: TenantId,
-    ): Answer = post(tenant, "{}", caller, "/relaxations")
-
     private fun post(
         tenant: TenantId,
         body: String,
         caller: String? = "console-bff",
-        suffix: String = "",
     ): Answer {
         val request =
             HttpRequest
-                .newBuilder(URI.create("http://localhost:$port/internal/v1/policies/VP-43$suffix"))
+                .newBuilder(URI.create("http://localhost:$port/internal/v1/policies/VP-43"))
                 .header("Authorization", "Bearer ${tenant.value}/admin-1")
                 .apply { caller?.let { header("X-Workload-Token", "token-$it") } }
                 .header("Idempotency-Key", UUID.randomUUID().toString())

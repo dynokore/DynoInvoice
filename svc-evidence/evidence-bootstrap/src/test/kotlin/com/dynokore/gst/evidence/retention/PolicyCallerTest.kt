@@ -15,7 +15,6 @@ import com.dynokore.gst.evidence.domain.retention.RetentionTier.STRUCTURED_SUBMI
  */
 class PolicyCallerTest {
     private val line = "POST\t/internal/v1/policies/{variationPoint}\tconsole-bff"
-    private val relaxations = "POST\t/internal/v1/policies/{variationPoint}/relaxations\tconsole-bff"
     private val years = mapOf(STRUCTURED to 5, ACK to 5, SOURCE to 5)
 
     @Test
@@ -29,25 +28,7 @@ class PolicyCallerTest {
                     !it.path.contains("service-runtime-api")
             }
         runtime.readText().lines().count { it == line } shouldBe 1
-        runtime.readText().lines().count { it == relaxations } shouldBe 1
     }
-
-    @Test
-    fun `the relaxations path is guarded like setPolicy and console-bff is not refused by the caller filter`(
-        @TempDir dir: Path,
-    ): Unit =
-        RetentionService.start(dir).use { s ->
-            val tenant = s.newTenant()
-            for (caller in listOf("control-plane-svc", "console-bff-two", "Console-Bff")) {
-                val answer = s.relaxAs(caller, tenant)
-                answer.status shouldBe 403
-                answer.code shouldBe "SRT-004"
-                s.stored(tenant) shouldBe 0
-            }
-            s.relaxAs(null, tenant).status shouldBe 401
-            val allowed = s.relaxAs("console-bff", tenant)
-            (allowed.status == 403 && allowed.code == "SRT-004") shouldBe false
-        }
 
     @Test
     fun `only the workload token of console-bff reaches setPolicy`(

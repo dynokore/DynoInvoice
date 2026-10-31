@@ -37,9 +37,6 @@ class ArchiveVolumeContentColumnsTest {
             "outbox.data" to
                 "transport copy of an event whose content is held by its owner and is deleted once published",
             "event_dead_letter.raw" to "a transient failed delivery, not retained evidence",
-            "config_setting.reason" to CONFIG_REASON,
-            "config_installation_setting.reason" to CONFIG_REASON,
-            "config_relaxation_acknowledgement.reason" to CONFIG_REASON,
         )
 
     private fun marked(connection: Connection): Set<String> =
@@ -257,7 +254,3 @@ class ArchiveVolumeContentColumnsTest {
         bytesOf(dir, tenant, "E-1") shouldBe listOf(50L)
     }
 }
-
-private const val CONFIG_REASON =
-    "the justification stored with a configuration setting, not archived evidence content; " +
-        "the audit entry of the change carries the reason"

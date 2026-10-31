@@ -2,8 +2,6 @@ package com.dynokore.gst.evidence.adapters.http
 
 import com.dynokore.gst.evidence.application.retention.MaxRetention
 import com.dynokore.platform.outboxandqueue.TenantScope
-import java.time.Duration
-import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -25,21 +23,12 @@ class PlatformMaxRetention(
     /**
      * [read] in a transaction of its own on a separate thread: a caller that already holds a tenant transaction (the
      * digest consumer) cannot open the platform one inside it (INV-Q-3997). A failure is rethrown on the caller's
-     * thread. The wait is bounded by [READ_TIMEOUT]; on expiry the worker is interrupted and the call throws, so
-     * the caller fails closed (INV-Q-13964).
+     * thread.
      */
     fun <T> readIndependently(block: (MaxRetention) -> T): T {
         val outcome = AtomicReference<Result<T>>()
         val worker = Thread.ofVirtual().name("max-retention-read").start { outcome.set(runCatching { read(block) }) }
-        if (!worker.join(READ_TIMEOUT)) {
-            worker.interrupt()
-            throw TimeoutException("the longest retention was not read within $READ_TIMEOUT")
-        }
+        worker.join()
         return outcome.get().getOrThrow()
-    }
-
-    companion object {
-        /** The `x-timeout` of `getMaxEvidenceRetention` in the pinned contract bundle (2000 ms). */
-        val READ_TIMEOUT: Duration = Duration.ofMillis(2000)
     }
 }
