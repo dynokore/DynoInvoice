@@ -67,6 +67,7 @@ variables:
 # contracts-codegen-compile and publish-guard-dry-run (a version the target branch just published must not be reused).
 # Any doubt or error in the check means a full run. Main and tag pipelines are not affected.
 gst-rebase-check:
+  tags: [inv-arm64]   # CI-FAST (owner 2026-10-31 "A", batch 2): runner 90 is the bottleneck; arch-neutral, multi-arch image
   stage: .pre
   needs: []
   image: "$GRADLE_IMAGE"
@@ -275,6 +276,7 @@ invoice-docs-checks:
     - gst_checks_done
 
 tool-self-tests:
+  tags: [inv-arm64]   # CI-FAST (owner 2026-10-31 "A", batch 2): runner 90 is the bottleneck; arch-neutral, multi-arch image
   # The self-tests of this repository's own check tools (lesson P20: a check is proved to fire, against fixtures):
   # breaking-change-self-test (the oasdiff/asyncapi gates; INV-T-3491 normalize-extensible-enum.py),
   # contract-check-self-tests (API-08 allowlist, examples, x-timeout INV-T-3431, required identifiers INV-T-4909,
@@ -504,6 +506,7 @@ spectral-lint:
       exit $failed
 
 asyncapi-validate:
+  tags: [inv-arm64]   # CI-FAST (owner 2026-10-31 "A", batch 2): runner 90 is the bottleneck; arch-neutral, multi-arch image
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
   image:
@@ -521,6 +524,7 @@ asyncapi-validate:
       exit $failed
 
 oasdiff-breaking-gate:
+  tags: [inv-arm64]   # CI-FAST (owner 2026-10-31 "A", batch 2): runner 90 is the bottleneck; arch-neutral, multi-arch image
   stage: verify
   needs: []
   image:
@@ -534,6 +538,7 @@ oasdiff-breaking-gate:
     - sh spectral/run-oasdiff-gate.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
 
 asyncapi-breaking-gate:
+  tags: [inv-arm64]   # CI-FAST (owner 2026-10-31 "A", batch 2): runner 90 is the bottleneck; arch-neutral, multi-arch image
   stage: verify
   needs: []
   image:
