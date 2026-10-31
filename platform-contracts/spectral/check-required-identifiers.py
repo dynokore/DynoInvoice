@@ -12,6 +12,8 @@ substring, never in another case):
     property    a key of a `properties` mapping (an OpenAPI or JSON Schema property)
     operation   the value of an `operationId`
     enum_value  a member of an `enum` list
+    root_property  a key of the document's own top-level `properties` mapping; it does not follow `allOf`, `$ref`,
+                `$defs`, `definitions`, nested properties or a `properties` key of any other mapping (INV-T-13720, INV-Q-13717 A)
     query_parameter  the `name` of a parameter object whose `in` is `query` (INV-T-5959, INV-Q-6006 A)
     schema_property  `<Schema>.<property>` (split at the first dot): `components.schemas` has the key
                 <Schema> and that schema's own `properties` has the key <property> (INV-T-6049, INV-Q-6105)
@@ -70,7 +72,7 @@ from pathlib import Path
 
 import yaml
 
-KINDS = ("property", "operation", "enum_value", "query_parameter", "schema_property", "schema_enum_value", "operation_error_code", "operation_response")
+KINDS = ("property", "operation", "enum_value", "query_parameter", "schema_property", "schema_enum_value", "operation_error_code", "operation_response", "root_property")
 SCOPED = {"schema_property": 2, "schema_enum_value": 3, "operation_error_code": 2, "operation_response": 2}
 SCOPED_FORM = {"schema_property": "<Schema>.<property>", "schema_enum_value": "<Schema>.<property>.<MEMBER>", "operation_error_code": "<operationId>.<CODE>", "operation_response": "<operationId>.<STATUS>"}
 HEADER = ("identifier", "kind", "file", "requirement")
@@ -100,6 +102,9 @@ def collect(doc) -> dict[str, set]:
                 walk(item)
 
     walk(doc)
+    root_props = doc.get("properties") if isinstance(doc, dict) else None
+    if isinstance(root_props, dict):
+        found["root_property"].update(str(k) for k in root_props)
     paths = doc.get("paths") if isinstance(doc, dict) else None
     for item in (paths.values() if isinstance(paths, dict) else ()):
         for op in (item.values() if isinstance(item, dict) else ()):

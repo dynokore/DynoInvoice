@@ -306,5 +306,28 @@ rename_case map-bad-ruling 1 "map line 2" 'svc/required-identifiers.tsv\tbeta\tp
 rename_case map-duplicate-old 1 "map line 3" "$RL$RL" "true"
 rename_case map-self 1 "map line 2" 'svc/required-identifiers.tsv\tbeta\tproperty\topenapi.yaml\tbeta\tproperty\topenapi.yaml\tINV-Q-10647\n' "true"
 rename_case map-unused-line 0 "" "$RL" "true"
+# INV-T-13720 (INV-Q-13717 A): the kind root_property. Each case is a JSON Schema or OpenAPI file in the temporary directory.
+mkr() { # name, kind, identifier, json text -> $T/<name>/svc/s.json with a one-row table
+  mkdir -p "$T/$1/svc"; printf '%s\n' "$4" > "$T/$1/svc/s.json"
+  printf 'identifier\tkind\tfile\trequirement\n%s\t%s\ts.json\tR-6\n' "$3" "$2" > "$T/$1/svc/required-identifiers.tsv"
+}
+RP='root_property'
+ALLOF='{"type":"object","properties":{"other":{"type":"string"}},"allOf":[{"if":{"x":1},"then":{"properties":{"documentFunction":{"const":"INVOICE"}}}}]}'
+mkr rp-pass $RP documentFunction '{"type":"object","properties":{"documentFunction":{"type":"string"}}}'
+out=$(python3 check-required-identifiers.py "$T/rp-pass" 2>&1) || { echo "gst-ci: FAIL — root_property pass fixture rejected:"; echo "$out"; failed=1; }
+rp_fail() { mkr "$1" "$2" "$3" "$4"; expect_fail_dir "$T/$1" "$5"; }
+rp_fail rp-allof-only $RP documentFunction "$ALLOF" "$NF root_property"
+rp_fail rp-nested $RP documentFunction '{"properties":{"a":{"type":"object","properties":{"documentFunction":{}}}}}' "$NF root_property"
+rp_fail rp-defs $RP documentFunction '{"properties":{"a":{}},"$defs":{"D":{"properties":{"documentFunction":{}}}}}' "$NF root_property"
+rp_fail rp-definitions $RP documentFunction '{"properties":{"a":{}},"definitions":{"D":{"properties":{"documentFunction":{}}}}}' "$NF root_property"
+rp_fail rp-substring $RP documentFunction '{"properties":{"documentFunctionX":{}}}' "$NF root_property"
+rp_fail rp-other-case $RP documentFunction '{"properties":{"DocumentFunction":{}}}' "$NF root_property"
+rp_fail rp-openapi-components $RP documentFunction '{"openapi":"3.1.0","components":{"schemas":{"X":{"properties":{"documentFunction":{}}}}}}' "$NF root_property"
+rp_fail rp-lookalike-kind root_properties documentFunction '{"properties":{"documentFunction":{}}}' "unknown kind"
+mkr rp-other-service $RP documentFunction '{"properties":{"a":{}}}'
+mkdir -p "$T/rp-other-service/elsewhere"; echo '{"properties":{"documentFunction":{}}}' > "$T/rp-other-service/elsewhere/s.json"
+expect_fail_dir "$T/rp-other-service" "$NF root_property"
+mkr rp-old-kind property documentFunction "$ALLOF"
+out=$(python3 check-required-identifiers.py "$T/rp-old-kind" 2>&1) || { echo "gst-ci: FAIL — kind property on the allOf-only file was rejected:"; echo "$out"; failed=1; }
 [ "$failed" -eq 0 ] && echo "gst-ci: check-required-identifiers.py self-test passed."
 exit $failed

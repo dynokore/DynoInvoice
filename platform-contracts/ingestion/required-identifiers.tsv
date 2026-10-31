@@ -117,3 +117,5 @@ DraftDocument.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV-REQ
 DraftDocument.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
 DraftDocument.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
 DraftDocument.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371
+# INV-T-13720 (INV-Q-13717 A): the kind root_property pins documentFunction to the top-level properties of the request schema; the kind property also matches the properties inside the allOf pair.
+documentFunction	root_property	schemas/transaction-request.schema.json	INV-REQ-371
