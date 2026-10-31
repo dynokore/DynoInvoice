@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.28.1] - 2026-10-31
+### Changed
+- Metadata-only change (INV-T-9352, G-DVS): depends on `outbox-and-queue 6.11.0`, whose version steps; no code change.
+
 ## [10.28.0] - 2026-10-31
 ### Added
 - `StructureReplica.isSynced()`: true exactly after `onSnapshotComplete`, false after `onDisconnected`; what the replica serves is unchanged (INV-T-9094, INV-Q-9081 A; INV-AC-9089).

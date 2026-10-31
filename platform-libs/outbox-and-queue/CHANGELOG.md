@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.11.0] - 2026-10-31
+### Added
+- `BreakGlassActionReported` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name; tenant-wide for a real tenant), which now holds the sixteen platform events of INV-REQ-1226 (INV-Q-9313, INV-REQ-1226, INV-AC-9351, INV-T-9352).
+
 ## [6.10.0] - 2026-10-31
 ### Added
 - The producer half of `testmode` (INV-Q-12635, INV-REQ-829, INV-AC-12638, INV-T-12640): the outbox column `testmode boolean not null default false` (created by `OutboxSchema.ddl`), `EventContext.testMode` and `ReplayedState.testMode` (last property, default false) carried by the writer, the relay and the replay re-emit (the replay marker stays false). `OutboxSchema.testModeUpgradeDdl(schema)` adds the column to an existing outbox with `add column if not exists`; like `EventLogSchema.retentionUpgradeDdl` it must be run at every install and upgrade, in each producing service's own migration.

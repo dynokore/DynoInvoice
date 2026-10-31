@@ -30,6 +30,7 @@ class PlatformClassEventsTest {
             "AuthorityChanged",
             "TenantWideEvidenceIntegrityFailed",
             "BreakGlassSessionChanged",
+            "BreakGlassActionReported",
         )
     private val refused =
         listOf(
@@ -49,6 +50,10 @@ class PlatformClassEventsTest {
             "com.dynokore.gst.platform.BreakGlassSessionChangedX.v1",
             "com.dynokore.gst.platform.breakGlassSessionChanged.v1",
             "com.dynokore.gst.evidence.BreakGlassSessionChanged.v1",
+            "com.dynokore.gst.tenancy.BreakGlassActionReported.v1",
+            "com.dynokore.gst.platform.BreakGlassActionReportedX.v1",
+            "com.dynokore.gst.platform.breakGlassActionReported.v1",
+            "com.dynokore.gst.evidence.BreakGlassActionReported.v1",
             "com.dynokore.gst.evidence.EvidenceIntegrityFailed.v1",
             "com.dynokore.gst.evidence.TenantWideEvidenceIntegrityFailed.v1",
             "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailedX.v1",
@@ -197,6 +202,23 @@ class PlatformClassEventsTest {
     @Test
     fun `INV-AC-9303 BreakGlassSessionChanged old access type, look-alike, case and other-package types are refused`() {
         refused.subList(12, 16).forEach {
+            assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-9351 BreakGlassActionReported is tenant-wide for a real tenant and reads back tenant-wide`() {
+        val e = envelope("com.dynokore.gst.platform.BreakGlassActionReported.v1", tenant, EntityRef.TENANT_WIDE)
+        val text = json.write(e)
+        assertFalse(text.contains("entityref"), text)
+        assertTrue(text.contains("tenantid"), text)
+        assertEquals(e, json.read(text))
+        assertEquals(EntityRef.TENANT_WIDE, json.read(text).entity)
+    }
+
+    @Test
+    fun `INV-AC-9351 BreakGlassActionReported old type, look-alike, case and other package are refused`() {
+        refused.subList(16, 20).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
         }
     }

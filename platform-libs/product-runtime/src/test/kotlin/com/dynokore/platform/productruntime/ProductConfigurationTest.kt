@@ -23,6 +23,14 @@ class ProductConfigurationTest {
     }
 
     @Test
+    fun `INV-AC-9351 BreakGlassActionReported has its topic and event type and is last`() {
+        PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.topic shouldBe "gst.platform.break-glass-action-reported.v1"
+        PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.eventType shouldBe
+            "com.dynokore.gst.platform.BreakGlassActionReported.v1"
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED
+    }
+
+    @Test
     fun `the platform-event catalogue is the platform events of INV-REQ-1226 b1`() {
         PlatformEventCatalogue.ALL.map { it.name } shouldContainExactly
             listOf(
@@ -41,6 +49,7 @@ class ProductConfigurationTest {
                 "AuthorityChanged",
                 "TenantWideEvidenceIntegrityFailed",
                 "BreakGlassSessionChanged",
+                "BreakGlassActionReported",
             )
         PlatformEventCatalogue.PRIVACY_NOTICE_DUE.topic shouldBe "gst.platform.privacy-notice-due.v1"
         PlatformEventCatalogue.ACCREDITATION_ALERT_RAISED.topic shouldBe "gst.platform.accreditation-alert-raised.v1"
@@ -54,7 +63,7 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED
         PlatformEventCatalogue.AUTHORITY_CHANGED.topic shouldBe "gst.platform.authority-changed.v1"
         PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true

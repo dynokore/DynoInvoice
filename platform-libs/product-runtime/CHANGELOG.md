@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-31
+### Added
+- `PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED` (`gst.platform.break-glass-action-reported.v1`), appended last in `ALL`, which now holds the sixteen platform events of INV-REQ-1226 (INV-Q-9313, INV-REQ-1226, INV-AC-9351, INV-T-9352).
+
 ## [2.2.3] - 2026-10-31
 ### Changed
 - Metadata-only change (INV-T-9094, G-DVS): depends on `service-runtime 10.28.0`, whose version steps; no code change.
