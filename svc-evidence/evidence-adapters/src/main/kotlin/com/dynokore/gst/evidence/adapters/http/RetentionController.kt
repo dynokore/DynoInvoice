@@ -3,6 +3,7 @@ package com.dynokore.gst.evidence.adapters.http
 import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.evidence.contract.api.RetentionApi
 import com.dynokore.gst.evidence.contract.model.MaxEvidenceRetention
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.springframework.http.HttpStatus
@@ -57,6 +58,6 @@ open class RetentionController(
         const val TITLE = "Maximum evidence retention cannot be determined"
         const val CORRELATION_ID = "correlation_id"
         val mapper = ObjectMapper()
-        val log = LoggerFactory.getLogger(RetentionController::class.java)
+        val log: Logger = LoggerFactory.getLogger(RetentionController::class.java)
     }
 }

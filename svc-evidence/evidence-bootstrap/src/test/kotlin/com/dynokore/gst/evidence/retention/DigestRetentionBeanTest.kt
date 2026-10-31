@@ -9,6 +9,7 @@ import com.dynokore.gst.evidence.application.retention.MaxRetention
 import com.dynokore.gst.evidence.bootstrap.LocatorConsumerConfiguration
 import com.dynokore.gst.evidence.bootstrap.ReturnConsumerConfiguration
 import com.dynokore.platform.configresolver.OptionValueMaximum
+import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.evidencestore.ObjectKey
 import com.dynokore.platform.evidencestore.ObjectRef
 import com.dynokore.platform.evidencestore.ObjectStore
@@ -141,7 +142,12 @@ class DigestRetentionBeanTest {
             val objects = Objects()
             val consumer = s.consumer(tenant, s.bean(DigestMaxRetention::class.java), objects)
             consumer.pollOnce().applied shouldBe 1
-            val recordedAt = s.digests(tenant).single().recordedAt!!.toInstant()
+            val recordedAt =
+                s
+                    .digests(tenant)
+                    .single()
+                    .recordedAt!!
+                    .toInstant()
             objects.retention.values.single() shouldBe recordedAt.atZone(ZoneOffset.UTC).plusYears(10).toInstant()
         }
 
@@ -152,7 +158,16 @@ class DigestRetentionBeanTest {
         RetentionService.start(dir).use { s ->
             s.clearAll()
             val tenant = s.newTenant()
-            val never = OptionValueMaximum { _, _ -> Thread.sleep(Long.MAX_VALUE).let { BigDecimal.ONE } }
+            val never =
+                object : OptionValueMaximum {
+                    override fun maximum(
+                        key: VariationPointKey,
+                        option: String,
+                    ): BigDecimal? {
+                        Thread.sleep(Long.MAX_VALUE)
+                        return null
+                    }
+                }
             val platform = PlatformMaxRetention(MaxRetention(never, 5), s.bean(TenantScope::class.java))
             val bean = DigestMaxRetention { platform.readIndependently { it.period() } }
 
