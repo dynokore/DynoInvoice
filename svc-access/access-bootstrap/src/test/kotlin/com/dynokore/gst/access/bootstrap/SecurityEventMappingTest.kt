@@ -117,7 +117,7 @@ class SecurityEventMappingTest {
                 )
             }
 
-        /** The stored audit rows of [action] of this tenant, read as a superuser so that row-level security hides none. */
+        /** The stored audit rows of [action] of this tenant, read as a superuser (row-level security hides none). */
         fun auditRows(action: String): List<JsonNode> =
             BoundaryFixture.asSuperuser { connection ->
                 connection
@@ -150,7 +150,10 @@ class SecurityEventMappingTest {
 
     private fun attributes(record: Collector.Received): Map<String, String> {
         val logRecord = mapper.readTree(record.body).at("/resourceLogs/0/scopeLogs/0/logRecords/0")
-        return logRecord.get("attributes").associate { it.get("key").asString() to it.at("/value/stringValue").asString() }
+        return logRecord.get("attributes").associate {
+            it.get("key").asString() to
+                it.at("/value/stringValue").asString()
+        }
     }
 
     private fun assertBreakGlassRecord(
