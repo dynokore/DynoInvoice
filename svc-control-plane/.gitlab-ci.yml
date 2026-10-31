@@ -24,3 +24,18 @@ include:
 
 variables:
   IMAGE_NAME: "svc-control-plane"
+
+# INV-T-4985 (INV-Q-9639): StageIT starts the certification-kit Access Point simulator from the local image
+# certkit/access-point-simulator:dev. The job pulls it by the digest pinned in simulator-image.digest (ci/pull-simulator.sh
+# fails closed on a missing or malformed file and on a registry digest that differs) before the tests, with the job-local
+# auth file of platform-build's `.gst-registry-auth` and no registry login command. The same wiring as svc-transport.
+unit-test:
+  extends: [.gradle-job, .gst-registry]
+  image: "$CI_GRADLE_DOCKER_IMAGE"
+  # platform-build's unit-test inherits tags [inv-arm64] (the Mac runner), whose Docker daemon cannot pull the HTTP Nexus
+  # image $CI_GRADLE_DOCKER_IMAGE; tool-image jobs run on the amd64 group runner, so the inherited tags are cleared.
+  tags: []
+  before_script:
+    - !reference [.gradle-job, before_script]
+    - !reference [.gst-registry-auth, script]
+    - sh ci/pull-simulator.sh

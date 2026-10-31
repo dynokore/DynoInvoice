@@ -35,6 +35,9 @@ inv.tenancy.platform-scoped-tables:                 # INV-ADR-3968 item 4a: the 
   - controlplane.region_statement
   - controlplane.tenant_provisioning_request
   - controlplane.licence
+  - controlplane.release_train
+  - controlplane.support_window
+  - controlplane.pack_release_record
 control-plane:
   tenancy:
     create-timeout: PT1.5S                          # createTenant is bounded inside console-bff's 2 s (INV-REQ-1203, INV-REQ-1204 b7)
@@ -55,4 +58,5 @@ management:
 logging.structured.format.console: ecs              # STK-35
 gst:
   service: control-plane-svc
+  jobs.pack-stage.cron: "0 */10 * * * *"            # PackStageJob (INV-Q-8725): every ten minutes, six-field cron (TPL-09)
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

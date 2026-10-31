@@ -32,7 +32,7 @@ object PostgresDb {
 
     private val container: PostgreSQLContainer<*> =
         PostgreSQLContainer(DockerImageName.parse(System.getProperty("gst.pg.image", "postgres:18")))
-            .withLabel("inv.agent", "c-inv-t-4984")
+            .withLabel("inv.agent", "c-inv-t-4985")
             // a saturated CI runner starts the container slowly: the default 60 s start-up wait is too short
             .withStartupTimeout(Duration.ofMinutes(STARTUP_MINUTES))
 

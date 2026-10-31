@@ -90,6 +90,10 @@ data class Refusal(
         const val NO_STAGING_RECORD = "NO_STAGING_RECORD"
         const val STAGING_NOT_PASSED = "STAGING_NOT_PASSED"
         const val STAGING_HASH_MISMATCH = "STAGING_HASH_MISMATCH"
+        const val NO_GATE_EVIDENCE = "NO_GATE_EVIDENCE"
+        const val GATE_FAILED = "GATE_FAILED"
+        const val CORPUS_UNAVAILABLE = "CORPUS_UNAVAILABLE"
+        const val CORPUS_FAILED = "CORPUS_FAILED"
 
         fun parse(encoded: String): Refusal = Refusal(encoded.substringBefore(' '), encoded.substringAfter(' ', ""))
     }

@@ -12,6 +12,7 @@ import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.pack.SignPack
 import com.dynokore.gst.controlPlane.application.pack.SignPackCommand
+import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
 import com.dynokore.gst.controlPlane.contract.api.PacksApi
 import com.dynokore.gst.controlPlane.contract.model.AuthorPackRequest
 import com.dynokore.gst.controlPlane.contract.model.PackResponse
@@ -24,6 +25,7 @@ import com.dynokore.gst.controlPlane.domain.pack.PackStatus
 import com.dynokore.gst.controlPlane.domain.pack.PackType
 import com.dynokore.gst.controlPlane.domain.pack.PackVersion
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
+import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.operation.OperationOutcome
@@ -54,6 +56,7 @@ class PacksController(
     private val sign: SignPack,
     private val publish: PublishPack,
     private val get: GetPack,
+    private val records: PackReleaseRecords,
 ) : PacksApi {
     override fun authorRegulatoryPack(
         idempotencyKey: UUID,
@@ -76,7 +79,10 @@ class PacksController(
             platform.bindPlatform(
                 caller.principal.actor,
             ) { runner.run(author, caller.principal.actor, command) }
-        return ResponseEntity.status(HttpStatus.CREATED).body(answer(outcome, caller.correlationId))
+        return ResponseEntity
+            .status(
+                HttpStatus.CREATED,
+            ).body(answer(outcome, caller.correlationId, caller.principal.actor))
     }
 
     override fun signPack(
@@ -100,7 +106,7 @@ class PacksController(
             platform.bindPlatform(
                 caller.principal.actor,
             ) { runner.run(sign, caller.principal.actor, command) }
-        return ResponseEntity.ok(answer(outcome, caller.correlationId))
+        return ResponseEntity.ok(answer(outcome, caller.correlationId, caller.principal.actor))
     }
 
     override fun publishPack(
@@ -120,7 +126,7 @@ class PacksController(
             platform.bindPlatform(
                 caller.principal.actor,
             ) { runner.run(publish, caller.principal.actor, command) }
-        return ResponseEntity.ok(answer(outcome, caller.correlationId))
+        return ResponseEntity.ok(answer(outcome, caller.correlationId, caller.principal.actor))
     }
 
     override fun getPack(packRef: String): ResponseEntity<PackResponse> {
@@ -131,7 +137,8 @@ class PacksController(
         }
         val ref = commandOf(caller) { PackRef(packRef) }
         val pack = platform.bindPlatform(actor) { transactions.inTransaction { get.get(ref) } }
-        return ResponseEntity.ok(responseOf(pack ?: problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)))
+        val found = pack ?: problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)
+        return ResponseEntity.ok(responseOf(found, recordOf(actor, found.ref)))
     }
 
     private fun caller() = OperatorCaller.of(principals)
@@ -144,10 +151,11 @@ class PacksController(
     private fun answer(
         outcome: OperationOutcome<RegulatoryPack>,
         correlationId: String,
+        actor: String,
     ): PackResponse =
         when (outcome) {
-            is OperationOutcome.Performed -> responseOf(outcome.result)
-            is OperationOutcome.Repeated -> responseOf(outcome.result)
+            is OperationOutcome.Performed -> responseOf(outcome.result, recordOf(actor, outcome.result.ref))
+            is OperationOutcome.Repeated -> responseOf(outcome.result, recordOf(actor, outcome.result.ref))
             OperationOutcome.NotPermitted -> problem(ClosedErrorCode.ACCESS_DENIED, correlationId)
             is OperationOutcome.PreconditionUnmet -> refuse(Refusal.parse(outcome.code), correlationId)
         }
@@ -181,6 +189,8 @@ class PacksController(
             Refusal.NO_STAGING_RECORD,
             Refusal.STAGING_NOT_PASSED,
             Refusal.STAGING_HASH_MISMATCH,
+            Refusal.CORPUS_UNAVAILABLE,
+            Refusal.CORPUS_FAILED,
             -> {
                 problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "${refusal.code}: ${refusal.detail}")
             }
@@ -190,17 +200,27 @@ class PacksController(
             }
         }
 
-    private fun responseOf(pack: RegulatoryPack) =
-        PackResponse(
-            packRef = pack.ref.value,
-            packType = pack.type.value,
-            version = pack.version.value,
-            status = PackResponse.Status.valueOf(pack.status.name),
-            authors = pack.authors.map { it.value }.sorted(),
-            signer = pack.signer?.value,
-            minEngineVersion = pack.minEngineVersion?.value,
-            exposureReducing = pack.exposureReducing,
-            effectiveFrom = pack.effectiveFrom,
-            supersedes = pack.supersedes?.value,
-        ).also { check(pack.status != PackStatus.PUBLISHED || pack.publishedAt != null) }
+    /** The release record of the version (corpus run, staging run, classification), read in a platform transaction. */
+    private fun recordOf(
+        actor: String,
+        ref: PackRef,
+    ) = platform.bindPlatform(actor) { transactions.inTransaction { records.find(ref) } }
+
+    private fun responseOf(
+        pack: RegulatoryPack,
+        record: ReleaseRecord?,
+    ) = PackResponse(
+        packRef = pack.ref.value,
+        packType = pack.type.value,
+        version = pack.version.value,
+        status = PackResponse.Status.valueOf(pack.status.name),
+        authors = pack.authors.map { it.value }.sorted(),
+        signer = pack.signer?.value,
+        minEngineVersion = pack.minEngineVersion?.value,
+        exposureReducing = pack.exposureReducing,
+        effectiveFrom = pack.effectiveFrom,
+        supersedes = pack.supersedes?.value,
+        corpusResult = record?.let(::corpusResultOf)?.let(PackResponse.CorpusResult::valueOf),
+        releaseGateResult = record?.let { gateResultOf(it) },
+    ).also { check(pack.status != PackStatus.PUBLISHED || pack.publishedAt != null) }
 }

@@ -1,5 +1,7 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
+import com.dynokore.gst.controlPlane.adapters.stage.PackStage
 import com.dynokore.gst.controlPlane.application.commercial.GetLicence
 import com.dynokore.gst.controlPlane.application.commercial.GetTenantProvisioningRequest
 import com.dynokore.gst.controlPlane.application.commercial.IssueLicence
@@ -9,9 +11,19 @@ import com.dynokore.gst.controlPlane.application.commercial.RecordQualification
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPack
 import com.dynokore.gst.controlPlane.application.pack.PackSigningKeys
 import com.dynokore.gst.controlPlane.application.pack.PublishPack
+import com.dynokore.gst.controlPlane.application.pack.Refusal
+import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.pack.SignPack
-import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
+import com.dynokore.gst.controlPlane.application.release.PublishTrain
+import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
+import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
+import com.dynokore.gst.controlPlane.domain.pack.ActorId
+import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
+import com.dynokore.gst.controlPlane.domain.release.TrainKind
+import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
+import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -36,34 +48,7 @@ class CompositionTest {
     private fun runner(
         mount: Path,
         vararg extra: String,
-    ): ApplicationContextRunner {
-        val secrets = mount.resolve("tenancy").also { Files.createDirectories(it) }
-        Files.writeString(secrets.resolve("binding-key-current"), "test-installation-binding-key")
-        return ApplicationContextRunner()
-            .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
-            // the deployment's IdentityProvider binding builds the real resolver; the composition needs only the port
-            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
-            // application.yaml is the service's own configuration (platform-scoped tables, management port)
-            .withInitializer(ConfigDataApplicationContextInitializer())
-            .withUserConfiguration(ControlPlaneApplication::class.java)
-            .withPropertyValues(
-                "spring.datasource.url=jdbc:postgresql://localhost:5432/controlplane",
-                "spring.datasource.username=controlplane_runtime",
-                "service-runtime.workload-identity.audience=control-plane-svc",
-                "gst.service=control-plane-svc",
-                "gst.instance-id=control-plane-svc-0",
-                "service-runtime.pool.profile=minimal",
-                "service-runtime.modules.schema=controlplane",
-                "service-runtime.idempotency.schema=controlplane",
-                "gst.bindings.secret-store.mount-root=$mount",
-                "control-plane.tenancy.base-url=http://tenancy-svc.invalid",
-                "control-plane.signing.ref=KEY-REG-01",
-                "control-plane.signing.alias=pack-signing",
-                "control-plane.signing.pin-secret=signing/pin",
-                "control-plane.signing.certificate-secret=signing/certificate",
-                *extra,
-            )
-    }
+    ) = controlPlaneRunner(mount, *extra)
 
     @Test
     fun `every use case and the signing port of the service are beans over the one application pool`(
@@ -81,10 +66,36 @@ class CompositionTest {
                 IssueLicence::class,
                 GetLicence::class,
                 PublishPack::class,
+                PublishTrain::class,
+                SetSupportWindow::class,
+                PackStage::class,
+                ReleasesController::class,
                 PackSigningKeys::class,
                 TransactionRunner::class,
             ).forEach { context.getBean(it.java).shouldNotBeNull() }
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
+        }
+    }
+
+    @Test
+    fun `publishTrain with the gate evidence unbound is refused and the accreditation task is unbound`(
+        @TempDir mount: Path,
+    ) {
+        runner(mount).run { context ->
+            context.startupFailure shouldBe null
+            val publish = context.getBean(PublishTrain::class.java)
+            val command =
+                PublishTrainCommand(
+                    ActorId("rita"),
+                    TrainVersion("2026.10.0"),
+                    TrainKind.TRAIN,
+                    false,
+                    true,
+                    RequestContext("corr", "cause"),
+                )
+            Refusal.parse(checkNotNull(publish.unmetPrecondition(command, null))).code shouldBe Refusal.NO_GATE_EVIDENCE
+            context.getBean(AccreditationTasks::class.java).open(TrainVersion("2026.10.0")) shouldBe
+                AccreditationCheck(true, null, null)
         }
     }
 
@@ -120,5 +131,23 @@ class CompositionTest {
 
     private companion object {
         const val READY_KEY = "management.endpoint.health.group.ready.include"
+    }
+
+    @Test
+    fun `the pack stage job is a bean of the service and registers on the one job runtime`(
+        @TempDir mount: Path,
+    ) {
+        runner(mount).run { context ->
+            context.startupFailure shouldBe null
+            val job = context.getBean(PackStageJob::class.java)
+            job.definition.name shouldBe PackStageJob.NAME
+            job.definition.ownerService shouldBe "control-plane-svc"
+            context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
+            context
+                .getBean(JobRuntime::class.java)
+                .registered()
+                .map { it.name }
+                .toSet() shouldBe setOf("idempotency-key-purge", "pack-stage")
+        }
     }
 }

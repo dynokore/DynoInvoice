@@ -1,5 +1,7 @@
 package com.dynokore.gst.controlPlane.application.pack
 
+import com.dynokore.gst.controlPlane.application.release.FakeCorpus
+import com.dynokore.gst.controlPlane.application.release.MemoryRecords
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.ContentHash
 import com.dynokore.gst.controlPlane.domain.pack.MinEngineVersion
@@ -11,6 +13,8 @@ import com.dynokore.gst.controlPlane.domain.pack.PackVersion
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.pack.StagingEvidence
 import com.dynokore.gst.controlPlane.domain.pack.StagingResult
+import com.dynokore.gst.controlPlane.domain.release.Gate
+import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.security.MessageDigest
@@ -53,9 +57,12 @@ class PackOperationsTest {
     private val hasher = PackContentHasher { ContentHash(sha(content)) }
     private val author = AuthorRegulatoryPack(repository, roles)
     private val keys = PackSigningKeys { ref -> if (ref == "KEY-REG-01") StubKey else null }
-    private val sign = SignPack(repository, roles, keys, clock)
+    private val corpus = FakeCorpus()
+    private val records = MemoryRecords()
+    private val sign = SignPack(repository, roles, keys, corpus, records, clock)
     private val staging = StagingEvidenceReader { ref -> evidence.filter { it.packRef == ref } }
-    private val publish = PublishPack(repository, roles, staging, hasher, { pack, _ -> released += pack.ref }, clock)
+    private val publish =
+        PublishPack(repository, roles, staging, hasher, { pack, _ -> released += pack.ref }, records, clock)
 
     private fun sha(text: String) =
         MessageDigest
@@ -89,6 +96,7 @@ class PackOperationsTest {
         engine: String? = "2026.10.0",
         ref: PackRef = PackRef("PACK-SCOPE-2026.3"),
         keyRef: String = "KEY-REG-01",
+        exposureReducing: Boolean = false,
     ): String? {
         val cmd =
             SignPackCommand(
@@ -96,7 +104,7 @@ class PackOperationsTest {
                 ref,
                 keyRef,
                 engine?.let(::MinEngineVersion),
-                false,
+                exposureReducing,
                 request,
             )
         val state = sign.load(cmd)
@@ -243,6 +251,108 @@ class PackOperationsTest {
         store.getValue(second).supersedes shouldBe first
         store.getValue(first).status shouldBe PackStatus.PUBLISHED
         store.getValue(PackRef("PACK-MDE-2026.1")).supersedes shouldBe null
+    }
+
+    private fun released(version: String): PackRef {
+        val pack = PackRef("PACK-SCOPE-$version")
+        authorAs("alice", version = version)
+        signAs("bob", ref = pack) shouldBe null
+        evidence.add(StagingEvidence(pack, StagingResult.PASSED, ContentHash(sha(content))))
+        publishAs("bob", pack) shouldBe null
+        return pack
+    }
+
+    private fun candidate(
+        version: String,
+        breaks: Set<String>,
+        exposureReducing: Boolean,
+    ): String? {
+        val pack = PackRef("PACK-SCOPE-$version")
+        authorAs("alice", version = version)
+        corpus.broken[pack] = breaks
+        return signAs("bob", ref = pack, exposureReducing = exposureReducing)
+    }
+
+    @Test
+    fun `INV-AC-2661 a pack that breaks a golden document is rejected before any delta and stays unsigned`() {
+        val refusal = Refusal.parse(candidate("2026.3", setOf("GOLD-1"), exposureReducing = false)!!)
+        refusal.code shouldBe Refusal.CORPUS_FAILED
+        refusal.detail.contains("GOLD-1") shouldBe true
+        store.getValue(ref).status shouldBe PackStatus.DRAFT
+        records.store shouldBe emptyMap()
+        publishAs("bob").let { Refusal.parse(it!!).code shouldBe Refusal.NOT_SIGNED }
+    }
+
+    @Test
+    fun `INV-AC-2661 a pack that passes every golden document is signed and the corpus run is recorded`() {
+        candidate("2026.3", emptySet(), exposureReducing = false) shouldBe null
+        val record = records.store.getValue(ref)
+        record.runs.map { it.gate to it.candidate } shouldBe listOf(Gate.CORPUS to GateOutcome.PASSED)
+        record.classifiedBy shouldBe ActorId("bob")
+    }
+
+    @Test
+    fun `INV-AC-2674 a rule-correction pack is released despite a golden failure its released predecessor has`() {
+        val first = released("2026.2")
+        corpus.broken[first] = setOf("GOLD-3")
+        candidate("2026.3", setOf("GOLD-3"), exposureReducing = true) shouldBe null
+        val run =
+            records.store
+                .getValue(ref)
+                .runs
+                .single()
+        run.candidate shouldBe GateOutcome.FAILED
+        run.baseline shouldBe GateOutcome.FAILED
+        run.findings shouldBe setOf("GOLD-3")
+        run.baselineFindings shouldBe setOf("GOLD-3")
+        records.store.getValue(ref).exposureReducing shouldBe true
+        records.store.getValue(ref).classifiedBy shouldBe ActorId("bob")
+    }
+
+    @Test
+    fun `INV-AC-2674 a rule-correction pack that breaks a second golden document is blocked and names it`() {
+        val first = released("2026.2")
+        corpus.broken[first] = setOf("GOLD-3")
+        val refusal = Refusal.parse(candidate("2026.3", setOf("GOLD-3", "GOLD-4"), exposureReducing = true)!!)
+        refusal.code shouldBe Refusal.CORPUS_FAILED
+        refusal.detail.contains("introduced=[GOLD-4]") shouldBe true
+        store.getValue(ref).status shouldBe PackStatus.DRAFT
+    }
+
+    @Test
+    fun `INV-AC-2674 the same inherited failure blocks a pack that is not classified as exposure-reducing`() {
+        val first = released("2026.2")
+        corpus.broken[first] = setOf("GOLD-3")
+        Refusal.parse(candidate("2026.3", setOf("GOLD-3"), exposureReducing = false)!!).code shouldBe
+            Refusal.CORPUS_FAILED
+    }
+
+    @Test
+    fun `an exposure-reducing pack whose predecessor passed the golden document it breaks is blocked`() {
+        released("2026.2")
+        Refusal.parse(candidate("2026.3", setOf("GOLD-2"), exposureReducing = true)!!).code shouldBe
+            Refusal.CORPUS_FAILED
+    }
+
+    @Test
+    fun `a corpus missing a section or empty refuses every signature`() {
+        authorAs("alice")
+        corpus.documents = FakeCorpus.standard().drop(1)
+        Refusal.parse(signAs("bob")!!).code shouldBe Refusal.CORPUS_UNAVAILABLE
+        corpus.documents = emptyList()
+        Refusal.parse(signAs("bob")!!).code shouldBe Refusal.CORPUS_UNAVAILABLE
+        store.getValue(ref).status shouldBe PackStatus.DRAFT
+    }
+
+    @Test
+    fun `publishPack adds the staging run to the release record that holds the corpus run`() {
+        candidate("2026.3", emptySet(), exposureReducing = false) shouldBe null
+        passed()
+        publishAs("bob") shouldBe null
+        records.store
+            .getValue(ref)
+            .runs
+            .map { it.gate } shouldBe listOf(Gate.CORPUS, Gate.STAGING)
     }
 }
 

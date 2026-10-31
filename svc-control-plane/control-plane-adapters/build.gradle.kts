@@ -75,6 +75,8 @@ dependencies {
     testImplementation(libs.platform.outboxAndQueue)
     testImplementation(libs.platform.auditLog)
     testImplementation(libs.snakeyaml)
+    // StageIT starts the certification-kit Access Point simulator image
+    testImplementation(libs.testcontainers.core)
     testImplementation(testFixtures(project))
 
     // Signing fixtures: a P-256 key, a self-signed certificate, a PKCS12 key store and a stub PKCS#11 provider.

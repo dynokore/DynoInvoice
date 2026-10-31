@@ -4,6 +4,8 @@ import com.dynokore.gst.controlPlane.adapters.persistence.PackRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.PlanRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.QualificationRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.StagingEvidenceReaderJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.SupportWindowRepositoryJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.Controlplane
 import com.dynokore.gst.controlPlane.application.commercial.ManagePlan
 import com.dynokore.gst.controlPlane.application.commercial.PlanRepository
@@ -15,11 +17,26 @@ import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.PackRepository
 import com.dynokore.gst.controlPlane.application.pack.PackSigningKeys
 import com.dynokore.gst.controlPlane.application.pack.SignPack
+import com.dynokore.gst.controlPlane.application.pack.StagingEvidenceReader
+import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
+import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
+import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
+import com.dynokore.gst.controlPlane.application.release.PublishTrain
+import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
+import com.dynokore.gst.controlPlane.application.release.SupportWindowRepository
+import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
+import com.dynokore.gst.controlPlane.application.release.TrainRepository
 import org.jooq.DSLContext
 import org.jooq.Schema
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
+
+/** What signPack reads and writes for the corpus gate: the golden corpus and the release records. */
+class CorpusGate(
+    val corpus: ConformanceCorpus,
+    val records: PackReleaseRecords,
+)
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03). */
 @Configuration(proxyBeanMethods = false)
@@ -38,7 +55,7 @@ class UseCases {
     ): PackRepository = PackRepositoryJooq(dsl, clock)
 
     @Bean
-    fun stagingEvidenceReader(dsl: DSLContext) = StagingEvidenceReaderJooq(dsl)
+    fun stagingEvidenceReader(dsl: DSLContext): StagingEvidenceReader = StagingEvidenceReaderJooq(dsl)
 
     @Bean
     fun authorRegulatoryPack(
@@ -51,8 +68,9 @@ class UseCases {
         packs: PackRepository,
         roles: OperatorRoles,
         keys: PackSigningKeys,
+        gate: CorpusGate,
         clock: Clock,
-    ) = SignPack(packs, roles, keys, clock)
+    ) = SignPack(packs, roles, keys, gate.corpus, gate.records, clock)
 
     @Bean
     fun getPack(packs: PackRepository) = GetPack(packs)

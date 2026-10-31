@@ -1,5 +1,8 @@
 package com.dynokore.gst.controlPlane.application.pack
 
+import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
+import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
+import com.dynokore.gst.controlPlane.application.release.describe
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.pack.MinEngineVersion
 import com.dynokore.gst.controlPlane.domain.pack.PackContents
@@ -11,6 +14,13 @@ import com.dynokore.gst.controlPlane.domain.pack.PublicationGate
 import com.dynokore.gst.controlPlane.domain.pack.PublicationRefusal
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.pack.SignOutcome
+import com.dynokore.gst.controlPlane.domain.release.ConformanceRun
+import com.dynokore.gst.controlPlane.domain.release.Gate
+import com.dynokore.gst.controlPlane.domain.release.GateOutcome
+import com.dynokore.gst.controlPlane.domain.release.GateRun
+import com.dynokore.gst.controlPlane.domain.release.GateVerdict
+import com.dynokore.gst.controlPlane.domain.release.ReleaseGates
+import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -118,12 +128,17 @@ data class SignPackCommand(
 
 /**
  * signPack (SCR-36.3): a regulatory.approver who is not an author of the version signs it. The separation is
- * non-waivable (INV-REQ-2590): a person holding both roles signs only a version they did not edit.
+ * non-waivable (INV-REQ-2590): a person holding both roles signs only a version they did not edit. The full rule
+ * conformance corpus runs first (INV-REQ-2660): a pack that breaks a golden document is rejected, and a rule-correction
+ * pack is rejected only for a golden document its released predecessor passes (INV-AC-2674). The corpus and the
+ * classification are recorded with the release (INV-REQ-2657).
  */
 class SignPack(
     private val packs: PackRepository,
     private val roles: OperatorRoles,
     private val keys: PackSigningKeys,
+    private val corpus: ConformanceCorpus,
+    private val records: PackReleaseRecords,
     private val clock: Clock,
 ) : DeclaredOperation<SignPackCommand, RegulatoryPack?, RegulatoryPack> {
     override val operationId = "signPack"
@@ -174,9 +189,40 @@ class SignPack(
             }
 
             else -> {
-                null
+                corpusRefusal(command, state)
             }
         }
+
+    /** The corpus gate: no complete corpus, no signature (fail closed); a blocking golden document, no signature. */
+    private fun corpusRefusal(
+        command: SignPackCommand,
+        pack: RegulatoryPack,
+    ): String? {
+        val verdict = corpusVerdict(pack, command.exposureReducing)
+        return when {
+            verdict == null -> Refusal(Refusal.CORPUS_UNAVAILABLE, command.ref.value).encode()
+            !verdict.releasable -> Refusal(Refusal.CORPUS_FAILED, "${command.ref.value} ${verdict.describe()}").encode()
+            else -> null
+        }
+    }
+
+    private fun corpusVerdict(
+        pack: RegulatoryPack,
+        exposureReducing: Boolean,
+    ): GateVerdict? {
+        val documents = corpus.documents()
+        val candidate = ConformanceRun.run(documents) { corpus.classify(pack, it) }
+        if (!candidate.complete) return null
+        val released =
+            packs.latestPublished(pack.type)?.let(packs::find)?.let { predecessor ->
+                ConformanceRun.run(documents) { corpus.classify(predecessor, it) }
+            }
+        return ReleaseGates.evaluate(
+            setOf(Gate.CORPUS),
+            listOf(ConformanceRun.gateRun(candidate, released)),
+            exposureReducing,
+        )
+    }
 
     override fun perform(
         command: SignPackCommand,
@@ -193,6 +239,12 @@ class SignPack(
         val signed =
             (outcome as? SignOutcome.Signed)?.pack ?: error("signPack performed on a version the preconditions refuse")
         packs.save(signed)
+        val verdict =
+            checkNotNull(corpusVerdict(state, command.exposureReducing)) { "signPack performed without a corpus" }
+        records.save(
+            signed.ref,
+            ReleaseRecord(verdict.runs, command.exposureReducing, command.actor, clock.instant()),
+        )
         return signed
     }
 
@@ -214,12 +266,14 @@ data class PublishPackCommand(
  * version that supersedes this one. The staging gate (coordinator ruling INV-Q-4878) runs here, fails closed and has
  * no waiver: no staging record with result PASSED over the hash of the content computed now, no publication.
  */
+@Suppress("LongParameterList") // each parameter is one port of the publication, composed in bootstrap (TPL-18)
 class PublishPack(
     private val packs: PackRepository,
     private val roles: OperatorRoles,
     private val staging: StagingEvidenceReader,
     private val hasher: PackContentHasher,
     private val releaser: PackReleaser,
+    private val records: PackReleaseRecords,
     private val clock: Clock,
 ) : DeclaredOperation<PublishPackCommand, RegulatoryPack?, RegulatoryPack> {
     override val operationId = "publishPack"
@@ -263,6 +317,11 @@ class PublishPack(
         // the hash the gate accepted, over the same content, as at the moment of the check (INV-Q-4878)
         releaser.release(published, hasher.hash(published))
         packs.save(published)
+        // the staging gate passed, or the version would not be here (INV-Q-4878): it joins the corpus run on the record
+        records.find(published.ref)?.let { record ->
+            val staged = GateRun(Gate.STAGING, GateOutcome.PASSED)
+            records.save(published.ref, record.copy(runs = record.runs.filter { it.gate != Gate.STAGING } + staged))
+        }
         return published
     }
 

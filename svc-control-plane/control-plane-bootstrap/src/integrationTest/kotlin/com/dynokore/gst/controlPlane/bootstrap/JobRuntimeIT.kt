@@ -55,6 +55,7 @@ class JobRuntimeIT {
             "spring.flyway.enabled=false",
         ).run { context: AssertableApplicationContext ->
             context.startupFailure shouldBe null
+
             block(context.getBean(JobRuntime::class.java))
         }
     }
@@ -119,6 +120,33 @@ class JobRuntimeIT {
             runtime.announce()
             runtime.fire("wiring-probe-failing")
             runStatuses("wiring-probe-failing") shouldContainExactly listOf("FAILED")
+        }
+    }
+
+    @Test
+    fun `INV-AC-2663 the runtime holds exactly the jobs idempotency-key-purge and pack-stage, pack-stage as ruled`(
+        @TempDir mount: Path,
+    ) {
+        withRuntime(mount) { runtime ->
+            runtime.registered().map { it.name }.sorted() shouldContainExactly
+                listOf("idempotency-key-purge", "pack-stage")
+            val stage = runtime.registered().single { it.name == PackStageJob.NAME }
+            stage.ownerService shouldBe "control-plane-svc"
+            stage.entityScope shouldBe JobEntityScope.PLATFORM
+            stage.criticality shouldBe JobCriticality.STANDARD
+            stage.schedule shouldBe JobSchedule("0 */10 * * * *")
+        }
+    }
+
+    @Test
+    fun `firing pack-stage stores one SUCCEEDED run and one JobRunRecorded outbox row`(
+        @TempDir mount: Path,
+    ) {
+        withRuntime(mount) { runtime ->
+            runtime.announce()
+            runtime.fire(PackStageJob.NAME)
+            runStatuses(PackStageJob.NAME) shouldContainExactly listOf("SUCCEEDED")
+            outboxTypes(PackStageJob.NAME).count { it == PlatformEventCatalogue.JOB_RUN_RECORDED.eventType } shouldBe 1
         }
     }
 }

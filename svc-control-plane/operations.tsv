@@ -3,8 +3,8 @@ operation	authorRegulatoryPack	INV-T-4984	done
 operation	signPack	INV-T-4984	done
 operation	publishPack	INV-T-4984	done
 operation	getPack	INV-T-4984	done
-operation	publishTrain	INV-T-4985	pending
-operation	setSupportWindow	INV-T-4985	pending
+operation	publishTrain	INV-T-4985	done
+operation	setSupportWindow	INV-T-4985	done
 operation	managePlan	INV-T-4986	done
 operation	issueLicence	INV-T-4986	done
 operation	recordQualification	INV-T-4986	done

@@ -4,7 +4,15 @@ import com.dynokore.gst.controlPlane.adapters.bundle.PackBundles
 import com.dynokore.gst.controlPlane.adapters.feed.PackFeedIndex
 import com.dynokore.gst.controlPlane.adapters.feed.PackFeedReader
 import com.dynokore.gst.controlPlane.adapters.feed.PackReleaserJooq
-import com.dynokore.gst.controlPlane.adapters.persistence.StagingEvidenceReaderJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.PackReleaseRecordsJooq
+import com.dynokore.gst.controlPlane.adapters.stage.PackPipeline
+import com.dynokore.gst.controlPlane.adapters.stage.PackStage
+import com.dynokore.gst.controlPlane.adapters.stage.PackStageRun
+import com.dynokore.gst.controlPlane.adapters.stage.SandboxSubmitter
+import com.dynokore.gst.controlPlane.adapters.stage.SandboxVerdict
+import com.dynokore.gst.controlPlane.adapters.stage.StageCandidates
+import com.dynokore.gst.controlPlane.adapters.stage.StagedSubmission
+import com.dynokore.gst.controlPlane.adapters.stage.UnboundPackPipeline
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.PackContentHasher
 import com.dynokore.gst.controlPlane.application.pack.PackReleaser
@@ -12,10 +20,15 @@ import com.dynokore.gst.controlPlane.application.pack.PackRepository
 import com.dynokore.gst.controlPlane.application.pack.PackSigningKeys
 import com.dynokore.gst.controlPlane.application.pack.PublishPack
 import com.dynokore.gst.controlPlane.application.pack.StagingEvidenceReader
+import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
 import com.dynokore.platform.crypto.DetachedSigner
+import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import org.jooq.DSLContext
+import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 import java.time.Clock
 
 /** What publishPack reads and writes besides the pack repository: the gate's evidence, hash and the release. */
@@ -55,7 +68,7 @@ class ReleaseConfiguration {
 
     @Bean
     fun publishPorts(
-        staging: StagingEvidenceReaderJooq,
+        staging: StagingEvidenceReader,
         bundles: PackBundles,
         releaser: PackReleaser,
     ) = PublishPorts(staging, bundles.hasher(), releaser)
@@ -65,6 +78,10 @@ class ReleaseConfiguration {
         packs: PackRepository,
         roles: OperatorRoles,
         ports: PublishPorts,
+        records: PackReleaseRecords,
         clock: Clock,
-    ) = PublishPack(packs, roles, ports.staging, ports.hasher, ports.releaser, clock)
+    ) = PublishPack(packs, roles, ports.staging, ports.hasher, ports.releaser, records, clock)
+
+    @Bean
+    fun packReleaseRecords(dsl: DSLContext): PackReleaseRecords = PackReleaseRecordsJooq(dsl)
 }
