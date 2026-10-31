@@ -1,0 +1,11 @@
+directory	operationId	floor
+submission	drainPeriod	IRREVERSIBLE
+submission	replaySubmissions	IRREVERSIBLE
+submission	replaySubmissionsByScope	IRREVERSIBLE
+tenancy	goLive	IRREVERSIBLE
+tenancy	offboardTenant	IRREVERSIBLE
+access	withdrawConsent	IRREVERSIBLE
+evidence	deleteAtRetentionEnd	IRREVERSIBLE
+masterdata	configureIdentityTriple	COMPENSABLE
+notification	setAlertPolicy	COMPENSABLE
+evidence	placeLegalHold	COMPENSABLE

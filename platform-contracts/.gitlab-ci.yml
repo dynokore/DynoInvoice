@@ -242,6 +242,7 @@ invoice-docs-checks:
     - gst_check sync-edge-allowlist-check python3 spectral/check-sync-edges.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
     - gst_check entity-ref-check python3 spectral/check-entity-ref.py .
     - gst_check degraded-allow-check python3 spectral/check-degraded-allow.py .
+    - gst_check reversibility-floor-check python3 spectral/check-reversibility-floor.py .
     - gst_check break-glass-actions-check python3 spectral/check-break-glass-actions.py .
     - gst_check principal-also-check python3 spectral/check-principal-also.py .
     - gst_check caller-auth-inv-ac-8259 python3 spectral/check-x-caller-auth.py .
@@ -298,6 +299,7 @@ tool-self-tests:
     - gst_check self-test-sync-edges sh spectral/self-test-sync-edges.sh
     - gst_check self-test-entity-ref sh spectral/self-test-entity-ref.sh
     - gst_check self-test-degraded-allow sh spectral/self-test-degraded-allow.sh
+    - gst_check self-test-reversibility-floor sh spectral/self-test-reversibility-floor.sh
     - gst_check self-test-break-glass-actions sh spectral/self-test-break-glass-actions.sh
     - gst_check self-test-principal-also sh spectral/self-test-principal-also.sh
     - gst_check self-test-schema-samples sh spectral/self-test-schema-samples.sh
