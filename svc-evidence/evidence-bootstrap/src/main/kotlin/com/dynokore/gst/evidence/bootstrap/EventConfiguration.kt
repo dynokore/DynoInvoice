@@ -15,7 +15,10 @@ import org.springframework.context.annotation.Configuration
 class EventConfiguration {
     @Bean
     fun eventCatalogue(): EventCatalogue =
-        EventCatalogue(EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries)
+        EventCatalogue(
+            EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries +
+                EvidenceEvents.platformEntries,
+        )
 }
 
 object EvidenceEvents {
@@ -69,6 +72,22 @@ object EvidenceEvents {
                 "com.dynokore.gst.reconciliation.GstReturnRecorded.v1",
                 ReturnConsumerConfiguration.GST_RETURN_RECORDED_TOPIC,
                 setOf("reconciliation-svc"),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+        )
+
+    /**
+     * `PolicyChanged` (platform-contracts `event-log/topics.yaml`): every service produces it, none subscribes. The
+     * `setPolicy` of service-runtime emits it on a stored change, so the emission guard needs the entry.
+     */
+    val platformEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                "com.dynokore.gst.platform.PolicyChanged.v1",
+                "gst.platform.policy-changed.v1",
+                setOf(CatalogueEntry.EVERY_SERVICE),
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,

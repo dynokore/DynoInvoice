@@ -442,10 +442,10 @@ class PeriodDigestConsumerTest {
 
     @ParameterizedTest(name = "{displayName} [{0}]")
     @EnumSource(EvidenceDb.Version::class)
-    fun `with no MaxRetention bean the consumer retries, stores no digest and puts no object`(
+    fun `with a MaxRetention bean that fails the consumer retries, stores no digest and puts no object`(
         version: EvidenceDb.Version,
         @TempDir dir: Path,
-    ) = run(dir, version, seams = Seams(objectStore = Objects())) { tenant ->
+    ) = run(dir, version, seams = Seams(Objects(), MaxRetention { error("no figure") })) { tenant ->
         chains(tenant)
         pollFails(tenant)
         digests(tenant).size shouldBe 0

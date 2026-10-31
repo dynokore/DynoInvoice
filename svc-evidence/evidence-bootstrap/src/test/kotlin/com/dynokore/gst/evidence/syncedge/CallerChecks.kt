@@ -60,8 +60,7 @@ class CallerChecks(
         return (callers + unmapped).mapNotNull { (what, headers) ->
             val answer = send(operation, headers)
             "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}".takeIf {
-                answer.statusCode() !=
-                    501
+                answer.statusCode() != if (operation.label in IMPLEMENTED) OK else NOT_IMPLEMENTED
             }
         }
     }
@@ -134,6 +133,11 @@ class CallerChecks(
 
     companion object {
         const val EXCEPT = "any-except:"
+
+        /** The operations a task has built (operations.tsv): they answer 200 to a caller they allow, the others 501. */
+        private val IMPLEMENTED = setOf("GET /internal/v1/evidence/retention/maximum")
+        private const val OK = 200
+        private const val NOT_IMPLEMENTED = 501
         const val TOKEN = "X-Workload-Token"
         const val AUTH = "Authorization"
         const val END_USER = "Bearer end-user"

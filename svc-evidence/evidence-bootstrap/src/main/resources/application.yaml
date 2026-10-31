@@ -19,6 +19,13 @@ service-runtime:
   event-log-pool.minimum-idle: 1
   modules.schema: evidence
   idempotency.schema: evidence
+inv:
+  tenancy:
+    # jOOQ generates a table-valued function as a table class: config-resolver's sys-owned functions (V4) have no
+    # tenant column, and the tenant predicate refuses an undeclared table without one (INV-ADR-3968 item 4a).
+    platform-scoped-tables:
+      - evidence.config_purge_tenant
+      - evidence.write_installation_setting
 management:
   server.port: 8081 # API-33: health, metrics and diagnostics only on the management port, no token
   endpoints.web:

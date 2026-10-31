@@ -51,8 +51,16 @@ class OperationsGateTest {
     }
 
     @Test
-    fun `every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi)
+    fun `every operation of the real contract is a stub until the task assigned to it overrides it`() {
+        val assigned =
+            tsv
+                .lines()
+                .map { it.split('\t') }
+                .filter { it.size == 3 && it[0] == "operation" && it[2] != "UNASSIGNED" }
+                .map { it[1] }
+                .toSet()
+        assigned shouldContain "getMaxEvidenceRetention"
+        stubs shouldBe OperationsGate.contractOperations(openapi) - assigned
     }
 
     @Test

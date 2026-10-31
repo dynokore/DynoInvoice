@@ -46,7 +46,7 @@ class SeparableStoreTest {
         }
 
     /** The columns the generator constrains to a closed set of texts (check constraints of the consumer side). */
-    private val constrained: Map<String, Any> =
+    private val consumerConstrained: Map<String, Any> =
         mapOf(
             "event_dead_letter.status" to "OPEN",
             "consumer_replay.mode" to "SCOPE",
@@ -63,6 +63,8 @@ class SeparableStoreTest {
             "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows
         )
 
+    private val constrained: Map<String, Any> = consumerConstrained + configConstrained()
+
     /** Columns left unset: a SECURITY case has no subject and no privacy facts (the shape check of `case_register`). */
     private val unset =
         setOf(
@@ -77,6 +79,23 @@ class SeparableStoreTest {
             "case_register.closure_basis",
             "case_register.notice_prompted_at",
         )
+
+    /**
+     * The closed sets of config-resolver's tables (INV-T-6540): a vp_key, a scope level
+     * with an entity, a source PROFILE (every column is written, so the profile pair is set), a lower-case subject
+     * type, and an array of caps.
+     */
+    private fun configConstrained(): Map<String, Any> {
+        val tables = listOf("config_setting", "config_installation_setting", "config_resolved_value")
+        return (tables + "config_relaxation_acknowledgement").associate { "$it.vp_key" to "VP-43" } +
+            listOf("config_setting", "config_relaxation_acknowledgement").associate { "$it.scope_level" to "ENTITY" } +
+            listOf("config_setting", "config_resolved_value").associate { "$it.source" to "PROFILE" } +
+            mapOf(
+                "config_resolved_value.subject_type" to "submission",
+                "config_resolved_value.source_level" to "ENTITY",
+                "config_resolved_value.capped_by" to org.jooq.JSONB.valueOf("""[{"by": "VP-43"}]"""),
+            )
+    }
 
     private val byType: Map<Class<*>, (TableField<*, *>) -> Any> =
         mapOf(
