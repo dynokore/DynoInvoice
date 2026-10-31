@@ -64,4 +64,17 @@ val acKeyCoverage =
         outputs.upToDateWhen { false }
     }
 
-tasks.named("check") { dependsOn(operationsGate, acKeyCoverage) }
+val bundlePinGate =
+    tasks.register<JavaExec>("bundlePinGate") {
+        group = "verification"
+        description =
+            "INV-T-12889: the platformContractsBundle pin of gradle/libs.versions.toml equals the reviewed record bundle-pin.txt."
+        classpath = sourceSets["main"].runtimeClasspath
+        mainClass.set("com.dynokore.gst.controlPlane.acceptance.gates.GateMain")
+        args("bundle-pin", "--root=${repoRoot.asFile}")
+        inputs.files(repoRoot.file("gradle/libs.versions.toml")).optional()
+        inputs.files(repoRoot.file("bundle-pin.txt")).optional()
+        outputs.upToDateWhen { false }
+    }
+
+tasks.named("check") { dependsOn(operationsGate, acKeyCoverage, bundlePinGate) }

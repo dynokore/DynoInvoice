@@ -3,7 +3,7 @@ package com.dynokore.gst.controlPlane.acceptance.gates
 import java.io.File
 import kotlin.system.exitProcess
 
-/** Entry point of the two repository gates; run by the Gradle tasks `operationsGate` and `acKeyCoverage`. */
+/** Entry point of the repository gates; run by the Gradle tasks `operationsGate`, `acKeyCoverage` and `bundlePinGate`. */
 object GateMain {
     @JvmStatic
     fun main(args: Array<String>) {
@@ -43,6 +43,14 @@ object GateMain {
                     AcKeyGate.check(table, AcKeyGate.testNames(modules))
                 }
 
+                "bundle-pin" -> {
+                    val root = dir("--root")
+                    BundlePinGate.check(
+                        File(root, "gradle/libs.versions.toml").takeIf { it.isFile }?.readText(),
+                        File(root, BundlePinGate.NAME).takeIf { it.isFile }?.readText(),
+                    )
+                }
+
                 else -> {
                     usage()
                 }
@@ -55,6 +63,7 @@ object GateMain {
     private fun usage(): Nothing {
         System.err.println("usage: GateMain operations --contract=DIR --table=DIR --adapters=DIR")
         System.err.println("       GateMain ac-keys --root=DIR")
+        System.err.println("       GateMain bundle-pin --root=DIR")
         exitProcess(2)
     }
 }
