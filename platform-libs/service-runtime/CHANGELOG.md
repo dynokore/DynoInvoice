@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.28.0] - 2026-10-31
+### Added
+- `StructureReplica.isSynced()`: true exactly after `onSnapshotComplete`, false after `onDisconnected`; what the replica serves is unchanged (INV-T-9094, INV-Q-9081 A; INV-AC-9089).
+- `ReplicaColdStartSync.syncStructure()`: with `serviceruntime.replica.structure.require-snapshot` true (default `false`) and an unsynced structure replica, it requests one FULL_SYNC addressed to `tenancy-svc` (one per producer, started with the first topic of `serviceruntime.replica.structure.snapshot-topics`, moving every listed topic; INV-Q-13786 A) through the same start function as the authority request (actor `system:replica-cold-start`, own/foreign/repeat rules for the pair). The list is accepted only when the catalogue lists every topic with `tenancy-svc` among its producers (equality; INV-Q-13691 A); otherwise nothing is written. `ReplicaColdStartWiring` binds both settings and fails the start, naming the setting, when the replica bean is missing, the list is empty, or a topic is not catalogued for `tenancy-svc` or not subscribed. With the setting false nothing is written.
+
 ## [10.27.1] - 2026-10-31
 ### Changed
 - Metadata-only change (INV-T-12640, G-DVS): depends on `outbox-and-queue 6.10.0`, whose version steps; no code change.

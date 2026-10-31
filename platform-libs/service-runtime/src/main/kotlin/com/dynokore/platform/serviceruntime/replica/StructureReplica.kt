@@ -123,6 +123,9 @@ class StructureReplica(
     clock: Clock,
     fallback: ReplicaFallback<StructureKey, StructureNode>? = null,
 ) : ReplicaFeedSink<StructureEvent> {
+    @Volatile
+    private var synced = false
+
     val replica =
         EventFedReplica<StructureKey, StructureNode>(
             "structure",
@@ -145,9 +148,21 @@ class StructureReplica(
 
     override fun observeHead(version: Long) = replica.tracker.observeHead(version)
 
-    override fun onSnapshotComplete(version: Long) = replica.tracker.onSnapshotComplete(version)
+    override fun onSnapshotComplete(version: Long) {
+        replica.tracker.onSnapshotComplete(version)
+        synced = true
+    }
 
-    override fun onDisconnected() = replica.tracker.onDisconnected()
+    override fun onDisconnected() {
+        replica.tracker.onDisconnected()
+        synced = false
+    }
+
+    /**
+     * True exactly after [onSnapshotComplete] was called and false after [onDisconnected]. It changes nothing in what
+     * the replica serves: with no lag bound it keeps answering from what it holds either way (INV-AC-9089 reads it).
+     */
+    fun isSynced(): Boolean = synced
 
     fun lag(): Lag = replica.lag()
 }

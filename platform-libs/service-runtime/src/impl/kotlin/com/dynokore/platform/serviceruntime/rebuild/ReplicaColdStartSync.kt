@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.Lag
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.ApplicationListener
@@ -33,16 +34,43 @@ import java.util.concurrent.TimeUnit
  * background pool lane, and logs and survives every exception so that the next run still happens; it stops with the
  * context ([SmartLifecycle], the shape of `StalenessCheckSchedule`). A run with nothing due returns `null` after one
  * in-memory check; a run while a foreign replay is still pending writes nothing (repeat answer).
+ *
+ * The structure replica (INV-REQ-1199, INV-AC-9089): when [requireStructureSnapshot] (setting [REQUIRE_SNAPSHOT_SETTING],
+ * default `false`) is true and [structure] is not [StructureReplica.isSynced], [syncStructure] requests one FULL_SYNC for
+ * the pair (access-svc, `tenancy-svc`) addressed to `tenancy-svc` through the same start function (INV-Q-13786 A: one
+ * per producer, not one per topic; it starts with the first of [structureTopics] and, as every FULL_SYNC, moves every
+ * topic of `tenancy-svc` the service reads), with the same ownership, foreign-replay and repeat rules, tracked apart
+ * from the authority request. With the setting false nothing is written for it, and
+ * a request is never addressed to any producer but [TENANCY].
  */
 class ReplicaColdStartSync(
     private val runtime: ConsumerRebuildRuntime,
     private val replica: AuthorityReplica,
     private val recheckInterval: Duration = DEFAULT_RECHECK_INTERVAL,
+    private val structure: StructureReplica? = null,
+    private val structureTopics: List<String> = emptyList(),
+    private val requireStructureSnapshot: Boolean = false,
 ) : ApplicationListener<ApplicationReadyEvent>,
     SmartLifecycle {
     private val lock = Any()
-    private val own = mutableSetOf<UUID>()
-    private val foreign = mutableSetOf<UUID>()
+    private val authorityReplays = Replays()
+    private val structureReplays = Replays()
+
+    private class Replays {
+        val own = mutableSetOf<UUID>()
+        val foreign = mutableSetOf<UUID>()
+
+        fun record(outcome: RebuildOutcome) {
+            if (outcome !is RebuildOutcome.Done) return
+            val replayId = outcome.state.replayId
+            when {
+                outcome.created -> own += replayId
+                replayId !in own -> foreign += replayId
+            }
+        }
+
+        fun waitingOnOwn() = foreign.isNotEmpty() && own.isEmpty()
+    }
 
     @Volatile
     private var scheduler: ScheduledExecutorService? = null
@@ -87,6 +115,11 @@ class ReplicaColdStartSync(
         } catch (expected: Exception) {
             log.warn("replica cold-start sync failed; the next run tries again", expected)
         }
+        try {
+            syncStructure()
+        } catch (expected: Exception) {
+            log.warn("structure replica cold-start sync failed; the next run tries again", expected)
+        }
     }
 
     /**
@@ -96,31 +129,56 @@ class ReplicaColdStartSync(
      */
     fun sync(): RebuildOutcome? =
         synchronized(lock) {
-            if (!due()) return null
-            val id = UUID.randomUUID().toString()
-            val outcome =
-                runtime.requestColdStartFullSync(
-                    TOPIC,
-                    CorrelationId("replica-cold-start-$id"),
-                    CausationId("replica-cold-start"),
-                )
-            if (outcome is RebuildOutcome.Done) {
-                val replayId = outcome.state.replayId
-                when {
-                    outcome.created -> own += replayId
-                    replayId !in own -> foreign += replayId
-                }
-            }
-            outcome
+            if (!(replica.lag() is Lag.Unknown || authorityReplays.waitingOnOwn())) return@synchronized null
+            request(TOPIC, ACCESS, authorityReplays)
         }
 
-    /** True when [replayId] was created by this process (the snapshot built from it may be accepted). */
-    fun isOwnReplay(replayId: UUID): Boolean = synchronized(lock) { replayId in own }
+    /**
+     * Requests the structure replica's full sync from `tenancy-svc`: one FULL_SYNC for the pair (access-svc,
+     * `tenancy-svc`), started with the first of [structureTopics] (INV-Q-13786 A). It is due when the setting is true
+     * and the replica is not synced, or a foreign replay was found and this process owns none. Returns the outcome in
+     * a list; empty when nothing is due. When any listed topic is not in the catalogue, is not subscribed, or lacks
+     * [TENANCY] among its producers, the answer is a refusal and nothing is written.
+     */
+    fun syncStructure(): List<RebuildOutcome> =
+        synchronized(lock) {
+            if (!requireStructureSnapshot || structure == null) return@synchronized emptyList()
+            val topics = structureTopics.distinct()
+            if (topics.isEmpty() || (structure.isSynced() && !structureReplays.waitingOnOwn())) {
+                return@synchronized emptyList()
+            }
+            if (!topics.all { runtime.acceptsColdStartTopic(it, TENANCY) }) {
+                return@synchronized listOf(RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED))
+            }
+            listOf(request(topics.first(), TENANCY, structureReplays))
+        }
 
-    private fun due() = replica.lag() is Lag.Unknown || (foreign.isNotEmpty() && own.isEmpty())
+    private fun request(
+        topic: String,
+        producer: String,
+        replays: Replays,
+    ): RebuildOutcome {
+        val id = UUID.randomUUID().toString()
+        val outcome =
+            runtime.requestColdStartFullSync(
+                topic,
+                CorrelationId("replica-cold-start-$id"),
+                CausationId("replica-cold-start"),
+                producer,
+            )
+        replays.record(outcome)
+        return outcome
+    }
+
+    /** True when [replayId] was created by this process (the snapshot built from it may be accepted). */
+    fun isOwnReplay(replayId: UUID): Boolean =
+        synchronized(lock) { replayId in authorityReplays.own || replayId in structureReplays.own }
 
     companion object {
         const val TOPIC = "gst.platform.authority-changed.v1"
+        const val ACCESS = "access-svc"
+        const val TENANCY = "tenancy-svc"
+        const val REQUIRE_SNAPSHOT_SETTING = "serviceruntime.replica.structure.require-snapshot"
         const val NAME = "replica-cold-start-recheck"
 
         /** An Inference (INV-Q-11159 A): the caller may set another interval. */

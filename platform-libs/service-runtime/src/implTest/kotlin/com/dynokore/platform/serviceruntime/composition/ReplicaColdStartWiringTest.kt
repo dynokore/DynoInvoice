@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.auditlog.AuditWriter
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventLogHead
@@ -11,8 +12,11 @@ import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.rebuild.ConsumerRebuildAuthorizer
 import com.dynokore.platform.serviceruntime.rebuild.ConsumerRebuildRuntime
+import com.dynokore.platform.serviceruntime.rebuild.RebuildErrorCode
+import com.dynokore.platform.serviceruntime.rebuild.RebuildOutcome
 import com.dynokore.platform.serviceruntime.rebuild.ReplicaColdStartSync
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlErrors
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -22,7 +26,9 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -192,5 +198,128 @@ class ReplicaColdStartWiringTest {
                 authorizer.isPlatformOperator(it) shouldBe false
             }
         }
+    }
+
+    private val orgTopic = "gst.tenancy.organisation-structure-changed.v1"
+    private val profileTopic = "gst.tenancy.entity-profile-changed.v1"
+    private val requireSetting = "serviceruntime.replica.structure.require-snapshot"
+    private val topicsSetting = "serviceruntime.replica.structure.snapshot-topics"
+
+    private fun entry(
+        topic: String,
+        producer: String,
+    ) = CatalogueEntry(
+        "com.dynokore.gst.t.${topic.hashCode()}.v1",
+        topic,
+        setOf(producer),
+        false,
+        retainedWhileResolvable = false,
+    )
+
+    /** The two structure topics in the catalogue (producer tenancy-svc) and subscribed, with a StructureReplica bean. */
+    private fun structureBase(
+        catalogue: List<CatalogueEntry> = listOf(entry(orgTopic, "tenancy-svc"), entry(profileTopic, "tenancy-svc")),
+        subscribed: List<String> = listOf(orgTopic, profileTopic),
+        withReplica: Boolean = true,
+    ) = runner()
+        .withBean(Clock::class.java, { Clock.systemUTC() })
+        .withBean(EventCatalogue::class.java, { EventCatalogue(catalogue) })
+        .withBean(TenantScope::class.java, { scope })
+        .withBean(OutboxWriter::class.java, { mockk<OutboxWriter>() })
+        .withBean(AuditWriter::class.java, { mockk<AuditWriter>() })
+        .withBean(EventLogHead::class.java, { mockk<EventLogHead>() })
+        .withBean(AuthorityReplica::class.java, { AuthorityReplica(Clock.systemUTC()) })
+        .let { r ->
+            if (withReplica) r.withBean(StructureReplica::class.java, { StructureReplica(Clock.systemUTC()) }) else r
+        }.let { r ->
+            subscribed.fold(r) { acc, t ->
+                acc.withBean("sub-$t", ConsumerSubscription::class.java, {
+                    ConsumerSubscription("svc", t, "svc")
+                })
+            }
+        }
+
+    @Test
+    fun `the structure snapshot setting absent or false never fails the start, even with no replica or topics`() {
+        structureBase(withReplica = false).run {
+            it.startupFailure shouldBe null
+            it.count(ReplicaColdStartSync::class.java) shouldBe
+                1
+        }
+        structureBase(withReplica = false)
+            .withPropertyValues("$requireSetting=false", "$topicsSetting=nonsense")
+            .run {
+                it.startupFailure shouldBe null
+                it.count(ReplicaColdStartSync::class.java) shouldBe 1
+            }
+    }
+
+    @Test
+    fun `the structure snapshot setting true with two catalogued and subscribed topics starts`() {
+        structureBase()
+            .withPropertyValues("$requireSetting=true", "$topicsSetting=$orgTopic,$profileTopic")
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.count(ReplicaColdStartSync::class.java) shouldBe 1
+            }
+    }
+
+    @Test
+    fun `the wired sync with both structure topics requests exactly one FULL_SYNC from tenancy-svc`() {
+        val runtime = mockk<ConsumerRebuildRuntime>()
+        every { runtime.acceptsColdStartTopic(any(), any()) } returns true
+        every { runtime.requestColdStartFullSync(any(), any(), any(), any()) } returns
+            RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
+        structureBase()
+            .withBean("ownRuntime", ConsumerRebuildRuntime::class.java, { runtime })
+            .withPropertyValues("$requireSetting=true", "$topicsSetting=$orgTopic,$profileTopic")
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.getBean(ReplicaColdStartSync::class.java).syncStructure()
+                // INV-Q-13786 A: one FULL_SYNC per (consumer, producer) covers both topics
+                verify(exactly = 1) { runtime.requestColdStartFullSync(any(), any(), any(), "tenancy-svc") }
+                verify(exactly = 1) { runtime.requestColdStartFullSync(any(), any(), any(), any()) }
+            }
+    }
+
+    @Test
+    fun `the structure snapshot setting true fails the start naming the setting, no replica bean`() {
+        // the L1 composition always supplies a StructureReplica, so the wiring alone is started here
+        ApplicationContextRunner()
+            .withUserConfiguration(ReplicaColdStartWiring::class.java)
+            .withBean(ConsumerRebuildRuntime::class.java, { mockk<ConsumerRebuildRuntime>() })
+            .withBean(AuthorityReplica::class.java, { AuthorityReplica(Clock.systemUTC()) })
+            .withBean(EventCatalogue::class.java, { EventCatalogue(listOf(entry(orgTopic, "tenancy-svc"))) })
+            .withBean("sub", ConsumerSubscription::class.java, { ConsumerSubscription("svc", orgTopic, "svc") })
+            .withPropertyValues("$requireSetting=true", "$topicsSetting=$orgTopic")
+            .run { it.startupFailure.toString() shouldContain requireSetting }
+    }
+
+    @Test
+    fun `the structure snapshot setting true fails the start naming the setting, empty list`() {
+        structureBase()
+            .withPropertyValues("$requireSetting=true")
+            .run { it.startupFailure.toString() shouldContain topicsSetting }
+    }
+
+    @Test
+    fun `the structure snapshot setting true fails the start naming the setting, topic not catalogued`() {
+        structureBase(catalogue = listOf(entry(orgTopic, "tenancy-svc")))
+            .withPropertyValues("$requireSetting=true", "$topicsSetting=$orgTopic,$profileTopic")
+            .run { it.startupFailure.toString() shouldContain topicsSetting }
+    }
+
+    @Test
+    fun `the structure snapshot setting true fails the start naming the setting, producer is access-svc`() {
+        structureBase(catalogue = listOf(entry(orgTopic, "tenancy-svc"), entry(profileTopic, "access-svc")))
+            .withPropertyValues("$requireSetting=true", "$topicsSetting=$orgTopic,$profileTopic")
+            .run { it.startupFailure.toString() shouldContain topicsSetting }
+    }
+
+    @Test
+    fun `the structure snapshot setting true fails the start naming the setting, topic not subscribed`() {
+        structureBase(subscribed = listOf(orgTopic))
+            .withPropertyValues("$requireSetting=true", "$topicsSetting=$orgTopic,$profileTopic")
+            .run { it.startupFailure.toString() shouldContain topicsSetting }
     }
 }

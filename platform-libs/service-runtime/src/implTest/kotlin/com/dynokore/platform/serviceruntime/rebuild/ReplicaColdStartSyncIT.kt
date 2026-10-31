@@ -19,6 +19,7 @@ import com.dynokore.platform.outboxandqueue.ReplayScope
 import com.dynokore.platform.outboxandqueue.ReplayTopic
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenancyJooq
@@ -263,6 +264,94 @@ class ReplicaColdStartSyncIT {
         }
     }
 
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `an unsynced structure replica with the setting true writes one FULL_SYNC to tenancy-svc for both topics, once`(
+        image: String,
+    ) {
+        Harness(image).use { h ->
+            val measured = AuthorityReplica(Clock.systemUTC()).also { it.tracker.onSnapshotComplete(1) }
+            val sync = h.coldStart(replica = measured, require = true)
+            // INV-Q-13786 A: one FULL_SYNC per (consumer, producer); it moves both topics under one replay id
+            val done = sync.syncStructure().single() as RebuildOutcome.Done
+            assertTrue(done.created && sync.isOwnReplay(done.state.replayId))
+            assertEquals(1, h.requestsTo(TENANCY), "one row for tenancy-svc, not two")
+            assertEquals(0, h.requestsTo(ACCESS), "look-alike: never addressed to access-svc")
+            assertEquals(1, h.data(ReplayProtocol.REPLAY_REQUESTED).size, "no request to any other service")
+            val audits = h.data(OutboxAuditWriter.EVENT_TYPE)
+            assertEquals(1, audits.size)
+            assertEquals("system:replica-cold-start", audits.single().get("actor").asString())
+            assertEquals(done.state.replayId.toString(), audits.single().get("reason").asString())
+            assertEquals(STRUCTURE_TOPICS.toSet(), h.auditedPositionTopics(), "both topics, none missing or extra")
+            assertTrue(sync.syncStructure().all { !(it as RebuildOutcome.Done).created })
+            assertEquals(2L, h.count("outbox"), "a second call while its own replay is pending writes nothing")
+            // probe: a start-up call naming only the second topic while the replay is pending is answered as a repeat
+            val second = h.coldStart(replica = measured, require = true, topics = listOf(PROFILE))
+            val repeat = second.syncStructure().single() as RebuildOutcome.Done
+            assertFalse(repeat.created)
+            assertEquals(done.state.replayId, repeat.state.replayId)
+            assertEquals(1, h.requestsTo(TENANCY))
+            assertEquals(1, h.data(OutboxAuditWriter.EVENT_TYPE).size)
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `a structure replay pending from another process is foreign and requested again after it completes`(
+        image: String,
+    ) {
+        Harness(image).use { h ->
+            val first =
+                h
+                    .coldStart(
+                        require = true,
+                        topics = listOf(STRUCTURE),
+                    ).syncStructure()
+                    .single() as RebuildOutcome.Done
+            val mine = h.coldStart(require = true, topics = listOf(STRUCTURE))
+            val answer = mine.syncStructure().single() as RebuildOutcome.Done
+            assertFalse(answer.created)
+            assertFalse(mine.isOwnReplay(first.state.replayId), "foreign")
+            assertEquals(2L, h.count("outbox"))
+            h.completeAll()
+            val again = mine.syncStructure().single() as RebuildOutcome.Done
+            assertTrue(again.created)
+            assertTrue(mine.isOwnReplay(again.state.replayId))
+            assertEquals(2, h.requestsTo(TENANCY))
+            assertEquals(0, h.requestsTo(ACCESS))
+        }
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `the structure replica writes nothing with the setting false, when synced, or for a refused topic`(
+        image: String,
+    ) {
+        Harness(image).use { h ->
+            assertTrue(h.coldStart(require = false).syncStructure().isEmpty())
+            val synced = StructureReplica(Clock.systemUTC()).also { it.onSnapshotComplete(1) }
+            assertTrue(h.coldStart(structure = synced, require = true).syncStructure().isEmpty())
+            assertEquals(0, h.requestsTo(TENANCY))
+            assertEquals(0L, h.count("outbox"))
+            assertTrue(h.coldStart(require = true, topics = emptyList()).syncStructure().isEmpty(), "empty list")
+            // look-alikes: not in the catalogue, producer access-svc, not subscribed
+            listOf(STRUCTURE_V2, HEAD).forEach { topic ->
+                val out = h.coldStart(require = true, topics = listOf(topic)).syncStructure().single()
+                assertEquals(RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED), out)
+            }
+            assertEquals(
+                RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED),
+                h.coldStart(require = true, structureSubscribed = false).syncStructure().first(),
+            )
+            assertEquals(0L, h.count("outbox"), "refused topics write nothing")
+            assertEquals(0, h.auditedTopics().count { it == STRUCTURE_V2 || it == HEAD })
+            // a disconnect makes it due again
+            synced.onDisconnected()
+            assertEquals(1, h.coldStart(structure = synced, require = true).syncStructure().size)
+            assertEquals(1, h.requestsTo(TENANCY))
+        }
+    }
+
     private class EmptyApplication
 
     private inner class Harness(
@@ -297,11 +386,21 @@ class ReplicaColdStartSyncIT {
         fun runtime(
             subscribed: Boolean = true,
             clears: List<ReadModelClear>? = null,
+            structureSubscribed: Boolean = true,
         ) = ConsumerRebuildRuntime(
             CONSUMER,
             SCHEMA,
             CATALOGUE,
-            if (subscribed) listOf(ConsumerSubscription(CONSUMER, AUTHORITY, SCHEMA)) else emptyList(),
+            (if (subscribed) listOf(ConsumerSubscription(CONSUMER, AUTHORITY, SCHEMA)) else emptyList()) +
+                (
+                    if (structureSubscribed) {
+                        (STRUCTURE_TOPICS + HEAD).map {
+                            ConsumerSubscription(CONSUMER, it, SCHEMA)
+                        }
+                    } else {
+                        emptyList()
+                    }
+                ),
             TenantScope(db.tenants, app.runner, app.runner, OutboxPostgresFixture.WORKLOAD),
             outbox,
             OutboxAuditWriter(outbox),
@@ -316,7 +415,42 @@ class ReplicaColdStartSyncIT {
             subscribed: Boolean = true,
             clears: List<ReadModelClear>? = null,
             interval: Duration = ReplicaColdStartSync.DEFAULT_RECHECK_INTERVAL,
-        ) = ReplicaColdStartSync(runtime(subscribed, clears), replica, interval)
+            structure: StructureReplica = StructureReplica(Clock.systemUTC()),
+            require: Boolean = false,
+            structureSubscribed: Boolean = true,
+            topics: List<String> = STRUCTURE_TOPICS,
+        ) = ReplicaColdStartSync(
+            runtime(subscribed, clears, structureSubscribed),
+            replica,
+            interval,
+            structure,
+            topics,
+            require,
+        )
+
+        /** The topics named by the positions of the audit entry's prior state. */
+        fun auditedPositionTopics(): Set<String> {
+            val raw = data(OutboxAuditWriter.EVENT_TYPE).single().get("priorState")
+            val prior = if (raw.isString) mapper.readTree(raw.asString()) else raw
+            return prior
+                .get("positions")
+                .values()
+                .map { it.get("topic").asString() }
+                .toSet()
+        }
+
+        /** The topics of the audit entries, which carry the topic of each request in their scope. */
+        fun auditedTopics(): List<String> =
+            data(OutboxAuditWriter.EVENT_TYPE).map {
+                val scope = it.get("scope")
+                (if (scope.isString) mapper.readTree(scope.asString()) else scope).get("topic").asString()
+            }
+
+        /** The ReplayRequested rows of mode FULL_SYNC addressed to [producer]. */
+        fun requestsTo(producer: String): Int =
+            data(ReplayProtocol.REPLAY_REQUESTED).count {
+                it.get("mode").asString() == "FULL_SYNC" && it.get("producer").asString() == producer
+            }
 
         fun insert(
             table: String,
@@ -436,6 +570,12 @@ class ReplicaColdStartSyncIT {
         const val CONSUMER = "reconciliation-svc"
         const val ACCESS = "access-svc"
         const val AUTHORITY = ReplicaColdStartSync.TOPIC
+        const val TENANCY = "tenancy-svc"
+        const val STRUCTURE = "gst.tenancy.organisation-structure-changed.v1"
+        const val PROFILE = "gst.tenancy.entity-profile-changed.v1"
+        const val STRUCTURE_V2 = "gst.tenancy.organisation-structure-changed.v2"
+        const val HEAD = "gst.access.authority-head-observed.v1"
+        val STRUCTURE_TOPICS = listOf(STRUCTURE, PROFILE)
         val TENANT = TenantId(UUID.fromString("0a000000-0000-0000-0000-00000000000a"))
 
         val MATCH_VIEW_DDL =
@@ -464,6 +604,27 @@ class ReplicaColdStartSyncIT {
                         retainedWhileResolvable = false,
                     ),
                     CatalogueEntry(
+                        "com.dynokore.gst.tenancy.OrganisationStructureChanged.v1",
+                        STRUCTURE,
+                        setOf(TENANCY),
+                        false,
+                        retainedWhileResolvable = false,
+                    ),
+                    CatalogueEntry(
+                        "com.dynokore.gst.tenancy.EntityProfileChanged.v1",
+                        PROFILE,
+                        setOf(TENANCY),
+                        false,
+                        retainedWhileResolvable = false,
+                    ),
+                    CatalogueEntry(
+                        "com.dynokore.gst.access.AuthorityHeadObserved.v1",
+                        HEAD,
+                        setOf(ACCESS),
+                        false,
+                        retainedWhileResolvable = false,
+                    ),
+                    CatalogueEntry(
                         OutboxAuditWriter.EVENT_TYPE,
                         "gst.platform.audit-entry-recorded.v1",
                         setOf(CatalogueEntry.EVERY_SERVICE),
@@ -473,6 +634,18 @@ class ReplicaColdStartSyncIT {
                 ),
                 listOf(
                     ReplayTopic(
+                        "gst.tenancy.replay-reconciliation.v1",
+                        setOf(
+                            "com.dynokore.gst.tenancy.OrganisationStructureChanged.v1",
+                            "com.dynokore.gst.tenancy.EntityProfileChanged.v1",
+                            ReplayProtocol.REPLAY_COMPLETED,
+                        ),
+                        TENANCY,
+                        CONSUMER,
+                        false,
+                        retainedWhileResolvable = false,
+                    ),
+                    ReplayTopic(
                         "gst.access.replay-reconciliation.v1",
                         setOf("com.dynokore.gst.platform.AuthorityChanged.v1", ReplayProtocol.REPLAY_COMPLETED),
                         ACCESS,
@@ -481,7 +654,7 @@ class ReplicaColdStartSyncIT {
                         retainedWhileResolvable = false,
                     ),
                 ),
-                listOf(ReplayRequestTopic("gst.reconciliation.replay-requested.v1", CONSUMER, setOf(ACCESS))),
+                listOf(ReplayRequestTopic("gst.reconciliation.replay-requested.v1", CONSUMER, setOf(ACCESS, TENANCY))),
             )
     }
 }

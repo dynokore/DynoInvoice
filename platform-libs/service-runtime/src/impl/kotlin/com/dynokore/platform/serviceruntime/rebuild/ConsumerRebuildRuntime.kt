@@ -120,23 +120,33 @@ class ConsumerRebuildRuntime
             }
         }
 
+        /** True when [topic] is subscribed, in the catalogue, and [producer] is among its producers by equality. */
+        internal fun acceptsColdStartTopic(
+            topic: String,
+            producer: String,
+        ): Boolean =
+            subscriptions.any { it.topic == topic } && catalogue.topic(topic)?.let { producer in it.producers } == true
+
         /**
          * The start-up full sync of the authority replica (INV-Q-9047 A): the same start path as [rebuildConsumer]
          * (head move, `ReplayRequested` and `AuditEntryRecorded` in one transaction, the repeat rule), but with no
          * platform-operator check and without the 'rebuild required' state, because a replica starts empty after every
          * restart. The audit entry's actor is [COLD_START_ACTOR] and its reason the replay id. The replica's read
-         * model is in memory, so the clear of its pair ([ACCESS_PRODUCER]) names no table and clears nothing.
+         * model is in memory, so the clear of its pair ([producer], the producer the replica is filled from) names no table and clears nothing.
          * [TOPIC_NOT_CONSUMED] is the only refusal.
          */
         internal fun requestColdStartFullSync(
             topic: String,
             correlation: CorrelationId,
             causation: CausationId,
+            producer: String,
         ): RebuildOutcome {
             val subscription = subscriptions.firstOrNull { it.topic == topic }
             val entry = subscription?.let { catalogue.topic(topic) }
+            // the producer is matched by equality in the entry's producers; 'every service' does not count
             if (subscription == null ||
-                entry == null
+                entry == null ||
+                producer !in entry.producers
             ) {
                 return RebuildOutcome.Refused(RebuildErrorCode.TOPIC_NOT_CONSUMED)
             }
@@ -153,7 +163,7 @@ class ConsumerRebuildRuntime
                 )
             // INV-Q-11157 A: exactly this one clear, never the service's own fullSync.clears (even when they name
             // access-svc): the replica is in memory and empty at start, so no table is cleared.
-            val clears = listOf(ReadModelClear(ACCESS_PRODUCER, emptyList()))
+            val clears = listOf(ReadModelClear(producer, emptyList()))
             return rebuild(
                 request,
                 subscription.consumer,
