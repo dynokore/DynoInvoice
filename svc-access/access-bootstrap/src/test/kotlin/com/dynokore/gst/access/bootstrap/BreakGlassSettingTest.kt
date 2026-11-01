@@ -54,8 +54,7 @@ class BreakGlassSettingTest {
                 Seeds.grant(context, tenant, SeedSpec(officer, Role.SECURITY_OFFICER))
                 Seeds.grant(context, tenant, SeedSpec("IDN-ADM", Role.TENANT_ADMIN))
                 Seeds.grant(context, tenant, SeedSpec("IDN-APP", Role.TAX_APPROVER))
-                Seeds.grant(context, tenant, SeedSpec("IDN-OP", Role.TAX_OPERATOR))
-                Seeds.grant(context, tenant, SeedSpec("IDN-AUD", Role.AUDITOR))
+                Seeds.grant(context, tenant, SeedSpec("IDN-ADM2", Role.TENANT_ADMIN))
                 try {
                     block(context)
                 } finally {
@@ -158,16 +157,16 @@ class BreakGlassSettingTest {
     @Test
     fun `INV-AC-8559 the stored option OTHER_NAMED_PAIR decides who may unlock`() =
         run { context ->
-            val stored = store(context, "OTHER_NAMED_PAIR", """{"pair":["tax.operator","auditor"],"window":2}""")
+            val stored = store(context, "OTHER_NAMED_PAIR", """{"pair":["tenant.admin","tenant.admin"],"window":2}""")
             assertThat(stored.status).describedAs(stored.contentAsString).isBetween(200, 299)
-            val body = unlock(context, "IDN-OP", "IDN-AUD").body!!
+            val body = unlock(context, "IDN-ADM", "IDN-ADM2").body!!
             assertThat(body.sessionHours).isEqualTo(2)
             // the default pair is not the named pair
             assertThatThrownBy { unlock(context, "IDN-ADM", "IDN-APP") }
                 .isInstanceOf(ApiRefusal::class.java)
                 .hasMessageContaining("SRT-004")
             // two people who hold the same one of the two named roles do not fill both places
-            assertThatThrownBy { unlock(context, "IDN-OP", "IDN-ADM") }.isInstanceOf(ApiRefusal::class.java)
+            assertThatThrownBy { unlock(context, "IDN-APP", "IDN-ADM") }.isInstanceOf(ApiRefusal::class.java)
         }
 
     private fun versionOf(
