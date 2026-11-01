@@ -40,38 +40,45 @@ class FirstAdministratorAcceptance(
         invitationRef: String,
         body: AcceptFirstAdministratorInvitationRequest,
     ): ResponseEntity<AcceptFirstAdministratorInvitationResponse> {
-        val principal =
-            request.getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
-                ?: throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
+        val principal = principalOf()
         val subject = principal.actor
         val tenant = tenantOf(invitationRef, principal)
         val command = AcceptFirstAdministratorCommand(invitationRef, body.invitationCode, subject)
         return when (val outcome = tenants.bind(tenant, subject) { useCase.handle(command) }) {
-            is AcceptFirstAdministratorOutcome.Accepted -> {
-                ResponseEntity.ok(responseOf(outcome.grant))
-            }
+            is AcceptFirstAdministratorOutcome.Accepted -> ResponseEntity.ok(responseOf(outcome.grant))
+            AcceptFirstAdministratorOutcome.NotFound -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            else -> throw ApiConflict(conflictOf(outcome))
+        }
+    }
 
-            AcceptFirstAdministratorOutcome.NotFound -> {
-                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            }
+    /** The verified end-user principal; a call with none is 401 (SRT-003). */
+    private fun principalOf(): EndUserPrincipal =
+        request.getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
+            ?: throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
 
+    /** The detail of each 409 (no error code names these refusals, INV-Q-8845 A). */
+    private fun conflictOf(outcome: AcceptFirstAdministratorOutcome): String =
+        when (outcome) {
             AcceptFirstAdministratorOutcome.Expired -> {
-                throw ApiConflict("the invitation has expired")
+                "the invitation has expired"
             }
 
             AcceptFirstAdministratorOutcome.AlreadyAccepted -> {
-                throw ApiConflict("the invitation was accepted already")
+                "the invitation was accepted already"
             }
 
             AcceptFirstAdministratorOutcome.Withdrawn -> {
-                throw ApiConflict("the invitation was withdrawn")
+                "the invitation was withdrawn"
             }
 
             AcceptFirstAdministratorOutcome.SubjectAlreadyHolds -> {
-                throw ApiConflict("the identity already holds this role in this scope")
+                "the identity already holds this role in this scope"
+            }
+
+            is AcceptFirstAdministratorOutcome.Accepted, AcceptFirstAdministratorOutcome.NotFound -> {
+                error("not a conflict")
             }
         }
-    }
 
     /** The tenant of the invitation, or the 404 of a wrong code (no invitation, or a token of another tenant). */
     private fun tenantOf(

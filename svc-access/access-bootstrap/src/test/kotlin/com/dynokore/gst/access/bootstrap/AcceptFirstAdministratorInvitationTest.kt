@@ -313,4 +313,27 @@ class AcceptFirstAdministratorInvitationTest {
             val identities = rows("access.identity", invitation.tenant).map { json(it)["identity_ref"].asString() }
             assertThat(identities).containsExactly("invitation:${invitation.ref}")
         }
+
+    @Test
+    fun `INV-AC-8224 the tenant lookup is a definer function owned by access_sys that only access_runtime executes`() =
+        withService {
+            val facts =
+                BoundaryFixture.asSuperuser { c ->
+                    c.createStatement().use { st ->
+                        st
+                            .executeQuery(
+                                "select pg_get_userbyid(p.proowner) || '|' || p.prosecdef || '|' || " +
+                                    "coalesce(p.proconfig::text, '') || '|' || " +
+                                    "has_function_privilege('access_runtime', p.oid, 'EXECUTE') || '|' || " +
+                                    "has_function_privilege('public', p.oid, 'EXECUTE') " +
+                                    "from pg_proc p where p.pronamespace = 'access'::regnamespace " +
+                                    "and p.proname = 'resolve_invitation_tenant'",
+                            ).use { rs ->
+                                rs.next()
+                                rs.getString(1)
+                            }
+                    }
+                }
+            assertThat(facts).isEqualTo("access_sys|true|{\"search_path=pg_catalog, access, pg_temp\"}|true|false")
+        }
 }
