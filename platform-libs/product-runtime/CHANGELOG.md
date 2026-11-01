@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-11-02
+### Changed
+- Built against `service-runtime` 10.32.0 (INV-T-15722, rule G-DVS): the POM dependency version steps; no source change.
+
 ## [2.4.1] - 2026-11-02
 ### Changed
 - Metadata-only change (INV-T-15490, G-DVS): depends on `outbox-and-queue 6.12.0`, whose version steps; no code change.

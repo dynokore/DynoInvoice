@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger
 private val SETTINGS = mapOf<String, Any>("service-runtime.workload-identity.audience" to "probe-svc")
 private const val KEYS = "GET\t/internal/v1/probe/keys"
 private const val SIGNED = "POST\t/internal/v1/probe/{id}/verify\tsigned-link"
+private const val CALLBACK = "POST\t/internal/v1/probe/{id}/callback\tsigned-callback"
 private const val JOB = "POST\t/internal/v1/probe/close\tservice-job"
 
 /** What the probe handler and the outermost filter saw. */
@@ -505,5 +506,60 @@ class EndUserPrincipalBindingFilterTest {
         ops.matches("GET", "/internal/v1/probe/keys") shouldBe true
         ops.matches("POST", "/internal/v1/probe/7/verify") shouldBe true
         ops.matches("POST", "/internal/v1/probe/verify") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-8196 a signed-callback line leaves its operation untouched with no resolver call and no binding`() {
+        val cb = start(mapOf("META-INF/gst/caller-auth-operations.tsv" to "$CALLBACK\n"))
+        for (token in listOf(null, "Bearer a")) {
+            reset()
+            cb.send("POST", "/internal/v1/probe/x1/callback", token).let {
+                it.statusCode() shouldBe 200
+                it.body() shouldBe "none|none||"
+            }
+            Probe.handled.get() shouldBe 1
+            Probe.resolved.get() shouldBe 0
+        }
+    }
+
+    @Test
+    fun `INV-AC-8196 a signed-callback line does not make another method or path untouched`() {
+        val cb = start(mapOf("META-INF/gst/caller-auth-operations.tsv" to "$CALLBACK\n"))
+        for ((method, path) in listOf(
+            "GET" to "/internal/v1/probe/x1/callback",
+            "POST" to "/internal/v1/probe/x1/callback/extra",
+            "POST" to "/internal/v1/probe/x1",
+        )) {
+            reset()
+            cb.send(method, path).let {
+                it.statusCode() shouldBe 401
+                it.code() shouldBe "SRT-003"
+            }
+            Probe.handled.get() shouldBe 0
+        }
+    }
+
+    @Test
+    fun `INV-AC-8196 a look-alike caller-auth value or a fourth column stops the start-up`() {
+        val file = "META-INF/gst/caller-auth-operations.tsv"
+        for (text in listOf(
+            "GET\t/a\tSigned-Callback\n",
+            "GET\t/a\tsigned_callback\n",
+            "GET\t/a\tsigned-callback \n",
+            "GET\t/a\tsigned-callbacks\n",
+            "GET\t/a\tend-user\n",
+            "GET\t/a\tsigned-callback\tx\n",
+        )) {
+            val failure = shouldThrow<Exception> { start(mapOf(file to text)) }
+            generateSequence<Throwable>(failure) { it.cause }.last().message.orEmpty() shouldContain file
+        }
+    }
+
+    @Test
+    fun `INV-AC-8196 a resource with the three values on three lines is read in full`() {
+        val three = start(mapOf("META-INF/gst/caller-auth-operations.tsv" to "$SIGNED\n$JOB\n$CALLBACK\n"))
+        three.send("POST", "/internal/v1/probe/7/verify").statusCode() shouldBe 200
+        three.send("POST", "/internal/v1/probe/close").statusCode() shouldBe 200
+        three.send("POST", "/internal/v1/probe/7/callback").statusCode() shouldBe 200
     }
 }

@@ -29,9 +29,9 @@ import java.util.UUID
  * handler not called, as the command servlets answer.
  *
  * A request [MachineTokenFilter] has verified as a machine operation passes untouched too: its token is never read
- * here. An operation listed in [UntouchedOperations] (workload-only, or marked `signed-link` or `service-job`, owner
- * answer INV-Q-8201) passes untouched: no token is read, nothing is bound. Every other request, one absent from the
- * contract resources included, is an end-user operation (fail closed).
+ * here. An operation listed in [UntouchedOperations] (workload-only, or marked `signed-link`, `signed-callback`
+ * or `service-job`, owner answers INV-Q-8201 and INV-Q-15630) passes untouched: no token is read, nothing is bound.
+ * Every other request, one absent from the contract resources included, is an end-user operation (fail closed).
  */
 class EndUserPrincipalBindingFilter(
     private val resolvers: ObjectProvider<EndUserPrincipalResolver>,
@@ -91,7 +91,7 @@ class EndUserPrincipalBindingFilter(
 /**
  * The operations [EndUserPrincipalBindingFilter] leaves alone, read from the contract resources of INV-T-8197
  * (`META-INF/gst/workload-only-operations.tsv`: `<METHOD><TAB><path template>`; `META-INF/gst/caller-auth-operations.tsv`:
- * `<METHOD><TAB><path template><TAB>signed-link|service-job`), every resource of those two exact names on the
+ * `<METHOD><TAB><path template><TAB>signed-link|signed-callback|service-job`), every resource of those two exact names on the
  * classpath merged. A malformed line stops the start-up. No resource gives an empty set.
  */
 class UntouchedOperations private constructor(
@@ -108,7 +108,7 @@ class UntouchedOperations private constructor(
     companion object {
         const val WORKLOAD_ONLY_RESOURCE = "META-INF/gst/workload-only-operations.tsv"
         const val CALLER_AUTH_RESOURCE = "META-INF/gst/caller-auth-operations.tsv"
-        private val CALLER_AUTH_VALUES = setOf("signed-link", "service-job")
+        private val CALLER_AUTH_VALUES = setOf("signed-link", "service-job", "signed-callback")
 
         fun from(loader: ClassLoader): UntouchedOperations =
             of(

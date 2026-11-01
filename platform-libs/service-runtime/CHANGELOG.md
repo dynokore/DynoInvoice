@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.32.0] - 2026-11-02
+### Added
+- Fourth caller-auth value `signed-callback` (INV-T-15722; INV-Q-15630 B, INV-AC-8196): `EndUserPrincipalBindingFilter` accepts it in `META-INF/gst/caller-auth-operations.tsv` and leaves such an operation untouched (no resolver call, nothing bound), for the signed Access Point callback route. The values `signed-link` and `service-job` and the workload-only resource are unchanged; any other value still stops the start-up.
+
 ## [10.31.2] - 2026-11-02
 ### Changed
 - Metadata-only change (INV-T-15490, G-DVS): depends on `outbox-and-queue 6.12.0`, whose version steps; no code change.
