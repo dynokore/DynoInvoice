@@ -68,10 +68,9 @@ class CountingReader {
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 )
 @Import(CountingReader::class)
-class ListActiveRegulatoryPacksIT {
-    @LocalServerPort
-    private var port: Int = 0
-
+class ListActiveRegulatoryPacksIT(
+    @LocalServerPort private val port: Int,
+) {
     private val http = HttpClient.newHttpClient()
 
     companion object {
