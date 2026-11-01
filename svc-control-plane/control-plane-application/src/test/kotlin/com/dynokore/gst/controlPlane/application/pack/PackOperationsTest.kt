@@ -15,6 +15,7 @@ import com.dynokore.gst.controlPlane.domain.pack.StagingEvidence
 import com.dynokore.gst.controlPlane.domain.pack.StagingResult
 import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.security.MessageDigest
@@ -154,6 +155,31 @@ class PackOperationsTest {
         authorAs("pat")
         store.getValue(ref).authors shouldBe setOf(ActorId("alice"), ActorId("pat"))
         store.getValue(ref).citations shouldBe listOf("IRAS e-Tax Guide 2026-08")
+    }
+
+    @Test
+    fun `INV-AC-14161 authorRegulatoryPack refuses the Mapping pack type in any letter case and saves nothing`() {
+        listOf("MAPPING", "Mapping", "mapping").forEach { type ->
+            shouldThrow<IllegalArgumentException> {
+                AuthorRegulatoryPackCommand(
+                    ActorId("alice"),
+                    PackType(type),
+                    PackVersion("2026.3"),
+                    emptyList(),
+                    null,
+                    null,
+                    request,
+                )
+            }
+        }
+        store.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-14161 authorRegulatoryPack of type RETURN_MAPPING saves one draft`() {
+        authorAs("alice", type = "RETURN_MAPPING")
+        store.size shouldBe 1
+        store.values.single().status shouldBe PackStatus.DRAFT
     }
 
     @Test

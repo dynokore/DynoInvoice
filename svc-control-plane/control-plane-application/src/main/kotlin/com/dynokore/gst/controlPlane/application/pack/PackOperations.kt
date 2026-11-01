@@ -57,6 +57,13 @@ data class AuthorRegulatoryPackCommand(
     val contents: PackContents?,
     val request: RequestContext,
 ) {
+    init {
+        require(!packType.isMappingPack) {
+            "a regulatory pack is never of the Mapping pack type, " +
+                "which is the tenant's own layer"
+        }
+    }
+
     val ref: PackRef get() = PackRef.of(packType, version)
 }
 

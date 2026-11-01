@@ -30,6 +30,10 @@ class RegulatoryPack private constructor(
     val supersedes: PackRef?,
 ) {
     init {
+        require(!type.isMappingPack) {
+            "a regulatory pack is never of the Mapping pack type, " +
+                "which is the tenant's own layer"
+        }
         require(authors.isNotEmpty()) { "a pack version has at least one author" }
         require(authors.size <= MAX_AUTHORS) { "a pack version has at most $MAX_AUTHORS authors" }
         require((status == PackStatus.DRAFT) == (signer == null)) { "a version has a signer exactly when it is signed" }

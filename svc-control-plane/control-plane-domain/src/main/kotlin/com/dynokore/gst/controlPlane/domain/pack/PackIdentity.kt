@@ -28,6 +28,9 @@ value class PackType(
         require(value.matches(PATTERN)) { "a pack type is 1..32 letters, digits, '-' or '_', starting with a letter" }
     }
 
+    /** The tenant's own layer (INV-REQ-856 b2): `MAPPING` in any letter case, and no other type. */
+    val isMappingPack: Boolean get() = value.uppercase() == "MAPPING"
+
     override fun toString(): String = value
 
     private companion object {

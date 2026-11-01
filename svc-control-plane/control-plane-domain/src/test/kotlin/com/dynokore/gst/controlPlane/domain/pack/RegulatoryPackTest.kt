@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.domain.pack
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -23,6 +24,22 @@ class RegulatoryPackTest {
         effectiveFrom,
         contents,
     )
+
+    @Test
+    fun `INV-AC-14161 a draft of the Mapping pack type in any letter case is refused`() {
+        listOf("MAPPING", "Mapping", "mapping").forEach { type ->
+            shouldThrow<IllegalArgumentException> {
+                RegulatoryPack.draft(PackType(type), PackVersion("2026.3"), emptyList(), alice)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-14161 a draft of a type that only contains mapping is created`() {
+        listOf("SCOPE", "RETURN_MAPPING", "return-mapping", "MAPPING2", "MAPPINGS").forEach { type ->
+            RegulatoryPack.draft(PackType(type), PackVersion("2026.3"), emptyList(), alice).type shouldBe PackType(type)
+        }
+    }
 
     @Test
     fun `INV-AC-2591 signPack by an author is refused and the version stays unsigned`() {
