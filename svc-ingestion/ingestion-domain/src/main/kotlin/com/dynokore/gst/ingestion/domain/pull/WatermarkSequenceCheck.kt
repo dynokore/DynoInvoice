@@ -26,12 +26,12 @@ object WatermarkSequenceCheck {
                 .filter { lastChecked == null || it > lastChecked }
                 .distinct()
                 .sorted()
-        val missing = mutableListOf<LongRange>()
-        var expected = lastChecked?.plus(NEXT) ?: numbers.firstOrNull() ?: NEXT
-        for (number in numbers) {
-            if (number > expected) missing.add(expected..(number - NEXT))
-            expected = number + NEXT
-        }
+        val start = lastChecked ?: numbers.firstOrNull()?.minus(NEXT)
+        val missing =
+            (listOfNotNull(start) + numbers)
+                .zipWithNext()
+                .filter { (previous, next) -> next != previous + NEXT }
+                .map { (previous, next) -> (previous + NEXT)..(next - NEXT) }
         return if (missing.isEmpty()) SequenceVerdict.Continuous else SequenceVerdict.Gap(ING_008, missing)
     }
 }
