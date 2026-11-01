@@ -4,17 +4,6 @@ import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.tenancykernel.TenantId
 
-/**
- * The preceding document of a credit note, found by its number for the entity (INV-REQ-701 behavior 3, INV-Q-1804).
- * Returns the transaction date of the entity's document of that number, or null when the entity never recorded one.
- */
-fun interface PrecedingDocumentLookup {
-    fun transactionDateOf(
-        tenant: TenantId?,
-        documentNumber: String,
-    ): TransactionDate?
-}
-
 /** One credit note to code: its own date, its preceding-document fields as stated, and its lines. */
 data class CodeCreditNoteCommand(
     val tenant: TenantId?,
@@ -28,9 +17,6 @@ data class CodeCreditNoteCommand(
 enum class RateDateBasis {
     /** `precedingDocumentDate` was populated (INV-REQ-701 b1). */
     PRECEDING_DATE_STATED,
-
-    /** Only the number was populated; the entity's document of that number gave the date (INV-REQ-701 b3). */
-    PRECEDING_DATE_LOOKED_UP,
 
     /** Both preceding fields are blank: everything resolves by the credit note's own date (INV-REQ-702 b1). */
     OWN_DATE_BLANK_LINKED,
@@ -79,7 +65,6 @@ sealed interface CreditNoteCodingResult {
  */
 class CreditNoteCoding(
     private val coder: DocumentCoder,
-    private val preceding: PrecedingDocumentLookup,
 ) {
     fun code(command: CodeCreditNoteCommand): CreditNoteCodingResult {
         val number = command.precedingDocumentNumber?.takeUnless { it.isBlank() }
@@ -90,11 +75,10 @@ class CreditNoteCoding(
                     stated to RateDateBasis.PRECEDING_DATE_STATED
                 }
 
+                // the caller (canonical-svc) looks the preceding document up (INV-Q-14404 A); a number with no date
+                // reaching rules-svc is an unknown original: RUL-008, no coding at any date (INV-AC-1819)
                 number != null -> {
-                    val found =
-                        preceding.transactionDateOf(command.tenant, number)
-                            ?: return CreditNoteCodingResult.UnknownOriginal(number)
-                    found to RateDateBasis.PRECEDING_DATE_LOOKED_UP
+                    return CreditNoteCodingResult.UnknownOriginal(number)
                 }
 
                 else -> {
@@ -111,8 +95,8 @@ class CreditNoteCoding(
                 basis = basis,
                 justificationNote =
                     if (basis == RateDateBasis.OWN_DATE_BLANK_LINKED) {
-                        "Rate-change straddle considered: no preceding document is stated, so the credit note " +
-                            "resolves entirely by its own date ${command.ownDate}"
+                        "Rate-change straddle considered: no preceding document stated, resolved by own date " +
+                            "${command.ownDate}"
                     } else {
                         null
                     },
