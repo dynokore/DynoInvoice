@@ -39,5 +39,7 @@ inv:
   tenancy:
     # tenant-free object of the schema that the start-up classification (TableClasses.verify, INV-ADR-3968 item 4a)
     # cannot see as library-declared: the sys-owned count function of the failure metrics (adapter_attempt_counts, a
-    # table-valued function in the generated code, counts only). The signed-binding key table is not generated.
-    platform-scoped-tables: transport.adapter_attempt_counts
+    # table-valued function in the generated code, counts only), and the two objects of the AP notification slice: the
+    # sys-owned lookup function attempt_owner (no tenant column in its result) and the platform table ap_poll_cursor (the
+    # poll position of an adapter). The signed-binding key table is not generated.
+    platform-scoped-tables: transport.adapter_attempt_counts,transport.attempt_owner,transport.ap_poll_cursor
