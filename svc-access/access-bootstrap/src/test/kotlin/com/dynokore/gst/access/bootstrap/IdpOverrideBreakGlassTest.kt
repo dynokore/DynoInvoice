@@ -56,7 +56,7 @@ class StubIdentityProvider(
     }
 }
 
-/** The override of `unlockBreakGlass` with the identity provider available or unavailable (INV-AC-9185). */
+/** The override of `unlockBreakGlass` for an identity provider that counts as available or unavailable (INV-AC-9185). */
 class IdpOverrideBreakGlassTest {
     private val tenant = TenantId(UUID.randomUUID())
     private val mapper = JsonMapper.builder().build()
@@ -96,8 +96,7 @@ class IdpOverrideBreakGlassTest {
 
         fun audits() =
             captured.envelopes.filter {
-                it.type == "com.dynokore.gst.platform.AuditEntryRecorded.v1" &&
-                    it.dataJson.contains("\"unlockBreakGlass\"")
+                it.type == "com.dynokore.gst.platform.AuditEntryRecorded.v1" && it.dataJson.contains("\"unlockBreakGlass\"")
             }
 
         /** The refusal 409: a problem body with a detail text and no catalogue code, and no session opened. */
@@ -118,7 +117,7 @@ class IdpOverrideBreakGlassTest {
         /** In every case a pair of one person is refused as before, whatever the reason and the availability. */
         fun assertPairOfOneRefused() {
             val before = sessions()
-            UnlockBreakGlassRequest.OverrideReason.entries.plus(null).forEach { reason ->
+            UnlockBreakGlassRequest.OverrideReason.entries.map { it }.plus(null).forEach { reason ->
                 assertThatThrownBy { unlock(reason, "IDN-ADM", "IDN-ADM") }
                     .isInstanceOf(ApiRefusal::class.java)
                     .hasMessageContaining("SRT-001")
@@ -200,9 +199,7 @@ class IdpOverrideBreakGlassTest {
             assertThat(env.detail()).isEqualTo("IDP_PARTIAL_OUTAGE")
             val alert = env.alerts().single()
             assertThat(alert.dataJson).contains("\"accCode\":\"ACC-002\"", "\"action\":\"UNLOCK\"")
-            assertThat(
-                mapper.readTree(alert.dataJson).path("overrideReason").asString(),
-            ).isEqualTo("IDP_PARTIAL_OUTAGE")
+            assertThat(mapper.readTree(alert.dataJson).path("overrideReason").asString()).isEqualTo("IDP_PARTIAL_OUTAGE")
             env.assertPairOfOneRefused()
         }
 
