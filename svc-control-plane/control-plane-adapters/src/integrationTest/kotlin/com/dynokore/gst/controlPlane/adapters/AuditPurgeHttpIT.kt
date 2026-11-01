@@ -156,18 +156,10 @@ class AuditPurgeHttpIT {
                 timeout,
             )
         val permissions = AuthoriseOperatorPermissions(client)
-        val authority =
-            AuditPurgeAuthority {
-                actor,
-                key,
-                scope,
-                ->
-                scope == "platform" && permissions.holds(actor, key)
-            }
-        val purger =
-            AuditEntryPurger { actor, cutOff, reason, context ->
-                runner.inTransaction { store.purge(actor, cutOff, reason, context) }
-            }
+        val authority = AuditPurgeAuthority { actor, key, scope -> scope == "platform" && permissions.holds(actor, key) }
+        val purger = AuditEntryPurger { actor, cutOff, reason, context ->
+            runner.inTransaction { store.purge(actor, cutOff, reason, context) }
+        }
         val useCase = PurgeAuditEntries(authority, floors, purger, clock)
         val noPermission = OperatorPermissions { _, _ -> false }
         return ReleasesController(
@@ -281,7 +273,7 @@ class AuditPurgeHttpIT {
     }
 
     @Test
-    fun `INV-AC-3823 without a body reason the entry holds the Idempotency-Key and the request correlation id`() {
+    fun `INV-AC-3823 without a body reason the entry holds the Idempotency-Key, and the correlation id is the request's`() {
         seed(yearsAgo(YEARS_11))
         val floors = AuditPurgeFloorSource { listOf(Period.ofYears(SIX_YEARS)) }
         val key = UUID.randomUUID()

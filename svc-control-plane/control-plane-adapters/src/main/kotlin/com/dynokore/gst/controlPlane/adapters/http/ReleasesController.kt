@@ -48,7 +48,6 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import tools.jackson.databind.json.JsonMapper
-import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -222,20 +221,12 @@ class ReleasesController(
                 RequestContext(caller.correlationId, idempotencyKey.toString()),
             )
         val outcome = platform.bindPlatform(caller.actor) { purgeAuditEntries.execute(command) }
-        return purgeResponse(outcome, purgeAuditEntriesRequest.cutOff, caller.correlationId)
-    }
-
-    private fun purgeResponse(
-        outcome: PurgeAuditOutcome,
-        cutOff: OffsetDateTime,
-        correlationId: String,
-    ): ResponseEntity<PurgeAuditEntriesResponse> =
-        when (outcome) {
+        return when (outcome) {
             is PurgeAuditOutcome.Purged -> {
                 ResponseEntity.ok(
                     PurgeAuditEntriesResponse(
                         purgeId = outcome.purgeId,
-                        cutOff = cutOff,
+                        cutOff = purgeAuditEntriesRequest.cutOff,
                         floor = outcome.floor.toString(),
                         deletedCount = outcome.result.deletedCount,
                         auditEntryId = UUID.fromString(outcome.result.auditEntryId),
@@ -244,23 +235,34 @@ class ReleasesController(
             }
 
             PurgeAuditOutcome.NotPermitted -> {
-                problem(ClosedErrorCode.ACCESS_DENIED, correlationId)
+                problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
             }
 
             PurgeAuditOutcome.CutOffYoungerThanFloor -> {
-                val title = "Audit purge cut-off younger than the floor"
-                val refusal = purgeRefusal(CUT_OFF_YOUNGER_THAN_FLOOR, HTTP_UNPROCESSABLE, title, correlationId)
-                throw ProblemException(refusal)
+                throw ProblemException(
+                    purgeRefusal(
+                        CUT_OFF_YOUNGER_THAN_FLOOR,
+                        HTTP_UNPROCESSABLE,
+                        "Audit purge cut-off younger than the floor",
+                        caller.correlationId,
+                    ),
+                )
             }
 
             PurgeAuditOutcome.FloorUndeterminable -> {
-                val title = "Audit purge floor cannot be determined"
-                val refusal = purgeRefusal(FLOOR_UNDETERMINABLE, HTTP_UNAVAILABLE, title, correlationId)
-                throw ProblemException(refusal)
+                throw ProblemException(
+                    purgeRefusal(
+                        FLOOR_UNDETERMINABLE,
+                        HTTP_UNAVAILABLE,
+                        "Audit purge floor cannot be determined",
+                        caller.correlationId,
+                    ),
+                )
             }
         }
+    }
 
-    /** The API-20 envelope of a catalogued CPL refusal of the purge (BLOCK, TERMINAL, owner Platform). */
+    /** The API-20 envelope of a catalogued CPL refusal of the purge (severity BLOCK, disposition TERMINAL, owner Platform). */
     private fun purgeRefusal(
         code: String,
         status: Int,
@@ -290,7 +292,7 @@ class ReleasesController(
         const val FLOOR_UNDETERMINABLE = "CPL-002"
         const val HTTP_UNPROCESSABLE = 422
         const val HTTP_UNAVAILABLE = 503
-        val purgeJson: JsonMapper = JsonMapper.builder().build()
+        val purgeJson = JsonMapper.builder().build()
     }
 
     private class Caller(

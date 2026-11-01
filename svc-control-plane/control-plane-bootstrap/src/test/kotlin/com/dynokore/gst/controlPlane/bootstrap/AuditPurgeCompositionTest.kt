@@ -37,10 +37,7 @@ class AuditPurgeCompositionTest {
         controlPlaneRunner(mount).run { context ->
             context.startupFailure shouldBe null
             context.getBean(PurgeAuditEntries::class.java).execute(command) shouldBe PurgeAuditOutcome.NotPermitted
-            context
-                .getBean(
-                    AuditPurgeAuthority::class.java,
-                ).allows("operator-1", "audit-entry.purge", "platform") shouldBe
+            context.getBean(AuditPurgeAuthority::class.java).allows("operator-1", "audit-entry.purge", "platform") shouldBe
                 false
         }
     }

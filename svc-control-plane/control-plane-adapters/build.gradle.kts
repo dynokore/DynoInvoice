@@ -113,8 +113,6 @@ dependencies {
     integrationTestImplementation(libs.platform.auditLog)
     integrationTestImplementation(libs.platform.tenancyKernel)
     integrationTestImplementation(libs.platform.tenancyJooq)
-    // AuditPurgeHttpIT: ReleasesController uses ServletRequestAttributes; compileOnly does not reach this source set
-    integrationTestImplementation(libs.jakarta.servletApi)
 }
 
 // The feed index schema of the pinned platform-contracts release, staged by control-plane-contract, is a classpath
