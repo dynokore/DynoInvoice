@@ -22,3 +22,14 @@ enum class PackAuthority(
     OPEN_PEPPOL(PackLayer.REGULATORY, irasDerived = false),
     TENANT(PackLayer.TENANT_MAPPING, irasDerived = false),
 }
+
+/**
+ * Binds a pack type to its layer (INV-REQ-856, INV-AC-14160): only the Mapping pack is a tenant mapping pack; every
+ * other text, including a look-alike spelling, gets the regulatory layer that no tenant edits (fail closed).
+ */
+object PackLayers {
+    const val MAPPING_PACK_TYPE = "MAPPING"
+
+    fun of(packType: String): PackLayer =
+        if (packType == MAPPING_PACK_TYPE) PackLayer.TENANT_MAPPING else PackLayer.REGULATORY
+}

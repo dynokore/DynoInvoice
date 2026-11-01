@@ -126,6 +126,9 @@ data class PackKey(
         require((layer == PackLayer.TENANT_MAPPING) == (tenant != null)) {
             "a tenant mapping pack names its tenant and a regulatory pack is platform-wide"
         }
+        require(layer == PackLayers.of(packType)) {
+            "pack type $packType belongs to layer ${PackLayers.of(packType)}, not $layer"
+        }
     }
 }
 
