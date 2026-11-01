@@ -110,6 +110,8 @@ object RolePermissionsChecker {
             "View coverage, deadline and correction metrics per entity and period",
             "Approve a backfill reconciliation before transmission",
             "Defer a document or group in the exception queue",
+            "Request elevation",
+            "Invite operator diagnostics, time-boxed",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -138,6 +140,13 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the exception deferral key (INV-T-13835, INV-Q-13818), compared by equality. */
     val deferPairs: Map<String, String> =
         mapOf("exception.defer" to "Defer a document or group in the exception queue")
+
+    /** The (key, row) pairs of the operator elevation request and diagnostic invitation keys (INV-T-15959, INV-Q-15950 A), compared by equality. */
+    val elevationRequestPairs: Map<String, String> =
+        mapOf(
+            "elevation.request" to "Request elevation",
+            "diagnostic.invite" to "Invite operator diagnostics, time-boxed",
+        )
 
     /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
     private val closedRows: Set<String> = setOf("Acknowledge a control relaxation", "Run the authority incarnation command")
@@ -334,6 +343,8 @@ object RolePermissionsChecker {
             "compliance-metrics.view" to Required(PermissionKind.READ, cells(permitted, both, "tax.approver", "finance.viewer")),
             "backfill.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
             "exception.defer" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(withinScope, both, "agent.operator")),
+            "elevation.request" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.support")),
+            "diagnostic.invite" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
         )
 
     fun check(
@@ -422,6 +433,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in deferPairs && (it.row in deferPairs.values || it.key.startsWith("exception.defer")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${deferPairs.keys.joinToString()}, which alone carry the exception deferral row (INV-T-13835)."
+        }
+        elevationRequestPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${elevationRequestPairs.keys.joinToString()}, INV-T-15959)."
+        }
+        table.permissions.filter { it.key !in elevationRequestPairs && (it.row in elevationRequestPairs.values || it.key.startsWith("elevation.request") || it.key.startsWith("diagnostic.invite")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${elevationRequestPairs.keys.joinToString()}, which alone carry the elevation request and diagnostic invitation rows (INV-T-15959)."
         }
         table.permissions.firstOrNull { it.key == "election-change.approve" }?.let { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123)."

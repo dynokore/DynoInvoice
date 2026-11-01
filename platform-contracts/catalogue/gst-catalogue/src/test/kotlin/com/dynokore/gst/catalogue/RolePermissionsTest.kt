@@ -304,6 +304,34 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `INV-AC-1930 an operator elevation waits for security officer approval through the catalogue cells`() {
+        assertEquals(y, cell(saas, "platform.support", "elevation.request"))
+        assertEquals(y, cell(saas, "security.officer", "elevation.decide"))
+        assertNull(cell(saas, "platform.support", "elevation.decide"))
+    }
+
+    @Test
+    fun `the elevation request and diagnostic invite keys are WRITE with exactly one cell each`() {
+        val holders =
+            mapOf(
+                "elevation.request" to ("platform.support" to saas),
+                "diagnostic.invite" to ("deployment.operator" to privateForm),
+            )
+        holders
+            .forEach { (key, holder) ->
+                assertEquals(PermissionKind.WRITE, RolePermissions.kind(key), key)
+                both.forEach { form ->
+                    val actual =
+                        RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }
+                    val expected = if (form == holder.second) listOf(holder.first to y) else emptyList()
+                    assertEquals(expected, actual, "$key $form")
+                }
+            }
+        assertNull(RolePermissions.kind("elevation.requests"))
+        assertNull(RolePermissions.kind("diagnostic.invitation"))
+    }
+
+    @Test
     fun `vp keys outside 01 to 82 are absent`() {
         assertNull(RolePermissions.kind("vp-83.set"))
         assertNull(RolePermissions.kind("vp-0.set"))

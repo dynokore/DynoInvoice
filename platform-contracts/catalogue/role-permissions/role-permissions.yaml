@@ -273,6 +273,16 @@ permissions:
     cells:
       - {role: security.officer, form: SAAS, allowance: PERMITTED}
       - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: elevation.request
+    kind: WRITE
+    row: "Request elevation"
+    cells:
+      - {role: platform.support, form: SAAS, allowance: PERMITTED}
+  - key: diagnostic.invite
+    kind: WRITE
+    row: "Invite operator diagnostics, time-boxed"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
   - key: access-review.run
     kind: WRITE
     row: "Approve operator elevation or diagnostic invitation; review audit log; run access reviews; handle privacy requests"
