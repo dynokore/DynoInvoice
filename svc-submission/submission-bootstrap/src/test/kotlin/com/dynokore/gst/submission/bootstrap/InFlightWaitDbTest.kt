@@ -170,7 +170,7 @@ class InFlightWaitDbTest {
         val pool = Executors.newFixedThreadPool(2)
         try {
             // many documents: a missing row lock shows as a breach only when the two updates overlap
-            repeat(RACES) {
+            repeat(RACES) { _ ->
                 val doc = UUID.randomUUID().toString()
                 b.seed(tenant, doc, 1, "ACKNOWLEDGED")
                 b.seed(tenant, doc, 2, "READY")
@@ -180,7 +180,12 @@ class InFlightWaitDbTest {
                     listOf(2, 3)
                         .map { v ->
                             pool.submit<Result<EnqueueResult>> {
-                                runCatching { b.asTenant(tenant) { barrier.await(); b.queue.enqueue(doc, v) } }
+                                runCatching {
+                                    b.asTenant(tenant) {
+                                        barrier.await()
+                                        b.queue.enqueue(doc, v)
+                                    }
+                                }
                             }
                         }.map { it.get(WAIT_SECONDS, TimeUnit.SECONDS) }
 
