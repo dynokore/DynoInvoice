@@ -23,7 +23,9 @@ class GeneratedOperationsTest {
 
     private fun pinnedOperationIds(): Set<String> {
         val text =
-            checkNotNull(javaClass.classLoader.getResourceAsStream(resource)) { "classpath resource $resource is missing" }
+            checkNotNull(
+                javaClass.classLoader.getResourceAsStream(resource),
+            ) { "classpath resource $resource is missing" }
                 .use { it.readBytes().toString(Charsets.UTF_8) }
         return Regex("""(?m)^\s*operationId:\s*['"]?([A-Za-z0-9_]+)['"]?\s*$""")
             .findAll(text)
