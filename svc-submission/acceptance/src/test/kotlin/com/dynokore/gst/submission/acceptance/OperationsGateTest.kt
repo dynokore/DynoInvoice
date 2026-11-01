@@ -39,7 +39,7 @@ class OperationsGateTest {
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        // getComplianceMetrics is implemented by INV-T-12844 (ComplianceMetricsController), so it no longer answers 501.
+        // getComplianceMetrics is implemented by INV-T-12844, so it no longer answers 501.
         stubs shouldBe OperationsGate.contractOperations(openapi) - "getComplianceMetrics"
     }
 

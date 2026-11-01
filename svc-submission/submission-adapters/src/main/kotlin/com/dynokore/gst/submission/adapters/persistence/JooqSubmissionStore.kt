@@ -9,6 +9,7 @@ import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
+import java.time.Instant
 import java.time.ZoneOffset
 
 /** [SubmissionStore] over the generated jOOQ classes of `submission` (CS-18), in the open tenant transaction. */
@@ -100,6 +101,21 @@ class JooqSubmissionStore(
                 .execute()
         check(updated == 1) { "the locked submission row $docUuid version $version was not updated" }
     }
+
+    override fun clearDueRetries(
+        tenant: TenantId,
+        now: Instant,
+    ): List<Pair<String, Int>> =
+        dsl
+            .update(Submission.SUBMISSION_)
+            .setNull(Submission.SUBMISSION_.NEXT_ATTEMPT_AT)
+            .where(Submission.SUBMISSION_.TENANT_ID.eq(tenant.value))
+            .and(Submission.SUBMISSION_.STATE.eq(LifecycleState.RETRY.name))
+            .and(Submission.SUBMISSION_.NEXT_ATTEMPT_AT.isNotNull)
+            .and(Submission.SUBMISSION_.NEXT_ATTEMPT_AT.le(now.atOffset(ZoneOffset.UTC)))
+            .returning(Submission.SUBMISSION_.DOC_UUID, Submission.SUBMISSION_.VERSION)
+            .fetch()
+            .map { checkNotNull(it.docUuid) to checkNotNull(it.version) }
 
     override fun insertAttempt(
         tenant: TenantId,

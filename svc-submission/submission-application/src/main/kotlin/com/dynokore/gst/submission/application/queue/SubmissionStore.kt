@@ -52,6 +52,15 @@ interface SubmissionStore {
         attemptCount: Int,
     )
 
+    /**
+     * Runs `UPDATE submission SET next_attempt_at = NULL WHERE state = 'RETRY' AND next_attempt_at IS NOT NULL AND
+     * next_attempt_at <= now RETURNING doc_uuid, version` and returns the (Doc UUID, version) pairs.
+     */
+    fun clearDueRetries(
+        tenant: TenantId,
+        now: Instant,
+    ): List<Pair<String, Int>>
+
     /** Inserts the attempt row: the request is the payload bytes, the response columns belong to the attempts slice. */
     fun insertAttempt(
         tenant: TenantId,
