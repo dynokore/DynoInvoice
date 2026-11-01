@@ -3,3 +3,6 @@ identifier	kind	file	requirement
 correctPersonalData	operation	openapi.yaml	INV-REQ-2588
 copyAnonymisedSample	operation	openapi.yaml	INV-REQ-2588
 exportSupportBundle	operation	openapi.yaml	INV-REQ-2588
+# INV-T-13826. Shared deferral operations (INV-REQ-960, INV-Q-13802 A).
+deferDocument	operation	openapi.yaml	INV-REQ-960
+undeferDocument	operation	openapi.yaml	INV-REQ-960

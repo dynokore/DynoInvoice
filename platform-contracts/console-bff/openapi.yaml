@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -65,6 +65,8 @@ tags:
     description: Workspace operations console-bff orchestrates (INV-NOTE-7 §7, SCR-21.2).
   - name: support
     description: Support operations console-bff orchestrates (INV-NOTE-7 §7, SCR-28.2).
+  - name: deferrals
+    description: Shared deferral of a document or group, held in console-bff's exception read model (INV-REQ-960, SCR-01.5).
 paths:
   /v1/exceptions:
     get:
@@ -107,6 +109,16 @@ paths:
             type: string
             enum: [OPEN, RESOLVED, OVERRIDDEN]
             x-extensible-enum: true
+        - name: deferred
+          in: query
+          required: false
+          description: >-
+            Default false: a deferred exception is left out of the list.
+            True lists only the deferred ones (INV-REQ-960 behavior 4,
+            INV-AC-13807).
+          schema:
+            type: boolean
+            default: false
         - name: limit
           in: query
           required: false
@@ -438,6 +450,135 @@ paths:
                     generatedAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /bff/entities/{entityRef}/deferrals:
+    post:
+      operationId: deferDocument
+      summary: Defer a document or group for later attention
+      description: >-
+        People, through console-bff only (INV-NOTE-7 §7 row deferDocument,
+        SCR-01.5). A deferral only reorders attention: it is never a
+        resolution, the due date is unaffected and the document still counts
+        as unsubmitted in readiness (INV-REQ-960). The deferral is shared by
+        every user of the entity: the document or group leaves every user's
+        open list until the deferral ends, and any holder of the permission
+        may undo it (INV-Q-13802, A). console-bff holds the marker in its own
+        exception read model and calls no other service. The runtime check is
+        the scoped permission key decided per request by
+        AuthorityReplica.decide; `x-operation.role` is the published role
+        text only.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000).
+      tags: [deferrals]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-960]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "The document or group exists and is in a non-terminal state."
+        reversibility: UNDOABLE
+        repeatKey: "(entityRef, target.kind, target.ref)"
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeferDocumentRequest'
+            examples:
+              default:
+                value:
+                  target:
+                    kind: "DOCUMENT"
+                    ref: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      responses:
+        '200':
+          description: The document or group is deferred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deferral'
+              examples:
+                default:
+                  value:
+                    deferralId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    entityRef: "E-001"
+                    target:
+                      kind: "DOCUMENT"
+                      ref: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    state: "DEFERRED"
+                    deferredBy: "user-0001"
+                    deferredAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /bff/entities/{entityRef}/deferrals/{deferralId}/undo:
+    post:
+      operationId: undeferDocument
+      summary: End a deferral so the document or group returns to the open list
+      description: >-
+        People, through console-bff only (INV-NOTE-7 §7 row deferDocument,
+        SCR-01.5). Any holder of the permission may undo a deferral set by
+        another user of the entity (INV-Q-13802, A). The marker is
+        console-bff's own; no other service is called.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000).
+      tags: [deferrals]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-960]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "The deferral exists and its state equals DEFERRED."
+        reversibility: UNDOABLE
+        repeatKey: "(entityRef, deferralId)"
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+        - name: deferralId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The deferral is undone.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deferral'
+              examples:
+                default:
+                  value:
+                    deferralId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    entityRef: "E-001"
+                    target:
+                      kind: "DOCUMENT"
+                      ref: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    state: "UNDONE"
+                    deferredBy: "user-0001"
+                    deferredAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
 components:
   schemas:
     Exception:
@@ -476,6 +617,10 @@ components:
             renders an override control only when the value equals
             OVERRIDABLE and renders none for any other or unknown value
             (INV-REQ-1023).
+        deferralId:
+          type: string
+          format: uuid
+          description: Present while the exception is deferred (INV-REQ-960); a deferral never makes the exception resolved.
       required: [exceptionId, entityRef, code, state, raisedAt, remediationOwner, disposition]
     ExceptionPage:
       type: object
@@ -585,6 +730,47 @@ components:
           type: string
           format: date-time
       required: [caseId, field, correctedValue, correctedAt]
+    DeferralTarget:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [DOCUMENT, GROUP]
+          x-extensible-enum: true
+        ref:
+          type: string
+          minLength: 1
+          maxLength: 128
+      required: [kind, ref]
+    DeferDocumentRequest:
+      type: object
+      properties:
+        target:
+          $ref: '#/components/schemas/DeferralTarget'
+      required: [target]
+    Deferral:
+      type: object
+      properties:
+        deferralId:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+          maxLength: 40
+        target:
+          $ref: '#/components/schemas/DeferralTarget'
+        state:
+          type: string
+          enum: [DEFERRED, UNDONE]
+          x-extensible-enum: true
+        deferredBy:
+          type: string
+          maxLength: 128
+          description: The acting user ID, never a role (INV-Q-10647).
+        deferredAt:
+          type: string
+          format: date-time
+      required: [deferralId, entityRef, target, state, deferredBy, deferredAt]
     SupportBundle:
       type: object
       properties:
