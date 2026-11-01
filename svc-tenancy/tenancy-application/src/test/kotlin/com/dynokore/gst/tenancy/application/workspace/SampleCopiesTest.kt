@@ -86,14 +86,26 @@ class SampleCopiesTest {
     }
 
     @Test
-    fun `the look-alike key sample-copy dot approved is refused as an unknown key`() {
-        val authority = InMemoryAuthority(grants + ("approver" to "sample-copy.approved"))
-        val refused = runCatching { authority.holds("approver", "sample-copy.approved") }
-        assertTrue(refused.exceptionOrNull() is IllegalArgumentException)
-        assertEquals(
-            setOf("sample-copy.approve", "sample-copy.request"),
-            setOf(SampleCopyPermissions.APPROVE, SampleCopyPermissions.REQUEST),
-        )
+    fun `the look-alike key sample-copy dot approved authorises neither approval nor copy`() {
+        assertEquals("sample-copy.approve", SampleCopyPermissions.APPROVE)
+        assertEquals("sample-copy.request", SampleCopyPermissions.REQUEST)
+        // a plain-grant fake: yes for exactly the keys granted, so only the keys SampleCopies asks for matter
+        val lookAlike = setOf("sample-copy.approved", "sample-copy.requested", "sample-copy.approve ")
+        val plain =
+            TenantAuthority { person, key -> person == "approver" && key in lookAlike }
+        val c = SampleCopies(DirectTransactions, store, { true }, approvals, plain, sink.transfer)
+        assertEquals(SampleApprovalOutcome.Forbidden, c.approve("approver", "s1"))
+        assertTrue(approvals.open.isEmpty())
+        assertEquals(SampleCopyOutcome.Forbidden, c.copy("approver", workspaceRef, "s1"))
+        assertTrue(sink.copied.isEmpty())
+    }
+
+    @Test
+    fun `an authority that throws on an unknown key is treated as not granted`() {
+        val throwing = TenantAuthority { _, key -> throw IllegalArgumentException("unknown key $key") }
+        val c = SampleCopies(DirectTransactions, store, { true }, approvals, throwing, sink.transfer)
+        assertEquals(SampleApprovalOutcome.Forbidden, c.approve("approver", "s1"))
+        assertTrue(approvals.open.isEmpty())
     }
 
     @Test
