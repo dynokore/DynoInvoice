@@ -53,7 +53,7 @@ class ReceiveApNotificationTest {
 
     @Test
     fun `a delivery status gives one ledger record and zero publishes`() {
-        useCase.receive(one, ApNotification("APN-3", "DELIVERY_STATUS")) shouldBe ReceiveResult.Processed(true)
+        useCase.receive(one, ApNotification("APN-3", "DELIVERY_STATUS", KNOWN_DOC, 1)) shouldBe ReceiveResult.Processed(true)
         ledger.calls shouldBe 1
         events.published.size shouldBe 0
     }

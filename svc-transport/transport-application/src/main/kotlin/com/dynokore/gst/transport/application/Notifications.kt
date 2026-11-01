@@ -20,11 +20,16 @@ interface AttemptOwner {
 
 enum class LedgerResult { RECORDED, REPLAY }
 
+/** The kinds of notification a ledger row can hold; INBOUND_NETWORK_DOCUMENT is not a member, so it cannot be recorded. */
+enum class LedgerKind { ACKNOWLEDGEMENT, DELIVERY_STATUS, REJECTION }
+
 /** The de-duplication ledger: one row per adapter and AP notification id (INV-AC-623). */
 interface NotificationLedger {
     fun record(
+        owner: AttemptOwnerRef,
         adapter: AdapterId,
         apNotificationId: String,
+        kind: LedgerKind,
     ): LedgerResult
 }
 
@@ -36,9 +41,15 @@ interface AcknowledgementEvents {
     )
 }
 
-/** The unit of work the ledger row and the event share: both commit, or neither does. */
+/**
+ * The unit of work the ledger row and the event share. An implementation binds the tenant of [owner] for the block
+ * and runs the block in one transaction (both writes commit, or neither does).
+ */
 interface NotificationUnitOfWork {
-    fun <T> run(block: () -> T): T
+    fun <T> run(
+        owner: AttemptOwnerRef,
+        block: () -> T,
+    ): T
 }
 
 /** One page of notifications of an adapter after a cursor; [nextCursor] is what the next run reads from. */

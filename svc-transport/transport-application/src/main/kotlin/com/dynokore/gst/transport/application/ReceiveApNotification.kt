@@ -1,5 +1,6 @@
 package com.dynokore.gst.transport.application
 
+import com.dynokore.gst.transport.domain.AcknowledgementOutcome
 import com.dynokore.gst.transport.domain.AdapterId
 import com.dynokore.gst.transport.domain.ApNotification
 import com.dynokore.gst.transport.domain.DocRef
@@ -48,9 +49,17 @@ class ReceiveApNotification(
             }
 
             is Translation.LedgerOnly -> {
-                ReceiveResult.Processed(
-                    unitOfWork.run { ledger.record(adapter, t.apNotificationId) == LedgerResult.RECORDED },
-                )
+                val owner = owners.ownerOf(t.doc)
+                if (owner == null) {
+                    ReceiveResult.OwnerNotFound
+                } else {
+                    ReceiveResult.Processed(
+                        unitOfWork.run(owner) {
+                            ledger.record(owner, adapter, t.apNotificationId, LedgerKind.DELIVERY_STATUS) ==
+                                LedgerResult.RECORDED
+                        },
+                    )
+                }
             }
 
             is Translation.Acknowledgement -> {
@@ -58,9 +67,16 @@ class ReceiveApNotification(
                 if (owner == null) {
                     ReceiveResult.OwnerNotFound
                 } else {
+                    val kind =
+                        if (t.event.outcome == AcknowledgementOutcome.REJECTED) {
+                            LedgerKind.REJECTION
+                        } else {
+                            LedgerKind.ACKNOWLEDGEMENT
+                        }
                     ReceiveResult.Processed(
-                        unitOfWork.run {
-                            val recorded = ledger.record(adapter, t.apNotificationId) == LedgerResult.RECORDED
+                        unitOfWork.run(owner) {
+                            val recorded =
+                                ledger.record(owner, adapter, t.apNotificationId, kind) == LedgerResult.RECORDED
                             if (recorded) events.publish(owner, t.event)
                             recorded
                         },

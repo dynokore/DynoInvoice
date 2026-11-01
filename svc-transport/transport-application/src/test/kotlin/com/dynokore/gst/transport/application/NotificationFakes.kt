@@ -17,29 +17,45 @@ internal class FakeOwners : AttemptOwner {
 internal class CountingLedger : NotificationLedger {
     var calls = 0
     val rows = mutableSetOf<Pair<AdapterId, String>>()
+    val owners = mutableListOf<AttemptOwnerRef>()
+    val kinds = mutableListOf<LedgerKind>()
 
     override fun record(
+        owner: AttemptOwnerRef,
         adapter: AdapterId,
         apNotificationId: String,
+        kind: LedgerKind,
     ): LedgerResult {
         calls++
+        owners += owner
+        kinds += kind
         return if (rows.add(adapter to apNotificationId)) LedgerResult.RECORDED else LedgerResult.REPLAY
     }
 }
 
 internal class CountingEvents : AcknowledgementEvents {
     val published = mutableListOf<AcknowledgementReceived>()
+    val publishOwners = mutableListOf<AttemptOwnerRef>()
 
     override fun publish(
         owner: AttemptOwnerRef,
         event: AcknowledgementReceived,
     ) {
         published += event
+        publishOwners += owner
     }
 }
 
 internal class DirectUnitOfWork : NotificationUnitOfWork {
-    override fun <T> run(block: () -> T): T = block()
+    val owners = mutableListOf<AttemptOwnerRef>()
+
+    override fun <T> run(
+        owner: AttemptOwnerRef,
+        block: () -> T,
+    ): T {
+        owners += owner
+        return block()
+    }
 }
 
 internal open class Cursors : PollCursorStore {

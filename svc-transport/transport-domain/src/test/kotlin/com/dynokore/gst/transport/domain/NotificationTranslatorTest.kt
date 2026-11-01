@@ -83,7 +83,7 @@ class NotificationTranslatorTest {
 
     @Test
     fun `delivery status is ledger only`() =
-        tr(ApNotification("APN-3", "DELIVERY_STATUS")) shouldBe Translation.LedgerOnly("APN-3")
+        tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, 1)) shouldBe Translation.LedgerOnly("APN-3", DocRef(doc, 1))
 
     @Test
     fun `an inbound network document is refused`() =
@@ -95,4 +95,31 @@ class NotificationTranslatorTest {
         invalid(ack.copy(apNotificationId = " "))
         invalid(ack.copy(apNotificationId = "x".repeat(101)))
     }
+
+    @Test
+    fun `INV-AC-623 a complete delivery status gives ledger only with the same doc uuid and version`() {
+        val t = tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, 4)).shouldBeInstanceOf<Translation.LedgerOnly>()
+        t.doc.docUuid shouldBe doc
+        t.doc.version shouldBe 4
+    }
+
+    @Test
+    fun `a delivery status without docUuid is invalid`() =
+        tr(ApNotification("APN-3", "DELIVERY_STATUS", null, 1)) shouldBe
+            Translation.Invalid("a DELIVERY_STATUS needs docUuid")
+
+    @Test
+    fun `a delivery status without version is invalid`() =
+        tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, null)) shouldBe
+            Translation.Invalid("a DELIVERY_STATUS needs version of 1 or more")
+
+    @Test
+    fun `a delivery status with version 0 is invalid`() =
+        tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, 0)) shouldBe
+            Translation.Invalid("a DELIVERY_STATUS needs version of 1 or more")
+
+    @Test
+    fun `a delivery status with a blank notification id is invalid by the id rule`() =
+        tr(ApNotification(" ", "DELIVERY_STATUS", doc, 1)) shouldBe
+            Translation.Invalid("apNotificationId is 1 to 100 characters")
 }

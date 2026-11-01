@@ -65,6 +65,7 @@ sealed interface Translation {
     /** Ledger row only, no event (interim: INV-Q-9774 is open). */
     data class LedgerOnly(
         val apNotificationId: String,
+        val doc: DocRef,
     ) : Translation
 
     /** An inbound network document is refused and records nothing (INV-Q-9676 A, the endpoint answers 503). */
@@ -103,10 +104,31 @@ object NotificationTranslator {
         when (n.kind) {
             ACKNOWLEDGEMENT -> acknowledgement(adapter, id, n)
             REJECTION -> rejection(adapter, id, n)
-            DELIVERY_STATUS -> Translation.LedgerOnly(id)
+            DELIVERY_STATUS -> deliveryStatus(id, n)
             INBOUND_NETWORK_DOCUMENT -> Translation.InboundNotSupported
             else -> Translation.Invalid("kind '${n.kind}' is not one of the four kinds")
         }
+
+    private fun deliveryStatus(
+        id: String,
+        n: ApNotification,
+    ): Translation {
+        val doc = n.docUuid
+        val version = n.version
+        return when {
+            doc == null -> {
+                Translation.Invalid("a DELIVERY_STATUS needs docUuid")
+            }
+
+            version == null || version < 1 -> {
+                Translation.Invalid("a DELIVERY_STATUS needs version of 1 or more")
+            }
+
+            else -> {
+                Translation.LedgerOnly(id, DocRef(doc, version))
+            }
+        }
+    }
 
     private fun acknowledgement(
         adapter: AdapterId,

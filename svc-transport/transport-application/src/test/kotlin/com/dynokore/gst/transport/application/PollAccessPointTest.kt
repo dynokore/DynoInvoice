@@ -127,4 +127,22 @@ class PollAccessPointTest {
         cursors.values[adapter] shouldBe "c0"
         cursors.writes shouldBe 0
     }
+
+    @Test
+    fun `a delivery status with an unknown doc uuid is unowned with zero ledger calls and the cursor stored once`() {
+        val d = ApNotification("APN-D1", "DELIVERY_STATUS", java.util.UUID.randomUUID(), 1)
+        val report = PollAccessPoint(Source(NotificationPage(listOf(d), "c9")), cursors, receive).run(adapter)
+        report.unowned shouldBe listOf("APN-D1")
+        report.refused shouldBe emptyList()
+        ledger.calls shouldBe 0
+        cursors.writes shouldBe 1
+    }
+
+    @Test
+    fun `a delivery status without docUuid is refused and not unowned`() {
+        val d = ApNotification("APN-D2", "DELIVERY_STATUS", null, 1)
+        val report = PollAccessPoint(Source(NotificationPage(listOf(d), "c9")), cursors, receive).run(adapter)
+        report.refused shouldBe listOf("APN-D2")
+        report.unowned shouldBe emptyList()
+    }
 }
