@@ -60,6 +60,8 @@ class ListActiveRegulatoryPacks(
         limit: Int,
         cursor: String?,
     ): ActivePacksOutcome {
+        // the key is read on every request: a missing key fails closed (5xx) even when no cursor is signed or checked
+        cursorKey.bytes()
         val after = cursor?.let(::decode)
         return when {
             limit !in 1..MAX_LIMIT -> ActivePacksOutcome.InvalidLimit

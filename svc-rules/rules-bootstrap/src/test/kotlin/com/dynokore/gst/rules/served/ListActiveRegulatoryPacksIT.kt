@@ -7,7 +7,6 @@ import com.dynokore.gst.rules.bootstrap.PostgresRules
 import com.dynokore.gst.rules.bootstrap.RulesApplication
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -208,13 +207,80 @@ class ListActiveRegulatoryPacksIT(
         get("?limit=0").statusCode() shouldBe 400
     }
 
+    private val keyFile = PostgresRules.secrets.resolve("rules/active-packs-cursor-key")
+
+    private fun withKey(
+        content: String?,
+        block: () -> Unit,
+    ) {
+        val original = Files.readString(keyFile)
+        try {
+            if (content == null) Files.delete(keyFile) else Files.writeString(keyFile, content)
+            block()
+        } finally {
+            Files.writeString(keyFile, original)
+        }
+    }
+
+    private fun cursorOf(body: String) = Regex(""""nextCursor":"([^"]+)"""").find(body)!!.groupValues[1]
+
+    @Test
+    fun `key rotation - a cursor signed with the old key is refused after rotation and no restart is needed`() {
+        (1..3).forEach { regulatory("SCOPE", "v$it", "ARMED") }
+        val cursor = cursorOf(get("?limit=1").body())
+        get("?limit=1&cursor=$cursor").statusCode() shouldBe 200
+        withKey("rotated-cursor-key-0123456789abcdef") {
+            get("?limit=1&cursor=$cursor").statusCode() shouldBe 400
+            val fresh = cursorOf(get("?limit=1").body())
+            get("?limit=1&cursor=$fresh").statusCode() shouldBe 200
+        }
+        get("?limit=1&cursor=$cursor").statusCode() shouldBe 200
+    }
+
+    @Test
+    fun `a missing key fails closed with 5xx on a single page answer and on a cursor call`() {
+        regulatory("SCOPE", "v1", "ARMED")
+        get().statusCode() shouldBe 200
+        withKey(null) {
+            get().statusCode() shouldBe 500
+            get("?cursor=x.y").statusCode() shouldBe 500
+        }
+        get().statusCode() shouldBe 200
+    }
+
+    @Test
+    fun `the cursor key is the secret rules slash active-packs-cursor-key under the mount root`() {
+        (1..2).forEach { regulatory("SCOPE", "v$it", "ARMED") }
+        val cursor = cursorOf(get("?limit=1").body())
+        // the file at exactly that ref decides the signature: changing it invalidates the issued cursor
+        withKey("a-different-key-0123456789abcdefgh") { get("?limit=1&cursor=$cursor").statusCode() shouldBe 400 }
+        get("?limit=1&cursor=$cursor").statusCode() shouldBe 200
+    }
+
+    @Test
+    fun `listActiveRegulatoryPacks and dryRun both answer without 500 through the shared controller`() {
+        get().statusCode() shouldBe 200
+        val dry =
+            http.send(
+                HttpRequest
+                    .newBuilder(URI("http://localhost:$port/internal/v1/rules/packs/p1/dry-runs"))
+                    .header("X-Workload-Token", workloadToken("installer"))
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                    .build(),
+                HttpResponse.BodyHandlers.ofString(),
+            )
+        (dry.statusCode() in 500..599 && dry.statusCode() != 501) shouldBe false
+    }
+
     private fun refusedWith(
         answer: HttpResponse<String>,
         status: Int,
         code: String,
     ) {
         answer.statusCode() shouldBe status
-        answer.body() shouldContain code
+        Regex(""""code"\s*:\s*"([^"]*)"""").find(answer.body())?.groupValues?.get(1) shouldBe code
     }
 
     private fun refusedUnauthenticated(answer: HttpResponse<String>) {
