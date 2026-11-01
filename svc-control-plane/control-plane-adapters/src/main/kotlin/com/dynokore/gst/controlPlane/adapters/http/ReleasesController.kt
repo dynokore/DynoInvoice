@@ -16,10 +16,10 @@ import com.dynokore.gst.controlPlane.contract.api.ReleasesApi
 import com.dynokore.gst.controlPlane.contract.model.AccreditationRecord
 import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
 import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
-import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequest
-import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequestSandboxAcknowledgementsInner
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesResponse
+import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequest
+import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequestSandboxAcknowledgementsInner
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResult
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultAccreditationCheck
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultGatesInner
@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import tools.jackson.databind.json.JsonMapper
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -60,7 +61,8 @@ import java.util.UUID
  * audit entries and maps the outcomes of the use case: SRT-004, CPL-001 and CPL-002, no other.
  */
 @RestController
-@Suppress("LongParameterList") // one constructor-injected controller; each parameter is one collaborator (TPL-18)
+// One method per operation of the generated ReleasesApi (TPL-08); one constructor-injected collaborator per parameter.
+@Suppress("TooManyFunctions", "LongParameterList")
 class ReleasesController(
     private val principals: EndUserPrincipalResolver,
     private val platform: PlatformTenantBinding,
@@ -221,12 +223,20 @@ class ReleasesController(
                 RequestContext(caller.correlationId, idempotencyKey.toString()),
             )
         val outcome = platform.bindPlatform(caller.actor) { purgeAuditEntries.execute(command) }
-        return when (outcome) {
+        return purgeResponse(outcome, purgeAuditEntriesRequest.cutOff, caller.correlationId)
+    }
+
+    private fun purgeResponse(
+        outcome: PurgeAuditOutcome,
+        cutOff: OffsetDateTime,
+        correlationId: String,
+    ): ResponseEntity<PurgeAuditEntriesResponse> =
+        when (outcome) {
             is PurgeAuditOutcome.Purged -> {
                 ResponseEntity.ok(
                     PurgeAuditEntriesResponse(
                         purgeId = outcome.purgeId,
-                        cutOff = purgeAuditEntriesRequest.cutOff,
+                        cutOff = cutOff,
                         floor = outcome.floor.toString(),
                         deletedCount = outcome.result.deletedCount,
                         auditEntryId = UUID.fromString(outcome.result.auditEntryId),
@@ -235,34 +245,23 @@ class ReleasesController(
             }
 
             PurgeAuditOutcome.NotPermitted -> {
-                problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+                problem(ClosedErrorCode.ACCESS_DENIED, correlationId)
             }
 
             PurgeAuditOutcome.CutOffYoungerThanFloor -> {
-                throw ProblemException(
-                    purgeRefusal(
-                        CUT_OFF_YOUNGER_THAN_FLOOR,
-                        HTTP_UNPROCESSABLE,
-                        "Audit purge cut-off younger than the floor",
-                        caller.correlationId,
-                    ),
-                )
+                val title = "Audit purge cut-off younger than the floor"
+                val refusal = purgeRefusal(CUT_OFF_YOUNGER_THAN_FLOOR, HTTP_UNPROCESSABLE, title, correlationId)
+                throw ProblemException(refusal)
             }
 
             PurgeAuditOutcome.FloorUndeterminable -> {
-                throw ProblemException(
-                    purgeRefusal(
-                        FLOOR_UNDETERMINABLE,
-                        HTTP_UNAVAILABLE,
-                        "Audit purge floor cannot be determined",
-                        caller.correlationId,
-                    ),
-                )
+                val title = "Audit purge floor cannot be determined"
+                val refusal = purgeRefusal(FLOOR_UNDETERMINABLE, HTTP_UNAVAILABLE, title, correlationId)
+                throw ProblemException(refusal)
             }
         }
-    }
 
-    /** The API-20 envelope of a catalogued CPL refusal of the purge (severity BLOCK, disposition TERMINAL, owner Platform). */
+    /** The API-20 envelope of a catalogued CPL refusal of the purge (BLOCK, TERMINAL, owner Platform). */
     private fun purgeRefusal(
         code: String,
         status: Int,
@@ -292,7 +291,7 @@ class ReleasesController(
         const val FLOOR_UNDETERMINABLE = "CPL-002"
         const val HTTP_UNPROCESSABLE = 422
         const val HTTP_UNAVAILABLE = 503
-        val purgeJson = JsonMapper.builder().build()
+        val purgeJson: JsonMapper = JsonMapper.builder().build()
     }
 
     private class Caller(

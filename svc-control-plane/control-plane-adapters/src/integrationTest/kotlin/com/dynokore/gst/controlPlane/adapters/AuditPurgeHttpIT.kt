@@ -6,6 +6,9 @@ import com.dynokore.gst.controlPlane.adapters.audit.AuditPurgeStoreJooq
 import com.dynokore.gst.controlPlane.adapters.audit.UndeterminedRetentionFloorSource
 import com.dynokore.gst.controlPlane.adapters.http.ProblemException
 import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
+import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
 import com.dynokore.gst.controlPlane.application.audit.AuditEntryPurger
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeAuthority
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeFloorSource
@@ -156,10 +159,18 @@ class AuditPurgeHttpIT {
                 timeout,
             )
         val permissions = AuthoriseOperatorPermissions(client)
-        val authority = AuditPurgeAuthority { actor, key, scope -> scope == "platform" && permissions.holds(actor, key) }
-        val purger = AuditEntryPurger { actor, cutOff, reason, context ->
-            runner.inTransaction { store.purge(actor, cutOff, reason, context) }
-        }
+        val authority =
+            AuditPurgeAuthority {
+                actor,
+                key,
+                scope,
+                ->
+                scope == "platform" && permissions.holds(actor, key)
+            }
+        val purger =
+            AuditEntryPurger { actor, cutOff, reason, context ->
+                runner.inTransaction { store.purge(actor, cutOff, reason, context) }
+            }
         val useCase = PurgeAuditEntries(authority, floors, purger, clock)
         val noPermission = OperatorPermissions { _, _ -> false }
         return ReleasesController(
@@ -174,6 +185,8 @@ class AuditPurgeHttpIT {
                 clock,
             ),
             SetSupportWindow(unused<SupportWindowRepository>(), noPermission),
+            RecordAccreditation(unused<AccreditationRecords>(), noPermission, clock),
+            GetAccreditation(unused<AccreditationRecords>(), noPermission, clock),
             useCase,
         )
     }
@@ -273,7 +286,7 @@ class AuditPurgeHttpIT {
     }
 
     @Test
-    fun `INV-AC-3823 without a body reason the entry holds the Idempotency-Key, and the correlation id is the request's`() {
+    fun `INV-AC-3823 without a body reason the entry holds the Idempotency-Key and the request correlation id`() {
         seed(yearsAgo(YEARS_11))
         val floors = AuditPurgeFloorSource { listOf(Period.ofYears(SIX_YEARS)) }
         val key = UUID.randomUUID()
