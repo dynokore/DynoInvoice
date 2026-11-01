@@ -40,8 +40,10 @@ class WaitingTenantsMigrationTest {
             return SubmissionDb.connect(SubmissionDb.RUNTIME, SubmissionDb.RUNTIME_PASSWORD).use(block)
         } finally {
             SubmissionDb.superuser().use { c ->
-                rows.map { it.doc }.distinct().forEach {
-                    c.createStatement().use { st -> st.execute("delete from submission.submission where doc_uuid = '$it'") }
+                rows.map { it.doc }.distinct().forEach { doc ->
+                    c.createStatement().use { st ->
+                        st.execute("delete from submission.submission where doc_uuid = '$doc'")
+                    }
                 }
             }
         }
@@ -51,8 +53,18 @@ class WaitingTenantsMigrationTest {
 
     @Test
     fun `waiting_tenants returns each waiting tenant once and respects tenant and Doc UUID`() {
-        val (a, b, c, d) = List(4) { u() }
-        val (a1, a2, b1, c1, d1, shared) = List(6) { u() }
+        val tenants = List(4) { u() }
+        val docs = List(6) { u() }
+        val a = tenants[0]
+        val b = tenants[1]
+        val c = tenants[2]
+        val d = tenants[3]
+        val a1 = docs[0]
+        val a2 = docs[1]
+        val b1 = docs[2]
+        val c1 = docs[3]
+        val d1 = docs[4]
+        val shared = docs[5]
         val other = u()
         val rows =
             listOf(
@@ -80,7 +92,8 @@ class WaitingTenantsMigrationTest {
     fun `waiting_tenants is security definer owned by submission_sys with a pinned search_path and one column`() {
         SubmissionDb.superuser().use { c ->
             c.strings(
-                "select p.prosecdef || '|' || pg_get_userbyid(p.proowner) || '|' || array_to_string(p.proconfig, ',') " +
+                "select p.prosecdef || '|' || pg_get_userbyid(p.proowner) || '|' || " +
+                    "array_to_string(p.proconfig, ',') " +
                     "|| '|' || has_function_privilege('submission_runtime', p.oid, 'execute') " +
                     "|| '|' || has_function_privilege('public', p.oid, 'execute') " +
                     "from pg_proc p join pg_namespace n on n.oid = p.pronamespace " +
