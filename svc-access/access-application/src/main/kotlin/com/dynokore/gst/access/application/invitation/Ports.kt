@@ -79,6 +79,6 @@ interface FirstAdministratorInvitations {
 
     fun insert(invitation: NewInvitation)
 
-    /** Whether the bound tenant has a `tenant.admin` grant that is ACTIVE or PENDING, whatever scope or source. */
+    /** Whether the bound tenant has a `tenant.admin` grant of status ACTIVE or PENDING, whatever scope, source or validity. */
     fun holdsLiveTenantAdminGrant(): Boolean
 }

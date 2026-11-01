@@ -7,7 +7,6 @@ import com.dynokore.gst.access.adapters.invitation.RandomInvitationRefs
 import com.dynokore.gst.access.adapters.persistence.JooqFirstAdministratorInvitations
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantRepository
-import com.dynokore.gst.access.application.invitation.FirstAdministratorEffects
 import com.dynokore.gst.access.application.invitation.FirstAdministratorInvitations
 import com.dynokore.gst.access.application.invitation.InvitationCodes
 import com.dynokore.gst.access.application.invitation.InvitationRefs
@@ -66,19 +65,23 @@ class InvitationUseCases {
     ) = FirstAdministratorProvisioning(useCase, tenants, request, actor)
 
     @Bean
-    fun firstAdministratorEffects(
+    fun provisionFirstAdministrator(
+        tx: TransactionRunner,
+        grants: GrantRepository,
         invitations: FirstAdministratorInvitations,
         codes: InvitationCodes,
         refs: InvitationRefs,
         audit: GrantAudit,
-    ) = FirstAdministratorEffects(invitations, codes, refs, audit)
-
-    @Bean
-    fun provisionFirstAdministrator(
-        tx: TransactionRunner,
-        grants: GrantRepository,
-        effects: FirstAdministratorEffects,
         clock: Clock,
         properties: InvitationProperties,
-    ) = ProvisionFirstAdministrator(tx, grants, effects, clock, InvitationSettings(properties.codeKeyVersion))
+    ) = ProvisionFirstAdministrator(
+        tx,
+        grants,
+        invitations,
+        codes,
+        refs,
+        audit,
+        clock,
+        InvitationSettings(properties.codeKeyVersion),
+    )
 }

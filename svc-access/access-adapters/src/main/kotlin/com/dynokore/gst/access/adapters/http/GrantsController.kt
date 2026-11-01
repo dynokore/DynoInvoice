@@ -99,6 +99,25 @@ open class GrantsController(
         }
     }
 
+    private fun refusalDetail(outcome: GrantRoleOutcome) =
+        when (outcome) {
+            GrantRoleOutcome.SecondHolderRefused -> {
+                "only one person may hold security.officer and tenant.admin under the sole-operator acknowledgement"
+            }
+
+            GrantRoleOutcome.ConflictingPairRefused -> {
+                CONFLICTING_PAIR_DETAIL
+            }
+
+            GrantRoleOutcome.OperatorRoleRefused -> {
+                OPERATOR_ROLE_REFUSED_DETAIL
+            }
+
+            else -> {
+                "security.officer and tenant.admin need the recorded sole-operator acknowledgement"
+            }
+        }
+
     override fun provisionFirstAdministrator(
         idempotencyKey: UUID,
         firstAdministratorRequest: FirstAdministratorRequest,
@@ -147,50 +166,31 @@ open class GrantsController(
             },
         )
 
+    private fun landingOf(landing: Landing) =
+        LandingScreenResponse(landing.role.wire, LandingScreenResponse.Source.valueOf(landing.source.name))
+
     private fun requireManager() {
         if (!manager.mayManageGrants()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
     }
+
+    private fun responseOf(
+        grant: Grant,
+        scopeText: String,
+    ) = GrantResponse(
+        grantRef = grant.ref.value,
+        identityRef = grant.identity.value,
+        role = grant.role.wire,
+        scope = scopeText,
+        status =
+            GrantResponse.Status.valueOf(
+                if (grant.status ==
+                    GrantStatus.REVOKED
+                ) {
+                    "REVOKED"
+                } else {
+                    grant.status.name
+                },
+            ),
+        grantSource = GrantResponse.GrantSource.valueOf(grant.source.name),
+    )
 }
-
-private fun refusalDetail(outcome: GrantRoleOutcome) =
-    when (outcome) {
-        GrantRoleOutcome.SecondHolderRefused -> {
-            "only one person may hold security.officer and tenant.admin under the sole-operator acknowledgement"
-        }
-
-        GrantRoleOutcome.ConflictingPairRefused -> {
-            CONFLICTING_PAIR_DETAIL
-        }
-
-        GrantRoleOutcome.OperatorRoleRefused -> {
-            OPERATOR_ROLE_REFUSED_DETAIL
-        }
-
-        else -> {
-            "security.officer and tenant.admin need the recorded sole-operator acknowledgement"
-        }
-    }
-
-private fun landingOf(landing: Landing) =
-    LandingScreenResponse(landing.role.wire, LandingScreenResponse.Source.valueOf(landing.source.name))
-
-private fun responseOf(
-    grant: Grant,
-    scopeText: String,
-) = GrantResponse(
-    grantRef = grant.ref.value,
-    identityRef = grant.identity.value,
-    role = grant.role.wire,
-    scope = scopeText,
-    status =
-        GrantResponse.Status.valueOf(
-            if (grant.status ==
-                GrantStatus.REVOKED
-            ) {
-                "REVOKED"
-            } else {
-                grant.status.name
-            },
-        ),
-    grantSource = GrantResponse.GrantSource.valueOf(grant.source.name),
-)

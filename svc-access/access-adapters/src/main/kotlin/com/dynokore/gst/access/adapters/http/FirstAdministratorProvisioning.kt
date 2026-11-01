@@ -44,7 +44,7 @@ class FirstAdministratorProvisioning(
         val tenant = tenantOf(body.tenantRef)
         val principal = request.getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
         val tokenTenant = principal?.tenant
-        if (tokenTenant != null && tokenTenant != tenant) refuse(ClosedErrorCode.ACCESS_DENIED)
+        if (tokenTenant != null && tokenTenant != tenant) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val actor = principal?.actor ?: workloadActor.value
         val command =
             ProvisionFirstAdministratorCommand(
@@ -67,22 +67,18 @@ class FirstAdministratorProvisioning(
             }
 
             ProvisionFirstAdministratorOutcome.TenantHasAdministrator -> {
-                conflict("the tenant already has a tenant.admin grant")
+                throw ApiConflict("the tenant already has a tenant.admin grant")
             }
 
             ProvisionFirstAdministratorOutcome.DifferentRequest -> {
-                refuse(ClosedErrorCode.DIFFERENT_REQUEST)
+                throw ApiRefusal(ClosedErrorCode.DIFFERENT_REQUEST)
             }
 
             ProvisionFirstAdministratorOutcome.CodeKeyUnavailable -> {
-                refuse(ClosedErrorCode.ISSUER_UNAVAILABLE)
+                throw ApiRefusal(ClosedErrorCode.ISSUER_UNAVAILABLE)
             }
         }
     }
-
-    private fun refuse(code: ClosedErrorCode): Nothing = throw ApiRefusal(code)
-
-    private fun conflict(detail: String): Nothing = throw ApiConflict(detail)
 
     /** The exact lower-case text of a customer tenant id; any other text, the platform tenant included, is 400. */
     private fun tenantOf(text: String): TenantId {

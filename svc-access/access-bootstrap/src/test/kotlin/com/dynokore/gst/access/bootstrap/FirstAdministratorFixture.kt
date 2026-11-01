@@ -58,28 +58,15 @@ object FirstAdministratorFixture {
         tenantRef: String,
         key: UUID = UUID.randomUUID(),
         auth: String? = com.dynokore.gst.access.bootstrap.served.OPERATOR_TOKEN,
-    ): MockHttpServletResponse = provisionBody(operation, caller, body(tenantRef), key, auth)
-
-    /** The call of the control-plane service with the operator token (a tenantless operator), as the plane makes it. */
-    fun ServedContext.first(
-        tenant: TenantId,
-        key: UUID = UUID.randomUUID(),
-        auth: String? = com.dynokore.gst.access.bootstrap.served.OPERATOR_TOKEN,
-    ): MockHttpServletResponse = provision(FIRST, CONTROL_PLANE, tenant.toString(), key, auth)
-
-    /** The same call with a request body of the test's own. */
-    fun ServedContext.provisionBody(
-        operation: String,
-        caller: String?,
-        body: String,
-        key: UUID = UUID.randomUUID(),
-        auth: String? = com.dynokore.gst.access.bootstrap.served.OPERATOR_TOKEN,
-    ): MockHttpServletResponse {
-        val headers = mutableMapOf<String, String>()
-        caller?.let { headers["X-Workload-Token"] = workloadToken(it) }
-        auth?.let { headers["Authorization"] = it }
-        return post(operation(operation), headers, body, key)
-    }
+        email: String = EMAIL,
+    ): MockHttpServletResponse =
+        call(
+            operation(operation),
+            caller?.let { workloadToken(it) },
+            auth,
+            body = body(tenantRef, email),
+            idempotencyKey = key,
+        )
 
     fun json(response: MockHttpServletResponse): JsonNode = JSON.readTree(response.contentAsString)
 
@@ -108,10 +95,10 @@ object FirstAdministratorFixture {
         tenant: TenantId,
         status: String,
         source: String = "BY_HAND",
-        scope: Pair<String, String> = "TENANT" to tenant.toString(),
+        scopeLevel: String = "TENANT",
+        scopeRef: String = tenant.toString(),
+        identity: String = "IDN-" + UUID.randomUUID().toString().take(8),
     ) {
-        val identity = "IDN-" + UUID.randomUUID().toString().take(8)
-        val (scopeLevel, scopeRef) = scope
         BoundaryFixture.asSuperuser { c ->
             c
                 .prepareStatement(

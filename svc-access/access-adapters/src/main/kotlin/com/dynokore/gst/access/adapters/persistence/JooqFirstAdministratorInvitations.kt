@@ -19,8 +19,8 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * TPL-11. The invitation rows of the bound tenant and the check of the 409 rule over `access.role_grant`. The
- * DSLContext is service-runtime's, wired with the tenancy-jooq listeners; forced row-level security stays behind that.
+ * TPL-11. The invitation rows of the bound tenant and the check of the 409 rule over `access.role_grant`. The DSLContext
+ * is service-runtime's, wired with the tenancy-jooq listeners; forced row-level security stays behind that.
  */
 class JooqFirstAdministratorInvitations(
     private val dsl: DSLContext,
