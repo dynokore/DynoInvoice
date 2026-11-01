@@ -43,7 +43,8 @@ class TenantEnvironmentPayloadTest {
         name: String,
         environment: Environment?,
         retired: Boolean = false,
-    ) = StructureNodeState(NodeType.TENANT, null, retired, name, null, 4, environment = environment)
+        version: Long = 4,
+    ) = StructureNodeState(NodeType.TENANT, null, retired, name, null, version, environment = environment)
 
     private fun live(node: StructureNodeState) =
         outbox
@@ -72,10 +73,11 @@ class TenantEnvironmentPayloadTest {
     }
 
     @Test
-    fun `a state change of a SANDBOX tenant keeps SANDBOX in the event and in the replay`() {
-        val renamed = tenant("Acme-sandbox renamed", Environment.SANDBOX, retired = true)
-        live(renamed)["environment"].asString() shouldBe "SANDBOX"
-        replayed(renamed)["environment"].asString() shouldBe "SANDBOX"
+    fun `a later retired SANDBOX tenant state with a higher structureVersion keeps SANDBOX`() {
+        val later = tenant("Acme-sandbox", Environment.SANDBOX, retired = true, version = 9)
+        live(later)["environment"].asString() shouldBe "SANDBOX"
+        live(later)["structureVersion"].asLong() shouldBe 9
+        replayed(later)["environment"].asString() shouldBe "SANDBOX"
     }
 
     @Test
