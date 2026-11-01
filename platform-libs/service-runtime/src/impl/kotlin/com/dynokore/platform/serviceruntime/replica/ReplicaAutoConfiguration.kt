@@ -95,7 +95,9 @@ class ReplicaAutoConfiguration {
         return AuthorityReplica(
             clock,
             properties.authorityLagBound,
-            fallback.ifAvailable?.guardedBy(registry.forEdge(ACCESS_EDGE)),
+            fallback.ifAvailable
+                ?.guardedBy(registry.forEdge(ACCESS_EDGE))
+                ?.let { CoalescingAuthorityFallback(it, clock, meters.ifAvailable) },
             DegradedAllowResource.load(
                 checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
             ),

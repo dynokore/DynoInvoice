@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.31.0] - 2026-11-01
+### Added
+- `CoalescingAuthorityFallback` (INV-T-9098; INV-Q-9083 A, INV-AC-9090): identical concurrent access-svc fallback decisions (equal tenant, principal id, entityRef, action) share one call; each waiter keeps its own deadline; nothing is kept after the call returns; counter `authority.fallback.coalesced`. Wired around the guarded access fallback in `ReplicaAutoConfiguration`.
+
 ## [10.30.0] - 2026-11-01
 ### Added
 - Role grants in the authority replica (INV-T-9232; INV-Q-8972 A, INV-REQ-864): `GrantScope`, `RoleGrantState`, `RoleGrant`, `RoleGrantKey`, `AuthorityRecord.RoleGrantRecord` and the store `AuthorityReplica.roleGrants`; the holder queries `holdersAt` and `holdersOn` over a (tenant, role) index; an internal `rolesAt` for the decision (INV-Q-10107 C). The structure replica reaches `AuthorityReplica` through an internal primary constructor with no default (INV-Q-13889 A); the public constructor is unchanged and delegates with null. The optional `service-runtime.replica.authority-tombstone-ttl` evicts role-grant tombstones; it must exceed the event-log retention read from the `Retention` bean. `decide` is unchanged.
