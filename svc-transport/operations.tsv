@@ -2,7 +2,7 @@ kind	id	task
 operation	submitPayload	INV-T-4981
 operation	submitPackage	UNASSIGNED
 operation	sendNetworkDocument	UNASSIGNED
-operation	receiveApNotification	INV-T-4982
+operation	receiveApNotification	INV-T-12486
 operation	rotateCredential	INV-T-4983
 operation	testConnection	INV-T-4983
 operation	failoverAdapter	INV-T-4983
