@@ -8,3 +8,7 @@ tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/offboarding	entityRef
 tenancy	POST	/internal/v1/tenancy/tenants/{tenantRef}/operating-profile	entityRef
 tenancy	POST	/internal/v1/tenancy/business-units	entityRef
 transport	PUT	/internal/v1/transport/connections/{connectionRef}/entities	entityRefs
+rules	POST	/internal/v1/rules/mapping-packs	entityRef
+rules	POST	/internal/v1/rules/mapping-packs/{packId}/entries	entityRef
+rules	POST	/internal/v1/rules/mapping-packs/{packId}/entries/{entryId}/source-class-acceptance	entityRef
+rules	POST	/internal/v1/rules/mapping-packs/{packId}/activation	entityRef

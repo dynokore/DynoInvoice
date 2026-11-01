@@ -4,6 +4,9 @@
 ../openapi.yaml#/components/schemas/DryRunRequest dry-run-request-*.json
 ../openapi.yaml#/components/schemas/MappingEntry mapping-entry-*.json
 ../openapi.yaml#/components/schemas/MapTaxCodeRequest map-tax-code-request-*.json
+../openapi.yaml#/components/schemas/DraftMappingPackRequest draft-mapping-pack-request-*.json
+../openapi.yaml#/components/schemas/AcceptSourceClassEntryRequest accept-source-class-entry-request-*.json
+../openapi.yaml#/components/schemas/ActivateMappingPackRequest activate-mapping-pack-request-*.json
 ../openapi.yaml#/components/schemas/RegulatoryPack regulatory-pack-*.json
 ../schemas/calendar-pack-contents.schema.json calendar-pack-contents-*.json
 ../openapi.yaml#/components/schemas/MappingPack mapping-pack-[!c]*.json

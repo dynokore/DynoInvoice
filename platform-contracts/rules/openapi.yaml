@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -163,11 +163,17 @@ paths:
         Authoring command to console-bff (services.yaml rules-svc
         `provides`, SCR-12.1, FR-2.1). Packs are versioned data, never
         editable in place once activated (FR-B.4).
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
+      x-entity-ref: entityRef
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.1, FR-B.4]
       x-operation:
@@ -213,6 +219,11 @@ paths:
         `sourceClass` is SECONDARY or INFERRED; `unacceptedNonPrimaryCount` counts
         those of them whose `accepted` is false, which are the entries that block
         sign-off with RUL-007. The three counts are present on this answer only.
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -221,6 +232,10 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-730, INV-REQ-729]
       parameters:
+        - name: entityRef
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 64 }
         - name: packId
           in: path
           required: true
@@ -247,6 +262,11 @@ paths:
         Entries are ordered by `entryId`. `limit` and `cursor` page the list as
         `reverseLookup` does; `nextCursor` is absent on the last page. The optional
         `sourceClass` and `accepted` filters combine with AND.
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -255,6 +275,10 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-730, INV-REQ-729]
       parameters:
+        - name: entityRef
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 64 }
         - name: packId
           in: path
           required: true
@@ -308,11 +332,17 @@ paths:
         `provides`, SCR-02.3, §31.2.1). Takes an internal tax code from an
         RUL-001 group and adds a mapping-pack entry in draft; does not
         activate (FR-2.3).
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
+      x-entity-ref: entityRef
       x-error-codes: [RUL-001]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.3, C-4]
       x-operation:
@@ -416,11 +446,17 @@ paths:
         Approval command to console-bff (services.yaml rules-svc
         `provides`, SCR-12.6, FR-AA.17, FR-AA.18). Clears RUL-007 for this
         entry alone.
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
+      x-entity-ref: entityRef
       x-error-codes: [RUL-007]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AA.17, FR-AA.18, RUL-007]
       x-operation:
@@ -468,6 +504,11 @@ paths:
         Approval command to console-bff (services.yaml rules-svc
         `provides`, SCR-12.4). Locks the draft; the dry run behind it must
         already be complete (FR-B.3).
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -482,6 +523,10 @@ paths:
         reversibility: UNDOABLE
         repeatKey: "packId — no-op if already submitted."
       parameters:
+        - name: entityRef
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 64 }
         - name: packId
           in: path
           required: true
@@ -515,6 +560,11 @@ paths:
         answer carries `approvals`, whose last entry is this approval; the
         status becomes APPROVED only when that latest approval has no
         CLIENT_APPROVAL outstanding (INV-REQ-994, INV-REQ-996).
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -532,6 +582,10 @@ paths:
         reversibility: UNDOABLE
         repeatKey: "packId — no-op if already approved."
       parameters:
+        - name: entityRef
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 64 }
         - name: packId
           in: path
           required: true
@@ -563,11 +617,17 @@ paths:
         client's acknowledgement is outstanding" (no new document code,
         INV-Q-1949). Every answer carries `approvals` and `activation`;
         `activation.noDistinctApprover` states the fact of INV-REQ-992.
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An absent value
+        is refused, and for an existing pack a value different from the pack's
+        `entityRef` is refused with 403 SRT-004. rules-svc enforces the
+        refusal, not the schema.
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
+      x-entity-ref: entityRef
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.4]
       x-operation:
@@ -587,7 +647,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ActivatePackRequest'
+              $ref: '#/components/schemas/ActivateMappingPackRequest'
             examples:
               default:
                 value: { effectiveFrom: "2026-04-01" }
@@ -1421,6 +1481,14 @@ components:
     DraftMappingPackRequest:
       type: object
       properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: >-
+            The entity the caller acts for. rules-svc passes it to the permission decision; an absent value is refused,
+            and for an existing pack a value different from the pack's `entityRef` is refused with 403 SRT-004
+            (producer-enforced, not by the schema).
         label:
           type: string
           maxLength: 200
@@ -1428,6 +1496,14 @@ components:
     MappingPack:
       type: object
       properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: >-
+            The entity the caller acts for. rules-svc passes it to the permission decision; an absent value is refused,
+            and for an existing pack a value different from the pack's `entityRef` is refused with 403 SRT-004
+            (producer-enforced, not by the schema).
         packId:
           type: string
           maxLength: 40
@@ -1528,6 +1604,14 @@ components:
     MapTaxCodeRequest:
       type: object
       properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: >-
+            The entity the caller acts for. rules-svc passes it to the permission decision; an absent value is refused,
+            and for an existing pack a value different from the pack's `entityRef` is refused with 403 SRT-004
+            (producer-enforced, not by the schema).
         internalTaxCode:
           type: string
           maxLength: 40
@@ -1595,6 +1679,14 @@ components:
     AcceptSourceClassEntryRequest:
       type: object
       properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: >-
+            The entity the caller acts for. rules-svc passes it to the permission decision; an absent value is refused,
+            and for an existing pack a value different from the pack's `entityRef` is refused with 403 SRT-004
+            (producer-enforced, not by the schema).
         rationale:
           type: string
           maxLength: 500
@@ -1602,6 +1694,21 @@ components:
           type: string
           format: date
       required: [rationale, expiresOn]
+    ActivateMappingPackRequest:
+      type: object
+      properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: >-
+            The entity the caller acts for. rules-svc passes it to the permission decision; an absent value is refused,
+            and for an existing pack a value different from the pack's `entityRef` is refused with 403 SRT-004
+            (producer-enforced, not by the schema).
+        effectiveFrom:
+          type: string
+          format: date
+      required: [effectiveFrom]
     ActivatePackRequest:
       type: object
       properties:
