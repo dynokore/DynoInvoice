@@ -1,11 +1,14 @@
 package com.dynokore.gst.rules.adapters.packs
 
+import com.dynokore.gst.rules.application.ClassificationTablePort
 import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.MappingEntriesPort
 import com.dynokore.gst.rules.application.ScenarioDataPort
+import com.dynokore.gst.rules.domain.classification.ClassificationTable
 import com.dynokore.gst.rules.domain.coding.CodeCatalogue
 import com.dynokore.gst.rules.domain.coding.MappingEntry
 import com.dynokore.gst.rules.domain.coding.ScenarioData
+import com.dynokore.gst.rules.domain.resolution.AppliedPack
 import com.dynokore.gst.rules.domain.resolution.PackLookup
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
@@ -38,7 +41,8 @@ class PackContentsReader(
     private val artefacts: (PackVersion) -> PackArtefact?,
 ) : MappingEntriesPort,
     CodeCataloguePort,
-    ScenarioDataPort {
+    ScenarioDataPort,
+    ClassificationTablePort {
     override fun mappingAt(
         tenant: TenantId?,
         date: TransactionDate,
@@ -53,6 +57,19 @@ class PackContentsReader(
         tenant: TenantId?,
         date: TransactionDate,
     ): ScenarioData? = read(PackTypes.SCENARIO, tenant, date, ScenarioPackContents::decode)
+
+    override fun tableAt(
+        tenant: TenantId?,
+        date: TransactionDate,
+    ): ClassificationTable? {
+        val version = versionAt(PackTypes.SCOPE, tenant, date)
+        val rows = read(PackTypes.SCOPE, tenant, date, ScopePackContents::decode)
+        return if (version == null || rows == null) {
+            null
+        } else {
+            ClassificationTable(rows, AppliedPack(PackTypes.SCOPE, version.packId, version.version))
+        }
+    }
 
     /** The version of [packType] in force on [date], the one whose contents the ports above decode. */
     fun versionAt(
