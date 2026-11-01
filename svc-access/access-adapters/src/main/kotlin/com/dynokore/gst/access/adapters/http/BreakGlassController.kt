@@ -1,11 +1,15 @@
 package com.dynokore.gst.access.adapters.http
 
+import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockOutcome
+import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUseCase
 import com.dynokore.gst.access.application.breakglass.BreakGlassSession
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseCase
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassOutcome
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassOutcome
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.contract.api.BreakGlassApi
+import com.dynokore.gst.access.contract.model.ApproveBreakGlassUnlockRequest
+import com.dynokore.gst.access.contract.model.ApproveBreakGlassUnlockResponse
 import com.dynokore.gst.access.contract.model.BreakGlassActionRequest
 import com.dynokore.gst.access.contract.model.BreakGlassActionResponse
 import com.dynokore.gst.access.contract.model.BreakGlassResponse
@@ -23,9 +27,9 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * TPL-08. unlockBreakGlass and recordBreakGlassAction (INV-REQ-896, INV-REQ-897, INV-REQ-1269): the unlock is for the
- * bound tenant only; fewer than two different people is refused (400, SRT-001) and a pair that does not hold the
- * roles is refused (403). The session length is never a request field: the 201 carries the VP-08 value, the expiry and
+ * TPL-08. unlockBreakGlass, approveBreakGlassUnlock and recordBreakGlassAction (INV-REQ-896, INV-REQ-897,
+ * INV-REQ-1269): the unlock is for the bound tenant only; fewer than two different people is refused (400,
+ * SRT-001) and a pair that does not hold the roles is refused (403). The session length is never a request field: the 201 carries the VP-08 value, the expiry and
  * the four permitted actions. An unlock while the identity provider counts as available needs the override reason
  * (409). Recording on a session that is resealed or past its expiry is 409. The contract lists no error code for 409,
  * so the problem body carries a detail that says what is wrong and no catalogue code (INV-Q-8845 A).
@@ -36,6 +40,7 @@ import java.util.UUID
 // template)
 open class BreakGlassController(
     private val unlock: UnlockBreakGlassUseCase,
+    private val approve: ApproveBreakGlassUnlockUseCase,
     private val record: RecordBreakGlassActionUseCase,
     private val tenants: TenantContext,
     private val serviceCaller: ServiceCaller,
@@ -73,9 +78,45 @@ open class BreakGlassController(
                 )
             }
 
+            UnlockBreakGlassOutcome.ApprovalMissing -> {
+                throw ApiRefusal(
+                    ClosedErrorCode.ACCESS_DENIED,
+                    "a named approver has no approval within the window",
+                )
+            }
+
             UnlockBreakGlassOutcome.IdpAvailable -> {
                 throw ApiConflict(
                     "the identity provider is available: the unlock needs the override reason IDP_PARTIAL_OUTAGE",
+                )
+            }
+        }
+    }
+
+    override fun approveBreakGlassUnlock(
+        idempotencyKey: UUID,
+        approveBreakGlassUnlockRequest: ApproveBreakGlassUnlockRequest,
+    ): ResponseEntity<ApproveBreakGlassUnlockResponse> {
+        val tenant = tenants.current().toString()
+        // an approval is for the caller's own tenant only
+        requireOwnTenant(approveBreakGlassUnlockRequest.tenantRef, tenant)
+        val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
+        return when (val outcome = approve.handle(actor, TenantRef(tenant))) {
+            is ApproveBreakGlassUnlockOutcome.Approved -> {
+                ResponseEntity.status(HttpStatus.CREATED).body(
+                    ApproveBreakGlassUnlockResponse(
+                        approvalRef = outcome.approval.ref,
+                        tenantRef = outcome.approval.tenantRef,
+                        madeAt = outcome.approval.madeAt.atOffset(ZoneOffset.UTC),
+                        expiresAt = outcome.approval.expiresAt.atOffset(ZoneOffset.UTC),
+                    ),
+                )
+            }
+
+            ApproveBreakGlassUnlockOutcome.NotPermitted -> {
+                throw ApiRefusal(
+                    ClosedErrorCode.ACCESS_DENIED,
+                    "the caller may not approve a break-glass unlock",
                 )
             }
         }

@@ -1,6 +1,9 @@
 package com.dynokore.gst.access.adapters.http
 
+import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUseCase
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
+import com.dynokore.gst.access.application.breakglass.BreakGlassApproval
+import com.dynokore.gst.access.application.breakglass.BreakGlassApprovals
 import com.dynokore.gst.access.application.breakglass.BreakGlassEffects
 import com.dynokore.gst.access.application.breakglass.BreakGlassSession
 import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
@@ -26,6 +29,7 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
+import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -38,6 +42,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -170,11 +175,60 @@ class BreakGlassControllerOverrideTest {
         val availability = IdentityProviderAvailability("http://idp", IdentityProviderProbe { idpUp }, 1)
         availability.probeOnce()
         val unlock =
-            UnlockBreakGlassUseCase(tx, sessions, grantRepository, {
-                BreakGlassSetting(4, BreakGlassPairing.DEFAULT)
-            }, effects, clock, availability)
+            UnlockBreakGlassUseCase(
+                tx,
+                sessions,
+                grantRepository,
+                {
+                    BreakGlassSetting(4, BreakGlassPairing.DEFAULT)
+                },
+                effects,
+                clock,
+                availability,
+                object : BreakGlassApprovals {
+                    override fun replace(
+                        approver: String,
+                        madeAt: Instant,
+                        window: Duration,
+                    ): BreakGlassApproval = error("not used")
+
+                    // these tests are about the override: every named approver has an approval
+                    override fun consume(
+                        approvers: Collection<String>,
+                        after: Instant,
+                        unlockRef: String,
+                        consumedAt: Instant,
+                    ): Int = approvers.size
+                },
+                Duration.ofMinutes(15),
+            )
         return BreakGlassController(
             unlock,
+            ApproveBreakGlassUnlockUseCase(
+                tx,
+                object : BreakGlassApprovals {
+                    override fun replace(
+                        approver: String,
+                        madeAt: Instant,
+                        window: Duration,
+                    ): BreakGlassApproval = error("not used")
+
+                    override fun consume(
+                        approvers: Collection<String>,
+                        after: Instant,
+                        unlockRef: String,
+                        consumedAt: Instant,
+                    ): Int = error("not used")
+                },
+                grantRepository,
+                { BreakGlassSetting(4, BreakGlassPairing.DEFAULT) },
+                PermissionMatrix.EMPTY,
+                object : GrantAudit {
+                    override fun record(entry: GrantAuditEntry) = error("not used")
+                },
+                clock,
+                Duration.ofMinutes(15),
+            ),
             RecordBreakGlassActionUseCase(
                 tx,
                 sessions,

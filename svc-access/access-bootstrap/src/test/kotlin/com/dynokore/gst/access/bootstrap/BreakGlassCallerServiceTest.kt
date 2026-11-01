@@ -50,8 +50,9 @@ class BreakGlassCallerServiceTest {
             captured.envelopes.clear()
         }
 
-        fun unlock(): String =
-            tenants
+        fun unlock(): String {
+            BreakGlassApproving.approve(context, tenant, "IDN-APP")
+            return tenants
                 .bind(tenant, "IDN-ADM") {
                     api.unlockBreakGlass(
                         UUID.randomUUID(),
@@ -59,6 +60,7 @@ class BreakGlassCallerServiceTest {
                     )
                 }.body!!
                 .unlockRef
+        }
 
         fun record(
             unlockRef: String,

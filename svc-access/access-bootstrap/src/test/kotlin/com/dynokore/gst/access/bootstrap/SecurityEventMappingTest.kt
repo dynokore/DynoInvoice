@@ -18,6 +18,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
+import org.springframework.http.ResponseEntity
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.net.InetSocketAddress
@@ -85,13 +86,15 @@ class SecurityEventMappingTest {
             Seeds.grant(context, tenant, SeedSpec(APPROVER, Role.TAX_APPROVER))
         }
 
-        fun unlock(vararg approvers: String) =
-            tenants.bind(tenant, ADMIN) {
+        fun unlock(vararg approvers: String): ResponseEntity<BreakGlassResponse> {
+            BreakGlassApproving.approveOthers(context, tenant, ADMIN, approvers.toList())
+            return tenants.bind(tenant, ADMIN) {
                 breakGlassApi.unlockBreakGlass(
                     UUID.randomUUID(),
                     UnlockBreakGlassRequest(tenant.toString(), approvers.toList()),
                 )
             }
+        }
 
         fun action(unlockRef: String) =
             tenants.bind(tenant, ADMIN) {
@@ -233,10 +236,15 @@ class SecurityEventMappingTest {
     @Test
     fun `INV-AC-2336 an unlock inside an outer transaction that throws yields no record and leaves no audit row`() =
         run { env, collector ->
+            // the approval is made in its own session, before the outer transaction
+            BreakGlassApproving.approve(env.context, env.tenant, APPROVER)
             assertThatThrownBy {
                 env.tenants.bind(env.tenant, ADMIN) {
                     env.tx.inTransaction {
-                        env.unlock(ADMIN, APPROVER)
+                        env.breakGlassApi.unlockBreakGlass(
+                            UUID.randomUUID(),
+                            UnlockBreakGlassRequest(env.tenant.toString(), listOf(ADMIN, APPROVER)),
+                        )
                         error("outer rollback")
                     }
                 }

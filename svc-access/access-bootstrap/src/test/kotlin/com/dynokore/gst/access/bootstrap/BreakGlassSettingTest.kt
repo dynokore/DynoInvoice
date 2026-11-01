@@ -2,6 +2,7 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.BreakGlassController
+import com.dynokore.gst.access.contract.model.BreakGlassResponse
 import com.dynokore.gst.access.contract.model.UnlockBreakGlassRequest
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.Actor
@@ -27,6 +28,7 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import org.springframework.boot.web.servlet.ServletRegistrationBean
+import org.springframework.http.ResponseEntity
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
 import java.io.File
@@ -119,10 +121,13 @@ class BreakGlassSettingTest {
     private fun unlock(
         context: AssertableWebApplicationContext,
         vararg approvers: String,
-    ) = context.getBean(TenantContext::class.java).bind(tenant, approvers.first()) {
-        context
-            .getBean(BreakGlassController::class.java)
-            .unlockBreakGlass(UUID.randomUUID(), UnlockBreakGlassRequest(tenant.toString(), approvers.toList()))
+    ): ResponseEntity<BreakGlassResponse> {
+        BreakGlassApproving.approveOthers(context, tenant, approvers.first(), approvers.toList())
+        return context.getBean(TenantContext::class.java).bind(tenant, approvers.first()) {
+            context
+                .getBean(BreakGlassController::class.java)
+                .unlockBreakGlass(UUID.randomUUID(), UnlockBreakGlassRequest(tenant.toString(), approvers.toList()))
+        }
     }
 
     @Test

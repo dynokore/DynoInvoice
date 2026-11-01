@@ -2,14 +2,18 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.breakglass.VariationPointBreakGlassSettings
 import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
+import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassApprovals
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessions
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqIdpGroupMappings
 import com.dynokore.gst.access.adapters.persistence.JooqMappedGrants
+import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUseCase
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
+import com.dynokore.gst.access.application.breakglass.BreakGlassApprovals
 import com.dynokore.gst.access.application.breakglass.BreakGlassEffects
 import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
 import com.dynokore.gst.access.application.breakglass.BreakGlassSettings
+import com.dynokore.gst.access.application.breakglass.MAX_APPROVAL_WINDOW
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
@@ -25,16 +29,21 @@ import com.dynokore.gst.access.application.idp.SyncIdpGroupsUseCase
 import com.dynokore.gst.access.application.idp.UnmapIdpGroupUseCase
 import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.domain.grant.ConsentCheck
+import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
+import java.time.Duration
+import java.time.format.DateTimeParseException
 
 /**
  * TPL-18, continued: the use cases of the directory-group mappings (INV-REQ-892, INV-REQ-1263) and of break-glass
@@ -96,9 +105,47 @@ class IdpAndBreakGlassUseCases {
     ) = SyncIdpGroupsUseCase(shared, dependencies.grants, dependencies.directory, dependencies.matrix, effects)
 }
 
+/**
+ * `access.break-glass.approval-window` (INV-Q-9109 A): how long an approval of an unlock counts. Default `PT15M`; a
+ * value above `PT15M`, zero, negative or unparsable stops the start-up with a message that names the setting.
+ */
+@ConfigurationProperties(prefix = "access.break-glass")
+class BreakGlassApprovalProperties(
+    val approvalWindow: String?,
+) {
+    /** The validated window; throws [IllegalArgumentException] naming the setting. */
+    fun window(): Duration {
+        val text = approvalWindow ?: return MAX_APPROVAL_WINDOW
+        val parsed =
+            try {
+                Duration.parse(text)
+            } catch (e: DateTimeParseException) {
+                throw IllegalArgumentException("$SETTING must be an ISO-8601 duration such as PT15M, got '$text'", e)
+            }
+        require(!parsed.isZero && !parsed.isNegative && parsed <= MAX_APPROVAL_WINDOW) {
+            "$SETTING must be above zero and at most PT15M, got '$text'"
+        }
+        return parsed
+    }
+
+    private companion object {
+        const val SETTING = "access.break-glass.approval-window"
+    }
+}
+
+/** The validated approval window as a bean; building it stops the start-up on an invalid value. */
+class BreakGlassApprovalWindow(
+    val value: Duration,
+)
+
 /** TPL-18, continued: the use cases of break-glass (INV-REQ-896, INV-REQ-897, INV-REQ-1269). */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(BreakGlassApprovalProperties::class)
 class BreakGlassUseCases {
+    @Bean
+    fun breakGlassApprovalWindow(properties: BreakGlassApprovalProperties) =
+        BreakGlassApprovalWindow(properties.window())
+
     @Bean
     fun breakGlassSessions(
         dsl: DSLContext,
@@ -137,7 +184,47 @@ class BreakGlassUseCases {
         effects: BreakGlassEffects,
         clock: Clock,
         availability: IdentityProviderAvailability,
-    ) = UnlockBreakGlassUseCase(dependencies.tx, sessions, dependencies.grants, settings, effects, clock, availability)
+        approvals: BreakGlassApprovals,
+        window: BreakGlassApprovalWindow,
+    ) = UnlockBreakGlassUseCase(
+        dependencies.tx,
+        sessions,
+        dependencies.grants,
+        settings,
+        effects,
+        clock,
+        availability,
+        approvals,
+        window.value,
+    )
+
+    @Bean
+    fun breakGlassApprovals(
+        dsl: DSLContext,
+        tenants: TenantContext,
+        clock: Clock,
+    ): BreakGlassApprovals = JooqBreakGlassApprovals(dsl, tenants, clock)
+
+    @Bean
+    @Suppress("LongParameterList") // one collaborator per port of the use case, as its constructor
+    fun approveBreakGlassUnlockUseCase(
+        dependencies: GrantDependencies,
+        approvals: BreakGlassApprovals,
+        settings: BreakGlassSettings,
+        matrix: PermissionMatrix,
+        audit: GrantAudit,
+        clock: Clock,
+        window: BreakGlassApprovalWindow,
+    ) = ApproveBreakGlassUnlockUseCase(
+        dependencies.tx,
+        approvals,
+        dependencies.grants,
+        settings,
+        matrix,
+        audit,
+        clock,
+        window.value,
+    )
 
     @Bean
     fun recordBreakGlassActionUseCase(

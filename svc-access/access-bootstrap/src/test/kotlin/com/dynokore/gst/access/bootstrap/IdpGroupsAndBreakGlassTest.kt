@@ -45,6 +45,7 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
+import org.springframework.http.ResponseEntity
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
@@ -294,9 +295,12 @@ class IdpGroupsAndBreakGlassTest {
     private fun unlock(
         env: Env,
         vararg approvers: String,
-    ) = env.tenants.bind(tenant, "IDN-ADM") {
-        val request = UnlockBreakGlassRequest(tenant.toString(), approvers.toList())
-        env.breakGlassApi.unlockBreakGlass(UUID.randomUUID(), request)
+    ): ResponseEntity<BreakGlassResponse> {
+        BreakGlassApproving.approveOthers(env.context, tenant, "IDN-ADM", approvers.toList())
+        return env.tenants.bind(tenant, "IDN-ADM") {
+            val request = UnlockBreakGlassRequest(tenant.toString(), approvers.toList())
+            env.breakGlassApi.unlockBreakGlass(UUID.randomUUID(), request)
+        }
     }
 
     @Test

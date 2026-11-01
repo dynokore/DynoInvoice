@@ -19,6 +19,7 @@ import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
@@ -78,9 +79,12 @@ class IdpOverrideBreakGlassTest {
         fun unlock(
             reason: UnlockBreakGlassRequest.OverrideReason? = null,
             vararg approvers: String = arrayOf("IDN-ADM", "IDN-APP"),
-        ) = tenants.bind(tenant, "IDN-ADM") {
-            val request = UnlockBreakGlassRequest(tenant.toString(), approvers.toList(), reason)
-            api.unlockBreakGlass(UUID.randomUUID(), request)
+        ): ResponseEntity<BreakGlassResponse> {
+            BreakGlassApproving.approveOthers(context, tenant, "IDN-ADM", approvers.toList())
+            return tenants.bind(tenant, "IDN-ADM") {
+                val request = UnlockBreakGlassRequest(tenant.toString(), approvers.toList(), reason)
+                api.unlockBreakGlass(UUID.randomUUID(), request)
+            }
         }
 
         fun sessions(): Int =

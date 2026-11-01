@@ -101,6 +101,12 @@ sealed interface UnlockBreakGlassOutcome {
      * (INV-Q-11557 A, INV-AC-9185): nothing is written (409).
      */
     data object IdpAvailable : UnlockBreakGlassOutcome
+
+    /**
+     * A named approver other than the caller has no unconsumed approval made within the approval window (INV-Q-9109
+     * A, INV-AC-9302): nothing is written and no approval is consumed (403).
+     */
+    data object ApprovalMissing : UnlockBreakGlassOutcome
 }
 
 /** The one override reason that opens an unlock while the identity provider counts as available (INV-Q-11557 A). */
@@ -121,7 +127,12 @@ class UnlockBreakGlassUseCase(
     private val effects: BreakGlassEffects,
     private val clock: Clock,
     private val availability: IdentityProviderAvailability,
+    private val approvals: BreakGlassApprovals,
+    private val approvalWindow: Duration,
 ) {
+    /** Thrown inside the transaction when a named approver has no approval left, so that the session row rolls back. */
+    private class ApprovalShortfall : RuntimeException(null, null, false, false)
+
     fun handle(
         actor: String,
         tenant: TenantRef,
@@ -130,7 +141,20 @@ class UnlockBreakGlassUseCase(
     ): UnlockBreakGlassOutcome {
         val people = approvedBy.distinct()
         if (people.size < 2) return UnlockBreakGlassOutcome.PairOfOne
-        return tx.inTransaction {
+        return try {
+            open(actor, tenant, people, overrideReason)
+        } catch (_: ApprovalShortfall) {
+            UnlockBreakGlassOutcome.ApprovalMissing
+        }
+    }
+
+    private fun open(
+        actor: String,
+        tenant: TenantRef,
+        people: List<IdentityRef>,
+        overrideReason: String?,
+    ): UnlockBreakGlassOutcome =
+        tx.inTransaction {
             val now = clock.instant()
             val setting = settings.current()
             val roles = people.associateWith { TenantAuthority.tenantRoles(grants.findByIdentity(it), tenant, now) }
@@ -150,10 +174,14 @@ class UnlockBreakGlassUseCase(
             val hours = setting.hours
             check(BreakGlassRules.isSessionHours(hours)) { "the break-glass session length must be 1 to 8 hours" }
             val session = sessions.insert(hours, now, people.map { it.value })
+            // every refusal is decided above; the approvals of the others go in this transaction, all or none
+            val others = people.map { it.value }.filter { it != actor }
+            if (approvals.consume(others, now.minus(approvalWindow), session.ref, now) != others.size) {
+                throw ApprovalShortfall()
+            }
             effects.recordUnlock(actor, session.ref, recordedReason)
             UnlockBreakGlassOutcome.Unlocked(session)
         }
-    }
 }
 
 /** The ACC-002 alert and the audit entry every unlock and action carries (INV-REQ-897 behaviours 1 and 2). */

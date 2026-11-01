@@ -1,6 +1,8 @@
 package com.dynokore.gst.access.application
 
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
+import com.dynokore.gst.access.application.breakglass.BreakGlassApproval
+import com.dynokore.gst.access.application.breakglass.BreakGlassApprovals
 import com.dynokore.gst.access.application.breakglass.BreakGlassEffects
 import com.dynokore.gst.access.application.breakglass.BreakGlassSession
 import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -130,6 +133,22 @@ class UnlockBreakGlassOverrideTest {
             ),
             Clock.fixed(now, ZoneOffset.UTC),
             available(idpUp),
+            object : BreakGlassApprovals {
+                override fun replace(
+                    approver: String,
+                    madeAt: Instant,
+                    window: Duration,
+                ): BreakGlassApproval = error("not used")
+
+                // these tests are about the override: every named approver has an approval
+                override fun consume(
+                    approvers: Collection<String>,
+                    after: Instant,
+                    unlockRef: String,
+                    consumedAt: Instant,
+                ): Int = approvers.size
+            },
+            Duration.ofMinutes(15),
         )
 
     private fun fakeGrants(): GrantRepository =

@@ -107,6 +107,7 @@ object FixtureMatrix {
     val VIEW_CONTENT = Permission("doc.view.content")
     val EXPORT_SUPPORT_BUNDLE = Permission("support.bundle.export")
     val USER_MANAGE = Permission("user.manage")
+    val BREAK_GLASS_UNLOCK = Permission("break-glass.unlock")
 
     val matrix =
         PermissionMatrix(
@@ -121,6 +122,7 @@ object FixtureMatrix {
                     PermissionDefinition(VIEW_CONTENT, PermissionKind.READ),
                     PermissionDefinition(EXPORT_SUPPORT_BUNDLE, PermissionKind.READ),
                     PermissionDefinition(USER_MANAGE, PermissionKind.WRITE),
+                    PermissionDefinition(BREAK_GLASS_UNLOCK, PermissionKind.WRITE),
                 ),
             rows =
                 mapOf(
@@ -130,10 +132,13 @@ object FixtureMatrix {
                             VIEW to Allowance.PERMITTED,
                             RESOLVE to Allowance.PERMITTED,
                             APPROVE to Allowance.PERMITTED,
+                            BREAK_GLASS_UNLOCK to Allowance.PERMITTED,
                         ),
                     Role.ENTITY_ADMIN to mapOf(VIEW to Allowance.PERMITTED, EDIT_PROFILE to Allowance.PERMITTED),
-                    Role.DEPLOYMENT_OPERATOR to mapOf(EXPORT_SUPPORT_BUNDLE to Allowance.PERMITTED),
-                    Role.TENANT_ADMIN to mapOf(USER_MANAGE to Allowance.PERMITTED),
+                    Role.DEPLOYMENT_OPERATOR to
+                        mapOf(EXPORT_SUPPORT_BUNDLE to Allowance.PERMITTED, BREAK_GLASS_UNLOCK to Allowance.PERMITTED),
+                    Role.TENANT_ADMIN to
+                        mapOf(USER_MANAGE to Allowance.PERMITTED, BREAK_GLASS_UNLOCK to Allowance.PERMITTED),
                     Role.AGENT_OPERATOR to mapOf(VIEW to Allowance.WITHIN_SCOPE),
                 ),
         )
