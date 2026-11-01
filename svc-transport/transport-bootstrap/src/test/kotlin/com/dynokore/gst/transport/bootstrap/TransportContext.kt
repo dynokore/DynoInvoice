@@ -49,6 +49,8 @@ object TransportContext {
             "transport.ap.sandbox-endpoint=http://localhost:1",
             "transport.ap.adapters[0].id=primary",
             "transport.ap.adapters[0].path=primary",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
         )
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
