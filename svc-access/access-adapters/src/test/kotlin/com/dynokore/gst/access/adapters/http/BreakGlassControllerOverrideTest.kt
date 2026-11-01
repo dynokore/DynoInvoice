@@ -216,6 +216,13 @@ class BreakGlassControllerOverrideTest {
             }
         }
 
+    private val sealing =
+        BreakGlassSealing(
+            SignInBreakGlassUseCase(tx, sessions, keeper, clock),
+            ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock),
+            { false },
+        )
+
     private fun controller(idpUp: Boolean): BreakGlassController {
         val availability = IdentityProviderAvailability("http://idp", IdentityProviderProbe { idpUp }, 1)
         availability.probeOnce()
@@ -255,11 +262,7 @@ class BreakGlassControllerOverrideTest {
             object : ServiceCaller {
                 override fun current(): String? = "svc"
             },
-            BreakGlassSealing(
-                SignInBreakGlassUseCase(tx, sessions, keeper, clock),
-                ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock),
-                { false },
-            ),
+            sealing,
         )
     }
 

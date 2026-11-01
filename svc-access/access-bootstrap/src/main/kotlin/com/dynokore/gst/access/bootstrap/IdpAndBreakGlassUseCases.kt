@@ -3,11 +3,11 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.breakglass.SecureRandomSealingCredentials
 import com.dynokore.gst.access.adapters.breakglass.VariationPointBreakGlassSettings
 import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
-import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassApprovals
 import com.dynokore.gst.access.adapters.http.BreakGlassSealing
 import com.dynokore.gst.access.adapters.http.DeploymentOperatorCheck
 import com.dynokore.gst.access.adapters.http.ResolvedDeploymentOperatorCheck
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassAccounts
+import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassApprovals
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessions
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqIdpGroupMappings
@@ -47,9 +47,9 @@ import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import tools.jackson.databind.ObjectMapper
