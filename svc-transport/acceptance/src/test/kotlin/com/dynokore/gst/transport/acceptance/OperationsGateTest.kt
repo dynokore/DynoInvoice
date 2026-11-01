@@ -182,33 +182,63 @@ class OperationsGateTest {
     }
 
     @Test
-    fun `the state function returns state 1 and state 2 for their triples`() {
+    fun `the state function returns state 1 for the state 1 triple`() {
         stateOf(state1.done, state1.stubSet, state1.cell) shouldBe state1
+    }
+
+    @Test
+    fun `the state function returns state 2 for the state 2 triple`() {
         stateOf(state2.done, state2.stubSet, state2.cell) shouldBe state2
     }
 
     @Test
-    fun `the state function returns null for a mixed triple`() {
+    fun `the state function returns null for the state 2 done text with the state 1 stub set`() {
         stateOf(state2.done, state1.stubSet, state2.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `the state function returns null for the state 1 done text with a stub set without receiveApNotification`() {
         stateOf(state1.done, state1.stubSet - "receiveApNotification", state1.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `the state function returns null for the state 2 triple with the cell of state 1`() {
         stateOf(state2.done, state2.stubSet, "INV-T-4982").shouldBeNull()
+    }
+
+    @Test
+    fun `the state function returns null for the state 1 triple with the cell of state 2`() {
         stateOf(state1.done, state1.stubSet, "INV-T-12486").shouldBeNull()
     }
 
     @Test
-    fun `the state function returns null for a look-alike done text`() {
+    fun `the state function returns null for the state 2 done text plus a line INV-T-4982`() {
         stateOf(state2.done + "INV-T-4982\n", state2.stubSet, state2.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `the state function returns null for the done text INV-T-124860`() {
         stateOf("INV-T-124860\n", state2.stubSet, state2.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `the state function returns null for the done text INV-T-12486 with CR LF`() {
         stateOf("INV-T-12486\r\n", state2.stubSet, state2.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `the state function returns null for a done text with a leading space before INV-T-12486`() {
         stateOf("INV-T-4981\n INV-T-12486\n", state2.stubSet, state2.cell).shouldBeNull()
     }
 
     @Test
-    fun `the state function returns null for a null done text or a null cell`() {
+    fun `the state function returns null for a null done text`() {
         stateOf(null, state1.stubSet, state1.cell).shouldBeNull()
-        stateOf(null, state2.stubSet, state2.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `the state function returns null for a null cell`() {
         stateOf(state1.done, state1.stubSet, null).shouldBeNull()
-        stateOf(state2.done, state2.stubSet, null).shouldBeNull()
     }
 
     @Test
