@@ -96,7 +96,8 @@ class IdpOverrideBreakGlassTest {
 
         fun audits() =
             captured.envelopes.filter {
-                it.type == "com.dynokore.gst.platform.AuditEntryRecorded.v1" && it.dataJson.contains("\"unlockBreakGlass\"")
+                it.type == "com.dynokore.gst.platform.AuditEntryRecorded.v1" &&
+                    it.dataJson.contains("\"unlockBreakGlass\"")
             }
 
         /** The refusal 409: a problem body with a detail text and no catalogue code, and no session opened. */
@@ -199,7 +200,9 @@ class IdpOverrideBreakGlassTest {
             assertThat(env.detail()).isEqualTo("IDP_PARTIAL_OUTAGE")
             val alert = env.alerts().single()
             assertThat(alert.dataJson).contains("\"accCode\":\"ACC-002\"", "\"action\":\"UNLOCK\"")
-            assertThat(mapper.readTree(alert.dataJson).path("overrideReason").asString()).isEqualTo("IDP_PARTIAL_OUTAGE")
+            assertThat(
+                mapper.readTree(alert.dataJson).path("overrideReason").asString(),
+            ).isEqualTo("IDP_PARTIAL_OUTAGE")
             env.assertPairOfOneRefused()
         }
 
