@@ -81,6 +81,8 @@ class ProvisionFirstAdministratorTest {
 
         override fun findByKey(key: UUID): StoredInvitation? = null
 
+        override fun findByReissueKey(key: UUID) = null
+
         override fun insert(invitation: NewInvitation) {
             stored += invitation
         }
@@ -103,6 +105,8 @@ class ProvisionFirstAdministratorTest {
             codeDigest: String,
             codeKeyVersion: String,
             expiresAt: java.time.Instant,
+            reissueKey: UUID,
+            reissueFingerprint: String,
         ) = error("not used")
     }
 

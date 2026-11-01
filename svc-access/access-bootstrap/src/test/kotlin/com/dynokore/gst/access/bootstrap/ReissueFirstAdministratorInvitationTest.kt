@@ -43,68 +43,12 @@ import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 
-private const val NEW_EXPIRY = "2031-02-03T04:05:06Z"
-private const val ACTION = "reissueFirstAdministratorInvitation"
-
 /**
  * INV-AC-8281 (INV-T-8282; INV-Q-8232 A): `reissueFirstAdministratorInvitation` through the real context over a real
  * PostgreSQL with forced row-level security, the generated caller check and the request filters in front of the
  * controller. The clock is the service clock port ([MovableClock]).
  */
 class ReissueFirstAdministratorInvitationTest {
-    private fun ServedContext.reissue(
-        tenant: TenantId,
-        caller: String? = CONTROL_PLANE,
-        auth: String? = OPERATOR_TOKEN,
-        expires: String = NEW_EXPIRY,
-        key: UUID = UUID.randomUUID(),
-    ): MockHttpServletResponse {
-        val headers = mutableMapOf<String, String>()
-        (application.getBean(ServiceCaller::class.java) as? MovableServiceCaller)?.value = caller
-        caller?.let { headers["X-Workload-Token"] = workloadToken(it) }
-        auth?.let { headers["Authorization"] = it }
-        val op = operation(ACTION)
-        return post(
-            op,
-            headers,
-            """{"invitationExpiresAt":"$expires"}""",
-            key,
-            op.path.replace("{tenantRef}", "$tenant"),
-        )
-    }
-
-    /** A provisioned invitation whose stored expiry is [secondsAhead] after the frozen clock. */
-    private fun ServedContext.provisionedExpiring(
-        secondsAhead: Long,
-        tenant: TenantId = newTenant(),
-    ): Pair<Invitation, Instant> {
-        val expiry = movableClock().freeze().plusSeconds(secondsAhead)
-        return provisioned(tenant, expires = expiry.toString()) to expiry
-    }
-
-    private fun ServedContext.expired(tenant: TenantId = newTenant()): Invitation {
-        val (invitation, expiry) = provisionedExpiring(10, tenant)
-        movableClock().advance(Duration.ofSeconds(11))
-        assertThat(movableClock().instant()).isAfter(expiry)
-        return invitation
-    }
-
-    private fun invitationRows(tenant: TenantId) = rows("access.first_administrator_invitation", tenant).map(::json)
-
-    private fun auditEntries(tenant: TenantId): List<String> =
-        BoundaryFixture.asSuperuser { c ->
-            c
-                .prepareStatement(
-                    "select data::text from access.outbox where tenant_id = ?::uuid " +
-                        "and type like '%AuditEntryRecorded%' and data::text like '%$ACTION%'",
-                ).use {
-                    it.setString(1, tenant.toString())
-                    it.executeQuery().use { rs ->
-                        generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
-                    }
-                }
-        }
-
     private fun ServedContext.refusedWithNothingStored(
         tenant: TenantId,
         status: Int,
