@@ -39,7 +39,7 @@ class MissedRunTest {
     @Test
     fun `INV-AC-15938 a run one tick earlier leaves the expectation unchanged`() {
         val earlier = at.minus(Duration.ofDays(1))
-        MissedRunRules.recordRun(exp, RecordedRun(key, earlier, at), null) shouldBe exp
+        MissedRunRules.recordRun(exp, RecordedRun(key, earlier, next), null) shouldBe exp
     }
 
     @Test
