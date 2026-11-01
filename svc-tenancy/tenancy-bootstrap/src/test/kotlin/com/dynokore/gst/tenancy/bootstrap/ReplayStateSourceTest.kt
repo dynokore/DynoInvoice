@@ -156,6 +156,9 @@ private class Scenario(
     val firstEntity: EntityResponse,
 ) {
     val refs get() = listOf(group, live1, live2, retired)
+
+    /** The `ref` of the bound tenant: the fixture creates the tenant with the canonical text of its id as `ref`. */
+    val tenantRef: String get() = tenant.value.toString()
 }
 
 /** One of the three tables: its insert and its update, each forcing a stale `changed_at`, and the read-back. */
@@ -520,8 +523,16 @@ class ReplayStateSourceTest {
     fun `INV-AC-9089 a full sync replays exactly the current nodes`() {
         run { env ->
             scenario(env) { s ->
-                val states = env.states(s.tenant, env.structure)
+                val all = env.states(s.tenant, env.structure)
                 assertThat(env.structure.eventType).isEqualTo(STRUCTURE_TYPE)
+                // INV-Q-15469 A: the tenant's own TENANT state is an optional first state (0 or 1, never 2 or more)
+                val tenantStates = all.filter { it.aggregateKey == s.tenantRef }
+                assertThat(tenantStates.size).isLessThanOrEqualTo(1)
+                if (tenantStates.isNotEmpty()) {
+                    assertThat(all.first()).isSameAs(tenantStates.single())
+                    assertThat(tenantStates.single().entity).isEqualTo(EntityRef(s.tenantRef))
+                }
+                val states = all.filter { it.aggregateKey != s.tenantRef }
                 val ordered = listOf(s.group) + listOf(s.live1, s.live2, s.retired).sorted()
                 assertThat(states.map { it.aggregateKey }).containsExactlyElementsOf(ordered)
                 for (state in states) {
@@ -622,14 +633,18 @@ class ReplayStateSourceTest {
         run { env ->
             scenario(env) { s ->
                 val whole = env.states(s.tenant, env.structure)
-                assertThat(whole).hasSize(4)
+                // INV-Q-15469 A: 4 nodes plus the tenant's own TENANT state when the replay holds it (0 or 1)
+                val tenantStates = whole.count { it.aggregateKey == s.tenantRef }
+                assertThat(tenantStates).isBetween(0, 1)
+                val n = 4 + tenantStates
+                assertThat(whole).hasSize(n)
                 for (limit in listOf(1, 2, 4, 5)) {
                     val pages = env.pages(s.tenant, env.structure, limit = limit)
                     assertThat(pages.flatMap { it.items.map { state -> state.aggregateKey } })
                         .containsExactlyElementsOf(whole.map { it.aggregateKey })
                     assertThat(pages.dropLast(1).map { it.next }).doesNotContainNull()
                     assertThat(pages.last().next).isNull()
-                    assertThat(pages).hasSize((4 + limit - 1) / limit)
+                    assertThat(pages).hasSize((n + limit - 1) / limit)
                     assertThat(pages.all { it.items.size <= limit }).isTrue()
                 }
                 assertThat(env.pages(s.tenant, env.profiles, limit = 1)).hasSize(1)
