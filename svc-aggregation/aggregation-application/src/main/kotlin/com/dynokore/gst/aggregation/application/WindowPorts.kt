@@ -55,6 +55,7 @@ interface WindowRepository {
     /** Places an aggregate or transaction dated [date] in the window of [cadence] holding it; opens it when absent. */
     fun place(
         entityRef: String,
+        businessUnitRef: String,
         aggregateType: AggregateType,
         date: LocalDate,
         cadence: Cadence,
@@ -63,7 +64,13 @@ interface WindowRepository {
     /** The open windows whose end is on or before [date]. */
     fun openWindowsEndingOnOrBefore(date: LocalDate): List<OpenWindow>
 
-    /** Closes [part] of [window] with the aggregate made from it. */
+    /** Whether [part] of [window] is already closed; a window stays listed as open until all its parts are. */
+    fun isPartClosed(
+        window: OpenWindow,
+        part: WindowPart,
+    ): Boolean
+
+    /** Closes [part] of [window] with the aggregate made from it. Closing a closed part again changes nothing. */
     fun closePart(
         window: OpenWindow,
         part: WindowPart,

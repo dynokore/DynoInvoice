@@ -55,10 +55,16 @@ class CloseWindowsTest {
 
         override fun place(
             entityRef: String,
+            businessUnitRef: String,
             aggregateType: AggregateType,
             date: LocalDate,
             cadence: Cadence,
         ) = Placement(AggregationWindow.containing(cadence, date), WindowState.OPEN)
+
+        override fun isPartClosed(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = closedParts.any { it.first == window && it.second == part }
 
         override fun openWindowsEndingOnOrBefore(date: LocalDate) =
             open.filter { it.window.end <= date && closedParts.none { c -> c.first == it } }
@@ -171,7 +177,7 @@ class CloseWindowsTest {
         val windows = listOf(window(Cadence.WEEKLY, d(3, 30)))
         val f = Fixture(windows, PeriodSpans.Known(monthly))
         f.run.execute(d(4, 4))
-        // a repository that still lists the window as open: the replay of the source keys must hold it
+        // a repository that still lists the window but has every part closed: nothing is closed or published again
         val spans = PeriodSpans.Known(monthly)
         val again =
             CloseWindows(StillOpen(windows), { _, _, _ -> spans }, IntakeAggregate(Codes(), f.repo), f.published)
@@ -180,15 +186,35 @@ class CloseWindowsTest {
         f.published.changes.size shouldBe 2
     }
 
+    @Test
+    fun `a part whose aggregate exists but was never closed is closed and published by the next run`() {
+        val windows = listOf(window(Cadence.WEEKLY, d(3, 30)))
+        val f = Fixture(windows, PeriodSpans.Known(monthly))
+        f.run.execute(d(4, 4))
+        f.windows.closedParts.clear()
+        f.published.changes.clear()
+        val again = f.run.execute(d(4, 4))
+        again.closed.size shouldBe 2
+        f.published.changes.size shouldBe 2
+        f.repo.rows.size shouldBe 2
+        f.windows.closedParts.size shouldBe 2
+    }
+
     private class StillOpen(
         private val open: List<OpenWindow>,
     ) : WindowRepository {
         override fun place(
             entityRef: String,
+            businessUnitRef: String,
             aggregateType: AggregateType,
             date: LocalDate,
             cadence: Cadence,
         ) = error("not used")
+
+        override fun isPartClosed(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = true
 
         override fun openWindowsEndingOnOrBefore(date: LocalDate) = open
 

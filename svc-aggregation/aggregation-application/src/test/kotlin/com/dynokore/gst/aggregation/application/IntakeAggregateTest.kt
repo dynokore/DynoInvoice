@@ -248,6 +248,7 @@ class IntakeAggregateTest {
 
         override fun place(
             entityRef: String,
+            businessUnitRef: String,
             aggregateType: AggregateType,
             date: LocalDate,
             cadence: com.dynokore.gst.aggregation.domain.Cadence,
@@ -259,6 +260,11 @@ class IntakeAggregateTest {
                 state,
             )
         }
+
+        override fun isPartClosed(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = false
 
         override fun openWindowsEndingOnOrBefore(date: LocalDate) = emptyList<OpenWindow>()
 

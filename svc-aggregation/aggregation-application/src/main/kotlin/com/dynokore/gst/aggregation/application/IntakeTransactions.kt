@@ -40,7 +40,10 @@ class IntakeTransactions(
             command.transactions.map { transaction ->
                 val date = transaction.transactionDate
                 val cadence = cadences.cadence(command.entityRef, command.aggregateType, date)
-                PlacedTransaction(transaction, windows.place(command.entityRef, command.aggregateType, date, cadence))
+                PlacedTransaction(
+                    transaction,
+                    windows.place(command.entityRef, command.businessUnitRef, command.aggregateType, date, cadence),
+                )
             }
         transactions.store(command.entityRef, command.sourceKey, command.sourceRevision, placed)
         return TransactionsOutcome.Created(placed)

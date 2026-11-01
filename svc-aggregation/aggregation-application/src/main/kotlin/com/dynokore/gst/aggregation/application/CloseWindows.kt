@@ -17,7 +17,8 @@ data class CloseResult(
  * The closing run of a tick (INV-REQ-413 item 3, INV-REQ-435 items 1 and 2). Each open window whose end is on or before
  * the tick is split at the prescribed periods; one aggregate is made per part, with the part dates as its period.
  * The source key `window:<entityRef>:<aggregateType>:<partStart>:<partEnd>` at revision 1 makes a second firing of the
- * same tick replay: nothing is created, closed or published twice. A window with no known span, or with a date no span
+ * same tick replay: nothing is created twice, and a part
+ * left open by a failed run is closed and published by the next. A window with no known span, or with a date no span
  * covers, stays open (held).
  *
  * [intake] must be an [IntakeAggregate] built without a window repository: the part is closed here, not placed again.
@@ -49,13 +50,19 @@ class CloseWindows(
                         sourceKey = "window:${open.entityRef}:${open.aggregateType}:${part.start}:${part.end}",
                         sourceRevision = 1,
                     )
-                val outcome = intake.execute(command)
-                if (outcome is IntakeOutcome.Created) {
-                    val change = close(open, part, outcome.aggregate.aggregateId)
-                    closed += change
-                } else if (outcome !is IntakeOutcome.Replayed) {
-                    // a replay was made by an earlier firing and is not closed or published again; anything else holds
+                val aggregate =
+                    when (val outcome = intake.execute(command)) {
+                        is IntakeOutcome.Created -> outcome.aggregate
+
+                        // made by an earlier run that may have failed before closing or publishing: finish it below
+                        is IntakeOutcome.Replayed -> outcome.aggregate
+
+                        else -> null
+                    }
+                if (aggregate == null) {
                     complete = false
+                } else if (!windows.isPartClosed(open, part)) {
+                    closed += close(open, part, aggregate.aggregateId)
                 }
             }
             if (!complete) held += open
@@ -68,8 +75,12 @@ class CloseWindows(
         part: WindowPart,
         aggregateId: UUID,
     ): WindowChange {
+        // publish first: a failure between the two leaves the part open, so the next run publishes again
+        // (at-least-once) rather than never; consumers deduplicate on the aggregate id
+        val change = WindowChange(open, part, WindowState.CLOSED, aggregateId)
+        publisher.changed(change)
         windows.closePart(open, part, aggregateId)
-        return WindowChange(open, part, WindowState.CLOSED, aggregateId).also(publisher::changed)
+        return change
     }
 
     private fun partsOf(open: OpenWindow) =

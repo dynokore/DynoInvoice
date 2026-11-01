@@ -182,7 +182,7 @@ class IntakeAggregate(
         val repo = windows ?: return null
         val source = checkNotNull(cadences)
         val cadence = source.cadence(command.entityRef, command.aggregateType, command.periodEnd)
-        return repo.place(command.entityRef, command.aggregateType, command.periodEnd, cadence)
+        return repo.place(command.entityRef, command.businessUnitRef, command.aggregateType, command.periodEnd, cadence)
     }
 
     private fun validCode(code: String?): String? = code?.takeIf { CODE.matches(it) }

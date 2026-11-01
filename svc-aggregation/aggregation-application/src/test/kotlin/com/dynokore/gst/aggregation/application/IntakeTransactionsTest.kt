@@ -11,16 +11,24 @@ import java.time.LocalDate
 class IntakeTransactionsTest {
     private class Windows : WindowRepository {
         val placed = mutableListOf<LocalDate>()
+        val units = mutableListOf<String>()
 
         override fun place(
             entityRef: String,
+            businessUnitRef: String,
             aggregateType: AggregateType,
             date: LocalDate,
             cadence: Cadence,
         ): Placement {
             placed += date
+            units += businessUnitRef
             return Placement(AggregationWindow.containing(cadence, date), WindowState.OPEN)
         }
+
+        override fun isPartClosed(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = false
 
         override fun openWindowsEndingOnOrBefore(date: LocalDate) = emptyList<OpenWindow>()
 
@@ -72,6 +80,7 @@ class IntakeTransactionsTest {
         val expected = listOf(LocalDate.of(2027, 3, 31), LocalDate.of(2027, 4, 1))
         outcome.placed.map { it.placement.window.start } shouldBe expected
         windows.placed shouldBe listOf(LocalDate.of(2027, 3, 31), LocalDate.of(2027, 4, 1))
+        windows.units shouldBe listOf("bu-1", "bu-1")
     }
 
     @Test
