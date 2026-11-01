@@ -10,6 +10,7 @@ import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.application.queue.TenantTransactions
 import com.dynokore.gst.submission.application.queue.WaitingSweeper
+import com.dynokore.gst.submission.application.queue.WaitingTenantSource
 import com.dynokore.gst.submission.domain.ordering.InFlight
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
@@ -31,7 +32,7 @@ class InFlightWaitDbTest {
     private val actor = "svc:submission-svc"
 
     private class Boundary(
-        context: ApplicationContext,
+        val context: ApplicationContext,
     ) {
         val tenants: TenantContext = context.getBean(TenantContext::class.java)
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
@@ -235,6 +236,23 @@ class InFlightWaitDbTest {
 
         b.states(tenant, doc) shouldBe mapOf(1 to "REJECTED", 2 to "QUEUED", 3 to "READY")
         b.asTenant(tenant) { b.queue.releaseNext(doc) } shouldBe ReleaseResult.NothingToRelease
+    }
+
+    @Test
+    fun `the context wires the waiting source over the function and the sweeper releases through it`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID().toString()
+        b.seed(tenant, doc, 1, "ACKNOWLEDGED")
+        b.seed(tenant, doc, 2, "READY")
+        val source = b.context.getBean(WaitingTenantSource::class.java)
+
+        (TenantId(tenant) in source.tenants()) shouldBe true
+        (b.context.getBean(WaitingSweeper::class.java).sweep() >= 1) shouldBe true
+
+        b.states(tenant, doc) shouldBe mapOf(1 to "ACKNOWLEDGED", 2 to "QUEUED")
+        (TenantId(tenant) in source.tenants()) shouldBe false
     }
 
     @Test

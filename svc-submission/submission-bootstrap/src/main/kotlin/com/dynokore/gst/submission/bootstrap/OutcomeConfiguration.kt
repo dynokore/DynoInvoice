@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.persistence.JooqDueTenantSource
+import com.dynokore.gst.submission.adapters.persistence.JooqWaitingTenantSource
 import com.dynokore.gst.submission.adapters.queue.ConfiguredRetryBoundary
 import com.dynokore.gst.submission.adapters.queue.RandomJitter
 import com.dynokore.gst.submission.application.queue.AttemptOutcomeApplier
@@ -9,11 +10,14 @@ import com.dynokore.gst.submission.application.queue.DueTenantSource
 import com.dynokore.gst.submission.application.queue.JitterSource
 import com.dynokore.gst.submission.application.queue.RetryBoundarySource
 import com.dynokore.gst.submission.application.queue.RetryDueScan
+import com.dynokore.gst.submission.application.queue.InFlightStore
 import com.dynokore.gst.submission.application.queue.SentRecovery
 import com.dynokore.gst.submission.application.queue.SentTransaction
 import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.application.queue.TenantTransactions
+import com.dynokore.gst.submission.application.queue.WaitingSweeper
+import com.dynokore.gst.submission.application.queue.WaitingTenantSource
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
@@ -100,4 +104,19 @@ class OutcomeConfiguration(
         queue: WorkQueue,
         sent: SentTransaction,
     ): SentRecovery = SentRecovery(Clock.systemUTC(), scope, store, queue, sent)
+
+    @Bean
+    fun waitingTenantSource(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+    ): WaitingTenantSource = JooqWaitingTenantSource(dsl, platform, principal, transactions)
+
+    @Bean
+    fun waitingSweeper(
+        source: WaitingTenantSource,
+        scope: TenantTransactions,
+        versions: InFlightStore,
+        queue: SubmissionQueue,
+    ): WaitingSweeper = WaitingSweeper(source, scope, versions, queue)
 }
