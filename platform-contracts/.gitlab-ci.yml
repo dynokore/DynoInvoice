@@ -636,6 +636,7 @@ contracts-codegen-compile:
     expire_in: 1 week
 
 bundle-publish:
+  extends: .inv-check-group   # check:bundle-publish: the bundleContracts gate (INV-T-13883) runs only here, on main
   stage: publish
   image: "$GRADLE_IMAGE"
   variables:
@@ -651,6 +652,8 @@ bundle-publish:
     - GST_GUARD_DRY=
     - !reference [.gst-guard-generic, script]
   artifacts:
+    when: always   # check summary (.inv-check-group); the job's own paths replace the extended list
     paths:
       - build/distributions/
+      - ci-artifacts/
     expire_in: 1 month
