@@ -20,10 +20,10 @@ operation	resolveLandingScreen	INV-T-4935	open
 operation	clearLandingChoice	INV-T-4935	open
 operation	requestElevation	INV-T-4941	open
 operation	decideElevation	INV-T-4941	open
-operation	withdrawElevationRequest	UNASSIGNED	open
+operation	withdrawElevationRequest	INV-T-4941	open
 operation	openOperatorSession	INV-T-4941	open
-operation	inviteDiagnostics	UNASSIGNED	open
-operation	withdrawDiagnosticInvitation	UNASSIGNED	open
+operation	inviteDiagnostics	INV-T-4941	open
+operation	withdrawDiagnosticInvitation	INV-T-4941	open
 operation	issueSignatoryLink	INV-T-4940	open
 operation	verifySignatoryLink	INV-T-4940	open
 operation	unlockBreakGlass	INV-T-4938	done

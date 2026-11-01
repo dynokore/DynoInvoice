@@ -185,6 +185,24 @@ class OperationsTableTest {
         }
     }
 
+    /** The rows INV-T-4941 owns (INV-Q-7983 A), compared with this list by equality. */
+    private fun taskFindingsOf4941(lines: List<String>): List<String> {
+        val rows = rows(lines).first.associateBy { it.kind to it.name }
+        return listOf(
+            "requestElevation",
+            "decideElevation",
+            "openOperatorSession",
+            "runAccessReview",
+            "closeAccessReview",
+            "inviteDiagnostics",
+            "withdrawDiagnosticInvitation",
+            "withdrawElevationRequest",
+        ).mapNotNull { name ->
+            val task = rows["operation" to name]?.task
+            if (task == "INV-T-4941") null else "operation $name: task is ${task ?: "missing"}, not INV-T-4941"
+        }
+    }
+
     /** The two rows that moved to INV-T-8853 (INV-Q-8855 A): `signInBreakGlass` and `resealBreakGlass`. */
     private fun movedFindings(lines: List<String>): List<String> {
         val rows = rows(lines).first.associateBy { it.kind to it.name }
@@ -210,6 +228,22 @@ class OperationsTableTest {
         val lookAlike =
             table.map { it.replace("\tresealBreakGlass\tINV-T-8853\t", "\tresealBreakGlass\tINV-T-88530\t") }
         assertThat(movedFindings(lookAlike)).hasSize(1)
+    }
+
+    @Test
+    fun `the task column of the rows INV-T-4941 names is INV-T-4941 and probes against it fail`() {
+        assertThat(taskFindingsOf4941(table)).isEmpty()
+        listOf("INV-T-4940", "INV-T-49410", "UNASSIGNED").forEach { other ->
+            listOf("inviteDiagnostics", "withdrawElevationRequest", "withdrawDiagnosticInvitation").forEach { name ->
+                val probe = table.map { it.replace("\t$name\tINV-T-4941\t", "\t$name\t$other\t") }
+                assertThat(taskFindingsOf4941(probe))
+                    .containsExactly("operation $name: task is $other, not INV-T-4941")
+            }
+        }
+        // the two channel rows stay as they are: accessAccessAlertRaised is INV-T-4938's, accessExampleHappened is open
+        val rows = rows(table).first.associateBy { it.kind to it.name }
+        assertThat(rows["channel" to "accessAccessAlertRaised"]?.task).isEqualTo("INV-T-4938")
+        assertThat(rows["channel" to "accessExampleHappened"]?.task).isEqualTo("UNASSIGNED")
     }
 
     @Test
@@ -278,7 +312,7 @@ class OperationsTableTest {
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
         val unassignedDone = "operation\twithdrawElevationRequest\tUNASSIGNED\tdone"
         assertThat(
-            verify(base.map { it.replace("operation\twithdrawElevationRequest\tUNASSIGNED\topen", unassignedDone) }),
+            verify(base.map { it.replace("operation\twithdrawElevationRequest\tINV-T-4941\topen", unassignedDone) }),
         ).anyMatch { "done but no task" in it }
         assertThat(verify(base.map { it.replace("\tINV-T-4934\tdone", "\tINV-T-4934\topen") }))
             .anyMatch { "published by the code but not marked done" in it }
