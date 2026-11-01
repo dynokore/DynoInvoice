@@ -85,16 +85,24 @@ class JooqFirstAdministratorInvitations(
                     grantRef = it.grantRef.column("grant_ref"),
                     expiresAt = it.expiresAt.column("expires_at").toInstant(),
                     codeDigest = it.codeDigest,
+                    acceptKey = it.acceptKey,
+                    acceptFingerprint = it.acceptFingerprint,
                 )
             }
 
-    override fun clearCodeDigest(invitationRef: String) {
+    override fun markAccepted(
+        invitationRef: String,
+        acceptKey: UUID,
+        acceptFingerprint: String,
+    ) {
         val actor =
             checkNotNull(tenants.currentActor()) { "no actor is bound: an acceptance runs in a bound transaction" }
         val updated =
             dsl
                 .update(FIRST_ADMINISTRATOR_INVITATION)
                 .setNull(FIRST_ADMINISTRATOR_INVITATION.CODE_DIGEST)
+                .set(FIRST_ADMINISTRATOR_INVITATION.ACCEPT_KEY, acceptKey)
+                .set(FIRST_ADMINISTRATOR_INVITATION.ACCEPT_FINGERPRINT, acceptFingerprint)
                 .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_AT, clock.instant().atOffset(ZoneOffset.UTC))
                 .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_BY, actor)
                 .set(FIRST_ADMINISTRATOR_INVITATION.VERSION, FIRST_ADMINISTRATOR_INVITATION.VERSION.plus(1L))

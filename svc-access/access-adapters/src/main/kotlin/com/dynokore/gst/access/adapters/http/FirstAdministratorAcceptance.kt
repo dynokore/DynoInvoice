@@ -15,6 +15,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.ResponseEntity
+import java.util.UUID
 
 /** The two inbound adapters of the first administrator, so that the controller keeps a short constructor. */
 class FirstAdministratorEndpoints(
@@ -38,18 +39,26 @@ class FirstAdministratorAcceptance(
 ) {
     fun accept(
         invitationRef: String,
+        idempotencyKey: UUID,
         body: AcceptFirstAdministratorInvitationRequest,
     ): ResponseEntity<AcceptFirstAdministratorInvitationResponse> {
         val principal = principalOf()
         val subject = principal.actor
         val tenant = tenantOf(invitationRef, principal)
-        val command = AcceptFirstAdministratorCommand(invitationRef, body.invitationCode, subject)
-        return when (val outcome = tenants.bind(tenant, subject) { useCase.handle(command) }) {
+        val command = AcceptFirstAdministratorCommand(invitationRef, body.invitationCode, subject, idempotencyKey)
+        return respond(tenants.bind(tenant, subject) { useCase.handle(command) })
+    }
+
+    private fun respond(
+        outcome: AcceptFirstAdministratorOutcome,
+    ): ResponseEntity<AcceptFirstAdministratorInvitationResponse> =
+        when (outcome) {
             is AcceptFirstAdministratorOutcome.Accepted -> ResponseEntity.ok(responseOf(outcome.grant))
+            is AcceptFirstAdministratorOutcome.Replayed -> ResponseEntity.ok(responseOf(outcome.grant))
+            AcceptFirstAdministratorOutcome.DifferentRequest -> throw ApiRefusal(ClosedErrorCode.DIFFERENT_REQUEST)
             AcceptFirstAdministratorOutcome.NotFound -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
             else -> throw ApiConflict(conflictOf(outcome))
         }
-    }
 
     /** The verified end-user principal; a call with none is 401 (SRT-003). */
     private fun principalOf(): EndUserPrincipal =
@@ -75,7 +84,11 @@ class FirstAdministratorAcceptance(
                 "the identity already holds this role in this scope"
             }
 
-            is AcceptFirstAdministratorOutcome.Accepted, AcceptFirstAdministratorOutcome.NotFound -> {
+            is AcceptFirstAdministratorOutcome.Accepted,
+            is AcceptFirstAdministratorOutcome.Replayed,
+            AcceptFirstAdministratorOutcome.DifferentRequest,
+            AcceptFirstAdministratorOutcome.NotFound,
+            -> {
                 error("not a conflict")
             }
         }

@@ -13,6 +13,7 @@ import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.tenancykernel.TenantId
 import org.springframework.mock.web.MockHttpServletResponse
 import java.time.Clock
+import java.time.Duration
 import java.util.UUID
 
 /** A provisioned first administrator invitation as the control plane's call returned it. */
@@ -38,10 +39,15 @@ object AcceptFirstAdministratorFixture {
         return value
     }
 
-    /** Step 2: the control plane provisions the first administrator of a tenant; the invitation expires at [expires]. */
+    /** Step 2: the control plane provisions the first administrator; it expires at [expires] (default: a year after the service clock). */
     fun ServedContext.provisioned(
         tenant: TenantId = FirstAdministratorFixture.newTenant(),
-        expires: String = FirstAdministratorFixture.EXPIRES,
+        expires: String =
+            application
+                .getBean(Clock::class.java)
+                .instant()
+                .plus(Duration.ofDays(365))
+                .toString(),
     ): Invitation {
         val response =
             provisionBody(FIRST, CONTROL_PLANE, FirstAdministratorFixture.body(tenant.toString(), expires = expires))
@@ -60,12 +66,13 @@ object AcceptFirstAdministratorFixture {
         ref: String,
         code: String,
         auth: String?,
+        key: UUID = UUID.randomUUID(),
     ): MockHttpServletResponse =
         post(
             operation(ACCEPT),
             viaConsole(auth),
             """{"invitationCode":"$code"}""",
-            UUID.randomUUID(),
+            key,
             "$PATH/$ref/accept",
         )
 

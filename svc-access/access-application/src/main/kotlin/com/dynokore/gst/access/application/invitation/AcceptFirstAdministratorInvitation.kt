@@ -16,12 +16,14 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
+import java.util.UUID
 
 /** What the invited person sends: the reference, the code, and the `sub` of the verified token (never a field). */
 data class AcceptFirstAdministratorCommand(
     val invitationRef: String,
     val invitationCode: String,
     val subject: String,
+    val idempotencyKey: UUID,
 )
 
 /** What an acceptance reads and writes besides the grant: the invitation rows, the code digest, events and audit. */
@@ -37,6 +39,14 @@ sealed interface AcceptFirstAdministratorOutcome {
     data class Accepted(
         val grant: Grant,
     ) : AcceptFirstAdministratorOutcome
+
+    /** 200 again: the same key and fingerprint, grant ACTIVE and bound to the subject; nothing is written. */
+    data class Replayed(
+        val grant: Grant,
+    ) : AcceptFirstAdministratorOutcome
+
+    /** 422 DIFFERENT_REQUEST: the key of the stored acceptance is reused with another subject or code. */
+    data object DifferentRequest : AcceptFirstAdministratorOutcome
 
     /** 404: a wrong code, an unknown reference and a reserved subject answer alike, so a reference cannot be probed. */
     data object NotFound : AcceptFirstAdministratorOutcome
@@ -97,7 +107,13 @@ class AcceptFirstAdministratorInvitation(
         grant: Grant,
     ): AcceptFirstAdministratorOutcome {
         val stored = invitation.codeDigest
+        val presented = codes.digestOf(command.invitationCode)
         return when {
+            // the key of the stored acceptance: a repeat (INV-Q-15347 A), admitted after the expiry
+            invitation.acceptKey == command.idempotencyKey -> {
+                repeat(command, invitation, grant, presented)
+            }
+
             // a cleared digest means the invitation was accepted: the code is not compared again
             stored == null -> {
                 if (grant.status == GrantStatus.ACTIVE) {
@@ -107,7 +123,7 @@ class AcceptFirstAdministratorInvitation(
                 }
             }
 
-            !sameDigest(stored, codes.digestOf(command.invitationCode)) -> {
+            !sameDigest(stored, presented) -> {
                 AcceptFirstAdministratorOutcome.NotFound
             }
 
@@ -125,14 +141,52 @@ class AcceptFirstAdministratorInvitation(
             }
 
             else -> {
-                bind(command, grant)
+                bind(command, grant, fingerprintOf(command.subject, presented))
             }
         }
     }
 
+    private fun repeat(
+        command: AcceptFirstAdministratorCommand,
+        invitation: InvitationRecord,
+        grant: Grant,
+        presented: String,
+    ): AcceptFirstAdministratorOutcome =
+        when {
+            !sameDigest(invitation.acceptFingerprint.orEmpty(), fingerprintOf(command.subject, presented)) -> {
+                AcceptFirstAdministratorOutcome.DifferentRequest
+            }
+
+            grant.status == GrantStatus.ACTIVE && grant.identity.value == command.subject -> {
+                AcceptFirstAdministratorOutcome.Replayed(grant)
+            }
+
+            grant.status == GrantStatus.REVOKED -> {
+                AcceptFirstAdministratorOutcome.Withdrawn
+            }
+
+            else -> {
+                AcceptFirstAdministratorOutcome.AlreadyAccepted
+            }
+        }
+
+    private fun fingerprintOf(
+        subject: String,
+        digest: String,
+    ): String =
+        MessageDigest
+            .getInstance("SHA-256")
+            .digest("$subject:$digest".toByteArray(StandardCharsets.UTF_8))
+            .let {
+                java.util.HexFormat
+                    .of()
+                    .formatHex(it)
+            }
+
     private fun bind(
         command: AcceptFirstAdministratorCommand,
         pending: Grant,
+        fingerprint: String,
     ): AcceptFirstAdministratorOutcome {
         val identity = IdentityRef(command.subject)
         grants.lockIdentity(identity, GranteeKind.STAFF)
@@ -142,7 +196,7 @@ class AcceptFirstAdministratorInvitation(
         }
         val active = pending.accepted(identity)
         grants.update(pending, active)
-        invitations.clearCodeDigest(command.invitationRef)
+        invitations.markAccepted(command.invitationRef, command.idempotencyKey, fingerprint)
         publisher.publish(
             records.forChange(
                 active.tenant,
