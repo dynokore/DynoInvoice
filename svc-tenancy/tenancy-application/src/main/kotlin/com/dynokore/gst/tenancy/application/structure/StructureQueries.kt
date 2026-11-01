@@ -52,15 +52,7 @@ class StructureQueries(
             tenant.ref,
             tenant.legalName,
             live(tenant.retired),
-            StructureNodeState(
-                NodeType.TENANT,
-                null,
-                tenant.retired,
-                tenant.legalName,
-                null,
-                tenant.structureVersion,
-                environment = tenant.environment,
-            ),
+            tenantNode(tenant),
         )
 
     private fun live(retired: Boolean) = if (retired) RETIRED else LIVE

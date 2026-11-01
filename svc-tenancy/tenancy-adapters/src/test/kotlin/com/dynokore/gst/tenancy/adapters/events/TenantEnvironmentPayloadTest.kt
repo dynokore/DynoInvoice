@@ -7,7 +7,10 @@ import com.dynokore.gst.tenancy.application.structure.ChangeType
 import com.dynokore.gst.tenancy.application.structure.NodeType
 import com.dynokore.gst.tenancy.application.structure.StructureChange
 import com.dynokore.gst.tenancy.application.structure.StructureNodeState
+import com.dynokore.gst.tenancy.application.structure.tenantNode
+import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.domain.Environment
+import com.dynokore.platform.outboxandqueue.EntityRef
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -116,5 +119,43 @@ class TenantEnvironmentPayloadTest {
                 SchemaFixture.errors(schema, root.toString()).shouldBeEmpty()
             }
         }
+    }
+
+    @Test
+    fun `INV-AC-15381 the replayed tenant state carries the shared node, the tenant ref and the stored version`() {
+        val row =
+            TenantRecord(
+                UUID.randomUUID(),
+                "Acme-sandbox",
+                "Acme Legal",
+                "plan",
+                "c",
+                9,
+                true,
+                null,
+                Environment.SANDBOX,
+            )
+        val node = tenantNode(row)
+        val state = replay.state(ReplayNode(node.kind, row.ref, row.ref, node, null))
+        state.entity shouldBe EntityRef("Acme-sandbox")
+        state.aggregateKey shouldBe "Acme-sandbox"
+        state.docSequence shouldBe null
+        val data = mapper.readTree(state.dataJson)
+        data["nodeType"].asString() shouldBe "TENANT"
+        data["nodeRef"].asString() shouldBe "Acme-sandbox"
+        data["changeType"].asString() shouldBe "RETIRED"
+        data.has("parentRef") shouldBe false
+        data.has("previousParentRef") shouldBe false
+        data["node"]["structureVersion"].asLong() shouldBe 9
+        data["node"]["environment"].asString() shouldBe "SANDBOX"
+        data["node"]["name"].asString() shouldBe "Acme Legal"
+        data["node"].has("code") shouldBe false
+        data["node"]["profile"].size() shouldBe 0
+        nodeOf(node).environment?.value shouldBe "SANDBOX"
+        SchemaFixture.errors(schema, state.dataJson).shouldBeEmpty()
+        val live = tenantNode(row.copy(retired = false, ref = "Acme", environment = Environment.PRODUCTION))
+        mapper
+            .readTree(replay.state(ReplayNode(live.kind, "Acme", "Acme", live, null)).dataJson)["changeType"]
+            .asString() shouldBe "UPDATED"
     }
 }

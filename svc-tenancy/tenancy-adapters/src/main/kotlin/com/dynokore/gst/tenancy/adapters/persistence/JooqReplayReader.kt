@@ -14,6 +14,7 @@ import com.dynokore.gst.tenancy.application.structure.ProfileEntry
 import com.dynokore.gst.tenancy.application.structure.StructureNodeState
 import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.gst.tenancy.application.structure.groupNode
+import com.dynokore.gst.tenancy.application.structure.tenantNode
 import com.dynokore.gst.tenancy.application.structure.unitNode
 import com.dynokore.platform.outboxandqueue.ReplayScope
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -41,7 +42,7 @@ data class ReplayNode(
     val profileEffectiveDate: LocalDate?,
 )
 
-/** The position after a state: the kind and ref of the last state returned (nodes are ordered by kind, then ref). */
+/** The position after a state: the kind and ref of the last state returned (kinds in the order of [KINDS]). */
 data class ReplayCursor(
     val type: NodeType,
     val ref: String,
@@ -50,7 +51,7 @@ data class ReplayCursor(
 
     companion object {
         private const val SEPARATOR = '|'
-        private val KINDS = listOf(NodeType.GROUP, NodeType.ENTITY, NodeType.BUSINESS_UNIT)
+        private val KINDS = listOf(NodeType.TENANT, NodeType.GROUP, NodeType.ENTITY, NodeType.BUSINESS_UNIT)
 
         fun decode(text: String): ReplayCursor {
             val at = text.indexOf(SEPARATOR)
@@ -66,7 +67,7 @@ interface ReplayReader {
     /** Every tenant that holds state, outside any tenant binding. */
     fun tenantIds(): List<TenantId>
 
-    /** Up to [limit] groups, entities and business units within [scope] strictly after [after], in a stable order. */
+    /** Up to [limit] nodes (the tenant, groups, entities, business units) within [scope] strictly after [after]. */
     fun structure(
         scope: ReplayScope?,
         after: ReplayCursor?,
@@ -130,10 +131,24 @@ class JooqReplayReader(
         limit: Int,
     ): List<ReplayNode> =
         when (type) {
+            NodeType.TENANT -> tenant(scope, cursorRef)
             NodeType.GROUP -> groups(scope, cursorRef, limit)
             NodeType.ENTITY -> entities(scope, cursorRef, limit, withStatusOnly = false)
             else -> units(scope, cursorRef, limit)
         }
+
+    /** The bound tenant's own node: in every scope but Entity, in a Period only when its row changed in it. */
+    private fun tenant(
+        scope: ReplayScope?,
+        afterRef: String?,
+    ): List<ReplayNode> {
+        if (afterRef != null || scope is ReplayScope.Entity) return emptyList()
+        val period = (scope as? ReplayScope.Period)?.let { ReplayConditions.period(it, TENANT.CHANGED_AT) }
+        val row = dsl.selectFrom(TENANT).where(ReplayConditions.all(period)).fetchOne()
+        return listOfNotNull(
+            row?.let(::tenantRecordOf)?.let { ReplayNode(NodeType.TENANT, it.ref, it.ref, tenantNode(it), null) },
+        )
+    }
 
     private fun groups(
         scope: ReplayScope?,
@@ -266,7 +281,7 @@ class JooqReplayReader(
         }
 
     private companion object {
-        val KINDS = listOf(NodeType.GROUP, NodeType.ENTITY, NodeType.BUSINESS_UNIT)
+        val KINDS = listOf(NodeType.TENANT, NodeType.GROUP, NodeType.ENTITY, NodeType.BUSINESS_UNIT)
     }
 }
 

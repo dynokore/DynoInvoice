@@ -75,5 +75,6 @@ class ArchiveWorkspace(
     private val tx: TransactionRunner,
     private val store: WorkspaceStore,
 ) {
-    fun handle(workspaceRef: String): WorkspaceArchival = tx.inTransaction { store.archiveWorkspace(workspaceRef) }
+    fun handle(workspaceRef: String): WorkspaceArchival =
+        tx.inTransaction { store.archiveWorkspace(workspaceRef).outcome }
 }

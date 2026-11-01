@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.application.workspace
 import com.dynokore.gst.tenancy.application.tenant.TenantCreation
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchival
+import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchived
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
 import com.dynokore.gst.tenancy.domain.SampleRow
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -47,20 +48,22 @@ class InMemoryWorkspaceStore(
     override fun workspace(ref: String): TenantRecord? =
         rows.firstOrNull { it.ref == ref && it.pairedProductionTenant == context.tenant.value }
 
-    override fun archiveWorkspace(ref: String): WorkspaceArchival {
+    var versions = 100L
+
+    override fun archiveWorkspace(ref: String): WorkspaceArchived {
         val i = rows.indexOfFirst { it.ref == ref && it.pairedProductionTenant == context.tenant.value }
         return when {
             i < 0 -> {
-                WorkspaceArchival.MISSING
+                WorkspaceArchived(WorkspaceArchival.MISSING, null)
             }
 
             rows[i].retired -> {
-                WorkspaceArchival.ALREADY_ARCHIVED
+                WorkspaceArchived(WorkspaceArchival.ALREADY_ARCHIVED, rows[i])
             }
 
             else -> {
-                rows[i] = rows[i].copy(retired = true)
-                WorkspaceArchival.ARCHIVED
+                rows[i] = rows[i].copy(retired = true, structureVersion = ++versions)
+                WorkspaceArchived(WorkspaceArchival.ARCHIVED, rows[i])
             }
         }
     }

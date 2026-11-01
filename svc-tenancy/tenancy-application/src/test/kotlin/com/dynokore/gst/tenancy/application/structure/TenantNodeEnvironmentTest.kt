@@ -60,4 +60,18 @@ class TenantNodeEnvironmentTest {
             EntityRecord(UUID.randomUUID(), "E1", "G", "Acme Pte Ltd", "PTE", null, null, "AB12", "ACTIVE", false, 1),
         ).environment.let(::assertNull)
     }
+
+    @Test
+    fun `INV-AC-15381 getEntityStructure returns exactly the shared tenant node`() {
+        val retiredSandbox = row("Acme-sandbox", Environment.SANDBOX).copy(retired = true, structureVersion = 7)
+        assertEquals(tenantNode(retiredSandbox), queries(retiredSandbox).node("Acme-sandbox")!!.node)
+        val node = tenantNode(retiredSandbox)
+        assertEquals(NodeType.TENANT, node.kind)
+        assertEquals(true, node.retired)
+        assertEquals("Acme-sandbox", node.name)
+        assertNull(node.code)
+        assertEquals(emptyList<ProfileEntry>(), node.profile)
+        assertEquals(7L, node.structureVersion)
+        assertEquals(Environment.SANDBOX, node.environment)
+    }
 }

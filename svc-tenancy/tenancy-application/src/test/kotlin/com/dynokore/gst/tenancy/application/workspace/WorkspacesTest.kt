@@ -57,4 +57,19 @@ class WorkspacesTest {
         assertEquals(WorkspaceArchival.MISSING, archive.handle("nothing"))
         assertEquals(1, store.rows.count { it.retired })
     }
+
+    @Test
+    fun `INV-AC-15381 the first archive stores a higher structure version and a repeat keeps it`() {
+        val created = (create.handle(production, "uat") as WorkspaceCreation.Done).workspace
+        val first = store.archiveWorkspace(created.ref)
+        assertEquals(WorkspaceArchival.ARCHIVED, first.outcome)
+        val archived = checkNotNull(first.tenant)
+        assertTrue(archived.structureVersion > created.structureVersion)
+        assertEquals(Environment.SANDBOX, archived.environment)
+        val repeat = store.archiveWorkspace(created.ref)
+        assertEquals(WorkspaceArchival.ALREADY_ARCHIVED, repeat.outcome)
+        assertEquals(archived.structureVersion, checkNotNull(repeat.tenant).structureVersion)
+        assertEquals(WorkspaceArchival.MISSING, store.archiveWorkspace(production).outcome)
+        assertEquals(null, store.archiveWorkspace("nothing").tenant)
+    }
 }

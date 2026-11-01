@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.application.tenant.TenantCreation
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.TenantRefused
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchival
+import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchived
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
 import com.dynokore.gst.tenancy.domain.Environment
 import org.jooq.DSLContext
@@ -15,6 +16,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.sql.SQLException
 import java.util.UUID
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.records.TenantRecord as TenantRow
 
 /**
  * `tenancy.tenant` is written only by the definer function `tenancy.create_tenant` (INV-Q-7468 A), called through
@@ -55,35 +57,22 @@ class JooqTenantStore(
         }
     }
 
-    override fun current(): TenantRecord? =
-        dsl.selectFrom(TENANT).fetchOne()?.let {
-            TenantRecord(
-                it.tenantId.column("tenant_id"),
-                it.ref.column("ref"),
-                it.legalName.column("legal_name"),
-                it.planRef.column("plan_ref"),
-                it.contractReference.column("contract_reference"),
-                it.structureVersion.column("structure_version"),
-                it.retired.column("retired"),
-                it.dataRegion,
-                Environment.valueOf(it.environment.column("environment")),
-                it.pairedProductionTenantId,
-                it.workspaceName,
-            )
-        }
+    override fun current(): TenantRecord? = dsl.selectFrom(TENANT).fetchOne()?.let(::tenantRecordOf)
 
     override fun workspace(ref: String): TenantRecord? {
         val json = callWorkspaceFunction("workspace_state", ref)
         return if (json.get("outcome").asString() == "found") record(json) else null
     }
 
-    override fun archiveWorkspace(ref: String): WorkspaceArchival =
-        when (val outcome = callWorkspaceFunction("archive_workspace", ref).get("outcome").asString()) {
-            "archived" -> WorkspaceArchival.ARCHIVED
-            "repeat" -> WorkspaceArchival.ALREADY_ARCHIVED
-            "missing" -> WorkspaceArchival.MISSING
+    override fun archiveWorkspace(ref: String): WorkspaceArchived {
+        val json = callWorkspaceFunction("archive_workspace", ref)
+        return when (val outcome = json.get("outcome").asString()) {
+            "archived" -> WorkspaceArchived(WorkspaceArchival.ARCHIVED, record(json))
+            "repeat" -> WorkspaceArchived(WorkspaceArchival.ALREADY_ARCHIVED, record(json))
+            "missing" -> WorkspaceArchived(WorkspaceArchival.MISSING, null)
             else -> error("archive_workspace answered the unknown outcome $outcome")
         }
+    }
 
     private fun callWorkspaceFunction(
         function: String,
@@ -139,3 +128,19 @@ class JooqTenantStore(
         const val FORBIDDEN = "42501"
     }
 }
+
+/** The tenant row as the application record; the one mapping of a `tenancy.tenant` row (store and replay). */
+internal fun tenantRecordOf(it: TenantRow): TenantRecord =
+    TenantRecord(
+        it.tenantId.column("tenant_id"),
+        it.ref.column("ref"),
+        it.legalName.column("legal_name"),
+        it.planRef.column("plan_ref"),
+        it.contractReference.column("contract_reference"),
+        it.structureVersion.column("structure_version"),
+        it.retired.column("retired"),
+        it.dataRegion,
+        Environment.valueOf(it.environment.column("environment")),
+        it.pairedProductionTenantId,
+        it.workspaceName,
+    )

@@ -41,6 +41,15 @@ sealed interface TenantCreation {
 /** What archiving a workspace answered. */
 enum class WorkspaceArchival { ARCHIVED, ALREADY_ARCHIVED, MISSING }
 
+/**
+ * What the port answers on archiving: the [outcome] and the workspace row ([tenant], with its structure version after
+ * the call), null when MISSING.
+ */
+data class WorkspaceArchived(
+    val outcome: WorkspaceArchival,
+    val tenant: TenantRecord?,
+)
+
 /** The binding or the arguments were refused by the function: [invalid] answers the contract's 400, else its 403. */
 class TenantRefused(
     val invalid: Boolean,
@@ -60,8 +69,8 @@ interface WorkspaceStore : TenantStore {
     /** The workspace [ref] of the bound production tenant, or null when [ref] is no workspace of it. */
     fun workspace(ref: String): TenantRecord?
 
-    /** Archives the workspace [ref] of the bound production tenant. */
-    fun archiveWorkspace(ref: String): WorkspaceArchival
+    /** Archives the workspace [ref] of the bound production tenant; the row carries the new structure version. */
+    fun archiveWorkspace(ref: String): WorkspaceArchived
 }
 
 /** createTenant (scope platform): runs under the reserved platform binding, never under a tenant's. */

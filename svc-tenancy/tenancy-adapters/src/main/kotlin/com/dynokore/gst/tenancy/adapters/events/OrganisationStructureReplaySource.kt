@@ -17,8 +17,8 @@ import tools.jackson.databind.node.ObjectNode
 
 /**
  * The producer side of the replay of OrganisationStructureChanged (INV-REQ-1199, INV-Q-9081 A, INV-Q-11719 A): a state
- * snapshot of every group, entity and business unit of the bound tenant, read from the tenancy tables. The tenant row
- * is not replayed (no live event publishes it). Each state carries the node exactly as getEntityStructure answers it,
+ * snapshot of the tenant's own node and of every group, entity and business unit of the bound tenant, read from the
+ * tenancy tables (INV-Q-15377 A). Each state carries the node exactly as getEntityStructure answers it,
  * its stored `structureVersion` (no new version is drawn) and no `docSequence`; changeType is RETIRED for a retired
  * node and UPDATED otherwise; previousParentRef is omitted.
  */
