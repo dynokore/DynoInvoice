@@ -269,6 +269,24 @@ class SampleCopyTest {
     }
 
     @Test
+    fun `INV-AC-2122 wave 2 part a sample is refused by default and arrives anonymised once approved`() {
+        run { s ->
+            val (tenant, workspace) = s.newTenant()
+            s.people.grant(tenant, "USR-OFF", "sample-copy.approve")
+            s.people.grant(tenant, "USR-REQ", "sample-copy.request")
+            assertThat(tenancyCode { s.request(tenant, workspace, "USR-REQ") })
+                .isEqualTo(TenancyErrorCode.SAMPLE_COPY_OFF)
+            assertThat(s.port.handed).isEmpty()
+            s.switchOn(tenant)
+            s.approve(tenant, "USR-OFF")
+            assertThat(s.request(tenant, workspace, "USR-REQ").statusCode.value()).isEqualTo(202)
+            assertThat(s.port.handed.map { it.amount })
+                .containsExactly(BigDecimal("1200.50"), BigDecimal("80.00"), BigDecimal("0.07"))
+            assertThat(s.port.handed.map { it.counterpartyName }).doesNotContain("Acme Pte Ltd", "Beta Trading")
+        }
+    }
+
+    @Test
     fun `INV-AC-9576 an approval recorded by a principal without the approve permission does not authorise a copy`() {
         run { s ->
             val (tenant, workspace) = s.newTenant()

@@ -192,6 +192,22 @@ class WorkspaceTest {
     }
 
     @Test
+    fun `INV-AC-2119 record part a workspace is a SANDBOX tenant paired to production and archiving retires it`() {
+        run { env, api ->
+            env.withTenant { production ->
+                val created = create(api, production, "pre-prod").body!!
+                assertThat(created.environment).isEqualTo(WorkspaceResponse.Environment.SANDBOX)
+                assertThat(hasSandboxPairedTo(production.value)).isTrue()
+                assertThat(unarchived(production.value)).isEqualTo(1)
+                assertThat(
+                    api.archiveWorkspace(created.workspaceRef, UUID.randomUUID()).statusCode.value(),
+                ).isEqualTo(204)
+                assertThat(unarchived(production.value)).isEqualTo(0)
+            }
+        }
+    }
+
+    @Test
     fun `INV-AC-9574 creating a workspace twice yields one sibling and archiving twice archives once`() {
         run { env, api ->
             env.withTenant { production ->
