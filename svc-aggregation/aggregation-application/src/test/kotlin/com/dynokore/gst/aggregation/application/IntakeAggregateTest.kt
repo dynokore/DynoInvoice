@@ -5,7 +5,10 @@ import com.dynokore.gst.aggregation.application.IntakeOutcome.NumberNotBuildable
 import com.dynokore.gst.aggregation.application.IntakeOutcome.Replayed
 import com.dynokore.gst.aggregation.application.IntakeOutcome.SourceRevisionLower
 import com.dynokore.gst.aggregation.domain.AggregateType
+import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.gst.aggregation.domain.Cadence.MONTHLY
+import com.dynokore.gst.aggregation.domain.WindowState
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -297,5 +300,37 @@ class IntakeAggregateTest {
         val replay = placing.execute(command()) as Replayed
         replay.aggregate shouldBe first.aggregate
         windows.placed.size shouldBe 1
+    }
+
+    @Test
+    fun `windows set and cadences null is refused`() {
+        shouldThrow<IllegalArgumentException> { IntakeAggregate(codes, repo, Windows(WindowState.OPEN), null) }
+    }
+
+    @Test
+    fun `cadences set and windows null is refused`() {
+        shouldThrow<IllegalArgumentException> {
+            IntakeAggregate(
+                codes,
+                repo,
+                null,
+                CadenceSource {
+                    _,
+                    _,
+                    _,
+                    ->
+                    MONTHLY
+                },
+            )
+        }
+    }
+
+    @Test
+    fun `the placement uses the cadence that cadences answers`() {
+        val placing = IntakeAggregate(codes, repo, Windows(WindowState.OPEN)) { _, _, _ -> Cadence.WEEKLY }
+        (placing.execute(command()) as Created).aggregate.aggregate.let {
+            it.windowStart shouldBe LocalDate.of(2027, 3, 29)
+            it.windowEnd shouldBe LocalDate.of(2027, 4, 4)
+        }
     }
 }

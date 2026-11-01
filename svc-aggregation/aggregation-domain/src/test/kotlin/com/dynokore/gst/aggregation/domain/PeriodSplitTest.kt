@@ -47,6 +47,12 @@ class PeriodSplitTest {
     }
 
     @Test
+    fun `a daily window on the last day of a span is covered by that span`() {
+        parts(AggregationWindow(d(3, 31), d(3, 31))) shouldBe listOf(WindowPart(d(3, 31), d(3, 31), "2027-03"))
+        parts(AggregationWindow(d(4, 30), d(4, 30))) shouldBe listOf(WindowPart(d(4, 30), d(4, 30), "2027-04"))
+    }
+
+    @Test
     fun `the parts come in date order whatever the order of the spans`() {
         val result = parts(AggregationWindow(d(3, 30), d(5, 2)), monthly.reversed())
         result.map { it.start } shouldBe listOf(d(3, 30), d(4, 1), d(5, 1))
