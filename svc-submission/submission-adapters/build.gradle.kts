@@ -55,6 +55,7 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.konsistRules)
+    testImplementation(libs.gstCatalogue)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
 }

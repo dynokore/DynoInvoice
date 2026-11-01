@@ -1,5 +1,9 @@
 package com.dynokore.gst.submission.adapters
 
+import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.PermissionKind
+import com.dynokore.gst.catalogue.RoleAllowance
+import com.dynokore.gst.catalogue.RolePermissions
 import com.dynokore.gst.submission.adapters.http.ComplianceMetricsController
 import com.dynokore.gst.submission.adapters.http.ComplianceRefusal
 import com.dynokore.gst.submission.adapters.http.ComplianceRefusalAdvice
@@ -280,5 +284,21 @@ class ComplianceMetricsControllerTest {
         listOf("tax.approver", "finance.viewer", "compliance-metrics.view").forEach { forbidden ->
             sources.filter { it.readText().contains(forbidden) } shouldBe emptyList()
         }
+    }
+
+    @Test
+    fun `INV-AC-12836 the key is held by tax approver and finance viewer only, PERMITTED in every form`() {
+        val key = "compliance-metrics.view"
+        val expected = setOf("tax.approver", "finance.viewer")
+        var forms = 0
+        DeploymentForm.entries.forEach { form ->
+            forms++
+            val cells = RolePermissions.cells(form)
+            cells.filterValues { key in it.keys }.keys shouldBe expected
+            expected.forEach { cells.getValue(it)[key] shouldBe RoleAllowance.PERMITTED }
+            listOf("auditor", "tax.operator").forEach { (cells[it]?.containsKey(key) ?: false) shouldBe false }
+        }
+        forms shouldBe DeploymentForm.entries.size
+        RolePermissions.kind(key) shouldBe PermissionKind.READ
     }
 }

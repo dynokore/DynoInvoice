@@ -252,27 +252,3 @@ private object Cursor {
         return parts[LAST_ENTITY] to parts[LAST_PERIOD]
     }
 }
-
-/** The threshold configuration of application.yaml as plain numbers (the bootstrap module has no domain dependency). */
-data class ComplianceThresholds(
-    val manyVersionsFrom: Int,
-    val highNumerator: Int,
-    val highDenominator: Int,
-    val trendPeriods: Int,
-)
-
-/** The use case with its configuration made from [thresholds]; the ratio type of the domain stays in this module. */
-fun complianceMetricsQuery(
-    replica: AuthorityReplica,
-    rows: ObligationRowSource,
-    thresholds: ComplianceThresholds,
-): ComplianceMetricsQuery =
-    ComplianceMetricsQuery(
-        replica,
-        rows,
-        ComplianceMetricsConfig(
-            thresholds.manyVersionsFrom,
-            DomainRatio(thresholds.highNumerator, thresholds.highDenominator),
-            thresholds.trendPeriods,
-        ),
-    )
