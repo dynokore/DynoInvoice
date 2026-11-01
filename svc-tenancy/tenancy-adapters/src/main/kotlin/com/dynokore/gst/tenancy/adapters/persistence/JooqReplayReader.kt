@@ -144,10 +144,13 @@ class JooqReplayReader(
     ): List<ReplayNode> {
         if (afterRef != null || scope is ReplayScope.Entity) return emptyList()
         val period = (scope as? ReplayScope.Period)?.let { ReplayConditions.period(it, TENANT.CHANGED_AT) }
-        val row = dsl.selectFrom(TENANT).where(ReplayConditions.all(period)).fetchOne()
-        return listOfNotNull(
-            row?.let(::tenantRecordOf)?.let { ReplayNode(NodeType.TENANT, it.ref, it.ref, tenantNode(it), null) },
-        )
+        return dsl
+            .selectFrom(TENANT)
+            .where(ReplayConditions.all(period))
+            .fetchOne()
+            ?.let(::tenantRecordOf)
+            ?.let { ReplayNode(NodeType.TENANT, it.ref, it.ref, tenantNode(it), null) }
+            ?.let(::listOf) ?: emptyList()
     }
 
     private fun groups(
