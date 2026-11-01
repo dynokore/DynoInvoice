@@ -228,7 +228,13 @@ class SyncEdgeCallerTest {
                     )
                 val before = calls.count(operation.label)
                 val answer =
-                    checks.send(operation, mapOf(CallerChecks.TOKEN to "token-$caller", CallerChecks.AUTH to CallerChecks.END_USER))
+                    checks.send(
+                        operation,
+                        mapOf(
+                            CallerChecks.TOKEN to "token-$caller",
+                            CallerChecks.AUTH to CallerChecks.END_USER,
+                        ),
+                    )
                 answer.statusCode() shouldBe 403
                 ("SRT-004" in answer.body()) shouldBe true
                 calls.count(operation.label) shouldBe before

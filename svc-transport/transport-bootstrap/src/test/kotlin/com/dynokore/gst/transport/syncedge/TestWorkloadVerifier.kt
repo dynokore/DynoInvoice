@@ -1,5 +1,6 @@
 package com.dynokore.gst.transport.syncedge
 
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
@@ -34,7 +35,7 @@ class TestWorkloadVerifier {
     @Primary
     fun testEndUserResolver(): EndUserPrincipalResolver =
         EndUserPrincipalResolver { authorization ->
-            authorization?.let { EndUserPrincipal("end-user-1", TenantId(TENANT), setOf("E-001")) }
+            authorization?.let { EndUserPrincipal("end-user-1", TenantId(TENANT), setOf(EntityRef("E-001"))) }
         }
 
     companion object {
