@@ -27,4 +27,22 @@ class UpstreamFunctionTest {
         DocumentFunction.entries.map { it.toUpstreamFunction() }.size shouldBe DocumentFunction.entries.size
         UpstreamFunction.entries.map { it.name } shouldBe listOf("BILL_FOR_PAYMENT", "ADJUSTMENT", "NOT_A_BILL")
     }
+
+    @Test
+    fun `INV-AC-13668 the mapping source has no default branch`() {
+        val file =
+            generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+                .map {
+                    java.io.File(
+                        it,
+                        "canonical-domain/src/main/kotlin/com/dynokore/gst/canonical/domain/derivation/UpstreamFunction.kt",
+                    )
+                }.first { it.isFile }
+        val code =
+            file.readLines().filterNot {
+                it.trim().startsWith("*") || it.trim().startsWith("/*") ||
+                    it.trim().startsWith("//")
+            }
+        code.any { Regex("\\belse\\b").containsMatchIn(it) } shouldBe false
+    }
 }
