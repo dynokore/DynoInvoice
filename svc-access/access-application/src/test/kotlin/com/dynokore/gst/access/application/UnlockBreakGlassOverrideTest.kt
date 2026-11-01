@@ -97,6 +97,8 @@ class UnlockBreakGlassOverrideTest {
 
                 override fun find(ref: String): BreakGlassSession? = null
 
+                override fun markSealed(ref: String) = Unit
+
                 override fun insertAction(
                     unlockRef: String,
                     action: BreakGlassAction,

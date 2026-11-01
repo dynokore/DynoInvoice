@@ -50,6 +50,8 @@ class ReportBreakGlassActionTest {
                     approvedBy: List<String>,
                 ): BreakGlassSession = error("not used")
 
+                override fun markSealed(ref: String) = Unit
+
                 override fun find(ref: String): BreakGlassSession? {
                     finds += ref
                     return sessionsHeld[ref]

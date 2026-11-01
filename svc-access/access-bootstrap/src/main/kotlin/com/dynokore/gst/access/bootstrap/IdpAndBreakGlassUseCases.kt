@@ -1,13 +1,19 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.breakglass.SecureRandomSealingCredentials
 import com.dynokore.gst.access.adapters.breakglass.VariationPointBreakGlassSettings
 import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassApprovals
+import com.dynokore.gst.access.adapters.http.BreakGlassSealing
+import com.dynokore.gst.access.adapters.http.DeploymentOperatorCheck
+import com.dynokore.gst.access.adapters.http.ResolvedDeploymentOperatorCheck
+import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassAccounts
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessions
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqIdpGroupMappings
 import com.dynokore.gst.access.adapters.persistence.JooqMappedGrants
 import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUseCase
+import com.dynokore.gst.access.application.breakglass.BreakGlassAccounts
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
 import com.dynokore.gst.access.application.breakglass.BreakGlassApprovals
 import com.dynokore.gst.access.application.breakglass.BreakGlassEffects
@@ -15,6 +21,10 @@ import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
 import com.dynokore.gst.access.application.breakglass.BreakGlassSettings
 import com.dynokore.gst.access.application.breakglass.MAX_APPROVAL_WINDOW
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseCase
+import com.dynokore.gst.access.application.breakglass.ResealBreakGlassUseCase
+import com.dynokore.gst.access.application.breakglass.SealedAccountKeeper
+import com.dynokore.gst.access.application.breakglass.SealingCredentials
+import com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.GrantAudit
@@ -33,11 +43,13 @@ import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import tools.jackson.databind.ObjectMapper
@@ -233,4 +245,56 @@ class BreakGlassUseCases {
         effects: BreakGlassEffects,
         clock: Clock,
     ) = RecordBreakGlassActionUseCase(dependencies.tx, sessions, effects, clock)
+}
+
+/** TPL-18, continued: the sealed break-glass account, `signInBreakGlass` and `resealBreakGlass` (INV-T-8853). */
+@Configuration(proxyBeanMethods = false)
+class SealedAccountUseCases {
+    @Bean
+    fun breakGlassAccounts(
+        dsl: DSLContext,
+        tenants: TenantContext,
+        clock: Clock,
+    ): BreakGlassAccounts = JooqBreakGlassAccounts(dsl, tenants, clock)
+
+    /** New sealing credentials from the platform secure random; a test replaces the bean with a double. */
+    @Bean
+    @ConditionalOnMissingBean
+    fun sealingCredentials(): SealingCredentials = SecureRandomSealingCredentials()
+
+    @Bean
+    fun sealedAccountKeeper(
+        accounts: BreakGlassAccounts,
+        credentials: SealingCredentials,
+    ) = SealedAccountKeeper(accounts, credentials)
+
+    @Bean
+    fun signInBreakGlassUseCase(
+        dependencies: GrantDependencies,
+        sessions: BreakGlassSessions,
+        keeper: SealedAccountKeeper,
+        clock: Clock,
+    ) = SignInBreakGlassUseCase(dependencies.tx, sessions, keeper, clock)
+
+    @Bean
+    fun resealBreakGlassUseCase(
+        dependencies: GrantDependencies,
+        sessions: BreakGlassSessions,
+        keeper: SealedAccountKeeper,
+        audit: GrantAudit,
+        clock: Clock,
+    ) = ResealBreakGlassUseCase(dependencies.tx, sessions, keeper, audit, clock)
+
+    @Bean
+    fun deploymentOperatorCheck(
+        tenants: TenantContext,
+        roles: PolicyRoleResolver,
+    ): DeploymentOperatorCheck = ResolvedDeploymentOperatorCheck(tenants, roles)
+
+    @Bean
+    fun breakGlassSealing(
+        signIn: SignInBreakGlassUseCase,
+        reseal: ResealBreakGlassUseCase,
+        operators: DeploymentOperatorCheck,
+    ) = BreakGlassSealing(signIn, reseal, operators)
 }

@@ -1,5 +1,7 @@
 package com.dynokore.gst.access.application.invitation
 
+import com.dynokore.gst.access.application.breakglass.SealedAccountKeeper
+import com.dynokore.gst.access.application.breakglass.SealingCredential
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.AuthorityRecords
 import com.dynokore.gst.access.application.grant.EntityDirectory
@@ -32,12 +34,15 @@ class AcceptFirstAdministratorEffects(
     val codes: InvitationCodes,
     val publisher: AuthorityChangePublisher,
     val audit: GrantAudit,
+    val accounts: SealedAccountKeeper,
 )
 
 sealed interface AcceptFirstAdministratorOutcome {
     /** 200: the grant is ACTIVE and bound to the subject. */
     data class Accepted(
         val grant: Grant,
+        /** The initial sealing credential of the break-glass account this call created; shown once (INV-AC-8900). */
+        val sealingCredential: SealingCredential?,
     ) : AcceptFirstAdministratorOutcome
 
     /** 200 again: the same key and fingerprint, grant ACTIVE and bound to the subject; nothing is written. */
@@ -69,8 +74,9 @@ sealed interface AcceptFirstAdministratorOutcome {
  * tenant that the inbound adapter found and bound, checks the code digest by constant-time equality, the expiry (not
  * expired at the exact stored instant; the instant is the clock port's) and the status; then upserts the identity
  * row of the subject, binds the PENDING grant to it and makes it ACTIVE, clears the digest so the code cannot be
- * used again, publishes AuthorityChanged as `grantRole` does and writes the audit entry. Every refusal leaves all
- * rows as they were.
+ * used again, publishes AuthorityChanged as `grantRole` does, writes the audit entry and, when the tenant has no
+ * sealed break-glass account yet, creates it with its initial sealing credential (INV-Q-8893 A); the digest is
+ * stored and the credential is returned once. Every refusal leaves all rows as they were.
  */
 class AcceptFirstAdministratorInvitation(
     private val tx: TransactionRunner,
@@ -85,6 +91,7 @@ class AcceptFirstAdministratorInvitation(
     private val codes = effects.codes
     private val publisher = effects.publisher
     private val audit = effects.audit
+    private val accounts = effects.accounts
 
     fun handle(command: AcceptFirstAdministratorCommand): AcceptFirstAdministratorOutcome =
         if (InvitationIdentity.isReserved(command.subject)) {
@@ -215,7 +222,8 @@ class AcceptFirstAdministratorInvitation(
                 priorStateJson = priorState(pending),
             ),
         )
-        return AcceptFirstAdministratorOutcome.Accepted(active)
+        // the sealed account is written in this transaction, so a failure here leaves the grant PENDING (INV-AC-8898)
+        return AcceptFirstAdministratorOutcome.Accepted(active, accounts.createInitial())
     }
 
     private fun priorState(pending: Grant): String =

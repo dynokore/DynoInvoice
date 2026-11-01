@@ -210,6 +210,31 @@ class OperationsTableTest {
         }
     }
 
+    /** The two rows INV-T-8853 serves: their task is INV-T-8853 by equality and their state is `done`. */
+    private fun servedFindings(lines: List<String>): List<String> {
+        val rows = rows(lines).first.associateBy { it.kind to it.name }
+        return listOf("signInBreakGlass", "resealBreakGlass").flatMap { name ->
+            val row = rows["operation" to name]
+            listOfNotNull(
+                if (row?.task == "INV-T-8853") null else "operation $name: task is ${row?.task}, not INV-T-8853",
+                if (row?.state == "done") null else "operation $name: state is ${row?.state}, not done",
+            )
+        }
+    }
+
+    @Test
+    fun `INV-T-8853 the state of signInBreakGlass and resealBreakGlass is done once served and probes fail`() {
+        assertThat(servedFindings(table)).isEmpty()
+        listOf("INV-T-4938", "UNASSIGNED", "INV-T-88530").forEach { other ->
+            val changed = table.map { it.replace("\tsignInBreakGlass\tINV-T-8853\t", "\tsignInBreakGlass\t$other\t") }
+            assertThat(servedFindings(changed))
+                .containsExactly("operation signInBreakGlass: task is $other, not INV-T-8853")
+        }
+        val open =
+            table.map { it.replace("\tresealBreakGlass\tINV-T-8853\tdone", "\tresealBreakGlass\tINV-T-8853\topen") }
+        assertThat(servedFindings(open)).containsExactly("operation resealBreakGlass: state is open, not done")
+    }
+
     @Test
     fun `the task column of the rows INV-T-4941 names equals the ruled list and each probe fails`() {
         assertThat(taskFindingsOf4941(table)).isEmpty()

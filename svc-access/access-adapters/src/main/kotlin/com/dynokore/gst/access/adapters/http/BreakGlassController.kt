@@ -5,6 +5,10 @@ import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUse
 import com.dynokore.gst.access.application.breakglass.BreakGlassSession
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseCase
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassOutcome
+import com.dynokore.gst.access.application.breakglass.ResealBreakGlassOutcome
+import com.dynokore.gst.access.application.breakglass.ResealBreakGlassUseCase
+import com.dynokore.gst.access.application.breakglass.SignInBreakGlassOutcome
+import com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassOutcome
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.contract.api.BreakGlassApi
@@ -12,7 +16,10 @@ import com.dynokore.gst.access.contract.model.ApproveBreakGlassUnlockRequest
 import com.dynokore.gst.access.contract.model.ApproveBreakGlassUnlockResponse
 import com.dynokore.gst.access.contract.model.BreakGlassActionRequest
 import com.dynokore.gst.access.contract.model.BreakGlassActionResponse
+import com.dynokore.gst.access.contract.model.BreakGlassResealResponse
 import com.dynokore.gst.access.contract.model.BreakGlassResponse
+import com.dynokore.gst.access.contract.model.BreakGlassSessionResponse
+import com.dynokore.gst.access.contract.model.BreakGlassSignInRequest
 import com.dynokore.gst.access.contract.model.UnlockBreakGlassRequest
 import com.dynokore.gst.access.domain.breakglass.BreakGlassAction
 import com.dynokore.gst.access.domain.breakglass.BreakGlassRules
@@ -26,6 +33,13 @@ import org.springframework.web.bind.annotation.RestController
 import java.time.ZoneOffset
 import java.util.UUID
 
+/** The collaborators of `signInBreakGlass` and `resealBreakGlass` (INV-T-8853). */
+class BreakGlassSealing(
+    val signIn: SignInBreakGlassUseCase,
+    val reseal: ResealBreakGlassUseCase,
+    val operators: DeploymentOperatorCheck,
+)
+
 /**
  * TPL-08. unlockBreakGlass, approveBreakGlassUnlock and recordBreakGlassAction (INV-REQ-896, INV-REQ-897,
  * INV-REQ-1269): the unlock is for the bound tenant only; fewer than two different people is refused (400,
@@ -34,7 +48,11 @@ import java.util.UUID
  * counts as available needs the override reason (409). Recording on a session that is resealed or past its expiry
  * is 409. The contract lists no error code for 409, so the problem body carries a detail that says what is wrong and
  * no catalogue code (INV-Q-8845 A).
- * signInBreakGlass and resealBreakGlass are not served by this controller yet (the sealing credential is open).
+ * signInBreakGlass (INV-T-8853) answers 404 for an unknown unlock, 409 (no code) when the unlock is resealed or
+ * past its expiry, 403 for a wrong credential or a tenant with no account row, and 200 otherwise.
+ * resealBreakGlass needs
+ * `deployment.operator` (403 otherwise, nothing changes), is 409 (no code) after the expiry, and carries the new
+ * `sealingCredential` only in the 200 of the call that rotated it (INV-AC-8900); a second call answers the data alone.
  */
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
@@ -45,6 +63,7 @@ open class BreakGlassController(
     private val record: RecordBreakGlassActionUseCase,
     private val tenants: TenantContext,
     private val serviceCaller: ServiceCaller,
+    private val sealing: BreakGlassSealing,
 ) : BreakGlassApi {
     override fun unlockBreakGlass(
         idempotencyKey: UUID,
@@ -155,6 +174,74 @@ open class BreakGlassController(
             }
         }
     }
+
+    override fun signInBreakGlass(
+        unlockRef: String,
+        idempotencyKey: UUID,
+        breakGlassSignInRequest: BreakGlassSignInRequest,
+    ): ResponseEntity<BreakGlassSessionResponse> =
+        when (val outcome = sealing.signIn.handle(unlockRef, breakGlassSignInRequest.sealingCredential)) {
+            is SignInBreakGlassOutcome.SignedIn -> {
+                ResponseEntity.ok(
+                    BreakGlassSessionResponse(
+                        unlockRef = outcome.session.ref,
+                        tenantRef = outcome.session.tenantRef,
+                        expiresAt = outcome.session.expiresAt.atOffset(ZoneOffset.UTC),
+                        permittedActions =
+                            BreakGlassRules.PERMITTED_ACTIONS
+                                .map { BreakGlassSessionResponse.PermittedActions.valueOf(it.name) }
+                                .toSet(),
+                    ),
+                )
+            }
+
+            SignInBreakGlassOutcome.NotFound -> {
+                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            SignInBreakGlassOutcome.NotOpen -> {
+                throw ApiConflict("the break-glass session is not open")
+            }
+
+            SignInBreakGlassOutcome.WrongCredential -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+        }
+
+    override fun resealBreakGlass(
+        unlockRef: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<BreakGlassResealResponse> {
+        // the published role of the operation; checked before anything is read or written
+        if (!sealing.operators.isDeploymentOperator()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
+        return resealed(sealing.reseal.handle(actor, unlockRef))
+    }
+
+    private fun resealed(outcome: ResealBreakGlassOutcome): ResponseEntity<BreakGlassResealResponse> =
+        when (outcome) {
+            is ResealBreakGlassOutcome.Resealed -> {
+                ResponseEntity.ok(sealed(outcome.session.ref, outcome.session.tenantRef, outcome.credential?.value))
+            }
+
+            is ResealBreakGlassOutcome.AlreadySealed -> {
+                ResponseEntity.ok(sealed(outcome.session.ref, outcome.session.tenantRef, null))
+            }
+
+            ResealBreakGlassOutcome.NotFound -> {
+                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            ResealBreakGlassOutcome.NotOpen -> {
+                throw ApiConflict("the break-glass session is not open")
+            }
+        }
+
+    private fun sealed(
+        unlockRef: String,
+        tenantRef: String,
+        credential: String?,
+    ) = BreakGlassResealResponse(unlockRef, tenantRef, BreakGlassResealResponse.Status.SEALED, credential)
 
     private fun requireOwnTenant(
         requested: String,

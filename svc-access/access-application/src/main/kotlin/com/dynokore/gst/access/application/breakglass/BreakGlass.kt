@@ -42,6 +42,9 @@ interface BreakGlassSessions {
 
     fun find(ref: String): BreakGlassSession?
 
+    /** Marks the session of [ref] resealed (closed). */
+    fun markSealed(ref: String)
+
     /** Stores one action of an open session and returns its reference. */
     fun insertAction(
         unlockRef: String,
@@ -254,3 +257,97 @@ fun expiryOf(
     unlockedAt: Instant,
     hours: Int,
 ): Instant = unlockedAt.plus(Duration.ofHours(hours.toLong()))
+
+sealed interface SignInBreakGlassOutcome {
+    data class SignedIn(
+        val session: BreakGlassSession,
+    ) : SignInBreakGlassOutcome
+
+    data object NotFound : SignInBreakGlassOutcome
+
+    /** No open unlock: the session is resealed or its expiry has passed (409). */
+    data object NotOpen : SignInBreakGlassOutcome
+
+    /** A wrong sealing credential, or a tenant with no account row (403). */
+    data object WrongCredential : SignInBreakGlassOutcome
+}
+
+/**
+ * `signInBreakGlass` (INV-REQ-896, INV-REQ-1262, INV-Q-8661 A): the session must exist and be open (a call at the
+ * expiry instant is already refused), then the digest of the presented credential is compared with the stored
+ * verifier in constant time. No account row is a wrong credential. Nothing is written.
+ */
+class SignInBreakGlassUseCase(
+    private val tx: TransactionRunner,
+    private val sessions: BreakGlassSessions,
+    private val keeper: SealedAccountKeeper,
+    private val clock: Clock,
+) {
+    fun handle(
+        unlockRef: String,
+        sealingCredential: String,
+    ): SignInBreakGlassOutcome =
+        tx.inTransaction {
+            val session = sessions.find(unlockRef) ?: return@inTransaction SignInBreakGlassOutcome.NotFound
+            when {
+                !session.isOpenAt(clock.instant()) -> SignInBreakGlassOutcome.NotOpen
+                !keeper.matches(sealingCredential) -> SignInBreakGlassOutcome.WrongCredential
+                else -> SignInBreakGlassOutcome.SignedIn(session)
+            }
+        }
+}
+
+sealed interface ResealBreakGlassOutcome {
+    /** Closed by this call; [credential] is the new sealing credential, null when no account row exists. */
+    data class Resealed(
+        val session: BreakGlassSession,
+        val credential: SealingCredential?,
+    ) : ResealBreakGlassOutcome
+
+    /** The session was closed by an earlier call: the original data, no credential, nothing changed. */
+    data class AlreadySealed(
+        val session: BreakGlassSession,
+    ) : ResealBreakGlassOutcome
+
+    data object NotFound : ResealBreakGlassOutcome
+
+    /** The session is not open: its expiry has passed and it was not resealed (409). */
+    data object NotOpen : ResealBreakGlassOutcome
+}
+
+/**
+ * `resealBreakGlass` (INV-REQ-897 behaviour 4, INV-Q-8837 A): closes an open session, replaces the sealing credential
+ * and returns the new one once. A session that is sealed already answers its data and changes nothing; a session
+ * past its expiry that was never sealed is refused. The caller's role is checked by the inbound adapter.
+ */
+class ResealBreakGlassUseCase(
+    private val tx: TransactionRunner,
+    private val sessions: BreakGlassSessions,
+    private val keeper: SealedAccountKeeper,
+    private val audit: GrantAudit,
+    private val clock: Clock,
+) {
+    fun handle(
+        actor: String,
+        unlockRef: String,
+    ): ResealBreakGlassOutcome =
+        tx.inTransaction {
+            val session = sessions.find(unlockRef) ?: return@inTransaction ResealBreakGlassOutcome.NotFound
+            when {
+                session.sealed -> {
+                    ResealBreakGlassOutcome.AlreadySealed(session)
+                }
+
+                !session.isOpenAt(clock.instant()) -> {
+                    ResealBreakGlassOutcome.NotOpen
+                }
+
+                else -> {
+                    val credential = keeper.rotate()
+                    sessions.markSealed(unlockRef)
+                    audit.record(GrantAuditEntry(actor, "resealBreakGlass", "break-glass:$unlockRef", null, null))
+                    ResealBreakGlassOutcome.Resealed(session.copy(sealed = true), credential)
+                }
+            }
+        }
+}

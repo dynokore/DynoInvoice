@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.http
 
 import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUseCase
+import com.dynokore.gst.access.application.breakglass.BreakGlassAccounts
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
 import com.dynokore.gst.access.application.breakglass.BreakGlassApproval
 import com.dynokore.gst.access.application.breakglass.BreakGlassApprovals
@@ -10,6 +11,9 @@ import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
 import com.dynokore.gst.access.application.breakglass.BreakGlassSetting
 import com.dynokore.gst.access.application.breakglass.BreakGlassSettings
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseCase
+import com.dynokore.gst.access.application.breakglass.ResealBreakGlassUseCase
+import com.dynokore.gst.access.application.breakglass.SealedAccountKeeper
+import com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
@@ -140,6 +144,8 @@ class BreakGlassControllerOverrideTest {
 
             override fun find(ref: String): BreakGlassSession? = null
 
+            override fun markSealed(ref: String) = Unit
+
             override fun insertAction(
                 unlockRef: String,
                 action: BreakGlassAction,
@@ -192,6 +198,24 @@ class BreakGlassControllerOverrideTest {
 
     private val setting = BreakGlassSettings { BreakGlassSetting(4, BreakGlassPairing.DEFAULT) }
 
+    private val keeper =
+        SealedAccountKeeper(
+            object : BreakGlassAccounts {
+                override fun insertIfAbsent(verifier: String) = false
+
+                override fun verifier(): String? = null
+
+                override fun replaceVerifier(verifier: String) = false
+            },
+            { error("the unlock tests create no credential") },
+        )
+    private val effectsAudit =
+        object : GrantAudit {
+            override fun record(entry: GrantAuditEntry) {
+                audits += entry
+            }
+        }
+
     private fun controller(idpUp: Boolean): BreakGlassController {
         val availability = IdentityProviderAvailability("http://idp", IdentityProviderProbe { idpUp }, 1)
         availability.probeOnce()
@@ -231,6 +255,11 @@ class BreakGlassControllerOverrideTest {
             object : ServiceCaller {
                 override fun current(): String? = "svc"
             },
+            BreakGlassSealing(
+                SignInBreakGlassUseCase(tx, sessions, keeper, clock),
+                ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock),
+                { false },
+            ),
         )
     }
 

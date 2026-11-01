@@ -53,11 +53,25 @@ class FirstAdministratorAcceptance(
         outcome: AcceptFirstAdministratorOutcome,
     ): ResponseEntity<AcceptFirstAdministratorInvitationResponse> =
         when (outcome) {
-            is AcceptFirstAdministratorOutcome.Accepted -> ResponseEntity.ok(responseOf(outcome.grant))
-            is AcceptFirstAdministratorOutcome.Replayed -> ResponseEntity.ok(responseOf(outcome.grant))
-            AcceptFirstAdministratorOutcome.DifferentRequest -> throw ApiRefusal(ClosedErrorCode.DIFFERENT_REQUEST)
-            AcceptFirstAdministratorOutcome.NotFound -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            else -> throw ApiConflict(conflictOf(outcome))
+            is AcceptFirstAdministratorOutcome.Accepted -> {
+                ResponseEntity.ok(responseOf(outcome.grant, outcome.sealingCredential?.value))
+            }
+
+            is AcceptFirstAdministratorOutcome.Replayed -> {
+                ResponseEntity.ok(responseOf(outcome.grant, null))
+            }
+
+            AcceptFirstAdministratorOutcome.DifferentRequest -> {
+                throw ApiRefusal(ClosedErrorCode.DIFFERENT_REQUEST)
+            }
+
+            AcceptFirstAdministratorOutcome.NotFound -> {
+                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            else -> {
+                throw ApiConflict(conflictOf(outcome))
+            }
         }
 
     /** The verified end-user principal; a call with none is 401 (SRT-003). */
@@ -105,14 +119,18 @@ class FirstAdministratorAcceptance(
         return found
     }
 
-    private fun responseOf(grant: Grant) =
-        AcceptFirstAdministratorInvitationResponse(
-            grantRef = grant.ref.value,
-            identityRef = grant.identity.value,
-            role = grant.role.wire,
-            // the grant of an invitation is always Tenant-scope (ProvisionFirstAdministrator)
-            scope = "tenant:${grant.tenant.value}",
-            status = AcceptFirstAdministratorInvitationResponse.Status.valueOf(grant.status.name),
-            grantSource = AcceptFirstAdministratorInvitationResponse.GrantSource.valueOf(grant.source.name),
-        )
+    private fun responseOf(
+        grant: Grant,
+        sealingCredential: String?,
+    ) = AcceptFirstAdministratorInvitationResponse(
+        grantRef = grant.ref.value,
+        identityRef = grant.identity.value,
+        role = grant.role.wire,
+        // the grant of an invitation is always Tenant-scope (ProvisionFirstAdministrator)
+        scope = "tenant:${grant.tenant.value}",
+        status = AcceptFirstAdministratorInvitationResponse.Status.valueOf(grant.status.name),
+        grantSource = AcceptFirstAdministratorInvitationResponse.GrantSource.valueOf(grant.source.name),
+        // absent (null is not serialised) unless this call created the account (INV-AC-8900)
+        sealingCredential = sealingCredential,
+    )
 }

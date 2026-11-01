@@ -81,6 +81,37 @@ class PinsAndContractBundleTest {
         assertThat(findings(openapi, asyncapi, VpStatus.PLANNED)).containsExactly("VP-08 is PLANNED")
     }
 
+    /** The findings of a staged contract that lacks what INV-T-8853 is written against (INV-T-8901 supplement). */
+    private fun sealFindings(openapi: String): List<String> =
+        buildList {
+            listOf("signInBreakGlass", "resealBreakGlass").forEach {
+                if (!Regex("""operationId:\s*$it\b""").containsMatchIn(openapi)) add("operation $it is absent")
+            }
+            listOf("BreakGlassResealResponse", "AcceptFirstAdministratorInvitationResponse").forEach {
+                // the schema block must declare the one-time property
+                val block = Regex("""(?ms)^    $it:\n(.*?)(?=^    \w)""").find(openapi)?.groupValues?.get(1)
+                if (block == null) {
+                    add("schema $it is absent")
+                } else if (!block.contains("sealingCredential:")) {
+                    add("schema $it has no sealingCredential")
+                }
+            }
+        }
+
+    @Test
+    fun `INV-T-8853 the staged contract holds the seal operations and the sealingCredential schemas`() {
+        val openapi = resource("gst/contracts/access/openapi.yaml")
+        assertThat(sealFindings(openapi)).isEmpty()
+        // probes: a bundle from before INV-T-8901 has the schemas without the property
+        assertThat(sealFindings(openapi.replace("resealBreakGlass", "x")))
+            .containsExactly("operation resealBreakGlass is absent")
+        assertThat(sealFindings(openapi.replace("        sealingCredential:", "        sealingCredentialX:")))
+            .containsExactly(
+                "schema BreakGlassResealResponse has no sealingCredential",
+                "schema AcceptFirstAdministratorInvitationResponse has no sealingCredential",
+            )
+    }
+
     @Test
     fun `the bundle pin is a dev build of a platform-contracts commit and not one of the earlier commits`() {
         val bundle = Regex("""(?m)^platformContractsBundle\s*=\s*"([^"]+)"""").find(toml)!!.groupValues[1]

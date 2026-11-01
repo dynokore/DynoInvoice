@@ -26,7 +26,7 @@ import java.util.concurrent.Executors
 
 /**
  * INV-AC-8224: the repeat of `acceptFirstAdministratorInvitation` with the same Idempotency-Key (INV-Q-15347 A) and
- * the absence of `sealingCredential` (INV-Q-15345 A), through the real context over a real PostgreSQL.
+ * the one-time `sealingCredential` (INV-Q-15345 A, INV-T-8853), through the real context over a real PostgreSQL.
  */
 class AcceptFirstAdministratorRepeatTest {
     private fun ServedContext.events(): Int = application.getBean(CapturedEvents::class.java).envelopes.size
@@ -77,7 +77,7 @@ class AcceptFirstAdministratorRepeatTest {
         }
 
     @Test
-    fun `INV-AC-8224 the property sealingCredential is absent in the first and the repeated response`() =
+    fun `INV-AC-8224 the property sealingCredential is present in the first response and absent in the repeated one`() =
         withService { served ->
             val invitation = served.provisioned()
             val key = UUID.randomUUID()
@@ -87,9 +87,10 @@ class AcceptFirstAdministratorRepeatTest {
             assertThat(first.status).isEqualTo(200)
             assertThat(again.status).isEqualTo(409)
             assertThat(repeat.status).isEqualTo(200)
-            assertThat(first.contentAsString).doesNotContain("sealingCredential")
+            // the first acceptance of a tenant creates its sealed account and returns the credential once (INV-T-8853)
+            assertThat(json(first).has("sealingCredential")).isTrue()
             assertThat(repeat.contentAsString).doesNotContain("sealingCredential")
-            assertThat(json(first).has("sealingCredential")).isFalse()
+            assertThat(again.contentAsString).doesNotContain("sealingCredential")
             assertThat(json(repeat).has("sealingCredential")).isFalse()
         }
 

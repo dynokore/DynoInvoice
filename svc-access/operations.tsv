@@ -27,9 +27,9 @@ operation	withdrawDiagnosticInvitation	INV-T-4941	done
 operation	issueSignatoryLink	INV-T-4940	open
 operation	verifySignatoryLink	INV-T-4940	open
 operation	unlockBreakGlass	INV-T-4938	done
-operation	signInBreakGlass	INV-T-8853	open
+operation	signInBreakGlass	INV-T-8853	done
 operation	recordBreakGlassAction	INV-T-4938	done
-operation	resealBreakGlass	INV-T-8853	open
+operation	resealBreakGlass	INV-T-8853	done
 operation	runAccessReview	INV-T-15798	open
 operation	closeAccessReview	INV-T-15798	open
 operation	grantConsent	INV-T-4939	done

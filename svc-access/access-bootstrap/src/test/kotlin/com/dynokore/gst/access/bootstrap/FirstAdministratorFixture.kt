@@ -8,6 +8,7 @@ import com.dynokore.gst.access.bootstrap.served.ServedDoubles
 import com.dynokore.gst.access.bootstrap.served.subjectOf
 import com.dynokore.gst.access.bootstrap.served.workloadToken
 import com.dynokore.platform.tenancykernel.TenantId
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.mock.web.MockHttpServletResponse
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
@@ -188,6 +189,7 @@ object FirstAdministratorFixture {
         mounted: Path = mount(mapOf(TestSecrets.INVITATION_KEY_VERSION to TestSecrets.INVITATION_KEY)),
         version: String = TestSecrets.INVITATION_KEY_VERSION,
         callers: List<String> = CALLERS,
+        configure: (WebApplicationContextRunner) -> WebApplicationContextRunner = { it },
         block: (ServedContext) -> Unit,
     ) {
         val properties =
@@ -201,6 +203,7 @@ object FirstAdministratorFixture {
             .runner(mounted = mounted)
             .withUserConfiguration(ServedDoubles::class.java)
             .withPropertyValues(*properties.toTypedArray())
+            .let(configure)
             .run { context ->
                 context.startupFailure?.let { throw it }
                 com.dynokore.gst.access.bootstrap.served.Doubles

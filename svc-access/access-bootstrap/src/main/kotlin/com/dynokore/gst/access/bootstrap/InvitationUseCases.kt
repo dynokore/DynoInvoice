@@ -7,6 +7,7 @@ import com.dynokore.gst.access.adapters.invitation.HmacInvitationCodes
 import com.dynokore.gst.access.adapters.invitation.RandomInvitationRefs
 import com.dynokore.gst.access.adapters.persistence.JooqFirstAdministratorInvitations
 import com.dynokore.gst.access.adapters.persistence.JooqInvitationTenantLookup
+import com.dynokore.gst.access.application.breakglass.SealedAccountKeeper
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantRepository
@@ -95,7 +96,8 @@ class InvitationUseCases {
         codes: InvitationCodes,
         publisher: AuthorityChangePublisher,
         audit: GrantAudit,
-    ) = AcceptFirstAdministratorEffects(invitations, codes, publisher, audit)
+        accounts: SealedAccountKeeper,
+    ) = AcceptFirstAdministratorEffects(invitations, codes, publisher, audit, accounts)
 
     @Bean
     fun acceptFirstAdministratorInvitation(

@@ -53,6 +53,17 @@ class JooqBreakGlassSessions(
             .fetchOne()
             ?.let { toSession(it) }
 
+    override fun markSealed(ref: String) {
+        dsl
+            .update(BREAK_GLASS_SESSION)
+            .set(BREAK_GLASS_SESSION.STATUS, SEALED)
+            .set(BREAK_GLASS_SESSION.UPDATED_AT, now())
+            .set(BREAK_GLASS_SESSION.UPDATED_BY, actor())
+            .set(BREAK_GLASS_SESSION.VERSION, BREAK_GLASS_SESSION.VERSION.plus(1L))
+            .where(BREAK_GLASS_SESSION.UNLOCK_REF.eq(ref))
+            .execute()
+    }
+
     override fun insertAction(
         unlockRef: String,
         action: BreakGlassAction,
