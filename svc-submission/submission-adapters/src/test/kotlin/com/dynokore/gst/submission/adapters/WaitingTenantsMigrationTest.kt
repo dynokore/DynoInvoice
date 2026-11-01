@@ -66,6 +66,7 @@ class WaitingTenantsMigrationTest {
         val d1 = docs[4]
         val shared = docs[5]
         val other = u()
+        val e = u()
         val rows =
             listOf(
                 Row(a, a1, 1, "ACKNOWLEDGED"),
@@ -77,12 +78,13 @@ class WaitingTenantsMigrationTest {
                 Row(c, c1, 1, "QUEUED"),
                 Row(d, d1, 1, "READY"),
                 Row(other, shared, 1, "RETRY"),
-                Row(a, shared, 2, "READY"),
+                Row(e, shared, 2, "READY"),
             )
         withRows(rows) { runtime ->
             val seen = runtime.strings("select waiting_tenant from submission.waiting_tenants()")
             seen.count { it == a.toString() } shouldBe 1
             (d.toString() in seen) shouldBe true
+            (e.toString() in seen) shouldBe true
             (b.toString() in seen) shouldBe false
             (c.toString() in seen) shouldBe false
         }
