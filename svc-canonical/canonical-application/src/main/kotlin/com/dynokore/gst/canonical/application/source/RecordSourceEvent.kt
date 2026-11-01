@@ -1,6 +1,5 @@
 package com.dynokore.gst.canonical.application.source
 
-import com.dynokore.gst.canonical.domain.source.RecordedEvent
 import com.dynokore.gst.canonical.domain.source.SourceKey
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.util.UUID
@@ -19,12 +18,23 @@ interface SourceEventStore {
     /** The Doc UUID bound to any revision of (tenant, source_system, source_key), if any. */
     fun boundDocUuid(key: SourceKey): UUID?
 
-    /** Inserts the row; false when a concurrent call inserted the same four-part key first. */
+    /** The result text stored with the row of exactly this four-part key; null when no row or no result. */
+    fun resultOf(key: SourceKey): String?
+
+    /** Inserts the row with its [result] (JSON text); false when a concurrent call inserted the same key first. */
     fun insert(
         key: SourceKey,
         docUuid: UUID,
+        result: String,
     ): Boolean
 }
+
+/** The outcome of [RecordSourceEvent.record]: the Doc UUID, whether a row was inserted, and the stored result text. */
+data class RecordedResult(
+    val docUuid: UUID,
+    val inserted: Boolean,
+    val result: String,
+)
 
 /**
  * Records an event in `source_event` and assigns or binds its Doc UUID in one `canonical` transaction of the bound
@@ -37,15 +47,33 @@ class RecordSourceEvent(
     private val transaction: TransactionRunner,
     private val newDocUuid: () -> UUID,
 ) {
-    fun record(key: SourceKey): RecordedEvent =
+    /**
+     * A repeat of the same four-part key returns the result stored at the first record and does not call [onNew]
+     * (INV-REQ-789 behavior 3). A stored row without a result is an error, never an invented answer.
+     */
+    fun record(
+        key: SourceKey,
+        onNew: (UUID) -> String,
+    ): RecordedResult =
         transaction.inTransaction {
             store.lockSourceKey(key) // first statement, before any read of source_event
-            store.docUuidOf(key)?.let { return@inTransaction RecordedEvent(it, inserted = false) }
+            store.docUuidOf(key)?.let { return@inTransaction stored(key, it) }
             val docUuid = store.boundDocUuid(key) ?: newDocUuid()
-            if (store.insert(key, docUuid)) {
-                RecordedEvent(docUuid, inserted = true)
+            val result = onNew(docUuid)
+            if (store.insert(key, docUuid, result)) {
+                RecordedResult(docUuid, inserted = true, result)
             } else {
-                RecordedEvent(checkNotNull(store.docUuidOf(key)) { "source_event row vanished" }, inserted = false)
+                stored(key, checkNotNull(store.docUuidOf(key)) { "source_event row vanished" })
             }
         }
+
+    private fun stored(
+        key: SourceKey,
+        docUuid: UUID,
+    ): RecordedResult =
+        RecordedResult(
+            docUuid,
+            inserted = false,
+            checkNotNull(store.resultOf(key)) { "source_event row has no result" },
+        )
 }

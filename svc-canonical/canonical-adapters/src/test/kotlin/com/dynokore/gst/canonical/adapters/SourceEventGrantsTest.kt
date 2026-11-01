@@ -16,8 +16,8 @@ class SourceEventGrantsTest {
             connection
                 .prepareStatement(
                     "insert into canonical.source_event " +
-                        "(tenant_id, source_system, source_key, source_revision, doc_uuid) " +
-                        "values (?, 'erp', ?, 1, ?)",
+                        "(tenant_id, source_system, source_key, source_revision, doc_uuid, result) " +
+                        "values (?, 'erp', ?, 1, ?, '{}'::jsonb)",
                 ).use {
                     it.setObject(1, tenant)
                     it.setString(2, "k-" + UUID.randomUUID())

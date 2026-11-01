@@ -42,7 +42,7 @@ class SourceEventSchemaTest {
         }
 
     @Test
-    fun `INV-AC-7863 source_event has the five columns and the four-part unique key, ingestion unchanged`() {
+    fun `INV-AC-7863 source_event has the six columns and the four-part unique key, ingestion unchanged`() {
         val before = CanonicalDb.superuser().use { ingestionTables(it) }
         findings().shouldBeEmpty()
         CanonicalDb.superuser().use { ingestionTables(it) } shouldBe before
@@ -94,13 +94,15 @@ class SourceEventSchemaTest {
         const val GOOD =
             "create table canonical.source_event (tenant_id uuid not null, source_system text not null, " +
                 "source_key text not null, source_revision bigint not null, doc_uuid uuid not null, " +
+                "result jsonb, constraint source_event_result_present check (result is not null), " +
                 "unique (tenant_id, source_system, source_key, source_revision))"
     }
 }
 
 /** The decisive assertions of INV-AC-7863 over `information_schema.columns` and `pg_get_constraintdef`. */
 object SourceEventShape {
-    private val COLUMNS = setOf("tenant_id", "source_system", "source_key", "source_revision", "doc_uuid")
+    private val COLUMNS = setOf("tenant_id", "source_system", "source_key", "source_revision", "doc_uuid", "result")
+    private const val RESULT_CHECK = "CHECK ((result IS NOT NULL))"
     private const val UNIQUE = "UNIQUE (tenant_id, source_system, source_key, source_revision)"
 
     fun findings(
@@ -120,23 +122,37 @@ object SourceEventShape {
                     while (rows.next()) columns[rows.getString(1)] = rows.getString(2) to rows.getString(3)
                 }
             }
-        val constraints = mutableListOf<String>()
-        connection
-            .prepareStatement(
-                "select pg_get_constraintdef(c.oid) from pg_constraint c join pg_class t on t.oid = c.conrelid " +
-                    "join pg_namespace n on n.oid = t.relnamespace where n.nspname = ? and t.relname = ? " +
-                    "and c.contype = 'u'",
-            ).use { statement ->
-                statement.setString(1, schema)
-                statement.setString(2, table)
-                statement.executeQuery().use { rows -> while (rows.next()) constraints += rows.getString(1) }
-            }
+        val constraints = constraintDefs(connection, schema, table, "u").values.toList()
+        val resultCheck = constraintDefs(connection, schema, table, "c")["source_event_result_present"]
         return buildList {
+            if (resultCheck?.startsWith(RESULT_CHECK) != true) add("check source_event_result_present is $resultCheck")
             if (columns.keys != COLUMNS) add("columns ${columns.keys} differ from $COLUMNS")
             for (uuid in listOf("tenant_id", "doc_uuid")) {
                 if (columns[uuid] != ("uuid" to "NO")) add("$uuid is ${columns[uuid]}, not uuid not null")
             }
             if (constraints != listOf(UNIQUE)) add("unique constraints $constraints differ from $UNIQUE")
         }
+    }
+
+    /** Constraint name to definition of the constraints of [type] ('u' unique, 'c' check) on the table. */
+    private fun constraintDefs(
+        connection: Connection,
+        schema: String,
+        table: String,
+        type: String,
+    ): Map<String, String> {
+        val defs = linkedMapOf<String, String>()
+        connection
+            .prepareStatement(
+                "select c.conname, pg_get_constraintdef(c.oid) from pg_constraint c " +
+                    "join pg_class t on t.oid = c.conrelid join pg_namespace n on n.oid = t.relnamespace " +
+                    "where n.nspname = ? and t.relname = ? and c.contype = ? order by 1",
+            ).use { statement ->
+                statement.setString(1, schema)
+                statement.setString(2, table)
+                statement.setString(3, type)
+                statement.executeQuery().use { rows -> while (rows.next()) defs[rows.getString(1)] = rows.getString(2) }
+            }
+        return defs
     }
 }

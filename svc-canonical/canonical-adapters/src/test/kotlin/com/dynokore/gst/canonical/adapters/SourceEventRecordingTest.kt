@@ -62,8 +62,9 @@ class SourceEventRecordingTest {
         override fun insert(
             key: SourceKey,
             docUuid: UUID,
+            result: String,
         ): Boolean {
-            inner.insert(key, docUuid)
+            inner.insert(key, docUuid, result)
             error("forced failure after the insert and before commit")
         }
     }
@@ -102,7 +103,7 @@ class SourceEventRecordingTest {
                 listOf(first, second).map { (boundTenant, key) ->
                     pool.submit<UUID> {
                         tenants.bind(TenantId(boundTenant), SignedBindings.ACTOR) {
-                            recorder(BarrierAfterNoBinding(store, barrier, timeouts)).record(key).docUuid
+                            recorder(BarrierAfterNoBinding(store, barrier, timeouts)).record(key) { RESULT }.docUuid
                         }
                     }
                 }
@@ -167,7 +168,7 @@ class SourceEventRecordingTest {
     @Test
     fun `INV-AC-2177 recording an event writes the source_event row and its Doc UUID in one canonical transaction`() {
         val before = ingestion()
-        val recorded = asTenant { recorder().record(key("k-2177", 1)) }
+        val recorded = asTenant { recorder().record(key("k-2177", 1)) { RESULT } }
         recorded.inserted shouldBe true
         rowsOfTenant() shouldBe 1
         recorded.docUuid shouldNotBe null
@@ -178,36 +179,37 @@ class SourceEventRecordingTest {
     @Test
     fun `INV-AC-7864 first call, repeat, higher revision and another key follow the contract rules`() {
         val before = ingestion()
-        val first = asTenant { recorder().record(key("k", 1)) }
+        val first = asTenant { recorder().record(key("k", 1)) { RESULT } }
         first.inserted shouldBe true
         rowsOfTenant() shouldBe 1
 
-        val repeat = asTenant { recorder().record(key("k", 1)) }
+        val repeat = asTenant { recorder().record(key("k", 1)) { RESULT } }
         repeat.inserted shouldBe false
         repeat.docUuid shouldBe first.docUuid
         rowsOfTenant() shouldBe 1
 
-        val second = asTenant { recorder().record(key("k", 2)) }
+        val second = asTenant { recorder().record(key("k", 2)) { RESULT } }
         second.inserted shouldBe true
         second.docUuid shouldBe first.docUuid
         rowsOfTenant() shouldBe 2
 
-        val other = asTenant { recorder().record(key("k2", 1)) }
+        val other = asTenant { recorder().record(key("k2", 1)) { RESULT } }
         other.inserted shouldBe true
         other.docUuid shouldNotBe first.docUuid
         rowsOfTenant() shouldBe 3
 
-        asTenant { recorder().record(key("k", 1)) }.docUuid shouldBe first.docUuid // never regenerated on a retry
+        val retried = asTenant { recorder().record(key("k", 1)) { RESULT } }
+        retried.docUuid shouldBe first.docUuid // never regenerated on a retry
         ingestion() shouldBe before
     }
 
     @Test
     fun `INV-AC-7864 a failure forced after the insert leaves neither the row nor a Doc UUID binding`() {
         val before = ingestion()
-        shouldThrow<IllegalStateException> { asTenant { recorder(FailAfterInsert(store)).record(key("k-fail", 1)) } }
+        failingRecord("k-fail")
         rowsOfTenant() shouldBe 0
         // no binding survives: the same key now gets a fresh Doc UUID of its own and one row
-        val recorded = asTenant { recorder().record(key("k-fail", 1)) }
+        val recorded = asTenant { recorder().record(key("k-fail", 1)) { RESULT } }
         recorded.inserted shouldBe true
         rowsOfTenant() shouldBe 1
         ingestion() shouldBe before
@@ -239,11 +241,17 @@ class SourceEventRecordingTest {
 
     @Test
     fun `INV-AC-7864 the lock is released by the rollback so a second call for the same key succeeds`() {
-        shouldThrow<IllegalStateException> { asTenant { recorder(FailAfterInsert(store)).record(key("k-unlock", 1)) } }
-        asTenant { recorder().record(key("k-unlock", 1)) }.inserted shouldBe true
+        failingRecord("k-unlock")
+        asTenant { recorder().record(key("k-unlock", 1)) { RESULT } }.inserted shouldBe true
     }
 
+    private fun failingRecord(sourceKey: String) =
+        shouldThrow<IllegalStateException> {
+            asTenant { recorder(FailAfterInsert(store)).record(key(sourceKey, 1)) { RESULT } }
+        }
+
     private companion object {
+        const val RESULT = """{"ok":true}"""
         const val COUNT = "select count(*) from canonical.source_event where tenant_id = ?"
     }
 }

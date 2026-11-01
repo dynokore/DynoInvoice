@@ -44,9 +44,20 @@ class JooqSourceEventStore(
             .limit(1)
             .fetchOne(SOURCE_EVENT.DOC_UUID)
 
+    override fun resultOf(key: SourceKey): String? =
+        dsl
+            .select(SOURCE_EVENT.RESULT.cast(SQLDataType.VARCHAR))
+            .from(SOURCE_EVENT)
+            .where(SOURCE_EVENT.TENANT_ID.eq(key.tenantId))
+            .and(SOURCE_EVENT.SOURCE_SYSTEM.eq(key.sourceSystem))
+            .and(SOURCE_EVENT.SOURCE_KEY.eq(key.sourceKey))
+            .and(SOURCE_EVENT.SOURCE_REVISION.eq(key.sourceRevision))
+            .fetchOne(0, String::class.java)
+
     override fun insert(
         key: SourceKey,
         docUuid: UUID,
+        result: String,
     ): Boolean =
         dsl
             .insertInto(SOURCE_EVENT)
@@ -55,6 +66,7 @@ class JooqSourceEventStore(
             .set(SOURCE_EVENT.SOURCE_KEY, key.sourceKey)
             .set(SOURCE_EVENT.SOURCE_REVISION, key.sourceRevision)
             .set(SOURCE_EVENT.DOC_UUID, docUuid)
+            .set(SOURCE_EVENT.RESULT, DSL.`val`(result).cast(SQLDataType.JSONB))
             .onConflictDoNothing()
             .execute() == 1
 }
