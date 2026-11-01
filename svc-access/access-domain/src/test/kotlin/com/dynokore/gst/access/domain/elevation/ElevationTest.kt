@@ -15,7 +15,7 @@ class ElevationTest {
     private val officer = IdentityRef("user:officer")
 
     private fun pending(kind: ElevationKind = ElevationKind.ELEVATION) =
-        ElevationRecord.pending(kind.refPrefix + "1", kind, "TEN-1", op, "CASE-1")
+        ElevationRecord.pending(kind.refPrefix + "1", ElevationAsk(kind, "TEN-1", op, "CASE-1"))
 
     @Test
     fun `a pending record opens nothing`() {

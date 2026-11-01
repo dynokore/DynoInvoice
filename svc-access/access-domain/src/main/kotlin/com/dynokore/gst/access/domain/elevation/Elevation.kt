@@ -5,7 +5,7 @@ import com.dynokore.gst.access.domain.grant.ValidityWindow
 import java.time.Duration
 import java.time.Instant
 
-/** An elevation request opens content of one tenant (`ELV-*`); a diagnostic invitation opens an installation (`DIAG-*`). */
+/** An elevation request opens content of one tenant (`ELV-*`); an invitation opens an installation (`DIAG-*`). */
 enum class ElevationKind(
     val refPrefix: String,
 ) {
@@ -15,23 +15,32 @@ enum class ElevationKind(
 
 enum class ElevationStatus { PENDING, GRANTED, REFUSED, WITHDRAWN }
 
-/**
- * A time-boxed elevation or diagnostic invitation (INV-REQ-862 behaviour 3, INV-REQ-890 behaviour 1). Immutable: a
- * change returns a new instance (CS-07). [subject] is the tenant reference of an elevation, the installation reference
- * of an invitation. [requester] is the operator identity the access opens for. Only a PENDING record can be decided or
- * withdrawn; a record is usable only while GRANTED and inside its [window].
- */
-class ElevationRecord(
-    val ref: String,
+/** What a record asks for: [subject] is the tenant of an elevation, the installation of an invitation. */
+data class ElevationAsk(
     val kind: ElevationKind,
     val subject: String,
     val requester: IdentityRef,
     val caseId: String,
+)
+
+/**
+ * A time-boxed elevation or diagnostic invitation (INV-REQ-862 behaviour 3, INV-REQ-890 behaviour 1). Immutable: a
+ * change returns a new instance (CS-07). The requester of [ask] is the operator identity the access opens for. Only a
+ * PENDING record can be decided or withdrawn; a record is usable only while GRANTED and inside its [window].
+ */
+class ElevationRecord(
+    val ref: String,
+    val ask: ElevationAsk,
     val status: ElevationStatus,
     val window: ValidityWindow?,
     val decidedBy: IdentityRef?,
     val version: Long,
 ) {
+    val kind: ElevationKind get() = ask.kind
+    val subject: String get() = ask.subject
+    val requester: IdentityRef get() = ask.requester
+    val caseId: String get() = ask.caseId
+
     init {
         require(ref.startsWith(kind.refPrefix) && ref.length <= MAX_REF) {
             "a ${kind.name} reference starts with ${kind.refPrefix}"
@@ -66,18 +75,15 @@ class ElevationRecord(
         to: ElevationStatus,
         box: ValidityWindow?,
         by: IdentityRef?,
-    ) = ElevationRecord(ref, kind, subject, requester, caseId, to, box, by, version + 1)
+    ) = ElevationRecord(ref, ask, to, box, by, version + 1)
 
     companion object {
         const val MAX_REF = 64
 
         fun pending(
             ref: String,
-            kind: ElevationKind,
-            subject: String,
-            requester: IdentityRef,
-            caseId: String,
-        ) = ElevationRecord(ref, kind, subject, requester, caseId, ElevationStatus.PENDING, null, null, 0)
+            ask: ElevationAsk,
+        ) = ElevationRecord(ref, ask, ElevationStatus.PENDING, null, null, 0)
     }
 }
 
