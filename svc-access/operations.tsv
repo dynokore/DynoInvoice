@@ -21,7 +21,7 @@ operation	clearLandingChoice	INV-T-4935	open
 operation	requestElevation	INV-T-4941	open
 operation	decideElevation	INV-T-4941	open
 operation	withdrawElevationRequest	INV-T-4941	open
-operation	openOperatorSession	INV-T-4941	open
+operation	openOperatorSession	INV-T-4154	open
 operation	inviteDiagnostics	INV-T-4941	open
 operation	withdrawDiagnosticInvitation	INV-T-4941	open
 operation	issueSignatoryLink	INV-T-4940	open
@@ -30,13 +30,13 @@ operation	unlockBreakGlass	INV-T-4938	done
 operation	signInBreakGlass	INV-T-8853	open
 operation	recordBreakGlassAction	INV-T-4938	done
 operation	resealBreakGlass	INV-T-8853	open
-operation	runAccessReview	INV-T-4941	open
-operation	closeAccessReview	INV-T-4941	open
+operation	runAccessReview	INV-T-15798	open
+operation	closeAccessReview	INV-T-15798	open
 operation	grantConsent	INV-T-4939	done
 operation	withdrawConsent	INV-T-4939	done
 operation	acknowledgeMapping	INV-T-4940	open
 channel	accessAuthorityChanged	INV-T-4934	done
-channel	accessOperatorSessionKeysChanged	INV-T-4941	open
+channel	accessOperatorSessionKeysChanged	INV-T-4154	open
 channel	accessAccessAlertRaised	INV-T-4938	open
 channel	accessMessageRequested	INV-T-4940	open
 channel	accessExampleHappened	UNASSIGNED	open

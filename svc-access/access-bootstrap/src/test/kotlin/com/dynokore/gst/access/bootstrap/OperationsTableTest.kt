@@ -185,65 +185,47 @@ class OperationsTableTest {
         }
     }
 
-    /** The rows INV-T-4941 owns (INV-Q-7983 A): compared with this list by equality; channels it does not own are absent. */
+    /** The task each row named by INV-T-4941's operation-table bullet must carry (INV-Q-15792 A), by equality. */
+    private val expected4941 =
+        listOf(
+            "operation" to "requestElevation" to "INV-T-4941",
+            "operation" to "decideElevation" to "INV-T-4941",
+            "operation" to "inviteDiagnostics" to "INV-T-4941",
+            "operation" to "withdrawDiagnosticInvitation" to "INV-T-4941",
+            "operation" to "withdrawElevationRequest" to "INV-T-4941",
+            "operation" to "openOperatorSession" to "INV-T-4154",
+            "channel" to "accessOperatorSessionKeysChanged" to "INV-T-4154",
+            "operation" to "runAccessReview" to "INV-T-15798",
+            "operation" to "closeAccessReview" to "INV-T-15798",
+            "channel" to "accessAccessAlertRaised" to "INV-T-4938",
+            "channel" to "accessMessageRequested" to "INV-T-4940",
+            "channel" to "accessExampleHappened" to "UNASSIGNED",
+        )
+
     private fun taskFindingsOf4941(lines: List<String>): List<String> {
         val rows = rows(lines).first.associateBy { it.kind to it.name }
-        return listOf(
-            "requestElevation",
-            "decideElevation",
-            "openOperatorSession",
-            "runAccessReview",
-            "closeAccessReview",
-            "inviteDiagnostics",
-            "withdrawDiagnosticInvitation",
-            "withdrawElevationRequest",
-        ).mapNotNull { name ->
-            val task = rows["operation" to name]?.task
-            if (task == "INV-T-4941") null else "operation $name: task is ${task ?: "missing"}, not INV-T-4941"
-        }
-    }
-
-    /** The two rows that moved to INV-T-8853 (INV-Q-8855 A): `signInBreakGlass` and `resealBreakGlass`. */
-    private fun movedFindings(lines: List<String>): List<String> {
-        val rows = rows(lines).first.associateBy { it.kind to it.name }
-        return listOf("signInBreakGlass", "resealBreakGlass").mapNotNull { name ->
-            val task = rows["operation" to name]?.task
-            if (task == "INV-T-8853") null else "operation $name: task is ${task ?: "missing"}, not INV-T-8853"
+        return expected4941.mapNotNull { (key, want) ->
+            val task = rows[key]?.task
+            if (task == want) null else "${key.first} ${key.second}: task is ${task ?: "missing"}, not $want"
         }
     }
 
     @Test
-    fun `the rows of signInBreakGlass and resealBreakGlass name INV-T-8853 and probes against it fail`() {
-        assertThat(movedFindings(table)).isEmpty()
-        val signIn =
-            table.map { it.replace("\tsignInBreakGlass\tINV-T-8853\t", "\tsignInBreakGlass\tINV-T-4938\t") }
-        assertThat(
-            movedFindings(signIn),
-        ).containsExactly("operation signInBreakGlass: task is INV-T-4938, not INV-T-8853")
-        val reseal =
-            table.map { it.replace("\tresealBreakGlass\tINV-T-8853\t", "\tresealBreakGlass\tUNASSIGNED\t") }
-        assertThat(
-            movedFindings(reseal),
-        ).containsExactly("operation resealBreakGlass: task is UNASSIGNED, not INV-T-8853")
-        val lookAlike =
-            table.map { it.replace("\tresealBreakGlass\tINV-T-8853\t", "\tresealBreakGlass\tINV-T-88530\t") }
-        assertThat(movedFindings(lookAlike)).hasSize(1)
-    }
-
-    @Test
-    fun `the task column of the rows INV-T-4941 names is INV-T-4941 and probes against it fail`() {
+    fun `the task column of the rows INV-T-4941 names equals the ruled list and each probe fails`() {
         assertThat(taskFindingsOf4941(table)).isEmpty()
-        listOf("INV-T-4940", "INV-T-49410", "UNASSIGNED").forEach { other ->
-            listOf("inviteDiagnostics", "withdrawElevationRequest", "withdrawDiagnosticInvitation").forEach { name ->
-                val probe = table.map { it.replace("\t$name\tINV-T-4941\t", "\t$name\t$other\t") }
-                assertThat(taskFindingsOf4941(probe))
-                    .containsExactly("operation $name: task is $other, not INV-T-4941")
+        val probes =
+            mapOf(
+                "openOperatorSession" to listOf("INV-T-4941", "INV-T-41540"),
+                "runAccessReview" to listOf("INV-T-4941", "UNASSIGNED"),
+                "inviteDiagnostics" to listOf("INV-T-4940", "INV-T-49410"),
+                "withdrawElevationRequest" to listOf("UNASSIGNED"),
+            )
+        probes.forEach { (name, others) ->
+            others.forEach { other ->
+                val probe = table.map { it.replace(Regex("^(operation\\t$name\\t)\\S+"), "$1$other") }
+                assertThat(taskFindingsOf4941(probe)).hasSize(1)
             }
         }
-        // the two channel rows stay as they are: accessAccessAlertRaised is INV-T-4938's, accessExampleHappened is open
-        val rows = rows(table).first.associateBy { it.kind to it.name }
-        assertThat(rows["channel" to "accessAccessAlertRaised"]!!.task).isEqualTo("INV-T-4938")
-        assertThat(rows["channel" to "accessExampleHappened"]!!.task).isEqualTo("UNASSIGNED")
     }
 
     @Test
