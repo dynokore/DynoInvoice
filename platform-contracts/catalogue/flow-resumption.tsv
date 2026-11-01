@@ -1,0 +1,12 @@
+flow	step	service	operationId	gap
+pack-authoring-to-activation	draft	rules	getMappingPack	-
+pack-authoring-to-activation	dry-run-result	rules	getDryRun	-
+pack-authoring-to-activation	approval	rules	getMappingPack	-
+pack-authoring-to-activation	acknowledgements	rules	UNREAD	INV-Q-14102
+onboarding-to-go-live	coverage-map	ingestion	UNREAD	INV-Q-14102
+onboarding-to-go-live	gap-report	masterdata	getGapReport	-
+onboarding-to-go-live	certification-results	tenancy	UNREAD	INV-Q-14102
+period-readiness-to-filing	verdict	submission	getReadiness	-
+period-readiness-to-filing	drain-progress	submission	UNREAD	INV-Q-14102
+period-readiness-to-filing	residual-list	submission	UNREAD	INV-Q-14102
+compensation	affected-population-definition	rules	UNREAD	INV-Q-14102
