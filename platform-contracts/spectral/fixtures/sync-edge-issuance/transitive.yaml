@@ -1,0 +1,5 @@
+edges:
+  - caller: ingestion-svc
+    callee: canonical-svc
+  - caller: canonical-svc
+    callee: transport-svc

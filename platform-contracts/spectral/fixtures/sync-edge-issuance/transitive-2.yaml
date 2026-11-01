@@ -1,0 +1,5 @@
+edges:
+  - caller: payload-svc
+    callee: rules-svc
+  - caller: rules-svc
+    callee: submission-svc

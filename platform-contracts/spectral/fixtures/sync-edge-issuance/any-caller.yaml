@@ -1,0 +1,3 @@
+edges:
+  - caller: Any
+    callee: submission-svc

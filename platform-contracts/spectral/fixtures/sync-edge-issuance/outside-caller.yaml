@@ -1,0 +1,3 @@
+edges:
+  - caller: reporting-svc
+    callee: submission-svc

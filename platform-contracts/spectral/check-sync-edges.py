@@ -44,6 +44,14 @@ by equality) is console-web -> console-bff. Any other such edge (a pipeline
 service, "Any except <svc>", an installer, the gateway calling console-bff,
 anything calling the gateway) is an error.
 
+Also before the per-operation checks, the allowlist must not let issuance wait
+for the IRAS copy (INV-REQ-1360, INV-AC-14154): the reached set R starts as the
+issuance entries ingestion-svc and payload-svc and grows to a fixed point. An
+edge fires when its caller (caller_id) is in R, is `any`, or is `any-except:X`
+while R holds a service other than X; a firing edge adds its callee (callee_id)
+to R. Every firing edge whose callee equals submission-svc or transport-svc
+(whole-text equality) is an error naming the edge as written in the file.
+
 Usage: check-sync-edges.py <sync-edges.yaml> <root>
 <root> holds the service directories (the repository root in CI). Exit 0 if
 all pass, 1 otherwise. Needs PyYAML.
@@ -59,6 +67,8 @@ METHODS = ("get", "post", "put", "delete", "patch")
 SHARED_RUNTIME = "service-runtime"
 SHARED_EDGE = "console-bff->*"
 OUTSIDE_PIPELINE = ("console-bff", "api-gateway")
+ISSUANCE_ENTRIES = ("ingestion-svc", "payload-svc")
+IRAS_COPY_SERVICES = ("submission-svc", "transport-svc")
 ANY_EXCEPT_ROW = re.compile(r"any except ([a-z][a-z0-9-]*-svc)")
 EXCLUSION_PREFIX = "any-except:"
 EXCLUSION_EDGE = re.compile(r"any-except:([a-z][a-z0-9-]*-svc)->(.+)")
@@ -135,6 +145,32 @@ def outside_pipeline_errors(edges) -> list:
     return errors
 
 
+def issuance_path_errors(edges) -> list:
+    reached, errors, fired = set(ISSUANCE_ENTRIES), [], set()
+    changed = True
+    while changed:
+        changed = False
+        for i, e in enumerate(edges):
+            caller, callee = caller_id(e["caller"]), callee_id(e["callee"])
+            if caller.startswith(EXCLUSION_PREFIX):
+                fires = any(r != caller[len(EXCLUSION_PREFIX):] for r in reached)
+            else:
+                fires = caller == "any" or caller in reached
+            if not fires:
+                continue
+            if i not in fired and callee in IRAS_COPY_SERVICES:
+                fired.add(i)
+                errors.append(
+                    f"sync-edges.yaml: edge '{e['caller']}->{e['callee']}' lets the issuance path "
+                    "(ingestion-svc, payload-svc and what they call) reach submission-svc or transport-svc "
+                    "(INV-REQ-1360, INV-AC-14154)"
+                )
+            if callee not in reached:
+                reached.add(callee)
+                changed = True
+    return errors
+
+
 def main(argv) -> int:
     if len(argv) != 3:
         print(__doc__)
@@ -143,6 +179,7 @@ def main(argv) -> int:
     allowed = {f"{caller_id(e['caller'])}->{e['callee']}" for e in allow_doc["edges"]}
     root = Path(argv[2])
     errors, n_ops, n_edges = outside_pipeline_errors(allow_doc["edges"]), 0, 0
+    errors += issuance_path_errors(allow_doc["edges"])
     for f in sorted(root.glob("*/openapi.yaml")):
         svc = f.parent.name
         doc = yaml.safe_load(f.read_text())

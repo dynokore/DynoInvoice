@@ -1,0 +1,3 @@
+edges:
+  - caller: payload-svc
+    callee: transport-svc

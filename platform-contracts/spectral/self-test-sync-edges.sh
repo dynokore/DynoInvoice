@@ -93,6 +93,28 @@ expect_list_fail exclusion-spaced "is a malformed exclusion"
 expect_list_fail exclusion-non-svc "is a malformed exclusion"
 expect_list_fail exclusion-is-callee "excludes the callee itself"
 
+# INV-T-14155 (INV-REQ-1360, INV-AC-14154): no allowlist edge lets the issuance path reach submission-svc or transport-svc.
+F4=fixtures/sync-edge-issuance
+run_issuance() { python3 check-sync-edges.py $F4/$1 $F2/root 2>&1; }
+for c in ok callee-lookalike caller-lookalike outside-caller; do
+  out=$(run_issuance $c.yaml); rc=$?
+  if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — issuance fixture '$c' rejected:"; echo "$out"; failed=1; fi
+  case "$out" in *"allowlist check passed"*) ;; *) echo "gst-ci: FAIL — issuance fixture '$c' did not print the passing line:"; echo "$out"; failed=1;; esac
+done
+expect_issuance_fail() { # case, edge as written
+  out=$(run_issuance "$1.yaml"); rc=$?
+  if [ $rc -ne 1 ]; then echo "gst-ci: FAIL — issuance fixture '$1' exited $rc, expected 1"; failed=1
+  else case "$out" in *"edge '$2' lets the issuance path (ingestion-svc, payload-svc and what they call) reach submission-svc or transport-svc"*) echo "gst-ci: self-test issuance '$1' failed as expected ($2)";;
+       *) echo "gst-ci: FAIL — issuance fixture '$1' failed, but not for '$2':"; echo "$out"; failed=1;; esac; fi
+}
+expect_issuance_fail direct "ingestion-svc->submission-svc"
+expect_issuance_fail direct-payload "payload-svc->transport-svc"
+expect_issuance_fail transitive "canonical-svc->transport-svc"
+expect_issuance_fail transitive-2 "rules-svc->submission-svc"
+expect_issuance_fail any-caller "Any->submission-svc"
+expect_issuance_fail any-except-caller "Any except access-svc->transport-svc"
+expect_issuance_fail case "Ingestion-SVC->Submission-SVC"
+expect_issuance_fail spaced "Ingestion Svc->submission-svc"
 
 [ "$failed" -eq 0 ] && echo "gst-ci: check-sync-edges.py self-test passed."
 exit $failed

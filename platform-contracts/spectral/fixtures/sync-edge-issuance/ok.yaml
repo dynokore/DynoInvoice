@@ -1,0 +1,17 @@
+edges:
+  - caller: ingestion-svc
+    callee: canonical-svc
+  - caller: ingestion-svc
+    callee: payload-svc
+  - caller: payload-svc
+    callee: rules-svc
+  - caller: canonical-svc
+    callee: masterdata-svc
+  - caller: submission-svc
+    callee: transport-svc
+  - caller: console-bff
+    callee: submission-svc
+  - caller: console-bff
+    callee: transport-svc
+  - caller: Any except access-svc
+    callee: tenancy-svc

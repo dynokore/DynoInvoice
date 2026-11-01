@@ -1,0 +1,5 @@
+edges:
+  - caller: ingestion-svc
+    callee: submission-svc-2
+  - caller: ingestion-svc
+    callee: transport
