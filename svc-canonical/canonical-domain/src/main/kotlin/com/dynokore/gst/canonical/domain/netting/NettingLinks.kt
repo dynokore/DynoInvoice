@@ -2,8 +2,12 @@ package com.dynokore.gst.canonical.domain.netting
 
 import java.util.UUID
 
-/** `documentFunction` of the ingestion contract (`ingestion/schemas/transaction-request.schema.json`). */
-enum class DocumentFunction { INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT }
+/**
+ * `documentFunction` of the ingestion contract (`ingestion/schemas/transaction-request.schema.json`): the six values
+ * the caller may assert (INV-REQ-371, owner answer INV-Q-6507 A). A key naming an ADJUSTMENT document is not a credit
+ * note for netting (fail closed).
+ */
+enum class DocumentFunction { INVOICE, CREDIT_NOTE, DEBIT_NOTE, BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL }
 
 /** The lookup result for one declared key: the recorded document the key names. */
 data class RecordedDocument(

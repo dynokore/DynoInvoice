@@ -86,6 +86,17 @@ class NettingLinksTest {
     }
 
     @Test
+    fun `INV-AC-13667 a key naming an ADJUSTMENT document is NOT_A_CREDIT_NOTE`() {
+        NettingLinks
+            .forRevision(
+                entity,
+                listOf("K"),
+                mapOf("K" to doc(inv1, DocumentFunction.ADJUSTMENT)),
+            ).unresolved shouldBe
+            listOf(Unresolved("K", Why.NOT_A_CREDIT_NOTE))
+    }
+
+    @Test
     fun `a key naming a credit note of another entity is OTHER_ENTITY`() {
         val recorded = mapOf("K" to doc(cn1, DocumentFunction.CREDIT_NOTE, otherEntity))
         val links = NettingLinks.forRevision(entity, listOf("K"), recorded)
