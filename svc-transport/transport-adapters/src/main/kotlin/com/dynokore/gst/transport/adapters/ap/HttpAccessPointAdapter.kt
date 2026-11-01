@@ -2,17 +2,27 @@ package com.dynokore.gst.transport.adapters.ap
 
 import com.dynokore.gst.transport.application.AccessPointAdapters
 import com.dynokore.gst.transport.application.AccessPointPort
+import com.dynokore.gst.transport.application.NotificationPage
+import com.dynokore.gst.transport.application.NotificationSource
 import com.dynokore.gst.transport.domain.AdapterId
+import com.dynokore.gst.transport.domain.ApNotification
 import com.dynokore.gst.transport.domain.DocRef
 import com.dynokore.gst.transport.domain.FailureReason
+import com.dynokore.gst.transport.domain.NotificationReason
+import com.dynokore.gst.transport.domain.NotificationTranslator
 import com.dynokore.gst.transport.domain.TransportOutcome
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.IOException
 import java.net.URI
+import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.util.UUID
 
 /**
  * The Access Point adapter for an AP that speaks the business API of the certification-kit AP simulator
@@ -29,7 +39,11 @@ class HttpAccessPointAdapter(
     private val apPath: String,
     private val timeout: Duration,
     private val client: HttpClient = HttpClient.newBuilder().connectTimeout(timeout).build(),
-) : AccessPointPort {
+    private val onUnknownType: (apNotificationId: String?, type: String?) -> Unit = { id, type ->
+        LOG.warn("AP notification {} of adapter {} has the unknown type '{}' and is skipped", id, adapterId, type)
+    },
+) : AccessPointPort,
+    NotificationSource {
     private val mapper = JsonMapper.builder().build()
 
     /** The URI of the last request this adapter sent, for diagnostics and the endpoint test (INV-REQ-501). */
@@ -77,6 +91,88 @@ class HttpAccessPointAdapter(
         }
     }
 
+    /**
+     * One page of the AP's notifications after [cursor] (`GET /notifications?after=&limit=` of the simulator), in the
+     * application form a callback carries (INV-Q-9670 A). An item of an unknown type is reported by notification id
+     * and skipped; a page with no `nextCursor` keeps [cursor]. An AP answer other than 200, a timeout, an I/O failure
+     * or a body that is not a page is a failed read: it throws and the caller's cursor stays where it was.
+     */
+    override fun pageAfter(
+        adapter: AdapterId,
+        cursor: String?,
+    ): NotificationPage {
+        require(adapter == adapterId) { "adapter $adapter is not served by $adapterId" }
+        val base = endpoints.active().toString().trimEnd('/')
+        val query =
+            buildList {
+                if (cursor != null) add("after=" + URLEncoder.encode(cursor, Charsets.UTF_8))
+                add("limit=$PAGE_LIMIT")
+            }.joinToString("&")
+        val target = URI.create("$base/ap/v1/$apPath/notifications?$query")
+        lastRequestUri = target
+        val request =
+            HttpRequest
+                .newBuilder(target)
+                .timeout(timeout)
+                .GET()
+                .build()
+        val root = parsePage(send(request))
+        val items = root.get("notifications")
+        if (items == null || !items.isArray) throw AccessPointReadException("the AP page has no notifications array")
+        val next = root.get("nextCursor")?.takeUnless { it.isNull || it.isMissingNode }?.asString()
+        return NotificationPage(items.mapNotNull(::item), next ?: cursor)
+    }
+
+    private fun send(request: HttpRequest): String {
+        val response =
+            try {
+                client.send(request, HttpResponse.BodyHandlers.ofString())
+            } catch (e: IOException) {
+                throw AccessPointReadException("the AP page could not be read", e)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw AccessPointReadException("the AP page read was interrupted", e)
+            }
+        return bodyOf200(response)
+    }
+
+    private fun bodyOf200(response: HttpResponse<String>): String {
+        if (response.statusCode() != HTTP_OK) {
+            throw AccessPointReadException("the AP answered ${response.statusCode()} to the page read")
+        }
+        return response.body()
+    }
+
+    private fun parsePage(body: String): JsonNode =
+        try {
+            mapper.readTree(body)
+        } catch (e: tools.jackson.core.JacksonException) {
+            throw AccessPointReadException("the AP page is not JSON", e)
+        }
+
+    private fun item(node: JsonNode): ApNotification? {
+        val id = node.text("notificationId")
+        val type = node.text("type")
+        val kind = KIND_OF_TYPE[type]
+        if (kind == null) {
+            onUnknownType(id, type)
+            return null
+        }
+        return ApNotification(
+            apNotificationId = id,
+            kind = kind,
+            docUuid = node.text("docUuid")?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+            version = node.get("version")?.takeIf { it.isIntegralNumber }?.asInt(),
+            acknowledgementId = node.text("acknowledgementId"),
+            reasons =
+                node.get("reasons")?.takeIf { it.isArray }?.toList()?.map {
+                    NotificationReason(it.text("code"), it.text("message"))
+                },
+        )
+    }
+
+    private fun JsonNode.text(name: String): String? = get(name)?.takeIf { it.isString }?.asString()
+
     private fun translate(response: HttpResponse<String>): TransportOutcome =
         when (response.statusCode()) {
             HTTP_OK, HTTP_ACCEPTED -> {
@@ -107,11 +203,28 @@ class HttpAccessPointAdapter(
         }
 
     private companion object {
+        val LOG: Logger = LoggerFactory.getLogger(HttpAccessPointAdapter::class.java)
+        const val PAGE_LIMIT = 50
+
+        /** The simulator's own type names to the kinds a callback carries (INV-Q-9670 A). */
+        val KIND_OF_TYPE: Map<String?, String> =
+            mapOf(
+                "IRAS_ACKNOWLEDGEMENT" to NotificationTranslator.ACKNOWLEDGEMENT,
+                "IRAS_REJECTION" to NotificationTranslator.REJECTION,
+                "DELIVERY_STATUS" to NotificationTranslator.DELIVERY_STATUS,
+                "INBOUND_DOCUMENT" to NotificationTranslator.INBOUND_NETWORK_DOCUMENT,
+            )
         const val HTTP_OK = 200
         const val HTTP_ACCEPTED = 202
         const val HTTP_UNPROCESSABLE = 422
     }
 }
+
+/** The AP's notification page could not be read: nothing was taken from it and the poll cursor is unchanged. */
+class AccessPointReadException(
+    message: String,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
 
 /** The registry of the adapters of this installation. */
 class AccessPointRegistry(
