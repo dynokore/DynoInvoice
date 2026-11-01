@@ -17,17 +17,33 @@ private const val PROPERTY = "hibernate.validator.allow_parallel_method_paramete
 class ValidationConfigTest {
     private fun metadata(parallelAllowed: Boolean) {
         try {
-            val configuration =
+            val bootstrap =
                 Class
                     .forName("jakarta.validation.Validation")
                     .getMethod("byDefaultProvider")
                     .invoke(null)
-                    .let { it.javaClass.getMethod("configure").invoke(it) }
+            val configuration =
+                Class
+                    .forName("jakarta.validation.bootstrap.GenericBootstrap")
+                    .getMethod("configure")
+                    .invoke(bootstrap)
             val type = Class.forName("jakarta.validation.Configuration")
             type.getMethod("ignoreXmlConfiguration").invoke(configuration)
-            if (parallelAllowed) type.getMethod("addProperty", String::class.java, String::class.java).invoke(configuration, PROPERTY, "true")
+            if (parallelAllowed) {
+                type
+                    .getMethod(
+                        "addProperty",
+                        String::class.java,
+                        String::class.java,
+                    ).invoke(configuration, PROPERTY, "true")
+            }
             val factory = type.getMethod("buildValidatorFactory").invoke(configuration)
-            val validator = Class.forName("jakarta.validation.ValidatorFactory").getMethod("getValidator").invoke(factory)
+            val validator =
+                Class
+                    .forName(
+                        "jakarta.validation.ValidatorFactory",
+                    ).getMethod("getValidator")
+                    .invoke(factory)
             Class
                 .forName("jakarta.validation.Validator")
                 .getMethod("getConstraintsForClass", Class::class.java)
