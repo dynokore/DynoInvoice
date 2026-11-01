@@ -14,10 +14,11 @@ include:
       - 'ci/image.gitlab-ci.yml' # bootBuildImage, SBOM, image scan, sign, provenance, reproducibility
       - 'ci/publish.gitlab-ci.yml' # image publish
   # The keel-report job reads the JUnit XML of unit-test from the main pipeline and reports the INV-AC numbers in the
-  # testcase names to Keel (the same wiring as platform-libs).
+  # testcase names to Keel (the same wiring as platform-libs), and the check:verify-rules group (CI-FAST 5c,
+  # KEEL-T-15981: job-level done proof of INV-AC-14433, attrs.ci_jobs).
   - project: 'keel/tooling'
     ref: main
-    file: 'keel-report-junit.yml'
+    file: 'keel-report-junit-groups.yml'
     inputs:
       runner_tags: [inv-arm64]
       junit_paths: '**/build/test-results/*/TEST-*.xml'
@@ -25,3 +26,10 @@ include:
 
 # IMAGE_NAME stays unset (template default "" turns the image jobs off): this slice has no bootBuildImage task;
 # INV-T-14436 (console-bff-bootstrap) sets it (INV-Q-14674).
+
+# CI-FAST 5c: verify-rules writes its check summary (ci-artifacts/check-summary/verify-rules.json) for keel-report.
+# The template's .check-group after_script and artifacts by !reference, not `extends: .check-group`: its
+# `dependencies: []` would drop compile's artifacts and gst-rebase-check's dotenv from the job.
+verify-rules:
+  after_script: !reference [.check-group, after_script]
+  artifacts: !reference [.check-group, artifacts]
