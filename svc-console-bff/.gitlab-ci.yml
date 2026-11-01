@@ -23,5 +23,5 @@ include:
       junit_paths: '**/build/test-results/*/TEST-*.xml'
       ac_pattern: 'INV-AC-\d+(?!\d)'
 
-variables:
-  IMAGE_NAME: "svc-console-bff"
+# IMAGE_NAME stays unset (template default "" turns the image jobs off): this slice has no bootBuildImage task;
+# INV-T-14436 (console-bff-bootstrap) sets it (INV-Q-14674).
