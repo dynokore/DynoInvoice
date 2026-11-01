@@ -42,36 +42,38 @@ class EntityScopePostgresIT {
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `INV-AC-1912 case 1 and case 2 and case 3 a query without an entity condition returns only the scope`(
         image: String,
-    ) = withDatabase(image) { sample ->
-        // Case 1: binding set {E1}: only E1 rows of the bound tenant.
-        assertEquals(setOf(rowT1E1), sample.rows(t1, setOf(e1)), "case 1")
-        // Case 2: binding set {E1, E2}: the rows of both entities of the bound tenant.
-        assertEquals(setOf(rowT1E1, rowT1E2), sample.rows(t1, setOf(e1, e2)), "case 2")
-        // Case 3: eight bindings return no row and no error.
-        val valid = sample.value(t1, setOf(e1, e2))
-        val fields = valid.split('.')
-        val signedE1 = sample.value(t1, setOf(e1)).split('.')
-        val expired = sample.raw("${t1.value}.${b64(actor)}.1.$e1", keyCurrent)
-        val case3 =
-            linkedMapOf<String, String?>(
-                "the empty set" to sample.value(t1, emptySet()),
-                "a four-field value with no set" to sample.value(t1, null),
-                "a missing value" to null,
-                "an expired value" to expired,
-                "a MAC of another key" to sample.rawSet(t1, "$e1", keyOther),
-                "a set changed after signing (E2 added)" to
-                    (signedE1.take(3) + "$e1,$e2" + signedE1[4]).joinToString("."),
-                "a set with E1 removed and the signature kept" to
-                    (fields.take(3) + "$e2" + fields[4]).joinToString("."),
-                "a malformed entity element" to sample.rawSet(t1, "$e1,not-a-uuid", keyCurrent),
-            )
-        assertEquals(8, case3.size)
-        for ((name, value) in case3) assertEquals(emptySet<String>(), sample.rowsWith(t1, value), name)
+    ) {
+        withDatabase(image) { sample ->
+            // Case 1: binding set {E1}: only E1 rows of the bound tenant.
+            assertEquals(setOf(rowT1E1), sample.rows(t1, setOf(e1)), "case 1")
+            // Case 2: binding set {E1, E2}: the rows of both entities of the bound tenant.
+            assertEquals(setOf(rowT1E1, rowT1E2), sample.rows(t1, setOf(e1, e2)), "case 2")
+            // Case 3: eight bindings return no row and no error.
+            val valid = sample.value(t1, setOf(e1, e2))
+            val fields = valid.split('.')
+            val signedE1 = sample.value(t1, setOf(e1)).split('.')
+            val expired = sample.raw("${t1.value}.${b64(actor)}.1.$e1", keyCurrent)
+            val case3 =
+                linkedMapOf<String, String?>(
+                    "the empty set" to sample.value(t1, emptySet()),
+                    "a four-field value with no set" to sample.value(t1, null),
+                    "a missing value" to null,
+                    "an expired value" to expired,
+                    "a MAC of another key" to sample.rawSet(t1, "$e1", keyOther),
+                    "a set changed after signing (E2 added)" to
+                        (signedE1.take(3) + "$e1,$e2" + signedE1[4]).joinToString("."),
+                    "a set with E1 removed and the signature kept" to
+                        (fields.take(3) + "$e2" + fields[4]).joinToString("."),
+                    "a malformed entity element" to sample.rawSet(t1, "$e1,not-a-uuid", keyCurrent),
+                )
+            assertEquals(8, case3.size)
+            for ((name, value) in case3) assertEquals(emptySet<String>(), sample.rowsWith(t1, value), name)
+        }
     }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `entity set rotation accepts the previous key and refuses an older one`(image: String) =
+    fun `entity set rotation accepts the previous key and refuses an older one`(image: String) {
         withDatabase(image) { sample ->
             val signedPrevious = sample.rawSet(t1, "$e1", keyPrevious)
             val signedOlder = sample.rawSet(t1, "$e1", keyOlder)
@@ -81,10 +83,11 @@ class EntityScopePostgresIT {
             sample.writeKeys(keyOther, keyCurrent)
             assertEquals(emptySet<String>(), sample.rowsWith(t1, signedPrevious), "rotated out")
         }
+    }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `the same entity UUID in upper case in a signed set matches no row`(image: String) =
+    fun `the same entity UUID in upper case in a signed set matches no row`(image: String) {
         withDatabase(image) { sample ->
             val upper = e1.toString().uppercase()
             assertEquals(
@@ -98,19 +101,21 @@ class EntityScopePostgresIT {
                 "upper-case E2 beside E1",
             )
         }
+    }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `a binding of the first tenant holding E1 does not reach the E1 row of the second tenant`(image: String) =
+    fun `a binding of the first tenant holding E1 does not reach the E1 row of the second tenant`(image: String) {
         withDatabase(image) { sample ->
             val rows = sample.rows(t1, setOf(e1))
             assertTrue(rowT2E1 !in rows, "the second tenant's E1 row")
             assertEquals(setOf(rowT2E1), sample.rows(t2, setOf(e1)))
         }
+    }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `a login other than the runtime login cannot call bound_entities`(image: String) =
+    fun `a login other than the runtime login cannot call bound_entities`(image: String) {
         withDatabase(image) { sample ->
             val denied =
                 assertThrows(DataAccessException::class.java) {
@@ -118,10 +123,11 @@ class EntityScopePostgresIT {
                 }
             assertTrue(denied.message!!.contains("permission denied for function"), denied.message)
         }
+    }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
-    fun `a same-named function in a schema the caller controls is not resolved`(image: String) =
+    fun `a same-named function in a schema the caller controls is not resolved`(image: String) {
         withDatabase(image) { sample ->
             val path = DSL.field("set_config('search_path', 'evil, public', true)")
             val control =
@@ -129,7 +135,11 @@ class EntityScopePostgresIT {
                     it.select(path).fetch()
                     it.fetchOne("select bound_entities()")!!.get(0)
                 }
-            assertEquals(listOf(EVIL_ENTITY), (control as Array<*>).toList(), "the caller's path finds its look-alike")
+            assertEquals(
+                listOf(EVIL_ENTITY),
+                (control as Array<*>).toList(),
+                "the caller's path finds its look-alike",
+            )
             val signed = sample.rawSet(t1, "$e1", keyCurrent)
             val real =
                 sample.inTx(sample.app, t1, signed) {
@@ -144,25 +154,28 @@ class EntityScopePostgresIT {
                 }
             assertEquals(setOf(rowT1E1), viaPolicy)
         }
+    }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = ["postgres:16", "postgres:17", "postgres:18"])
     fun `bound_entities answers the signed set, NULL for the four-field form, and the old functions keep working`(
         image: String,
-    ) = withDatabase(image) { sample ->
-        assertEquals(setOf(e1, e2), sample.boundEntities(sample.value(t1, setOf(e2, e1)))?.toSet())
-        assertEquals(emptyList<UUID>(), sample.boundEntities(sample.value(t1, emptySet())))
-        assertNull(sample.boundEntities(sample.value(t1, null)), "four-field form")
-        assertNull(sample.boundEntities(null), "missing")
-        assertNull(sample.boundEntities(""), "empty")
-        // bound_tenant() and bound_actor() verify both forms
-        for (value in listOf(sample.value(t1, null), sample.value(t1, setOf(e1)), sample.value(t1, emptySet()))) {
-            assertEquals(t1.value to actor, sample.boundTenantActor(value), value)
+    ) {
+        withDatabase(image) { sample ->
+            assertEquals(setOf(e1, e2), sample.boundEntities(sample.value(t1, setOf(e2, e1)))?.toSet())
+            assertEquals(emptyList<UUID>(), sample.boundEntities(sample.value(t1, emptySet())))
+            assertNull(sample.boundEntities(sample.value(t1, null)), "four-field form")
+            assertNull(sample.boundEntities(null), "missing")
+            assertNull(sample.boundEntities(""), "empty")
+            // bound_tenant() and bound_actor() verify both forms
+            for (value in listOf(sample.value(t1, null), sample.value(t1, setOf(e1)), sample.value(t1, emptySet()))) {
+                assertEquals(t1.value to actor, sample.boundTenantActor(value), value)
+            }
+            // a five-field value with a malformed set is refused by all three
+            val bad = sample.rawSet(t1, "$e1,", keyCurrent)
+            assertEquals(null to null, sample.boundTenantActor(bad))
+            assertNull(sample.boundEntities(bad))
         }
-        // a five-field value with a malformed set is refused by all three
-        val bad = sample.rawSet(t1, "$e1,", keyCurrent)
-        assertEquals(null to null, sample.boundTenantActor(bad))
-        assertNull(sample.boundEntities(bad))
     }
 
     private fun DSLContext.itemRows(): Set<String> =

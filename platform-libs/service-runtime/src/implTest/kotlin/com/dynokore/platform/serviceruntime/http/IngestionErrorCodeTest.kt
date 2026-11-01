@@ -88,20 +88,24 @@ class IngestionErrorCodeTest {
     }
 
     @Test
-    fun `ING-002 is the row's code, title and owner with the declared 409`() =
+    fun `ING-002 is the row's code, title and owner with the declared 409`() {
         assertEntry(IngestionErrorCode.SOURCE_REVISION_LOWER, "ING-002", 409)
+    }
 
     @Test
-    fun `ING-022 is the row's code, title and owner with the declared 422`() =
+    fun `ING-022 is the row's code, title and owner with the declared 422`() {
         assertEntry(IngestionErrorCode.AGGREGATE_NUMBER_NOT_BUILDABLE, "ING-022", 422)
+    }
 
     @Test
-    fun `renderIngestion gives a 409 envelope for ING-002 that validates`() =
+    fun `renderIngestion gives a 409 envelope for ING-002 that validates`() {
         assertRendered(IngestionErrorCode.SOURCE_REVISION_LOWER, "ING-002", 409)
+    }
 
     @Test
-    fun `renderIngestion gives a 422 envelope for ING-022 that validates`() =
+    fun `renderIngestion gives a 422 envelope for ING-022 that validates`() {
         assertRendered(IngestionErrorCode.AGGREGATE_NUMBER_NOT_BUILDABLE, "ING-022", 422)
+    }
 
     private fun assertEntry(
         entry: IngestionErrorCode,

@@ -40,7 +40,7 @@ class ResiliencePolicyMappingPropertiesTest {
 
     @Suppress("DEPRECATION") // getIntervalFunction(): Resilience4j 2.4.0's only accessor, no replacement
     @Test
-    fun `every attempt's backoff interval is within 0 and maxBackoff`() =
+    fun `every attempt's backoff interval is within 0 and maxBackoff`() {
         runTest {
             checkAll(retryPolicyArb) { retryPolicy ->
                 val intervalFunction = retryPolicy.toResilience4j().intervalFunction!!
@@ -53,4 +53,5 @@ class ResiliencePolicyMappingPropertiesTest {
                 }
             }
         }
+    }
 }

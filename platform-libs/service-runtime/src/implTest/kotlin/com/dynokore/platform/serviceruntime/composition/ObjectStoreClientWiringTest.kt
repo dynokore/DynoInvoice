@@ -165,25 +165,39 @@ class ObjectStoreClientWiringTest {
     }
 
     @Test
-    fun `endpoint ftp is refused`() = refusesEndpoint("ftp://h")
+    fun `endpoint ftp is refused`() {
+        refusesEndpoint("ftp://h")
+    }
 
     @Test
-    fun `endpoint without scheme is refused`() = refusesEndpoint("h:9000")
+    fun `endpoint without scheme is refused`() {
+        refusesEndpoint("h:9000")
+    }
 
     @Test
-    fun `endpoint without host is refused`() = refusesEndpoint("http:///x")
+    fun `endpoint without host is refused`() {
+        refusesEndpoint("http:///x")
+    }
 
     @Test
-    fun `endpoint with user information is refused and not echoed`() = refusesEndpoint("http://u:p@h")
+    fun `endpoint with user information is refused and not echoed`() {
+        refusesEndpoint("http://u:p@h")
+    }
 
     @Test
-    fun `endpoint with a query is refused`() = refusesEndpoint("http://h?x=1")
+    fun `endpoint with a query is refused`() {
+        refusesEndpoint("http://h?x=1")
+    }
 
     @Test
-    fun `endpoint with a fragment is refused`() = refusesEndpoint("http://h#f")
+    fun `endpoint with a fragment is refused`() {
+        refusesEndpoint("http://h#f")
+    }
 
     @Test
-    fun `endpoint with a trailing slash is refused`() = refusesEndpoint("http://h/")
+    fun `endpoint with a trailing slash is refused`() {
+        refusesEndpoint("http://h/")
+    }
 
     @Test
     fun `only the access key id credential set is refused`() {
