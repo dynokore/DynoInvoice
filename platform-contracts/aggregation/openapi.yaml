@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -141,6 +141,112 @@ paths:
                     title: "The aggregate number cannot be built"
                     status: 422
                     code: "ING-022"
+                    severity: "BLOCK"
+                    disposition: "TERMINAL"
+                    remediationOwner: "Integration"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/aggregation/transactions:
+    post:
+      operationId: intakeAggregationTransactions
+      summary: Accept dated transactions of one POS, STI or PCP batch, so a window crossing a prescribed-period boundary is split by transaction date
+      description: >-
+        The dated-transaction intake of ingestion-svc to aggregation-svc
+        (sync-edges.yaml `ingestion-svc -> aggregation-svc`). Each
+        transaction carries its own `transactionDate`; when a window closes
+        across a prescribed-period boundary, aggregation-svc yields one
+        aggregate per period, each covering only the transactions dated in
+        that period (INV-REQ-435). `intakeAggregationBatch` is unchanged and
+        takes no per-transaction date. An `aggregateType` other than POS, STI
+        or PCP is refused with `422` and ING-006; a repeat of the same
+        (entityRef, sourceKey, sourceRevision) returns the original receipt
+        and a lower sourceRevision is refused with `409` and ING-002
+        (INV-REQ-434).
+      tags: [intake]
+      x-principal: ingest
+      x-caller-auth: end-user
+      x-timeout: 2000
+      x-sync-edge: ingestion-svc->aggregation-svc
+      x-error-codes: [ING-006, ING-002]
+      x-requirements: [INV-REQ-435]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          aggregateType is POS, STI or PCP; every transaction carries its
+          transactionDate (INV-REQ-435).
+        reversibility: COMPENSABLE
+        repeatKey: >-
+          (entityRef, sourceKey, sourceRevision), within the tenant from the
+          token; a repeat of the same triple returns the original receipt
+          (INV-REQ-434 items 2 and 3, API-15)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AggregationTransactionsRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  businessUnitRef: "BU-01"
+                  aggregateType: "POS"
+                  underlyingRef: "BATCH-9002"
+                  sourceKey: "POS-FEED-0002"
+                  sourceRevision: 1
+                  transactions:
+                    - transactionRef: "TXN-0001"
+                      transactionDate: "2026-03-31"
+                      internalTaxCode: "SR-STD"
+                      amount: "1500.00"
+                    - transactionRef: "TXN-0002"
+                      transactionDate: "2026-04-01"
+                      internalTaxCode: "SR-STD"
+                      amount: "200.00"
+      responses:
+        '202':
+          description: Accepted into the open window; the transaction receipt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregationTransactionsReceipt'
+              examples:
+                default:
+                  value: { entityRef: "E-001", aggregateType: "POS", acceptedCount: 2, windowState: "OPEN" }
+        '409':
+          description: ING-002 - sourceRevision is lower than the recorded one for the same sourceKey; nothing is stored
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "https://errors.invoice.internal/ING-002"
+                    title: "Stale sourceRevision is refused"
+                    status: 409
+                    code: "ING-002"
+                    severity: "BLOCK"
+                    disposition: "TERMINAL"
+                    remediationOwner: "Integration"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        '422':
+          description: ING-006 - aggregateType is not POS, STI or PCP; nothing is created and the rejection cannot be overridden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "https://errors.invoice.internal/ING-006"
+                    title: "Aggregation outside POS, STI and PCP is refused"
+                    status: 422
+                    code: "ING-006"
                     severity: "BLOCK"
                     disposition: "TERMINAL"
                     remediationOwner: "Integration"
@@ -321,6 +427,67 @@ components:
           format: date
           description: Transaction date of the aggregate, equal to periodEnd (INV-REQ-436).
       required: [entityRef, aggregateType, windowState, documentNumber, sequence, issueDate, transactionDate]
+    AggregationTransactionsRequest:
+      type: object
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        businessUnitRef: { type: string, maxLength: 40 }
+        aggregateType:
+          type: string
+          enum: [POS, STI, PCP]
+        underlyingRef:
+          type: string
+          maxLength: 256
+          description: Reference to the batch that delivered the underlying transactions (FR-4.9).
+        sourceKey:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Key of the source record, with sourceRevision the intake identity (INV-REQ-434).
+        sourceRevision:
+          type: integer
+          minimum: 1
+          description: Revision of the source record under sourceKey; a lower revision than the recorded one is refused with ING-002 (INV-REQ-434).
+        transactions:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          description: The dated transactions; maxItems equals the largest page of the ingestion batch contract (ingestion/openapi.yaml, BatchRequest transactions).
+          items:
+            type: object
+            properties:
+              transactionRef:
+                type: string
+                maxLength: 256
+                description: The reference of one underlying transaction, unique within the aggregate.
+              transactionDate:
+                type: string
+                format: date
+                description: Date of the transaction; decides the prescribed period it falls in (INV-REQ-435).
+              internalTaxCode: { type: string, maxLength: 40 }
+              amount:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: Money as a decimal string (API-12).
+            required: [transactionRef, transactionDate, internalTaxCode, amount]
+      required: [entityRef, businessUnitRef, aggregateType, underlyingRef, sourceKey, sourceRevision, transactions]
+    AggregationTransactionsReceipt:
+      type: object
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        aggregateType:
+          type: string
+          enum: [POS, STI, PCP]
+        acceptedCount:
+          type: integer
+          minimum: 0
+          description: Number of transactions accepted into the window.
+        windowState:
+          type: string
+          enum: [OPEN, CLOSED, LATE]
+          x-extensible-enum: true
+      required: [entityRef, aggregateType, acceptedCount, windowState]
     UnderlyingTransactionPage:
       type: object
       properties:

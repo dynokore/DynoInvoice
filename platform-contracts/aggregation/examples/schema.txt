@@ -2,3 +2,5 @@
 ../openapi.yaml#/components/schemas/AggregationReceipt aggregation-receipt-*.json
 ../openapi.yaml#/components/schemas/UnderlyingTransactionPage underlying-transaction-page-*.json
 ../schemas/short-code-used-payload.schema.json short-code-used-payload-*.json
+../openapi.yaml#/components/schemas/AggregationTransactionsRequest aggregation-transactions-request-*.json
+../openapi.yaml#/components/schemas/AggregationTransactionsReceipt aggregation-transactions-receipt-*.json

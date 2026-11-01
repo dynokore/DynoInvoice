@@ -25,3 +25,11 @@ issueDate	property	openapi.yaml	INV-REQ-436
 transactionDate	property	openapi.yaml	INV-REQ-436
 intakeAggregationBatch.ING-002	operation_error_code	openapi.yaml	INV-Q-11260
 intakeAggregationBatch.ING-022	operation_error_code	openapi.yaml	INV-Q-11264
+# INV-T-14454. Backticked names of INV-REQ-435: periodStart and periodEnd already have rows (INV-REQ-434); aggregation-svc is a service name. The transactionDate row repeats the INV-REQ-436 triple on purpose (INV-Q-14446 A).
+intakeAggregationTransactions	operation	openapi.yaml	INV-REQ-435
+intakeAggregationTransactions.ING-006	operation_error_code	openapi.yaml	INV-REQ-435
+intakeAggregationTransactions.ING-002	operation_error_code	openapi.yaml	INV-REQ-435
+transactions	property	openapi.yaml	INV-REQ-435
+transactionRef	property	openapi.yaml	INV-REQ-435
+transactionDate	property	openapi.yaml	INV-REQ-435
+acceptedCount	property	openapi.yaml	INV-REQ-435
