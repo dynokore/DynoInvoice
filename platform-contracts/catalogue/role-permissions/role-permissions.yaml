@@ -19,6 +19,8 @@
 # filing.confirm, filed-return.upload, reconciliation.run, reconciliation.annotate and
 # reconciliation.attest (INV-T-9376, coordinator ruling INV-Q-8866 A): the texts of record are
 # INV-NOTE-3 FR-AF.34 (the FILE_GST_RETURN scope item) and section 31.6 (row "Confirm filing").
+# filed-return.upload also gives tax.approver PERMITTED (INV-T-13529, owner answer INV-Q-10288 A);
+# reconciliation.run, reconciliation.annotate and reconciliation.attest are unchanged.
 #
 # vp-01.set to vp-81.set (INV-T-10132, INV-Q-10127 A): one key per variation point, row "Set a variation point"
 # of INV-NOTE-10136; the holders of vp-NN.set are the set_by roles of VP-NN.
@@ -466,6 +468,8 @@ permissions:
     kind: WRITE
     row: "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer"
     cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
       - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
       - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
   - key: reconciliation.run

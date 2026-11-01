@@ -268,6 +268,61 @@ class RolePermissionsCheckerTest {
         )
     }
 
+    private val upload = "filed-return.upload"
+
+    @Test
+    fun `probe 25a the real upload key pins WRITE and the four cells`() {
+        val p = permission(real, upload)
+        assertEquals(PermissionKind.WRITE, p.kind)
+        assertEquals(
+            setOf(
+                Triple("agent.operator", DeploymentForm.SAAS, RoleAllowance.WITHIN_SCOPE),
+                Triple("agent.operator", DeploymentForm.PRIVATE, RoleAllowance.WITHIN_SCOPE),
+                Triple("tax.approver", DeploymentForm.SAAS, RoleAllowance.PERMITTED),
+                Triple("tax.approver", DeploymentForm.PRIVATE, RoleAllowance.PERMITTED),
+            ),
+            p.cells.map { Triple(it.role, it.form, it.allowance) }.toSet(),
+        )
+        assertEquals(4, p.cells.size)
+        assertTrue(RolePermissionsChecker.check(real).isEmpty())
+    }
+
+    @Test
+    fun `probe 25b a removed tax approver cell of the upload key is reported per form`() {
+        DeploymentForm.values().forEach { f ->
+            val table = withPermission(upload) { p -> p.copy(cells = p.cells.filter { !(it.role == "tax.approver" && it.form == f) }) }
+            assertReported(table, "role tax.approver key $upload form $f", "missing")
+        }
+    }
+
+    @Test
+    fun `probe 25c a tax approver upload cell changed to WITHIN_SCOPE is reported`() {
+        val table =
+            withPermission(upload) { p ->
+                p.copy(cells = p.cells.map { if (it.role == "tax.approver" && it.form == DeploymentForm.SAAS) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it })
+            }
+        assertReported(table, "role tax.approver key $upload form SAAS", "required PERMITTED")
+    }
+
+    @Test
+    fun `probe 25d client signatory and auditor cells on the upload key are reported`() {
+        assertReported(cellAdd(upload, "client.signatory", DeploymentForm.PRIVATE), "role client.signatory key $upload form PRIVATE", "extra")
+        assertReported(cellAdd(upload, "auditor", DeploymentForm.SAAS), "role auditor key $upload form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 25e tax approver on reconciliation run is still reported`() {
+        assertReported(cellAdd("reconciliation.run", "tax.approver", DeploymentForm.SAAS), "role tax.approver key reconciliation.run form SAAS", "extra")
+    }
+
+    @Test
+    fun `probe 25f a renamed upload key is reported because the required key is missing`() {
+        listOf("filed-return.uploads", "$upload ").forEach { name ->
+            val table = withPermission(upload) { it.copy(key = name) }
+            assertReported(table, "key $upload: missing")
+        }
+    }
+
     private val vpLabel = "Set a variation point"
 
     private fun vpKeys() = real.permissions.filter { Regex("vp-\\d\\d\\.set").matches(it.key) }

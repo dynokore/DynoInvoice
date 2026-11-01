@@ -230,7 +230,8 @@ object RolePermissionsChecker {
                 Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "filing.confirm" to
                 Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
-            "filed-return.upload" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
+            "filed-return.upload" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
             "reconciliation.run" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
             "reconciliation.annotate" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
             "reconciliation.attest" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),

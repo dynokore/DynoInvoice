@@ -128,6 +128,7 @@ class RolePermissionsTest {
                 Req("rendition-sample.record", PermissionKind.WRITE, "tax.operator", y, both),
                 Req("audit-entry.purge", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
             ) +
+            listOf(Req("filed-return.upload", PermissionKind.WRITE, "tax.approver", y, both)) +
             listOf(
                 "filing.confirm",
                 "filed-return.upload",
@@ -137,6 +138,19 @@ class RolePermissionsTest {
             ).map {
                 Req(it, PermissionKind.WRITE, "agent.operator", RoleAllowance.WITHIN_SCOPE, both)
             }
+
+    @Test
+    fun `filed-return upload is PERMITTED to tax approver only and WITHIN_SCOPE to agent operator only`() {
+        val uploadKey = "filed-return.upload"
+        both.forEach { form ->
+            val cells = RolePermissions.cells(form)
+
+            fun holders(a: RoleAllowance) = cells.filter { (_, perms) -> perms[uploadKey] == a }.keys
+            assertEquals(setOf("tax.approver"), holders(y), "PERMITTED $form")
+            assertEquals(setOf("agent.operator"), holders(ws), "WITHIN_SCOPE $form")
+        }
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind(uploadKey))
+    }
 
     @Test
     fun `every required cell is served and every other cell of a required key is denied`() {
