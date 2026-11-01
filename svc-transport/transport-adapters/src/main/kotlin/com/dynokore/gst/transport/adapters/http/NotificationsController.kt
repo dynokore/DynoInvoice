@@ -33,24 +33,27 @@ open class NotificationsController(
         if (request.getAttribute(ApCallbackSignatureFilter.VERIFIED_ADAPTER) != adapterId) {
             throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
         }
-        return when (val result = receive.receive(AdapterId(adapterId), input(apNotification))) {
-            is ReceiveResult.Processed -> {
-                ResponseEntity.ok(ApNotificationResult(apNotification.apNotificationId, result.recorded))
-            }
+        return respond(apNotification, receive.receive(AdapterId(adapterId), input(apNotification)))
+    }
 
-            is ReceiveResult.Invalid -> {
-                throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, result.reason)
-            }
+    private fun respond(
+        body: ApNotification,
+        result: ReceiveResult,
+    ): ResponseEntity<ApNotificationResult> {
+        val refusal =
+            when (result) {
+                is ReceiveResult.Processed -> null
 
-            ReceiveResult.OwnerNotFound -> {
-                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            }
+                is ReceiveResult.Invalid -> ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, result.reason)
 
-            // INV-Q-9676 A answers 503 with the API-20 envelope; no catalogue code is fixed for it (gap, see the MR)
-            ReceiveResult.InboundNotSupported -> {
-                error("INBOUND_NETWORK_DOCUMENT: the 503 envelope code is not ruled; nothing was recorded")
+                ReceiveResult.OwnerNotFound -> ApiRefusal(ClosedErrorCode.NOT_FOUND)
+
+                // INV-Q-9676 A answers 503 with the API-20 envelope; no catalogue code is fixed for it (gap, MR)
+                ReceiveResult.InboundNotSupported -> error("INBOUND_NETWORK_DOCUMENT: the 503 code is not ruled")
             }
-        }
+        if (refusal != null) throw refusal
+        val recorded = (result as ReceiveResult.Processed).recorded
+        return ResponseEntity.ok(ApNotificationResult(body.apNotificationId, recorded))
     }
 
     private fun input(body: ApNotification) =

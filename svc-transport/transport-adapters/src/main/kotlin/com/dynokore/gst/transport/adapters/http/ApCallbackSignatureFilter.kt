@@ -65,28 +65,24 @@ class ApCallbackSignatureFilter(
         http: HttpServletRequest,
         adapter: String,
     ): ByteArray? {
-        // equality with a configured id (never a prefix): the secret is not read for any other value
-        if (adapters.ids().none { it.value == adapter }) return refusedBecause("unknown adapter")
         val timestamp = http.getHeader(TIMESTAMP_HEADER)
         val signature = http.getHeader(SIGNATURE_HEADER)
-        if (timestamp == null || signature == null) return refusedBecause("unsigned")
-        val secret =
-            try {
-                secrets.read(SecretRef("$SECRET_PREFIX$adapter")).reveal().toByteArray(Charsets.UTF_8)
-            } catch (_: Exception) {
-                return refusedBecause("secret unreadable")
-            }
-        val body = readBounded(http) ?: return refusedBecause("body over the limit")
-        return when (val verdict = verifier.verify(body, timestamp, signature, secret)) {
-            SenderVerdict.Accepted -> body
-            is SenderVerdict.Refused -> refusedBecause(verdict.reason.name)
-        }
+        // equality with a configured id (never a prefix): the secret is not read for any other value
+        val configured = adapters.ids().any { it.value == adapter }
+        val secret = if (configured && timestamp != null && signature != null) secretOf(adapter) else null
+        val body = if (secret != null) readBounded(http) else null
+        val verdict =
+            if (body != null && secret != null) verifier.verify(body, timestamp, signature, secret) else null
+        if (verdict is SenderVerdict.Refused) log.debug("ap callback refused: {}", verdict.reason)
+        return if (verdict == SenderVerdict.Accepted) body else null
     }
 
-    private fun refusedBecause(reason: String): ByteArray? {
-        log.debug("ap callback refused: {}", reason)
-        return null
-    }
+    private fun secretOf(adapter: String): ByteArray? =
+        try {
+            secrets.read(SecretRef("$SECRET_PREFIX$adapter")).reveal().toByteArray(Charsets.UTF_8)
+        } catch (_: Exception) {
+            null
+        }
 
     private fun readBounded(http: HttpServletRequest): ByteArray? {
         val bytes = http.inputStream.readNBytes(MAX_BODY_BYTES + 1)

@@ -49,7 +49,8 @@ internal class RecordingSecretsConfig {
                 beanName: String,
             ): Any =
                 if (bean is SecretStore) {
-                    Proxy.newProxyInstance(bean.javaClass.classLoader, arrayOf(SecretStore::class.java)) { _, method, args ->
+                    val loader = bean.javaClass.classLoader
+                    Proxy.newProxyInstance(loader, arrayOf(SecretStore::class.java)) { _, method, args ->
                         if (method.name.startsWith("read")) SecretReads.refs.add(args[0].toString())
                         try {
                             method.invoke(bean, *(args ?: emptyArray()))
@@ -75,7 +76,6 @@ class ApCallbackBoundaryTest {
     }
 
     private val http = HttpClient.newHttpClient()
-    private val actor = "svc:transport-svc"
 
     private class Running(
         val harness: Harness,
@@ -105,8 +105,11 @@ class ApCallbackBoundaryTest {
                     "management.server.port=0",
                 )
         val context: ConfigurableApplicationContext =
-            SpringApplicationBuilder(TransportApplication::class.java, CallerTestConfig::class.java, RecordingSecretsConfig::class.java)
-                .web(WebApplicationType.SERVLET)
+            SpringApplicationBuilder(
+                TransportApplication::class.java,
+                CallerTestConfig::class.java,
+                RecordingSecretsConfig::class.java,
+            ).web(WebApplicationType.SERVLET)
                 .properties(*properties.toTypedArray())
                 .run("--server.port=0")
         try {
@@ -153,8 +156,8 @@ class ApCallbackBoundaryTest {
                 .newBuilder(URI.create("http://localhost:$port/v1/ap/$adapter/notifications"))
                 .header("Content-Type", "application/json")
                 .header(WorkloadToken.HEADER_NAME, "W-submission")
-                // GAP (see the MR): the contract marks the operation `x-caller-auth: end-user`, so the runtime asks for a
-                // token a signed AP callback does not carry; the test sends a tenant-less principal to reach the filter
+                // GAP (see the MR): the contract marks the operation `x-caller-auth: end-user`, so the runtime
+                // asks for a token a signed AP callback does not carry; a tenant-less principal reaches the filter
                 .header("Authorization", TestPrincipals.register(null))
                 .POST(HttpRequest.BodyPublishers.ofString(body))
         timestamp?.let { request.header("X-AP-Timestamp", it) }
@@ -180,20 +183,26 @@ class ApCallbackBoundaryTest {
             .execute()
     }
 
-    private fun Running.ledger(tenant: UUID) = harness.asTenant(tenant) { harness.dsl.fetchCount(AP_NOTIFICATION_LEDGER) }
+    private fun Running.ledger(tenant: UUID) =
+        harness.asTenant(tenant) { harness.dsl.fetchCount(AP_NOTIFICATION_LEDGER) }
 
     private fun Running.outbox(tenant: UUID) = harness.asTenant(tenant) { harness.dsl.fetchCount(Outbox.OUTBOX) }
 
     private fun Running.events(tenant: UUID): List<String> =
         harness.asTenant(tenant) {
-            harness.dsl.select(Outbox.OUTBOX.DATA).from(Outbox.OUTBOX).fetch().map { it.value1()!!.data() }
+            harness.dsl
+                .select(Outbox.OUTBOX.DATA)
+                .from(Outbox.OUTBOX)
+                .fetch()
+                .map { it.value1()!!.data() }
         }
 
     private fun ack(
         id: String,
         doc: UUID,
         version: Int = 1,
-    ) = """{"apNotificationId":"$id","kind":"ACKNOWLEDGEMENT","docUuid":"$doc","version":$version,"acknowledgementId":"A-$id"}"""
+    ) =
+        """{"apNotificationId":"$id","kind":"ACKNOWLEDGEMENT","docUuid":"$doc","version":$version,"acknowledgementId":"A-$id"}"""
 
     private fun rejection(
         id: String,
@@ -275,8 +284,17 @@ class ApCallbackBoundaryTest {
         r.secret(lookAlike)
         val doc = UUID.randomUUID()
         r.refused(r.post(lookAlike, ack(nid(), doc)))
-        r.refused(r.post(r.harness.primary.value.uppercase(), ack(nid(), doc)))
-        SecretReads.refs.filter { it.endsWith("-2") || it.endsWith(r.harness.primary.value.uppercase()) } shouldBe emptyList()
+        r.refused(
+            r.post(
+                r.harness.primary.value
+                    .uppercase(),
+                ack(nid(), doc),
+            ),
+        )
+        val upper =
+            r.harness.primary.value
+                .uppercase()
+        SecretReads.refs.filter { it.endsWith("-2") || it.endsWith(upper) } shouldBe emptyList()
     }
 
     @Test
@@ -301,7 +319,7 @@ class ApCallbackBoundaryTest {
         r.refused(r.post(r.harness.primary.value, ack(nid(), doc)))
         r.ledger(tenant) shouldBe 1
         SecretReads.refs.filter { it.startsWith("transport/ap-callback/") } shouldContainExactly
-            listOf("transport/ap-callback/${r.harness.primary.value}", "transport/ap-callback/${r.harness.primary.value}")
+            List(2) { "transport/ap-callback/${r.harness.primary.value}" }
     }
 
     @Test
@@ -466,7 +484,8 @@ class ApCallbackBoundaryTest {
         r.post(r.harness.primary.value, body).status shouldBe 200
         r.ledger(tenant) shouldBe 1
         r.outbox(tenant) shouldBe 0
-        val unknown = """{"apNotificationId":"${nid()}","kind":"DELIVERY_STATUS","docUuid":"${UUID.randomUUID()}","version":1}"""
+        val other = UUID.randomUUID()
+        val unknown = """{"apNotificationId":"${nid()}","kind":"DELIVERY_STATUS","docUuid":"$other","version":1}"""
         r.post(r.harness.primary.value, unknown).status shouldBe 404
         r.ledger(tenant) shouldBe 1
     }
