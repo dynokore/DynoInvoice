@@ -242,8 +242,11 @@ class ListActiveRegulatoryPacksIT(
         regulatory("SCOPE", "v1", "ARMED")
         get().statusCode() shouldBe 200
         withKey(null) {
-            get().statusCode() shouldBe 500
-            get("?cursor=x.y").statusCode() shouldBe 500
+            for (answer in listOf(get(), get("?cursor=x.y"))) {
+                answer.statusCode() shouldBe 500
+                answer.body().contains("\"items\"") shouldBe false
+                answer.body().contains("nextCursor") shouldBe false
+            }
         }
         get().statusCode() shouldBe 200
     }

@@ -76,6 +76,25 @@ class Tpl18CompositionTest {
     }
 
     @Test
+    fun `start-up fails without the two telemetry export properties so they are needed`() {
+        ApplicationContextRunner()
+            .withUserConfiguration(Tpl18Bootstrap::class.java)
+            .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
+            .withPropertyValues(
+                "gst.service=rules-svc",
+                "gst.instance-id=rules-svc-0",
+                "service-runtime.workload-identity.audience=rules-svc",
+                "service-runtime.modules.schema=rules",
+                "inv.tenancy.reference-tables=rules.pack_registry,rules.pack_entry_source",
+                "spring.datasource.url=jdbc:postgresql://localhost:1/rules",
+                "spring.datasource.username=rules_runtime",
+                "service-runtime.pool.profile=minimal",
+                "gst.bindings.secret-store.mount-root=$secrets",
+            ).run { context -> (context.startupFailure != null) shouldBe true }
+    }
+
+    @Test
     fun `start-up fails when the table classes disagree with the generated schema`() {
         runner().withPropertyValues("inv.tenancy.reference-tables=rules.no_such_table").run { context ->
             (context.startupFailure != null) shouldBe true
