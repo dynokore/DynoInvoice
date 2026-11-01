@@ -42,7 +42,7 @@ data class ReplayNode(
     val profileEffectiveDate: LocalDate?,
 )
 
-/** The position after a state: the kind and ref of the last state returned (nodes are ordered TENANT, GROUP, ENTITY, BUSINESS_UNIT, then by ref). */
+/** The position after a state: the kind and ref of the last state returned (kinds in the order of [KINDS]). */
 data class ReplayCursor(
     val type: NodeType,
     val ref: String,
@@ -67,7 +67,7 @@ interface ReplayReader {
     /** Every tenant that holds state, outside any tenant binding. */
     fun tenantIds(): List<TenantId>
 
-    /** Up to [limit] the tenant, groups, entities and business units within [scope] strictly after [after], in a stable order. */
+    /** Up to [limit] nodes (the tenant, groups, entities, business units) within [scope] strictly after [after]. */
     fun structure(
         scope: ReplayScope?,
         after: ReplayCursor?,
@@ -144,13 +144,10 @@ class JooqReplayReader(
     ): List<ReplayNode> {
         if (afterRef != null || scope is ReplayScope.Entity) return emptyList()
         val period = (scope as? ReplayScope.Period)?.let { ReplayConditions.period(it, TENANT.CHANGED_AT) }
-        return dsl
-            .selectFrom(TENANT)
-            .where(ReplayConditions.all(period))
-            .fetchOne()
-            ?.let(::tenantRecordOf)
-            ?.let { ReplayNode(NodeType.TENANT, it.ref, it.ref, tenantNode(it), null) }
-            ?.let(::listOf) ?: emptyList()
+        val row = dsl.selectFrom(TENANT).where(ReplayConditions.all(period)).fetchOne()
+        return listOfNotNull(
+            row?.let(::tenantRecordOf)?.let { ReplayNode(NodeType.TENANT, it.ref, it.ref, tenantNode(it), null) },
+        )
     }
 
     private fun groups(

@@ -89,6 +89,18 @@ class TenantReplayDbTest {
                 .set(TENANT.PAIRED_PRODUCTION_TENANT_ID, t.production.value)
                 .set(TENANT.WORKSPACE_NAME, "sandbox")
                 .execute()
+            seedStructure(dsl, t, tag, ::version)
+        }
+        return t
+    }
+
+    private fun seedStructure(
+        dsl: DSLContext,
+        t: Tenants,
+        tag: String,
+        version: () -> Long,
+    ) {
+        run {
             val group = UUID.randomUUID()
             val entity = UUID.randomUUID()
             dsl
@@ -126,7 +138,6 @@ class TenantReplayDbTest {
                 .set(BUSINESS_UNIT.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute()
         }
-        return t
     }
 
     private fun <T> reading(

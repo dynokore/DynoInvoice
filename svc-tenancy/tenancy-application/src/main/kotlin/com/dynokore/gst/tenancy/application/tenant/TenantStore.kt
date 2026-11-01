@@ -41,7 +41,10 @@ sealed interface TenantCreation {
 /** What archiving a workspace answered. */
 enum class WorkspaceArchival { ARCHIVED, ALREADY_ARCHIVED, MISSING }
 
-/** What the port answers on archiving: the [outcome] and, for ARCHIVED, ALREADY_ARCHIVED, the workspace row ([tenant]); null when MISSING. */
+/**
+ * What the port answers on archiving: the [outcome] and the workspace row ([tenant], with its structure version after
+ * the call), null when MISSING.
+ */
 data class WorkspaceArchived(
     val outcome: WorkspaceArchival,
     val tenant: TenantRecord?,
@@ -66,7 +69,7 @@ interface WorkspaceStore : TenantStore {
     /** The workspace [ref] of the bound production tenant, or null when [ref] is no workspace of it. */
     fun workspace(ref: String): TenantRecord?
 
-    /** Archives the workspace [ref] of the bound production tenant; the archived row carries its new structure version. */
+    /** Archives the workspace [ref] of the bound production tenant; the row carries the new structure version. */
     fun archiveWorkspace(ref: String): WorkspaceArchived
 }
 
