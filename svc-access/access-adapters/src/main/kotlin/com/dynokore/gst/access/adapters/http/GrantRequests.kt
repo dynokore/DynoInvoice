@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.http
 
+import com.dynokore.gst.access.application.invitation.InvitationIdentity
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
@@ -31,8 +32,11 @@ internal object GrantRequests {
             }
         }
 
+    /** The reserved prefix of an invited-state identity is refused (INV-Q-14264 A), exact and case-sensitive. */
     fun identityOf(text: String): IdentityRef =
-        runCatching { IdentityRef(text) }.getOrElse { invalid("identityRef is invalid") }
+        runCatching { IdentityRef(text) }
+            .getOrElse { invalid("identityRef is invalid") }
+            .also { if (InvitationIdentity.isReserved(text)) invalid("identityRef is invalid") }
 
     fun windowOf(request: GrantRequest): ValidityWindow =
         runCatching {

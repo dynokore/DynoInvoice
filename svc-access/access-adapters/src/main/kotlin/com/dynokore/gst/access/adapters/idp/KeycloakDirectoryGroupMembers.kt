@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.idp
 
 import com.dynokore.gst.access.application.idp.DirectoryGroupMembers
+import com.dynokore.gst.access.application.invitation.InvitationIdentity
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
@@ -39,7 +40,11 @@ class KeycloakDirectoryGroupMembers(
         while (true) {
             val page = getJson(token, "/admin/realms/${enc(realm)}/groups/${enc(id)}/members?first=$first&max=$PAGE")
             check(page.isArray) { "the members of group '$idpGroup' did not come back as a list" }
-            page.forEach { users += IdentityRef(it.path("username").asString()) }
+            // a directory user in the reserved space of invited-state identities gets no grant (INV-Q-14264 A)
+            page.forEach {
+                val username = it.path("username").asString()
+                if (!InvitationIdentity.isReserved(username)) users += IdentityRef(username)
+            }
             if (page.size() < PAGE) return users
             first += PAGE
         }

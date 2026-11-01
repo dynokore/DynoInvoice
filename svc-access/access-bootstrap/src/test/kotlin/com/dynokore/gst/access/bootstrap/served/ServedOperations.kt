@@ -143,7 +143,10 @@ object Doubles {
 }
 
 val TENANT_A: TenantId = TenantId(UUID.fromString("0a000000-0000-4000-8000-00000000000a"))
+val TENANT_B: TenantId = TenantId(UUID.fromString("0b000000-0000-4000-8000-00000000000b"))
 const val USER_A_TOKEN = "Bearer token-user-a"
+const val USER_B_TOKEN = "Bearer token-user-b"
+const val OPERATOR_TOKEN = "Bearer token-operator"
 const val REFUSED_TOKEN = "Bearer token-refused"
 const val UNMAPPED_WORKLOAD_TOKEN = "wl-unmapped"
 
@@ -163,11 +166,16 @@ private val TEST_VERIFIER =
         }
     }
 
-/** Maps the token of user-a to tenant-a and refuses every other token; counts its calls. */
+/** Maps user-a to tenant-a, user-b to tenant-b and the operator to no tenant; refuses every other token. */
 private val TEST_RESOLVER =
     EndUserPrincipalResolver { authorization ->
         Doubles.resolverCalls.incrementAndGet()
-        if (authorization == USER_A_TOKEN) EndUserPrincipal("user-a", TENANT_A, emptySet()) else null
+        when (authorization) {
+            USER_A_TOKEN -> EndUserPrincipal("user-a", TENANT_A, emptySet())
+            USER_B_TOKEN -> EndUserPrincipal("user-b", TENANT_B, emptySet())
+            OPERATOR_TOKEN -> EndUserPrincipal("operator-1", null, emptySet())
+            else -> null
+        }
     }
 
 /**
@@ -354,6 +362,25 @@ class ServedContext(
             // the stub of the call is removed again: a later refused sweep starts with no stubbing
             if (stubHandler) Mockito.reset(*spies.toTypedArray())
         }
+    }
+
+    /** A POST of [operation] with the JSON [body] and the idempotency key [key], as [call] sends it. */
+    fun post(
+        operation: ContractOperation,
+        headers: Map<String, String>,
+        body: String,
+        key: UUID,
+    ): MockHttpServletResponse {
+        assertNoStubbings()
+        val request =
+            MockMvcRequestBuilders
+                .request(HttpMethod.valueOf(operation.method), operation.path)
+                .header("Idempotency-Key", key.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+        headers.forEach { (name, value) -> request.header(name, value) }
+        Mockito.clearInvocations(*spies.toTypedArray())
+        return mvc.perform(request).andReturn().response
     }
 
     @Suppress("UNCHECKED_CAST")

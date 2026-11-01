@@ -40,8 +40,8 @@ channel	accessOperatorSessionKeysChanged	INV-T-4941	open
 channel	accessAccessAlertRaised	INV-T-4938	open
 channel	accessMessageRequested	INV-T-4940	open
 channel	accessExampleHappened	UNASSIGNED	open
-operation	provisionFirstAdministrator	INV-T-8226	open
-operation	provisionInstallationFirstAdministrator	INV-T-8226	open
+operation	provisionFirstAdministrator	INV-T-8226	done
+operation	provisionInstallationFirstAdministrator	INV-T-8226	done
 operation	acceptFirstAdministratorInvitation	INV-T-8227	open
 operation	reissueFirstAdministratorInvitation	INV-T-8282	open
 operation	approveBreakGlassUnlock	INV-T-9314	open

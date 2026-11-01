@@ -15,13 +15,19 @@ object TestSecrets {
     const val TOKEN_ISSUER = "https://access.test.invalid"
     const val TOKEN_AUDIENCE = "https://api.test.invalid"
     const val ROTATION_INTERVAL = "PT1H"
+    const val INVITATION_KEY_VERSION = "v1"
+    const val INVITATION_KEY = "test-invitation-code-key-0123456789abcdef-v1"
 
-    /** The token properties every context needs: issuer, audience and rotation interval have no default. */
+    /**
+     * The properties every context needs: token issuer, audience and rotation interval, and the invitation code key
+     * version have no default.
+     */
     val TOKEN_PROPERTIES: Array<String> =
         arrayOf(
             "access.token.issuer=$TOKEN_ISSUER",
             "access.token.audience=$TOKEN_AUDIENCE",
             "access.token.key-rotation-interval=$ROTATION_INTERVAL",
+            "access.invitation.code-key-version=$INVITATION_KEY_VERSION",
         )
 
     fun newSigningKey(): ECKey = ECKeyGenerator(Curve.P_256).generate()
@@ -34,6 +40,7 @@ object TestSecrets {
         val root = Files.createTempDirectory("access-secrets")
         write(root, "tenancy/binding-key-current", bindingKey)
         write(root, "access/revocation-cursor-key", CURSOR_KEY)
+        write(root, "access/invitation-code-key/$INVITATION_KEY_VERSION", INVITATION_KEY)
         write(root, "db/access_runtime", databasePassword)
         signingKey?.let { replaceSigningKey(root, it) }
         root.toFile().deleteOnExit()

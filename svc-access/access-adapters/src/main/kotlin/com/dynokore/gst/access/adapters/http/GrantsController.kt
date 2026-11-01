@@ -8,6 +8,8 @@ import com.dynokore.gst.access.application.grant.RevokeGrantUseCase
 import com.dynokore.gst.access.application.landing.ChooseLandingOutcome
 import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.contract.api.GrantsApi
+import com.dynokore.gst.access.contract.model.FirstAdministratorRequest
+import com.dynokore.gst.access.contract.model.FirstAdministratorResponse
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.GrantResponse
 import com.dynokore.gst.access.contract.model.LandingChoiceRequest
@@ -49,6 +51,7 @@ open class GrantsController(
     private val tenants: TenantContext,
     private val manager: GrantManagerCheck,
     private val landing: LandingScreens,
+    private val provisioning: FirstAdministratorProvisioning,
 ) : GrantsApi {
     override fun grantRole(
         idempotencyKey: UUID,
@@ -96,24 +99,15 @@ open class GrantsController(
         }
     }
 
-    private fun refusalDetail(outcome: GrantRoleOutcome) =
-        when (outcome) {
-            GrantRoleOutcome.SecondHolderRefused -> {
-                "only one person may hold security.officer and tenant.admin under the sole-operator acknowledgement"
-            }
+    override fun provisionFirstAdministrator(
+        idempotencyKey: UUID,
+        firstAdministratorRequest: FirstAdministratorRequest,
+    ): ResponseEntity<FirstAdministratorResponse> = provisioning.provision(idempotencyKey, firstAdministratorRequest)
 
-            GrantRoleOutcome.ConflictingPairRefused -> {
-                CONFLICTING_PAIR_DETAIL
-            }
-
-            GrantRoleOutcome.OperatorRoleRefused -> {
-                OPERATOR_ROLE_REFUSED_DETAIL
-            }
-
-            else -> {
-                "security.officer and tenant.admin need the recorded sole-operator acknowledgement"
-            }
-        }
+    override fun provisionInstallationFirstAdministrator(
+        idempotencyKey: UUID,
+        firstAdministratorRequest: FirstAdministratorRequest,
+    ): ResponseEntity<FirstAdministratorResponse> = provisioning.provision(idempotencyKey, firstAdministratorRequest)
 
     override fun revokeGrant(
         grantRef: String,
@@ -153,31 +147,50 @@ open class GrantsController(
             },
         )
 
-    private fun landingOf(landing: Landing) =
-        LandingScreenResponse(landing.role.wire, LandingScreenResponse.Source.valueOf(landing.source.name))
-
     private fun requireManager() {
         if (!manager.mayManageGrants()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
     }
-
-    private fun responseOf(
-        grant: Grant,
-        scopeText: String,
-    ) = GrantResponse(
-        grantRef = grant.ref.value,
-        identityRef = grant.identity.value,
-        role = grant.role.wire,
-        scope = scopeText,
-        status =
-            GrantResponse.Status.valueOf(
-                if (grant.status ==
-                    GrantStatus.REVOKED
-                ) {
-                    "REVOKED"
-                } else {
-                    grant.status.name
-                },
-            ),
-        grantSource = GrantResponse.GrantSource.valueOf(grant.source.name),
-    )
 }
+
+private fun refusalDetail(outcome: GrantRoleOutcome) =
+    when (outcome) {
+        GrantRoleOutcome.SecondHolderRefused -> {
+            "only one person may hold security.officer and tenant.admin under the sole-operator acknowledgement"
+        }
+
+        GrantRoleOutcome.ConflictingPairRefused -> {
+            CONFLICTING_PAIR_DETAIL
+        }
+
+        GrantRoleOutcome.OperatorRoleRefused -> {
+            OPERATOR_ROLE_REFUSED_DETAIL
+        }
+
+        else -> {
+            "security.officer and tenant.admin need the recorded sole-operator acknowledgement"
+        }
+    }
+
+private fun landingOf(landing: Landing) =
+    LandingScreenResponse(landing.role.wire, LandingScreenResponse.Source.valueOf(landing.source.name))
+
+private fun responseOf(
+    grant: Grant,
+    scopeText: String,
+) = GrantResponse(
+    grantRef = grant.ref.value,
+    identityRef = grant.identity.value,
+    role = grant.role.wire,
+    scope = scopeText,
+    status =
+        GrantResponse.Status.valueOf(
+            if (grant.status ==
+                GrantStatus.REVOKED
+            ) {
+                "REVOKED"
+            } else {
+                grant.status.name
+            },
+        ),
+    grantSource = GrantResponse.GrantSource.valueOf(grant.source.name),
+)

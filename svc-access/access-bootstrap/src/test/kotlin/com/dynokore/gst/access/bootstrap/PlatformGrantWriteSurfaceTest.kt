@@ -51,7 +51,14 @@ class PlatformGrantWriteSurfaceTest {
     fun `the write operations of the contract equal the table and the table names the writers of role_grant`() {
         assertThat(tableFindings(writeOperations(openApi))).isEmpty()
         assertThat(WRITE_TABLE.filterValues { it }.keys)
-            .containsExactlyInAnyOrder("grantRole", "revokeGrant", "mapIdpGroup", "unmapIdpGroup")
+            .containsExactlyInAnyOrder(
+                "grantRole",
+                "revokeGrant",
+                "mapIdpGroup",
+                "unmapIdpGroup",
+                "provisionFirstAdministrator",
+                "provisionInstallationFirstAdministrator",
+            )
     }
 
     @Test
@@ -201,7 +208,7 @@ class PlatformGrantWriteSurfaceTest {
                 "mapIdpGroup" to true, // GroupGrantReconciler.add / revoke
                 "unmapIdpGroup" to true, // UnmapIdpGroup revokes the grants made from the mapping
                 // no other use case of main calls GrantRepository.insert or update (checked by grep on main); the
-                // provision* and accept* operations are stubs today and a task that makes one write a grant sets true
+                // accept* operations are stubs today and a task that makes one write a grant sets true
                 "createPrincipal" to false,
                 "authenticatePrincipal" to false,
                 "issueAccessToken" to false,
@@ -220,8 +227,8 @@ class PlatformGrantWriteSurfaceTest {
                 "withdrawDiagnosticInvitation" to false,
                 "issueSignatoryLink" to false,
                 "verifySignatoryLink" to false,
-                "provisionFirstAdministrator" to false,
-                "provisionInstallationFirstAdministrator" to false,
+                "provisionFirstAdministrator" to true, // ProvisionFirstAdministrator: a PENDING tenant.admin grant
+                "provisionInstallationFirstAdministrator" to true, // the same use case
                 "reissueFirstAdministratorInvitation" to false,
                 "acceptFirstAdministratorInvitation" to false,
                 "unlockBreakGlass" to false,
