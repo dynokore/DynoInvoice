@@ -8,6 +8,7 @@ import com.dynokore.gst.rules.bootstrap.RulesApplication
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.config.BeanPostProcessor
@@ -216,6 +217,12 @@ class ListActiveRegulatoryPacksIT(
         answer.body() shouldContain code
     }
 
+    private fun refusedUnauthenticated(answer: HttpResponse<String>) {
+        answer.statusCode() shouldBe 401
+        answer.headers().firstValue("Content-Type").orElse("") shouldStartWith "application/problem+json"
+        Regex(""""code"\s*:\s*"([^"]*)"""").find(answer.body())?.groupValues?.get(1) shouldBe "SRT-003"
+    }
+
     @Test
     fun `the workload of canonical-svc is refused with SRT-004`() =
         refusedWith(get(workload = workloadToken("canonical-svc")), 403, "SRT-004")
@@ -229,11 +236,11 @@ class ListActiveRegulatoryPacksIT(
         refusedWith(get(workload = workloadToken("installer-alt")), 403, "SRT-004")
 
     @Test
-    fun `no workload token is refused with 401`() = get(workload = null).statusCode() shouldBe 401
+    fun `no workload token is refused with 401 SRT-003`() = refusedUnauthenticated(get(workload = null))
 
     @Test
-    fun `an end-user token without a workload token is refused with 401`() =
-        get(workload = null, authorization = USER_A_TOKEN).statusCode() shouldBe 401
+    fun `an end-user token without a workload token is refused with 401 SRT-003`() =
+        refusedUnauthenticated(get(workload = null, authorization = USER_A_TOKEN))
 
     private fun snapshot(): Map<String, List<String>> =
         superuser().use { c ->
@@ -258,7 +265,7 @@ class ListActiveRegulatoryPacksIT(
         val before = snapshot()
         before.keys.contains("pack_registry") shouldBe true
         get(workload = workloadToken("installer-alt")).statusCode() shouldBe 403
-        get(workload = null).statusCode() shouldBe 401
+        refusedUnauthenticated(get(workload = null))
         CountingReader.reads.get() shouldBe 0
         snapshot() shouldBe before
         // the named caller is not refused and reaches the use case: the refusal is specific to the caller

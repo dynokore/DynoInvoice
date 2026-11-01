@@ -57,6 +57,8 @@ class Tpl18CompositionTest {
                 "spring.datasource.username=rules_runtime",
                 "service-runtime.pool.profile=minimal",
                 "gst.bindings.secret-store.mount-root=$secrets",
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
             )
 
     @Test

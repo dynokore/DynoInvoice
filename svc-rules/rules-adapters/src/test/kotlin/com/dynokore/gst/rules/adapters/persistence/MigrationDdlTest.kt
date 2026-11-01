@@ -27,8 +27,24 @@ class MigrationDdlTest {
 
     private fun expected(): String =
         HEADER +
-            OutboxSchema.ddl(schema = "rules", runtimeRole = "rules_runtime", sysRole = "rules_sys").trimEnd() +
+            OutboxSchema
+                .ddl(schema = "rules", runtimeRole = "rules_runtime", sysRole = "rules_sys")
+                .replace(TESTMODE_COLUMN, "")
+                .trimEnd() +
             "\n"
+
+    private val testModeFile = File("src/main/resources/db/migration/V202611011100__outbox_testmode.sql")
+
+    /** The testmode column of outbox-and-queue 6.10.0+ reaches the V2 outbox by the library's own upgrade DDL (INV-Q-12635). */
+    @Test
+    fun `the testmode migration is the upgrade DDL the pinned outbox-and-queue generates and V2 predates the column`() {
+        testModeFile
+            .readLines()
+            .filterNot { it.startsWith("--") }
+            .joinToString("\n")
+            .trim() shouldBe OutboxSchema.testModeUpgradeDdl("rules") + ";"
+        file.readText(Charsets.UTF_8).contains("testmode") shouldBe false
+    }
 
     @Test
     fun `V2 outbox migration is the DDL the pinned outbox-and-queue generates`() {
@@ -75,6 +91,7 @@ class MigrationDdlTest {
     }
 
     private companion object {
+        val TESTMODE_COLUMN = Regex(",\\s*testmode boolean not null default false")
         const val FEFF_CODE = 0xFEFF
         val BLANK_CODE_POINTS =
             listOf(0x00A0, 0x1680, 0x2000, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, FEFF_CODE)

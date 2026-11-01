@@ -88,6 +88,8 @@ object PostgresRules {
             ).close()
         registry.add("spring.datasource.url") { pg.jdbcUrl }
         registry.add("gst.bindings.secret-store.mount-root") { secrets.toString() }
+        registry.add("gst.bindings.telemetry-export") { "bundled-otel" }
+        registry.add("gst.bindings.telemetry-export-otlp-endpoint") { "http://localhost:4318" }
         registry.add("gst.instance-id") { "rules-svc-0" }
         registry.add("service-runtime.workload-identity.audience") { "rules-svc" }
         registry.add("service-runtime.pool.profile") { "minimal" }
