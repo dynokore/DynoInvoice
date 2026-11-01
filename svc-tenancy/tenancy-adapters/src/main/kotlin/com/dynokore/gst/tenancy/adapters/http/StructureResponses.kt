@@ -60,6 +60,7 @@ internal fun nodeOf(node: StructureNodeState) =
         node.code,
         node.uen,
         node.gstn,
+        node.environment?.let { StructureNode.Environment.valueOf(it.name) },
     )
 
 internal fun statusResponse(

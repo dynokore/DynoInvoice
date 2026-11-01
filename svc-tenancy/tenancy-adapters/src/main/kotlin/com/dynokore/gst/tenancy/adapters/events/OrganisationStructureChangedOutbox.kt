@@ -47,6 +47,7 @@ class OrganisationStructureChangedOutbox(
         node.put("retired", change.node.retired)
         node.put("name", change.node.name)
         change.node.code?.let { node.put("code", it) }
+        change.node.environment?.let { node.put("environment", it.name) }
         node.putArray("profile")
         node.put("structureVersion", change.node.structureVersion)
         return root

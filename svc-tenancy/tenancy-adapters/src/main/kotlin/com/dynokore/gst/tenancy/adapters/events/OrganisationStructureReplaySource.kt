@@ -72,6 +72,7 @@ class OrganisationStructureReplaySource(
         state.code?.let { target.put("code", it) }
         state.uen?.let { target.put("uen", it) }
         state.gstn?.let { target.put("gstn", it) }
+        state.environment?.let { target.put("environment", it.name) }
         val profile = target.putArray("profile")
         state.profile.forEach {
             val entry = profile.addObject()
