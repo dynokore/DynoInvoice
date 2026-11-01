@@ -1,11 +1,18 @@
 package com.dynokore.platform.serviceruntime.identity
 
+import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.serviceruntime.logging.CorrelationId
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldMatch
+import io.kotest.matchers.string.shouldStartWith
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletResponse
 import org.junit.jupiter.api.Test
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 
 /**
  * INV-AC-2200: "given `canonical-svc` running; when it is called on its record
@@ -43,27 +50,73 @@ class WorkloadTokenAuthenticationFilterTest {
         response.status shouldBe HttpServletResponse.SC_OK
     }
 
-    @Test
-    fun `a call to the record API with no workload token at all is refused as unauthenticated`() {
-        val request = MockHttpServletRequest()
+    private class Refusal(
+        val response: MockHttpServletResponse,
+        val chainReached: Boolean,
+    ) {
+        val body: String get() = response.contentAsString
+        val json: JsonNode get() = ObjectMapper().readTree(body)
+    }
+
+    private fun refuse(
+        header: String?,
+        verified: Boolean = false,
+    ): Refusal {
+        val request = MockHttpServletRequest().apply { header?.let { addHeader(WorkloadToken.HEADER_NAME, it) } }
         val response = MockHttpServletResponse()
         var chainReached = false
+        filter(verified).doFilter(request, response, FilterChain { _, _ -> chainReached = true })
+        return Refusal(response, chainReached)
+    }
 
-        filter(verified = false).doFilter(request, response, FilterChain { _, _ -> chainReached = true })
-
-        chainReached shouldBe false
-        response.status shouldBe HttpServletResponse.SC_UNAUTHORIZED
+    private fun assertSrt003(refusal: Refusal) {
+        val r = refusal.response
+        refusal.chainReached shouldBe false
+        r.status shouldBe HttpServletResponse.SC_UNAUTHORIZED
+        r.contentType!! shouldStartWith Problems.CONTENT_TYPE
+        r.characterEncoding shouldBe "UTF-8"
+        r.errorMessage shouldBe null
+        val json = refusal.json
+        val expected = Problems.unauthenticated("x")
+        json["code"].asString() shouldBe "SRT-003"
+        json["status"].intValue() shouldBe 401
+        json["title"].asString() shouldBe "Not authenticated"
+        json["disposition"].asString() shouldBe "TERMINAL"
+        json["severity"].asString() shouldBe ObjectMapper().readTree(expected.body)["severity"].asString()
+        json["remediationOwner"].asString() shouldBe "Platform"
+        json["type"].asString() shouldBe ObjectMapper().readTree(expected.body)["type"].asString()
+        refusal.body shouldBe Problems.unauthenticated(json["correlationId"].asString()).body
     }
 
     @Test
-    fun `a call with an invalid workload token is refused the same way as a missing one`() {
-        val request = MockHttpServletRequest().apply { addHeader(WorkloadToken.HEADER_NAME, "tampered") }
-        val response = MockHttpServletResponse()
-        var chainReached = false
+    fun `INV-AC-2200 a call to the record API with no workload token at all is refused as unauthenticated`() {
+        assertSrt003(refuse(header = null))
+    }
 
-        filter(verified = false).doFilter(request, response, FilterChain { _, _ -> chainReached = true })
+    @Test
+    fun `INV-AC-2200 a call with a blank workload token is refused as unauthenticated`() {
+        assertSrt003(refuse(header = "   "))
+    }
 
-        chainReached shouldBe false
-        response.status shouldBe HttpServletResponse.SC_UNAUTHORIZED
+    @Test
+    fun `INV-AC-2200 a call with an invalid workload token is refused the same way as a missing one`() {
+        assertSrt003(refuse(header = "tampered"))
+    }
+
+    @Test
+    fun `a refusal inside a correlation carries that correlation id`() {
+        val refusal = CorrelationContext.withCorrelation(CorrelationId("corr-1")) { refuse(header = null) }
+
+        refusal.json["correlationId"].asString() shouldBe "corr-1"
+    }
+
+    @Test
+    fun `a refusal outside a correlation carries a fresh http-prefixed id each time`() {
+        val first = refuse(header = null).json["correlationId"].asString()
+        val second = refuse(header = null).json["correlationId"].asString()
+
+        first shouldMatch Regex("^http:[0-9a-f-]{36}$")
+        second shouldMatch Regex("^http:[0-9a-f-]{36}$")
+        (first == second) shouldBe false
     }
 }

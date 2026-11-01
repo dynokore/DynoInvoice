@@ -210,7 +210,7 @@ class MountedOperationCallersTest {
         outcome(port, "T-control-plane") shouldBe "403 SRT-004"
         outcome(port, "T-console-bff-two") shouldBe "403 SRT-004"
         outcome(port, "T-Console-Bff") shouldBe "403 SRT-004"
-        outcome(port, null) shouldBe "401"
+        outcome(port, null) shouldBe "401 SRT-003"
     }
 
     @Test

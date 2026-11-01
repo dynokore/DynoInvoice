@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.31.1] - 2026-11-01
+### Fixed
+- `WorkloadTokenAuthenticationFilter` answers a refused workload token with the closed `SRT-003` problem body (401, `application/problem+json`, `Problems.unauthenticated`, correlation id from `CorrelationContext` or `http:<uuid>`) instead of the container's `sendError` page (INV-T-14795; INV-Q-14751 A, INV-AC-2200).
+
 ## [10.31.0] - 2026-11-01
 ### Added
 - `CoalescingAuthorityFallback` (INV-T-9098; INV-Q-9083 A, INV-AC-9090): identical concurrent access-svc fallback decisions (equal tenant, principal id, entityRef, action) share one call; each waiter keeps its own deadline; nothing is kept after the call returns; counter `authority.fallback.coalesced`. Wired around the guarded access fallback in `ReplicaAutoConfiguration`.

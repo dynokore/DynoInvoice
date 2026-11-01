@@ -1,5 +1,8 @@
 package com.dynokore.platform.serviceruntime.identity
 
+import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.http.StoredResponse
+import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import jakarta.servlet.Filter
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequest
@@ -7,6 +10,8 @@ import jakarta.servlet.ServletResponse
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
+import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 /**
  * INV-AC-2200, STK-26: refuses a request carrying no valid workload token
@@ -14,6 +19,8 @@ import org.slf4j.LoggerFactory
  * (INV-REQ-1202) starts with this hop trusting no caller it has not itself
  * verified. A [WorkloadVerification.Refused] reason is logged at this, the
  * refusing hop, as a label only — never the token itself (CS-34).
+ *
+ * A refusal is answered with the closed `SRT-003` problem body (401, `Problems.unauthenticated`, INV-Q-14751).
  *
  * For a verified token it also sets [ServiceCaller.REQUEST_ATTRIBUTE] to the service whose configured subject equals
  * the verified subject (exact [String] equality), and nothing otherwise (INV-AC-8251). Only `X-Workload-Token` is read.
@@ -43,11 +50,19 @@ class WorkloadTokenAuthenticationFilter(
 
             is WorkloadVerification.Refused -> {
                 log.debug("workload token refused: {}", verification.reason)
-                (response as HttpServletResponse).sendError(
-                    HttpServletResponse.SC_UNAUTHORIZED,
-                    "workload token refused",
-                )
+                val correlation = CorrelationContext.currentCorrelationId()?.value ?: "http:${UUID.randomUUID()}"
+                refuse(response as HttpServletResponse, Problems.unauthenticated(correlation))
             }
         }
+    }
+
+    private fun refuse(
+        response: HttpServletResponse,
+        answer: StoredResponse,
+    ) {
+        response.status = answer.status
+        response.contentType = Problems.CONTENT_TYPE
+        response.characterEncoding = StandardCharsets.UTF_8.name()
+        response.writer.write(answer.body)
     }
 }
