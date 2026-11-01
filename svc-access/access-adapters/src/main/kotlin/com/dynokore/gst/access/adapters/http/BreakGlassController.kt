@@ -29,10 +29,11 @@ import java.util.UUID
 /**
  * TPL-08. unlockBreakGlass, approveBreakGlassUnlock and recordBreakGlassAction (INV-REQ-896, INV-REQ-897,
  * INV-REQ-1269): the unlock is for the bound tenant only; fewer than two different people is refused (400,
- * SRT-001) and a pair that does not hold the roles is refused (403). The session length is never a request field: the 201 carries the VP-08 value, the expiry and
- * the four permitted actions. An unlock while the identity provider counts as available needs the override reason
- * (409). Recording on a session that is resealed or past its expiry is 409. The contract lists no error code for 409,
- * so the problem body carries a detail that says what is wrong and no catalogue code (INV-Q-8845 A).
+ * SRT-001) and a pair that does not hold the roles is refused (403). The session length is never a request field:
+ * the 201 carries the VP-08 value, the expiry and the four permitted actions. An unlock while the identity provider
+ * counts as available needs the override reason (409). Recording on a session that is resealed or past its expiry
+ * is 409. The contract lists no error code for 409, so the problem body carries a detail that says what is wrong and
+ * no catalogue code (INV-Q-8845 A).
  * signInBreakGlass and resealBreakGlass are not served by this controller yet (the sealing credential is open).
  */
 @RestController
@@ -72,17 +73,11 @@ open class BreakGlassController(
             }
 
             UnlockBreakGlassOutcome.PairNotHeld -> {
-                throw ApiRefusal(
-                    ClosedErrorCode.ACCESS_DENIED,
-                    "the pair does not hold the roles of the break-glass setting",
-                )
+                deny("the pair does not hold the roles of the break-glass setting")
             }
 
             UnlockBreakGlassOutcome.ApprovalMissing -> {
-                throw ApiRefusal(
-                    ClosedErrorCode.ACCESS_DENIED,
-                    "a named approver has no approval within the window",
-                )
+                deny("a named approver has no approval within the window")
             }
 
             UnlockBreakGlassOutcome.IdpAvailable -> {
@@ -167,6 +162,8 @@ open class BreakGlassController(
     ) {
         if (requested != bound) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
     }
+
+    private fun deny(detail: String): Nothing = throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED, detail)
 
     private fun verifiedCaller(): String = serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
 

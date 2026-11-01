@@ -8,6 +8,7 @@ import com.dynokore.gst.access.application.breakglass.BreakGlassEffects
 import com.dynokore.gst.access.application.breakglass.BreakGlassSession
 import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
 import com.dynokore.gst.access.application.breakglass.BreakGlassSetting
+import com.dynokore.gst.access.application.breakglass.BreakGlassSettings
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.application.grant.GrantAudit
@@ -171,6 +172,25 @@ class BreakGlassControllerOverrideTest {
             },
         )
 
+    /** These tests are about the override: every named approver has an approval. */
+    private val approvals =
+        object : BreakGlassApprovals {
+            override fun replace(
+                approver: String,
+                madeAt: Instant,
+                window: Duration,
+            ): BreakGlassApproval = error("not used")
+
+            override fun consume(
+                approvers: Collection<String>,
+                after: Instant,
+                unlockRef: String,
+                consumedAt: Instant,
+            ): Int = approvers.size
+        }
+
+    private val setting = BreakGlassSettings { BreakGlassSetting(4, BreakGlassPairing.DEFAULT) }
+
     private fun controller(idpUp: Boolean): BreakGlassController {
         val availability = IdentityProviderAvailability("http://idp", IdentityProviderProbe { idpUp }, 1)
         availability.probeOnce()
@@ -179,49 +199,20 @@ class BreakGlassControllerOverrideTest {
                 tx,
                 sessions,
                 grantRepository,
-                {
-                    BreakGlassSetting(4, BreakGlassPairing.DEFAULT)
-                },
+                setting,
                 effects,
                 clock,
                 availability,
-                object : BreakGlassApprovals {
-                    override fun replace(
-                        approver: String,
-                        madeAt: Instant,
-                        window: Duration,
-                    ): BreakGlassApproval = error("not used")
-
-                    // these tests are about the override: every named approver has an approval
-                    override fun consume(
-                        approvers: Collection<String>,
-                        after: Instant,
-                        unlockRef: String,
-                        consumedAt: Instant,
-                    ): Int = approvers.size
-                },
+                approvals,
                 Duration.ofMinutes(15),
             )
         return BreakGlassController(
             unlock,
             ApproveBreakGlassUnlockUseCase(
                 tx,
-                object : BreakGlassApprovals {
-                    override fun replace(
-                        approver: String,
-                        madeAt: Instant,
-                        window: Duration,
-                    ): BreakGlassApproval = error("not used")
-
-                    override fun consume(
-                        approvers: Collection<String>,
-                        after: Instant,
-                        unlockRef: String,
-                        consumedAt: Instant,
-                    ): Int = error("not used")
-                },
+                approvals,
                 grantRepository,
-                { BreakGlassSetting(4, BreakGlassPairing.DEFAULT) },
+                setting,
                 PermissionMatrix.EMPTY,
                 object : GrantAudit {
                     override fun record(entry: GrantAuditEntry) = error("not used")

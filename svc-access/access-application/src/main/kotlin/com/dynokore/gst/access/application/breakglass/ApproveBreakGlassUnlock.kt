@@ -63,8 +63,8 @@ sealed interface ApproveBreakGlassUnlockOutcome {
 
 /**
  * `approveBreakGlassUnlock` (INV-REQ-896, INV-Q-9109 A): the caller holds `break-glass.unlock` through a live
- * tenant-wide grant and a role of the VP-08 pairing; the approval is stored (replacing the caller's unconsumed one) with
- * one audit entry and no ACC-002 alert.
+ * tenant-wide grant and a role of the VP-08 pairing; the approval is stored (replacing the caller's unconsumed one)
+ * with one audit entry and no ACC-002 alert.
  */
 @Suppress("LongParameterList") // one collaborator per port
 class ApproveBreakGlassUnlockUseCase(
