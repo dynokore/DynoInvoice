@@ -29,10 +29,11 @@ include:
       - 'ci/publish.gitlab-ci.yml'  # Maven publish
   # Keel request 2026-10-18 (keel-report-junit, CI-FAST plan item E1): the keel-report job of stage .post reads the
   # JUnit XML of unit-test from the main push pipeline and reports the INV-AC numbers in the testcase names to Keel.
-  # Main only (the template's own rule), so merge-request pipelines are unchanged.
+  # Main only (the template's own rule), so merge-request pipelines are unchanged. CI-FAST 5c (2026-11-02): the
+  # JUnit+groups template (KEEL-T-15981), so check:<job> groups can be reported too; no check job writes one yet.
   - project: 'keel/tooling'
     ref: main
-    file: 'keel-report-junit.yml'
+    file: 'keel-report-junit-groups.yml'
     inputs:
       runner_tags: [inv-arm64]
       junit_paths: '**/build/test-results/*/TEST-*.xml'
