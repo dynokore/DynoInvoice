@@ -10,7 +10,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
-/** Owner and ledger kind reach the unit of work and the ledger (INV-Q-14951 A; INV-AC-623, INV-AC-9488). */
+/** Owner and ledger kind reach the unit of work and the ledger (INV-Q-14951 A). */
 class ReceiveOwnerKindTest {
     private val ledger = CountingLedger()
     private val events = CountingEvents()
@@ -33,7 +33,7 @@ class ReceiveOwnerKindTest {
     }
 
     @Test
-    fun `INV-AC-623 an acknowledgement passes OWNER to unit of work, ledger and publisher`() {
+    fun `an acknowledgement passes OWNER to unit of work, ledger and publisher`() {
         useCase.receive(one, ack) shouldBe ReceiveResult.Processed(true)
         uow.owners shouldBe listOf(OWNER)
         ledger.owners shouldBe listOf(OWNER)
@@ -52,7 +52,7 @@ class ReceiveOwnerKindTest {
     }
 
     @Test
-    fun `INV-AC-623 a delivery status for the known doc uuid records with OWNER and publishes nothing`() {
+    fun `a delivery status for the known doc uuid records with OWNER and publishes nothing`() {
         useCase.receive(one, delivery) shouldBe ReceiveResult.Processed(true)
         uow.owners shouldBe listOf(OWNER)
         ledger.owners shouldBe listOf(OWNER)
@@ -78,7 +78,7 @@ class ReceiveOwnerKindTest {
     }
 
     @Test
-    fun `INV-AC-623 a replay gives Processed false and zero further publishes`() {
+    fun `a replay gives Processed false and zero further publishes`() {
         useCase.receive(one, ack)
         useCase.receive(one, ack) shouldBe ReceiveResult.Processed(false)
         events.published.size shouldBe 1

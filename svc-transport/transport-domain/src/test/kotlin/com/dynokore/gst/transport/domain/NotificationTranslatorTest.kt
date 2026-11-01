@@ -97,7 +97,7 @@ class NotificationTranslatorTest {
     }
 
     @Test
-    fun `INV-AC-623 a complete delivery status gives ledger only with the same doc uuid and version`() {
+    fun `a complete delivery status gives ledger only with the same doc uuid and version`() {
         val t = tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, 4)).shouldBeInstanceOf<Translation.LedgerOnly>()
         t.doc.docUuid shouldBe doc
         t.doc.version shouldBe 4
