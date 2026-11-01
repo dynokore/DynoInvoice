@@ -9,7 +9,8 @@ import com.dynokore.gst.transport.domain.TenantRef
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
-import org.jooq.JSONB
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 import java.util.UUID
@@ -59,10 +60,18 @@ class JooqIssuanceReplica(
                 UUID.fromString(row.tenant.value) == tenant,
             ) { "a replica row is written for the bound tenant only" }
             val entries =
-                JSONB.valueOf(
-                    mapper.writeValueAsString(
-                        row.entries.map { mapOf("value" to it.value, "effectiveDate" to it.effectiveDate.toString()) },
+                DSL.cast(
+                    DSL.`val`(
+                        mapper.writeValueAsString(
+                            row.entries.map {
+                                mapOf(
+                                    "value" to it.value,
+                                    "effectiveDate" to it.effectiveDate.toString(),
+                                )
+                            },
+                        ),
                     ),
+                    SQLDataType.JSONB,
                 )
             dsl
                 .insertInto(ISSUANCE_MODE_REPLICA)

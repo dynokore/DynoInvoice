@@ -258,7 +258,6 @@ class RouteAndReplicaStoresTest {
 
     @Test
     fun `the replica table holds the entries and the structure version and no other attribute`() {
-        val s = Session(UUID.randomUUID())
         TransportDb.superuser().use { c ->
             c
                 .prepareStatement(
