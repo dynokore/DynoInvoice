@@ -1,9 +1,7 @@
 package com.dynokore.gst.rules.application
 
 import com.dynokore.gst.catalogue.ErrorCode
-import com.dynokore.gst.rules.domain.classification.AssertedFunction
 import com.dynokore.gst.rules.domain.classification.Classification
-import com.dynokore.gst.rules.domain.classification.ClassificationFailure
 import com.dynokore.gst.rules.domain.classification.ClassificationRow
 import com.dynokore.gst.rules.domain.classification.ClassificationTable
 import com.dynokore.gst.rules.domain.classification.ClassifiedLine
@@ -21,7 +19,6 @@ import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -66,7 +63,7 @@ class ClassifyDocumentTest {
         amounts.mapIndexed { i, a -> ClassifiedLine("L${i + 1}", BigDecimal(a)) }
 
     private fun classify(
-        asserted: AssertedFunction,
+        asserted: DocumentFunction,
         kind: String,
         vararg amounts: String,
         prevNumber: String? = null,
@@ -81,7 +78,7 @@ class ClassifyDocumentTest {
     fun `INV-AC-1648 a serially numbered POS receipt in lieu of a tax invoice is invoice data`() {
         val c =
             classify(
-                AssertedFunction.BILL_FOR_PAYMENT,
+                bill,
                 "POS_RECEIPT",
                 "10.00",
             ).shouldBeInstanceOf<Classification.InvoiceData>()
@@ -92,12 +89,12 @@ class ClassifyDocumentTest {
     @Test
     fun `INV-AC-95 classification part - the receipt is classified by function, not by its upstream name`() {
         // an asserted INVOICE of kind POS_RECEIPT is invoice data: the kind keys the table, the name decides nothing
-        classify(AssertedFunction.INVOICE, "POS_RECEIPT", "10.00").shouldBeInstanceOf<Classification.InvoiceData>()
+        classify(bill, "POS_RECEIPT", "10.00").shouldBeInstanceOf<Classification.InvoiceData>()
     }
 
     @Test
     fun `INV-AC-1649 a pro-forma asserted as a bill for payment is reclassified NOT_A_BILL and not submitted`() {
-        val c = classify(AssertedFunction.BILL_FOR_PAYMENT, "PRO_FORMA", "10.00")
+        val c = classify(bill, "PRO_FORMA", "10.00")
         val notABill = c.shouldBeInstanceOf<Classification.NotABill>()
         notABill.trace!!.documentFunction shouldBe notBill
         notABill.trace!!.documentTypeCode shouldBe null
@@ -105,9 +102,9 @@ class ClassifyDocumentTest {
 
     @Test
     fun `INV-AC-201 classification part - an advance-payment record is NOT_A_BILL and no submission trigger`() {
-        classify(AssertedFunction.NOT_A_BILL, "ADVANCE_PAYMENT", "10.00").shouldBeInstanceOf<Classification.NotABill>()
+        classify(notBill, "ADVANCE_PAYMENT", "10.00").shouldBeInstanceOf<Classification.NotABill>()
         // even when no row names the kind, an asserted NOT_A_BILL is kept and never submitted
-        classify(AssertedFunction.NOT_A_BILL, "REMITTANCE", "10.00").shouldBeInstanceOf<Classification.NotABill>()
+        classify(notBill, "REMITTANCE", "10.00").shouldBeInstanceOf<Classification.NotABill>()
     }
 
     @Test
@@ -128,7 +125,7 @@ class ClassifyDocumentTest {
     fun `INV-AC-401 a negative-total invoice is normalised to 381 and the mapping is traced`() {
         val c =
             classify(
-                AssertedFunction.INVOICE,
+                bill,
                 "INVOICE",
                 "-100.00",
                 "-5.00",
@@ -140,20 +137,20 @@ class ClassifyDocumentTest {
 
     @Test
     fun `INV-AC-1717 each adjustment is typed by the table and the application is in its trace`() {
-        val c = classify(AssertedFunction.INVOICE, "INVOICE", "-1.00").shouldBeInstanceOf<Classification.InvoiceData>()
+        val c = classify(bill, "INVOICE", "-1.00").shouldBeInstanceOf<Classification.InvoiceData>()
         c.trace.ruleId shouldBe "FR-AE.61"
         c.trace.applied shouldBe applied
         c.trace.signOfTotal shouldBe SignOfTotal.NEGATIVE
         c.trace.documentTypeCode shouldBe "381"
         c.trace.signNormalised shouldBe true
-        c.trace.asserted shouldBe AssertedFunction.INVOICE
+        c.trace.upstreamFunction shouldBe bill
     }
 
     @Test
     fun `INV-AC-402 a debit note maps to 380 with the preceding-document reference`() {
         val prev = TransactionDate(LocalDate.of(2026, 7, 1))
         val c =
-            classify(AssertedFunction.DEBIT_NOTE, "DEBIT_NOTE", "50.00", prevNumber = "INV-9", prevDate = prev)
+            classify(adj, "DEBIT_NOTE", "50.00", prevNumber = "INV-9", prevDate = prev)
                 .shouldBeInstanceOf<Classification.InvoiceData>()
         c.documentTypeCode shouldBe "380"
         c.precedingDocumentNumber shouldBe "INV-9"
@@ -166,7 +163,7 @@ class ClassifyDocumentTest {
     fun `INV-AC-1558 verdict part - only a debit note is flagged solution-extracted`() {
         val credit =
             classify(
-                AssertedFunction.CREDIT_NOTE,
+                adj,
                 "CREDIT_NOTE",
                 "50.00",
             ).shouldBeInstanceOf<Classification.InvoiceData>()
@@ -174,7 +171,7 @@ class ClassifyDocumentTest {
         credit.submissionMethod shouldBe SubmissionMethod.NETWORK_OR_EXTRACTED
         val plain =
             classify(
-                AssertedFunction.INVOICE,
+                bill,
                 "INVOICE",
                 "50.00",
             ).shouldBeInstanceOf<Classification.InvoiceData>()
@@ -185,7 +182,7 @@ class ClassifyDocumentTest {
     fun `INV-AC-1651 a cancellation maps to 381, is traced and is checked against its original`() {
         val c =
             classify(
-                AssertedFunction.ADJUSTMENT,
+                adj,
                 "CANCELLATION",
                 "100.00",
             ).shouldBeInstanceOf<Classification.InvoiceData>()
@@ -193,14 +190,14 @@ class ClassifyDocumentTest {
         c.cancellation shouldBe true
         c.checkAgainstOriginal shouldBe true
         c.trace.tableKey shouldBe "ADJUSTMENT/CANCELLATION/POSITIVE"
-        classify(AssertedFunction.ADJUSTMENT, "CREDIT_NOTE", "1.00")
+        classify(adj, "CREDIT_NOTE", "1.00")
             .shouldBeInstanceOf<Classification.InvoiceData>()
             .checkAgainstOriginal shouldBe false
     }
 
     @Test
     fun `INV-AC-403 an adjustment with mixed-sign lines is held with ING-015 and not split`() {
-        val c = classify(AssertedFunction.ADJUSTMENT, "CREDIT_NOTE", "10.00", "-4.00", "0.00")
+        val c = classify(adj, "CREDIT_NOTE", "10.00", "-4.00", "0.00")
         val held = c.shouldBeInstanceOf<Classification.HeldMixedSign>()
         held.code shouldBe ErrorCode.ING_015
         held.positiveLines shouldBe listOf("L1")
@@ -213,27 +210,129 @@ class ClassifyDocumentTest {
         val noTable = ClassifyDocument { _, _ -> ClassificationTable(emptyList(), applied) }
         val result =
             noTable.classify(
-                ClassifyCommand(null, date, ClassifyInput(AssertedFunction.INVOICE, "INVOICE", lines("5", "-5"))),
+                ClassifyCommand(null, date, ClassifyInput(bill, "INVOICE", lines("5", "-5"))),
             )
         result
             .shouldBeInstanceOf<ClassifyResult.Classified>()
             .classification
             .shouldBeInstanceOf<Classification.HeldMixedSign>()
-        classify(AssertedFunction.INVOICE, "INVOICE", "5", "0").shouldBeInstanceOf<Classification.InvoiceData>()
+        classify(bill, "INVOICE", "5", "0").shouldBeInstanceOf<Classification.InvoiceData>()
     }
 
     @Test
-    fun `no scope pack in force is RUL-002 and an unsettled key fails closed`() {
+    fun `no scope pack in force is RUL-002`() {
         val none = ClassifyDocument { _, _ -> null }
         val refused =
             none
-                .classify(ClassifyCommand(null, date, ClassifyInput(AssertedFunction.INVOICE, "INVOICE", lines("1"))))
+                .classify(ClassifyCommand(null, date, ClassifyInput(bill, "INVOICE", lines("1"))))
                 .shouldBeInstanceOf<ClassifyResult.Refused>()
         refused.code shouldBe ErrorCode.RUL_002
         refused.packType shouldBe PackTypes.SCOPE
-        // look-alike kinds never match: exact equality
+    }
+
+    private fun noRow(
+        function: DocumentFunction,
+        kind: String,
+        amount: String,
+    ) = service
+        .classify(ClassifyCommand(null, date, ClassifyInput(function, kind, lines(amount))))
+        .shouldBeInstanceOf<ClassifyResult.NoClassificationRow>()
+
+    @Test
+    fun `a key with no row is NoClassificationRow with the input key and the table pack, never a type code`() {
+        // look-alike kinds, another upstream function and another sign: exact equality on all three parts
         listOf("invoice", "INVOICE ", "INVOICE2").forEach {
-            assertThrows<ClassificationFailure> { classify(AssertedFunction.INVOICE, it, "1.00") }
+            val r = noRow(bill, it, "1.00")
+            r.upstreamFunction shouldBe bill
+            r.documentKind shouldBe it
+            r.signOfTotal shouldBe SignOfTotal.POSITIVE
+            r.applied shouldBe applied
+        }
+        noRow(adj, "INVOICE", "1.00").upstreamFunction shouldBe adj
+        noRow(bill, "POS_RECEIPT", "-1.00").signOfTotal shouldBe SignOfTotal.NEGATIVE
+        noRow(bill, "INVOICE", "0.00").signOfTotal shouldBe SignOfTotal.ZERO
+    }
+
+    @Test
+    fun `an asserted NOT_A_BILL no row contradicts is kept without a trace entry`() {
+        classify(notBill, "UNLISTED", "1.00").shouldBeInstanceOf<Classification.NotABill>().trace shouldBe null
+    }
+
+    @Test
+    fun `a key that matches a row is classified by that row only`() {
+        classify(bill, "INVOICE", "1.00").shouldBeInstanceOf<Classification.InvoiceData>().trace.tableKey shouldBe
+            "BILL_FOR_PAYMENT/INVOICE/POSITIVE"
+    }
+
+    @Test
+    fun `DocumentFunction members equal the rules contract vocabulary in order`() {
+        DocumentFunction.entries.map { it.name } shouldBe listOf("BILL_FOR_PAYMENT", "ADJUSTMENT", "NOT_A_BILL")
+    }
+
+    @Test
+    fun `ofSign amounts are 1, -1 and 0 and classify as the amounts 100, -100 and 0`() {
+        ClassifiedLine.ofSign("L", SignOfTotal.POSITIVE).amount shouldBe BigDecimal.ONE
+        ClassifiedLine.ofSign("L", SignOfTotal.NEGATIVE).amount shouldBe BigDecimal.ONE.negate()
+        ClassifiedLine.ofSign("L", SignOfTotal.ZERO).amount.signum() shouldBe 0
+        listOf(
+            SignOfTotal.POSITIVE to "100.00",
+            SignOfTotal.NEGATIVE to "-100.00",
+            SignOfTotal.ZERO to "0.00",
+        ).forEach { (sign, amount) ->
+            fun result(line: ClassifiedLine) =
+                service.classify(ClassifyCommand(null, date, ClassifyInput(bill, "INVOICE", listOf(line))))
+            val viaSign = result(ClassifiedLine.ofSign("L1", sign))
+            viaSign shouldBe result(ClassifiedLine("L1", BigDecimal(amount)))
+        }
+        // the negative ofSign line gives a negative total, so 381
+        classify(bill, "INVOICE", "-1").shouldBeInstanceOf<Classification.InvoiceData>().documentTypeCode shouldBe "381"
+        val held =
+            service.classify(
+                ClassifyCommand(
+                    null,
+                    date,
+                    ClassifyInput(
+                        adj,
+                        "CREDIT_NOTE",
+                        listOf(
+                            ClassifiedLine.ofSign("A", SignOfTotal.POSITIVE),
+                            ClassifiedLine.ofSign("B", SignOfTotal.NEGATIVE),
+                        ),
+                    ),
+                ),
+            )
+        held
+            .shouldBeInstanceOf<ClassifyResult.Classified>()
+            .classification
+            .shouldBeInstanceOf<Classification.HeldMixedSign>()
+    }
+
+    private fun debit(
+        number: String?,
+        prevDate: TransactionDate?,
+    ) = classify(adj, "DEBIT_NOTE", "50.00", prevNumber = number, prevDate = prevDate)
+        .shouldBeInstanceOf<Classification.InvoiceData>()
+
+    @Test
+    fun `a debit note passes preceding-document fields through as stated - both present, one present, both null`() {
+        val d = TransactionDate(LocalDate.of(2026, 7, 1))
+        debit("INV-9", d).let {
+            it.precedingDocumentNumber shouldBe "INV-9"
+            it.precedingDocumentDate shouldBe d
+        }
+        debit("INV-9", null).let {
+            it.precedingDocumentNumber shouldBe "INV-9"
+            it.precedingDocumentDate shouldBe null
+        }
+        debit(null, d).let {
+            it.precedingDocumentNumber shouldBe null
+            it.precedingDocumentDate shouldBe d
+        }
+        debit(null, null).let {
+            it.precedingDocumentNumber shouldBe null
+            it.precedingDocumentDate shouldBe null
+            it.documentTypeCode shouldBe "380"
+            it.submissionMethod shouldBe SubmissionMethod.SOLUTION_EXTRACTED_ONLY
         }
     }
 }

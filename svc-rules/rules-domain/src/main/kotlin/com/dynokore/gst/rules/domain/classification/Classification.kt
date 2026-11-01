@@ -5,24 +5,12 @@ import com.dynokore.gst.rules.domain.resolution.AppliedPack
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import java.math.BigDecimal
 
-/** The function vocabulary of rules-svc: `upstreamFunction` and `documentFunction` of the classification table. */
-enum class DocumentFunction { BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL }
-
 /**
- * The six values of the caller's `documentFunction` (INV-REQ-371 b1, owner answer INV-Q-6507 A) and their one fixed
- * mapping into [DocumentFunction] (INV-REQ-371 b6). The mapping is not the classification table: the type code stays
- * scope-pack data.
+ * The function vocabulary of rules-svc, equal to `EvaluateDocumentRequest.documentFunction` of rules/openapi.yaml:
+ * `upstreamFunction` and `documentFunction` of the classification table. The mapping of the caller's six values into
+ * it belongs to canonical-svc (INV-Q-14800 A); rules-svc holds no second copy.
  */
-enum class AssertedFunction(
-    val upstream: DocumentFunction,
-) {
-    INVOICE(DocumentFunction.BILL_FOR_PAYMENT),
-    CREDIT_NOTE(DocumentFunction.ADJUSTMENT),
-    DEBIT_NOTE(DocumentFunction.ADJUSTMENT),
-    BILL_FOR_PAYMENT(DocumentFunction.BILL_FOR_PAYMENT),
-    ADJUSTMENT(DocumentFunction.ADJUSTMENT),
-    NOT_A_BILL(DocumentFunction.NOT_A_BILL),
-}
+enum class DocumentFunction { BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL }
 
 enum class SignOfTotal {
     POSITIVE,
@@ -70,19 +58,29 @@ data class ClassificationTable(
         rows.firstOrNull { it.upstreamFunction == function && it.upstreamKind == kind && it.signOfTotal == sign }
 }
 
-/** The table does not settle a document: no default type code is applied (precedent INV-Q-11616). */
-class ClassificationFailure(
-    message: String,
-) : IllegalStateException(message)
-
-/** One line of the document: only its net amount is read, for the sign. */
+/** One line of the document: only the sign of its net amount is read. */
 data class ClassifiedLine(
     val lineId: String,
     val amount: BigDecimal,
-)
+) {
+    companion object {
+        /** A line whose magnitude is not carried (the request has `lineSign`, no amount); no rule reads it. */
+        fun ofSign(
+            lineId: String,
+            sign: SignOfTotal,
+        ) = ClassifiedLine(
+            lineId,
+            when (sign) {
+                SignOfTotal.POSITIVE -> BigDecimal.ONE
+                SignOfTotal.NEGATIVE -> BigDecimal.ONE.negate()
+                SignOfTotal.ZERO -> BigDecimal.ZERO
+            },
+        )
+    }
+}
 
 data class ClassifyInput(
-    val asserted: AssertedFunction,
+    val upstreamFunction: DocumentFunction,
     val documentKind: String,
     val lines: List<ClassifiedLine>,
     val precedingDocumentNumber: String? = null,
@@ -96,7 +94,6 @@ enum class SubmissionMethod { NETWORK_OR_EXTRACTED, SOLUTION_EXTRACTED_ONLY }
 data class ClassificationTraceEntry(
     val ruleId: String,
     val tableKey: String,
-    val asserted: AssertedFunction,
     val upstreamFunction: DocumentFunction,
     val upstreamKind: String,
     val signOfTotal: SignOfTotal,
@@ -158,10 +155,14 @@ data class JournalPosting(
 object DocumentClassifier {
     const val RULE_ID = "FR-AE.61"
 
+    /** Null when the three-part key equals no row and the input is not an asserted NOT_A_BILL (INV-Q-14802 A). */
     fun classify(
         input: ClassifyInput,
         table: ClassificationTable,
-    ): Classification = heldIfMixed(input) ?: classifyByTable(input, table)
+    ): Classification? = heldIfMixed(input) ?: classifyByTable(input, table)
+
+    fun signOfTotal(input: ClassifyInput): SignOfTotal =
+        SignOfTotal.of(input.lines.fold(BigDecimal.ZERO) { sum, line -> sum + line.amount })
 
     private fun heldIfMixed(input: ClassifyInput): Classification.HeldMixedSign? {
         val positive = input.lines.filter { it.amount.signum() > 0 }.map { it.lineId }
@@ -176,21 +177,16 @@ object DocumentClassifier {
     private fun classifyByTable(
         input: ClassifyInput,
         table: ClassificationTable,
-    ): Classification {
-        val sign = SignOfTotal.of(input.lines.fold(BigDecimal.ZERO) { sum, line -> sum + line.amount })
-        val upstream = input.asserted.upstream
+    ): Classification? {
+        val sign = signOfTotal(input)
+        val upstream = input.upstreamFunction
         val row = table.rowOf(upstream, input.documentKind, sign)
         if (row == null) {
             // An asserted NOT_A_BILL no row contradicts is kept and never submitted; anything else the table does
-            // not settle fails closed.
-            if (upstream != DocumentFunction.NOT_A_BILL) {
-                throw ClassificationFailure(
-                    "the classification table has no row for ($upstream, '${input.documentKind}', $sign)",
-                )
-            }
-            return Classification.NotABill(null)
+            // not settle has no type code (no default).
+            return if (upstream == DocumentFunction.NOT_A_BILL) Classification.NotABill(null) else null
         }
-        val trace = traceOf(input, row, sign, table.applied)
+        val trace = traceOf(row, sign, table.applied)
         val code = row.documentTypeCode
         return if (row.documentFunction == DocumentFunction.NOT_A_BILL || code == null) {
             Classification.NotABill(trace)
@@ -220,14 +216,12 @@ object DocumentClassifier {
         }
 
     private fun traceOf(
-        input: ClassifyInput,
         row: ClassificationRow,
         sign: SignOfTotal,
         applied: AppliedPack,
     ) = ClassificationTraceEntry(
         ruleId = RULE_ID,
         tableKey = row.key,
-        asserted = input.asserted,
         upstreamFunction = row.upstreamFunction,
         upstreamKind = row.upstreamKind,
         signOfTotal = sign,
