@@ -56,6 +56,17 @@ object SealFixture {
 
     /** An unlock by the pair of [tenant]; the reference and the expiry the 201 carries. */
     fun ServedContext.unlocked(tenant: TenantId): Pair<String, Instant> {
+        // each named person approves for themselves first (INV-T-9314); the unlock consumes both approvals
+        listOf(ADMIN, APPROVER).forEach { approver ->
+            val approved =
+                post(
+                    operation("approveBreakGlassUnlock"),
+                    viaConsole(token(approver, tenant)),
+                    """{"tenantRef":"$tenant"}""",
+                    UUID.randomUUID(),
+                )
+            check(approved.status == 201) { "the approval answered ${approved.status}: ${approved.contentAsString}" }
+        }
         val body = """{"tenantRef":"$tenant","approvedBy":["$ADMIN","$APPROVER"]}"""
         val response =
             post(
