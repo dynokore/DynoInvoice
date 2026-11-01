@@ -72,6 +72,17 @@ fun interface BreakGlassAlerts {
         action: String,
         unlockRef: String,
     )
+
+    /**
+     * Raises the alert of an unlock that carries [overrideReason] (INV-Q-11557 A). The default drops the reason; an
+     * adapter that publishes it overrides this method.
+     */
+    fun raise(
+        code: String,
+        action: String,
+        unlockRef: String,
+        overrideReason: String?,
+    ) = raise(code, action, unlockRef)
 }
 
 sealed interface UnlockBreakGlassOutcome {
@@ -84,14 +95,24 @@ sealed interface UnlockBreakGlassOutcome {
 
     /** Two people, but the roles of the pairing are not held by two different people (INV-REQ-1269). */
     data object PairNotHeld : UnlockBreakGlassOutcome
+
+    /**
+     * The identity provider counts as available and the request carries no `IDP_PARTIAL_OUTAGE` override reason
+     * (INV-Q-11557 A, INV-AC-9185): nothing is written (409).
+     */
+    data object IdpAvailable : UnlockBreakGlassOutcome
 }
+
+/** The one override reason that opens an unlock while the identity provider counts as available (INV-Q-11557 A). */
+const val IDP_PARTIAL_OUTAGE = "IDP_PARTIAL_OUTAGE"
 
 /**
  * `unlockBreakGlass` (INV-REQ-896, INV-REQ-1269, INV-REQ-897): refuses fewer than two different people and a pair that
- * does not hold the roles of the VP-08 pairing; otherwise opens a session whose length is the VP-08 value (never the
+ * does not hold the roles of the VP-08 pairing, and (INV-Q-11557 A) an unlock while the identity provider counts as
+ * available unless the override reason is `IDP_PARTIAL_OUTAGE`; otherwise opens a session whose length is the VP-08 value (never the
  * caller's), raises ACC-002 and writes the audit entry in the same transaction.
  */
-@Suppress("LongParameterList") // one collaborator per port; the availability is read from INV-T-9188 on
+@Suppress("LongParameterList") // one collaborator per port
 class UnlockBreakGlassUseCase(
     private val tx: TransactionRunner,
     private val sessions: BreakGlassSessions,
@@ -99,12 +120,13 @@ class UnlockBreakGlassUseCase(
     private val settings: BreakGlassSettings,
     private val effects: BreakGlassEffects,
     private val clock: Clock,
-    @Suppress("UnusedPrivateProperty") private val availability: IdentityProviderAvailability,
+    private val availability: IdentityProviderAvailability,
 ) {
     fun handle(
         actor: String,
         tenant: TenantRef,
         approvedBy: List<IdentityRef>,
+        overrideReason: String? = null,
     ): UnlockBreakGlassOutcome {
         val people = approvedBy.distinct()
         if (people.size < 2) return UnlockBreakGlassOutcome.PairOfOne
@@ -119,10 +141,23 @@ class UnlockBreakGlassUseCase(
             ) {
                 return@inTransaction UnlockBreakGlassOutcome.PairNotHeld
             }
+            // exact equality: `idp_partial_outage` or a trailing space never counts as the override
+            val overridden = overrideReason == IDP_PARTIAL_OUTAGE
+            val available = availability.isAvailable()
+            if (available && !overridden) return@inTransaction UnlockBreakGlassOutcome.IdpAvailable
+            // while the provider counts as unavailable the reason is ignored and not recorded
+            val recordedReason = if (available) IDP_PARTIAL_OUTAGE else null
             val hours = setting.hours
             check(BreakGlassRules.isSessionHours(hours)) { "the break-glass session length must be 1 to 8 hours" }
             val session = sessions.insert(hours, now, people.map { it.value })
-            effects.record(actor, "unlockBreakGlass", session.ref, UNLOCK_ACTION)
+            effects.record(
+                actor,
+                "unlockBreakGlass",
+                session.ref,
+                UNLOCK_ACTION,
+                recordedReason,
+                recordedReason,
+            )
             UnlockBreakGlassOutcome.Unlocked(session)
         }
     }
@@ -139,8 +174,9 @@ class BreakGlassEffects(
         unlockRef: String,
         alertAction: String,
         detail: String? = null,
+        overrideReason: String? = null,
     ) {
-        alerts.raise(ACC_BREAK_GLASS, alertAction, unlockRef)
+        alerts.raise(ACC_BREAK_GLASS, alertAction, unlockRef, overrideReason)
         audit.record(GrantAuditEntry(actor, operation, "break-glass:$unlockRef", detail, null))
     }
 }

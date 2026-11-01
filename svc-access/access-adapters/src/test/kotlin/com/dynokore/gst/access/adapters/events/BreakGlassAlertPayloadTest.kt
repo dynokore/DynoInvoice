@@ -51,7 +51,8 @@ class BreakGlassAlertPayloadTest {
                 block: () -> T,
             ): T = block()
         }
-    private val alerts = BreakGlassAlertOutbox(writer, tenants, JsonMapper.builder().build())
+    private val mapper = JsonMapper.builder().build()
+    private val alerts = BreakGlassAlertOutbox(writer, tenants, mapper)
     private val schema =
         checkNotNull(
             javaClass.classLoader.getResourceAsStream(
@@ -73,6 +74,17 @@ class BreakGlassAlertPayloadTest {
             assertEquals(tenant, context.tenant)
             assertEquals(EntityRef.TENANT_WIDE, context.entity)
         }
+    }
+
+    @Test
+    fun `the payload of an override unlock carries overrideReason and any other payload has no such key`() {
+        alerts.raise("ACC-002", "UNLOCK", "BG-0003", "IDP_PARTIAL_OUTAGE")
+        alerts.raise("ACC-002", "UNLOCK", "BG-0004", null)
+        alerts.raise("ACC-002", "UNLOCK", "BG-0005")
+        val payloads = appended.map { mapper.readTree(it.first.single().dataJson) }
+        assertTrue(payloads.all { schema.validate(it.toString(), InputFormat.JSON).isEmpty() })
+        assertEquals("IDP_PARTIAL_OUTAGE", payloads[0].get("overrideReason").asString())
+        assertEquals(listOf(false, false), payloads.drop(1).map { it.has("overrideReason") })
     }
 
     @Test

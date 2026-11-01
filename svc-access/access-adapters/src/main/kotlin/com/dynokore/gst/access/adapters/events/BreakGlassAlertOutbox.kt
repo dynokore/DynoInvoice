@@ -22,12 +22,20 @@ class BreakGlassAlertOutbox(
         code: String,
         action: String,
         unlockRef: String,
+    ) = raise(code, action, unlockRef, null)
+
+    override fun raise(
+        code: String,
+        action: String,
+        unlockRef: String,
+        overrideReason: String?,
     ) {
         val payload = mapper.createObjectNode()
         payload.put("accCode", code)
         payload.put("scope", SCOPE)
         payload.put("action", action)
         payload.put("unlockRef", unlockRef)
+        if (overrideReason != null) payload.put("overrideReason", overrideReason)
         outbox.append(
             listOf(OutboundEvent(EVENT_TYPE, payload.toString())),
             EventContexts.forAggregate(tenants.current(), EntityRef.TENANT_WIDE, "break-glass:$unlockRef"),
