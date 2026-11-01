@@ -47,6 +47,7 @@
 # Re-extracted 2026-10-25 (INV-T-10183; Keel INV-CS-10180): VP-29, VP-38 and VP-65 are available (INV-REQ-1290, INV-REQ-1299, INV-REQ-1548 io_contract.status, coordinator ruling INV-Q-10167 A); 82 rows.
 # Re-extracted 2026-10-30 (INV-T-13488; INV-Q-13483 A): re-vendors the 14 rows that drifted from published Keel with check-drift.py --write: VP-06, VP-17, VP-18, VP-39, VP-57, VP-66, VP-67, VP-68, VP-70, VP-71 and VP-80 (revision only), VP-21 and VP-44 become available (INV-Q-12264, INV-Q-11897 A), VP-36 unit text (owner answer INV-Q-13173, option A); 82 rows.
 # Re-extracted 2026-10-31 (INV-T-11912; Keel INV-CS-11906): checks that VP-44 is available (INV-REQ-1305 io_contract.status, coordinator ruling INV-Q-11897 A) after the INV-T-13488 re-vendor; no row changes; 82 rows.
+# Re-extracted 2026-11-02 (INV-T-12497; Keel INV-CS-12494): VP-21 is available (INV-REQ-1282 io_contract.status, owner answer INV-Q-12264 A); re-vendored with check-drift.py --write, only the revision key of VP-21 moved (INV-Q-16033 A); 82 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -852,7 +853,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1281 (WEEKLY refusal is a cross-row check, not a bound); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-21
   requirement: INV-REQ-1282
-  revision: a08c7e37-1c15-408c-bd23-796e4d7bf70a
+  revision: edb7e188-083c-4281-b266-2f847770b004
   title: "Voluntary over-submission is off by default; when on, OS lines transmit and DS lines never do"
   class: POLICY
   class_modifiers: []
