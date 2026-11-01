@@ -33,8 +33,9 @@ class ValidationConfigTest {
     }
 
     @Test
-    fun `validation.xml carries exactly that setting`() {
+    fun `the validation config file carries exactly that setting`() {
         val xml = Files.readString(Path.of("src/main/resources/META-INF/validation.xml"))
-        xml shouldContain "<property name=\"hibernate.validator.allow_parallel_method_parameter_constraint\">true</property>"
+        xml shouldContain
+            "<property name=\"hibernate.validator.allow_parallel_method_parameter_constraint\">true</property>"
     }
 }

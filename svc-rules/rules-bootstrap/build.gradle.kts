@@ -38,6 +38,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.springBoot.test)
+    testImplementation(libs.springBoot.starterValidation) // ValidationConfigTest builds the validator metadata
     testImplementation(libs.testcontainers.postgresql) // real PostgreSQL only (STK-14, STK-15); H2 is banned
     // TenancyProbe, tenancy-jooq's test fixture: the only raw-SQL place in tests (CS-18); the published
     // test-fixtures variant
