@@ -7,12 +7,13 @@ import org.springframework.context.annotation.Configuration
 
 /**
  * The events submission-svc may emit (INV-REQ-815 behaviour 2): the four of model/architecture/events.yaml it produces,
- * each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type.
+ * each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type. The catalogue
+ * also lists the one event it consumes, produced by payload-svc, so the consumer can read its topic.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(SubmissionEvents.entries)
+    fun eventCatalogue(): EventCatalogue = EventCatalogue(SubmissionEvents.entries + SubmissionEvents.consumed)
 }
 
 object SubmissionEvents {
@@ -32,4 +33,18 @@ object SubmissionEvents {
         topicByType.map { (type, topic) ->
             CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
         }
+
+    const val PAYLOAD_READY_TOPIC = "gst.payload.payload-ready.v1"
+
+    /** `PayloadReady` (topics.yaml: producer payload-svc, content topic); submission-svc is only its subscriber. */
+    val consumed: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                "com.dynokore.gst.payload.PayloadReady.v1",
+                PAYLOAD_READY_TOPIC,
+                setOf("payload-svc"),
+                contentTopic = true,
+                retainedWhileResolvable = false,
+            ),
+        )
 }

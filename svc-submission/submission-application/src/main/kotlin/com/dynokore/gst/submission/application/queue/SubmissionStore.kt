@@ -12,6 +12,22 @@ import java.util.UUID
  */
 interface SubmissionStore {
     /**
+     * Inserts the version in state `READY` with `ON CONFLICT (doc_uuid, version) DO NOTHING` and returns the number of
+     * rows inserted: 0 when the version already exists (INV-REQ-816 behaviour 2, ruling INV-Q-7268 A).
+     */
+    fun insertReady(
+        tenant: TenantId,
+        version: NewReadySubmission,
+    ): Int
+
+    /** The stored `payload_sha256` of the version; null when the row is missing or holds no hash. */
+    fun storedPayloadSha256(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+    ): String?
+
+    /**
      * Moves the version from `READY` to `QUEUED` with one UPDATE whose WHERE clause holds the state `READY`, and
      * returns the number of rows updated: 0 when the row is missing or in another state.
      */
@@ -61,4 +77,14 @@ class NewAttempt(
     val request: ByteArray?,
     val correlationId: UUID,
     val requestedAt: Instant,
+)
+
+/** The `submission` row a `PayloadReady` creates: state `READY`, the decoded bytes and their hash. */
+class NewReadySubmission(
+    val docUuid: String,
+    val version: Int,
+    val entityRef: String,
+    val transactionDate: LocalDate?,
+    val payloadBytes: ByteArray,
+    val payloadSha256: String,
 )

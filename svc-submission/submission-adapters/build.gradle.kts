@@ -34,6 +34,9 @@ dependencies {
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.configResolver.impl)
     implementation(libs.platform.serviceRuntime.impl)
+    // the catalogue's jackson version, as submission-contract
+    implementation(platform(libs.jackson.bom))
+    implementation(libs.jackson.databind)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)

@@ -4,6 +4,7 @@ import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.SubmissionAttempt
 import com.dynokore.gst.submission.application.queue.LockedSubmission
 import com.dynokore.gst.submission.application.queue.NewAttempt
+import com.dynokore.gst.submission.application.queue.NewReadySubmission
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
@@ -14,6 +15,37 @@ import java.time.ZoneOffset
 class JooqSubmissionStore(
     private val dsl: DSLContext,
 ) : SubmissionStore {
+    override fun insertReady(
+        tenant: TenantId,
+        version: NewReadySubmission,
+    ): Int =
+        dsl
+            .insertInto(Submission.SUBMISSION_)
+            .set(Submission.SUBMISSION_.TENANT_ID, tenant.value)
+            .set(Submission.SUBMISSION_.DOC_UUID, version.docUuid)
+            .set(Submission.SUBMISSION_.VERSION, version.version)
+            .set(Submission.SUBMISSION_.STATE, LifecycleState.READY.name)
+            .set(Submission.SUBMISSION_.PAYLOAD_BYTES, version.payloadBytes)
+            .set(Submission.SUBMISSION_.PAYLOAD_SHA256, version.payloadSha256)
+            .set(Submission.SUBMISSION_.ENTITY_REF, version.entityRef)
+            .set(Submission.SUBMISSION_.TRANSACTION_DATE, version.transactionDate)
+            .onConflict(Submission.SUBMISSION_.DOC_UUID, Submission.SUBMISSION_.VERSION)
+            .doNothing()
+            .execute()
+
+    override fun storedPayloadSha256(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+    ): String? =
+        dsl
+            .select(Submission.SUBMISSION_.PAYLOAD_SHA256)
+            .from(Submission.SUBMISSION_)
+            .where(Submission.SUBMISSION_.TENANT_ID.eq(tenant.value))
+            .and(Submission.SUBMISSION_.DOC_UUID.eq(docUuid))
+            .and(Submission.SUBMISSION_.VERSION.eq(version))
+            .fetchOne(Submission.SUBMISSION_.PAYLOAD_SHA256)
+
     override fun moveReadyToQueued(
         tenant: TenantId,
         docUuid: String,
