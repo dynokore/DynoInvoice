@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)
     implementation(libs.jooq)
+    implementation(libs.postgresql)
     implementation(libs.flyway.core)
     implementation(libs.flyway.databasePostgresql)
     testFixturesImplementation(platform(libs.platform.bom))

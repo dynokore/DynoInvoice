@@ -17,7 +17,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
-import java.sql.SQLException
+import org.postgresql.util.PSQLException
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -233,13 +233,13 @@ class JooqSubmissionStore(
 
     private companion object {
         const val UNIQUE_VIOLATION = "23505"
-        val CONSTRAINT = Regex("unique constraint \"([^\"]+)\"")
 
-        /** The constraint name of a unique violation (SQLSTATE 23505) in the cause chain; null for any other error. */
+        /** The constraint of a unique violation (23505), from the driver's structured field, not the message. */
         fun violatedConstraint(e: Throwable): String? =
             generateSequence(e) { it.cause }
-                .filterIsInstance<SQLException>()
+                .filterIsInstance<PSQLException>()
                 .firstOrNull { it.sqlState == UNIQUE_VIOLATION }
-                ?.let { CONSTRAINT.find(it.message.orEmpty())?.groupValues?.get(1) }
+                ?.serverErrorMessage
+                ?.constraint
     }
 }

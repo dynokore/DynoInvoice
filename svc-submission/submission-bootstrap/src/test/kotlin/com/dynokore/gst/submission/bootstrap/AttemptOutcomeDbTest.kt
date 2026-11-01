@@ -200,4 +200,74 @@ class AttemptOutcomeDbTest {
         f.attempts(tenant, doc)[0].response shouldBe null
         f.itemStates(tenant, doc) shouldBe listOf("CLAIMED")
     }
+
+    @Test
+    fun `INV-REQ-571 a Rejected outcome releases the waiting READY version after the commit`(
+        @TempDir dir: Path,
+    ) = run(dir) { f ->
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID().toString()
+        f.queued(tenant, doc)
+        f.waiting(tenant, doc)
+
+        val rejected = TransportResult.Rejected(listOf(RejectionReason("R1", null, "bad")), "x".toByteArray())
+
+        f.cycle(FakeTransport(rejected)).runOnce()
+
+        f.stateOf(tenant, doc, 1) shouldBe "REJECTED"
+        f.stateOf(tenant, doc, 2) shouldBe "QUEUED"
+        f.itemStates(tenant, doc) shouldBe listOf("PENDING")
+    }
+
+    @Test
+    fun `INV-REQ-571 a dead-lettered outcome releases the waiting READY version`(
+        @TempDir dir: Path,
+    ) = run(dir) { f ->
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID().toString()
+        f.boundary = null
+        f.queued(tenant, doc)
+        f.waiting(tenant, doc)
+
+        f.cycle(FakeTransport(timeout)).runOnce()
+
+        f.stateOf(tenant, doc, 1) shouldBe "DEAD_LETTERED"
+        f.stateOf(tenant, doc, 2) shouldBe "QUEUED"
+        f.itemStates(tenant, doc) shouldBe listOf("PENDING")
+    }
+
+    @Test
+    fun `INV-REQ-571 a RETRY outcome keeps the version in flight and releases nothing`(
+        @TempDir dir: Path,
+    ) = run(dir) { f ->
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID().toString()
+        f.queued(tenant, doc)
+        f.waiting(tenant, doc)
+
+        f.cycle(FakeTransport(timeout)).runOnce()
+
+        f.stateOf(tenant, doc, 1) shouldBe "RETRY"
+        f.stateOf(tenant, doc, 2) shouldBe "READY"
+        f.itemStates(tenant, doc) shouldBe emptyList()
+    }
+
+    @Test
+    fun `a releaseNext failure after the commit never rolls back the outcome`(
+        @TempDir dir: Path,
+    ) = run(dir) { f ->
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID().toString()
+        f.queued(tenant, doc)
+        f.waiting(tenant, doc)
+        val dispatch = (f.worker.takeNext() as SentResult.Sent).dispatch
+        val rejected = TransportResult.Rejected(listOf(RejectionReason("R1", null, "bad")), "x".toByteArray())
+
+        f.applier(releasing = f.failingQueue()).apply(dispatch, rejected)
+
+        f.stateOf(tenant, doc, 1) shouldBe "REJECTED"
+        f.attempts(tenant, doc)[0].response?.let { String(it) } shouldBe "x"
+        f.stateOf(tenant, doc, 2) shouldBe "READY"
+        f.itemStates(tenant, doc) shouldBe emptyList()
+    }
 }

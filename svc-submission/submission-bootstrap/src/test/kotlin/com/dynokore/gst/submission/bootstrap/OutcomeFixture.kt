@@ -9,6 +9,7 @@ import com.dynokore.gst.submission.application.queue.AttemptOutcomeApplier
 import com.dynokore.gst.submission.application.queue.DespatchCycle
 import com.dynokore.gst.submission.application.queue.DueRetryRunner
 import com.dynokore.gst.submission.application.queue.DueTenantSource
+import com.dynokore.gst.submission.application.queue.InFlightStore
 import com.dynokore.gst.submission.application.queue.JitterSource
 import com.dynokore.gst.submission.application.queue.NewAttempt
 import com.dynokore.gst.submission.application.queue.RetryBoundarySource
@@ -75,6 +76,7 @@ class OutcomeFixture(
     val dsl: DSLContext = context.getBean(DSLContext::class.java)
     val queue: SubmissionQueue = context.getBean(SubmissionQueue::class.java)
     val workQueue: WorkQueuePort = context.getBean(WorkQueuePort::class.java)
+    val versions: InFlightStore = context.getBean(InFlightStore::class.java)
     val store: SubmissionStore = context.getBean(SubmissionStore::class.java)
     val worker: SubmissionWorker = context.getBean(SubmissionWorker::class.java)
     val sent: SentTransaction = context.getBean(SentTransaction::class.java)
@@ -91,12 +93,57 @@ class OutcomeFixture(
         }
     }
 
-    fun applier(over: SubmissionStore = store) =
-        AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue, queue)
+    fun applier(
+        over: SubmissionStore = store,
+        releasing: SubmissionQueue = queue,
+    ) = AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue, releasing)
 
     fun recovery() = SentRecovery(clock, scope, store, workQueue, sent)
 
     fun cycle(transport: TransportClient) = DespatchCycle(worker, recovery(), transport, applier())
+
+    /** A queue whose work queue refuses every enqueue, so `releaseNext` fails when it has a version to release. */
+    fun failingQueue(): SubmissionQueue {
+        val refusing =
+            object : WorkQueuePort by workQueue {
+                override fun enqueue(entry: QueueEntry) = error("enqueue refused")
+            }
+        return SubmissionQueue(tenants, runner, store, versions, refusing)
+    }
+
+    /** Seeds a second `READY` version (2) of the Doc UUID, waiting behind version 1. */
+    fun waiting(
+        tenant: UUID,
+        doc: String,
+    ) = asTenant(tenant) {
+        dsl
+            .insertInto(Submission.SUBMISSION_)
+            .set(Submission.SUBMISSION_.TENANT_ID, tenant)
+            .set(Submission.SUBMISSION_.DOC_UUID, doc)
+            .set(Submission.SUBMISSION_.VERSION, 2)
+            .set(Submission.SUBMISSION_.STATE, "READY")
+            .set(Submission.SUBMISSION_.PAYLOAD_BYTES, payload)
+            .set(Submission.SUBMISSION_.PAYLOAD_SHA256, "b".repeat(SHA_LENGTH))
+            .set(Submission.SUBMISSION_.ENTITY_REF, "E-001")
+            .set(Submission.SUBMISSION_.ATTEMPT_COUNT, 0)
+            .execute()
+    }
+
+    fun stateOf(
+        tenant: UUID,
+        doc: String,
+        version: Int,
+    ): String =
+        asTenant(tenant) {
+            checkNotNull(
+                dsl
+                    .select(Submission.SUBMISSION_.STATE)
+                    .from(Submission.SUBMISSION_)
+                    .where(Submission.SUBMISSION_.DOC_UUID.eq(doc))
+                    .and(Submission.SUBMISSION_.VERSION.eq(version))
+                    .fetchSingle(Submission.SUBMISSION_.STATE),
+            )
+        }
 
     fun dueRunner(source: DueTenantSource) = DueRetryRunner(source, scope, scan)
 
