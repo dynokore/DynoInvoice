@@ -2,13 +2,18 @@ package com.dynokore.gst.submission.adapters.persistence
 
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.SubmissionAttempt
+import com.dynokore.gst.submission.application.queue.AttemptResponse
+import com.dynokore.gst.submission.application.queue.EventFacts
 import com.dynokore.gst.submission.application.queue.LockedSubmission
 import com.dynokore.gst.submission.application.queue.NewAttempt
 import com.dynokore.gst.submission.application.queue.NewReadySubmission
+import com.dynokore.gst.submission.application.queue.OutcomeFacts
+import com.dynokore.gst.submission.application.queue.RetrySchedule
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -79,8 +84,13 @@ class JooqSubmissionStore(
                     payloadBytes = it.payloadBytes,
                     payloadSha256 = it.payloadSha256,
                     attemptCount = checkNotNull(it.attemptCount),
-                    entityRef = checkNotNull(it.entityRef),
-                    transactionDate = it.transactionDate,
+                    event = EventFacts(checkNotNull(it.entityRef), it.transactionDate),
+                    outcome =
+                        OutcomeFacts(
+                            it.acknowledgementId,
+                            checkNotNull(it.retryFailures),
+                            it.retryFirstFailureAt?.toInstant(),
+                        ),
                 )
             }
 
@@ -98,6 +108,85 @@ class JooqSubmissionStore(
                 .where(Submission.SUBMISSION_.TENANT_ID.eq(tenant.value))
                 .and(Submission.SUBMISSION_.DOC_UUID.eq(docUuid))
                 .and(Submission.SUBMISSION_.VERSION.eq(version))
+                .execute()
+        check(updated == 1) { "the locked submission row $docUuid version $version was not updated" }
+    }
+
+    override fun recordResponse(
+        tenant: TenantId,
+        response: AttemptResponse,
+    ) {
+        val a = SubmissionAttempt.SUBMISSION_ATTEMPT
+        val updated =
+            dsl
+                .update(a)
+                .set(a.RESPONSE, response.response)
+                .set(a.RESPONDED_AT, response.respondedAt.atOffset(ZoneOffset.UTC))
+                .where(a.TENANT_ID.eq(tenant.value))
+                .and(a.DOC_UUID.eq(response.docUuid))
+                .and(a.VERSION.eq(response.version))
+                .and(a.ATTEMPT_NUMBER.eq(response.attemptNumber))
+                .execute()
+        check(updated == 1) {
+            "no attempt row ${response.attemptNumber} of ${response.docUuid} version ${response.version}"
+        }
+    }
+
+    override fun setState(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+        state: LifecycleState,
+    ) {
+        val s = Submission.SUBMISSION_
+        val updated =
+            dsl
+                .update(s)
+                .set(s.STATE, state.name)
+                .where(s.TENANT_ID.eq(tenant.value))
+                .and(s.DOC_UUID.eq(docUuid))
+                .and(s.VERSION.eq(version))
+                .execute()
+        check(updated == 1) { "the locked submission row $docUuid version $version was not updated" }
+    }
+
+    override fun scheduleRetry(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+        retry: RetrySchedule,
+    ) {
+        val s = Submission.SUBMISSION_
+        val updated =
+            dsl
+                .update(s)
+                .set(s.STATE, LifecycleState.RETRY.name)
+                .set(s.NEXT_ATTEMPT_AT, retry.nextAttemptAt.atOffset(ZoneOffset.UTC))
+                .set(s.RETRY_FAILURES, retry.failures)
+                .set(s.RETRY_FIRST_FAILURE_AT, retry.firstFailureAt.atOffset(ZoneOffset.UTC))
+                .where(s.TENANT_ID.eq(tenant.value))
+                .and(s.DOC_UUID.eq(docUuid))
+                .and(s.VERSION.eq(version))
+                .execute()
+        check(updated == 1) { "the locked submission row $docUuid version $version was not updated" }
+    }
+
+    override fun recordAccepted(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+        at: Instant,
+    ) {
+        val s = Submission.SUBMISSION_
+        val updated =
+            dsl
+                .update(s)
+                .set(s.ACK_TIMER_STARTED_AT, DSL.coalesce(s.ACK_TIMER_STARTED_AT, at.atOffset(ZoneOffset.UTC)))
+                .set(s.RETRY_FAILURES, 0)
+                .setNull(s.RETRY_FIRST_FAILURE_AT)
+                .where(s.TENANT_ID.eq(tenant.value))
+                .and(s.DOC_UUID.eq(docUuid))
+                .and(s.VERSION.eq(version))
                 .execute()
         check(updated == 1) { "the locked submission row $docUuid version $version was not updated" }
     }

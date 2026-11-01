@@ -20,6 +20,7 @@ import java.util.UUID
 data class Dispatch(
     val docUuid: String,
     val version: Int,
+    val entityRef: String,
     val attemptNumber: Int,
     val correlationId: UUID,
     val requestBytes: ByteArray?,
@@ -99,7 +100,9 @@ class SentTransaction(
                     causation = CausationId("queue-item:${item.seq}"),
                 ),
             )
-            SentResult.Sent(Dispatch(docUuid, version, attemptNumber, correlation, row.payloadBytes, item))
+            SentResult.Sent(
+                Dispatch(docUuid, version, row.entityRef, attemptNumber, correlation, row.payloadBytes, item),
+            )
         }
 
     private fun despatchedData(

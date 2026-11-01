@@ -1,7 +1,6 @@
 package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionStore
-import com.dynokore.gst.submission.application.queue.RetryDueScan
 import com.dynokore.gst.submission.application.queue.SentTransaction
 import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.gst.submission.application.queue.SubmissionStore
@@ -47,14 +46,6 @@ class QueueConfiguration(
         store: SubmissionStore,
         queue: WorkQueue,
     ): SentTransaction = SentTransaction(tenants, transactions, store, queue, outbox, principal)
-
-    @Bean
-    fun retryDueScan(
-        tenants: TenantContext,
-        transactions: TransactionRunner,
-        store: SubmissionStore,
-        queue: WorkQueue,
-    ): RetryDueScan = RetryDueScan(tenants, transactions, store, queue)
 
     @Bean
     fun submissionWorker(
