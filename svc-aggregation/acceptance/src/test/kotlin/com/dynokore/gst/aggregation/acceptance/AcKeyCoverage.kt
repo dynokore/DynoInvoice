@@ -5,7 +5,9 @@ package com.dynokore.gst.aggregation.acceptance
  * the tasks of this service carry: `criterion`, `task`, `wave` (a number; 2 for a criterion this service's tasks run).
  *
  * - the table is missing, empty or malformed: a finding;
- * - a row of an owned slice that is not among its `ac_refs`, or an `ac_ref` with no row (see [OWNED]): a finding
+ * - the ownership file `criteria-owned.tsv` (`task`, `criterion`, `wave`; INV-Q-14739 A) is missing, empty or
+ *   malformed: a finding, and nothing else is reported;
+ * - a row of an owned slice that is not among its `ac_refs`, or an `ac_ref` with no row (see `criteria-owned.tsv`): a finding
  *   naming it;
  * - a row with wave 2 whose key is not a whole token of the name of at least one executed test: a finding naming
  *   the row;
@@ -19,18 +21,65 @@ object AcKeyCoverage {
     private val CANDIDATE = Regex("INV-AC-[0-9][0-9A-Za-z_]*")
     private val WORD = Regex("[A-Za-z0-9_]")
 
-    /**
-     * The `ac_refs` of each slice of this service that has merged, by equality: the rows whose task column equals the
-     * key are exactly these criteria, no more and no fewer (a criterion of another slice, or a look-alike such as
-     * `INV-AC-4470`, is a finding naming the row). The merge request of each later slice adds its own entry.
-     */
-    val OWNED: Map<String, Set<String>> =
-        mapOf(
-            "INV-T-8451" to setOf("INV-AC-447", "INV-AC-1572"),
-            "INV-T-11349" to setOf("INV-AC-1436"),
-            "INV-T-11286" to setOf("INV-AC-453", "INV-AC-2779"),
-        )
     private val HEADER = listOf("criterion", "task", "wave")
+    private val OWNED_HEADER = listOf("task", "criterion", "wave")
+
+    /** A line of `criteria-owned.tsv`: [task] owns [criterion] and runs it in [wave]. */
+    data class Owned(
+        val task: String,
+        val criterion: String,
+        val wave: Int,
+    )
+
+    private fun parseOwnedRow(line: String): Owned? {
+        val cells = line.split('\t')
+        val wave = cells.getOrNull(2)?.toIntOrNull()
+        val valid = cells.size == OWNED_HEADER.size && TASK.matches(cells[0]) && KEY.matches(cells[1])
+        return if (valid && wave != null) Owned(cells[0], cells[1], wave) else null
+    }
+
+    /** The lines of the ownership file and the problems that make it unusable. */
+    fun parseOwned(text: String?): Pair<List<Owned>, List<String>> {
+        val lines = text?.lines()?.filter { it.isNotBlank() }.orEmpty()
+        val problem =
+            when {
+                text == null -> {
+                    "criteria-owned.tsv is missing"
+                }
+
+                lines.firstOrNull()?.split('\t') != OWNED_HEADER -> {
+                    "criteria-owned.tsv: the first line must be the header task, criterion, wave"
+                }
+
+                lines.size == 1 -> {
+                    "criteria-owned.tsv has no rows"
+                }
+
+                else -> {
+                    null
+                }
+            }
+        if (problem != null) return emptyList<Owned>() to listOf(problem)
+        val parsed = lines.drop(1).map { it to parseOwnedRow(it) }
+        val problems =
+            parsed
+                .filter { it.second == null }
+                .map { "criteria-owned.tsv: malformed row '${it.first}'" }
+                .toMutableList()
+        val owned = parsed.mapNotNull { it.second }
+        owned.groupBy { it.task to it.criterion }.filter { it.value.size > 1 }.keys.forEach {
+            problems += "criteria-owned.tsv: duplicate line for ${it.first} ${it.second}"
+        }
+        owned.groupBy { it.criterion }.forEach { (criterion, lines) ->
+            val tasks = lines.map { it.task }.distinct().sorted()
+            if (tasks.size >
+                1
+            ) {
+                problems += "criteria-owned.tsv: $criterion is listed under ${tasks.joinToString(" and ")}"
+            }
+        }
+        return owned to problems
+    }
 
     data class Row(
         val criterion: String,
@@ -89,12 +138,20 @@ object AcKeyCoverage {
 
     fun findings(
         table: String?,
+        owned: String?,
         executedTestNames: List<String>,
     ): List<String> {
+        val (ownedLines, ownedProblems) = parseOwned(owned)
+        if (ownedProblems.isNotEmpty()) return ownedProblems
         val (rows, problems) = parse(table)
         val findings = problems.toMutableList()
         if (rows.isEmpty()) return findings
-        OWNED.forEach { (task, keys) ->
+        val byTask = ownedLines.groupBy { it.task }
+        rows.filter { it.task !in byTask }.forEach {
+            findings += "${it.criterion} (task ${it.task}): the task has no line in criteria-owned.tsv"
+        }
+        byTask.forEach { (task, lines) ->
+            val keys = lines.map { it.criterion }.toSet()
             val own = rows.filter { it.task == task }
             own.filter { it.criterion !in keys }.forEach {
                 findings +=
@@ -103,8 +160,12 @@ object AcKeyCoverage {
             (keys - own.map { it.criterion }.toSet()).sorted().forEach {
                 findings += "$it (task $task): an ac_ref of $task with no row in ac-keys.tsv"
             }
-            own.filter { it.criterion in keys && it.wave != RUN_WAVE }.forEach {
-                findings += "${it.criterion} (task $task): wave ${it.wave}, but $task runs it in wave $RUN_WAVE"
+            own.forEach { row ->
+                val line = lines.firstOrNull { it.criterion == row.criterion }
+                if (line != null && row.wave != line.wave) {
+                    findings +=
+                        "${row.criterion} (task $task): wave ${row.wave}, but $task runs it in wave ${line.wave}"
+                }
             }
         }
         val covered = executedTestNames.flatMap { keysIn(it).first }.toSet()

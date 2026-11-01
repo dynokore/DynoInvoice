@@ -14,6 +14,7 @@ class AcKeyCoverageGate {
     fun `acKeyCoverage`() {
         val root = File(System.getProperty("gst.root.dir"))
         val table = File(root, "ac-keys.tsv").takeIf { it.isFile }?.readText()
+        val owned = File(root, "criteria-owned.tsv").takeIf { it.isFile }?.readText()
         val modules =
             root.listFiles { f ->
                 f.isDirectory &&
@@ -25,7 +26,7 @@ class AcKeyCoverageGate {
                 .flatMap { File(it, "build/test-results").walkTopDown().toList() }
                 .filter { it.name.startsWith("TEST-") && it.extension == "xml" }
                 .flatMap(::executedTestNames)
-        val findings = AcKeyCoverage.findings(table, names)
+        val findings = AcKeyCoverage.findings(table, owned, names)
         assertTrue(findings.isEmpty(), "acKeyCoverage:\n" + findings.joinToString("\n"))
     }
 
