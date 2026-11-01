@@ -187,3 +187,8 @@ DocumentVersion.documentFunction.DEBIT_NOTE	schema_enum_value	openapi.yaml	INV-R
 DocumentVersion.documentFunction.BILL_FOR_PAYMENT	schema_enum_value	openapi.yaml	INV-REQ-371
 DocumentVersion.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ-371
 DocumentVersion.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371
+# INV-T-16010: sourceDocumentRef on the record request, the document version and the version payload (INV-Q-16005 A)
+sourceDocumentRef	property	openapi.yaml	INV-REQ-646
+RecordDocumentRequest.sourceDocumentRef	schema_property	openapi.yaml	INV-REQ-646
+DocumentVersion.sourceDocumentRef	schema_property	openapi.yaml	INV-REQ-646
+sourceDocumentRef	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-646

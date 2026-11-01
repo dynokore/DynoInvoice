@@ -891,6 +891,29 @@
             "classification"
           ],
           "additionalProperties": true
+        },
+        "sourceDocumentRef": {
+          "type": "object",
+          "description": "Reference to the source document in the tenant's document store (INV-REQ-646, INV-REQ-1319). The System holds the reference, not the content, and never transmits it to the network or to IRAS. Required for Types 2 and 3 once the entity is live, a condition the receiving service enforces, not this schema (INV-Q-16005). Wrapped with its FR-AE.72 classification (INV-Q-6268).",
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 512,
+              "description": "The reference to the source document in the tenant's document store."
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "NONE"
+              ],
+              "description": "The FR-AE.72 data classification tag for this content field."
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
         }
       },
       "required": [

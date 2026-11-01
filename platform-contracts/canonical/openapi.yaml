@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -87,6 +87,11 @@ paths:
         assignment (INV-REQ-416) puts on the Type 2 side must carry
         `buyerInvoiceRefs`; a request without it is refused with `400` and
         SRT-001 and nothing is recorded (INV-REQ-696, INV-Q-7045).
+
+        A Type 2 or 3 document may carry `sourceDocumentRef`, the reference to
+        the source document in the tenant's document store; the System holds
+        the reference, never the content, and never transmits it (INV-REQ-646,
+        INV-Q-16005).
       tags: [documents]
       x-principal: ingest
       x-caller-auth: end-user
@@ -709,6 +714,11 @@ components:
             (INV-REQ-696, INV-Q-7045). Required for a SALE document of an entity that the Scope pack's
             self-billing assignment (INV-REQ-416) puts on the Type 2 side, a condition canonical-svc enforces by
             refusing the record request with 400 and SRT-001, not this schema; otherwise optional.
+        sourceDocumentRef:
+          type: string
+          maxLength: 512
+          description: >-
+            Reference to the source document in the tenant's document store (INV-REQ-646, INV-REQ-1319). The System holds the reference, not the content, and never transmits it to the network or to IRAS. Required for Types 2 and 3 once the entity is live, a condition the receiving service enforces, not this schema (INV-Q-16005).
       required:
         [tenantId, entityRef, sourceSystem, sourceKey, sourceRevision, documentFunction, transactionDate, currency, lines]
       allOf:
@@ -940,6 +950,11 @@ components:
             (INV-REQ-696, INV-Q-7045). Required for a SALE document of an entity that the Scope pack's
             self-billing assignment (INV-REQ-416) puts on the Type 2 side, a condition canonical-svc enforces by
             refusing the record request with 400 and SRT-001, not this schema; otherwise optional.
+        sourceDocumentRef:
+          type: string
+          maxLength: 512
+          description: >-
+            Reference to the source document in the tenant's document store (INV-REQ-646, INV-REQ-1319). The System holds the reference, not the content, and never transmits it to the network or to IRAS. Required for Types 2 and 3 once the entity is live, a condition the receiving service enforces, not this schema (INV-Q-16005).
       required: [docUuid, version, docsequence, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     PreparedReassignment:
       type: object

@@ -24,6 +24,7 @@ openapi.yaml	RecordDocumentRequest.sourceKey	NONE
 openapi.yaml	RecordDocumentRequest.sourceRevision	NONE
 openapi.yaml	RecordDocumentRequest.documentNumber	NONE
 openapi.yaml	RecordDocumentRequest.buyerInvoiceRefs	NONE
+openapi.yaml	RecordDocumentRequest.sourceDocumentRef	NONE
 openapi.yaml	RecordDocumentRequest.documentFunction	NONE
 openapi.yaml	RecordDocumentRequest.transactionDate	NONE
 openapi.yaml	RecordDocumentRequest.currency	NONE
@@ -71,6 +72,7 @@ openapi.yaml	DocumentVersion.totals	NONE
 openapi.yaml	DocumentVersion.docUuidSource	NONE
 openapi.yaml	DocumentVersion.documentNumber	NONE
 openapi.yaml	DocumentVersion.buyerInvoiceRefs	NONE
+openapi.yaml	DocumentVersion.sourceDocumentRef	NONE
 openapi.yaml	DocumentVersion.notSubmittableReason	NONE
 openapi.yaml	DocumentVersion.precedingDocUuid	NONE
 openapi.yaml	DocumentVersion.nettedCreditNoteKeys	NONE
@@ -118,6 +120,7 @@ schemas/canonical-version-created-payload.schema.json	canonicalDocument.exchange
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.exchangeRateSource	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.documentNumber	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.buyerInvoiceRefs	NONE
+schemas/canonical-version-created-payload.schema.json	canonicalDocument.sourceDocumentRef	NONE
 schemas/decision-trace-recorded-payload.schema.json	docUuid	NONE
 schemas/decision-trace-recorded-payload.schema.json	version	NONE
 schemas/decision-trace-recorded-payload.schema.json	traceReference	NONE
