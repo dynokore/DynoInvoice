@@ -153,3 +153,14 @@ schemas/prior-submission-evidence-imported-payload.schema.json	documentNumber	NO
 schemas/prior-submission-evidence-imported-payload.schema.json	transactionDate	NONE
 schemas/prior-submission-evidence-imported-payload.schema.json	acknowledgementRef	NONE
 schemas/prior-submission-evidence-imported-payload.schema.json	priorSolution	NONE
+openapi.yaml	DecisionTraceView.docUuid	NONE
+openapi.yaml	DecisionTraceView.version	NONE
+openapi.yaml	DecisionTraceView.recordedAt	NONE
+openapi.yaml	DecisionTraceView.decisions	IDENTIFYING
+openapi.yaml	DecisionTraceEntry.code	NONE
+openapi.yaml	DecisionTraceEntry.ruleId	NONE
+openapi.yaml	DecisionTraceEntry.packVersions	NONE
+openapi.yaml	DecisionTraceEntry.inputs	IDENTIFYING
+openapi.yaml	DecisionTraceInput.name	NONE
+openapi.yaml	DecisionTraceInput.value	IDENTIFYING
+openapi.yaml	DecisionTraceInput.businessTermId	NONE

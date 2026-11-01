@@ -82,3 +82,7 @@ tenantRef	property	schemas/archive-volume-measured-payload.schema.json	INV-REQ-8
 entityRef	property	schemas/archive-volume-measured-payload.schema.json	INV-REQ-878
 bytes	property	schemas/archive-volume-measured-payload.schema.json	INV-REQ-878
 measuredAt	property	schemas/archive-volume-measured-payload.schema.json	INV-REQ-878
+# INV-T-14241. getDecisionTrace, INV-REQ-942 and INV-REQ-1182 (INV-AC-14237): the operation and the two properties the trace answer names.
+getDecisionTrace	operation	openapi.yaml	INV-REQ-942
+DecisionTraceEntry.ruleId	schema_property	openapi.yaml	INV-REQ-942
+DecisionTraceEntry.packVersions	schema_property	openapi.yaml	INV-REQ-942
