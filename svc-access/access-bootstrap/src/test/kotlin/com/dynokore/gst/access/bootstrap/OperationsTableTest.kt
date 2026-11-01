@@ -185,7 +185,7 @@ class OperationsTableTest {
         }
     }
 
-    /** The rows INV-T-4941 owns (INV-Q-7983 A), compared with this list by equality. */
+    /** The rows INV-T-4941 owns (INV-Q-7983 A): compared with this list by equality; channels it does not own are absent. */
     private fun taskFindingsOf4941(lines: List<String>): List<String> {
         val rows = rows(lines).first.associateBy { it.kind to it.name }
         return listOf(
@@ -242,8 +242,8 @@ class OperationsTableTest {
         }
         // the two channel rows stay as they are: accessAccessAlertRaised is INV-T-4938's, accessExampleHappened is open
         val rows = rows(table).first.associateBy { it.kind to it.name }
-        assertThat(rows["channel" to "accessAccessAlertRaised"]?.task).isEqualTo("INV-T-4938")
-        assertThat(rows["channel" to "accessExampleHappened"]?.task).isEqualTo("UNASSIGNED")
+        assertThat(rows["channel" to "accessAccessAlertRaised"]!!.task).isEqualTo("INV-T-4938")
+        assertThat(rows["channel" to "accessExampleHappened"]!!.task).isEqualTo("UNASSIGNED")
     }
 
     @Test
