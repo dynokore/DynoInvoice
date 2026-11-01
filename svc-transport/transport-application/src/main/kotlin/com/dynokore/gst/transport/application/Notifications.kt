@@ -20,7 +20,7 @@ interface AttemptOwner {
 
 enum class LedgerResult { RECORDED, REPLAY }
 
-/** The kinds of notification a ledger row can hold; INBOUND_NETWORK_DOCUMENT is not a member, so it cannot be recorded. */
+/** The kinds a ledger row can hold; INBOUND_NETWORK_DOCUMENT is not a member, so it cannot be recorded. */
 enum class LedgerKind { ACKNOWLEDGEMENT, DELIVERY_STATUS, REJECTION }
 
 /** The de-duplication ledger: one row per adapter and AP notification id (INV-AC-623). */

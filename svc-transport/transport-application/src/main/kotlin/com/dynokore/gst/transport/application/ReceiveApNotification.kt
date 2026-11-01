@@ -63,25 +63,29 @@ class ReceiveApNotification(
             }
 
             is Translation.Acknowledgement -> {
-                val owner = owners.ownerOf(DocRef(t.event.docUuid, t.event.version))
-                if (owner == null) {
-                    ReceiveResult.OwnerNotFound
-                } else {
-                    val kind =
-                        if (t.event.outcome == AcknowledgementOutcome.REJECTED) {
-                            LedgerKind.REJECTION
-                        } else {
-                            LedgerKind.ACKNOWLEDGEMENT
-                        }
-                    ReceiveResult.Processed(
-                        unitOfWork.run(owner) {
-                            val recorded =
-                                ledger.record(owner, adapter, t.apNotificationId, kind) == LedgerResult.RECORDED
-                            if (recorded) events.publish(owner, t.event)
-                            recorded
-                        },
-                    )
-                }
+                acknowledge(adapter, t)
             }
         }
+
+    private fun acknowledge(
+        adapter: AdapterId,
+        t: Translation.Acknowledgement,
+    ): ReceiveResult {
+        val owner =
+            owners.ownerOf(DocRef(t.event.docUuid, t.event.version))
+                ?: return ReceiveResult.OwnerNotFound
+        val kind =
+            if (t.event.outcome == AcknowledgementOutcome.REJECTED) {
+                LedgerKind.REJECTION
+            } else {
+                LedgerKind.ACKNOWLEDGEMENT
+            }
+        return ReceiveResult.Processed(
+            unitOfWork.run(owner) {
+                val recorded = ledger.record(owner, adapter, t.apNotificationId, kind) == LedgerResult.RECORDED
+                if (recorded) events.publish(owner, t.event)
+                recorded
+            },
+        )
+    }
 }

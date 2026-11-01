@@ -33,7 +33,7 @@ class ReceiveOwnerKindTest {
     }
 
     @Test
-    fun `INV-AC-623 an acknowledgement passes OWNER to the unit of work, the ledger and the publisher with kind ACKNOWLEDGEMENT`() {
+    fun `INV-AC-623 an acknowledgement passes OWNER to unit of work, ledger and publisher`() {
         useCase.receive(one, ack) shouldBe ReceiveResult.Processed(true)
         uow.owners shouldBe listOf(OWNER)
         ledger.owners shouldBe listOf(OWNER)
@@ -52,7 +52,7 @@ class ReceiveOwnerKindTest {
     }
 
     @Test
-    fun `INV-AC-623 a delivery status for the known doc uuid records kind DELIVERY_STATUS with OWNER and publishes nothing`() {
+    fun `INV-AC-623 a delivery status for the known doc uuid records with OWNER and publishes nothing`() {
         useCase.receive(one, delivery) shouldBe ReceiveResult.Processed(true)
         uow.owners shouldBe listOf(OWNER)
         ledger.owners shouldBe listOf(OWNER)
@@ -98,7 +98,7 @@ class ReceiveOwnerKindTest {
                 override fun publish(
                     owner: AttemptOwnerRef,
                     event: com.dynokore.gst.transport.domain.AcknowledgementReceived,
-                ) = throw IllegalStateException("publish failed")
+                ) = error("publish failed")
             }
         val failingCase = ReceiveApNotification(owners, ledger, failing, uow)
         shouldThrow<IllegalStateException> { failingCase.receive(one, ack) }
