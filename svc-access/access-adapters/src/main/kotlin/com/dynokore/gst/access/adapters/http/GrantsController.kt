@@ -118,7 +118,7 @@ open class GrantsController(
         idempotencyKey: UUID,
         acceptFirstAdministratorInvitationRequest: AcceptFirstAdministratorInvitationRequest,
     ): ResponseEntity<AcceptFirstAdministratorInvitationResponse> =
-        firstAdministrator.acceptance.accept(invitationRef, idempotencyKey, acceptFirstAdministratorInvitationRequest)
+        firstAdministrator.acceptance.accept(invitationRef, acceptFirstAdministratorInvitationRequest)
 
     override fun revokeGrant(
         grantRef: String,

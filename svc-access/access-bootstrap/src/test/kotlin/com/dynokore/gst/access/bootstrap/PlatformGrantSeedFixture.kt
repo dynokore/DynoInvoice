@@ -247,11 +247,8 @@ object PlatformGrantSeedFixture {
         strings(c, forced).filter { !it.endsWith("truetrue") }.forEach { found += "security not forced: $it" }
         val execute = "select has_function_privilege('access_migrate', 'access.bound_tenant()', 'EXECUTE')::text"
         if (strings(c, execute) != listOf("false")) found += "access_migrate can execute bound_tenant"
-        // a definer function of a migration after the seed has its own test; exact names, one line each:
-        // resolve_invitation_tenant: INV-T-8227, probed in AcceptFirstAdministratorInvitationTest
         val definers =
-            "select proname from pg_proc where pronamespace = 'access'::regnamespace and prosecdef " +
-                "and proname <> 'resolve_invitation_tenant' order by 1"
+            "select proname from pg_proc where pronamespace = 'access'::regnamespace and prosecdef order by 1"
         if (strings(c, definers) != connect(BASE).use { strings(it, definers) }) found += "a definer function was added"
         return found
     }

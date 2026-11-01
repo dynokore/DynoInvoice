@@ -25,15 +25,3 @@ ALTER FUNCTION access.resolve_invitation_tenant(text) OWNER TO access_sys;
 REVOKE CREATE ON SCHEMA access FROM access_sys;
 REVOKE ALL ON FUNCTION access.resolve_invitation_tenant(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION access.resolve_invitation_tenant(text) TO access_runtime;
-
--- The acceptance stores the Idempotency-Key and a request fingerprint (SHA-256 of the token sub, a colon and the
--- digest of the presented code) on the invitation row, so that a repeat with the same key is recognised and replays
--- the grant data (INV-Q-15347 A). No response body is stored. Both stay NULL until the invitation is accepted. The
--- grants of the table to access_runtime stay as they are (SELECT, INSERT, UPDATE) and forced row-level security is
--- unchanged.
-ALTER TABLE access.first_administrator_invitation
-    ADD COLUMN accept_key uuid,
-    ADD COLUMN accept_fingerprint text CHECK (accept_fingerprint IS NULL OR length(accept_fingerprint) BETWEEN 1 AND 128),
-    ADD CONSTRAINT first_administrator_invitation_accept_pair
-        CHECK ((accept_key IS NULL) = (accept_fingerprint IS NULL)),
-    ADD CONSTRAINT first_administrator_invitation_accept_key_key UNIQUE (tenant_id, accept_key);

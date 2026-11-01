@@ -65,8 +65,6 @@ data class InvitationRecord(
     val grantRef: String,
     val expiresAt: Instant,
     val codeDigest: String?,
-    val acceptKey: UUID? = null,
-    val acceptFingerprint: String? = null,
 )
 
 /** The tenant of an invitation, found from its reference alone (the token of an acceptance carries no tenant). */
@@ -98,12 +96,8 @@ interface FirstAdministratorInvitations {
     /** The invitation of the bound tenant with this reference. */
     fun findByRef(invitationRef: String): InvitationRecord?
 
-    /** Clears the code digest so the code cannot be used again and stores the key and fingerprint of the acceptance. */
-    fun markAccepted(
-        invitationRef: String,
-        acceptKey: UUID,
-        acceptFingerprint: String,
-    )
+    /** Clears the code digest of the invitation so that its code cannot be used again. */
+    fun clearCodeDigest(invitationRef: String)
 
     /** Whether the bound tenant has a `tenant.admin` grant that is ACTIVE or PENDING, whatever scope or source. */
     fun holdsLiveTenantAdminGrant(): Boolean

@@ -86,11 +86,7 @@ class ProvisionFirstAdministratorTest {
 
         override fun findByRef(invitationRef: String): InvitationRecord? = null
 
-        override fun markAccepted(
-            invitationRef: String,
-            acceptKey: java.util.UUID,
-            acceptFingerprint: String,
-        ) = error("not used")
+        override fun clearCodeDigest(invitationRef: String) = error("not used")
 
         override fun holdsLiveTenantAdminGrant() = false
     }

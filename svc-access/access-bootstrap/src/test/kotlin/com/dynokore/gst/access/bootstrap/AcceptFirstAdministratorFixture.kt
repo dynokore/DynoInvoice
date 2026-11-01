@@ -38,7 +38,7 @@ object AcceptFirstAdministratorFixture {
         return value
     }
 
-    /** Step 2: the control plane provisions the first administrator; the invitation expires at [expires]. */
+    /** Step 2: the control plane provisions the first administrator of a tenant, the invitation expiring at [expires]. */
     fun ServedContext.provisioned(
         tenant: TenantId = FirstAdministratorFixture.newTenant(),
         expires: String = FirstAdministratorFixture.EXPIRES,
@@ -60,13 +60,12 @@ object AcceptFirstAdministratorFixture {
         ref: String,
         code: String,
         auth: String?,
-        key: UUID = UUID.randomUUID(),
     ): MockHttpServletResponse =
         post(
             operation(ACCEPT),
             viaConsole(auth),
             """{"invitationCode":"$code"}""",
-            key,
+            UUID.randomUUID(),
             "$PATH/$ref/accept",
         )
 
