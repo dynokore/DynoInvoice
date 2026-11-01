@@ -56,7 +56,7 @@ class StubIdentityProvider(
     }
 }
 
-/** The override of `unlockBreakGlass` for an identity provider that counts as available or unavailable (INV-AC-9185). */
+/** The override of `unlockBreakGlass` with the identity provider available or unavailable (INV-AC-9185). */
 class IdpOverrideBreakGlassTest {
     private val tenant = TenantId(UUID.randomUUID())
     private val mapper = JsonMapper.builder().build()
@@ -118,7 +118,7 @@ class IdpOverrideBreakGlassTest {
         /** In every case a pair of one person is refused as before, whatever the reason and the availability. */
         fun assertPairOfOneRefused() {
             val before = sessions()
-            UnlockBreakGlassRequest.OverrideReason.entries.map { it }.plus(null).forEach { reason ->
+            UnlockBreakGlassRequest.OverrideReason.entries.plus(null).forEach { reason ->
                 assertThatThrownBy { unlock(reason, "IDN-ADM", "IDN-ADM") }
                     .isInstanceOf(ApiRefusal::class.java)
                     .hasMessageContaining("SRT-001")
