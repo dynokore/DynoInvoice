@@ -44,8 +44,9 @@ data class Envelope(
         require(instanceId.isNotBlank()) { "instance id must not be blank" }
         require(docSequence == null || docSequence >= 1) { "docsequence starts at 1" }
         require(pairingHolds(tenant, entity)) { PLATFORM_PAIR }
-        require(!entity.isTenantWide || isPlatformType(type)) {
-            "only a platform event type may carry the tenant-wide entity (FR-K.3, INV-Q-3165), was '$type'"
+        require(!entity.isTenantWide || allowsTenantWide(type)) {
+            "only a platform event type or the domain event AccessPointRouteChanged may carry the " +
+                "tenant-wide entity (FR-K.3, INV-Q-3165, INV-Q-15474), was '$type'"
         }
         require(!tenant.isPlatform || isPlatformType(type)) {
             "only a platform event type may be tenantless (FR-K.3, INV-Q-3018), was '$type'"
@@ -91,6 +92,19 @@ data class Envelope(
         fun isPlatformType(type: String): Boolean =
             type.startsWith(PLATFORM_TYPE_PREFIX) &&
                 type.removePrefix(PLATFORM_TYPE_PREFIX).substringBefore(".v") in PLATFORM_EVENTS
+
+        /**
+         * The domain event types that may carry the tenant-wide entity, exact strings only (INV-Q-15474 A):
+         * `AccessPointRouteChanged` concerns an Access Point connection, not one registered entity.
+         */
+        private val TENANT_WIDE_DOMAIN_EVENTS = setOf("com.dynokore.gst.transport.AccessPointRouteChanged.v1")
+
+        /**
+         * True when [type] may carry the tenant-wide entity: a platform type ([isPlatformType]) or a member of
+         * the closed exact-type set [TENANT_WIDE_DOMAIN_EVENTS] (FR-K.3, INV-Q-15474). Such a domain event
+         * is not a platform type: it still needs a real tenant.
+         */
+        fun allowsTenantWide(type: String): Boolean = isPlatformType(type) || type in TENANT_WIDE_DOMAIN_EVENTS
 
         private val SOURCE_PATTERN = Regex("^/gst/[a-z-]+$")
         private val TYPE_PATTERN = Regex("^com\\.dynokore\\.gst\\.[a-z-]+\\.[A-Za-z]+\\.v[0-9]+$")

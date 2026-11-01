@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.12.0] - 2026-11-02
+### Added
+- `Envelope.allowsTenantWide(type)`: the envelope accepts the tenant-wide entity for the domain event `com.dynokore.gst.transport.AccessPointRouteChanged.v1` (exact type string, a closed set of one; not a platform type, still needs a real tenant) and for no other domain event; `realTenantEntityOf` and `JdbcOutboxWriter` follow (INV-Q-15474, INV-REQ-1162, INV-AC-15489, INV-T-15490).
+
 ## [6.11.0] - 2026-10-31
 ### Added
 - `BreakGlassActionReported` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name; tenant-wide for a real tenant), which now holds the sixteen platform events of INV-REQ-1226 (INV-Q-9313, INV-REQ-1226, INV-AC-9351, INV-T-9352).

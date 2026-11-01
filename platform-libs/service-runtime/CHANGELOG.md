@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.31.2] - 2026-11-02
+### Changed
+- Metadata-only change (INV-T-15490, G-DVS): depends on `outbox-and-queue 6.12.0`, whose version steps; no code change.
+
 ## [10.31.1] - 2026-11-01
 ### Fixed
 - `WorkloadTokenAuthenticationFilter` answers a refused workload token with the closed `SRT-003` problem body (401, `application/problem+json`, `Problems.unauthenticated`, correlation id from `CorrelationContext` or `http:<uuid>`) instead of the container's `sendError` page (INV-T-14795; INV-Q-14751 A, INV-AC-2200).
