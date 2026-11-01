@@ -3,6 +3,9 @@ package com.dynokore.gst.controlPlane.adapters.http
 import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditationCommand
+import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntries
+import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntriesCommand
+import com.dynokore.gst.controlPlane.application.audit.PurgeAuditOutcome
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
@@ -15,6 +18,8 @@ import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
 import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
 import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequest
 import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequestSandboxAcknowledgementsInner
+import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesRequest
+import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesResponse
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResult
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultAccreditationCheck
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultGatesInner
@@ -31,6 +36,8 @@ import com.dynokore.gst.controlPlane.domain.release.SupportWindow
 import com.dynokore.gst.controlPlane.domain.release.TrainKind
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.ProblemResponse
+import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.operation.OperationOutcome
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
@@ -40,6 +47,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
+import tools.jackson.databind.json.JsonMapper
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -48,6 +57,8 @@ import java.util.UUID
  * (API-24); a train is platform data, so the command runs in a transaction bound to the platform tenant. The
  * accreditation task operations of the same contract tag are not overridden here: the generated interface answers
  * 501. recordAccreditation and getAccreditation are (INV-T-7322).
+ * purgeAuditEntries (INV-T-3099) also sits on the `releases` tag; it runs the audited purge of the operator's local
+ * audit entries and maps the outcomes of the use case: SRT-004, CPL-001 and CPL-002, no other.
  */
 @RestController
 @Suppress("LongParameterList") // one constructor-injected controller; each parameter is one collaborator (TPL-18)
@@ -59,6 +70,7 @@ class ReleasesController(
     private val setSupportWindow: SetSupportWindow,
     private val recordAccreditation: RecordAccreditation,
     private val getAccreditation: GetAccreditation,
+    private val purgeAuditEntries: PurgeAuditEntries,
 ) : ReleasesApi {
     override fun recordAccreditation(
         idempotencyKey: UUID,
@@ -195,6 +207,90 @@ class ReleasesController(
         return ResponseEntity
             .status(HttpStatus.CREATED)
             .body(SupportWindowResponse(window.windowVersion, window.trainVersions.map { it.value }))
+    }
+
+    override fun purgeAuditEntries(
+        idempotencyKey: UUID,
+        purgeAuditEntriesRequest: PurgeAuditEntriesRequest,
+    ): ResponseEntity<PurgeAuditEntriesResponse> {
+        val caller = caller()
+        val command =
+            PurgeAuditEntriesCommand(
+                caller.actor,
+                purgeAuditEntriesRequest.cutOff.toInstant(),
+                purgeAuditEntriesRequest.reason,
+                RequestContext(caller.correlationId, idempotencyKey.toString()),
+            )
+        val outcome = platform.bindPlatform(caller.actor) { purgeAuditEntries.execute(command) }
+        return purgeResponse(outcome, purgeAuditEntriesRequest.cutOff, caller.correlationId)
+    }
+
+    private fun purgeResponse(
+        outcome: PurgeAuditOutcome,
+        cutOff: OffsetDateTime,
+        correlationId: String,
+    ): ResponseEntity<PurgeAuditEntriesResponse> =
+        when (outcome) {
+            is PurgeAuditOutcome.Purged -> {
+                ResponseEntity.ok(
+                    PurgeAuditEntriesResponse(
+                        purgeId = outcome.purgeId,
+                        cutOff = cutOff,
+                        floor = outcome.floor.toString(),
+                        deletedCount = outcome.result.deletedCount,
+                        auditEntryId = UUID.fromString(outcome.result.auditEntryId),
+                    ),
+                )
+            }
+
+            PurgeAuditOutcome.NotPermitted -> {
+                problem(ClosedErrorCode.ACCESS_DENIED, correlationId)
+            }
+
+            PurgeAuditOutcome.CutOffYoungerThanFloor -> {
+                val title = "Audit purge cut-off younger than the floor"
+                val refusal = purgeRefusal(CUT_OFF_YOUNGER_THAN_FLOOR, HTTP_UNPROCESSABLE, title, correlationId)
+                throw ProblemException(refusal)
+            }
+
+            PurgeAuditOutcome.FloorUndeterminable -> {
+                val title = "Audit purge floor cannot be determined"
+                val refusal = purgeRefusal(FLOOR_UNDETERMINABLE, HTTP_UNAVAILABLE, title, correlationId)
+                throw ProblemException(refusal)
+            }
+        }
+
+    /** The API-20 envelope of a catalogued CPL refusal of the purge (BLOCK, TERMINAL, owner Platform). */
+    private fun purgeRefusal(
+        code: String,
+        status: Int,
+        title: String,
+        correlationId: String,
+    ): ProblemResponse {
+        val body =
+            linkedMapOf(
+                "type" to Problems.typeOf(code),
+                "title" to title,
+                "status" to status,
+                "code" to code,
+                "severity" to "BLOCK",
+                "disposition" to "TERMINAL",
+                "remediationOwner" to "Platform",
+                "correlationId" to correlationId,
+            )
+        return ProblemResponse(
+            status,
+            mapOf(Problems.CONTENT_TYPE_HEADER to Problems.CONTENT_TYPE),
+            purgeJson.writeValueAsString(body),
+        )
+    }
+
+    private companion object {
+        const val CUT_OFF_YOUNGER_THAN_FLOOR = "CPL-001"
+        const val FLOOR_UNDETERMINABLE = "CPL-002"
+        const val HTTP_UNPROCESSABLE = 422
+        const val HTTP_UNAVAILABLE = 503
+        val purgeJson: JsonMapper = JsonMapper.builder().build()
     }
 
     private class Caller(

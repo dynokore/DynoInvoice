@@ -47,6 +47,8 @@ dependencies {
     runtimeOnly(libs.flyway.databasePostgresql)
     implementation(libs.jooq)
     implementation(libs.platform.crypto.api)
+    // AuditStager, the type AuditPurgeStoreJooq takes (the LocalAuditWriter bean is injected as it)
+    implementation(libs.platform.auditLog.api)
     // EntityRef and TenantId, the parameter types of JobCommandAuthorizer
     implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.platform.tenancyKernel.api)
