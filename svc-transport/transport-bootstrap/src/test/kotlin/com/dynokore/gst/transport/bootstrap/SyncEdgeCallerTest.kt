@@ -136,7 +136,10 @@ class SyncEdgeCallerTest {
     private fun built(): Map<String, CallerChecks.Reach> {
         val payload = Base64.getEncoder().encodeToString("<Invoice/>".toByteArray())
         val body = """{"docUuid":"${UUID.randomUUID()}","version":1,"payload":"$payload","entityRef":"E-001"}"""
-        return mapOf("POST /internal/v1/transport/payloads" to CallerChecks.Reach(ACCEPTED, body))
+        return mapOf(
+            "POST /internal/v1/transport/payloads" to CallerChecks.Reach(ACCEPTED, body),
+            ENTITIES to CallerChecks.Reach(STUB, """{"entityRefs":["E-001"]}"""),
+        )
     }
 
     @Test
@@ -204,6 +207,36 @@ class SyncEdgeCallerTest {
     }
 
     @Test
+    fun `INV-AC-8455 a named caller sending an entity the end user does not cover is refused 403 SRT-004`(
+        @TempDir dir: Path,
+    ) {
+        val operations = operations()
+        val services = namedCallers(operations)
+        val operation = operations.first { it.label == ENTITIES }
+        val caller = services.first { it in operation.callerFields }
+        TransportDb.superuser().use { connection ->
+            val calls = HandlerCalls()
+            serve(dir, services, loader, calls) { context, _ ->
+                val checks =
+                    CallerChecks(
+                        context,
+                        connection,
+                        services,
+                        emptyList(),
+                        calls,
+                        mapOf(ENTITIES to CallerChecks.Reach(STUB, """{"entityRefs":["E-999"]}""")),
+                    )
+                val before = calls.count(operation.label)
+                val answer =
+                    checks.send(operation, mapOf(CallerChecks.TOKEN to "token-$caller", CallerChecks.AUTH to CallerChecks.END_USER))
+                answer.statusCode() shouldBe 403
+                ("SRT-004" in answer.body()) shouldBe true
+                calls.count(operation.label) shouldBe before
+            }
+        }
+    }
+
+    @Test
     fun `INV-AC-8455 the main source sets hold no literal caller name passed to a caller check`() {
         val root = Path.of(System.getProperty("user.dir")).parent
         SourceScan.findings(root, namedCallers(operations()).toSet()).shouldBeEmpty()
@@ -212,6 +245,8 @@ class SyncEdgeCallerTest {
     private companion object {
         const val INTERNAL = "/internal/v1/"
         const val ACCEPTED = 202
+        const val STUB = 501
+        const val ENTITIES = "PUT /internal/v1/transport/connections/{connectionRef}/entities"
         const val UNIQUE = 12
     }
 }

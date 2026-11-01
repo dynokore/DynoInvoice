@@ -6,7 +6,7 @@ import com.dynokore.platform.auditlog.OutboxAuditWriter
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.serviceruntime.composition.OperatorSessionAuditStager
+import com.dynokore.platform.serviceruntime.composition.OperatorSessionAuditWriter
 import com.dynokore.platform.serviceruntime.jobs.FixedDeadlineSource
 import com.dynokore.platform.serviceruntime.jobs.JobCommand
 import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
@@ -16,6 +16,7 @@ import com.dynokore.platform.serviceruntime.jobs.JobEntityScope
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.jobs.JobSchedule
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
+import com.dynokore.platform.serviceruntime.securityevents.SecurityEventAuditWriter
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
@@ -75,12 +76,21 @@ class JobRuntimeConfigurationTest {
             }
     }
 
-    /** service-runtime wraps every AuditWriter bean in the stager (INV-Q-4521, INV-Q-11100 A): the class behind it. */
-    private fun delegateClass(context: ApplicationContext): KClass<*> =
-        context
-            .getBean(AuditWriter::class.java)
-            .shouldBeInstanceOf<OperatorSessionAuditStager>()
-            .delegate::class
+    /**
+     * service-runtime wraps every AuditWriter bean in the operator-session and security-event writers (INV-Q-4521,
+     * INV-Q-11100 A): the class of the first bean behind them. A wrapper of any other class is returned as that class.
+     */
+    private fun delegateClass(context: ApplicationContext): KClass<*> {
+        var writer: AuditWriter = context.getBean(AuditWriter::class.java)
+        while (true) {
+            writer =
+                when (writer) {
+                    is OperatorSessionAuditWriter -> writer.delegate
+                    is SecurityEventAuditWriter -> writer.delegate
+                    else -> return writer::class
+                }
+        }
+    }
 
     private class LocalAuditWriter : AuditWriter {
         override fun record(

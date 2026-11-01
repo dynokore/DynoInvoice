@@ -34,7 +34,7 @@ class TestWorkloadVerifier {
     @Primary
     fun testEndUserResolver(): EndUserPrincipalResolver =
         EndUserPrincipalResolver { authorization ->
-            authorization?.let { EndUserPrincipal("end-user-1", TenantId(TENANT), emptySet()) }
+            authorization?.let { EndUserPrincipal("end-user-1", TenantId(TENANT), setOf("E-001")) }
         }
 
     companion object {
