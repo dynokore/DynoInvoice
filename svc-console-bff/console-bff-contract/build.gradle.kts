@@ -23,6 +23,9 @@ dependencies {
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)
     implementation(libs.jackson.moduleKotlin)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platformLauncher)
     constraints {
         implementation(libs.tomcat.embedCore)
         implementation(libs.tomcat.embedEl)
