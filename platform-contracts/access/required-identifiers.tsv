@@ -144,3 +144,10 @@ SoleOperatorAcknowledgementState.tenantRef	schema_property	openapi.yaml	INV-REQ-
 SoleOperatorAcknowledgementState.recorded	schema_property	openapi.yaml	INV-REQ-875
 SoleOperatorAcknowledgementState.ackRef	schema_property	openapi.yaml	INV-REQ-875
 incarnation	property	schemas/authority-head-observed-payload.schema.json	INV-REQ-1201
+# INV-T-16087. The proposedProfile carrier of the agent's profile proposal in the consent request and response, by ruling INV-Q-16080 (option A) on INV-Q-2351.
+proposedProfile	property	openapi.yaml	INV-REQ-1256
+ProposedProfile.profileRef	schema_property	openapi.yaml	INV-REQ-1256
+ProposedProfile.profileVersion	schema_property	openapi.yaml	INV-REQ-1256
+proposedProfile	property	openapi.yaml	INV-REQ-1257
+ProposedProfile.profileRef	schema_property	openapi.yaml	INV-REQ-1257
+ProposedProfile.profileVersion	schema_property	openapi.yaml	INV-REQ-1257
