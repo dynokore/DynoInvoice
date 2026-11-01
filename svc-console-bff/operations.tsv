@@ -1,0 +1,8 @@
+kind	id	task
+operation	getExceptions	UNASSIGNED
+operation	overrideException	UNASSIGNED
+operation	createAuditPackExport	UNASSIGNED
+operation	correctPersonalData	UNASSIGNED
+operation	copyAnonymisedSample	UNASSIGNED
+operation	exportSupportBundle	UNASSIGNED
+channel	gst.console-bff.example-happened.v1	UNASSIGNED
