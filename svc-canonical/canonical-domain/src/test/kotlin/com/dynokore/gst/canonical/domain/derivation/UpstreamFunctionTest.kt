@@ -4,6 +4,8 @@ import com.dynokore.gst.canonical.domain.netting.DocumentFunction
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
+private const val MAIN = "canonical-domain/src/main/kotlin/com/dynokore/gst/canonical/domain/derivation"
+
 class UpstreamFunctionTest {
     private val expected =
         mapOf(
@@ -35,7 +37,7 @@ class UpstreamFunctionTest {
                 .map {
                     java.io.File(
                         it,
-                        "canonical-domain/src/main/kotlin/com/dynokore/gst/canonical/domain/derivation/UpstreamFunction.kt",
+                        "$MAIN/UpstreamFunction.kt",
                     )
                 }.first { it.isFile }
         val code =

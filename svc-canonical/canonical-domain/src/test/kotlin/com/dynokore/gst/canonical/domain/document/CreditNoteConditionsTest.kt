@@ -8,6 +8,7 @@ class CreditNoteConditionsTest {
     private val ing019 = listOf(ConditionViolation("ING-019", 400))
     private val srt001 = listOf(ConditionViolation("SRT-001", 400))
 
+    @Suppress("LongParameterList")
     private fun decide(
         function: DocumentFunction,
         number: Boolean = false,
