@@ -96,7 +96,7 @@ class CreditNoteCoding(
                 justificationNote =
                     if (basis == RateDateBasis.OWN_DATE_BLANK_LINKED) {
                         "Rate-change straddle considered: no preceding document stated, resolved by own date " +
-                            "${command.ownDate}"
+                            "${command.ownDate.value}"
                     } else {
                         null
                     },

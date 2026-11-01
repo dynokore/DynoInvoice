@@ -25,6 +25,7 @@ import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
@@ -90,27 +91,39 @@ class RateStraddleTest {
         rate("rate-9", LocalDate.of(2026, 1, 1), change)
         rate("rate-10", change, null)
         val resolver = PackResolver(registry)
+        val rates = mapOf("rate-9" to "9", "rate-10" to "10")
+        val appliedVersions = mutableListOf<String>()
+        // the coder under test reads its catalogue through the resolver, so the version it records is the one it coded by
+        val resolvedCoder =
+            DocumentCoder(
+                { _, _ -> listOf(MappingEntry("STD", "SR")) },
+                { _, d ->
+                    val applied =
+                        resolver
+                            .resolve(listOf(PackTypes.CODE_CATALOGUE), null, ResolutionDates(d))
+                            .shouldBeInstanceOf<PackResolution.Resolved>()
+                            .binding
+                            .appliedFor(PackTypes.CODE_CATALOGUE)!!
+                    appliedVersions += applied.version.value
+                    catalogue(rates.getValue(applied.version.value))
+                },
+                { _, _ -> scenario },
+            )
 
-        fun applied(date: LocalDate) =
-            resolver
-                .resolve(listOf(PackTypes.CODE_CATALOGUE), null, ResolutionDates(TransactionDate(date)))
-                .shouldBeInstanceOf<PackResolution.Resolved>()
-                .binding
-                .appliedFor(PackTypes.CODE_CATALOGUE)!!
-                .version.value
+        fun codedAt(date: LocalDate) =
+            resolvedCoder
+                .code(CodeDocumentCommand(null, TransactionDate(date), listOf(line)))
+                .shouldBeInstanceOf<DocumentCodingResult.Coded>()
+                .document.lines
+                .single()
         // both are processed on the same day: only the document's date selects the version
-        applied(before) shouldBe "rate-9"
-        applied(change) shouldBe "rate-10"
-        invoice(before)
-            .document.lines
-            .single()
-            .rate
-            .compareTo(BigDecimal("9")) shouldBe 0
-        invoice(change)
-            .document.lines
-            .single()
-            .rate
-            .compareTo(BigDecimal("10")) shouldBe 0
+        val old = codedAt(before)
+        val new = codedAt(change)
+        appliedVersions shouldBe listOf("rate-9", "rate-10")
+        old.rate.compareTo(BigDecimal("9")) shouldBe 0
+        old.categoryCode shouldBe "SR"
+        new.rate.compareTo(BigDecimal("10")) shouldBe 0
+        new.categoryCode shouldBe "SR"
     }
 
     @Test
@@ -144,7 +157,14 @@ class RateStraddleTest {
             .single()
             .rate
             .compareTo(BigDecimal("10")) shouldBe 0
+        result.document.lines
+            .single()
+            .categoryCode shouldBe "SR"
+        result.trace.ownDate.value shouldBe before
+        result.trace.precedingDate!!.value shouldBe change.plusDays(3)
         result.trace.rateDate.value shouldBe change.plusDays(3)
+        result.trace.basis shouldBe RateDateBasis.PRECEDING_DATE_STATED
+        result.trace.justificationNote shouldBe null
     }
 
     @Test
@@ -173,6 +193,7 @@ class RateStraddleTest {
         result.trace.rateDate.value shouldBe creditDate
         result.trace.justificationNote!!.length shouldBeGreaterThan 0
         result.trace.justificationNote shouldContain creditDate.toString()
+        result.trace.justificationNote shouldNotContain "TransactionDate"
         (result.trace.justificationNote.length <= 200) shouldBe true
     }
 
@@ -183,8 +204,16 @@ class RateStraddleTest {
             .single()
             .rate
             .compareTo(BigDecimal("9")) shouldBe 0
+        result.document.lines
+            .single()
+            .categoryCode shouldBe "SR"
+        result.trace.ownDate.value shouldBe before
+        result.trace.precedingDate shouldBe null
         result.trace.rateDate.value shouldBe before
+        result.trace.basis shouldBe RateDateBasis.OWN_DATE_BLANK_LINKED
         result.trace.justificationNote!!.length shouldBeGreaterThan 0
+        result.trace.justificationNote shouldContain before.toString()
+        (result.trace.justificationNote.length <= 200) shouldBe true
     }
 
     @Test
