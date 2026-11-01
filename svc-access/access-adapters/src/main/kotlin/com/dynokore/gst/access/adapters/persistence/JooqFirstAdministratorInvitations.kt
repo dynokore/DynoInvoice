@@ -4,9 +4,11 @@ import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.FIRST
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ROLE_GRANT
 import com.dynokore.gst.access.application.invitation.FirstAdministratorInvitations
 import com.dynokore.gst.access.application.invitation.InvitationRecord
+import com.dynokore.gst.access.application.invitation.InvitationReplacement
 import com.dynokore.gst.access.application.invitation.LiveAdminGrant
 import com.dynokore.gst.access.application.invitation.NewInvitation
 import com.dynokore.gst.access.application.invitation.StoredInvitation
+import com.dynokore.gst.access.application.invitation.StoredReissue
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.outboxandqueue.UuidV7
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -17,7 +19,6 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
-import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -51,6 +52,21 @@ class JooqFirstAdministratorInvitations(
                     grantRef = it.grantRef.column("grant_ref"),
                     codeKeyVersion = it.codeKeyVersion.column("code_key_version"),
                     requestFingerprint = it.requestFingerprint.column("request_fingerprint"),
+                    reissued = it.reissueKey != null,
+                )
+            }
+
+    override fun findByReissueKey(key: UUID): StoredReissue? =
+        dsl
+            .selectFrom(FIRST_ADMINISTRATOR_INVITATION)
+            .where(FIRST_ADMINISTRATOR_INVITATION.REISSUE_KEY.eq(key))
+            .fetchOne()
+            ?.let {
+                StoredReissue(
+                    invitationRef = it.invitationRef.column("invitation_ref"),
+                    grantRef = it.grantRef.column("grant_ref"),
+                    codeKeyVersion = it.codeKeyVersion.column("code_key_version"),
+                    reissueFingerprint = it.reissueFingerprint.column("reissue_fingerprint"),
                 )
             }
 
@@ -144,20 +160,19 @@ class JooqFirstAdministratorInvitations(
 
     override fun reissue(
         grantRef: String,
-        invitationRef: String,
-        codeDigest: String,
-        codeKeyVersion: String,
-        expiresAt: Instant,
+        replacement: InvitationReplacement,
     ) {
         val actor =
             checkNotNull(tenants.currentActor()) { "no actor is bound: a reissue runs in a bound transaction" }
         val updated =
             dsl
                 .update(FIRST_ADMINISTRATOR_INVITATION)
-                .set(FIRST_ADMINISTRATOR_INVITATION.INVITATION_REF, invitationRef)
-                .set(FIRST_ADMINISTRATOR_INVITATION.CODE_DIGEST, codeDigest)
-                .set(FIRST_ADMINISTRATOR_INVITATION.CODE_KEY_VERSION, codeKeyVersion)
-                .set(FIRST_ADMINISTRATOR_INVITATION.EXPIRES_AT, expiresAt.atOffset(ZoneOffset.UTC))
+                .set(FIRST_ADMINISTRATOR_INVITATION.INVITATION_REF, replacement.invitationRef)
+                .set(FIRST_ADMINISTRATOR_INVITATION.CODE_DIGEST, replacement.codeDigest)
+                .set(FIRST_ADMINISTRATOR_INVITATION.CODE_KEY_VERSION, replacement.codeKeyVersion)
+                .set(FIRST_ADMINISTRATOR_INVITATION.EXPIRES_AT, replacement.expiresAt.atOffset(ZoneOffset.UTC))
+                .set(FIRST_ADMINISTRATOR_INVITATION.REISSUE_KEY, replacement.reissueKey)
+                .set(FIRST_ADMINISTRATOR_INVITATION.REISSUE_FINGERPRINT, replacement.reissueFingerprint)
                 .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_AT, clock.instant().atOffset(ZoneOffset.UTC))
                 .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_BY, actor)
                 .set(FIRST_ADMINISTRATOR_INVITATION.VERSION, FIRST_ADMINISTRATOR_INVITATION.VERSION.plus(1L))

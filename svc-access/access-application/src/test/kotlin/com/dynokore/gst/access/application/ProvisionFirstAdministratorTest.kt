@@ -81,6 +81,8 @@ class ProvisionFirstAdministratorTest {
 
         override fun findByKey(key: UUID): StoredInvitation? = null
 
+        override fun findByReissueKey(key: UUID) = null
+
         override fun insert(invitation: NewInvitation) {
             stored += invitation
         }
@@ -99,10 +101,7 @@ class ProvisionFirstAdministratorTest {
 
         override fun reissue(
             grantRef: String,
-            invitationRef: String,
-            codeDigest: String,
-            codeKeyVersion: String,
-            expiresAt: java.time.Instant,
+            replacement: com.dynokore.gst.access.application.invitation.InvitationReplacement,
         ) = error("not used")
     }
 

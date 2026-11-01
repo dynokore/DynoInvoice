@@ -58,6 +58,26 @@ data class StoredInvitation(
     val grantRef: String,
     val codeKeyVersion: String,
     val requestFingerprint: String,
+    /** True once the invitation was reissued: the row then holds a newer invitation and this one is void. */
+    val reissued: Boolean = false,
+)
+
+/** What a reissue writes on the invitation row: the new reference, digest, key version, expiry and the reissue key. */
+data class InvitationReplacement(
+    val invitationRef: String,
+    val codeDigest: String,
+    val codeKeyVersion: String,
+    val expiresAt: Instant,
+    val reissueKey: UUID,
+    val reissueFingerprint: String,
+)
+
+/** The invitation row a reissue key was stored on (the latest reissue of the grant). */
+data class StoredReissue(
+    val invitationRef: String,
+    val grantRef: String,
+    val codeKeyVersion: String,
+    val reissueFingerprint: String,
 )
 
 /** A stored invitation as an acceptance needs it; [codeDigest] is null once the invitation was accepted. */
@@ -101,6 +121,9 @@ interface FirstAdministratorInvitations {
 
     fun findByKey(key: UUID): StoredInvitation?
 
+    /** The invitation of the bound tenant whose latest reissue used this key. */
+    fun findByReissueKey(key: UUID): StoredReissue?
+
     fun insert(invitation: NewInvitation)
 
     /** The invitation of the bound tenant with this reference. */
@@ -125,9 +148,6 @@ interface FirstAdministratorInvitations {
      */
     fun reissue(
         grantRef: String,
-        invitationRef: String,
-        codeDigest: String,
-        codeKeyVersion: String,
-        expiresAt: Instant,
+        replacement: InvitationReplacement,
     )
 }

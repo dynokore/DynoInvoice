@@ -4,13 +4,18 @@ import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
+import java.util.HexFormat
+import java.util.UUID
 
 /** What the caller of reissueFirstAdministratorInvitation asks for; the tenant is the one the inbound adapter bound. */
 data class ReissueFirstAdministratorInvitationCommand(
     val tenant: TenantRef,
     val actor: String,
+    val idempotencyKey: UUID,
     val invitationExpiresAt: Instant,
 )
 
@@ -21,6 +26,9 @@ sealed interface ReissueFirstAdministratorInvitationOutcome {
         val invitationRef: String,
         val invitationCode: String,
     ) : ReissueFirstAdministratorInvitationOutcome
+
+    /** 422: the same key with another request (API-15); nothing is stored. */
+    data object DifferentRequest : ReissueFirstAdministratorInvitationOutcome
 
     /** 409: the tenant is not in the one state a reissue is allowed in; nothing is stored. */
     data object NotReissuable : ReissueFirstAdministratorInvitationOutcome
@@ -59,20 +67,68 @@ class ReissueFirstAdministratorInvitation(
         command: ReissueFirstAdministratorInvitationCommand,
     ): ReissueFirstAdministratorInvitationOutcome {
         invitations.lockTenant()
+        val fingerprint = fingerprintOf(command)
+        val stored = invitations.findByReissueKey(command.idempotencyKey)
+        if (stored != null) return repeat(command, stored, fingerprint)
         val live = invitations.liveTenantAdminGrants().singleOrNull()
-        val oldRef = live?.invitationRef
-        val expiry = live?.invitationExpiresAt
-        if (live == null || live.status != PENDING || oldRef == null || expiry == null) {
-            return ReissueFirstAdministratorInvitationOutcome.NotReissuable
+        return if (live != null && isExpiredPending(live)) {
+            renew(command, live, checkNotNull(live.invitationRef), fingerprint)
+        } else {
+            ReissueFirstAdministratorInvitationOutcome.NotReissuable
         }
-        // at the exact stored instant the invitation is not expired
-        if (!expiry.isBefore(clock.instant())) return ReissueFirstAdministratorInvitationOutcome.NotReissuable
+    }
+
+    /** A repeat of the latest reissue key: the stored data again, whatever the grant, expiry or clock are now. */
+    private fun repeat(
+        command: ReissueFirstAdministratorInvitationCommand,
+        stored: StoredReissue,
+        fingerprint: String,
+    ): ReissueFirstAdministratorInvitationOutcome {
+        if (stored.reissueFingerprint != fingerprint) return ReissueFirstAdministratorInvitationOutcome.DifferentRequest
+        return ReissueFirstAdministratorInvitationOutcome.Reissued(
+            grantRef = stored.grantRef,
+            invitationRef = stored.invitationRef,
+            invitationCode = codes.codeOf(command.tenant, stored.invitationRef, stored.codeKeyVersion),
+        )
+    }
+
+    private fun fingerprintOf(command: ReissueFirstAdministratorInvitationCommand): String =
+        HexFormat.of().formatHex(
+            MessageDigest
+                .getInstance("SHA-256")
+                .digest(
+                    "${command.tenant.value}:${command.invitationExpiresAt}".toByteArray(StandardCharsets.UTF_8),
+                ),
+        )
+
+    /** A PENDING grant with an invitation whose stored expiry is before the call instant (at the exact instant: no). */
+    private fun isExpiredPending(live: LiveAdminGrant): Boolean {
+        val expiry = live.invitationExpiresAt
+        return live.status == PENDING && live.invitationRef != null && expiry?.isBefore(clock.instant()) == true
+    }
+
+    private fun renew(
+        command: ReissueFirstAdministratorInvitationCommand,
+        live: LiveAdminGrant,
+        oldRef: String,
+        fingerprint: String,
+    ): ReissueFirstAdministratorInvitationOutcome {
         val newRef = refs.next()
         check(newRef.length <= InvitationRefs.MAX_LENGTH) { "the invitation reference is too long" }
         val keyVersion = settings.currentKeyVersion
         // the code is derived before anything is written: an unreadable key stores nothing
         val code = codes.codeOf(command.tenant, newRef, keyVersion)
-        invitations.reissue(live.grantRef, newRef, codes.digestOf(code), keyVersion, command.invitationExpiresAt)
+        invitations.reissue(
+            live.grantRef,
+            InvitationReplacement(
+                newRef,
+                codes.digestOf(code),
+                keyVersion,
+                command.invitationExpiresAt,
+                command.idempotencyKey,
+                fingerprint,
+            ),
+        )
         audit.record(
             GrantAuditEntry(
                 actor = command.actor,

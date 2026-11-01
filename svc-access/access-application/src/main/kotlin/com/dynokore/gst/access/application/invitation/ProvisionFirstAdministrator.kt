@@ -52,6 +52,9 @@ sealed interface ProvisionFirstAdministratorOutcome {
     /** 409: the tenant holds a `tenant.admin` grant that is ACTIVE or PENDING. */
     data object TenantHasAdministrator : ProvisionFirstAdministratorOutcome
 
+    /** A repeat of the original key after a reissue: the invitation that call issued is void (INV-Q-15861 A). */
+    data object InvitationReissued : ProvisionFirstAdministratorOutcome
+
     /** The same key with another request (API-15). */
     data object DifferentRequest : ProvisionFirstAdministratorOutcome
 
@@ -101,15 +104,25 @@ class ProvisionFirstAdministrator(
         command: ProvisionFirstAdministratorCommand,
         existing: StoredInvitation,
         fingerprint: String,
-    ): ProvisionFirstAdministratorOutcome {
-        if (existing.requestFingerprint != fingerprint) return ProvisionFirstAdministratorOutcome.DifferentRequest
-        return ProvisionFirstAdministratorOutcome.Provisioned(
-            grantRef = existing.grantRef,
-            invitationRef = existing.invitationRef,
-            invitationCode = codes.codeOf(command.tenant, existing.invitationRef, existing.codeKeyVersion),
-            repeated = true,
-        )
-    }
+    ): ProvisionFirstAdministratorOutcome =
+        when {
+            existing.requestFingerprint != fingerprint -> {
+                ProvisionFirstAdministratorOutcome.DifferentRequest
+            }
+
+            existing.reissued -> {
+                ProvisionFirstAdministratorOutcome.InvitationReissued
+            }
+
+            else -> {
+                ProvisionFirstAdministratorOutcome.Provisioned(
+                    grantRef = existing.grantRef,
+                    invitationRef = existing.invitationRef,
+                    invitationCode = codes.codeOf(command.tenant, existing.invitationRef, existing.codeKeyVersion),
+                    repeated = true,
+                )
+            }
+        }
 
     private fun first(
         command: ProvisionFirstAdministratorCommand,
