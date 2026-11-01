@@ -546,10 +546,21 @@ def parse_consumed_events(path: Path) -> tuple[list[dict], list[str]]:
     outside that shape is an error, never skipped."""
     entries: list[dict] = []
     errors: list[str] = []
-    in_block, cur, in_producers = False, None, False
+    in_block, cur, in_producers, seen_key = False, None, False, False
     for line in path.read_text().splitlines():
         if line and not line[0].isspace():
-            in_block = line.rstrip() == f"{_CONSUMED_KEY}:"
+            exact = line.rstrip() == f"{_CONSUMED_KEY}:"
+            if in_block and line.startswith("-"):
+                errors.append(f"{path}: {_CONSUMED_KEY} uses an unsupported compact sequence style;"
+                              " indent the entries by two spaces")
+                continue
+            if re.match(rf"^[\"']?{re.escape(_CONSUMED_KEY)}[\"']?\s*:", line) and not exact:
+                errors.append(f"{path}: {_CONSUMED_KEY} must be exactly '{_CONSUMED_KEY}:' on its own line"
+                              " (no value, anchor, flow sequence or comment)")
+            elif exact and seen_key:
+                errors.append(f"{path}: {_CONSUMED_KEY} is declared more than once")
+            seen_key = seen_key or exact
+            in_block = exact
             cur, in_producers = None, False
             continue
         if not in_block or not line.strip() or line.lstrip().startswith("#"):

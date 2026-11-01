@@ -593,6 +593,32 @@ class ConsumedEventsTest(unittest.TestCase):
     def test_entry_in_a_non_subscriber_fails(self):
         self._edit("x-consumed-events:\n" + self.ENTRY, "", move=True)
 
+    def _root_edit(self, new: str):
+        for mode in ("--write", "--check"):
+            repo = self._copy()
+            f = repo / "access" / "asyncapi.yaml"
+            text = f.read_text()
+            old = "x-consumed-events:\n" + self.ENTRY
+            self.assertIn(old, text)
+            f.write_text(text.replace(old, new, 1))
+            code, out = self._run(repo, mode)
+            self.assertEqual(code, 1, (mode, new, out))
+            self.assertIn("access/asyncapi.yaml", out)
+
+    def test_compact_sequence_style_fails(self):
+        self._root_edit("x-consumed-events:\n- event_type: com.dynokore.gst.platform.BreakGlassActionReported.v1\n"
+                        f"  topic: {self.TOPIC}\n  producers:\n  - evil-svc\n")
+
+    def test_anchor_or_comment_on_the_key_line_fails(self):
+        for head in ("x-consumed-events: &a\n", "x-consumed-events: # note\n"):
+            self._root_edit(head + self.ENTRY)
+
+    def test_flow_sequence_fails(self):
+        self._root_edit("x-consumed-events: [{event_type: x, topic: y, producers: [evil-svc]}]\n")
+
+    def test_key_declared_twice_fails(self):
+        self._root_edit("x-consumed-events:\n" + self.ENTRY + "x-consumed-events:\n" + self.ENTRY)
+
 
 if __name__ == "__main__":
     unittest.main()
