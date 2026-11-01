@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1273,13 +1273,21 @@ components:
         precedingDocumentNumber:
           type: string
           maxLength: 64
-          description: The preceding document's number, for a credit note (INV-REQ-701 b3).
+          description: >-
+            The preceding document's number, for a credit note (INV-REQ-701 b3). The caller
+            (canonical-svc) looks up the entity's document of that number and sends
+            `precedingDocumentDate` when it found one. A credit note with this number and no
+            `precedingDocumentDate` means the caller found none, and rules-svc answers RUL-008
+            (INV-REQ-701 behavior 3, INV-AC-1819, INV-Q-14404 A).
         precedingDocumentDate:
           type: string
           format: date
           description: >-
             The preceding document's transaction date. When populated, the rate, category code
             and mapping resolve by it (INV-REQ-701 b1, INV-REQ-362 b4).
+            The caller (canonical-svc) sends it when its lookup of the document named by
+            `precedingDocumentNumber` found one; a credit note with the number and no date is
+            answered with RUL-008 (INV-REQ-701 behavior 3, INV-AC-1819, INV-Q-14404 A).
         lineSign:
           type: string
           enum: [POSITIVE, NEGATIVE, ZERO]
@@ -1328,6 +1336,18 @@ components:
         decisionTrace:
           type: object
           additionalProperties: true
+          description: >-
+            The free-form trace of the decision. The trace of a credit note names the keys
+            `ownDate`, `precedingDate` (absent when blank) and `rateDate` (ISO dates)
+            (INV-REQ-685, INV-AC-746).
+        straddleNote:
+          type: string
+          maxLength: 200
+          description: >-
+            Present exactly when the document is a credit note whose `precedingDocumentNumber`
+            and `precedingDocumentDate` are both blank; it names the credit note's own date and
+            says a rate-change straddle was considered. Absent otherwise. Enforced by rules-svc;
+            canonical-svc records it (INV-REQ-702, INV-Q-14412 A).
         documentFunction:
           type: string
           enum: [BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
