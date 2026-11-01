@@ -42,7 +42,7 @@ data class ReplayNode(
     val profileEffectiveDate: LocalDate?,
 )
 
-/** The position after a state: the kind and ref of the last state returned (kinds in the order of [KINDS]). */
+/** The position after a state: the kind and ref of the last state returned (nodes are ordered TENANT, GROUP, ENTITY, BUSINESS_UNIT, then by ref). */
 data class ReplayCursor(
     val type: NodeType,
     val ref: String,
@@ -67,7 +67,7 @@ interface ReplayReader {
     /** Every tenant that holds state, outside any tenant binding. */
     fun tenantIds(): List<TenantId>
 
-    /** Up to [limit] nodes (the tenant, groups, entities, business units) within [scope] strictly after [after]. */
+    /** Up to [limit] the tenant, groups, entities and business units within [scope] strictly after [after], in a stable order. */
     fun structure(
         scope: ReplayScope?,
         after: ReplayCursor?,
