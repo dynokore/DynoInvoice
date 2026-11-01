@@ -117,6 +117,7 @@ class JooqGrantRepository(
             dsl
                 .update(ROLE_GRANT)
                 .set(ROLE_GRANT.STATUS, after.status.name)
+                .set(ROLE_GRANT.IDENTITY_REF, after.identity.value)
                 .set(ROLE_GRANT.UPDATED_AT, now())
                 .set(ROLE_GRANT.UPDATED_BY, actor())
                 .set(ROLE_GRANT.VERSION, after.version)

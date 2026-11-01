@@ -81,6 +81,21 @@ class Grant(
             Grant(header, role, scope, window, GrantState(GrantStatus.REVOKED, source, version + 1, sourceRef))
         }
 
+    /**
+     * The same PENDING grant, ACTIVE and given to [bound] (INV-FLOW-227 step 3). Only a PENDING grant is accepted: any
+     * other status is a programming error of the caller, which checks the status first.
+     */
+    fun accepted(bound: IdentityRef): Grant {
+        check(status == GrantStatus.PENDING) { "only a pending grant is accepted" }
+        return Grant(
+            GrantHeader(ref, tenant, bound),
+            role,
+            scope,
+            window,
+            GrantState(GrantStatus.ACTIVE, source, version + 1, sourceRef),
+        )
+    }
+
     companion object {
         /** A new grant at version 0: active and by hand unless [state] says how it was provisioned. */
         fun issue(

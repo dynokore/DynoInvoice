@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.application.invitation
 
 import com.dynokore.gst.access.domain.grant.TenantRef
+import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Instant
 import java.util.UUID
 
@@ -59,6 +60,21 @@ data class StoredInvitation(
     val requestFingerprint: String,
 )
 
+/** A stored invitation as an acceptance needs it; [codeDigest] is null once the invitation was accepted. */
+data class InvitationRecord(
+    val grantRef: String,
+    val expiresAt: Instant,
+    val codeDigest: String?,
+    val acceptKey: UUID? = null,
+    val acceptFingerprint: String? = null,
+)
+
+/** The tenant of an invitation, found from its reference alone (the token of an acceptance carries no tenant). */
+fun interface InvitationTenantLookup {
+    /** The tenant of [invitationRef], or null when none has that reference; runs under the platform binding. */
+    fun tenantOf(invitationRef: String): TenantId?
+}
+
 data class NewInvitation(
     val invitationRef: String,
     val grantRef: String,
@@ -78,6 +94,16 @@ interface FirstAdministratorInvitations {
     fun findByKey(key: UUID): StoredInvitation?
 
     fun insert(invitation: NewInvitation)
+
+    /** The invitation of the bound tenant with this reference. */
+    fun findByRef(invitationRef: String): InvitationRecord?
+
+    /** Clears the code digest so the code cannot be used again and stores the key and fingerprint of the acceptance. */
+    fun markAccepted(
+        invitationRef: String,
+        acceptKey: UUID,
+        acceptFingerprint: String,
+    )
 
     /** Whether the bound tenant has a `tenant.admin` grant that is ACTIVE or PENDING, whatever scope or source. */
     fun holdsLiveTenantAdminGrant(): Boolean

@@ -8,6 +8,8 @@ import com.dynokore.gst.access.application.grant.RevokeGrantUseCase
 import com.dynokore.gst.access.application.landing.ChooseLandingOutcome
 import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.contract.api.GrantsApi
+import com.dynokore.gst.access.contract.model.AcceptFirstAdministratorInvitationRequest
+import com.dynokore.gst.access.contract.model.AcceptFirstAdministratorInvitationResponse
 import com.dynokore.gst.access.contract.model.FirstAdministratorRequest
 import com.dynokore.gst.access.contract.model.FirstAdministratorResponse
 import com.dynokore.gst.access.contract.model.GrantRequest
@@ -51,7 +53,7 @@ open class GrantsController(
     private val tenants: TenantContext,
     private val manager: GrantManagerCheck,
     private val landing: LandingScreens,
-    private val provisioning: FirstAdministratorProvisioning,
+    private val firstAdministrator: FirstAdministratorEndpoints,
 ) : GrantsApi {
     override fun grantRole(
         idempotencyKey: UUID,
@@ -102,12 +104,21 @@ open class GrantsController(
     override fun provisionFirstAdministrator(
         idempotencyKey: UUID,
         firstAdministratorRequest: FirstAdministratorRequest,
-    ): ResponseEntity<FirstAdministratorResponse> = provisioning.provision(idempotencyKey, firstAdministratorRequest)
+    ): ResponseEntity<FirstAdministratorResponse> =
+        firstAdministrator.provisioning.provision(idempotencyKey, firstAdministratorRequest)
 
     override fun provisionInstallationFirstAdministrator(
         idempotencyKey: UUID,
         firstAdministratorRequest: FirstAdministratorRequest,
-    ): ResponseEntity<FirstAdministratorResponse> = provisioning.provision(idempotencyKey, firstAdministratorRequest)
+    ): ResponseEntity<FirstAdministratorResponse> =
+        firstAdministrator.provisioning.provision(idempotencyKey, firstAdministratorRequest)
+
+    override fun acceptFirstAdministratorInvitation(
+        invitationRef: String,
+        idempotencyKey: UUID,
+        acceptFirstAdministratorInvitationRequest: AcceptFirstAdministratorInvitationRequest,
+    ): ResponseEntity<AcceptFirstAdministratorInvitationResponse> =
+        firstAdministrator.acceptance.accept(invitationRef, idempotencyKey, acceptFirstAdministratorInvitationRequest)
 
     override fun revokeGrant(
         grantRef: String,

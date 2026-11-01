@@ -8,6 +8,7 @@ import com.dynokore.gst.access.application.invitation.FirstAdministratorInvitati
 import com.dynokore.gst.access.application.invitation.InvitationCodes
 import com.dynokore.gst.access.application.invitation.InvitationIdentity
 import com.dynokore.gst.access.application.invitation.InvitationKeyUnavailable
+import com.dynokore.gst.access.application.invitation.InvitationRecord
 import com.dynokore.gst.access.application.invitation.InvitationRefs
 import com.dynokore.gst.access.application.invitation.InvitationSettings
 import com.dynokore.gst.access.application.invitation.NewInvitation
@@ -82,6 +83,14 @@ class ProvisionFirstAdministratorTest {
         override fun insert(invitation: NewInvitation) {
             stored += invitation
         }
+
+        override fun findByRef(invitationRef: String): InvitationRecord? = null
+
+        override fun markAccepted(
+            invitationRef: String,
+            acceptKey: java.util.UUID,
+            acceptFingerprint: String,
+        ) = error("not used")
 
         override fun holdsLiveTenantAdminGrant() = false
     }

@@ -1,19 +1,27 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.http.FirstAdministratorAcceptance
+import com.dynokore.gst.access.adapters.http.FirstAdministratorEndpoints
 import com.dynokore.gst.access.adapters.http.FirstAdministratorProvisioning
 import com.dynokore.gst.access.adapters.invitation.HmacInvitationCodes
 import com.dynokore.gst.access.adapters.invitation.RandomInvitationRefs
 import com.dynokore.gst.access.adapters.persistence.JooqFirstAdministratorInvitations
+import com.dynokore.gst.access.adapters.persistence.JooqInvitationTenantLookup
+import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.invitation.AcceptFirstAdministratorEffects
+import com.dynokore.gst.access.application.invitation.AcceptFirstAdministratorInvitation
 import com.dynokore.gst.access.application.invitation.FirstAdministratorEffects
 import com.dynokore.gst.access.application.invitation.FirstAdministratorInvitations
 import com.dynokore.gst.access.application.invitation.InvitationCodes
 import com.dynokore.gst.access.application.invitation.InvitationRefs
 import com.dynokore.gst.access.application.invitation.InvitationSettings
+import com.dynokore.gst.access.application.invitation.InvitationTenantLookup
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministrator
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.identity.ServiceCaller
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServletRequest
@@ -58,6 +66,49 @@ class InvitationUseCases {
         request: HttpServletRequest,
         serviceCaller: ServiceCaller,
     ) = FirstAdministratorProvisioning(useCase, tenants, request, serviceCaller)
+
+    @Bean
+    fun invitationTenantLookup(
+        dsl: DSLContext,
+        tx: TransactionRunner,
+    ): InvitationTenantLookup = JooqInvitationTenantLookup(dsl, tx)
+
+    @Bean
+    fun firstAdministratorEndpoints(
+        provisioning: FirstAdministratorProvisioning,
+        acceptance: FirstAdministratorAcceptance,
+    ) = FirstAdministratorEndpoints(provisioning, acceptance)
+
+    @Bean
+    fun firstAdministratorAcceptance(
+        useCase: AcceptFirstAdministratorInvitation,
+        lookup: InvitationTenantLookup,
+        platform: PlatformTenantBinding,
+        tenants: TenantContext,
+        request: HttpServletRequest,
+    ) = FirstAdministratorAcceptance(useCase, lookup, platform, tenants, request)
+
+    @Bean
+    fun acceptFirstAdministratorEffects(
+        invitations: FirstAdministratorInvitations,
+        codes: InvitationCodes,
+        publisher: AuthorityChangePublisher,
+        audit: GrantAudit,
+    ) = AcceptFirstAdministratorEffects(invitations, codes, publisher, audit)
+
+    @Bean
+    fun acceptFirstAdministratorInvitation(
+        dependencies: GrantDependencies,
+        effects: AcceptFirstAdministratorEffects,
+        clock: Clock,
+    ) = AcceptFirstAdministratorInvitation(
+        dependencies.tx,
+        dependencies.grants,
+        effects,
+        dependencies.directory,
+        dependencies.matrix,
+        clock,
+    )
 
     @Bean
     fun firstAdministratorEffects(

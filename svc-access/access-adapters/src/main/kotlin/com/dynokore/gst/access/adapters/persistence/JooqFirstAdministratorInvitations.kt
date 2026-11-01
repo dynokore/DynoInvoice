@@ -3,6 +3,7 @@ package com.dynokore.gst.access.adapters.persistence
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.FIRST_ADMINISTRATOR_INVITATION
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ROLE_GRANT
 import com.dynokore.gst.access.application.invitation.FirstAdministratorInvitations
+import com.dynokore.gst.access.application.invitation.InvitationRecord
 import com.dynokore.gst.access.application.invitation.NewInvitation
 import com.dynokore.gst.access.application.invitation.StoredInvitation
 import com.dynokore.gst.access.domain.role.Role
@@ -72,6 +73,42 @@ class JooqFirstAdministratorInvitations(
             .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_BY, actor)
             .set(FIRST_ADMINISTRATOR_INVITATION.VERSION, 0L)
             .execute()
+    }
+
+    override fun findByRef(invitationRef: String): InvitationRecord? =
+        dsl
+            .selectFrom(FIRST_ADMINISTRATOR_INVITATION)
+            .where(FIRST_ADMINISTRATOR_INVITATION.INVITATION_REF.eq(invitationRef))
+            .fetchOne()
+            ?.let {
+                InvitationRecord(
+                    grantRef = it.grantRef.column("grant_ref"),
+                    expiresAt = it.expiresAt.column("expires_at").toInstant(),
+                    codeDigest = it.codeDigest,
+                    acceptKey = it.acceptKey,
+                    acceptFingerprint = it.acceptFingerprint,
+                )
+            }
+
+    override fun markAccepted(
+        invitationRef: String,
+        acceptKey: UUID,
+        acceptFingerprint: String,
+    ) {
+        val actor =
+            checkNotNull(tenants.currentActor()) { "no actor is bound: an acceptance runs in a bound transaction" }
+        val updated =
+            dsl
+                .update(FIRST_ADMINISTRATOR_INVITATION)
+                .setNull(FIRST_ADMINISTRATOR_INVITATION.CODE_DIGEST)
+                .set(FIRST_ADMINISTRATOR_INVITATION.ACCEPT_KEY, acceptKey)
+                .set(FIRST_ADMINISTRATOR_INVITATION.ACCEPT_FINGERPRINT, acceptFingerprint)
+                .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_AT, clock.instant().atOffset(ZoneOffset.UTC))
+                .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_BY, actor)
+                .set(FIRST_ADMINISTRATOR_INVITATION.VERSION, FIRST_ADMINISTRATOR_INVITATION.VERSION.plus(1L))
+                .where(FIRST_ADMINISTRATOR_INVITATION.INVITATION_REF.eq(invitationRef))
+                .execute()
+        check(updated == 1) { "the invitation row to clear is missing" }
     }
 
     override fun holdsLiveTenantAdminGrant(): Boolean =

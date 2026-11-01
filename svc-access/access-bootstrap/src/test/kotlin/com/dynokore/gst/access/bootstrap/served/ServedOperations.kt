@@ -136,7 +136,11 @@ object Doubles {
     val resolverCalls = AtomicInteger()
     val reached = CopyOnWriteArrayList<Reached>()
 
+    /** Tokens a test registers for itself (token text to principal); consulted before the fixed tokens. */
+    val principals = java.util.concurrent.ConcurrentHashMap<String, EndUserPrincipal>()
+
     fun reset() {
+        principals.clear()
         resolverCalls.set(0)
         reached.clear()
     }
@@ -170,12 +174,18 @@ private val TEST_VERIFIER =
 private val TEST_RESOLVER =
     EndUserPrincipalResolver { authorization ->
         Doubles.resolverCalls.incrementAndGet()
-        when (authorization) {
-            USER_A_TOKEN -> EndUserPrincipal("user-a", TENANT_A, emptySet())
-            USER_B_TOKEN -> EndUserPrincipal("user-b", TENANT_B, emptySet())
-            OPERATOR_TOKEN -> EndUserPrincipal("operator-1", null, emptySet())
-            else -> null
+        when {
+            authorization != null && Doubles.principals.containsKey(authorization) -> Doubles.principals[authorization]
+            else -> fixedPrincipal(authorization)
         }
+    }
+
+private fun fixedPrincipal(authorization: String?): EndUserPrincipal? =
+    when (authorization) {
+        USER_A_TOKEN -> EndUserPrincipal("user-a", TENANT_A, emptySet())
+        USER_B_TOKEN -> EndUserPrincipal("user-b", TENANT_B, emptySet())
+        OPERATOR_TOKEN -> EndUserPrincipal("operator-1", null, emptySet())
+        else -> null
     }
 
 /**
@@ -370,11 +380,12 @@ class ServedContext(
         headers: Map<String, String>,
         body: String,
         key: UUID,
+        path: String = operation.path,
     ): MockHttpServletResponse {
         assertNoStubbings()
         val request =
             MockMvcRequestBuilders
-                .request(HttpMethod.valueOf(operation.method), operation.path)
+                .request(HttpMethod.valueOf(operation.method), path)
                 .header("Idempotency-Key", key.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)

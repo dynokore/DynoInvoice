@@ -25,7 +25,8 @@ object FirstAdministratorFixture {
     // a service name has no digit (WorkloadIdentityProperties.SERVICE_NAME), so `control-plane-svc-2` cannot be mapped
     const val LOOK_ALIKE = "control-plane-svc-alt"
     const val OTHER = "tenancy-svc"
-    val CALLERS = listOf(CONTROL_PLANE, INSTALLER, LOOK_ALIKE, OTHER)
+    const val CONSOLE_BFF = "console-bff"
+    val CALLERS = listOf(CONTROL_PLANE, INSTALLER, LOOK_ALIKE, OTHER, CONSOLE_BFF)
     val JSON: JsonMapper = JsonMapper.builder().build()
     const val EMAIL = "first.admin@example.sg"
     const val EXPIRES = "2030-01-05T08:00:00Z"
