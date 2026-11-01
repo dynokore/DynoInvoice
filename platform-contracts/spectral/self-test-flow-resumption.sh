@@ -67,6 +67,7 @@ for spec in "5 $PA acknowledgements rules" "6 $OG coverage-map ingestion" "8 $OG
   mkroot "$n" "$BASE"; sed -i "$1"'s/UNREAD\tINV-Q-14102/getMappingPack\t-/' "$(TSV $n)"
   expect_fail "$n" "${P}line $1: $2 $3 is pinned UNREAD but maps to operationId 'getMappingPack'"
 done
+CR=$(printf '\r'); mut crlf '7s/$/\r/'; expect_fail crlf "${P}line 7: gap '-${CR}' must be '-'"
 # table and file faults
 mkroot no-table "$BASE"; rm "$(TSV no-table)"; expect_fail no-table "${P}cannot be read: FileNotFoundError"
 mkroot empty-table ""; expect_fail empty-table "${P}is empty"

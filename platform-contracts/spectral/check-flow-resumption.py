@@ -83,7 +83,8 @@ def load_services(root: Path, findings: list[str]) -> dict[str, dict[str, tuple[
 def check(root: Path) -> tuple[list[str], int]:
     findings: list[str] = []
     try:
-        text = (root / "catalogue" / TABLE).read_text()
+        with open(root / "catalogue" / TABLE, newline="") as fh:
+            text = fh.read()
     except (OSError, UnicodeError) as e:
         return [f"{TABLE}: cannot be read: {type(e).__name__}"], 0
     lines = text.split("\n")
