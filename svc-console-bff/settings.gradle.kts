@@ -151,4 +151,6 @@ rootProject.name = "svc-console-bff"
 
 include(
     "console-bff-contract",
+    "console-bff-domain",
+    "console-bff-application",
 )
