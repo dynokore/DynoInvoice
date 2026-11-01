@@ -5,6 +5,7 @@ import com.dynokore.gst.aggregation.application.IntakeOutcome.NumberNotBuildable
 import com.dynokore.gst.aggregation.application.IntakeOutcome.Replayed
 import com.dynokore.gst.aggregation.application.IntakeOutcome.SourceRevisionLower
 import com.dynokore.gst.aggregation.domain.AggregateType
+import com.dynokore.gst.aggregation.domain.Cadence.MONTHLY
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -235,5 +236,66 @@ class IntakeAggregateTest {
         created.aggregate.aggregate.businessUnitCode shouldBe "B"
         repo.calls.count { it == "sequence" } shouldBe 1
         repo.calls.count { it == "store" } shouldBe 1
+    }
+
+    private class Windows(
+        val state: com.dynokore.gst.aggregation.domain.WindowState,
+    ) : WindowRepository {
+        val placed = mutableListOf<LocalDate>()
+
+        override fun place(
+            entityRef: String,
+            aggregateType: AggregateType,
+            date: LocalDate,
+            cadence: com.dynokore.gst.aggregation.domain.Cadence,
+        ): Placement {
+            placed += date
+            return Placement(
+                com.dynokore.gst.aggregation.domain.AggregationWindow
+                    .containing(cadence, date),
+                state,
+            )
+        }
+
+        override fun openWindowsEndingOnOrBefore(date: LocalDate) = emptyList<OpenWindow>()
+
+        override fun closePart(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+            aggregateId: UUID,
+        ) = Unit
+
+        override fun recordLate(window: OpenWindow) = Unit
+    }
+
+    @Test
+    fun `without a window repository the aggregate carries no window`() {
+        (intake.execute(command()) as Created).aggregate.aggregate.let {
+            it.windowStart shouldBe null
+            it.windowEnd shouldBe null
+            it.windowState shouldBe null
+        }
+    }
+
+    @Test
+    fun `with a window repository a created intake is placed in the window of its period end`() {
+        val windows = Windows(com.dynokore.gst.aggregation.domain.WindowState.LATE)
+        val placing = IntakeAggregate(codes, repo, windows) { _, _, _ -> MONTHLY }
+        (placing.execute(command()) as Created).aggregate.aggregate.let {
+            it.windowStart shouldBe LocalDate.of(2027, 3, 1)
+            it.windowEnd shouldBe end
+            it.windowState shouldBe com.dynokore.gst.aggregation.domain.WindowState.LATE
+        }
+        windows.placed shouldBe listOf(end)
+    }
+
+    @Test
+    fun `a replay with a window repository returns the stored placement and places nothing again`() {
+        val windows = Windows(com.dynokore.gst.aggregation.domain.WindowState.OPEN)
+        val placing = IntakeAggregate(codes, repo, windows) { _, _, _ -> MONTHLY }
+        val first = placing.execute(command()) as Created
+        val replay = placing.execute(command()) as Replayed
+        replay.aggregate shouldBe first.aggregate
+        windows.placed.size shouldBe 1
     }
 }

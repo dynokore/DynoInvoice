@@ -3,6 +3,7 @@ package com.dynokore.gst.aggregation.application
 import com.dynokore.gst.aggregation.domain.AggregateNumber
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.NumberingResult
+import com.dynokore.gst.aggregation.domain.WindowState
 import java.time.LocalDate
 import java.util.UUID
 
@@ -60,6 +61,9 @@ data class NewAggregate(
     val documentNumber: String,
     val issueDate: LocalDate,
     val transactionDate: LocalDate,
+    val windowStart: LocalDate? = null,
+    val windowEnd: LocalDate? = null,
+    val windowState: WindowState? = null,
 )
 
 data class StoredAggregate(
@@ -99,7 +103,13 @@ sealed interface IntakeOutcome {
 class IntakeAggregate(
     private val shortCodes: ShortCodes,
     private val repository: AggregateRepository,
+    private val windows: WindowRepository? = null,
+    private val cadences: CadenceSource? = null,
 ) {
+    init {
+        require((windows == null) == (cadences == null)) { "windows and cadences are set together or not at all" }
+    }
+
     fun execute(command: IntakeCommand): IntakeOutcome = alreadyKnown(command) ?: create(command)
 
     /** Steps 1 and 2: a replay of the triple, or a revision lower than a recorded one; null when neither. */
@@ -137,6 +147,7 @@ class IntakeAggregate(
         // Codes of at most 10 characters and a Long sequence cannot exceed 64 characters.
         check(number is NumberingResult.Numbered) { "a number built from valid codes fits documentNumber" }
         val issueDate = AggregateNumber.issueDate(command.periodEnd)
+        val placement = place(command)
         val new =
             NewAggregate(
                 entityRef = command.entityRef,
@@ -152,6 +163,9 @@ class IntakeAggregate(
                 documentNumber = number.number,
                 issueDate = issueDate,
                 transactionDate = issueDate,
+                windowStart = placement?.window?.start,
+                windowEnd = placement?.window?.end,
+                windowState = placement?.state,
             )
         return try {
             IntakeOutcome.Created(repository.store(new))
@@ -161,6 +175,14 @@ class IntakeAggregate(
                     ?: error("a duplicate intake key without a stored aggregate")
             IntakeOutcome.Replayed(winner)
         }
+    }
+
+    /** With a window repository the aggregate is placed in the window of its `periodEnd`; without one, not at all. */
+    private fun place(command: IntakeCommand): Placement? {
+        val repo = windows ?: return null
+        val source = checkNotNull(cadences)
+        val cadence = source.cadence(command.entityRef, command.aggregateType, command.periodEnd)
+        return repo.place(command.entityRef, command.aggregateType, command.periodEnd, cadence)
     }
 
     private fun validCode(code: String?): String? = code?.takeIf { CODE.matches(it) }
