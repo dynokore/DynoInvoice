@@ -15,6 +15,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 /** The permission an approver of a break-glass unlock holds (INV-Q-10138 B); the pairing stays a business rule. */
 val BREAK_GLASS_UNLOCK = Permission("break-glass.unlock")
@@ -33,12 +34,17 @@ data class BreakGlassApproval(
 
 /** Persistence of the approvals of break-glass unlocks, in the bound tenant. */
 interface BreakGlassApprovals {
-    /** Stores the approval of [approver] made at [madeAt]; an unconsumed one of the same approver is replaced. */
+    /**
+     * Stores the approval of [approver] made at [madeAt]; an unconsumed one of the same approver is replaced.
+     * A repeat of the same [idempotencyKey] by the same approver returns the stored approval and writes nothing.
+     * Calls for one approver are serialised, so two parallel approvals never both insert.
+     */
     fun replace(
         approver: String,
+        idempotencyKey: UUID,
         madeAt: Instant,
         window: Duration,
-    ): BreakGlassApproval
+    ): StoredApproval
 
     /**
      * Consumes, with one `UPDATE ... RETURNING`, the unconsumed approvals of [approvers] made strictly after [after],
@@ -51,6 +57,12 @@ interface BreakGlassApprovals {
         consumedAt: Instant,
     ): Int
 }
+
+/** The approval a [BreakGlassApprovals.replace] returns; [repeated] is true when the Idempotency-Key was seen. */
+data class StoredApproval(
+    val approval: BreakGlassApproval,
+    val repeated: Boolean,
+)
 
 sealed interface ApproveBreakGlassUnlockOutcome {
     data class Approved(
@@ -80,6 +92,7 @@ class ApproveBreakGlassUnlockUseCase(
     fun handle(
         actor: String,
         tenant: TenantRef,
+        idempotencyKey: UUID,
     ): ApproveBreakGlassUnlockOutcome =
         tx.inTransaction {
             val now = clock.instant()
@@ -91,10 +104,13 @@ class ApproveBreakGlassUnlockUseCase(
             ) {
                 return@inTransaction ApproveBreakGlassUnlockOutcome.NotPermitted
             }
-            val approval = approvals.replace(actor, now, window)
-            audit.record(
-                GrantAuditEntry(actor, "approveBreakGlassUnlock", "break-glass-approval:${approval.ref}", null, null),
-            )
+            val stored = approvals.replace(actor, idempotencyKey, now, window)
+            val approval = stored.approval
+            // a repeat of the same key writes nothing: no second audit entry either
+            if (!stored.repeated) {
+                val target = "break-glass-approval:${approval.ref}"
+                audit.record(GrantAuditEntry(actor, "approveBreakGlassUnlock", target, null, null))
+            }
             ApproveBreakGlassUnlockOutcome.Approved(approval)
         }
 

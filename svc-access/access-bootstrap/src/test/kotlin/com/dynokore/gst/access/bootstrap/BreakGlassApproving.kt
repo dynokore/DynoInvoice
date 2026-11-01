@@ -17,11 +17,12 @@ object BreakGlassApproving {
         tenant: TenantId,
         approver: String,
         requestedTenant: String = tenant.toString(),
+        key: UUID = UUID.randomUUID(),
     ): ResponseEntity<ApproveBreakGlassUnlockResponse> =
         context.getBean(TenantContext::class.java).bind(tenant, approver) {
             context
                 .getBean(BreakGlassController::class.java)
-                .approveBreakGlassUnlock(UUID.randomUUID(), ApproveBreakGlassUnlockRequest(requestedTenant))
+                .approveBreakGlassUnlock(key, ApproveBreakGlassUnlockRequest(requestedTenant))
         }
 
     /**

@@ -177,9 +177,10 @@ class BreakGlassControllerOverrideTest {
         object : BreakGlassApprovals {
             override fun replace(
                 approver: String,
+                idempotencyKey: java.util.UUID,
                 madeAt: Instant,
                 window: Duration,
-            ): BreakGlassApproval = error("not used")
+            ): com.dynokore.gst.access.application.breakglass.StoredApproval = error("not used")
 
             override fun consume(
                 approvers: Collection<String>,

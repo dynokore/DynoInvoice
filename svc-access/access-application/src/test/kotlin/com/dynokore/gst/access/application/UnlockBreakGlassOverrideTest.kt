@@ -136,9 +136,10 @@ class UnlockBreakGlassOverrideTest {
             object : BreakGlassApprovals {
                 override fun replace(
                     approver: String,
+                    idempotencyKey: java.util.UUID,
                     madeAt: Instant,
                     window: Duration,
-                ): BreakGlassApproval = error("not used")
+                ): com.dynokore.gst.access.application.breakglass.StoredApproval = error("not used")
 
                 // these tests are about the override: every named approver has an approval
                 override fun consume(

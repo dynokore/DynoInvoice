@@ -253,4 +253,49 @@ class BreakGlassApprovalTest {
             assertThat(env.unlock(p1, p1, p2)).isEqualTo(201)
             assertThat(env.approvals().single().second).isTrue()
         }
+
+    @Test
+    fun `a repeat with the same Idempotency-Key returns the original response and writes nothing`() =
+        run { env ->
+            val key = UUID.randomUUID()
+            val first = BreakGlassApproving.approve(env.context, tenant, p2, key = key)
+            assertThat(first.statusCode.value()).isEqualTo(201)
+            env.clock.advance(Duration.ofMinutes(5))
+            val again = BreakGlassApproving.approve(env.context, tenant, p2, key = key)
+            assertThat(again.statusCode.value()).isEqualTo(201)
+            assertThat(again.body).isEqualTo(first.body)
+            assertThat(env.approvals()).containsExactly(Triple(p2, false, null))
+            assertThat(env.audits("approveBreakGlassUnlock")).isEqualTo(1)
+            // after the unlock consumed it, the repeat still returns the original and stores no new approval
+            assertThat(env.unlock(p1, p1, p2)).isEqualTo(201)
+            val ref = env.approvals().single().third
+            assertThat(BreakGlassApproving.approve(env.context, tenant, p2, key = key).body).isEqualTo(first.body)
+            assertThat(env.approvals()).containsExactly(Triple(p2, true, ref))
+            assertThat(env.audits("approveBreakGlassUnlock")).isEqualTo(1)
+            // look-alike: the same key from another approver is a new approval, not the first one's response
+            val other = BreakGlassApproving.approve(env.context, tenant, "identity:USR-0091", key = key)
+            assertThat(other.body!!.approvalRef).isNotEqualTo(first.body!!.approvalRef)
+            assertThat(env.audits("approveBreakGlassUnlock")).isEqualTo(2)
+        }
+
+    @Test
+    fun `two parallel approvals by one approver both succeed and leave one unconsumed row`() =
+        run { env ->
+            val pool = Executors.newFixedThreadPool(2)
+            try {
+                val start = CountDownLatch(1)
+                val answers =
+                    List(2) {
+                        pool.submit<Int> {
+                            start.await()
+                            env.approve(p2)
+                        }
+                    }
+                start.countDown()
+                assertThat(answers.map { it.get(30, TimeUnit.SECONDS) }).containsExactly(201, 201)
+            } finally {
+                pool.shutdownNow()
+            }
+            assertThat(env.approvals()).containsExactly(Triple(p2, false, null))
+        }
 }

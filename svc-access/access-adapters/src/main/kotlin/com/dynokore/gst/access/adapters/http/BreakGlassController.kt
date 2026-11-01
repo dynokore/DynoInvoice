@@ -96,7 +96,7 @@ open class BreakGlassController(
         // an approval is for the caller's own tenant only
         requireOwnTenant(approveBreakGlassUnlockRequest.tenantRef, tenant)
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
-        return when (val outcome = approve.handle(actor, TenantRef(tenant))) {
+        return when (val outcome = approve.handle(actor, TenantRef(tenant), idempotencyKey)) {
             is ApproveBreakGlassUnlockOutcome.Approved -> {
                 ResponseEntity.status(HttpStatus.CREATED).body(
                     ApproveBreakGlassUnlockResponse(

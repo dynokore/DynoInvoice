@@ -10,6 +10,8 @@ CREATE TABLE access.break_glass_approval (
     approval_ref        text        NOT NULL CHECK (length(approval_ref) BETWEEN 1 AND 64),
     approver_ref        text        NOT NULL CHECK (length(approver_ref) BETWEEN 1 AND 128),
     made_at             timestamptz NOT NULL,
+    expires_at          timestamptz NOT NULL,
+    idempotency_key     uuid        NOT NULL,
     consumed_at         timestamptz,
     consumed_unlock_ref text        CHECK (consumed_unlock_ref IS NULL OR length(consumed_unlock_ref) BETWEEN 1 AND 64),
     created_at          timestamptz NOT NULL,
@@ -18,8 +20,12 @@ CREATE TABLE access.break_glass_approval (
     updated_by          text        NOT NULL,
     version             bigint      NOT NULL CHECK (version >= 0),
     UNIQUE (tenant_id, approval_ref),
+    CHECK (expires_at > made_at),
     CHECK ((consumed_at IS NULL) = (consumed_unlock_ref IS NULL))
 );
+
+-- A repeat of the same Idempotency-Key by the same approver finds its row (consumed or not)
+CREATE UNIQUE INDEX break_glass_approval_key ON access.break_glass_approval (tenant_id, approver_ref, idempotency_key);
 
 -- One unconsumed approval per approver and tenant
 CREATE UNIQUE INDEX break_glass_approval_unconsumed ON access.break_glass_approval (tenant_id, approver_ref)
