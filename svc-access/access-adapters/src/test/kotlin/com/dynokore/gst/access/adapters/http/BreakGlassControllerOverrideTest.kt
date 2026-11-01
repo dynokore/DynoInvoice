@@ -42,7 +42,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** The status and body of `unlockBreakGlass` while the identity provider counts as available (INV-Q-11557 A, INV-AC-9185). */
+/** `unlockBreakGlass` while the identity provider counts as available (INV-Q-11557 A, INV-AC-9185). */
 class BreakGlassControllerOverrideTest {
     private val tenantId = TenantId(UUID.randomUUID())
     private val tenant = TenantRef(tenantId.toString())

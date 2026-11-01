@@ -109,8 +109,8 @@ const val IDP_PARTIAL_OUTAGE = "IDP_PARTIAL_OUTAGE"
 /**
  * `unlockBreakGlass` (INV-REQ-896, INV-REQ-1269, INV-REQ-897): refuses fewer than two different people and a pair that
  * does not hold the roles of the VP-08 pairing, and (INV-Q-11557 A) an unlock while the identity provider counts as
- * available unless the override reason is `IDP_PARTIAL_OUTAGE`; otherwise opens a session whose length is the VP-08 value (never the
- * caller's), raises ACC-002 and writes the audit entry in the same transaction.
+ * available unless the override reason is `IDP_PARTIAL_OUTAGE`; otherwise opens a session whose length is the VP-08
+ * value (never the caller's), raises ACC-002 and writes the audit entry in the same transaction.
  */
 @Suppress("LongParameterList") // one collaborator per port
 class UnlockBreakGlassUseCase(
@@ -150,14 +150,7 @@ class UnlockBreakGlassUseCase(
             val hours = setting.hours
             check(BreakGlassRules.isSessionHours(hours)) { "the break-glass session length must be 1 to 8 hours" }
             val session = sessions.insert(hours, now, people.map { it.value })
-            effects.record(
-                actor,
-                "unlockBreakGlass",
-                session.ref,
-                UNLOCK_ACTION,
-                recordedReason,
-                recordedReason,
-            )
+            effects.recordUnlock(actor, session.ref, recordedReason)
             UnlockBreakGlassOutcome.Unlocked(session)
         }
     }
@@ -174,10 +167,19 @@ class BreakGlassEffects(
         unlockRef: String,
         alertAction: String,
         detail: String? = null,
-        overrideReason: String? = null,
     ) {
-        alerts.raise(ACC_BREAK_GLASS, alertAction, unlockRef, overrideReason)
+        alerts.raise(ACC_BREAK_GLASS, alertAction, unlockRef)
         audit.record(GrantAuditEntry(actor, operation, "break-glass:$unlockRef", detail, null))
+    }
+
+    /** The alert and the audit entry of an unlock; [overrideReason] is both the audit detail and an alert property. */
+    fun recordUnlock(
+        actor: String,
+        unlockRef: String,
+        overrideReason: String?,
+    ) {
+        alerts.raise(ACC_BREAK_GLASS, UNLOCK_ACTION, unlockRef, overrideReason)
+        audit.record(GrantAuditEntry(actor, "unlockBreakGlass", "break-glass:$unlockRef", overrideReason, null))
     }
 }
 

@@ -26,9 +26,9 @@ import java.util.UUID
  * TPL-08. unlockBreakGlass and recordBreakGlassAction (INV-REQ-896, INV-REQ-897, INV-REQ-1269): the unlock is for the
  * bound tenant only; fewer than two different people is refused (400, SRT-001) and a pair that does not hold the
  * roles is refused (403). The session length is never a request field: the 201 carries the VP-08 value, the expiry and
- * the four permitted actions. An unlock while the identity provider counts as available needs the override reason (409, no catalogue code, like
- * the conflict below). Recording on a session that is resealed or past its expiry is 409. The contract lists no
- * error code for 409, so the closed code of a conflict (SRT-008) carries a detail that says what is wrong.
+ * the four permitted actions. An unlock while the identity provider counts as available needs the override reason
+ * (409). Recording on a session that is resealed or past its expiry is 409. The contract lists no error code for 409,
+ * so the problem body carries a detail that says what is wrong and no catalogue code (INV-Q-8845 A).
  * signInBreakGlass and resealBreakGlass are not served by this controller yet (the sealing credential is open).
  */
 @RestController
@@ -46,7 +46,7 @@ open class BreakGlassController(
     ): ResponseEntity<BreakGlassResponse> {
         val tenant = tenants.current().toString()
         // an unlock is for the caller's own tenant only
-        if (unlockBreakGlassRequest.tenantRef != tenant) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        requireOwnTenant(unlockBreakGlassRequest.tenantRef, tenant)
         val approvers = unlockBreakGlassRequest.approvedBy.map { GrantRequests.identityOf(it) }
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         return when (
@@ -118,6 +118,13 @@ open class BreakGlassController(
                 throw ApiConflict("the break-glass session is not open")
             }
         }
+    }
+
+    private fun requireOwnTenant(
+        requested: String,
+        bound: String,
+    ) {
+        if (requested != bound) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
     }
 
     private fun verifiedCaller(): String = serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
