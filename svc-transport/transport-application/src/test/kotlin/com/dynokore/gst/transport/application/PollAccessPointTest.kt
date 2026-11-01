@@ -79,6 +79,40 @@ class PollAccessPointTest {
         cursors.values[adapter] shouldBe "c1"
     }
 
+    private fun page(vararg items: ApNotification) = Source(NotificationPage(items.toList(), "c9"))
+
+    private val unknownDoc = a1.copy(apNotificationId = "APN-U1", docUuid = java.util.UUID.randomUUID())
+    private val unknownVersion = a1.copy(apNotificationId = "APN-U2", version = 7)
+
+    @Test
+    fun `unowned items are listed apart, skipped with no ledger call and the cursor is stored once`() {
+        val report = PollAccessPoint(page(a1, unknownDoc, unknownVersion), cursors, receive).run(adapter)
+        report.unowned shouldBe listOf("APN-U1", "APN-U2")
+        report.refused shouldBe emptyList()
+        ledger.calls shouldBe 1
+        events.published.size shouldBe 1
+        cursors.writes shouldBe 1
+        cursors.values[adapter] shouldBe "c9"
+    }
+
+    @Test
+    fun `a page whose every item is unowned still stores the cursor`() {
+        val report = PollAccessPoint(page(unknownDoc, unknownVersion), cursors, receive).run(adapter)
+        report.unowned shouldBe listOf("APN-U1", "APN-U2")
+        ledger.calls shouldBe 0
+        events.published.size shouldBe 0
+        cursors.values[adapter] shouldBe "c9"
+    }
+
+    @Test
+    fun `an IRAS_REJECTION item is refused and never unowned`() {
+        val iras = ApNotification("APN-I", "IRAS_REJECTION", unknownDoc.docUuid, 1)
+        val report = PollAccessPoint(page(iras), cursors, receive).run(adapter)
+        report.refused shouldBe listOf("APN-I")
+        report.unowned shouldBe emptyList()
+        cursors.values[adapter] shouldBe "c9"
+    }
+
     @Test
     fun `a source that throws leaves the cursor unchanged`() {
         cursors.values[adapter] = "c0"

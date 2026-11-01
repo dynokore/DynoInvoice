@@ -74,14 +74,49 @@ class SenderVerifierTest {
     @Test
     fun `no timestamp is refused`() = refused(check(null, signed(ageSeconds(0))), SenderRefusal.NO_TIMESTAMP)
 
-    @Test
-    fun `a non-numeric timestamp is refused`() {
-        for (ts in listOf("yesterday", "", "-5", "+5", "12.5", " 1", "1e3", "١٢")) {
-            refused(check(ts, signed(ts)), SenderRefusal.TIMESTAMP_NOT_INTEGER)
-        }
-        val huge = "9".repeat(30)
-        refused(check(huge, signed(huge)), SenderRefusal.TIMESTAMP_NOT_INTEGER)
+    private fun notInteger(ts: String?) {
+        val shown = ts ?: "null"
+        check(ts, signed(shown)) shouldBe SenderVerdict.Refused(SenderRefusal.TIMESTAMP_NOT_INTEGER)
     }
+
+    @Test
+    fun `a non-numeric timestamp is refused`() = notInteger("yesterday")
+
+    @Test
+    fun `an empty timestamp is refused as non-numeric`() = notInteger("")
+
+    @Test
+    fun `a leading plus is refused`() = notInteger("+" + ageSeconds(0))
+
+    @Test
+    fun `a leading minus is refused`() = notInteger("-" + ageSeconds(0))
+
+    @Test
+    fun `a leading space is refused`() = notInteger(" " + ageSeconds(0))
+
+    @Test
+    fun `a trailing space is refused`() = notInteger(ageSeconds(0) + " ")
+
+    @Test
+    fun `a decimal point is refused`() = notInteger(ageSeconds(0) + ".0")
+
+    @Test
+    fun `Arabic-Indic digits of the right value are refused`() =
+        notInteger(ageSeconds(0).map { '\u0660' + (it - '0') }.joinToString(""))
+
+    @Test
+    fun `19 digits are refused as non-numeric`() = notInteger("0" + ageSeconds(0).padStart(18, '0'))
+
+    @Test
+    fun `18 digits that are 301 seconds off are refused as stale, not as non-numeric`() {
+        val ts = ageSeconds(301).padStart(18, '0')
+        ts.length shouldBe 18
+        refused(check(ts, signed(ts)), SenderRefusal.TIMESTAMP_STALE)
+    }
+
+    @Test
+    fun `18 digits that are 300 seconds off are accepted and signed as received`() =
+        accepted(ageSeconds(300).padStart(18, '0'))
 
     @Test
     fun `a signature over the body alone is refused`() {
