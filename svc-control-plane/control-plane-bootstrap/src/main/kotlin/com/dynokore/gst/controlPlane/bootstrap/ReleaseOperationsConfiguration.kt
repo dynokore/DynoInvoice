@@ -1,7 +1,11 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationRecordsJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.SupportWindowRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
+import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
@@ -48,4 +52,21 @@ class ReleaseOperationsConfiguration {
         corpus: ConformanceCorpus,
         records: PackReleaseRecords,
     ) = CorpusGate(corpus, records)
+
+    @Bean
+    fun accreditationRecords(dsl: DSLContext): AccreditationRecords = AccreditationRecordsJooq(dsl)
+
+    @Bean
+    fun recordAccreditation(
+        records: AccreditationRecords,
+        permissions: OperatorPermissions,
+        clock: Clock,
+    ) = RecordAccreditation(records, permissions, clock)
+
+    @Bean
+    fun getAccreditation(
+        records: AccreditationRecords,
+        permissions: OperatorPermissions,
+        clock: Clock,
+    ) = GetAccreditation(records, permissions, clock)
 }

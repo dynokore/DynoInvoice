@@ -1,5 +1,8 @@
 package com.dynokore.gst.controlPlane.adapters.http
 
+import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditationCommand
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
@@ -7,13 +10,19 @@ import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindowCommand
 import com.dynokore.gst.controlPlane.contract.api.ReleasesApi
+import com.dynokore.gst.controlPlane.contract.model.AccreditationRecord
+import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
 import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
+import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequest
+import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequestSandboxAcknowledgementsInner
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResult
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultAccreditationCheck
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultGatesInner
 import com.dynokore.gst.controlPlane.contract.model.ReleaseTrainResponse
 import com.dynokore.gst.controlPlane.contract.model.SetSupportWindowRequest
 import com.dynokore.gst.controlPlane.contract.model.SupportWindowResponse
+import com.dynokore.gst.controlPlane.domain.accreditation.SandboxAcknowledgement
+import com.dynokore.gst.controlPlane.domain.accreditation.SubmissionType
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
@@ -46,7 +55,76 @@ class ReleasesController(
     private val runner: OperationRunner,
     private val publishTrain: PublishTrain,
     private val setSupportWindow: SetSupportWindow,
+    private val recordAccreditation: RecordAccreditation,
+    private val getAccreditation: GetAccreditation,
 ) : ReleasesApi {
+    override fun recordAccreditation(
+        idempotencyKey: UUID,
+        recordAccreditationRequest: RecordAccreditationRequest,
+    ): ResponseEntity<AccreditationRecord> {
+        val caller = caller()
+        val command =
+            commandOf(caller.correlationId) {
+                RecordAccreditationCommand(
+                    ActorId(caller.actor),
+                    recordAccreditationRequest.grantedOn,
+                    recordAccreditationRequest.currentUntil,
+                    recordAccreditationRequest.imdaReference,
+                    recordAccreditationRequest.coveredSubmissionTypes.map { SubmissionType.valueOf(it.name) },
+                    recordAccreditationRequest.sandboxAcknowledgements.orEmpty().map {
+                        SandboxAcknowledgement(SubmissionType.valueOf(it.submissionType.name), it.acknowledgementId)
+                    },
+                    RequestContext(caller.correlationId, idempotencyKey.toString()),
+                )
+            }
+        val outcome = platform.bindPlatform(caller.actor) { runner.run(recordAccreditation, caller.actor, command) }
+        return when (outcome) {
+            is OperationOutcome.Performed -> ResponseEntity.status(HttpStatus.CREATED).body(recordOf(outcome.result))
+            is OperationOutcome.Repeated -> ResponseEntity.status(HttpStatus.CREATED).body(recordOf(outcome.result))
+            OperationOutcome.NotPermitted -> problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+            is OperationOutcome.PreconditionUnmet -> problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId)
+        }
+    }
+
+    override fun getAccreditation(): ResponseEntity<AccreditationStatus> {
+        val caller = caller()
+        val status =
+            platform.bindPlatform(caller.actor) { getAccreditation.get(caller.actor) }
+                ?: problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+        return ResponseEntity.ok(
+            AccreditationStatus(
+                AccreditationStatus.Currency.valueOf(status.currency.name),
+                status.asOf,
+                status.record?.let(::recordOf),
+            ),
+        )
+    }
+
+    private fun recordOf(record: com.dynokore.gst.controlPlane.domain.accreditation.AccreditationRecord) =
+        AccreditationRecord(
+            grantedOn = record.grantedOn,
+            currentUntil = record.currentUntil,
+            imdaReference = record.imdaReference,
+            coveredSubmissionTypes =
+                record.coveredSubmissionTypes
+                    .map {
+                        AccreditationRecord.CoveredSubmissionTypes.valueOf(
+                            it.name,
+                        )
+                    }.toSet(),
+            recordedAt = record.recordedAt.atOffset(ZoneOffset.UTC),
+            recordedBy = record.recordedBy.value,
+            sandboxAcknowledgements =
+                record.sandboxAcknowledgements.map {
+                    RecordAccreditationRequestSandboxAcknowledgementsInner(
+                        RecordAccreditationRequestSandboxAcknowledgementsInner.SubmissionType.valueOf(
+                            it.submissionType.name,
+                        ),
+                        it.acknowledgementId,
+                    )
+                },
+        )
+
     override fun publishTrain(
         idempotencyKey: UUID,
         publishTrainRequest: PublishTrainRequest,
