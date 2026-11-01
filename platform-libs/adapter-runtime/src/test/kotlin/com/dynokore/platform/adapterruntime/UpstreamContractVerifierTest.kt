@@ -28,18 +28,24 @@ class UpstreamContractVerifierTest {
     }
 
     @Test
-    fun `a missing source key is reported alone`() = each(complete.copy(sourceKey = null), ContractElement.SOURCE_KEY)
+    fun `a missing source key is reported alone`() {
+        each(complete.copy(sourceKey = null), ContractElement.SOURCE_KEY)
+    }
 
     @Test
-    fun `a missing posting timestamp is reported alone`() =
+    fun `a missing posting timestamp is reported alone`() {
         each(complete.copy(postingTimestamp = null), ContractElement.POSTING_TIMESTAMP)
+    }
 
     @Test
-    fun `a missing document function hint is reported alone`() =
+    fun `a missing document function hint is reported alone`() {
         each(complete.copy(documentFunctionHint = null), ContractElement.DOCUMENT_FUNCTION_HINT)
+    }
 
     @Test
-    fun `no line is reported alone`() = each(complete.copy(lines = emptyList()), ContractElement.LINE_TAX_ATTRIBUTES)
+    fun `no line is reported alone`() {
+        each(complete.copy(lines = emptyList()), ContractElement.LINE_TAX_ATTRIBUTES)
+    }
 
     @Test
     fun `a line lacking a tax attribute is reported once`() {
@@ -49,12 +55,14 @@ class UpstreamContractVerifierTest {
     }
 
     @Test
-    fun `a missing counterparty reference is reported alone`() =
+    fun `a missing counterparty reference is reported alone`() {
         each(complete.copy(counterpartyRef = null), ContractElement.COUNTERPARTY_REF)
+    }
 
     @Test
-    fun `a missing amendment indicator is reported alone`() =
+    fun `a missing amendment indicator is reported alone`() {
         each(complete.copy(amendment = null), ContractElement.AMENDMENT_INDICATOR)
+    }
 
     @Test
     fun `an amendment with a blank prior key is reported alone`() {
@@ -63,8 +71,9 @@ class UpstreamContractVerifierTest {
     }
 
     @Test
-    fun `a non-amendment carrying a prior key is reported`() =
+    fun `a non-amendment carrying a prior key is reported`() {
         each(complete.copy(amendment = AmendmentIndicator(false, "K0")), ContractElement.AMENDMENT_INDICATOR)
+    }
 
     @Test
     fun `a valid amendment is accepted`() {
@@ -92,8 +101,9 @@ class UpstreamContractVerifierTest {
     }
 
     @Test
-    fun `a whitespace-only source key is a violation like an absent one`() =
+    fun `a whitespace-only source key is a violation like an absent one`() {
         each(complete.copy(sourceKey = "  \t"), ContractElement.SOURCE_KEY)
+    }
 
     @Test
     fun `an event missing everything reports every element for a file feed`() {
