@@ -4,7 +4,9 @@ import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENA
 import com.dynokore.gst.tenancy.application.tenant.TenantCreation
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.TenantRefused
-import com.dynokore.gst.tenancy.application.tenant.TenantStore
+import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchival
+import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
+import com.dynokore.gst.tenancy.domain.Environment
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.impl.DSL
@@ -21,7 +23,7 @@ import java.util.UUID
 class JooqTenantStore(
     private val dsl: DSLContext,
     private val mapper: ObjectMapper,
-) : TenantStore {
+) : WorkspaceStore {
     override fun create(tenant: TenantRecord): TenantCreation {
         val call =
             DSL.function(
@@ -32,8 +34,9 @@ class JooqTenantStore(
                 DSL.`val`(tenant.legalName),
                 DSL.`val`(tenant.planRef),
                 DSL.`val`(tenant.contractReference),
-                DSL.`val`(null, SQLDataType.UUID),
+                DSL.`val`(tenant.pairedProductionTenant, SQLDataType.UUID),
                 DSL.`val`(tenant.dataRegion, SQLDataType.CLOB),
+                DSL.`val`(tenant.workspaceName),
             )
         val answer: JSONB =
             refusedAsException {
@@ -63,8 +66,38 @@ class JooqTenantStore(
                 it.structureVersion.column("structure_version"),
                 it.retired.column("retired"),
                 it.dataRegion,
+                Environment.valueOf(it.environment.column("environment")),
+                it.pairedProductionTenantId,
+                it.workspaceName,
             )
         }
+
+    override fun workspace(ref: String): TenantRecord? {
+        val json = callWorkspaceFunction("workspace_state", ref)
+        return if (json.get("outcome").asString() == "found") record(json) else null
+    }
+
+    override fun archiveWorkspace(ref: String): WorkspaceArchival =
+        when (val outcome = callWorkspaceFunction("archive_workspace", ref).get("outcome").asString()) {
+            "archived" -> WorkspaceArchival.ARCHIVED
+            "repeat" -> WorkspaceArchival.ALREADY_ARCHIVED
+            "missing" -> WorkspaceArchival.MISSING
+            else -> error("archive_workspace answered the unknown outcome $outcome")
+        }
+
+    private fun callWorkspaceFunction(
+        function: String,
+        ref: String,
+    ): JsonNode {
+        val call = DSL.function(DSL.name("tenancy", function), SQLDataType.JSONB, DSL.`val`(ref))
+        val answer: JSONB =
+            dsl
+                .select(call)
+                .fetchSingle()
+                .value1()
+                .column(function)
+        return mapper.readTree(answer.data())
+    }
 
     private fun record(json: JsonNode) =
         TenantRecord(
@@ -74,7 +107,15 @@ class JooqTenantStore(
             json.get("planRef").asString(),
             json.get("contractReference").asString(),
             json.get("structureVersion").asLong(),
-            dataRegion = json.get("dataRegion")?.asString(),
+            json.get("retired").asBoolean(),
+            json.get("dataRegion")?.takeUnless { it.isNull }?.asString(),
+            Environment.valueOf(json.get("environment").asString()),
+            json
+                .get("pairedProductionTenant")
+                .takeUnless { it.isNull }
+                ?.asString()
+                ?.let(UUID::fromString),
+            json.get("workspaceName").takeUnless { it.isNull }?.asString(),
         )
 
     /** SQLSTATE 22023 (an argument is refused) and 42501 (the binding is refused) are the function's two refusals. */

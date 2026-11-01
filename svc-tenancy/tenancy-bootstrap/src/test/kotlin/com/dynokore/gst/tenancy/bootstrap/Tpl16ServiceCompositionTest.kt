@@ -39,6 +39,7 @@ class Tpl16ServiceCompositionTest {
                 "gst.bindings.telemetry-export=bundled-otel",
                 "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
                 "service-runtime.datasource.credential=db/tenancy_runtime",
+                "inv.tenancy.environment=PRODUCTION",
             )
 
     @Test

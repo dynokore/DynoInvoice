@@ -17,6 +17,7 @@ import com.dynokore.gst.tenancy.application.structure.StructureQueries
 import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.tenant.CreateTenant
 import com.dynokore.gst.tenancy.application.tenant.TenantStore
+import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.persistence.PersistenceLayer
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
@@ -61,7 +62,7 @@ class UseCases {
     fun tenantStore(
         dsl: DSLContext,
         mapper: ObjectMapper,
-    ): TenantStore = JooqTenantStore(dsl, mapper)
+    ): WorkspaceStore = JooqTenantStore(dsl, mapper)
 
     @Bean
     fun structureStore(

@@ -230,7 +230,8 @@ open class BoundaryDatabase(
     fun <T> asRuntime(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, "tenancy_runtime", RUNTIME_PASSWORD).use(block)
 
-    fun runner(): WebApplicationContextRunner =
+    /** The context runner; [environment] is the explicit `inv.tenancy.environment`, or none when null (INV-REQ-502). */
+    fun runner(environment: String? = "PRODUCTION"): WebApplicationContextRunner =
         WebApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
@@ -251,7 +252,9 @@ open class BoundaryDatabase(
                 "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
                 "service-runtime.datasource.credential=db/tenancy_runtime",
                 "spring.profiles.active=test",
-            )
+            ).let { runner ->
+                if (environment == null) runner else runner.withPropertyValues("inv.tenancy.environment=$environment")
+            }
 
     /**
      * The service started by SpringApplication in an embedded servlet container on a free port over the same database,
@@ -282,6 +285,7 @@ open class BoundaryDatabase(
                 "service-runtime.datasource.credential=db/tenancy_runtime",
                 "server.port=0",
                 "inv.installer.subject=sa-installer",
+                "inv.tenancy.environment=PRODUCTION",
                 *properties,
             ).run()
     }

@@ -44,6 +44,15 @@ changes, use an empty Gradle user home and write the locks and the metadata in o
   -x test --continue --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache
 ```
 
+## Environment (INV-REQ-502)
+
+`inv.tenancy.environment` is `PRODUCTION` or `SANDBOX` and has no default: a start without it, or with any other value,
+fails during start-up. A SANDBOX workspace of the SaaS form is a tenant row (`environment`, `paired_production_tenant_id`,
+`workspace_name`); a credential is accepted only when its own environment tag equals the target's environment. The target is SANDBOX when the tenant row says SANDBOX or the service was started as
+SANDBOX, else PRODUCTION (INV-Q-11905 A). The operations `loadCredential`, `recordSampleApproval` and `requestSampleCopy`
+refuse with TNC-005, TNC-006 and TNC-007 (422); the two sample operations are decided by the permission keys
+`sample-copy.approve` and `sample-copy.request` through `AuthorityReplica.decideTenant`, never by a role name.
+
 ## Owns
 
 Tenants, groups, entities and business units; entity profiles and their history; period records and extensions; workspaces; certification status; entitlement and metering counters; licence status; questionnaire answers and the applied operating profile (FR-AI.7, FR-AI.8); installation facts — release train and supported window, backup-target verification (FR-H.23), installation platform (VP-52), heartbeat target (FR-AE.70)

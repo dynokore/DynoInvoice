@@ -22,8 +22,8 @@ suspendEntity	operation	INV-T-4931	pending
 deregisterEntity	operation	INV-T-4931	pending
 offboardTenant	operation	INV-T-4931	pending
 recordRenditionResponsibility	operation	INV-T-4931	pending
-createWorkspace	operation	INV-T-4932	pending
-archiveWorkspace	operation	INV-T-4932	pending
+createWorkspace	operation	INV-T-4932	done
+archiveWorkspace	operation	INV-T-4932	done
 installLicence	operation	INV-T-4933	pending
 getUsageCounters	operation	INV-T-4933	pending
 recordAppliedOperatingProfile	operation	INV-T-4933	pending
@@ -43,9 +43,9 @@ PeriodDueDateChanged	channel	INV-T-4930	pending
 InstallationStatusChanged	channel	INV-T-4933	pending
 approveElectionChange	operation	INV-T-10125	done
 recordEntitlement	operation	INV-T-4933	pending
-loadCredential	operation	INV-T-4932	pending
-recordSampleApproval	operation	INV-T-4932	pending
-requestSampleCopy	operation	INV-T-4932	pending
+loadCredential	operation	INV-T-4932	done
+recordSampleApproval	operation	INV-T-4932	done
+requestSampleCopy	operation	INV-T-4932	done
 electPlatform	operation	INV-T-4933	pending
 getLicenceStatus	operation	INV-T-4933	pending
 getPlatformElection	operation	INV-T-4933	pending

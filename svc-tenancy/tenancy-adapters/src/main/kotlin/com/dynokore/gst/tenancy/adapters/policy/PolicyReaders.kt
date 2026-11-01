@@ -4,6 +4,7 @@ import com.dynokore.gst.tenancy.application.period.NonBusinessDayRuleReader
 import com.dynokore.gst.tenancy.application.status.GroupElectionReader
 import com.dynokore.gst.tenancy.application.status.ImplementationBasisReader
 import com.dynokore.gst.tenancy.application.status.ResolvedImplementation
+import com.dynokore.gst.tenancy.application.workspace.ProductionSamplePolicy
 import com.dynokore.platform.calendarandperiods.NonBusinessDayRule
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
@@ -30,6 +31,13 @@ object TenancyVariationPoints {
 
     const val NO_MOVE = "NO_MOVE"
     const val NEXT_WORKING_DAY = "NEXT_WORKING_DAY"
+
+    /** VP-44: anonymised production samples in workspaces, off by default (INV-REQ-1305). */
+    val PRODUCTION_SAMPLES = VariationPointKey("VP-44")
+
+    const val SAMPLES_OFF = "OFF"
+    const val SAMPLES_ON = "ON"
+
     const val MANDATORY_DATE = "MANDATORY_DATE"
     const val EARLIER_VOLUNTARY_DATE = "EARLIER_VOLUNTARY_DATE"
     const val IRAS_COMMUNICATED_DATE = "IRAS_COMMUNICATED_DATE"
@@ -113,6 +121,26 @@ class PolicyNonBusinessDayRuleReader(
             TenancyVariationPoints.NO_MOVE -> NonBusinessDayRule.NO_MOVE
             TenancyVariationPoints.NEXT_WORKING_DAY -> NonBusinessDayRule.NEXT_WORKING_DAY
             else -> error("VP-62 resolved to an option this service does not know: ${option.key}")
+        }
+    }
+}
+
+/**
+ * VP-44 as resolved by PolicyReader for the bound tenant, on the transaction date: off unless set on
+ * (INV-REQ-1305).
+ */
+class PolicyProductionSamplePolicy(
+    private val policy: PolicyReader,
+    private val tenants: TenantContext,
+    private val today: () -> LocalDate,
+) : ProductionSamplePolicy {
+    override fun isOn(): Boolean {
+        val scope = PolicyScope.tenant(tenants.current())
+        val option = policy.resolve(TenancyVariationPoints.PRODUCTION_SAMPLES, scope, today()).selected.single()
+        return when (option.key) {
+            TenancyVariationPoints.SAMPLES_ON -> true
+            TenancyVariationPoints.SAMPLES_OFF -> false
+            else -> error("VP-44 resolved to an option this service does not know: ${option.key}")
         }
     }
 }
