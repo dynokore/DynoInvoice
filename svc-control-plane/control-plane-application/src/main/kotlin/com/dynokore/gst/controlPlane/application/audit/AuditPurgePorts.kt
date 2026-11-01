@@ -3,6 +3,7 @@ package com.dynokore.gst.controlPlane.application.audit
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import java.time.Instant
 import java.time.Period
+import java.util.UUID
 
 /** The permission an audit purge needs, and the scope it is asked in (never a role name, INV-Q-10027). */
 object AuditPurgePermission {
@@ -41,4 +42,9 @@ fun interface AuditEntryPurger {
         reason: String,
         context: RequestContext,
     ): AuditPurgeResult
+}
+
+/** Issues the identifier of a purge (API-13, server-issued UUID). */
+fun interface AuditPurgeIdSource {
+    fun next(): UUID
 }

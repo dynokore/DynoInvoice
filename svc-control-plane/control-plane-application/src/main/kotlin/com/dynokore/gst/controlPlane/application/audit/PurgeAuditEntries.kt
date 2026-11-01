@@ -6,6 +6,7 @@ import com.dynokore.gst.controlPlane.domain.audit.PurgeFloor
 import java.time.Clock
 import java.time.Instant
 import java.time.Period
+import java.util.UUID
 
 data class PurgeAuditEntriesCommand(
     val actor: String,
@@ -17,6 +18,8 @@ data class PurgeAuditEntriesCommand(
 sealed interface PurgeAuditOutcome {
     data class Purged(
         val result: AuditPurgeResult,
+        val purgeId: UUID,
+        val floor: Period,
     ) : PurgeAuditOutcome
 
     /** SRT-004 (403). */
@@ -38,6 +41,7 @@ class PurgeAuditEntries(
     private val floorSource: AuditPurgeFloorSource,
     private val purger: AuditEntryPurger,
     private val clock: Clock,
+    private val idSource: AuditPurgeIdSource = AuditPurgeIdSource { UUID.randomUUID() },
 ) {
     fun execute(command: PurgeAuditEntriesCommand): PurgeAuditOutcome =
         if (!permitted(command.actor)) {
@@ -50,9 +54,8 @@ class PurgeAuditEntries(
 
                 is PurgeFloor.Determined -> {
                     if (AuditPurgePolicy.allows(command.cutOff, floor)) {
-                        PurgeAuditOutcome.Purged(
-                            purger.purge(command.actor, command.cutOff, reasonOf(command), command.context),
-                        )
+                        val result = purger.purge(command.actor, command.cutOff, reasonOf(command), command.context)
+                        PurgeAuditOutcome.Purged(result, idSource.next(), floor.retention)
                     } else {
                         PurgeAuditOutcome.CutOffYoungerThanFloor
                     }

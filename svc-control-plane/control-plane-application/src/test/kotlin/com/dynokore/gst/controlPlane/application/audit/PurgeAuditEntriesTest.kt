@@ -7,6 +7,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.Period
 import java.time.ZoneOffset
+import java.util.UUID
 import java.util.concurrent.TimeoutException
 
 class PurgeAuditEntriesTest {
@@ -16,6 +17,14 @@ class PurgeAuditEntriesTest {
     private val purged = ArrayList<Triple<Instant, String, RequestContext>>()
     private val ctx = RequestContext("corr-1", "key-1")
     private val asked = ArrayList<Triple<String, String, String>>()
+    private val fixedId = UUID.fromString("00000000-0000-0000-0000-000000000042")
+    private val idCalls = ArrayList<String>()
+    private val idSource =
+        AuditPurgeIdSource {
+            calls += "id"
+            idCalls += "id"
+            fixedId
+        }
 
     private fun yearsAgo(years: Long): Instant = now.atOffset(ZoneOffset.UTC).minusYears(years).toInstant()
 
@@ -43,6 +52,7 @@ class PurgeAuditEntriesTest {
                 AuditPurgeResult(1, "entry-1")
             },
         clock = clock,
+        idSource = idSource,
     )
 
     private fun run(
@@ -91,8 +101,9 @@ class PurgeAuditEntriesTest {
 
     @Test
     fun `INV-AC-3823 a cut-off exactly at the floor is purged`() {
-        run(useCase(), yearsAgo(10)) shouldBe PurgeAuditOutcome.Purged(AuditPurgeResult(1, "entry-1"))
-        calls shouldBe listOf("authority", "floor", "purger")
+        run(useCase(), yearsAgo(10)) shouldBe
+            PurgeAuditOutcome.Purged(AuditPurgeResult(1, "entry-1"), fixedId, Period.ofYears(10))
+        calls shouldBe listOf("authority", "floor", "purger", "id")
     }
 
     @Test
@@ -124,7 +135,8 @@ class PurgeAuditEntriesTest {
     fun `INV-AC-3823 a maximum under 5 years gives a floor of 5 years`() {
         val short = { listOf<Period?>(Period.ofYears(2), Period.ofYears(3)) }
         run(useCase(figures = short), yearsAgo(4)) shouldBe PurgeAuditOutcome.CutOffYoungerThanFloor
-        run(useCase(figures = short), yearsAgo(5)) shouldBe PurgeAuditOutcome.Purged(AuditPurgeResult(1, "entry-1"))
+        run(useCase(figures = short), yearsAgo(5)) shouldBe
+            PurgeAuditOutcome.Purged(AuditPurgeResult(1, "entry-1"), fixedId, Period.ofYears(5))
     }
 
     @Test
@@ -145,10 +157,12 @@ class PurgeAuditEntriesTest {
                     throw failure
                 },
                 clock = clock,
+                idSource = idSource,
             )
         val thrown = runCatching { run(failing, yearsAgo(6)) }.exceptionOrNull()
         (thrown === failure) shouldBe true
         calls shouldBe listOf("authority", "floor", "purger")
+        idCalls shouldBe emptyList()
     }
 
     @Test
@@ -174,5 +188,59 @@ class PurgeAuditEntriesTest {
         val cutOff = yearsAgo(11).plusNanos(123_456_789)
         run(useCase(), cutOff)
         purged.single().first shouldBe cutOff
+    }
+
+    @Test
+    fun `INV-AC-3823 a purge answers the floor used, the purge id of the id source and the result of the purger`() {
+        val figures = { listOf<Period?>(Period.ofYears(6), Period.ofYears(2)) }
+        run(useCase(figures = figures), yearsAgo(7)) shouldBe
+            PurgeAuditOutcome.Purged(AuditPurgeResult(1, "entry-1"), fixedId, Period.ofYears(6))
+    }
+
+    @Test
+    fun `INV-AC-3823 the purge id is drawn once and only after the purger returned`() {
+        run(useCase(), yearsAgo(11))
+        calls shouldBe listOf("authority", "floor", "purger", "id")
+        idCalls.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-3823 a purger that throws draws no purge id and the exception propagates`() {
+        val failure = IllegalStateException("purge failed")
+        val failing =
+            PurgeAuditEntries(
+                authority = { _, _, _ -> true },
+                floorSource = { listOf(Period.ofYears(5)) },
+                purger = { _, _, _, _ -> throw failure },
+                clock = clock,
+                idSource = idSource,
+            )
+        val thrown = runCatching { run(failing, yearsAgo(6)) }.exceptionOrNull()
+        (thrown === failure) shouldBe true
+        idCalls.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-3823 a refused call draws no purge id`() {
+        run(useCase(authority = { false }), yearsAgo(11)) shouldBe PurgeAuditOutcome.NotPermitted
+        idCalls.size shouldBe 0
+        run(useCase(), yearsAgo(6)) shouldBe PurgeAuditOutcome.CutOffYoungerThanFloor
+        idCalls.size shouldBe 0
+        run(useCase(figures = { listOf(null) }), yearsAgo(11)) shouldBe PurgeAuditOutcome.FloorUndeterminable
+        idCalls.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-3823 the default id source gives a different purge id on each call`() {
+        val useCase =
+            PurgeAuditEntries(
+                { _, _, _ -> true },
+                { listOf(Period.ofYears(5)) },
+                { _, _, _, _ -> AuditPurgeResult(1, "entry-1") },
+                clock,
+            )
+        val first = run(useCase, yearsAgo(6)) as PurgeAuditOutcome.Purged
+        val second = run(useCase, yearsAgo(6)) as PurgeAuditOutcome.Purged
+        (first.purgeId != second.purgeId) shouldBe true
     }
 }
