@@ -93,7 +93,7 @@ class RateStraddleTest {
         val resolver = PackResolver(registry)
         val rates = mapOf("rate-9" to "9", "rate-10" to "10")
         val appliedVersions = mutableListOf<String>()
-        // the coder under test reads its catalogue through the resolver, so the version it records is the one it coded by
+        // the coder under test reads its catalogue through the resolver: the version it records is the one coded by
         val resolvedCoder =
             DocumentCoder(
                 { _, _ -> listOf(MappingEntry("STD", "SR")) },
