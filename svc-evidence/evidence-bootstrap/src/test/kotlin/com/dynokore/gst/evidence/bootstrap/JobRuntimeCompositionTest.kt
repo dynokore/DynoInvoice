@@ -49,14 +49,18 @@ class JobRuntimeCompositionTest {
     private val actors = listOf("release.manager", "platform.engineer", "svc:evidence-svc", "")
 
     @Test
-    fun `the context holds one JobRuntime with exactly the verification job registered`(
+    fun `the context holds one JobRuntime with exactly the verification and archive-volume jobs registered`(
         @TempDir dir: Path,
     ) {
         EvidenceContext.offline(dir).run { context ->
             context.startupFailure shouldBe null
             context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
-            context.getBean(JobRuntime::class.java).registered().map { it.name } shouldBe
-                listOf("evidence-chain-verification")
+            context
+                .getBean(JobRuntime::class.java)
+                .registered()
+                .map { it.name }
+                .sorted() shouldBe
+                listOf("archive-volume-measurement", "evidence-chain-verification")
         }
     }
 
@@ -165,9 +169,14 @@ class JobRuntimeCompositionTest {
     ) {
         EvidenceContext.offline(dir).run { context ->
             val tasks = context.getBean(ScheduledAnnotationBeanPostProcessor::class.java).scheduledTasks
-            val cron = tasks.map { it.task }.single().shouldBeInstanceOf<CronTask>()
+            tasks.size shouldBe 2
             tasks.none { it.task is FixedRateTask } shouldBe true
-            val registered = context.getBean(JobRuntime::class.java).registered().single()
+            val cron =
+                tasks
+                    .map { it.task.shouldBeInstanceOf<CronTask>() }
+                    .single { it.expression == "0 0 1 * * *" }
+            val registered =
+                context.getBean(JobRuntime::class.java).registered().single { it.name == "evidence-chain-verification" }
             registered.schedule.cron shouldBe "0 0 1 * * *"
             registered.schedule.zone shouldBe ZoneOffset.UTC
             cron.expression shouldBe registered.schedule.cron
@@ -215,7 +224,7 @@ class JobRuntimeCompositionTest {
                 .jobScheduling(providerOf(runtime), Clock.fixed(utc, ZoneOffset.UTC))
                 .configureTasks(registrar)
             registrar.cronTaskList
-                .single()
+                .single { it.expression == "0 0 1 * * *" }
                 .runnable
                 .run()
             pairs.forEach { (tenant, entity) -> runRows(tenant) shouldBe listOf(entity) }
