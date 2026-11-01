@@ -10,10 +10,10 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -38,7 +38,7 @@ private val CALLERS = listOf("installer", "canonical-svc", "console-bff", "insta
 @TestConfiguration(proxyBeanMethods = false)
 class CountingReader {
     @Bean
-    fun countingReader(): BeanPostProcessor =
+    fun readCounter(): BeanPostProcessor =
         object : BeanPostProcessor {
             override fun postProcessAfterInitialization(
                 bean: Any,
@@ -69,7 +69,7 @@ class CountingReader {
 )
 @Import(CountingReader::class)
 class ListActiveRegulatoryPacksIT {
-    @Value("\${local.server.port}")
+    @LocalServerPort
     private var port: Int = 0
 
     private val http = HttpClient.newHttpClient()
@@ -107,28 +107,31 @@ class ListActiveRegulatoryPacksIT {
         }
     }
 
-    private fun seed(
-        tenant: String,
-        type: String,
-        version: String,
-        layer: String,
-        status: String,
-        minEngine: String = "2026.3",
-        to: String? = null,
-    ) = sql(
-        "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-            "effective_from, effective_to, min_engine_version, registered_by) " +
-            "values (?::uuid, ?::uuid, ?, ?, ?, ?, ?, '2026-04-01'::date, ?::date, ?, 'seed')",
-        UUID.randomUUID(),
-        tenant,
-        "$type-$version",
-        type,
-        version,
-        layer,
-        status,
-        to,
-        minEngine,
+    private data class Row(
+        val tenant: String,
+        val layer: String,
+        val type: String,
+        val version: String,
+        val status: String,
+        val minEngine: String = "2026.3",
+        val to: String? = null,
     )
+
+    private fun seed(row: Row) =
+        sql(
+            "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
+                "effective_from, effective_to, min_engine_version, registered_by) " +
+                "values (?::uuid, ?::uuid, ?, ?, ?, ?, ?, '2026-04-01'::date, ?::date, ?, 'seed')",
+            UUID.randomUUID(),
+            row.tenant,
+            "${row.type}-${row.version}",
+            row.type,
+            row.version,
+            row.layer,
+            row.status,
+            row.to,
+            row.minEngine,
+        )
 
     private fun regulatory(
         type: String,
@@ -136,7 +139,7 @@ class ListActiveRegulatoryPacksIT {
         status: String,
         minEngine: String = "2026.3",
         to: String? = null,
-    ) = seed(PLATFORM, type, version, "REGULATORY", status, minEngine, to)
+    ) = seed(Row(PLATFORM, "REGULATORY", type, version, status, minEngine, to))
 
     @BeforeEach
     fun clean() {
@@ -166,13 +169,13 @@ class ListActiveRegulatoryPacksIT {
     @Test
     fun `lists only the ARMED regulatory rows ordered by type then version`() {
         regulatory("SCOPE", "2026.4", "ARMED", "2026.3")
-        regulatory("SCOPE", "2026.2", "ARMED", "2025.9", to = "2026-04-01".let { "2027-01-01" })
+        regulatory("SCOPE", "2026.2", "ARMED", "2025.9", to = "2027-01-01")
         regulatory("CODES", "1.0", "ARMED", "2026.1")
         regulatory("SCOPE", "2026.5", "STAGED")
         regulatory("SCOPE", "2026.6", "ACKNOWLEDGED")
         regulatory("SCOPE", "2026.1", "SUPERSEDED")
         regulatory("SCOPE", "2026.0", "ABORTED")
-        seed(TENANT, "MAPPING", "9.9", "TENANT_MAPPING", "ARMED", "9999.9")
+        seed(Row(TENANT, "TENANT_MAPPING", "MAPPING", "9.9", "ARMED", "9999.9"))
         val answer = get()
         answer.statusCode() shouldBe 200
         items(answer.body()) shouldBe
@@ -188,7 +191,7 @@ class ListActiveRegulatoryPacksIT {
 
     @Test
     fun `pages 501 armed rows by cursor and refuses a foreign cursor and an out-of-range limit`() {
-        (1..501).forEach { regulatory("SCOPE", "v%04d".format(it), "ARMED") }
+        (1..501).forEach { regulatory("SCOPE", "v%04d".format(java.util.Locale.ROOT, it), "ARMED") }
         val first = get("?limit=500")
         first.statusCode() shouldBe 200
         items(first.body()).size shouldBe 500
