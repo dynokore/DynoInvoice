@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-01
+### Changed
+- Built with platform-build 0.27.0 (INV-T-12576, INV-AC-12574; INV-Q-12569, INV-Q-12571): `UNKNOWN` is a new last member of every generated extensible enum of the tenancy and access clients and of the event payloads, and an unlisted value decodes to it. The structure feed and the tenancy fallback now give a node of kind `UNKNOWN` for an unlisted `kind` (`WAREHOUSE`) instead of a ContractViolation or a RestClientException; a missing required `kind` is still a ContractViolation.
+
 ## [2.3.4] - 2026-11-01
 ### Changed
 - Metadata-only change (INV-T-14795, G-DVS): depends on `service-runtime 10.31.1`, whose version steps; no code change.

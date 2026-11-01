@@ -2,7 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :evidence-store:dependencies --write-locks
-com.dynokore.gst.build:konsist-rules:0.25.0=testCompileClasspath,testRuntimeClasspath
+com.dynokore.gst.build:konsist-rules:0.27.0=testCompileClasspath,testRuntimeClasspath
 com.fasterxml.jackson.core:jackson-annotations:2.10.3=testCompileClasspath,testFixturesCompileClasspath,testFixturesRuntimeClasspath,testRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
 com.github.curious-odd-man:rgxgen:2.0=testCompileClasspath,testRuntimeClasspath
