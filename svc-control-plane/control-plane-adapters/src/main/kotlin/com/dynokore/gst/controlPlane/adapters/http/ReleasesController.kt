@@ -46,9 +46,11 @@ import java.util.UUID
 /**
  * publishTrain and setSupportWindow (TPL-08). The caller is the verified token's `sub`, never a request field
  * (API-24); a train is platform data, so the command runs in a transaction bound to the platform tenant. The
- * accreditation operations of the same contract tag are not overridden here: the generated interface answers 501.
+ * accreditation task operations of the same contract tag are not overridden here: the generated interface answers
+ * 501. recordAccreditation and getAccreditation are (INV-T-7322).
  */
 @RestController
+@Suppress("LongParameterList") // one constructor-injected controller; each parameter is one collaborator (TPL-18)
 class ReleasesController(
     private val principals: EndUserPrincipalResolver,
     private val platform: PlatformTenantBinding,

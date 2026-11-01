@@ -8,7 +8,8 @@ import com.dynokore.gst.controlPlane.domain.accreditation.SandboxAcknowledgement
 import com.dynokore.gst.controlPlane.domain.accreditation.SubmissionType
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import org.jooq.DSLContext
-import org.jooq.JSONB
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -40,6 +41,7 @@ class AccreditationRecordsJooq(
             ?.let(::recordOf)
 
     override fun save(record: AccreditationRecord) {
+        val acknowledgements = DSL.value(acknowledgementsJson(record)).cast(SQLDataType.JSONB)
         dsl
             .insertInto(ACCREDITATION_RECORD)
             .set(ACCREDITATION_RECORD.ID, UUID.randomUUID())
@@ -49,7 +51,7 @@ class AccreditationRecordsJooq(
             .set(
                 ACCREDITATION_RECORD.COVERED_SUBMISSION_TYPES,
                 record.coveredSubmissionTypes.map { it.name }.toTypedArray(),
-            ).set(ACCREDITATION_RECORD.SANDBOX_ACKNOWLEDGEMENTS, JSONB.valueOf(acknowledgementsJson(record)))
+            ).set(ACCREDITATION_RECORD.SANDBOX_ACKNOWLEDGEMENTS, acknowledgements)
             .set(ACCREDITATION_RECORD.RECORDED_AT, record.recordedAt.atOffset(ZoneOffset.UTC))
             .set(ACCREDITATION_RECORD.RECORDED_BY, record.recordedBy.value)
             .onConflict(ACCREDITATION_RECORD.IMDA_REFERENCE, ACCREDITATION_RECORD.CURRENT_UNTIL)

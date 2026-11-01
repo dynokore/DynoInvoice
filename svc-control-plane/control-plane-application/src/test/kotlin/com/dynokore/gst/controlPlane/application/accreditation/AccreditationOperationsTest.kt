@@ -62,6 +62,7 @@ class AccreditationOperationsTest {
     private val record get() = RecordAccreditation(records, permissions, clock)
     private val read get() = GetAccreditation(records, permissions, clock)
 
+    @Suppress("LongParameterList") // a builder with a default for every field
     private fun commandOf(
         actor: String,
         currentUntil: LocalDate = today.plusDays(300),
@@ -76,9 +77,8 @@ class AccreditationOperationsTest {
         val op = record
         if (!op.permits(command.actor.value, command)) return null
         val state = op.load(command)
-        op.priorResult(command, state)?.let { return it }
-        check(op.unmetPrecondition(command, state) == null)
-        return op.perform(command, state)
+        check(state != null || op.unmetPrecondition(command, state) == null)
+        return op.priorResult(command, state) ?: op.perform(command, state)
     }
 
     private fun lapsed() = commandOf("alice", currentUntil = today.minusDays(1))
