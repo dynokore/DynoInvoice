@@ -23,12 +23,14 @@ include:
     file:
       - 'ci/stages.gitlab-ci.yml'
       - 'ci/publish.gitlab-ci.yml'   # INV-T-5317: the hidden .gst-publish-* and .gst-guard-* sections (its own jobs stay off: MAVEN_PUBLISH "false", IMAGE_NAME and HELM_CHART_NAME empty)
-  # Keel request 2026-10-18 (keel-report-junit, CI-FAST plan item E1): the keel-report job of stage .post reads the
-  # JUnit XML catalogue-verify leaves as artifacts on the main push pipeline and reports the INV-AC numbers in the
-  # testcase names to Keel. Main only (the template's own rule), so merge-request pipelines are unchanged.
+  # Keel request 2026-10-18 (CI-FAST plan item E1), groups added by CI-FAST 5c (2026-11-02, KEEL-T-15981): the
+  # keel-report job of stage .post reads the JUnit XML catalogue-verify leaves as artifacts and the check summary
+  # every check job writes (.inv-check-group below) on the main push pipeline, and reports the INV-AC numbers in the
+  # testcase names and one check:<job> group per check job to Keel (job-level done proof, attrs.ci_jobs). Main only
+  # (the template's own rule), so merge-request pipelines are unchanged.
   - project: 'keel/tooling'
     ref: main
-    file: 'keel-report-junit.yml'
+    file: 'keel-report-junit-groups.yml'
     inputs:
       runner_tags: [inv-arm64]
       junit_paths: 'catalogue/**/build/test-results/test/TEST-*.xml'
@@ -83,6 +85,13 @@ gst-rebase-check:
   artifacts:
     reports:
       dotenv: rebase.env
+
+# CI-FAST 5c: the check summary of keel-report-junit-groups.yml's .check-group (ci-artifacts/check-summary/<job>.json,
+# artifacts when: always), taken by !reference so the text stays the template's. Not `extends: .check-group`: its
+# `dependencies: []` would drop gst-rebase-check's dotenv (GST_REBASE_ONLY) from the jobs that need it.
+.inv-check-group:
+  after_script: !reference [.check-group, after_script]
+  artifacts: !reference [.check-group, artifacts]
 
 .gst-rebase-needs:
   needs:
@@ -161,6 +170,7 @@ contract-rules:
   # audited-operations-check (INV-T-7365, INV-Q-7360: catalogue/audited-operations.tsv maps each audited operation name of
   # INV-REQ-2588 to operations of the contracts). The page-bound check
   # (service-runtime/check-page-bound.py) stays a line of its own (service-runtime/test_check_page_bound.py).
+  extends: .inv-check-group
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
   image: "$CI_TOOLS_IMAGE"
@@ -228,6 +238,7 @@ invoice-docs-checks:
   #   `error_codes:` on; the header comments differ) equals invoice-docs model/architecture/error-codes.yaml at the
   #   commit its header pins; a main that has moved past the pin is reported without failing (re-vendor in its own
   #   merge request, AGT-11).
+  extends: .inv-check-group
   stage: verify
   needs: []
   image: "$CI_TOOLS_IMAGE"
@@ -287,7 +298,7 @@ tool-self-tests:
   # keep the immutable-release guard). In a merge request they run only when a tool, a fixture or this file changes.
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
-  extends: .gst-mr-only-on-tools
+  extends: [.gst-mr-only-on-tools, .inv-check-group]
   image:
     name: "$OASDIFF_IMAGE"
     entrypoint: [""]
@@ -324,7 +335,7 @@ spectral-rule-self-tests:
   # request they run only when spectral/ or this file changes.
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
-  extends: .gst-mr-only-on-spectral
+  extends: [.gst-mr-only-on-spectral, .inv-check-group]
   image:
     name: "$SPECTRAL_IMAGE"
     entrypoint: [""]
@@ -353,7 +364,7 @@ catalogue-verify:
   # main pipeline's own run on the merge commit (Keel R77), so the main push pipeline produces this job's JUnit XML.
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
-  extends: .gst-mr-only-on-catalogue
+  extends: [.gst-mr-only-on-catalogue, .inv-check-group]
   image: "$GRADLE_IMAGE"
   tags: [inv-arm64]   # CI-FAST D1: the Gradle jobs run on runner 91 (arm64), as libs/build do
   # CI-FAST B3: only the main pipeline pushes this cache (about 70 s of archiving per run); merge-request
@@ -385,6 +396,7 @@ catalogue-verify:
     paths:
       - "catalogue/**/build/reports/"
       - "catalogue/**/build/test-results/test/TEST-*.xml"   # read by keel-report (E1); reports:junit is not passed to later jobs
+      - ci-artifacts/   # check summary (.inv-check-group); the job's own paths replace the extended list
     expire_in: 1 week
 
 # INV-T-5317 (coordinator ruling INV-Q-5313): a published version is never replaced. Nothing here uploads by
@@ -488,6 +500,7 @@ publish-guard-dry-run:
     - !reference [.gst-guard-generic, script]
 
 spectral-lint:
+  extends: .inv-check-group
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
   image:
@@ -510,6 +523,7 @@ spectral-lint:
       exit $failed
 
 asyncapi-validate:
+  extends: .inv-check-group
   tags: [inv-arm64]   # CI-FAST (owner 2026-10-31 "A", batch 2): runner 90 is the bottleneck; arch-neutral, multi-arch image
   stage: verify
   needs: !reference [.gst-rebase-needs, needs]
@@ -576,6 +590,7 @@ contracts-codegen-compile:
   # this reports drift the same way: after fetching the pin, also fetch
   # platform-build's main tip and echo (without failing the job) how far the pin has
   # fallen behind, so a stale pin is a visible follow-up, not silent.
+  extends: .inv-check-group
   stage: verify
   needs: []
   image: "$GRADLE_IMAGE"
@@ -614,9 +629,10 @@ contracts-codegen-compile:
       fi
     - PLATFORM_BUILD_DIR=/tmp/platform-build-pinned gradle -p codegen-self-test compileAllContracts --stacktrace
   artifacts:
-    when: on_failure
+    when: always   # was on_failure; the check summary (.inv-check-group) needs always
     paths:
       - codegen-self-test/build/reports/
+      - ci-artifacts/
     expire_in: 1 week
 
 bundle-publish:
