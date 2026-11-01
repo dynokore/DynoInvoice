@@ -120,7 +120,7 @@ class ClearAcknowledgementRoute(
         val state = recorder.load(tenant, connectionRef)
         val change = state.clear()
         if (change is RouteChange.NoOp) return RouteOutcome.NO_OP
-        ObserveGuard.refusal(connectionRef, state.entityRefs, replica::find, LocalDate.now(clock))?.let {
+        ObserveGuard.refusal(connectionRef, tenant, state.entityRefs, replica::find, LocalDate.now(clock))?.let {
             throw ObserveGuardRefused("SUB-023", it)
         }
         return recorder.record(tenant, connectionRef, change)
@@ -133,16 +133,30 @@ class EntityRemovalGuard(
     private val clock: Clock,
 ) {
     fun check(
+        tenant: TenantRef,
         connectionRef: String,
         entity: EntityRef,
     ) {
-        ObserveGuard.refusal(connectionRef, listOf(entity), replica::find, LocalDate.now(clock))?.let {
+        ObserveGuard.refusal(connectionRef, tenant, listOf(entity), replica::find, LocalDate.now(clock))?.let {
             throw ObserveGuardRefused("SUB-019", it)
         }
     }
 }
 
-/** Applies an EntityProfileChanged event to the replica row of its entity. */
+/** What [ApplyEntityProfileChanged] did; a mismatch names the entity and both tenants, never the payload. */
+sealed interface ProfileApplyResult {
+    data object Applied : ProfileApplyResult
+
+    data object Ignored : ProfileApplyResult
+
+    data class TenantMismatch(
+        val entity: EntityRef,
+        val storedTenant: TenantRef,
+        val eventTenant: TenantRef,
+    ) : ProfileApplyResult
+}
+
+/** Applies an EntityProfileChanged event to the replica row of its entity; the tenant is the event context's. */
 class ApplyEntityProfileChanged(
     private val replica: IssuanceReplica,
 ) {
@@ -150,9 +164,15 @@ class ApplyEntityProfileChanged(
         tenant: TenantRef,
         entity: EntityRef,
         node: EntityNode?,
-    ) {
+    ): ProfileApplyResult {
         val stored = replica.find(entity)
-        val next = IssuanceReplicaRow.apply(stored, tenant, node)
+        val foreign = stored?.takeIf { it.tenant != tenant }
+        val next = if (foreign != null) null else IssuanceReplicaRow.apply(stored, tenant, node)
         if (next != null && next != stored) replica.replace(entity, next)
+        return when {
+            foreign != null -> ProfileApplyResult.TenantMismatch(entity, foreign.tenant, tenant)
+            next != null && next != stored -> ProfileApplyResult.Applied
+            else -> ProfileApplyResult.Ignored
+        }
     }
 }

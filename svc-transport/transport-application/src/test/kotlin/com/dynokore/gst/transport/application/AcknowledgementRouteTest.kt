@@ -188,8 +188,8 @@ class AcknowledgementRouteTest {
         val guard = EntityRemovalGuard(replica, clock)
         mode(e1, "OBSERVE", 1)
         mode(EntityRef("E-3"), "RELAY", 1)
-        shouldThrow<ObserveGuardRefused> { guard.check("C1", e1) }.code shouldBe "SUB-019"
-        guard.check("C1", EntityRef("E-3"))
+        shouldThrow<ObserveGuardRefused> { guard.check(t, "C1", e1) }.code shouldBe "SUB-019"
+        guard.check(t, "C1", EntityRef("E-3"))
     }
 
     @Test
@@ -227,5 +227,30 @@ class AcknowledgementRouteTest {
         val nextDay = Clock.fixed(Instant.parse("2026-07-02T00:00:00Z"), ZoneOffset.UTC)
         val onDate = ClearAcknowledgementRoute(recorder, replica, nextDay)
         shouldThrow<ObserveGuardRefused> { onDate.clear(t, "C1") }
+    }
+
+    @Test
+    fun `an event of another tenant returns the mismatch and leaves the row`() {
+        mode(e1, "OBSERVE", 1)
+        val before = replica.rows.getValue(e1)
+        val node = EntityNode(9, listOf(IssuanceModeEntry("RELAY", LocalDate.parse("2026-01-01"))))
+        val apply = ApplyEntityProfileChanged(replica)
+        apply.apply(TenantRef("t-2"), e1, node) shouldBe ProfileApplyResult.TenantMismatch(e1, t, TenantRef("t-2"))
+        replica.rows.getValue(e1) shouldBe before
+        apply.apply(t, e1, node) shouldBe ProfileApplyResult.Applied
+    }
+
+    @Test
+    fun `an event for an entity with no row stores a row of the event tenant`() {
+        mode(EntityRef("E-7"), "RELAY", 1)
+        replica.rows.getValue(EntityRef("E-7")).tenant shouldBe t
+    }
+
+    @Test
+    fun `a row of tenant t-2 for an entity of a connection of tenant t-1 refuses the clear`() {
+        store.rows[t to "C1"] = ConnectionRouteState(AcknowledgementRoute.POLLING, listOf(e1), 1)
+        replica.rows[e1] =
+            IssuanceReplicaRow(TenantRef("t-2"), listOf(IssuanceModeEntry("RELAY", LocalDate.parse("2026-01-01"))), 1)
+        shouldThrow<ObserveGuardRefused> { clear.clear(t, "C1") }
     }
 }

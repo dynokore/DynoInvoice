@@ -2,6 +2,7 @@ package com.dynokore.gst.transport.domain
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -90,9 +91,82 @@ class RouteAndIssuanceRulesTest {
     @Test
     fun `guard fails closed on a missing row`() {
         val today = LocalDate.parse("2026-07-01")
-        ObserveGuard.refusal("C", listOf(e1), { null }, today)!!.entities shouldBe listOf(e1)
-        ObserveGuard.refusal("C", listOf(e1), { row }, today)!!.connection shouldBe "C"
+        ObserveGuard.refusal("C", t, listOf(e1), { null }, today)!!.entities shouldBe listOf(e1)
+        ObserveGuard.refusal("C", t, listOf(e1), { row }, today)!!.connection shouldBe "C"
         val relay = IssuanceReplicaRow(t, listOf(entry("RELAY", "2026-01-01")), 1)
-        ObserveGuard.refusal("C", listOf(e1), { relay }, today) shouldBe null
+        ObserveGuard.refusal("C", t, listOf(e1), { relay }, today) shouldBe null
+    }
+
+    private fun inForce(value: String) = IssuanceReplicaRow(t, listOf(entry(value, "2026-01-01")), 1)
+
+    private val today = LocalDate.parse("2026-07-01")
+
+    private fun refused(value: String) = ObserveGuard.refusal("C", t, listOf(e1), { inForce(value) }, today) != null
+
+    @Test
+    fun `RELAY in force is accepted`() {
+        refused("RELAY") shouldBe false
+    }
+
+    @Test
+    fun `NONE in force is accepted`() {
+        refused("NONE") shouldBe false
+    }
+
+    @Test
+    fun `OBSERVE in force is refused`() {
+        refused("OBSERVE") shouldBe true
+    }
+
+    @Test
+    fun `look-alike observe is refused`() {
+        refused("observe") shouldBe true
+    }
+
+    @Test
+    fun `look-alike Observe is refused`() {
+        refused("Observe") shouldBe true
+    }
+
+    @Test
+    fun `look-alike OBSERVE with trailing space is refused`() {
+        refused("OBSERVE ") shouldBe true
+    }
+
+    @Test
+    fun `look-alike OBSERVED is refused`() {
+        refused("OBSERVED") shouldBe true
+    }
+
+    @Test
+    fun `look-alike None is refused`() {
+        refused("None") shouldBe true
+    }
+
+    @Test
+    fun `an unknown value PAUSED is refused and the message says no known mode`() {
+        ObserveGuard
+            .refusal(
+                "C",
+                t,
+                listOf(e1),
+                { inForce("PAUSED") },
+                today,
+            )!!
+            .message
+            .contains("no known mode") shouldBe
+            true
+    }
+
+    @Test
+    fun `a row of another tenant counts as no row`() {
+        ObserveGuard.refusal("C", TenantRef("t-2"), listOf(e1), { inForce("RELAY") }, today) shouldNotBe null
+    }
+
+    @Test
+    fun `an event of another tenant leaves the row unchanged even with a higher version`() {
+        val other = listOf(entry("RELAY", "2026-02-01"))
+        IssuanceReplicaRow.apply(row, TenantRef("t-2"), EntityNode(9, other)) shouldBe row
+        IssuanceReplicaRow.apply(row, t, EntityNode(9, other)) shouldBe IssuanceReplicaRow(t, other, 9)
     }
 }
