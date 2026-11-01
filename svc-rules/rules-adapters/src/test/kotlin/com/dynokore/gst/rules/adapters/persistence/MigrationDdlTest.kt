@@ -35,7 +35,7 @@ class MigrationDdlTest {
 
     private val testModeFile = File("src/main/resources/db/migration/V202611011100__outbox_testmode.sql")
 
-    /** The testmode column of outbox-and-queue 6.10.0+ reaches the V2 outbox by the library's own upgrade DDL (INV-Q-12635). */
+    /** The testmode column of outbox-and-queue 6.10.0+ reaches V2 by the library's own upgrade DDL (INV-Q-12635). */
     @Test
     fun `the testmode migration is the upgrade DDL the pinned outbox-and-queue generates and V2 predates the column`() {
         testModeFile
