@@ -62,6 +62,16 @@ data class StoredInvitation(
     val reissued: Boolean = false,
 )
 
+/** What a reissue writes on the invitation row: the new reference, digest, key version, expiry and the reissue key. */
+data class InvitationReplacement(
+    val invitationRef: String,
+    val codeDigest: String,
+    val codeKeyVersion: String,
+    val expiresAt: Instant,
+    val reissueKey: UUID,
+    val reissueFingerprint: String,
+)
+
 /** The invitation row a reissue key was stored on (the latest reissue of the grant). */
 data class StoredReissue(
     val invitationRef: String,
@@ -138,11 +148,6 @@ interface FirstAdministratorInvitations {
      */
     fun reissue(
         grantRef: String,
-        invitationRef: String,
-        codeDigest: String,
-        codeKeyVersion: String,
-        expiresAt: Instant,
-        reissueKey: UUID,
-        reissueFingerprint: String,
+        replacement: InvitationReplacement,
     )
 }

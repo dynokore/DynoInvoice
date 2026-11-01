@@ -101,12 +101,7 @@ class ProvisionFirstAdministratorTest {
 
         override fun reissue(
             grantRef: String,
-            invitationRef: String,
-            codeDigest: String,
-            codeKeyVersion: String,
-            expiresAt: java.time.Instant,
-            reissueKey: UUID,
-            reissueFingerprint: String,
+            replacement: com.dynokore.gst.access.application.invitation.InvitationReplacement,
         ) = error("not used")
     }
 

@@ -104,16 +104,25 @@ class ProvisionFirstAdministrator(
         command: ProvisionFirstAdministratorCommand,
         existing: StoredInvitation,
         fingerprint: String,
-    ): ProvisionFirstAdministratorOutcome {
-        if (existing.requestFingerprint != fingerprint) return ProvisionFirstAdministratorOutcome.DifferentRequest
-        if (existing.reissued) return ProvisionFirstAdministratorOutcome.InvitationReissued
-        return ProvisionFirstAdministratorOutcome.Provisioned(
-            grantRef = existing.grantRef,
-            invitationRef = existing.invitationRef,
-            invitationCode = codes.codeOf(command.tenant, existing.invitationRef, existing.codeKeyVersion),
-            repeated = true,
-        )
-    }
+    ): ProvisionFirstAdministratorOutcome =
+        when {
+            existing.requestFingerprint != fingerprint -> {
+                ProvisionFirstAdministratorOutcome.DifferentRequest
+            }
+
+            existing.reissued -> {
+                ProvisionFirstAdministratorOutcome.InvitationReissued
+            }
+
+            else -> {
+                ProvisionFirstAdministratorOutcome.Provisioned(
+                    grantRef = existing.grantRef,
+                    invitationRef = existing.invitationRef,
+                    invitationCode = codes.codeOf(command.tenant, existing.invitationRef, existing.codeKeyVersion),
+                    repeated = true,
+                )
+            }
+        }
 
     private fun first(
         command: ProvisionFirstAdministratorCommand,

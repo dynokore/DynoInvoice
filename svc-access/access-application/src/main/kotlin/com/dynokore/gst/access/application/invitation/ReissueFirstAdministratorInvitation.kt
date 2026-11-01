@@ -120,12 +120,14 @@ class ReissueFirstAdministratorInvitation(
         val code = codes.codeOf(command.tenant, newRef, keyVersion)
         invitations.reissue(
             live.grantRef,
-            newRef,
-            codes.digestOf(code),
-            keyVersion,
-            command.invitationExpiresAt,
-            command.idempotencyKey,
-            fingerprint,
+            InvitationReplacement(
+                newRef,
+                codes.digestOf(code),
+                keyVersion,
+                command.invitationExpiresAt,
+                command.idempotencyKey,
+                fingerprint,
+            ),
         )
         audit.record(
             GrantAuditEntry(
