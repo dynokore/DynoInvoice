@@ -7,8 +7,8 @@ package com.dynokore.gst.aggregation.acceptance
  * - the table is missing, empty or malformed: a finding;
  * - the ownership file `criteria-owned.tsv` (`task`, `criterion`, `wave`; INV-Q-14739 A) is missing, empty or
  *   malformed: a finding, and nothing else is reported;
- * - a row of an owned slice that is not among its `ac_refs`, or an `ac_ref` with no row (see `criteria-owned.tsv`): a finding
- *   naming it;
+ * - a row of an owned slice that is not among its `ac_refs`, or an `ac_ref` with no row (see
+ *   `criteria-owned.tsv`): a finding naming it;
  * - a row with wave 2 whose key is not a whole token of the name of at least one executed test: a finding naming
  *   the row;
  * - a test name that holds a key in no row, or a look-alike of a key (`INV-AC-21801`, `INV-AC-2180x`,
@@ -136,6 +136,36 @@ object AcKeyCoverage {
         return rows to problems
     }
 
+    private fun ownershipFindings(
+        rows: List<Row>,
+        ownedLines: List<Owned>,
+    ): List<String> {
+        val found = mutableListOf<String>()
+        val byTask = ownedLines.groupBy { it.task }
+        rows.filter { it.task !in byTask }.forEach {
+            found += "${it.criterion} (task ${it.task}): the task has no line in criteria-owned.tsv"
+        }
+        byTask.forEach { (task, lines) ->
+            val keys = lines.map { it.criterion }.toSet()
+            val own = rows.filter { it.task == task }
+            own.filter { it.criterion !in keys }.forEach {
+                found +=
+                    "${it.criterion} (task $task): not among the ac_refs of $task (${keys.sorted().joinToString()})"
+            }
+            (keys - own.map { it.criterion }.toSet()).sorted().forEach {
+                found += "$it (task $task): an ac_ref of $task with no row in ac-keys.tsv"
+            }
+            own.forEach { row ->
+                val line = lines.firstOrNull { it.criterion == row.criterion }
+                if (line != null && row.wave != line.wave) {
+                    found +=
+                        "${row.criterion} (task $task): wave ${row.wave}, but $task runs it in wave ${line.wave}"
+                }
+            }
+        }
+        return found
+    }
+
     fun findings(
         table: String?,
         owned: String?,
@@ -146,28 +176,7 @@ object AcKeyCoverage {
         val (rows, problems) = parse(table)
         val findings = problems.toMutableList()
         if (rows.isEmpty()) return findings
-        val byTask = ownedLines.groupBy { it.task }
-        rows.filter { it.task !in byTask }.forEach {
-            findings += "${it.criterion} (task ${it.task}): the task has no line in criteria-owned.tsv"
-        }
-        byTask.forEach { (task, lines) ->
-            val keys = lines.map { it.criterion }.toSet()
-            val own = rows.filter { it.task == task }
-            own.filter { it.criterion !in keys }.forEach {
-                findings +=
-                    "${it.criterion} (task $task): not among the ac_refs of $task (${keys.sorted().joinToString()})"
-            }
-            (keys - own.map { it.criterion }.toSet()).sorted().forEach {
-                findings += "$it (task $task): an ac_ref of $task with no row in ac-keys.tsv"
-            }
-            own.forEach { row ->
-                val line = lines.firstOrNull { it.criterion == row.criterion }
-                if (line != null && row.wave != line.wave) {
-                    findings +=
-                        "${row.criterion} (task $task): wave ${row.wave}, but $task runs it in wave ${line.wave}"
-                }
-            }
-        }
+        findings += ownershipFindings(rows, ownedLines)
         val covered = executedTestNames.flatMap { keysIn(it).first }.toSet()
         rows.filter { it.wave == RUN_WAVE && it.criterion !in covered }.forEach {
             findings +=
