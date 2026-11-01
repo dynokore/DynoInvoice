@@ -69,10 +69,6 @@ class FirstAdministratorProvisioning(
                 conflict("the tenant already has a tenant.admin grant")
             }
 
-            ProvisionFirstAdministratorOutcome.InvitationReissued -> {
-                conflict("the invitation of this call was reissued and is void")
-            }
-
             ProvisionFirstAdministratorOutcome.DifferentRequest -> {
                 refuse(ClosedErrorCode.DIFFERENT_REQUEST)
             }
@@ -86,7 +82,6 @@ class FirstAdministratorProvisioning(
     /** `reissueFirstAdministratorInvitation`: the tenant is the path `tenantRef`, bound as in [provision]. */
     fun reissue(
         tenantRef: String,
-        idempotencyKey: UUID,
         body: ReissueFirstAdministratorInvitationRequest,
     ): ResponseEntity<FirstAdministratorResponse> {
         val tenant = tenantOf(tenantRef)
@@ -98,7 +93,6 @@ class FirstAdministratorProvisioning(
             ReissueFirstAdministratorInvitationCommand(
                 tenant = TenantRef(tenant.toString()),
                 actor = actor,
-                idempotencyKey = idempotencyKey,
                 invitationExpiresAt = body.invitationExpiresAt.toInstant(),
             )
         return when (val outcome = tenants.bind(tenant, actor) { reissueUseCase.handle(command) }) {
@@ -115,10 +109,6 @@ class FirstAdministratorProvisioning(
 
             ReissueFirstAdministratorInvitationOutcome.NotReissuable -> {
                 conflict("the tenant has no expired pending first tenant.admin invitation to reissue")
-            }
-
-            ReissueFirstAdministratorInvitationOutcome.DifferentRequest -> {
-                refuse(ClosedErrorCode.DIFFERENT_REQUEST)
             }
 
             ReissueFirstAdministratorInvitationOutcome.CodeKeyUnavailable -> {

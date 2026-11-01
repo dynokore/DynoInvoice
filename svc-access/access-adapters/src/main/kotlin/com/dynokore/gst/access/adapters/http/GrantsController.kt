@@ -119,7 +119,7 @@ open class GrantsController(
         idempotencyKey: UUID,
         reissueFirstAdministratorInvitationRequest: ReissueFirstAdministratorInvitationRequest,
     ): ResponseEntity<FirstAdministratorResponse> =
-        firstAdministrator.provisioning.reissue(tenantRef, idempotencyKey, reissueFirstAdministratorInvitationRequest)
+        firstAdministrator.provisioning.reissue(tenantRef, reissueFirstAdministratorInvitationRequest)
 
     override fun acceptFirstAdministratorInvitation(
         invitationRef: String,
