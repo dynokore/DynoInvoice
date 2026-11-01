@@ -69,7 +69,7 @@ class PackResolutionPropertiesTest {
     }
 
     @Test
-    fun `resolve agrees with an independent reference implementation over random timelines and dates`() =
+    fun `resolve agrees with an independent reference implementation over random timelines and dates`() {
         runTest {
             checkAll(
                 boundaryOffsets,
@@ -91,9 +91,10 @@ class PackResolutionPropertiesTest {
                 assertEquals(expectedForB, registry.resolve(packType, tenantB, resolutionDate))
             }
         }
+    }
 
     @Test
-    fun `whatever resolve returns is in force on the resolution date`() =
+    fun `whatever resolve returns is in force on the resolution date`() {
         runTest {
             checkAll(boundaryOffsets, Arb.long(0L..50L)) { offsets, dateOffset ->
                 val registry = InMemoryPackRegistry()
@@ -113,4 +114,5 @@ class PackResolutionPropertiesTest {
                 }
             }
         }
+    }
 }

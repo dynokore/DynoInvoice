@@ -67,25 +67,39 @@ class AlertThresholdsTest {
     }
 
     @Test
-    fun `refuses an empty list`() = assertTrue("MONTHLY" in refused(mapOf(monthly to emptyList())))
+    fun `refuses an empty list`() {
+        assertTrue("MONTHLY" in refused(mapOf(monthly to emptyList())))
+    }
 
     @Test
-    fun `refuses eleven items`() = refused(mapOf(monthly to (11 downTo 1).toList())).let { assertTrue("test-1" in it) }
+    fun `refuses eleven items`() {
+        refused(mapOf(monthly to (11 downTo 1).toList())).let { assertTrue("test-1" in it) }
+    }
 
     @Test
-    fun `refuses an item above 365`() = refused(mapOf(monthly to listOf(366, 5))).let { assertTrue("MONTHLY" in it) }
+    fun `refuses an item above 365`() {
+        refused(mapOf(monthly to listOf(366, 5))).let { assertTrue("MONTHLY" in it) }
+    }
 
     @Test
-    fun `refuses an item below zero`() = refused(mapOf(monthly to listOf(5, -1))).let { assertTrue("MONTHLY" in it) }
+    fun `refuses an item below zero`() {
+        refused(mapOf(monthly to listOf(5, -1))).let { assertTrue("MONTHLY" in it) }
+    }
 
     @Test
-    fun `refuses an equal neighbour`() = refused(mapOf(monthly to listOf(5, 5))).let { assertTrue("MONTHLY" in it) }
+    fun `refuses an equal neighbour`() {
+        refused(mapOf(monthly to listOf(5, 5))).let { assertTrue("MONTHLY" in it) }
+    }
 
     @Test
-    fun `refuses a rising neighbour`() = refused(mapOf(monthly to listOf(2, 5))).let { assertTrue("MONTHLY" in it) }
+    fun `refuses a rising neighbour`() {
+        refused(mapOf(monthly to listOf(2, 5))).let { assertTrue("MONTHLY" in it) }
+    }
 
     @Test
-    fun `refuses a negative margin`() = refused(margin = Duration.ofHours(-1)).let { assertTrue("test-1" in it) }
+    fun `refuses a negative margin`() {
+        refused(margin = Duration.ofHours(-1)).let { assertTrue("test-1" in it) }
+    }
 
     @Test
     fun `the six-argument call yields a pack whose accessors throw the coverage failure`() {
