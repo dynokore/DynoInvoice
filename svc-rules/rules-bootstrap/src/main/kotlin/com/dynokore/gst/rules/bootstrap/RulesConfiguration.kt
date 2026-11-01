@@ -4,17 +4,25 @@ import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
+import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
+import com.dynokore.gst.rules.application.ActivePackReader
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.EvaluateDocument
+import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
+import com.dynokore.gst.rules.application.ListCursorKey
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.binding.SecretRef
+import com.dynokore.platform.serviceruntime.binding.SecretStore
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.Schema
 import org.springframework.beans.factory.ObjectProvider
@@ -67,4 +75,27 @@ class RulesConfiguration {
             // no scope rules bean: no verdict is ever invented, the evaluation fails closed (ScopeRulesMissing)
             scopeVerdicts.getIfAvailable(),
         )
+
+    /** The cursor integrity key is read through SecretStore at every use (STK-29): no restart on rotation. */
+    @Bean
+    fun listCursorKey(secrets: SecretStore): ListCursorKey =
+        ListCursorKey { secrets.read(SecretRef(CURSOR_KEY_SECRET)).reveal().toByteArray(Charsets.UTF_8) }
+
+    /** The installer's read of the armed platform packs: no tenant binding, through the definer function. */
+    @Bean
+    fun activePackReader(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+    ): ActivePackReader = JooqActivePackReader(dsl, platform, transactions)
+
+    @Bean
+    fun listActiveRegulatoryPacks(
+        reader: ActivePackReader,
+        key: ListCursorKey,
+    ): ListActiveRegulatoryPacks = ListActiveRegulatoryPacks(reader, key)
+
+    private companion object {
+        const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
+    }
 }

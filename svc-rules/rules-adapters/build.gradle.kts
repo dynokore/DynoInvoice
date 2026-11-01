@@ -39,6 +39,7 @@ dependencies {
     implementation(libs.jooq)
     implementation(libs.spring.context)
     implementation(libs.springBoot.starterWeb)
+    implementation(libs.jakarta.validationApi)
     implementation(libs.jackson.databind)
     implementation(libs.gst.gstCatalogue)
 

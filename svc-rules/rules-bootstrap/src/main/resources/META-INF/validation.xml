@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The contract tags dryRun and getDryRun with both pack tags, so PacksController overrides the same method of two
+  generated interfaces that both carry parameter constraints. Hibernate Validator refuses that by default (HV000152) and
+  every call through the controller would answer 500. The rule stops a subtype strengthening a precondition; here both
+  declarations come from one generated document and are identical.
+-->
+<validation-config xmlns="https://jakarta.ee/xml/ns/validation/configuration" version="3.0">
+    <property name="hibernate.validator.allow_parallel_method_parameter_constraint">true</property>
+</validation-config>

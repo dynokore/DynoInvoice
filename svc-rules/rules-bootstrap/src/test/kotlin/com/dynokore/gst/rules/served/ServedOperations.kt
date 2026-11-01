@@ -203,6 +203,7 @@ class ServedDoubles {
     RulesConfiguration::class,
     EvaluationController::class,
     PacksController::class,
+    com.dynokore.gst.rules.adapters.web.ApiRefusalAdvice::class,
 )
 class ServedApplication {
     /** After the binding (-50) and the caller filters: records the request that reached the handler boundary. */

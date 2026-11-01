@@ -1,10 +1,15 @@
 package com.dynokore.gst.rules.adapters.web
 
+import com.dynokore.gst.rules.application.ActivePacksOutcome
+import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.contract.api.MappingPacksApi
 import com.dynokore.gst.rules.contract.api.RegulatoryPacksApi
+import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPack
+import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPackPage
 import com.dynokore.gst.rules.contract.model.DryRunRequest
 import com.dynokore.gst.rules.contract.model.DryRunResult
 import com.dynokore.gst.rules.contract.model.RulesDryRunStatus
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -21,9 +26,44 @@ import java.util.UUID
  * explicit 501 and nowhere else; the operations gate (operations.tsv) reads such a body as a stub.
  */
 @RestController
-open class PacksController :
-    MappingPacksApi,
+open class PacksController(
+    private val listActive: ListActiveRegulatoryPacks,
+) : MappingPacksApi,
     RegulatoryPacksApi {
+    /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
+    override fun listActiveRegulatoryPacks(
+        limit: Int,
+        cursor: String?,
+    ): ResponseEntity<ActiveRegulatoryPackPage> =
+        when (val outcome = listActive.handle(limit, cursor)) {
+            is ActivePacksOutcome.Page -> {
+                ResponseEntity.ok(
+                    ActiveRegulatoryPackPage(
+                        items =
+                            outcome.items.map {
+                                ActiveRegulatoryPack(
+                                    packType = it.packType,
+                                    version = it.version,
+                                    status = ActiveRegulatoryPack.Status.forValue(it.status),
+                                    minEngineVersion = it.minEngineVersion,
+                                    effectiveFrom = it.effectiveFrom,
+                                    effectiveTo = it.effectiveTo,
+                                )
+                            },
+                        nextCursor = outcome.nextCursor,
+                    ),
+                )
+            }
+
+            ActivePacksOutcome.MalformedCursor -> {
+                throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "cursor is malformed")
+            }
+
+            ActivePacksOutcome.InvalidLimit -> {
+                throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "limit must be 1..500")
+            }
+        }
+
     override fun dryRun(
         packRef: String,
         idempotencyKey: UUID,
