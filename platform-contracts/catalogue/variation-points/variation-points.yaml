@@ -3444,7 +3444,7 @@ variation_points:
     basis: "Coordinator ruling (delegated, owner 2026-10-14; owner delegation 2026-10-18: \"For any matter, after doing the breakdown, you rule per best practice.\") for INV-Q-8239 (owner answer 2026-10-22); acknowledged_by: tenant.admin by a delegated coordinator ruling (HIGH), by analogy with the rule of owner ruling INV-Q-3155 for VP-03, VP-40 and VP-07 (that owner ruling does not name VP-81); conventions G1-G6 option A; for INV-T-8291"
 - id: VP-82
   requirement: INV-REQ-9271
-  revision: 0b8a78d6-4f9b-44bf-86a2-552fea468026
+  revision: b2780c7f-22d2-4f34-8abd-0c48702af234
   title: "Which further pairs of roles one person may not hold together in a tenant is the tenant's setting; no further pair is the default"
   class: CONTROL
   class_modifiers: []
@@ -3458,7 +3458,7 @@ variation_points:
     - "No further pair (the built-in pair of INV-REQ-891 and VP-81 only)"
     - "A list of further pairs of roles, tighten-only"
   bounds: "The built-in pair, the sole-operator acknowledgement (INV-REQ-891, INV-REQ-994) and VP-81 apply under every value. No option is looser than the default. Changes nothing a role may do."
-  status: planned
+  status: available
   status_note: null
   governs:
     - "INV-REQ-864"
