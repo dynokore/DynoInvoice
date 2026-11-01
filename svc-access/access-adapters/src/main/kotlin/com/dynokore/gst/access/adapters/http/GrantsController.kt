@@ -16,6 +16,7 @@ import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.GrantResponse
 import com.dynokore.gst.access.contract.model.LandingChoiceRequest
 import com.dynokore.gst.access.contract.model.LandingScreenResponse
+import com.dynokore.gst.access.contract.model.ReissueFirstAdministratorInvitationRequest
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.GrantStatus
@@ -112,6 +113,13 @@ open class GrantsController(
         firstAdministratorRequest: FirstAdministratorRequest,
     ): ResponseEntity<FirstAdministratorResponse> =
         firstAdministrator.provisioning.provision(idempotencyKey, firstAdministratorRequest)
+
+    override fun reissueFirstAdministratorInvitation(
+        tenantRef: String,
+        idempotencyKey: UUID,
+        reissueFirstAdministratorInvitationRequest: ReissueFirstAdministratorInvitationRequest,
+    ): ResponseEntity<FirstAdministratorResponse> =
+        firstAdministrator.provisioning.reissue(tenantRef, reissueFirstAdministratorInvitationRequest)
 
     override fun acceptFirstAdministratorInvitation(
         invitationRef: String,

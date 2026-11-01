@@ -11,6 +11,7 @@ import com.dynokore.gst.access.application.invitation.InvitationKeyUnavailable
 import com.dynokore.gst.access.application.invitation.InvitationRecord
 import com.dynokore.gst.access.application.invitation.InvitationRefs
 import com.dynokore.gst.access.application.invitation.InvitationSettings
+import com.dynokore.gst.access.application.invitation.LiveAdminGrant
 import com.dynokore.gst.access.application.invitation.NewInvitation
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministrator
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministratorCommand
@@ -93,6 +94,16 @@ class ProvisionFirstAdministratorTest {
         ) = error("not used")
 
         override fun holdsLiveTenantAdminGrant() = false
+
+        override fun liveTenantAdminGrants() = emptyList<LiveAdminGrant>()
+
+        override fun reissue(
+            grantRef: String,
+            invitationRef: String,
+            codeDigest: String,
+            codeKeyVersion: String,
+            expiresAt: java.time.Instant,
+        ) = error("not used")
     }
 
     private class Audit : GrantAudit {

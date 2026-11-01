@@ -75,6 +75,14 @@ fun interface InvitationTenantLookup {
     fun tenantOf(invitationRef: String): TenantId?
 }
 
+/** One `tenant.admin` grant of the bound tenant that is ACTIVE or PENDING, with its invitation row when it has one. */
+data class LiveAdminGrant(
+    val grantRef: String,
+    val status: String,
+    val invitationRef: String?,
+    val invitationExpiresAt: Instant?,
+)
+
 data class NewInvitation(
     val invitationRef: String,
     val grantRef: String,
@@ -107,4 +115,19 @@ interface FirstAdministratorInvitations {
 
     /** Whether the bound tenant has a `tenant.admin` grant that is ACTIVE or PENDING, whatever scope or source. */
     fun holdsLiveTenantAdminGrant(): Boolean
+
+    /** Every `tenant.admin` grant of the bound tenant that is ACTIVE or PENDING, whatever scope or source. */
+    fun liveTenantAdminGrants(): List<LiveAdminGrant>
+
+    /**
+     * Replaces the reference, code digest, key version and expiry of the invitation of [grantRef] (INV-Q-8232 A); the
+     * old reference and digest are gone from the row. Throws when the grant has no invitation row.
+     */
+    fun reissue(
+        grantRef: String,
+        invitationRef: String,
+        codeDigest: String,
+        codeKeyVersion: String,
+        expiresAt: Instant,
+    )
 }

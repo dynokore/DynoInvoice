@@ -3,6 +3,7 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.FirstAdministratorProvisioning
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministrator
+import com.dynokore.gst.access.application.invitation.ReissueFirstAdministratorInvitation
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.CONTROL_PLANE
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.INSTALLATION
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.INSTALLER
@@ -78,6 +79,7 @@ class FirstAdministratorActorTest {
             val adapter =
                 FirstAdministratorProvisioning(
                     served.application.getBean(ProvisionFirstAdministrator::class.java),
+                    served.application.getBean(ReissueFirstAdministratorInvitation::class.java),
                     served.tenants,
                     MockHttpServletRequest(),
                     object : ServiceCaller {

@@ -4,6 +4,7 @@ import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.FIRST
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ROLE_GRANT
 import com.dynokore.gst.access.application.invitation.FirstAdministratorInvitations
 import com.dynokore.gst.access.application.invitation.InvitationRecord
+import com.dynokore.gst.access.application.invitation.LiveAdminGrant
 import com.dynokore.gst.access.application.invitation.NewInvitation
 import com.dynokore.gst.access.application.invitation.StoredInvitation
 import com.dynokore.gst.access.domain.role.Role
@@ -16,6 +17,7 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
+import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -118,4 +120,49 @@ class JooqFirstAdministratorInvitations(
                 .from(ROLE_GRANT)
                 .where(ROLE_GRANT.ROLE.eq(Role.TENANT_ADMIN.wire), ROLE_GRANT.STATUS.`in`("ACTIVE", "PENDING")),
         )
+
+    override fun liveTenantAdminGrants(): List<LiveAdminGrant> =
+        dsl
+            .select(
+                ROLE_GRANT.GRANT_REF,
+                ROLE_GRANT.STATUS,
+                FIRST_ADMINISTRATOR_INVITATION.INVITATION_REF,
+                FIRST_ADMINISTRATOR_INVITATION.EXPIRES_AT,
+            ).from(ROLE_GRANT)
+            .leftJoin(FIRST_ADMINISTRATOR_INVITATION)
+            .on(FIRST_ADMINISTRATOR_INVITATION.GRANT_REF.eq(ROLE_GRANT.GRANT_REF))
+            .where(ROLE_GRANT.ROLE.eq(Role.TENANT_ADMIN.wire), ROLE_GRANT.STATUS.`in`("ACTIVE", "PENDING"))
+            .fetch()
+            .map {
+                LiveAdminGrant(
+                    grantRef = it[ROLE_GRANT.GRANT_REF].column("grant_ref"),
+                    status = it[ROLE_GRANT.STATUS].column("status"),
+                    invitationRef = it[FIRST_ADMINISTRATOR_INVITATION.INVITATION_REF],
+                    invitationExpiresAt = it[FIRST_ADMINISTRATOR_INVITATION.EXPIRES_AT]?.toInstant(),
+                )
+            }
+
+    override fun reissue(
+        grantRef: String,
+        invitationRef: String,
+        codeDigest: String,
+        codeKeyVersion: String,
+        expiresAt: Instant,
+    ) {
+        val actor =
+            checkNotNull(tenants.currentActor()) { "no actor is bound: a reissue runs in a bound transaction" }
+        val updated =
+            dsl
+                .update(FIRST_ADMINISTRATOR_INVITATION)
+                .set(FIRST_ADMINISTRATOR_INVITATION.INVITATION_REF, invitationRef)
+                .set(FIRST_ADMINISTRATOR_INVITATION.CODE_DIGEST, codeDigest)
+                .set(FIRST_ADMINISTRATOR_INVITATION.CODE_KEY_VERSION, codeKeyVersion)
+                .set(FIRST_ADMINISTRATOR_INVITATION.EXPIRES_AT, expiresAt.atOffset(ZoneOffset.UTC))
+                .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_AT, clock.instant().atOffset(ZoneOffset.UTC))
+                .set(FIRST_ADMINISTRATOR_INVITATION.UPDATED_BY, actor)
+                .set(FIRST_ADMINISTRATOR_INVITATION.VERSION, FIRST_ADMINISTRATOR_INVITATION.VERSION.plus(1L))
+                .where(FIRST_ADMINISTRATOR_INVITATION.GRANT_REF.eq(grantRef))
+                .execute()
+        check(updated == 1) { "the invitation row to reissue is missing" }
+    }
 }

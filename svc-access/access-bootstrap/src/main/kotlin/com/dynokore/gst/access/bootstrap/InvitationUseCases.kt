@@ -19,6 +19,7 @@ import com.dynokore.gst.access.application.invitation.InvitationRefs
 import com.dynokore.gst.access.application.invitation.InvitationSettings
 import com.dynokore.gst.access.application.invitation.InvitationTenantLookup
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministrator
+import com.dynokore.gst.access.application.invitation.ReissueFirstAdministratorInvitation
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
@@ -62,10 +63,11 @@ class InvitationUseCases {
     @Bean
     fun firstAdministratorProvisioning(
         useCase: ProvisionFirstAdministrator,
+        reissueUseCase: ReissueFirstAdministratorInvitation,
         tenants: TenantContext,
         request: HttpServletRequest,
         serviceCaller: ServiceCaller,
-    ) = FirstAdministratorProvisioning(useCase, tenants, request, serviceCaller)
+    ) = FirstAdministratorProvisioning(useCase, reissueUseCase, tenants, request, serviceCaller)
 
     @Bean
     fun invitationTenantLookup(
@@ -126,4 +128,12 @@ class InvitationUseCases {
         clock: Clock,
         properties: InvitationProperties,
     ) = ProvisionFirstAdministrator(tx, grants, effects, clock, InvitationSettings(properties.codeKeyVersion))
+
+    @Bean
+    fun reissueFirstAdministratorInvitation(
+        tx: TransactionRunner,
+        effects: FirstAdministratorEffects,
+        clock: Clock,
+        properties: InvitationProperties,
+    ) = ReissueFirstAdministratorInvitation(tx, effects, clock, InvitationSettings(properties.codeKeyVersion))
 }

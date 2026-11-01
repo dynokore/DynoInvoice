@@ -3,8 +3,12 @@ package com.dynokore.gst.access.adapters.http
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministrator
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministratorCommand
 import com.dynokore.gst.access.application.invitation.ProvisionFirstAdministratorOutcome
+import com.dynokore.gst.access.application.invitation.ReissueFirstAdministratorInvitation
+import com.dynokore.gst.access.application.invitation.ReissueFirstAdministratorInvitationCommand
+import com.dynokore.gst.access.application.invitation.ReissueFirstAdministratorInvitationOutcome
 import com.dynokore.gst.access.contract.model.FirstAdministratorRequest
 import com.dynokore.gst.access.contract.model.FirstAdministratorResponse
+import com.dynokore.gst.access.contract.model.ReissueFirstAdministratorInvitationRequest
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
@@ -27,6 +31,7 @@ import java.util.UUID
  */
 class FirstAdministratorProvisioning(
     private val useCase: ProvisionFirstAdministrator,
+    private val reissueUseCase: ReissueFirstAdministratorInvitation,
     private val tenants: TenantContext,
     private val request: HttpServletRequest,
     private val serviceCaller: ServiceCaller,
@@ -69,6 +74,44 @@ class FirstAdministratorProvisioning(
             }
 
             ProvisionFirstAdministratorOutcome.CodeKeyUnavailable -> {
+                refuse(ClosedErrorCode.ISSUER_UNAVAILABLE)
+            }
+        }
+    }
+
+    /** `reissueFirstAdministratorInvitation`: the tenant is the path `tenantRef`, bound as in [provision]. */
+    fun reissue(
+        tenantRef: String,
+        body: ReissueFirstAdministratorInvitationRequest,
+    ): ResponseEntity<FirstAdministratorResponse> {
+        val tenant = tenantOf(tenantRef)
+        val principal = request.getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
+        val tokenTenant = principal?.tenant
+        if (tokenTenant != null && tokenTenant != tenant) refuse(ClosedErrorCode.ACCESS_DENIED)
+        val actor = principal?.actor ?: WorkloadPrincipal(verifiedCaller()).value
+        val command =
+            ReissueFirstAdministratorInvitationCommand(
+                tenant = TenantRef(tenant.toString()),
+                actor = actor,
+                invitationExpiresAt = body.invitationExpiresAt.toInstant(),
+            )
+        return when (val outcome = tenants.bind(tenant, actor) { reissueUseCase.handle(command) }) {
+            is ReissueFirstAdministratorInvitationOutcome.Reissued -> {
+                ResponseEntity.ok(
+                    FirstAdministratorResponse(
+                        grantRef = outcome.grantRef,
+                        status = FirstAdministratorResponse.Status.PENDING,
+                        invitationRef = outcome.invitationRef,
+                        invitationCode = outcome.invitationCode,
+                    ),
+                )
+            }
+
+            ReissueFirstAdministratorInvitationOutcome.NotReissuable -> {
+                conflict("the tenant has no expired pending first tenant.admin invitation to reissue")
+            }
+
+            ReissueFirstAdministratorInvitationOutcome.CodeKeyUnavailable -> {
                 refuse(ClosedErrorCode.ISSUER_UNAVAILABLE)
             }
         }
