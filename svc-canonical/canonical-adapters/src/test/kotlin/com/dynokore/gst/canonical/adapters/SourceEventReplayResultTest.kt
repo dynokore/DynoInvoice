@@ -188,4 +188,42 @@ class SourceEventReplayResultTest {
             }
         state shouldBe "23514"
     }
+
+    private fun orderRecorder(calls: MutableList<String>) =
+        object : SourceEventStore by store {
+            override fun insert(
+                key: SourceKey,
+                docUuid: UUID,
+                result: String,
+            ): Boolean {
+                calls += "insert"
+                return store.insert(key, docUuid, result)
+            }
+        }.let { recorder(it) }
+
+    @Test
+    fun `INV-AC-14189 onNew is called before insert on the first record`() {
+        val calls = mutableListOf<String>()
+        asTenant {
+            orderRecorder(calls).record(key("k-order", 1)) {
+                calls += "onNew"
+                """{"r":"R1"}"""
+            }
+        }
+        calls shouldBe listOf("onNew", "insert")
+    }
+
+    @Test
+    fun `INV-AC-14189 a record whose onNew throws makes no insert call`() {
+        val calls = mutableListOf<String>()
+        shouldThrow<IllegalArgumentException> {
+            asTenant {
+                orderRecorder(calls).record(key("k-order-throw", 1)) {
+                    calls += "onNew"
+                    throw IllegalArgumentException("derivation failed")
+                }
+            }
+        }
+        calls shouldBe listOf("onNew")
+    }
 }
