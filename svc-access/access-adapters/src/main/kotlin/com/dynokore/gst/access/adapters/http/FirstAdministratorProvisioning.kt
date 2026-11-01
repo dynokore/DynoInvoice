@@ -21,8 +21,8 @@ import java.util.UUID
 /**
  * The inbound adapter of `provisionFirstAdministrator` and `provisionInstallationFirstAdministrator` (INV-Q-14267 B):
  * the body `tenantRef` is parsed as a tenant id and bound around the whole call with the `sub` of the verified end-user
- * token as the actor (a call with no end-user principal: `svc:` + the verified calling workload). A token that carries another tenant is refused (403), a token with no tenant (a platform
- * operator) is bound to `tenantRef`. The caller check itself is generated from the contract by service-runtime.
+ * token as the actor (a call with no end-user principal: `svc:` + the verified calling workload). A token that
+ * carries another tenant is refused (403), a token with no tenant (a platform operator) is bound to `tenantRef`. The caller check itself is generated from the contract by service-runtime.
  */
 class FirstAdministratorProvisioning(
     private val useCase: ProvisionFirstAdministrator,
