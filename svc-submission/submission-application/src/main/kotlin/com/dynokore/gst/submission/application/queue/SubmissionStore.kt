@@ -30,6 +30,8 @@ interface SubmissionStore {
     /**
      * Moves the version from `READY` to `QUEUED` with one UPDATE whose WHERE clause holds the state `READY`, and
      * returns the number of rows updated: 0 when the row is missing or in another state.
+     *
+     * @throws InFlightBreach when a 23505 violation names the constraint `submission_in_flight_uq`; any other is not.
      */
     fun moveReadyToQueued(
         tenant: TenantId,
@@ -97,6 +99,30 @@ interface SubmissionStore {
         attempt: NewAttempt,
     )
 }
+
+/**
+ * The reads of the in-flight guard (INV-REQ-571), in the caller's open tenant transaction (ARC-21), apart from
+ * [SubmissionStore] so that port stays small.
+ */
+interface InFlightStore {
+    /** Reads every row of the Doc UUID `FOR UPDATE`, ordered by `version` (the lock order that serialises versions). */
+    fun lockVersions(
+        tenant: TenantId,
+        docUuid: String,
+    ): List<VersionState>
+
+    /** Up to [limit] Doc UUIDs with a `READY` version and no version in one of the four in-flight states. */
+    fun waitingDocUuids(
+        tenant: TenantId,
+        limit: Int,
+    ): List<String>
+}
+
+/** One row of a Doc UUID as the in-flight guard reads it. */
+class VersionState(
+    val version: Int,
+    val state: LifecycleState,
+)
 
 /** The `submission` row as the despatch step reads it. */
 class LockedSubmission(

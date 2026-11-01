@@ -1,6 +1,8 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.adapters.persistence.JooqInFlightStore
 import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionStore
+import com.dynokore.gst.submission.application.queue.InFlightStore
 import com.dynokore.gst.submission.application.queue.SentTransaction
 import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.gst.submission.application.queue.SubmissionStore
@@ -32,12 +34,16 @@ class QueueConfiguration(
     fun submissionStore(dsl: DSLContext): SubmissionStore = JooqSubmissionStore(dsl)
 
     @Bean
+    fun inFlightStore(dsl: DSLContext): InFlightStore = JooqInFlightStore(dsl)
+
+    @Bean
     fun submissionQueue(
         tenants: TenantContext,
         transactions: TransactionRunner,
         store: SubmissionStore,
+        versions: InFlightStore,
         queue: WorkQueue,
-    ): SubmissionQueue = SubmissionQueue(tenants, transactions, store, queue)
+    ): SubmissionQueue = SubmissionQueue(tenants, transactions, store, versions, queue)
 
     @Bean
     fun sentTransaction(

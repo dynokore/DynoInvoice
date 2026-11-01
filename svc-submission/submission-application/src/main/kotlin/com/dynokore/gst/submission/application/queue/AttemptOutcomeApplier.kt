@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.queue
 
+import com.dynokore.gst.submission.domain.ordering.InFlight
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.retry.BackoffPolicy
 import com.dynokore.gst.submission.domain.retry.FailureInput
@@ -21,6 +22,7 @@ import java.time.Clock
  * the expected one throws and rolls back: a stop for the caller to report. The signals of a decision are not emitted
  * here.
  */
+@Suppress("LongParameterList")
 class AttemptOutcomeApplier(
     private val clock: Clock,
     private val boundaries: RetryBoundarySource,
@@ -28,18 +30,37 @@ class AttemptOutcomeApplier(
     private val scope: TenantTransactions,
     private val store: SubmissionStore,
     private val queue: WorkQueue,
+    private val submissions: SubmissionQueue,
 ) {
     fun apply(
         dispatch: Dispatch,
         result: TransportResult,
     ) {
-        scope.bound(dispatch.item.tenant) { scope.inTransaction { applyBound(dispatch, result) } }
+        scope.bound(dispatch.item.tenant) {
+            val left = scope.inTransaction { applyBound(dispatch, result) }
+            if (left) releaseWaiting(dispatch)
+        }
     }
 
+    /**
+     * After the commit (INV-REQ-571 behaviour 2): a version left flight, so the next `READY` version of the Doc UUID
+     * may go. A failure is logged and never undoes the outcome; the [WaitingSweeper] picks the Doc UUID up later.
+     */
+    private fun releaseWaiting(dispatch: Dispatch) {
+        try {
+            submissions.releaseNext(dispatch.docUuid)
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: RuntimeException,
+        ) {
+            LOG.log(System.Logger.Level.ERROR, "releaseNext of ${dispatch.docUuid} after its outcome failed", e)
+        }
+    }
+
+    /** @return true when the version left the four in-flight states. */
     private fun applyBound(
         dispatch: Dispatch,
         result: TransportResult,
-    ) {
+    ): Boolean {
         val tenant = scope.current()
         val (doc, version) = dispatch.docUuid to dispatch.version
         val row =
@@ -57,6 +78,8 @@ class AttemptOutcomeApplier(
             is TransportResult.TransientFailure -> transientFailure(dispatch, row)
         }
         queue.complete(dispatch.item)
+        val after = checkNotNull(store.lockForUpdate(tenant, doc, version)).state
+        return !InFlight.isInFlight(after)
     }
 
     private fun accepted(
@@ -123,5 +146,9 @@ class AttemptOutcomeApplier(
                 error("transient failure of ${dispatch.docUuid} version ${dispatch.version}: anomaly ${planned.reason}")
             }
         }
+    }
+
+    private companion object {
+        private val LOG = System.getLogger(AttemptOutcomeApplier::class.java.name)
     }
 }

@@ -11,6 +11,7 @@ import com.dynokore.gst.submission.application.queue.RetryBoundarySource
 import com.dynokore.gst.submission.application.queue.RetryDueScan
 import com.dynokore.gst.submission.application.queue.SentRecovery
 import com.dynokore.gst.submission.application.queue.SentTransaction
+import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.application.queue.TenantTransactions
 import com.dynokore.platform.outboxandqueue.WorkQueue
@@ -81,13 +82,16 @@ class OutcomeConfiguration(
     ): DueRetryRunner = DueRetryRunner(source, scope, scan)
 
     @Bean
+    @Suppress("LongParameterList")
     fun attemptOutcomeApplier(
         boundaries: RetryBoundarySource,
         jitter: JitterSource,
         scope: TenantTransactions,
         store: SubmissionStore,
         queue: WorkQueue,
-    ): AttemptOutcomeApplier = AttemptOutcomeApplier(Clock.systemUTC(), boundaries, jitter, scope, store, queue)
+        submissions: SubmissionQueue,
+    ): AttemptOutcomeApplier =
+        AttemptOutcomeApplier(Clock.systemUTC(), boundaries, jitter, scope, store, queue, submissions)
 
     @Bean
     fun sentRecovery(

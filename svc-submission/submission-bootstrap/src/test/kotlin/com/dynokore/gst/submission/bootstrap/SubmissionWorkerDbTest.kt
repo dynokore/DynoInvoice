@@ -260,7 +260,7 @@ class SubmissionWorkerDbTest {
     }
 
     @Test
-    fun `two queued versions of one document are not both returned while the first is unfinished`(
+    fun `a second version of one document gets no item while the first is unfinished`(
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val tenant = UUID.randomUUID()
@@ -270,7 +270,8 @@ class SubmissionWorkerDbTest {
 
         boundary.sentOrFail(boundary.worker.takeNext()).dispatch.version shouldBe 1
         boundary.worker.takeNext() shouldBe null
-        boundary.stateOf(tenant, doc, version = 2) shouldBe "QUEUED"
+        // INV-REQ-571: version 2 waits as READY, with no item, until version 1 leaves flight
+        boundary.stateOf(tenant, doc, version = 2) shouldBe "READY"
     }
 
     @Test

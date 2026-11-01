@@ -92,7 +92,7 @@ class OutcomeFixture(
     }
 
     fun applier(over: SubmissionStore = store) =
-        AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue)
+        AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue, queue)
 
     fun recovery() = SentRecovery(clock, scope, store, workQueue, sent)
 

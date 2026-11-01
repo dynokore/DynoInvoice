@@ -234,7 +234,7 @@ class PayloadReadyDbTest {
     }
 
     @Test
-    fun `a PayloadReady for version 3 after version 2 inserts a second row and a second item`(
+    fun `a PayloadReady for version 3 after version 2 inserts a second row and waits without an item`(
         @TempDir dir: Path,
     ) = run(dir) {
         val doc = UUID.randomUUID().toString()
@@ -245,8 +245,8 @@ class PayloadReadyDbTest {
 
         submissionRows(doc, 2) shouldBe 1
         submissionRows(doc, 3) shouldBe 1
-        queueRows(doc) shouldBe 2
-        // one partition (the Doc UUID): version 3 waits behind the claimed version 2
+        // INV-REQ-571: version 3 is READY and has no item while version 2 is in flight
+        queueRows(doc) shouldBe 1
         dispatches() shouldBe listOf(doc to 2)
     }
 

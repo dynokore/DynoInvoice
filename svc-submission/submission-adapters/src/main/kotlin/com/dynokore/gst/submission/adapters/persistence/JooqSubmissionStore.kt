@@ -4,16 +4,20 @@ import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.SubmissionAttempt
 import com.dynokore.gst.submission.application.queue.AttemptResponse
 import com.dynokore.gst.submission.application.queue.EventFacts
+import com.dynokore.gst.submission.application.queue.InFlightBreach
 import com.dynokore.gst.submission.application.queue.LockedSubmission
 import com.dynokore.gst.submission.application.queue.NewAttempt
 import com.dynokore.gst.submission.application.queue.NewReadySubmission
 import com.dynokore.gst.submission.application.queue.OutcomeFacts
 import com.dynokore.gst.submission.application.queue.RetrySchedule
 import com.dynokore.gst.submission.application.queue.SubmissionStore
+import com.dynokore.gst.submission.domain.ordering.InFlight
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
+import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
+import java.sql.SQLException
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -57,14 +61,19 @@ class JooqSubmissionStore(
         docUuid: String,
         version: Int,
     ): Int =
-        dsl
-            .update(Submission.SUBMISSION_)
-            .set(Submission.SUBMISSION_.STATE, "QUEUED")
-            .where(Submission.SUBMISSION_.TENANT_ID.eq(tenant.value))
-            .and(Submission.SUBMISSION_.DOC_UUID.eq(docUuid))
-            .and(Submission.SUBMISSION_.VERSION.eq(version))
-            .and(Submission.SUBMISSION_.STATE.eq("READY"))
-            .execute()
+        try {
+            dsl
+                .update(Submission.SUBMISSION_)
+                .set(Submission.SUBMISSION_.STATE, "QUEUED")
+                .where(Submission.SUBMISSION_.TENANT_ID.eq(tenant.value))
+                .and(Submission.SUBMISSION_.DOC_UUID.eq(docUuid))
+                .and(Submission.SUBMISSION_.VERSION.eq(version))
+                .and(Submission.SUBMISSION_.STATE.eq("READY"))
+                .execute()
+        } catch (e: DataAccessException) {
+            if (violatedConstraint(e) == InFlight.INDEX_NAME) throw InFlightBreach(docUuid, version, e)
+            throw e
+        }
 
     override fun lockForUpdate(
         tenant: TenantId,
@@ -220,5 +229,17 @@ class JooqSubmissionStore(
             .set(SubmissionAttempt.SUBMISSION_ATTEMPT.CORRELATION_ID, attempt.correlationId)
             .set(SubmissionAttempt.SUBMISSION_ATTEMPT.REQUESTED_AT, attempt.requestedAt.atOffset(ZoneOffset.UTC))
             .execute()
+    }
+
+    private companion object {
+        const val UNIQUE_VIOLATION = "23505"
+        val CONSTRAINT = Regex("unique constraint \"([^\"]+)\"")
+
+        /** The constraint name of a unique violation (SQLSTATE 23505) in the cause chain; null for any other error. */
+        fun violatedConstraint(e: Throwable): String? =
+            generateSequence(e) { it.cause }
+                .filterIsInstance<SQLException>()
+                .firstOrNull { it.sqlState == UNIQUE_VIOLATION }
+                ?.let { CONSTRAINT.find(it.message.orEmpty())?.groupValues?.get(1) }
     }
 }
