@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -480,7 +480,7 @@ components:
         on the event id and upsert on (ownerService, job), the latest envelope time superseding earlier
         registrations; a JobRunRecorded seen before its job's registration is kept and joined later.
         Payload: job, owner service, entity scope (PLATFORM or ENTITY), schedule, criticality
-        (STANDARD or DEADLINE_CRITICAL) and tolerance, all required (INV-REQ-1136, INV-Q-2942).
+        (STANDARD or DEADLINE_CRITICAL) and tolerance, all required, and the optional nextRunAt (INV-REQ-1136, INV-Q-2942, INV-Q-15930).
         Authored by INV-T-3007.
       contentType: application/cloudevents+json
       payload:

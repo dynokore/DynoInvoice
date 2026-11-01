@@ -39,6 +39,11 @@
       "type": "string",
       "format": "duration",
       "description": "How late a run may be before it counts as missed, an ISO-8601 duration; mandatory at registration (INV-REQ-1136 b1, INV-REQ-1139, rulings INV-Q-2067, INV-Q-2942)."
+    },
+    "nextRunAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant of the job's next firing as the owning service computed it at registration, from its own schedule and zone (INV-Q-15930), so a job that has never run has an expected time and a missed run can be detected outside the owning service (INV-REQ-1139). Optional."
     }
   },
   "required": [
