@@ -166,13 +166,21 @@ object AcKeyCoverage {
         return found
     }
 
+    /** The problems of the ownership text and nothing else when it has any; otherwise the findings of the table. */
     fun findings(
         table: String?,
         owned: String?,
         executedTestNames: List<String>,
     ): List<String> {
         val (ownedLines, ownedProblems) = parseOwned(owned)
-        if (ownedProblems.isNotEmpty()) return ownedProblems
+        return ownedProblems.ifEmpty { tableFindings(table, ownedLines, executedTestNames) }
+    }
+
+    private fun tableFindings(
+        table: String?,
+        ownedLines: List<Owned>,
+        executedTestNames: List<String>,
+    ): List<String> {
         val (rows, problems) = parse(table)
         val findings = problems.toMutableList()
         if (rows.isEmpty()) return findings
