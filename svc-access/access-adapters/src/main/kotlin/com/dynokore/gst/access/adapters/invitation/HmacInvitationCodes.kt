@@ -32,8 +32,8 @@ class HmacInvitationCodes(
         val key =
             try {
                 secrets.read(SecretRef(KEY_PATH_PREFIX + keyVersion)).reveal().toByteArray(StandardCharsets.UTF_8)
-            } catch (e: Exception) {
-                throw InvitationKeyUnavailable(e)
+            } catch (_: Exception) {
+                throw InvitationKeyUnavailable()
             }
         if (key.size < MIN_KEY_BYTES) throw InvitationKeyUnavailable()
         val mac = Mac.getInstance(ALGORITHM).apply { init(SecretKeySpec(key, ALGORITHM)) }

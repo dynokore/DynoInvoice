@@ -23,6 +23,14 @@ import java.time.Instant
 import java.util.HexFormat
 import java.util.UUID
 
+/** What a provisioning writes and derives besides the grant: the invitation rows, code, reference and audit. */
+class FirstAdministratorEffects(
+    val invitations: FirstAdministratorInvitations,
+    val codes: InvitationCodes,
+    val refs: InvitationRefs,
+    val audit: GrantAudit,
+)
+
 /** What the caller of provisionFirstAdministrator asks for; the tenant is the one the inbound adapter bound. */
 data class ProvisionFirstAdministratorCommand(
     val tenant: TenantRef,
@@ -62,13 +70,15 @@ sealed interface ProvisionFirstAdministratorOutcome {
 class ProvisionFirstAdministrator(
     private val tx: TransactionRunner,
     private val grants: GrantRepository,
-    private val invitations: FirstAdministratorInvitations,
-    private val codes: InvitationCodes,
-    private val refs: InvitationRefs,
-    private val audit: GrantAudit,
+    effects: FirstAdministratorEffects,
     private val clock: Clock,
     private val settings: InvitationSettings,
 ) {
+    private val invitations = effects.invitations
+    private val codes = effects.codes
+    private val refs = effects.refs
+    private val audit = effects.audit
+
     fun handle(command: ProvisionFirstAdministratorCommand): ProvisionFirstAdministratorOutcome =
         try {
             tx.inTransaction { provision(command) }

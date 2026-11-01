@@ -3,6 +3,7 @@ package com.dynokore.gst.access.application
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.invitation.FirstAdministratorEffects
 import com.dynokore.gst.access.application.invitation.FirstAdministratorInvitations
 import com.dynokore.gst.access.application.invitation.InvitationCodes
 import com.dynokore.gst.access.application.invitation.InvitationIdentity
@@ -117,10 +118,7 @@ class ProvisionFirstAdministratorTest {
     ) = ProvisionFirstAdministrator(
         tx,
         rows,
-        invitations,
-        codes,
-        refs,
-        Audit(),
+        FirstAdministratorEffects(invitations, codes, refs, Audit()),
         Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC),
         InvitationSettings("v1"),
     )

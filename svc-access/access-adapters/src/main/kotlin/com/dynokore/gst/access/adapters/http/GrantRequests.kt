@@ -32,7 +32,7 @@ internal object GrantRequests {
             }
         }
 
-    /** The reserved prefix of an invited-state identity is refused (INV-Q-14264 A); the match is exact and case-sensitive. */
+    /** The reserved prefix of an invited-state identity is refused (INV-Q-14264 A), exact and case-sensitive. */
     fun identityOf(text: String): IdentityRef =
         runCatching { IdentityRef(text) }
             .getOrElse { invalid("identityRef is invalid") }

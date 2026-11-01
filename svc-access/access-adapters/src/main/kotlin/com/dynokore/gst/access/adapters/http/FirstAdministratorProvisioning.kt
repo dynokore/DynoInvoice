@@ -9,6 +9,8 @@ import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
+import com.dynokore.platform.serviceruntime.identity.ServiceCaller
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.http.HttpServletRequest
@@ -16,26 +18,17 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import java.util.UUID
 
-/** The actor of a call that carries no end-user token (the installer workload): this service's own workload actor. */
-class ProvisioningActor(
-    val value: String,
-) {
-    init {
-        require(value.isNotBlank()) { "the actor of a workload call must be set" }
-    }
-}
-
 /**
  * The inbound adapter of `provisionFirstAdministrator` and `provisionInstallationFirstAdministrator` (INV-Q-14267 B):
  * the body `tenantRef` is parsed as a tenant id and bound around the whole call with the `sub` of the verified end-user
- * token as the actor. A token that carries another tenant is refused (403), a token with no tenant (a platform
+ * token as the actor (a call with no end-user principal: `svc:` + the verified calling workload). A token that carries another tenant is refused (403), a token with no tenant (a platform
  * operator) is bound to `tenantRef`. The caller check itself is generated from the contract by service-runtime.
  */
 class FirstAdministratorProvisioning(
     private val useCase: ProvisionFirstAdministrator,
     private val tenants: TenantContext,
     private val request: HttpServletRequest,
-    private val workloadActor: ProvisioningActor,
+    private val serviceCaller: ServiceCaller,
 ) {
     fun provision(
         idempotencyKey: UUID,
@@ -44,8 +37,8 @@ class FirstAdministratorProvisioning(
         val tenant = tenantOf(body.tenantRef)
         val principal = request.getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
         val tokenTenant = principal?.tenant
-        if (tokenTenant != null && tokenTenant != tenant) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
-        val actor = principal?.actor ?: workloadActor.value
+        if (tokenTenant != null && tokenTenant != tenant) refuse(ClosedErrorCode.ACCESS_DENIED)
+        val actor = principal?.actor ?: WorkloadPrincipal(verifiedCaller()).value
         val command =
             ProvisionFirstAdministratorCommand(
                 tenant = TenantRef(tenant.toString()),
@@ -67,18 +60,25 @@ class FirstAdministratorProvisioning(
             }
 
             ProvisionFirstAdministratorOutcome.TenantHasAdministrator -> {
-                throw ApiConflict("the tenant already has a tenant.admin grant")
+                conflict("the tenant already has a tenant.admin grant")
             }
 
             ProvisionFirstAdministratorOutcome.DifferentRequest -> {
-                throw ApiRefusal(ClosedErrorCode.DIFFERENT_REQUEST)
+                refuse(ClosedErrorCode.DIFFERENT_REQUEST)
             }
 
             ProvisionFirstAdministratorOutcome.CodeKeyUnavailable -> {
-                throw ApiRefusal(ClosedErrorCode.ISSUER_UNAVAILABLE)
+                refuse(ClosedErrorCode.ISSUER_UNAVAILABLE)
             }
         }
     }
+
+    /** The verified calling workload; a null reading is refused before the use case runs (defence in depth). */
+    private fun verifiedCaller(): String = serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+
+    private fun refuse(code: ClosedErrorCode): Nothing = throw ApiRefusal(code)
+
+    private fun conflict(detail: String): Nothing = throw ApiConflict(detail)
 
     /** The exact lower-case text of a customer tenant id; any other text, the platform tenant included, is 400. */
     private fun tenantOf(text: String): TenantId {

@@ -166,7 +166,7 @@ private val TEST_VERIFIER =
         }
     }
 
-/** Maps the token of user-a to tenant-a, user-b to tenant-b and the operator to no tenant; refuses every other token; counts its calls. */
+/** Maps user-a to tenant-a, user-b to tenant-b and the operator to no tenant; refuses every other token. */
 private val TEST_RESOLVER =
     EndUserPrincipalResolver { authorization ->
         Doubles.resolverCalls.incrementAndGet()
@@ -334,8 +334,6 @@ class ServedContext(
         authorization: String? = null,
         extra: Map<String, String> = emptyMap(),
         stubHandler: Boolean = false,
-        body: String? = null,
-        idempotencyKey: UUID? = null,
     ): MockHttpServletResponse {
         assertNoStubbings()
         if (stubHandler) stub(operation)
@@ -347,11 +345,11 @@ class ServedContext(
             request.queryParam(it["name"].toString(), "probe")
         }
         if (parameters.any { (it["\$ref"] as? String)?.endsWith("IdempotencyKey") == true }) {
-            request.header("Idempotency-Key", (idempotencyKey ?: UUID.randomUUID()).toString())
+            request.header("Idempotency-Key", UUID.randomUUID().toString())
         }
         if (operation.raw["requestBody"] != null) {
-            val text = body ?: JsonMapper().writeValueAsString(exampleBody(operation))
-            request.contentType(MediaType.APPLICATION_JSON).content(text)
+            val body = JsonMapper().writeValueAsString(exampleBody(operation))
+            request.contentType(MediaType.APPLICATION_JSON).content(body)
         }
         workload?.let { request.header("X-Workload-Token", it) }
         authorization?.let { request.header("Authorization", it) }
@@ -364,6 +362,25 @@ class ServedContext(
             // the stub of the call is removed again: a later refused sweep starts with no stubbing
             if (stubHandler) Mockito.reset(*spies.toTypedArray())
         }
+    }
+
+    /** A POST of [operation] with the JSON [body] and the idempotency key [key], as [call] sends it. */
+    fun post(
+        operation: ContractOperation,
+        headers: Map<String, String>,
+        body: String,
+        key: UUID,
+    ): MockHttpServletResponse {
+        assertNoStubbings()
+        val request =
+            MockMvcRequestBuilders
+                .request(HttpMethod.valueOf(operation.method), operation.path)
+                .header("Idempotency-Key", key.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+        headers.forEach { (name, value) -> request.header(name, value) }
+        Mockito.clearInvocations(*spies.toTypedArray())
+        return mvc.perform(request).andReturn().response
     }
 
     @Suppress("UNCHECKED_CAST")

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/** INV-Q-14264 A: the identity `invitation:` + the reference fits the 64-character CHECK; the reference has >= 80 random bits. */
+/** INV-Q-14264 A: `invitation:` + the reference fits the 64-character CHECK; the reference has 128 random bits. */
 class RandomInvitationRefsTest {
     @Test
     fun `10000 references have at most 48 characters, start with INVN- and do not repeat`() {
