@@ -40,3 +40,5 @@
 ../openapi.yaml#/components/schemas/QuestionnaireAnswersResponse questionnaire-answers-response-*.json
 ../openapi.yaml#/components/schemas/PeriodExtensionRequest period-extension-request-*.json
 ../openapi.yaml#/components/schemas/PeriodExtensionResponse period-extension-response-*.json
+../openapi.yaml#/components/schemas/ElectionChangeClosed election-change-closed-*.json
+../openapi.yaml#/components/schemas/PendingElectionChangeList pending-election-change-list-*.json

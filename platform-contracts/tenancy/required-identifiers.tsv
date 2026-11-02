@@ -178,3 +178,13 @@ PeriodExtensionRequest.target.BOTH	schema_enum_value	openapi.yaml	INV-REQ-86
 PERIOD	enum_value	openapi.yaml	INV-REQ-86
 DOCUMENT_SET	enum_value	openapi.yaml	INV-REQ-86
 DATE_RANGE	enum_value	openapi.yaml	INV-REQ-86
+withdrawElectionChange	operation	openapi.yaml	INV-REQ-505
+declineElectionChange	operation	openapi.yaml	INV-REQ-505
+listElectionChanges	operation	openapi.yaml	INV-REQ-505
+ElectionChangeClosed.changeRef	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeClosed.entityRef	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeClosed.outcome	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeClosed.requestedBy	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeClosed.closedBy	schema_property	openapi.yaml	INV-REQ-505
+ElectionChangeClosed.closedAt	schema_property	openapi.yaml	INV-REQ-505
+PendingElectionChangeList.items	schema_property	openapi.yaml	INV-REQ-505

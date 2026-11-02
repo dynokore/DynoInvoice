@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.27.0
+  version: 1.28.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1071,6 +1071,7 @@ paths:
       summary: Elect the exchange-rate source and basis from a date (SDS §7, SCR-13.2)
       description: >-
         Elect the exchange-rate source and basis from a date (SCR-13.2).
+        A CHANGE of an election already recorded is refused 409 while a PENDING change exists for the same entity and variation point (INV-Q-10117 (A)); a pending change never expires and ends only by approval, withdrawal (withdrawElectionChange) or decline (declineElectionChange) (INV-Q-10115 (A)).
         Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
       - entities
@@ -1163,6 +1164,8 @@ paths:
         "404":
           $ref: '#/components/responses/Error'
         "422":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1734,6 +1737,7 @@ paths:
       summary: Record a regulatory election with its effective date (SDS §7, SCR-16.5)
       description: >-
         Record a regulatory election with its effective date (SCR-16.5). The election is one of INVOICE_DATE, POSTING_DATE, CLAIMABLE_PORTION, ENTIRE_INVOICE; any other value is 400 SRT-001.
+        A CHANGE of an election already recorded is refused 409 while a PENDING change exists for the same entity and variation point (INV-Q-10117 (A)); a pending change never expires and ends only by approval, withdrawal (withdrawElectionChange) or decline (declineElectionChange) (INV-Q-10115 (A)).
         Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
       - entities
@@ -1824,6 +1828,8 @@ paths:
           $ref: '#/components/responses/Error'
         "422":
           $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/tenancy/entities/{entityRef}/election-changes/{changeRef}/approve:
@@ -1831,7 +1837,7 @@ paths:
       operationId: approveElectionChange
       summary: Approve a pending change of an election; it takes effect on approval
       description: >-
-        Approve a pending change of an election (recordElection or electRateSource answered 202). The caller must hold the permission election-change.approve on the entity and must be a different person from the requestedBy of the change. The change takes effect only now, from its effectiveFrom, and the approval is audited.
+        Approve a pending change of an election (recordElection or electRateSource answered 202). The caller must hold the permission election-change.approve on the entity and must be a different person from the requestedBy of the change. The change takes effect only now, from its effectiveFrom, and the approval is audited. An approval whose effectiveFrom is before the current date is refused 422 POL-014 and the change stays PENDING (INV-Q-10121 (A)).
         Refusals: 403 SRT-004 when the caller is the requester of the change or lacks the permission; 404 SRT-005 when the entity has no such change or the change is already decided; 422 POL-014 when the value checks of the election fail at approval time (SRT codes are not listed in x-error-codes).
       tags:
       - entities
@@ -1893,6 +1899,207 @@ paths:
         "404":
           $ref: '#/components/responses/Error'
         "422":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/election-changes/{changeRef}/withdraw:
+    post:
+      operationId: withdrawElectionChange
+      summary: Withdraw a pending change of an election; only its requester may
+      description: >-
+        Withdraw a pending change of an election (recordElection or electRateSource answered 202) before it is approved. The caller must hold the permission election-change.withdraw on the entity and be the requester of the change. The change is closed with outcome WITHDRAWN, the stored election stays unchanged and one audit entry `withdrawn` names the caller (INV-Q-10113 (A)).
+        Refusals: 403 SRT-004 when the caller is not the requester of the change or lacks the permission; 404 SRT-005 when the entity has no such change or the change is already decided (SRT codes are not listed in x-error-codes).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-6.1
+      x-error-codes: []
+      x-operation:
+        role: entity.admin, tenant.admin, tax.approver
+        scope: entity
+        precondition: The change is pending; the caller holds the permission election-change.withdraw and is its requester
+        reversibility: IRREVERSIBLE
+        repeatKey: (entityRef, changeRef)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: changeRef
+        in: path
+        required: true
+        description: The pending election change's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: CHG-7A41C2
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Change withdrawn by its requester
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElectionChangeClosed'
+              examples:
+                default:
+                  value:
+                    changeRef: CHG-7A41C2
+                    entityRef: ENT-3F2A9C
+                    outcome: WITHDRAWN
+                    requestedBy: identity:USR-004
+                    closedBy: identity:USR-004
+                    closedAt: "2026-10-19T08:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/election-changes/{changeRef}/decline:
+    post:
+      operationId: declineElectionChange
+      summary: Decline a pending change of an election; a person other than the requester
+      description: >-
+        Decline a pending change of an election (recordElection or electRateSource answered 202). The caller must hold the permission election-change.approve on the entity and must be a different person from the requestedBy of the change. The change is closed with outcome DECLINED, the stored election stays unchanged and one audit entry `declined` names the caller (INV-Q-10113 (A), INV-Q-10115 (A)).
+        Refusals: 403 SRT-004 when the caller is the requester of the change or lacks the permission; 404 SRT-005 when the entity has no such change or the change is already decided (SRT codes are not listed in x-error-codes).
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-6.1
+      x-error-codes: []
+      x-operation:
+        role: tax.approver
+        scope: entity
+        precondition: The change is pending; the caller holds the permission election-change.approve and is not its requester
+        reversibility: IRREVERSIBLE
+        repeatKey: (entityRef, changeRef)
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: changeRef
+        in: path
+        required: true
+        description: The pending election change's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: CHG-7A41C2
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        "200":
+          description: Change declined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElectionChangeClosed'
+              examples:
+                default:
+                  value:
+                    changeRef: CHG-7A41C2
+                    entityRef: ENT-3F2A9C
+                    outcome: DECLINED
+                    requestedBy: identity:USR-004
+                    closedBy: identity:USR-009
+                    closedAt: "2026-10-19T08:00:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/election-changes:
+    get:
+      operationId: listElectionChanges
+      summary: List the entity's pending election changes
+      description: >-
+        The PENDING election changes of the entity only; a change that is approved, withdrawn or declined is not listed, and a pending change stays listed however long it waits (it never expires, INV-Q-10115 (A)). The caller must hold the permission election-change.list on the entity (INV-Q-10119 (A)).
+        Paging follows listPeriodRecords: limit defaults to 100 and is at most 500 (a larger value is refused with 400); cursor is opaque; nextPageToken is omitted on the last page.
+      tags:
+      - entities
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AC.1
+      - FR-6.1
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          maximum: 500
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The pending changes of the entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingElectionChangeList'
+              examples:
+                default:
+                  value:
+                    items:
+                    - changeRef: CHG-7A41C2
+                      entityRef: ENT-3F2A9C
+                      election: RATE_SOURCE
+                      source: MAS
+                      basis: DAILY
+                      effectiveFrom: "2026-10-01"
+                      requestedBy: identity:USR-004
+                      requestedAt: "2026-10-18T09:30:00Z"
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -4169,6 +4376,47 @@ components:
         approvedAt:
           type: string
           format: date-time
+    ElectionChangeClosed:
+      type: object
+      required:
+      - changeRef
+      - entityRef
+      - outcome
+      - requestedBy
+      - closedBy
+      - closedAt
+      properties:
+        changeRef:
+          type: string
+          maxLength: 64
+        entityRef:
+          type: string
+          maxLength: 64
+        outcome:
+          type: string
+          enum:
+          - WITHDRAWN
+          - DECLINED
+        requestedBy:
+          type: string
+          maxLength: 128
+        closedBy:
+          type: string
+          maxLength: 128
+        closedAt:
+          type: string
+          format: date-time
+    PendingElectionChangeList:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingElectionChange'
+        nextPageToken:
+          type: string
     ElectionStatusResponse:
       type: object
       required:
