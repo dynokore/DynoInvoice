@@ -4,7 +4,9 @@ import com.dynokore.gst.access.adapters.http.ApiConflict
 import com.dynokore.gst.access.adapters.http.ApiRefusalAdvice
 import com.dynokore.gst.access.adapters.http.BreakGlassController
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.json
+import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.newTenant
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.withService
+import com.dynokore.gst.access.bootstrap.SealFixture.accountRows
 import com.dynokore.gst.access.bootstrap.SealFixture.activated
 import com.dynokore.gst.access.bootstrap.SealFixture.capturedEvents
 import com.dynokore.gst.access.bootstrap.SealFixture.digestOf
@@ -28,8 +30,9 @@ import java.util.UUID
 
 /**
  * `resealBreakGlass` (INV-REQ-897 behaviour 4; INV-AC-8852 and the rotate part of INV-AC-1934): closes the unlock,
- * replaces the sealing credential and returns the new one once; only `deployment.operator` may call it (the published
- * role, nothing else is checked: INV-Q-8895 is open); a reseal after the expiry is 409 with no catalogue code.
+ * replaces the sealing credential and returns the new one once; only a holder of the permission `break-glass.reseal`
+ * may call it (INV-Q-16100 A; nothing else is checked: INV-Q-8895 is open); a reseal after the expiry is 409 with no
+ * catalogue code.
  */
 class BreakGlassResealTest {
     private fun ServedContext.record(
@@ -90,7 +93,7 @@ class BreakGlassResealTest {
         }
 
     @Test
-    fun `INV-AC-8852 a caller without deployment-operator is 403 and nothing changes`() =
+    fun `INV-AC-8852 a caller without the permission break-glass-reseal is 403 and nothing changes`() =
         withService { served ->
             val account = served.activated()
             val tenant = account.tenant
@@ -130,5 +133,30 @@ class BreakGlassResealTest {
             assertThat(sessionStatus(tenant, ref)).isEqualTo("UNLOCKED")
             // an unknown unlock
             assertThat(served.reseal(tenant, "BG-NONE").status).isEqualTo(404)
+        }
+
+    @Test
+    fun `INV-AC-8852 a reseal of an open unlock with no account row closes it and returns no credential`() =
+        withService { served ->
+            // a tenant that was never activated: it has a pair and an open unlock but no sealed-account row (INV-Q-16102 A)
+            val tenant = newTenant()
+            served.pair(tenant)
+            val (ref, _) = served.unlocked(tenant)
+            assertThat(accountRows(tenant)).isEmpty()
+            val auditBefore = capturedEvents(served).filter { it.contains("resealBreakGlass") }
+            val response = served.reseal(tenant, ref)
+            assertThat(response.status).describedAs(response.contentAsString).isEqualTo(200)
+            assertThat(json(response).has("sealingCredential")).isFalse()
+            assertThat(accountRows(tenant)).isEmpty()
+            assertThat(sessionStatus(tenant, ref)).isEqualTo("SEALED")
+            // one audit entry, under the acting user and never a role
+            val audits = capturedEvents(served).filter { it.contains("resealBreakGlass") }
+            assertThat(audits).hasSize(auditBefore.size + 1)
+            assertThat(audits.last()).contains(SealFixture.OPERATOR)
+            // sign-in and recording on that unlock: 409 and no catalogue code
+            assertConflictWithoutCode(served.signIn(tenant, ref, "any-credential"))
+            val refusal = catchThrowable { served.record(tenant, ref) }
+            assertThat(refusal).isInstanceOf(ApiConflict::class.java)
+            assertThat(ApiRefusalAdvice().conflict(refusal as ApiConflict).body).doesNotContain("\"code\"")
         }
 }

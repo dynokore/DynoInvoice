@@ -4,8 +4,8 @@ import com.dynokore.gst.access.adapters.breakglass.SecureRandomSealingCredential
 import com.dynokore.gst.access.adapters.breakglass.VariationPointBreakGlassSettings
 import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
 import com.dynokore.gst.access.adapters.http.BreakGlassSealing
-import com.dynokore.gst.access.adapters.http.DeploymentOperatorCheck
-import com.dynokore.gst.access.adapters.http.ResolvedDeploymentOperatorCheck
+import com.dynokore.gst.access.adapters.http.ResealPermissionCheck
+import com.dynokore.gst.access.adapters.http.ResolvedResealPermissionCheck
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassAccounts
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassApprovals
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessions
@@ -286,15 +286,16 @@ class SealedAccountUseCases {
     ) = ResealBreakGlassUseCase(dependencies.tx, sessions, keeper, audit, clock)
 
     @Bean
-    fun deploymentOperatorCheck(
+    fun resealPermissionCheck(
         tenants: TenantContext,
         roles: PolicyRoleResolver,
-    ): DeploymentOperatorCheck = ResolvedDeploymentOperatorCheck(tenants, roles)
+        matrix: PermissionMatrix,
+    ): ResealPermissionCheck = ResolvedResealPermissionCheck(tenants, roles, matrix)
 
     @Bean
     fun breakGlassSealing(
         signIn: SignInBreakGlassUseCase,
         reseal: ResealBreakGlassUseCase,
-        operators: DeploymentOperatorCheck,
-    ) = BreakGlassSealing(signIn, reseal, operators)
+        permission: ResealPermissionCheck,
+    ) = BreakGlassSealing(signIn, reseal, permission)
 }

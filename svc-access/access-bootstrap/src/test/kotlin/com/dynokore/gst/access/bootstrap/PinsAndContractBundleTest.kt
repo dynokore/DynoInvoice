@@ -1,5 +1,9 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.domain.role.Allowance
+import com.dynokore.gst.access.domain.role.Permission
+import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.gst.catalogue.VariationPoint
 import com.dynokore.gst.catalogue.VpStatus
 import org.assertj.core.api.Assertions.assertThat
@@ -118,5 +122,16 @@ class PinsAndContractBundleTest {
         assertThat(bundle).matches("""0\.0\.0-dev\+[0-9a-f]{8}""")
         // f4cb676f precedes the access contract supplement; bcd44dfd holds INV-T-8672 alone (no event, VP-08 planned)
         assertThat(bundle.substringAfter('+')).isNotIn("f4cb676f", "bcd44dfd")
+    }
+
+    @Test
+    fun `the catalogue pin holds break-glass-reseal with one cell, deployment operator in PRIVATE (INV-T-16106)`() {
+        val key = Permission("break-glass.reseal")
+        val private = PermissionMatrixLoader.load(DeploymentForm.PRIVATE)
+        val holders = Role.entries.filter { private.allowance(it, key) == Allowance.PERMITTED }
+        assertThat(holders).containsExactly(Role.DEPLOYMENT_OPERATOR)
+        // the key is a SAAS cell for nobody; a catalogue below the version of INV-T-16106 cannot map the key at all
+        val saas = PermissionMatrixLoader.load(DeploymentForm.SAAS)
+        assertThat(Role.entries.filter { saas.allowance(it, key) == Allowance.PERMITTED }).isEmpty()
     }
 }

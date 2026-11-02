@@ -20,6 +20,9 @@ import java.util.UUID
 /** The permission an approver of a break-glass unlock holds (INV-Q-10138 B); the pairing stays a business rule. */
 val BREAK_GLASS_UNLOCK = Permission("break-glass.unlock")
 
+/** The permission of `resealBreakGlass` (INV-Q-16100 A; the catalogue key of INV-T-16106). */
+val BREAK_GLASS_RESEAL = Permission("break-glass.reseal")
+
 /** The longest approval window, and the default (INV-Q-9109 A). */
 val MAX_APPROVAL_WINDOW: Duration = Duration.ofMinutes(15)
 
