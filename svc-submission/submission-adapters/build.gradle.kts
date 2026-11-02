@@ -84,6 +84,7 @@ dependencies {
     implementation(libs.swagger.annotations)
     implementation(libs.gstCatalogue)
     implementation(libs.jooq)
+    implementation(libs.poi.ooxml)
     implementation(libs.postgresql)
     implementation(libs.flyway.core)
     implementation(libs.flyway.databasePostgresql)
