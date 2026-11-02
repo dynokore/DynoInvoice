@@ -33,7 +33,7 @@ interface Elevations {
     /** Stores a new pending record for the bound tenant under a fresh reference. */
     fun insert(ask: ElevationAsk): ElevationRecord
 
-    /** The record with [ref] locked `FOR UPDATE` until the transaction ends, or null (also for another tenant's row). */
+    /** The record with [ref] locked `FOR UPDATE` until the transaction ends, or null (also for another tenant). */
     fun lock(ref: String): ElevationRecord?
 
     fun update(

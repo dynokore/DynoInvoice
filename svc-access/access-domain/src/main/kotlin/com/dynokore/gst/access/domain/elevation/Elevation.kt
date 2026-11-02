@@ -3,8 +3,8 @@ package com.dynokore.gst.access.domain.elevation
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
-import java.time.Duration
 import com.dynokore.gst.access.domain.role.Permission
+import java.time.Duration
 import java.time.Instant
 
 /** An elevation request opens content of one tenant (`ELV-*`); an invitation opens an installation (`DIAG-*`). */

@@ -33,8 +33,8 @@ import java.util.UUID
  * permission key and never compares a role name (INV-Q-15950 A): `requestElevation` and `withdrawElevationRequest` for
  * `elevation.request`, `inviteDiagnostics` and `withdrawDiagnosticInvitation` for `diagnostic.invite`, both read from
  * the operator's platform grants; `decideElevation` for `elevation.decide`, read from the caller's grants of the bound
- * tenant. A record is read and written in the bound tenant only, so another tenant's reference is 404. `openOperatorSession`
- * is INV-T-4154 and stays unimplemented here.
+ * tenant. A record is read and written in the bound tenant only, so another tenant's reference is 404.
+ * `openOperatorSession` is INV-T-4154 and stays unimplemented here.
  */
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
