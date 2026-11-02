@@ -2330,8 +2330,6 @@ paths:
           $ref: '#/components/responses/Error'
         "404":
           $ref: '#/components/responses/Error'
-        "409":
-          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/access/consultant-grant-requests:
