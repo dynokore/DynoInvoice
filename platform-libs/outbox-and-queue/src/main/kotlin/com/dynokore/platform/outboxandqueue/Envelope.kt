@@ -59,7 +59,7 @@ data class Envelope(
     companion object {
         private const val PLATFORM_TYPE_PREFIX = "com.dynokore.gst.platform."
 
-        /** INV-REQ-1226 behaviour 1: the closed platform class, exact names only (INV-Q-9313 added the last). */
+        /** INV-REQ-1226 behaviour 1: the closed platform class, exact names only (INV-Q-14069 added the last). */
         private val PLATFORM_EVENTS =
             setOf(
                 "AuditEntryRecorded",
@@ -78,6 +78,7 @@ data class Envelope(
                 "TenantWideEvidenceIntegrityFailed",
                 "BreakGlassSessionChanged",
                 "BreakGlassActionReported",
+                "TenantWideArchiveVolumeMeasured",
             )
 
         /**
@@ -85,7 +86,8 @@ data class Envelope(
          * [PLATFORM_EVENTS] (ReplayRequested and ReplayCompleted by INV-Q-3674, PrivacyNoticeDue
          * and AccreditationAlertRaised by INV-Q-7336, BreakGlassAlertRaised by INV-Q-8839, AuthorityChanged by
          * INV-Q-9229, TenantWideEvidenceIntegrityFailed by INV-Q-12994, BreakGlassSessionChanged by INV-Q-9119,
-         * BreakGlassActionReported by INV-Q-9313; sixteen names in all)): the
+         * BreakGlassActionReported by INV-Q-9313, TenantWideArchiveVolumeMeasured by INV-Q-14069; seventeen names in
+         * all)): the
          * only types that may be written under `TenantId.PLATFORM` and travel without `tenantid` and
          * `entityref` (INV-Q-3018). A domain event always carries a real tenant (FR-K.3, INV-REQ-1162).
          */

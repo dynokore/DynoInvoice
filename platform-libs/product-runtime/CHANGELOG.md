@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-03
+### Added
+- `PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED` (`gst.platform.tenant-wide-archive-volume-measured.v1`), appended last to `ALL` (INV-Q-14069, INV-REQ-878, INV-AC-16554, INV-T-16568).
+
 ## [2.4.3] - 2026-11-02
 ### Changed
 - Metadata-only change (INV-T-15732, G-DVS): depends on `outbox-and-queue 6.12.1`, whose version steps; no code change.

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.13.0] - 2026-11-03
+### Added
+- `TenantWideArchiveVolumeMeasured` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name; tenant-wide for a real tenant), which now holds seventeen platform events (INV-Q-14069, INV-REQ-878, INV-AC-16554, INV-T-16568).
+
 ## [6.12.1] - 2026-11-02
 ### Fixed
 - `claim_due` (emitted by `QueueSchema.ddl`) no longer locks its candidate rows: the candidate query ends `order by q.seq limit 20` and only the row the claim takes is locked (`for update of q skip locked` in the re-check, under the partition advisory lock), so an uncommitted claim no longer hides the heads of other partitions (INV-Q-15728, INV-REQ-549, INV-T-15732).

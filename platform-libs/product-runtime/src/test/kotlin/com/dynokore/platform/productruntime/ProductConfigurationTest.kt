@@ -27,7 +27,7 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.topic shouldBe "gst.platform.break-glass-action-reported.v1"
         PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.eventType shouldBe
             "com.dynokore.gst.platform.BreakGlassActionReported.v1"
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED
     }
 
     @Test
@@ -50,6 +50,7 @@ class ProductConfigurationTest {
                 "TenantWideEvidenceIntegrityFailed",
                 "BreakGlassSessionChanged",
                 "BreakGlassActionReported",
+                "TenantWideArchiveVolumeMeasured",
             )
         PlatformEventCatalogue.PRIVACY_NOTICE_DUE.topic shouldBe "gst.platform.privacy-notice-due.v1"
         PlatformEventCatalogue.ACCREDITATION_ALERT_RAISED.topic shouldBe "gst.platform.accreditation-alert-raised.v1"
@@ -63,7 +64,7 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED
         PlatformEventCatalogue.AUTHORITY_CHANGED.topic shouldBe "gst.platform.authority-changed.v1"
         PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true
@@ -89,6 +90,16 @@ class ProductConfigurationTest {
             true
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.evidence.TenantWideEvidenceIntegrityFailed.v1") shouldBe
             false
+    }
+
+    @Test
+    fun `INV-AC-16554 the catalogue holds TenantWideArchiveVolumeMeasured last (INV-Q-14069)`() {
+        PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED.topic shouldBe
+            "gst.platform.tenant-wide-archive-volume-measured.v1"
+        PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED.eventType shouldBe
+            "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.evidence.TenantWideArchiveVolumeMeasured.v1") shouldBe false
     }
 
     @Test

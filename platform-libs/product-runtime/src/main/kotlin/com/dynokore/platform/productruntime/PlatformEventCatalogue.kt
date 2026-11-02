@@ -43,6 +43,8 @@ object PlatformEventCatalogue {
         fixed("TenantWideEvidenceIntegrityFailed", "tenant-wide-evidence-integrity-failed")
     val BREAK_GLASS_SESSION_CHANGED = fixed("BreakGlassSessionChanged", "break-glass-session-changed")
     val BREAK_GLASS_ACTION_REPORTED = fixed("BreakGlassActionReported", "break-glass-action-reported")
+    val TENANT_WIDE_ARCHIVE_VOLUME_MEASURED =
+        fixed("TenantWideArchiveVolumeMeasured", "tenant-wide-archive-volume-measured")
 
     /** Every platform event, in INV-REQ-1226 b1's order. */
     val ALL: List<PlatformEvent> =
@@ -63,6 +65,7 @@ object PlatformEventCatalogue {
             TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED,
             BREAK_GLASS_SESSION_CHANGED,
             BREAK_GLASS_ACTION_REPORTED,
+            TENANT_WIDE_ARCHIVE_VOLUME_MEASURED,
         )
 
     /** True when [eventType] is a platform event. */

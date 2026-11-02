@@ -31,6 +31,7 @@ class PlatformClassEventsTest {
             "TenantWideEvidenceIntegrityFailed",
             "BreakGlassSessionChanged",
             "BreakGlassActionReported",
+            "TenantWideArchiveVolumeMeasured",
         )
     private val refused =
         listOf(
@@ -59,6 +60,11 @@ class PlatformClassEventsTest {
             "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailedX.v1",
             "com.dynokore.gst.platform.tenantWideEvidenceIntegrityFailed.v1",
             "com.dynokore.gst.platform.EvidenceIntegrityFailed.v1",
+            "com.dynokore.gst.evidence.TenantWideArchiveVolumeMeasured.v1",
+            "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasuredX.v1",
+            "com.dynokore.gst.platform.tenantWideArchiveVolumeMeasured.v1",
+            "com.dynokore.gst.platform.ArchiveVolumeMeasured.v1",
+            "com.dynokore.gst.evidence.ArchiveVolumeMeasured.v1",
         )
 
     private fun envelope(
@@ -184,7 +190,7 @@ class PlatformClassEventsTest {
 
     @Test
     fun `INV-AC-13291 TenantWideEvidenceIntegrityFailed domain, look-alike, case and sibling types are refused`() {
-        refused.takeLast(5).forEach {
+        refused.subList(20, 25).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
         }
     }
@@ -219,6 +225,23 @@ class PlatformClassEventsTest {
     @Test
     fun `INV-AC-9351 BreakGlassActionReported old type, look-alike, case and other package are refused`() {
         refused.subList(16, 20).forEach {
+            assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-16554 TenantWideArchiveVolumeMeasured is tenant-wide, omits entityref and reads back tenant-wide`() {
+        val e = envelope("com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1", tenant, EntityRef.TENANT_WIDE)
+        val text = json.write(e)
+        assertFalse(text.contains("entityref"), text)
+        assertTrue(text.contains("tenantid"), text)
+        assertEquals(e, json.read(text))
+        assertEquals(EntityRef.TENANT_WIDE, json.read(text).entity)
+    }
+
+    @Test
+    fun `INV-AC-16554 TenantWideArchiveVolumeMeasured domain, look-alike, case and sibling types are refused`() {
+        refused.takeLast(5).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
         }
     }
