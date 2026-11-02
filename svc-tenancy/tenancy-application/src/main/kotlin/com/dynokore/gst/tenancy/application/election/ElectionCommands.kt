@@ -14,12 +14,16 @@ import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.IssuanceMode
 import com.dynokore.gst.tenancy.domain.StatusTimeline
+import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.LocalDate
 
 /** The profile attribute the issuance mode is published under on EntityProfileChanged (INV-Q-4993 B). */
 const val ISSUANCE_MODE_ATTRIBUTE = "issuanceMode"
+
+/** The profile attribute the elected exchange-rate source is published under on EntityProfileChanged (INV-Q-16533 A). */
+const val RATE_SOURCE_ATTRIBUTE = "exchangeRateSource"
 
 sealed interface ElectionOutcome {
     /** [repeated] is true when the same election was stored for the same date before and nothing was written. */
@@ -78,6 +82,7 @@ class ElectionCommands(
     private val caller: CallerSource,
     private val changes: ElectionChangeStore,
     private val audit: ElectionAudit,
+    private val tenants: TenantContext,
 ) {
     /** Elects the Type 1A issuance mode from [effectiveFrom]; the second confirmation is required every time. */
     fun setIssuanceMode(
@@ -191,6 +196,7 @@ class ElectionCommands(
                 actor,
                 "${ElectionKind.EXCHANGE_RATE_SOURCE.variationPoint} election by $actor",
             )?.let { return@inTransaction it }
+            publishRateSource(entity.ref, before, source, effectiveFrom)
             ElectionOutcome.Done(
                 elections
                     .history(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE)
@@ -220,6 +226,7 @@ class ElectionCommands(
                 return@inTransaction ElectionOutcome.Forbidden("the approver must be a person other than the requester")
             }
             valueRefusal(change)?.let { return@inTransaction it }
+            val rateHistory = elections.history(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE)
             store(
                 entity.ref,
                 entity.groupRef,
@@ -231,6 +238,9 @@ class ElectionCommands(
                 "${change.kind.variationPoint} election change ${change.changeRef} requested by " +
                     "${change.requestedBy}, approved by $approver",
             )?.let { return@inTransaction it }
+            if (change.kind == ElectionKind.EXCHANGE_RATE_SOURCE) {
+                publishRateSource(entity.ref, rateHistory, change.value, change.effectiveFrom)
+            }
             val approval =
                 checkNotNull(changes.approve(entity.ref, change.changeRef, approver)) { "change not PENDING" }
             audit.approved(approval)
@@ -420,31 +430,65 @@ class ElectionCommands(
         before: List<ElectionRecord>,
         mode: IssuanceMode,
         effectiveFrom: LocalDate,
+    ) = publishProfile(
+        tenant,
+        entityRef,
+        ChangedAttribute(
+            ISSUANCE_MODE_ATTRIBUTE,
+            StatusTimeline.inForceOn(before, effectiveFrom)?.value,
+            mode.name,
+        ),
+        effectiveFrom,
+    )
+
+    /** EntityProfileChanged with the rate source entry in changedAttributes and node.profile (INV-Q-16533 A). */
+    private fun publishRateSource(
+        entityRef: String,
+        before: List<ElectionRecord>,
+        source: String,
+        effectiveFrom: LocalDate,
+    ) = publishProfile(
+        tenants.current(),
+        entityRef,
+        ChangedAttribute(RATE_SOURCE_ATTRIBUTE, StatusTimeline.inForceOn(before, effectiveFrom)?.value, source),
+        effectiveFrom,
+    )
+
+    /** One publish carries every profile entry, as a StructureNode replaces the node's whole state. */
+    private fun publishProfile(
+        tenant: TenantId,
+        entityRef: String,
+        changed: ChangedAttribute,
+        effectiveFrom: LocalDate,
     ) {
         val entity = checkNotNull(structure.entity(entityRef))
-        val previous = StatusTimeline.inForceOn(before, effectiveFrom)?.value
         val version = structure.nextStructureVersion()
         structure.touchEntity(entity.ref, version)
         val profile =
             (
                 statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
-                    issuanceEntries(entity.ref)
+                    electionEntries(entity.ref, ElectionKind.ISSUANCE_MODE, ISSUANCE_MODE_ATTRIBUTE) +
+                    electionEntries(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE, RATE_SOURCE_ATTRIBUTE)
             ).sortedBy { it.effectiveDate }
         publisher.publish(
             EntityProfileChange(
                 tenant.value,
                 entity.ref,
-                listOf(ChangedAttribute(ISSUANCE_MODE_ATTRIBUTE, previous, mode.name)),
+                listOf(changed),
                 effectiveFrom,
                 entityNode(entity.copy(structureVersion = version), profile),
             ),
         )
     }
 
-    private fun issuanceEntries(entityRef: String): List<ProfileEntry> =
+    private fun electionEntries(
+        entityRef: String,
+        kind: ElectionKind,
+        attribute: String,
+    ): List<ProfileEntry> =
         elections
-            .history(entityRef, ElectionKind.ISSUANCE_MODE)
-            .map { ProfileEntry(ISSUANCE_MODE_ATTRIBUTE, it.value, it.effectiveFrom) }
+            .history(entityRef, kind)
+            .map { ProfileEntry(attribute, it.value, it.effectiveFrom) }
 
     private companion object {
         /** What the writer's setting-role check is shown for a caller proven to hold `entity-config.manage`. */

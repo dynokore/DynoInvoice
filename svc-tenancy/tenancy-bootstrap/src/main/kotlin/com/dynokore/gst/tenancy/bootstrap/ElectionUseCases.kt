@@ -168,6 +168,7 @@ class ElectionUseCases {
         caller: CallerSource,
         changes: ElectionChangeStore,
         audit: ElectionAudit,
+        tenants: TenantContext,
     ): ElectionCommands =
         ElectionCommands(
             tx,
@@ -182,6 +183,7 @@ class ElectionUseCases {
             caller,
             changes,
             audit,
+            tenants,
         )
 
     @Bean
