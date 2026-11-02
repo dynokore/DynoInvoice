@@ -116,6 +116,7 @@ class OperationRolesTest {
                 "machine.drain.run ",
                 "Machine.drain.run",
                 "machine.machine.drain.run",
+                "machine.machine.filing.confirm",
             )) {
                 assertEquals(emptyMap<String, RoleAllowance>(), OperationRoles.rolesFor(form, key), "$form '$key'")
             }
