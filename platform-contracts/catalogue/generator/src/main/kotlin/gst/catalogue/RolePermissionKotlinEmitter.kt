@@ -1,5 +1,7 @@
 package gst.catalogue
 
+import java.io.File
+
 /**
  * Emits `RolePermission.kt` (INV-T-7987; STK-61, INV-Q-7979 A): the `RolePermissions` object that serves the checked
  * role-by-permission table of INV-NOTE-3 sections 22.2 and 22.3. Generated into the package of `VariationPoint.kt`, whose
@@ -9,6 +11,7 @@ object RolePermissionKotlinEmitter {
     fun emit(
         packageName: String,
         table: RolePermissionTable,
+        machine: List<MachinePermissionRow> = emptyList(),
     ): String =
         buildString {
             appendLine("// GENERATED — do not edit by hand.")
@@ -91,6 +94,12 @@ object RolePermissionKotlinEmitter {
                         appendLine("                        ),")
                     }
                 }
+                machineKeys(machine).forEach { (key, roles) ->
+                    appendLine("                    ${lit(key)} to")
+                    appendLine("                        mapOf(")
+                    roles.forEach { appendLine("                            ${lit(it)} to RoleAllowance.PERMITTED,") }
+                    appendLine("                        ),")
+                }
                 appendLine("                ),")
             }
             appendLine("        )")
@@ -104,5 +113,42 @@ object RolePermissionKotlinEmitter {
             appendLine("}")
         }
 
+    /** Machine key (`machine.` + permission) to its machine roles, in file order; the same in every form. */
+    private fun machineKeys(machine: List<MachinePermissionRow>): List<Pair<String, List<String>>> =
+        machine.groupBy({ MachinePermissions.PREFIX + it.permission }, { MachinePermissions.roleOf(it.principalType) }).toList()
+
     private fun lit(s: String): String = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
+}
+
+/** One data row of `access/schemas/machine-principal-permissions.tsv`, exactly as written (no trimming). */
+data class MachinePermissionRow(
+    val principalType: String,
+    val permission: String,
+)
+
+/**
+ * The machine section of `OperationRoles` (INV-T-13568, INV-REQ-584, owner answer INV-Q-10649 C). The tsv is the only place
+ * the (type, permission) pairs are written; the generator derives the role `machine.<name>` and the key `machine.<permission>`.
+ */
+object MachinePermissions {
+    const val PREFIX = "machine."
+
+    /** The six principal types of INV-REQ-584 behavior 1; a seventh is a build failure. */
+    val types: List<String> = listOf("INGEST", "FILING_WORKFLOW", "AP_CALLBACK", "REPORTING", "MONITORING", "CERTIFICATION")
+
+    /** `FILING_WORKFLOW` to `machine.filing-workflow`. */
+    fun roleOf(principalType: String): String = PREFIX + principalType.lowercase().replace('_', '-')
+
+    private const val HEADER = "principalType\tpermission\tsource"
+
+    /** Reads the tsv strictly: blank and `#` lines are skipped, the header must match, every data row has three columns. */
+    fun parse(file: File): List<MachinePermissionRow> {
+        val lines = file.readLines().filter { it.isNotBlank() && !it.startsWith("#") }
+        require(lines.isNotEmpty() && lines.first() == HEADER) { "${file.name}: the header must be exactly '$HEADER'." }
+        return lines.drop(1).mapIndexed { i, line ->
+            val cols = line.split('\t')
+            require(cols.size == 3) { "${file.name}: data row ${i + 1} has ${cols.size} columns, not 3." }
+            MachinePermissionRow(cols[0], cols[1])
+        }
+    }
 }

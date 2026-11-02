@@ -76,4 +76,32 @@ class RolePermissionKotlinEmitterTest {
     fun `two emits of the same table are equal as strings`() {
         assertEquals(emitted(), emitted())
     }
+
+    // INV-T-13568: the machine section, emitted from the tsv rows.
+    private fun machineRows() = listOf(MachinePermissionRow("FILING_WORKFLOW", "drain.run"), MachinePermissionRow("INGEST", "control-totals.write"))
+
+    @Test
+    fun `machine rows add machine keys with machine roles in every form and leave the person rows equal`() {
+        val withMachine = RolePermissionKotlinEmitter.emit("p", table, machineRows())
+        val plain = emitted()
+        val personPart = withMachine.lines().filterNot { "machine." in it }
+        // Person rows unchanged: dropping the machine lines (and their map scaffolding) leaves only scaffolding lines extra.
+        assertTrue(plain.lines().all { it in withMachine.lines() })
+        assertTrue(withMachine.contains("\"machine.drain.run\" to"))
+        assertEquals(DeploymentForm.entries.size * 2, Regex("\"machine\\.[a-z.-]+\" to\\s*$", RegexOption.MULTILINE).findAll(withMachine).count())
+        assertEquals(DeploymentForm.entries.size, withMachine.lines().count { it.trim() == "\"machine.filing-workflow\" to RoleAllowance.PERMITTED," })
+        assertTrue(personPart.isNotEmpty())
+    }
+
+    @Test
+    fun `the role name of a type is machine dot lowercase with hyphens`() {
+        assertEquals("machine.ap-callback", MachinePermissions.roleOf("AP_CALLBACK"))
+    }
+
+    @Test
+    fun `the real tsv parses to 19 rows of the six types`() {
+        val rows = MachinePermissions.parse(java.io.File("../../access/schemas/machine-principal-permissions.tsv"))
+        assertEquals(19, rows.size)
+        assertEquals(MachinePermissions.types.toSet(), rows.map { it.principalType }.toSet())
+    }
 }

@@ -15,6 +15,13 @@ requirements — see that file's own header for why, unlike `error-codes.yaml`, 
 is no invoice-docs file to vendor from instead), never edited by hand. See
 `variation-points/README.md` for the re-vendor procedure and its drift-check tool.
 
+`OperationRoles` also carries a machine section (INV-T-13568, INV-REQ-584, owner answer INV-Q-10649 C), generated from
+`../access/schemas/machine-principal-permissions.tsv`, the only place the (type, permission) pairs are written. Each of the
+six types (`INGEST`, `FILING_WORKFLOW`, `AP_CALLBACK`, `REPORTING`, `MONITORING`, `CERTIFICATION`) becomes the role
+`machine.<name>` (lowercase, hyphens), and each row the key `machine.<permission>`. The `machine.` namespace is reserved:
+the checker fails the build on a seventh type, a type without a row, a duplicate row, a tsv permission or a person key
+already starting with `machine.`, and a type written in lowercase or with a trailing space.
+
 ## Versioning
 
 `gradle.properties` is the one place the version of `gst-catalogue` is declared (`gstCatalogueVersion`).

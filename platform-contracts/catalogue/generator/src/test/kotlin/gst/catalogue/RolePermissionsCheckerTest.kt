@@ -1626,4 +1626,72 @@ class RolePermissionsCheckerTest {
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }
     }
+
+    // INV-T-13568, INV-AC-13562: each probe is its own test against the real tsv.
+    private val tsv = File("../../access/schemas/machine-principal-permissions.tsv")
+    private val machine = MachinePermissions.parse(tsv)
+
+    private fun machineViolations(
+        rows: List<MachinePermissionRow>,
+        table: RolePermissionTable = real,
+    ) = RolePermissionsChecker.checkMachine(table, rows)
+
+    @Test
+    fun `the real tsv reports no machine violation`() {
+        assertEquals(emptyList<String>(), machineViolations(machine))
+    }
+
+    @Test
+    fun `a row of a seventh type fails`() {
+        assertTrue(machineViolations(machine + MachinePermissionRow("PAYMENTS", "x.y")).any { "PAYMENTS" in it && "not one of the six" in it })
+    }
+
+    @Test
+    fun `a type of the six with no row fails`() {
+        val v = machineViolations(machine.filterNot { it.principalType == "MONITORING" })
+        assertTrue(v.any { "MONITORING" in it && "no row" in it }, "$v")
+    }
+
+    @Test
+    fun `a permission that already starts with machine dot fails`() {
+        assertTrue(machineViolations(machine + MachinePermissionRow("INGEST", "machine.x")).any { "already starts" in it })
+    }
+
+    @Test
+    fun `a person key starting with machine dot fails`() {
+        val bad = real.copy(permissions = real.permissions + real.permissions.first().copy(key = "machine.drain.run"))
+        assertTrue(machineViolations(machine, bad).any { "person key machine.drain.run" in it })
+    }
+
+    @Test
+    fun `a duplicate type and permission row fails`() {
+        assertTrue(machineViolations(machine + machine.first()).any { "listed more than once" in it })
+    }
+
+    @Test
+    fun `a lowercase type fails`() {
+        assertTrue(machineViolations(machine + MachinePermissionRow("ingest", "x.y")).any { "'ingest'" in it && "not one of the six" in it })
+    }
+
+    @Test
+    fun `a type with a trailing space fails`() {
+        assertTrue(machineViolations(machine + MachinePermissionRow("INGEST ", "x.y")).any { "'INGEST '" in it })
+    }
+
+    @Test
+    fun `a padded or empty permission fails`() {
+        assertTrue(machineViolations(machine + MachinePermissionRow("INGEST", "x.y ")).any { "empty or padded" in it })
+        assertTrue(machineViolations(machine + MachinePermissionRow("INGEST", "")).any { "empty or padded" in it })
+    }
+
+    @Test
+    fun `a malformed tsv header fails to parse`() {
+        val f = File.createTempFile("mach", ".tsv")
+        try {
+            f.writeText("principalType\tpermission\nINGEST\tx\n")
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException::class.java) { MachinePermissions.parse(f) }
+        } finally {
+            f.delete()
+        }
+    }
 }

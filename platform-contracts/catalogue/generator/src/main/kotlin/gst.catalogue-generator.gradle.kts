@@ -9,6 +9,7 @@ import gst.catalogue.OperatingProfileChecker
 import gst.catalogue.OperatingProfileKotlinEmitter
 import gst.catalogue.OperatingProfileYamlParser
 import gst.catalogue.ProfileVersionChecker
+import gst.catalogue.MachinePermissions
 import gst.catalogue.RolePermissionKotlinEmitter
 import gst.catalogue.RolePermissionYamlParser
 import gst.catalogue.RolePermissionsChecker
@@ -313,6 +314,9 @@ val generateOperatingProfileCatalogue =
 
 // --- RolePermission (INV-T-7987) --------------------------------------------------
 
+// INV-T-13568: the machine permission file; the only place the machine (type, permission) pairs are written.
+val machinePermissionsTsv = rootProject.layout.projectDirectory.file("../access/schemas/machine-principal-permissions.tsv").asFile
+
 val rolePermissionsGeneratedKotlinDir = layout.buildDirectory.dir("generated/gst-catalogue-role-permissions/kotlin")
 
 val generateRolePermissionCatalogue =
@@ -320,10 +324,12 @@ val generateRolePermissionCatalogue =
         group = "catalogue"
         description = "INV-T-7987: checks the role-by-permission table, then generates RolePermission.kt."
         inputs.file(rolePermissionsYaml)
+        inputs.file(machinePermissionsTsv)
         outputs.dir(rolePermissionsGeneratedKotlinDir)
         doLast {
             val table = RolePermissionYamlParser.parse(rolePermissionsYaml)
-            val violations = RolePermissionsChecker.check(table)
+            val machine = MachinePermissions.parse(machinePermissionsTsv)
+            val violations = RolePermissionsChecker.check(table) + RolePermissionsChecker.checkMachine(table, machine)
             if (violations.isNotEmpty()) {
                 throw org.gradle.api.GradleException(
                     "INV-T-7987: ${violations.size} role-permission violation(s):\n" + violations.joinToString("\n") { "  - $it" },
@@ -331,7 +337,7 @@ val generateRolePermissionCatalogue =
             }
             val outDir = rolePermissionsGeneratedKotlinDir.get().asFile.resolve("com/dynokore/gst/catalogue")
             outDir.mkdirs()
-            outDir.resolve("RolePermission.kt").writeText(RolePermissionKotlinEmitter.emit("com.dynokore.gst.catalogue", table))
+            outDir.resolve("RolePermission.kt").writeText(RolePermissionKotlinEmitter.emit("com.dynokore.gst.catalogue", table, machine))
         }
     }
 
@@ -341,9 +347,11 @@ val checkRolePermissions =
         description = "INV-T-7987: the role-by-permission table has the 19 roles, their forms, the 34 published rows, the added rows and the " +
             "required cells (INV-NOTE-3 sections 22.2 and 22.3, INV-REQ-999)."
         inputs.file(rolePermissionsYaml)
+        inputs.file(machinePermissionsTsv)
         doLast {
             val table = RolePermissionYamlParser.parse(rolePermissionsYaml)
-            val violations = RolePermissionsChecker.check(table)
+            val machine = MachinePermissions.parse(machinePermissionsTsv)
+            val violations = RolePermissionsChecker.check(table) + RolePermissionsChecker.checkMachine(table, machine)
             logger.lifecycle(
                 "INV-T-7987: ${table.roles.size} role(s), ${table.permissions.size} permission key(s), " +
                     "${table.permissions.sumOf { it.cells.size }} cell(s), ${violations.size} violation(s).",

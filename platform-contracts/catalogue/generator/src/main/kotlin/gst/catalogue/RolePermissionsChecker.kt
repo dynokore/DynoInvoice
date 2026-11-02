@@ -402,6 +402,27 @@ object RolePermissionsChecker {
                 ),
         )
 
+    /**
+     * The machine section (INV-T-13568, INV-REQ-584): fails closed on a type outside the six (a lowercase or space-padded
+     * name is outside), a type of the six with no row, a permission already starting with `machine.` or with blank or
+     * padded text, a duplicate (type, permission) row, and a person key starting with `machine.`.
+     */
+    fun checkMachine(
+        table: RolePermissionTable,
+        rows: List<MachinePermissionRow>,
+    ): List<String> {
+        val v = mutableListOf<String>()
+        rows.forEach { r ->
+            if (r.principalType !in MachinePermissions.types) v += "machine row '${r.principalType}' '${r.permission}': principal type is not one of the six."
+            if (r.permission.startsWith(MachinePermissions.PREFIX)) v += "machine row ${r.principalType}: permission '${r.permission}' already starts with 'machine.'."
+            if (r.permission.isEmpty() || r.permission != r.permission.trim()) v += "machine row ${r.principalType}: permission '${r.permission}' is empty or padded."
+        }
+        (MachinePermissions.types - rows.map { it.principalType }.toSet()).forEach { v += "machine type $it: no row." }
+        rows.groupBy { it }.filterValues { it.size > 1 }.keys.forEach { v += "machine row ${it.principalType} ${it.permission}: listed more than once." }
+        table.permissions.filter { it.key.startsWith(MachinePermissions.PREFIX) }.forEach { v += "person key ${it.key}: starts with 'machine.', which is the machine namespace." }
+        return v
+    }
+
     fun check(
         table: RolePermissionTable,
         added: List<String> = addedRows,
