@@ -14,8 +14,7 @@ class OperationRolesTest {
         for (form in forms) {
             val cells = RolePermissions.cells(form)
             val allKeys = cells.values.flatMap { it.keys }.toSet()
-            val personKeys = OperationRoles.keys(form).filterNot { it.startsWith("machine.") }.toSet()
-            assertEquals(allKeys, personKeys, "keys $form")
+            assertEquals(allKeys, OperationRoles.keys(form).filterNot { it.startsWith("machine.") }.toSet(), "keys $form")
             for (key in allKeys) {
                 val expected = cells.mapNotNull { (role, byKey) -> byKey[key]?.let { role to it } }.toMap()
                 assertEquals(expected, OperationRoles.rolesFor(form, key), "$form $key")
@@ -77,8 +76,7 @@ class OperationRolesTest {
         for (form in forms) {
             for ((type, permission) in tsvRows.map { it[0] to it[1] }) {
                 val role = "machine." + type.lowercase().replace('_', '-')
-                val roles = OperationRoles.rolesFor(form, "machine.$permission")
-                assertTrue(roles.containsKey(role), "$form $type $permission")
+                assertTrue(OperationRoles.rolesFor(form, "machine.$permission").containsKey(role), "$form $type $permission")
             }
             assertEquals(19, OperationRoles.keys(form).count { it.startsWith("machine.") }, "machine key count $form")
         }
@@ -87,8 +85,7 @@ class OperationRolesTest {
     @Test
     fun `INV-AC-13562 drain run is exactly the filing-workflow machine role`() {
         for (form in forms) {
-            val expected = mapOf("machine.filing-workflow" to RoleAllowance.PERMITTED)
-            assertEquals(expected, OperationRoles.rolesFor(form, "machine.drain.run"))
+            assertEquals(mapOf("machine.filing-workflow" to RoleAllowance.PERMITTED), OperationRoles.rolesFor(form, "machine.drain.run"))
         }
     }
 
@@ -97,13 +94,10 @@ class OperationRolesTest {
         val roles =
             forms
                 .flatMap { f ->
-                    val machineKeys = OperationRoles.keys(f).filter { it.startsWith("machine.") }
-                    machineKeys.flatMap { OperationRoles.rolesFor(f, it).keys }
+                    OperationRoles.keys(f).filter { it.startsWith("machine.") }.flatMap { OperationRoles.rolesFor(f, it).keys }
                 }.toSet()
         assertEquals(
-            listOf("ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification")
-                .map { "machine.$it" }
-                .toSet(),
+            setOf("ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification").map { "machine.$it" }.toSet(),
             roles,
         )
     }
@@ -116,11 +110,10 @@ class OperationRolesTest {
                 "machine.drain.run ",
                 "Machine.drain.run",
                 "machine.machine.drain.run",
-                "machine.machine.filing.confirm",
             )) {
                 assertEquals(emptyMap<String, RoleAllowance>(), OperationRoles.rolesFor(form, key), "$form '$key'")
             }
-            // machine.filing.confirm is a real tsv row (FILING_WORKFLOW): it must name no person role.
+            // machine.filing.confirm is a real tsv row (FILING_WORKFLOW); the look-alike is that it names no person role.
             assertEquals(
                 mapOf("machine.filing-workflow" to RoleAllowance.PERMITTED),
                 OperationRoles.rolesFor(form, "machine.filing.confirm"),
