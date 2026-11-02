@@ -4297,29 +4297,6 @@ components:
               type: string
               format: date
               description: Range end, present when kind is DATE_RANGE.
-          allOf:
-          - if:
-              properties:
-                kind:
-                  const: DOCUMENT_SET
-              required:
-              - kind
-            then:
-              required:
-              - documentRefs
-              properties:
-                documentRefs:
-                  minItems: 1
-          - if:
-              properties:
-                kind:
-                  const: DATE_RANGE
-              required:
-              - kind
-            then:
-              required:
-              - dateFrom
-              - dateTo
       allOf:
       - if:
           properties:
@@ -4351,6 +4328,40 @@ components:
               properties:
                 kind:
                   const: PERIOD
+      - if:
+          properties:
+            scope:
+              properties:
+                kind:
+                  const: DOCUMENT_SET
+              required:
+              - kind
+          required:
+          - scope
+        then:
+          properties:
+            scope:
+              required:
+              - documentRefs
+              properties:
+                documentRefs:
+                  minItems: 1
+      - if:
+          properties:
+            scope:
+              properties:
+                kind:
+                  const: DATE_RANGE
+              required:
+              - kind
+          required:
+          - scope
+        then:
+          properties:
+            scope:
+              required:
+              - dateFrom
+              - dateTo
       - if:
           not:
             required:
