@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1371,6 +1371,19 @@ components:
             The direction of the document for the entity, used only to choose the self-billing party
             (INV-REQ-416); absent means SALE, as on the canonical record request. The caller is
             canonical-svc, which passes the direction it recorded.
+        sameGroup:
+          type: boolean
+          description: >-
+            The counterparty resolution's flag that the counterparty is a member of the entity's
+            GST group (the same name and type as `ResolutionResult.sameGroup` of the masterdata
+            contract); absent means not flagged (INV-REQ-738).
+        inputTaxClaimedNonZero:
+          type: boolean
+          description: >-
+            Purchases only: true exactly when the line's input tax claimed is greater than zero,
+            false when it is zero, absent when the caller does not know. It is not the ingestion
+            property `inputTaxClaimed`, a decimal amount; no amount is carried, as for `lineSign`
+            (INV-AC-388).
       required: [entityRef, transactionDate, internalTaxCode]
     EvaluationResult:
       type: object
@@ -1466,6 +1479,14 @@ components:
               type: string
               enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
           required: [direction, submissionType]
+        disregardedSupplyWarning:
+          type: boolean
+          description: >-
+            Present and true exactly when the request's `sameGroup` is true and the line's category
+            code has the line verdict IN_SCOPE in the scope pack; absent otherwise, never false.
+            The scope verdict is the verdict the line would have without the flag. It is not a
+            refusal, so `severity` and `code` stay absent (INV-REQ-720 behavior 4, INV-AC-2783).
+            Enforced by rules-svc.
       required: [scopeVerdict]
     PackVersionApplied:
       type: object

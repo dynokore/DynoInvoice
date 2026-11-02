@@ -24,6 +24,7 @@
 #   INV-T-10747 (INV-REQ-997): the backticked names of INV-REQ-997 (`acknowledgeMapping`, `authorise`) are operations of the access contract and not rows of this file.
 #   INV-T-11632 (INV-REQ-362, 727, 2444, 728, 684, 770): `effective_from` and `effective_to` are snake_case names of the pack envelope dates (API-09), rows effectiveFrom, effectiveTo of the envelope, not elements of the contents schema; `source_class` is the snake_case name of the requirement (API-09), carried as sourceClass; `NA`, `TXNA`, `DS`, `OS`, `SRRC` and `SRCA-C` are IRAS category codes and `0` a sample value, seed content, not elements of the schema; `ACMT_RECIPIENT_ACCOUNTING`, `ACMT_OVERSEAS_CLIENT_PURCHASE` and `AMCS_SELF_ACCOUNTING` are scheme tag values, scenario pack data, not elements (schemeTag is a string); `ACTIVE` is a pack status of the registry and `resolve(pack_type, entity, resolution_date)` the resolution function of rules-svc, not elements of the schema; `tax.approver` is a role; INV-REQ-684 names no backticked identifier.
 #   INV-T-14418 (INV-REQ-702, 685): `precedingBlankJustification` (INV-REQ-702) is a property of the ingestion and canonical contracts and `ownDate`, `precedingDate`, `rateDate` are keys of the free-form `decisionTrace`; none is a row.
+#   INV-T-16179 (INV-REQ-720, 738): `sameGroup` (rows sameGroup, INV-REQ-738) and `disregardedSupplyWarning` (INV-REQ-720) are properties of the rules request and result; `inputTaxClaimedNonZero` (INV-REQ-375) is the request flag for the purchase input-tax test, not the ingestion amount `inputTaxClaimed`. `sameTenant` is not a row: the masterdata contract carries it (INV-T-4912), not the rules request. `INFERRED` is not a new row: it is a source class of pack data in rules/schemas/scope-pack-contents.schema.json.
 identifier	kind	file	requirement
 documentFunction	property	openapi.yaml	INV-REQ-371
 documentKind	property	openapi.yaml	INV-REQ-371
@@ -364,3 +365,6 @@ PRIMARY	enum_value	schemas/mapping-pack-contents.schema.json	INV-REQ-727
 SECONDARY	enum_value	schemas/mapping-pack-contents.schema.json	INV-REQ-727
 INFERRED	enum_value	schemas/mapping-pack-contents.schema.json	INV-REQ-727
 straddleNote	property	openapi.yaml	INV-REQ-702
+sameGroup	property	openapi.yaml	INV-REQ-738
+disregardedSupplyWarning	property	openapi.yaml	INV-REQ-720
+inputTaxClaimedNonZero	property	openapi.yaml	INV-REQ-375
