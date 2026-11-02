@@ -166,7 +166,6 @@ QuestionnaireRecommendation.reason	schema_property	openapi.yaml	INV-REQ-1246
 QuestionnaireRecommendation.kind.VARIATION_POINT	schema_enum_value	openapi.yaml	INV-REQ-1246
 QuestionnaireRecommendation.kind.PROFILE	schema_enum_value	openapi.yaml	INV-REQ-1246
 # INV-T-16120. Extension target, scope and submission due date (INV-REQ-86).
-# The scope.kind members are enum_value rows: schema_enum_value reads a schema's own property only, not a nested object.
 PeriodExtensionRequest.target	schema_property	openapi.yaml	INV-REQ-86
 PeriodExtensionRequest.newSubmissionDueDate	schema_property	openapi.yaml	INV-REQ-86
 PeriodExtensionRequest.scope	schema_property	openapi.yaml	INV-REQ-86
@@ -175,6 +174,6 @@ PeriodExtensionResponse.newSubmissionDueDate	schema_property	openapi.yaml	INV-RE
 PeriodExtensionRequest.target.FILING_DUE_DATE	schema_enum_value	openapi.yaml	INV-REQ-86
 PeriodExtensionRequest.target.SUBMISSION_DUE_DATE	schema_enum_value	openapi.yaml	INV-REQ-86
 PeriodExtensionRequest.target.BOTH	schema_enum_value	openapi.yaml	INV-REQ-86
-PERIOD	enum_value	openapi.yaml	INV-REQ-86
-DOCUMENT_SET	enum_value	openapi.yaml	INV-REQ-86
-DATE_RANGE	enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.scope.kind.PERIOD	schema_enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.scope.kind.DOCUMENT_SET	schema_enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.scope.kind.DATE_RANGE	schema_enum_value	openapi.yaml	INV-REQ-86
