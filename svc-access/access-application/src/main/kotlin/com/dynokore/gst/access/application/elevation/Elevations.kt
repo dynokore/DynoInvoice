@@ -16,6 +16,7 @@ import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.Allowance
 import com.dynokore.gst.access.domain.role.Permission
 import com.dynokore.gst.access.domain.role.PermissionMatrix
+import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 import java.time.Duration
@@ -28,6 +29,9 @@ object ElevationKeys {
     val REQUEST = Permission("elevation.request")
     val DECIDE = Permission("elevation.decide")
     val INVITE = Permission("diagnostic.invite")
+
+    /** The key `openOperatorSession` asks for, decided on the caller's live platform grant (INV-Q-16469 A). */
+    val OPEN_SESSION = Permission("operator-session.open")
 }
 
 /** Persistence of elevation requests and diagnostic invitations under the bound tenant (row-level security). */
@@ -64,9 +68,15 @@ class ElevationCallers(
     fun operatorHolds(
         actor: IdentityRef,
         permission: Permission,
-    ): Boolean {
+    ): Boolean = operatorRole(actor, permission) != null
+
+    /** The role of the live platform grant that holds [permission] for [actor], or null; call outside a transaction. */
+    fun operatorRole(
+        actor: IdentityRef,
+        permission: Permission,
+    ): Role? {
         val held = platform.read { grants.findByIdentity(actor) }
-        return PlatformAuthorisation.decide(held, permission, matrix, clock.instant()) is Decision.Allow
+        return (PlatformAuthorisation.decide(held, permission, matrix, clock.instant()) as? Decision.Allow)?.role
     }
 
     /** True when [actor] holds [permission] through a live grant covering all of [tenant], the bound tenant. */

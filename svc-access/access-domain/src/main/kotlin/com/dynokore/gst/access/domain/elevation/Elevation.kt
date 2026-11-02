@@ -3,6 +3,7 @@ package com.dynokore.gst.access.domain.elevation
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
+import com.dynokore.gst.access.domain.role.Allowance
 import com.dynokore.gst.access.domain.role.Permission
 import java.time.Duration
 import java.time.Instant
@@ -103,6 +104,13 @@ object OperatorAccess {
     /** The one set of permission keys an approved elevation opens (INV-Q-15954 A): invoice content, nothing else. */
     val OPENED_BY_ELEVATION: Set<Permission> = setOf(Permission("doc.view.content"))
 
+    /**
+     * The metadata permissions of an operator session: exactly these two keys, nothing else (INV-Q-16475 A, owner
+     * answer INV-Q-16479 A). A later owner decision may add keys; no other key is a metadata key.
+     */
+    val SESSION_METADATA: Set<Permission> =
+        setOf(Permission("submission.view-status"), Permission("period-readiness.view"))
+
     /** An approved, unexpired elevation of [requester] for [tenant] exists. */
     fun elevated(
         records: List<ElevationRecord>,
@@ -134,5 +142,24 @@ object OperatorAccess {
     ): Boolean =
         records.any {
             it.kind == ElevationKind.DIAGNOSTIC_INVITATION && it.requester == requester && it.opensAccessAt(at)
+        }
+}
+
+/**
+ * What an operator session may do in its tenant (INV-REQ-862 behaviours 1 to 3, INV-AC-922; INV-Q-16475 A): a key is
+ * allowed when it is one of [OperatorAccess.SESSION_METADATA] and the catalogue cell of the session's role is
+ * PERMITTED, or when it is `doc.view.content` inside an approved, unexpired elevation of the same operator for that
+ * tenant. Every other key is denied. A pure function of its inputs; it compares no role name.
+ */
+object OperatorSessionAccess {
+    fun allows(
+        roleCell: (Permission) -> Allowance?,
+        permission: Permission,
+        elevated: Boolean,
+    ): Boolean =
+        when (permission) {
+            in OperatorAccess.SESSION_METADATA -> roleCell(permission) == Allowance.PERMITTED
+            in OperatorAccess.OPENED_BY_ELEVATION -> elevated
+            else -> false
         }
 }

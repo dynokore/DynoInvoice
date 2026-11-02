@@ -392,6 +392,12 @@ object BoundaryFixture {
     fun mountWithDeliveryKey(deliveryKeyPem: String?) =
         TestSecrets.mount(RUNTIME_PASSWORD, deliveryKeyPem = deliveryKeyPem)
 
+    /** A mounted directory with the operator-session key and, optionally, the next one (INV-T-4154). */
+    fun mountOperator(
+        operatorKey: com.nimbusds.jose.jwk.ECKey?,
+        operatorNextKey: com.nimbusds.jose.jwk.ECKey? = null,
+    ) = TestSecrets.mount(RUNTIME_PASSWORD, operatorKey = operatorKey, operatorNextKey = operatorNextKey)
+
     /** Removes the published verification keys of earlier tests, so a test can state the exact set (INV-T-8850). */
     fun deleteVerificationKeys() =
         asSuperuser {

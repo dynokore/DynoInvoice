@@ -21,7 +21,7 @@ operation	clearLandingChoice	INV-T-4935	open
 operation	requestElevation	INV-T-4941	done
 operation	decideElevation	INV-T-4941	done
 operation	withdrawElevationRequest	INV-T-4941	done
-operation	openOperatorSession	INV-T-4154	open
+operation	openOperatorSession	INV-T-4154	done
 operation	inviteDiagnostics	INV-T-4941	done
 operation	withdrawDiagnosticInvitation	INV-T-4941	done
 operation	issueSignatoryLink	INV-T-4940	open
@@ -37,7 +37,7 @@ operation	grantConsent	INV-T-4939	done
 operation	withdrawConsent	INV-T-4939	done
 operation	acknowledgeMapping	INV-T-17453	done
 channel	accessAuthorityChanged	UNASSIGNED	open
-channel	accessOperatorSessionKeysChanged	INV-T-4154	open
+channel	accessOperatorSessionKeysChanged	INV-T-4154	done
 channel	accessAccessAlertRaised	INV-T-4938	done
 channel	accessMessageRequested	INV-T-4940	done
 channel	accessSignedLinkIssued	INV-T-18219	done

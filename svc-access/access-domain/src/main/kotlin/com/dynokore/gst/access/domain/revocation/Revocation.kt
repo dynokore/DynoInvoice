@@ -44,6 +44,9 @@ data class RevocationEntry(
     }
 }
 
+/** What a published signing key verifies; the wire value is the enum name (INV-Q-16473 A). */
+enum class KeyUse { MACHINE_ACCESS, OPERATOR_SESSION }
+
 /**
  * A token verification key (INV-API-4001 sibling: `getVerificationKeys`): DER SubjectPublicKeyInfo as standard base64.
  */
@@ -53,6 +56,7 @@ data class VerificationKey(
     val publicKey: String,
     val validFrom: Instant,
     val validUntil: Instant,
+    val use: KeyUse = KeyUse.MACHINE_ACCESS,
 ) {
     init {
         require(kid.isNotBlank() && kid.length <= MAX_KID) { "kid is required, at most $MAX_KID characters" }

@@ -1,0 +1,81 @@
+package com.dynokore.gst.access.adapters.events
+
+import com.dynokore.gst.access.domain.revocation.KeyUse
+import com.dynokore.gst.access.domain.revocation.VerificationKey
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SpecificationVersion
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.mockito.Mockito
+import tools.jackson.databind.json.JsonMapper
+import java.time.Instant
+
+/**
+ * The test of the channel `accessOperatorSessionKeysChanged` (INV-T-4154, INV-Q-16473 A): the payload this service
+ * writes validates against the AsyncAPI schema of its channel, and every item carries its `use`.
+ */
+class OperatorSessionKeysChangedPayloadTest {
+    private val mapper = JsonMapper.builder().build()
+    private val writer = Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java)
+    private val outbox = OperatorSessionKeysChangedOutbox(writer, mapper)
+    private val schemaPath = "gst/contracts/access/schemas/operator-session-keys-changed-payload.schema.json"
+    private val schema =
+        checkNotNull(javaClass.classLoader.getResourceAsStream(schemaPath)).use {
+            SchemaRegistry
+                .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
+                .getSchema(it.readBytes().toString(Charsets.UTF_8))
+        }
+
+    private fun key(
+        kid: String,
+        use: KeyUse,
+    ) = VerificationKey(
+        kid,
+        "ES256",
+        "TUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FF",
+        Instant.parse("2026-11-02T00:00:00Z"),
+        Instant.parse("2026-11-02T02:15:00Z"),
+        use,
+    )
+
+    @Test
+    fun `the payload of an operator key and a machine key validates against the channel schema`() {
+        val payload =
+            outbox.payload(
+                listOf(
+                    key("0123456789abcdef", KeyUse.OPERATOR_SESSION),
+                    key("fedcba9876543210", KeyUse.MACHINE_ACCESS),
+                ),
+            )
+        assertTrue(schema.validate(mapper.readTree(payload.toString())).isEmpty())
+        assertEquals(
+            listOf("OPERATOR_SESSION", "MACHINE_ACCESS"),
+            payload["keys"].toList().map { it["use"].asString() },
+        )
+    }
+
+    @Test
+    fun `an item without use does not appear and the kid ordering is stable`() {
+        val payload = outbox.payload(listOf(key("b", KeyUse.OPERATOR_SESSION), key("a", KeyUse.OPERATOR_SESSION)))
+        assertEquals(listOf("a", "b"), payload["keys"].toList().map { it["kid"].asString() })
+        assertTrue(payload["keys"].toList().all { it.has("use") })
+    }
+
+    @Test
+    fun `the event type and the channel are the contract names compared by equality`() {
+        assertEquals(
+            "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
+            OperatorSessionKeysChangedOutbox.EVENT_TYPE,
+        )
+        assertEquals("accessOperatorSessionKeysChanged", OperatorSessionKeysChangedOutbox.CHANNEL)
+    }
+
+    @Test
+    fun `no key and more than four keys are refused`() {
+        assertThrows(IllegalStateException::class.java) { outbox.payload(emptyList()) }
+        val five = (1..5).map { key("k$it", KeyUse.OPERATOR_SESSION) }
+        assertThrows(IllegalStateException::class.java) { outbox.payload(five) }
+    }
+}

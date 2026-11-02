@@ -7,6 +7,7 @@ import com.dynokore.gst.access.application.authorise.PlatformRead
 import com.dynokore.gst.access.application.keys.EntryPosition
 import com.dynokore.gst.access.application.keys.RevocationStore
 import com.dynokore.gst.access.application.keys.VerificationKeyStore
+import com.dynokore.gst.access.domain.revocation.KeyUse
 import com.dynokore.gst.access.domain.revocation.RevocationEntry
 import com.dynokore.gst.access.domain.revocation.RevocationKind
 import com.dynokore.gst.access.domain.revocation.VerificationKey
@@ -83,14 +84,19 @@ class JooqVerificationKeyStore(
 ) : VerificationKeyStore {
     override fun all(): List<VerificationKey> =
         reads.read {
-            dsl.selectFrom(VERIFICATION_KEY).orderBy(VERIFICATION_KEY.KID).fetch().map {
-                VerificationKey(
-                    it.kid.column("kid"),
-                    it.alg.column("alg"),
-                    it.publicKey.column("publicKey"),
-                    it.validFrom.column("validFrom").toInstant(),
-                    it.validUntil.column("validUntil").toInstant(),
-                )
-            }
+            dsl
+                .selectFrom(VERIFICATION_KEY)
+                .where(VERIFICATION_KEY.USE.eq(KeyUse.MACHINE_ACCESS.name))
+                .orderBy(VERIFICATION_KEY.KID)
+                .fetch()
+                .map {
+                    VerificationKey(
+                        it.kid.column("kid"),
+                        it.alg.column("alg"),
+                        it.publicKey.column("publicKey"),
+                        it.validFrom.column("validFrom").toInstant(),
+                        it.validUntil.column("validUntil").toInstant(),
+                    )
+                }
         }
 }

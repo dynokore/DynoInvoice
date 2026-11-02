@@ -54,6 +54,8 @@ object TestSecrets {
         bindingKey: String = BINDING_KEY,
         signingKey: ECKey? = newSigningKey(),
         deliveryKeyPem: String? = pem(deliveryKeyPair.public),
+        operatorKey: ECKey? = null,
+        operatorNextKey: ECKey? = null,
     ): Path {
         val root = Files.createTempDirectory("access-secrets")
         write(root, "tenancy/binding-key-current", bindingKey)
@@ -62,6 +64,8 @@ object TestSecrets {
         write(root, "db/access_runtime", databasePassword)
         deliveryKeyPem?.let { write(root, "message-delivery-sealing-public-key", it) }
         signingKey?.let { replaceSigningKey(root, it) }
+        operatorKey?.let { write(root, "access/operator-session-signing-key", it.toJSONString()) }
+        operatorNextKey?.let { write(root, "access/operator-session-signing-key-next", it.toJSONString()) }
         root.toFile().deleteOnExit()
         return root
     }
@@ -71,6 +75,18 @@ object TestSecrets {
         root: Path,
         key: ECKey,
     ) = write(root, "access/token-signing-key", key.toJSONString())
+
+    /** Replaces the operator-session key of a mounted directory, as an operator rotates it. */
+    fun replaceOperatorKey(
+        root: Path,
+        key: ECKey,
+    ) = write(root, "access/operator-session-signing-key", key.toJSONString())
+
+    /** Writes [text] as the operator-session key, for the unreadable and the wrong-curve probes. */
+    fun writeOperatorKeyText(
+        root: Path,
+        text: String,
+    ) = write(root, "access/operator-session-signing-key", text)
 
     private fun write(
         root: Path,
