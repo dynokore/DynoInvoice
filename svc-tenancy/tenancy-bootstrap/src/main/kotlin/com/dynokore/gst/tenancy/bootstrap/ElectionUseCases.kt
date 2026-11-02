@@ -5,11 +5,14 @@ import com.dynokore.gst.tenancy.adapters.election.AuditLogElectionAudit
 import com.dynokore.gst.tenancy.adapters.election.ConfigElectionPolicyStore
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
 import com.dynokore.gst.tenancy.adapters.election.ElectionPolicyWriterGuard
+import com.dynokore.gst.tenancy.adapters.election.GstSchemeEventDecorator
+import com.dynokore.gst.tenancy.adapters.election.GstSchemeProfileExtras
 import com.dynokore.gst.tenancy.adapters.election.IssuanceProfileExtras
 import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.adapters.election.RequestCallerSource
 import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
 import com.dynokore.gst.tenancy.adapters.election.RulePackStagedHandler
+import com.dynokore.gst.tenancy.adapters.election.SchemeEventDependencies
 import com.dynokore.gst.tenancy.adapters.election.UnrecordedEntityFacts
 import com.dynokore.gst.tenancy.adapters.persistence.JooqAccessPointRouteStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqElectionChangeStore
@@ -68,6 +71,12 @@ class ElectionUseCases {
         @JvmStatic
         @Bean
         fun electionPolicyWriterGuard(): BeanPostProcessor = ElectionPolicyWriterGuardPostProcessor()
+
+        /** Wraps the `PolicyWriter` bean in the [GstSchemeEventDecorator] (VP-53 events, ruling INV-Q-12262). */
+        @JvmStatic
+        @Bean
+        fun gstSchemeEventDecorator(beans: ObjectProvider<SchemeEventBeans>): BeanPostProcessor =
+            GstSchemeEventDecoratorPostProcessor(beans)
     }
 
     @Bean
@@ -79,7 +88,27 @@ class ElectionUseCases {
     ): ElectionPolicyStore = ConfigElectionPolicyStore(writer, history, tenants, mapper)
 
     @Bean
-    fun profileExtras(elections: ElectionPolicyStore): ProfileExtras = IssuanceProfileExtras(elections)
+    fun profileExtras(
+        elections: ElectionPolicyStore,
+        history: PolicyHistory,
+        tenants: TenantContext,
+    ): ProfileExtras {
+        val issuance = IssuanceProfileExtras(elections)
+        val schemes = GstSchemeProfileExtras(history, tenants)
+        return ProfileExtras { entityRef -> issuance.entries(entityRef) + schemes.entries(entityRef) }
+    }
+
+    /** The collaborators of the scheme decorator, resolved at the first VP-53 write. */
+    @Bean
+    @Suppress("LongParameterList") // one provider per collaborator
+    fun schemeEventBeans(
+        history: ObjectProvider<PolicyHistory>,
+        publisher: ObjectProvider<EntityProfileChangePublisher>,
+        structure: ObjectProvider<StructureStore>,
+        statuses: ObjectProvider<EntityStatusStore>,
+        extras: ObjectProvider<ProfileExtras>,
+        tenants: ObjectProvider<TenantContext>,
+    ): SchemeEventBeans = SchemeEventBeans(history, publisher, structure, statuses, extras, tenants)
 
     @Bean
     fun accessPointRouteStore(
@@ -276,4 +305,39 @@ class ElectionPolicyWriterGuardPostProcessor : BeanPostProcessor {
         bean: Any,
         beanName: String,
     ): Any = if (bean is PolicyWriter && bean !is ElectionPolicyWriterGuard) ElectionPolicyWriterGuard(bean) else bean
+}
+
+/** Providers of what [GstSchemeEventDecorator] needs; each is resolved when the first VP-53 write runs. */
+class SchemeEventBeans(
+    private val history: ObjectProvider<PolicyHistory>,
+    private val publisher: ObjectProvider<EntityProfileChangePublisher>,
+    private val structure: ObjectProvider<StructureStore>,
+    private val statuses: ObjectProvider<EntityStatusStore>,
+    private val extras: ObjectProvider<ProfileExtras>,
+    private val tenants: ObjectProvider<TenantContext>,
+) {
+    fun resolve(): SchemeEventDependencies =
+        SchemeEventDependencies(
+            history.getObject(),
+            publisher.getObject(),
+            structure.getObject(),
+            statuses.getObject(),
+            extras.getObject(),
+            tenants.getObject(),
+        )
+}
+
+/** Applies the [GstSchemeEventDecorator] to every bean of type [PolicyWriter] once; the guard stays in the chain. */
+class GstSchemeEventDecoratorPostProcessor(
+    private val beans: ObjectProvider<SchemeEventBeans>,
+) : BeanPostProcessor {
+    override fun postProcessAfterInitialization(
+        bean: Any,
+        beanName: String,
+    ): Any =
+        if (bean is PolicyWriter && bean !is GstSchemeEventDecorator) {
+            GstSchemeEventDecorator(bean) { beans.getObject().resolve() }
+        } else {
+            bean
+        }
 }
