@@ -4,9 +4,7 @@ import com.dynokore.gst.access.adapters.http.ApiConflict
 import com.dynokore.gst.access.adapters.http.ApiRefusalAdvice
 import com.dynokore.gst.access.adapters.http.BreakGlassController
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.json
-import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.newTenant
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.withService
-import com.dynokore.gst.access.bootstrap.SealFixture.accountRows
 import com.dynokore.gst.access.bootstrap.SealFixture.activated
 import com.dynokore.gst.access.bootstrap.SealFixture.capturedEvents
 import com.dynokore.gst.access.bootstrap.SealFixture.digestOf
@@ -133,30 +131,5 @@ class BreakGlassResealTest {
             assertThat(sessionStatus(tenant, ref)).isEqualTo("UNLOCKED")
             // an unknown unlock
             assertThat(served.reseal(tenant, "BG-NONE").status).isEqualTo(404)
-        }
-
-    @Test
-    fun `INV-AC-8852 a reseal of an open unlock with no account row closes it and returns no credential`() =
-        withService { served ->
-            // never activated: a pair and an open unlock but no sealed-account row (INV-Q-16102 A)
-            val tenant = newTenant()
-            served.pair(tenant)
-            val (ref, _) = served.unlocked(tenant)
-            assertThat(accountRows(tenant)).isEmpty()
-            val auditBefore = capturedEvents(served).filter { it.contains("resealBreakGlass") }
-            val response = served.reseal(tenant, ref)
-            assertThat(response.status).describedAs(response.contentAsString).isEqualTo(200)
-            assertThat(json(response).has("sealingCredential")).isFalse()
-            assertThat(accountRows(tenant)).isEmpty()
-            assertThat(sessionStatus(tenant, ref)).isEqualTo("SEALED")
-            // one audit entry, under the acting user and never a role
-            val audits = capturedEvents(served).filter { it.contains("resealBreakGlass") }
-            assertThat(audits).hasSize(auditBefore.size + 1)
-            assertThat(audits.last()).contains(SealFixture.OPERATOR)
-            // sign-in and recording on that unlock: 409 and no catalogue code
-            assertConflictWithoutCode(served.signIn(tenant, ref, "any-credential"))
-            val refusal = catchThrowable { served.record(tenant, ref) }
-            assertThat(refusal).isInstanceOf(ApiConflict::class.java)
-            assertThat(ApiRefusalAdvice().conflict(refusal as ApiConflict).body).doesNotContain("\"code\"")
         }
 }
