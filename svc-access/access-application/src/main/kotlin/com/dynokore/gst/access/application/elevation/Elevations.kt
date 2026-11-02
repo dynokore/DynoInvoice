@@ -106,6 +106,7 @@ sealed interface ElevationOutcome {
     data object BadDecision : ElevationOutcome
 }
 
+@Suppress("LongParameterList") // the fields of one audit entry
 private fun audit(
     audit: GrantAudit,
     actor: IdentityRef,
@@ -143,7 +144,7 @@ class OpenElevationUseCase(
             if (existing != null) return@inTransaction ElevationOutcome.Done(existing, repeated = true)
             val created = elevations.insert(ask)
             val action = if (ask.kind == ElevationKind.ELEVATION) "requestElevation" else "inviteDiagnostics"
-            audit(audit, requester, action, created, "case ${ask.caseId}" + (reason?.let { ": $it" } ?: ""), null)
+            audit(audit, requester, action, created, "case ${ask.caseId}" + reason?.let { ": $it" }.orEmpty(), null)
             ElevationOutcome.Done(created)
         }
     }

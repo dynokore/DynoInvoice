@@ -258,20 +258,7 @@ class AcceptanceCriteriaTest {
             // an operator has no standing access (INV-REQ-888 behaviour 2): the cell answers only inside an approved
             // diagnostic invitation of INV-T-4941
             assertThat(decision("support.bundle.export")).isEqualTo(DENY)
-            BoundaryFixture.asSuperuser { c ->
-                c.createStatement().use {
-                    it.execute(
-                        "insert into access.elevation (id, tenant_id, elevation_ref, kind, subject_ref, " +
-                            "requester_ref, case_id, status, valid_from, valid_until, decided_by, created_at, " +
-                            "created_by, " +
-                            "updated_at, " +
-                            "updated_by, version) values (gen_random_uuid(), '$tenantA', 'DIAG-925', " +
-                            "'DIAGNOSTIC_INVITATION', 'INST-1', 'IDN-OPERATOR', 'CASE-925', 'GRANTED', " +
-                            "now() - interval '1 minute', now() + interval '1 hour', 'IDN-OFFICER', now(), 'seed', " +
-                            "now(), 'seed', 1)",
-                    )
-                }
-            }
+            seedApprovedInvitation(tenantA, "IDN-OPERATOR")
             assertThat(decision("support.bundle.export")).isEqualTo(ALLOW)
         }
 

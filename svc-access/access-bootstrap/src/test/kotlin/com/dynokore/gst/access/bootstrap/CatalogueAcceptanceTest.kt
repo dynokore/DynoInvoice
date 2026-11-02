@@ -121,6 +121,7 @@ class CatalogueAcceptanceTest {
         role: String,
     ): String {
         grant(identity, role)
+        if (role == "deployment.operator") seedApprovedInvitation(tenant, identity)
         return identity
     }
 

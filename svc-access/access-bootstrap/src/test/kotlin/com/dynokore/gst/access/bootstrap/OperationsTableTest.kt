@@ -294,7 +294,7 @@ class OperationsTableTest {
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
         val unassignedDone = "operation\twithdrawElevationRequest\tUNASSIGNED\tdone"
         assertThat(
-            verify(base.map { it.replace("operation\twithdrawElevationRequest\tINV-T-4941\topen", unassignedDone) }),
+            verify(base.map { it.replace("operation\twithdrawElevationRequest\tINV-T-4941\tdone", unassignedDone) }),
         ).anyMatch { "done but no task" in it }
         assertThat(verify(base.map { it.replace("\tINV-T-4934\tdone", "\tINV-T-4934\topen") }))
             .anyMatch { "published by the code but not marked done" in it }

@@ -27,6 +27,7 @@ import java.time.ZoneId
  * the scope item the permission needs.
  * A target whose entity is unknown to the structure is denied (fail closed).
  */
+@Suppress("LongParameterList") // one collaborator per port of the use case, as its constructor
 class Authorise(
     private val tx: TransactionRunner,
     private val grants: GrantRepository,
