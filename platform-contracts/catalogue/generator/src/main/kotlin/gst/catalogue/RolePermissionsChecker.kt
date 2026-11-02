@@ -154,9 +154,13 @@ object RolePermissionsChecker {
         mapOf("break-glass.reseal" to "Reseal a break-glass session")
 
     /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
-    private val closedRows: Set<String> = setOf("Acknowledge a control relaxation", "Run the authority incarnation command")
+    private val closedRows: Set<String> = setOf(
+            "Acknowledge a control relaxation",
+            "Run the authority incarnation command",
+            "Record the filing fact (confirmFiling), upload the filed return, run and annotate reconciliation, attest as preparer",
+        )
 
-    private val closedKeyPattern = Regex("^vp-[0-9]+\\.acknowledge|^authority-incarnation\\.")
+    private val closedKeyPattern = Regex("^vp-[0-9]+\\.acknowledge|^authority-incarnation\\.|^filed-return\\.")
 
     /** A required key: its kind and exact cells. */
     data class Required(
@@ -399,7 +403,7 @@ object RolePermissionsChecker {
             val closedRow = p.row in closedRows
             val closedName = closedKeyPattern.containsMatchIn(p.key)
             if ((closedRow || closedName) && p.key !in required) {
-                v += "key ${p.key}: not one of the keys the criteria require for the acknowledge and incarnation families (INV-T-10149)."
+                v += "key ${p.key}: not one of the keys the criteria require for the acknowledge, incarnation and filing families (INV-T-10149, INV-T-13529)."
             }
         }
         retentionPairs.forEach { (key, row) ->
