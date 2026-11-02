@@ -153,7 +153,17 @@ class MappingPackAuthoring(
         }
     }
 
-    private fun packOf(packId: String): MappingPackDraft = store.find(packId) ?: stop(MappingPackResult.NotFound)
+    /** The pack, only when it belongs to the entity the permission was checked against (OWASP ASVS V4). */
+    private fun packOf(
+        packId: String,
+        entityRef: String,
+    ): MappingPackDraft {
+        val pack = store.find(packId) ?: stop(MappingPackResult.NotFound)
+        if (pack.entityRef != entityRef) {
+            stop(MappingPackResult.Forbidden(ErrorCode.SRT_004, "the action is not permitted"))
+        }
+        return pack
+    }
 
     fun draft(command: DraftCommand): MappingPackResult =
         guarded {
@@ -179,7 +189,7 @@ class MappingPackAuthoring(
     fun mapTaxCode(command: MapTaxCodeCommand): MappingPackResult =
         guarded {
             needs(command.actor, command.entityRef, MappingPackPermissions.AUTHOR)
-            val pack = packOf(command.packId)
+            val pack = packOf(command.packId, command.entityRef)
             if (!MappingPackLifecycle.entriesMayChange(pack.status)) {
                 stop(MappingPackResult.Refused(RefusalReason.LIFECYCLE, status = pack.status))
             }
@@ -198,7 +208,7 @@ class MappingPackAuthoring(
     fun acceptEntry(command: AcceptEntryCommand): MappingPackResult =
         guarded {
             needs(command.actor, command.entityRef, MappingPackPermissions.APPROVE)
-            val pack = packOf(command.packId)
+            val pack = packOf(command.packId, command.entityRef)
             if (!MappingPackLifecycle.acceptanceMayBeRecorded(pack.status)) {
                 stop(MappingPackResult.Refused(RefusalReason.LIFECYCLE, status = pack.status))
             }
@@ -227,7 +237,7 @@ class MappingPackAuthoring(
     fun submit(command: PackActionCommand): MappingPackResult =
         guarded {
             needs(command.actor, command.entityRef, MappingPackPermissions.AUTHOR)
-            val pack = packOf(command.packId)
+            val pack = packOf(command.packId, command.entityRef)
             lifecycle(pack, MappingCommand.SUBMIT)
             ports.deltas.qualifying(PACK_TYPE, pack.label) ?: stopRefused(RefusalReason.NO_DRY_RUN_DELTA)
             store.setStatus(command.packId, PackStatus.SUBMITTED)
@@ -238,7 +248,7 @@ class MappingPackAuthoring(
     fun approve(command: PackActionCommand): MappingPackResult =
         guarded {
             needs(command.actor, command.entityRef, MappingPackPermissions.APPROVE)
-            val pack = packOf(command.packId)
+            val pack = packOf(command.packId, command.entityRef)
             lifecycle(pack, MappingCommand.APPROVE)
             if (command.actor == pack.authorUserId) {
                 stop(MappingPackResult.Forbidden(ErrorCode.SRT_004, "the action is not permitted"))
@@ -304,7 +314,7 @@ class MappingPackAuthoring(
     fun activate(command: ActivateCommand): MappingPackResult =
         guarded {
             needs(command.actor, command.entityRef, MappingPackPermissions.ACTIVATE)
-            val pack = packOf(command.packId)
+            val pack = packOf(command.packId, command.entityRef)
             lifecycle(pack, MappingCommand.ACTIVATE)
             val to = command.effectiveTo
             if (command.minEngineVersion.isBlank() || (to != null && !to.isAfter(command.effectiveFrom))) {

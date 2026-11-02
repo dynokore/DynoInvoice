@@ -302,6 +302,25 @@ class MappingPackAuthoringTest {
     }
 
     @Test
+    fun `INV-Q-14652 a user who holds the permission on E-002 cannot act on a pack stored for E-001`() {
+        val e = Env().submitted()
+        val before = e.store.state()
+        val other = "E-002"
+        val results =
+            listOf(
+                e.authoring.mapTaxCode(MapTaxCodeCommand("author-1", other, "P1", "C", "SR", SourceClass.PRIMARY)),
+                e.authoring.acceptEntry(AcceptEntryCommand("approver-1", other, "P1", "B", "ok", TODAY.plusDays(5))),
+                e.authoring.submit(PackActionCommand("author-1", other, "P1")),
+                e.approve(entityRef = other),
+                e.authoring.activate(ActivateCommand("approver-1", other, "P1", TODAY, null, "1.0.0")),
+            )
+        results.forEach { it.shouldBeInstanceOf<Forbidden>().code shouldBe ErrorCode.SRT_004 }
+        e.store.state() shouldBe before
+        e.holderRequests shouldBe emptyList()
+        e.approve() shouldBe Done(PackStatus.APPROVED)
+    }
+
+    @Test
     fun `INV-REQ-380 approve step 2 a status other than SUBMITTED is refused by the lifecycle`() {
         val e = Env()
         e.draft()
