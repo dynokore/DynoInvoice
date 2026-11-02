@@ -208,7 +208,7 @@ rules:
       function: defined
 
   inv-fr-ac1-x-operation-shape:
-    description: FR-AC.1, FR-AC.19 — x-operation carries all four declared properties.
+    description: FR-AC.1, FR-AC.19 — x-operation carries its declared properties (INV-T-13571, INV-Q-10148).
     message: "x-operation is incomplete: {{error}} (FR-AC.1, FR-AC.19)"
     given: "$.paths[*][post,put,delete].x-operation"
     severity: error
@@ -219,12 +219,27 @@ rules:
         schema:
           type: object
           properties:
+            kind: { enum: ["PERMISSION", "CALLER"] }
+            permission: { type: string, minLength: 1 }
+            permission-also: { type: string, minLength: 1 }
+            caller: { enum: ["WORKLOAD", "LINK_HOLDER", "ANY_AUTHENTICATED"] }
             role: { type: string, minLength: 1 }
             scope: { type: string, minLength: 1 }
             precondition: { type: string, minLength: 1 }
             repeatKey: { type: string, minLength: 1 }
             reversibility: { enum: ["UNDOABLE", "COMPENSABLE", "IRREVERSIBLE"] }
-          required: ["role", "scope", "precondition", "repeatKey", "reversibility"]
+          required: ["scope", "precondition", "repeatKey", "reversibility"]
+          allOf:
+            # no kind: the legacy shape, role required until its own sweep task (INV-Q-10111, INV-Q-10148)
+            - if: { not: { required: ["kind"] } }
+              then: { required: ["role"] }
+            - if: { required: ["kind"], properties: { kind: { const: "PERMISSION" } } }
+              then: { required: ["permission"] }
+            - if: { required: ["kind"], properties: { kind: { const: "CALLER" } } }
+              then: { required: ["caller"] }
+            # permission-also only beside kind PERMISSION
+            - if: { required: ["permission-also"] }
+              then: { required: ["kind"], properties: { kind: { const: "PERMISSION" } } }
 
   # --- API-05, API-06, API-07: paths and methods -------------------------------
   inv-api-05-path-kebab-case:
