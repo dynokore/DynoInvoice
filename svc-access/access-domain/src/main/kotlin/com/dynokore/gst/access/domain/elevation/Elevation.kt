@@ -1,8 +1,10 @@
 package com.dynokore.gst.access.domain.elevation
 
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
 import java.time.Duration
+import com.dynokore.gst.access.domain.role.Permission
 import java.time.Instant
 
 /** An elevation request opens content of one tenant (`ELV-*`); an invitation opens an installation (`DIAG-*`). */
@@ -30,6 +32,7 @@ data class ElevationAsk(
  */
 class ElevationRecord(
     val ref: String,
+    val tenant: TenantRef,
     val ask: ElevationAsk,
     val status: ElevationStatus,
     val window: ValidityWindow?,
@@ -75,15 +78,16 @@ class ElevationRecord(
         to: ElevationStatus,
         box: ValidityWindow?,
         by: IdentityRef?,
-    ) = ElevationRecord(ref, ask, to, box, by, version + 1)
+    ) = ElevationRecord(ref, tenant, ask, to, box, by, version + 1)
 
     companion object {
         const val MAX_REF = 64
 
         fun pending(
             ref: String,
+            tenant: TenantRef,
             ask: ElevationAsk,
-        ) = ElevationRecord(ref, ask, ElevationStatus.PENDING, null, null, 0)
+        ) = ElevationRecord(ref, tenant, ask, ElevationStatus.PENDING, null, null, 0)
     }
 }
 
@@ -95,22 +99,34 @@ object OperatorAccess {
     const val NO_ELEVATION = "NO_ELEVATION"
     const val NO_INVITATION = "NO_INVITATION"
 
+    /** The one set of permission keys an approved elevation opens (INV-Q-15954 A): invoice content, nothing else. */
+    val OPENED_BY_ELEVATION: Set<Permission> = setOf(Permission("doc.view.content"))
+
     /** An approved, unexpired elevation of [requester] for [tenant] exists. */
     fun elevated(
         records: List<ElevationRecord>,
         requester: IdentityRef,
-        tenant: String,
+        tenant: TenantRef,
         at: Instant,
     ): Boolean =
         records.any {
             it.kind == ElevationKind.ELEVATION &&
                 it.requester == requester &&
-                it.subject == tenant &&
+                it.tenant == tenant &&
+                it.subject == tenant.value &&
                 it.opensAccessAt(at)
         }
 
-    /** An approved, unexpired diagnostic invitation of [requester] exists for any installation. */
+    /** An approved, unexpired diagnostic invitation of [requester] for the data of [tenant] exists (INV-Q-15952 A). */
     fun invited(
+        records: List<ElevationRecord>,
+        requester: IdentityRef,
+        tenant: TenantRef,
+        at: Instant,
+    ): Boolean = invitedHere(records.filter { it.tenant == tenant }, requester, at)
+
+    /** As [invited], for [records] that one read bound to one tenant returned (row-level security keeps the rest out). */
+    fun invitedHere(
         records: List<ElevationRecord>,
         requester: IdentityRef,
         at: Instant,

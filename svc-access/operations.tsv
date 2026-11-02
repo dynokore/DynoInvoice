@@ -18,12 +18,12 @@ operation	getSoleOperatorAcknowledgement	INV-T-8027	done
 operation	chooseLandingScreen	INV-T-4935	open
 operation	resolveLandingScreen	INV-T-4935	open
 operation	clearLandingChoice	INV-T-4935	open
-operation	requestElevation	INV-T-4941	open
-operation	decideElevation	INV-T-4941	open
-operation	withdrawElevationRequest	INV-T-4941	open
+operation	requestElevation	INV-T-4941	done
+operation	decideElevation	INV-T-4941	done
+operation	withdrawElevationRequest	INV-T-4941	done
 operation	openOperatorSession	INV-T-4154	open
-operation	inviteDiagnostics	INV-T-4941	open
-operation	withdrawDiagnosticInvitation	INV-T-4941	open
+operation	inviteDiagnostics	INV-T-4941	done
+operation	withdrawDiagnosticInvitation	INV-T-4941	done
 operation	issueSignatoryLink	INV-T-4940	open
 operation	verifySignatoryLink	INV-T-4940	open
 operation	unlockBreakGlass	INV-T-4938	done

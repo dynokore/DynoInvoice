@@ -34,6 +34,15 @@ object TenantAuthority {
             it.liveTenantWide(tenant, at) && matrix.allowance(it.role, USER_MANAGE) == Allowance.PERMITTED
         }
 
+    /** True when one live grant covering all of [tenant] has a role whose cell for [permission] is PERMITTED. */
+    fun holds(
+        grants: List<Grant>,
+        tenant: TenantRef,
+        permission: Permission,
+        matrix: PermissionMatrix,
+        at: Instant,
+    ): Boolean = grants.any { it.liveTenantWide(tenant, at) && matrix.allowance(it.role, permission) == Allowance.PERMITTED }
+
     /** The roles of the grants that are live at [at] and of [tenant] scope. */
     fun tenantRoles(
         grants: List<Grant>,

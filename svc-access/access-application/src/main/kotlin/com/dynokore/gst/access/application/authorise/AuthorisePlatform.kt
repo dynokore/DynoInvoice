@@ -23,13 +23,17 @@ class AuthorisePlatform(
     private val grants: GrantRepository,
     private val matrix: PermissionMatrix,
     private val clock: Clock,
+    private val operators: OperatorOverlay,
 ) {
     fun handle(
         principal: IdentityRef,
         permission: Permission,
     ): Decision {
         val now = clock.instant()
-        val held = platform.read { grants.findByIdentity(principal) }
-        return PlatformAuthorisation.decide(held, permission, matrix, now)
+        // the grants and the invitation records are read in one platform-bound transaction
+        return platform.read {
+            val base = PlatformAuthorisation.decide(grants.findByIdentity(principal), permission, matrix, now)
+            operators.apply(base, principal, permission, null, now)
+        }
     }
 }

@@ -5,6 +5,8 @@ import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.domain.grant.AuthorisationPolicy
 import com.dynokore.gst.access.domain.grant.Decision
+import com.dynokore.gst.access.domain.grant.EntityMembership
+import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.Target
@@ -13,6 +15,7 @@ import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
+import java.time.Instant
 import java.time.ZoneId
 
 /**
@@ -31,6 +34,7 @@ class Authorise(
     private val matrix: PermissionMatrix,
     private val agentScope: AgentScope,
     private val clock: Clock,
+    private val operators: OperatorOverlay,
 ) {
     fun handle(
         principal: IdentityRef,
@@ -40,41 +44,43 @@ class Authorise(
         val membership = directory.membership(target.entity) ?: return Decision.Deny(UNKNOWN_ENTITY)
         // a live read of the grant table in one transaction under the bound tenant; nothing is kept between calls
         val now = clock.instant()
-        val held =
-            tx.inTransaction {
-                // an agent's grant is usable only while the consent record, read now, grants the scope item the
-                // permission needs (INV-REQ-913 behaviour 4, INV-REQ-865)
-                val today = now.atZone(BUSINESS_ZONE).toLocalDate()
-                grants.findByIdentity(principal).filter {
-                    when {
-                        it.role == Role.AGENT_OPERATOR -> {
-                            agentScope.permits(
-                                principal,
-                                target.entity,
-                                permission,
-                                today,
-                            )
-                        }
+        return tx.inTransaction {
+            val held = liveGrants(principal, permission, target, membership, now)
+            val base =
+                AuthorisationPolicy.decide(held, AuthorisationPolicy.Question(permission, target, membership), matrix, now)
+            // the operator rules of INV-REQ-862 and INV-REQ-888 read their records in this same transaction
+            operators.apply(base, principal, permission, membership.tenant, now)
+        }
+    }
 
-                        it.scope is Scope.ConsentDerived -> {
-                            // the grant's tenant must equal the target's membership tenant before any consent is read
-                            val holderTenant = (it.scope as Scope.ConsentDerived).tenant
-                            holderTenant == membership.tenant &&
-                                agentScope.permitsClient(holderTenant, target.entity, permission, today)
-                        }
+    private fun liveGrants(
+        principal: IdentityRef,
+        permission: Permission,
+        target: Target,
+        membership: EntityMembership,
+        now: Instant,
+    ): List<Grant> {
+        // an agent's grant is usable only while the consent record, read now, grants the scope item the permission
+        // needs (INV-REQ-913 behaviour 4, INV-REQ-865)
+        val today = now.atZone(BUSINESS_ZONE).toLocalDate()
+        return grants.findByIdentity(principal).filter {
+            when {
+                it.role == Role.AGENT_OPERATOR -> {
+                    agentScope.permits(principal, target.entity, permission, today)
+                }
 
-                        else -> {
-                            true
-                        }
-                    }
+                it.scope is Scope.ConsentDerived -> {
+                    // the grant's tenant must equal the target's membership tenant before any consent is read
+                    val holderTenant = (it.scope as Scope.ConsentDerived).tenant
+                    holderTenant == membership.tenant &&
+                        agentScope.permitsClient(holderTenant, target.entity, permission, today)
+                }
+
+                else -> {
+                    true
                 }
             }
-        return AuthorisationPolicy.decide(
-            held,
-            AuthorisationPolicy.Question(permission, target, membership),
-            matrix,
-            now,
-        )
+        }
     }
 
     companion object {

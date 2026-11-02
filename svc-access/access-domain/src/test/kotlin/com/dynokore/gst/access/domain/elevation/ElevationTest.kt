@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.domain.elevation
 
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.TenantRef
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -14,8 +15,14 @@ class ElevationTest {
     private val op = IdentityRef("user:op")
     private val officer = IdentityRef("user:officer")
 
+    private val ten1 = TenantRef("TEN-1")
+
     private fun pending(kind: ElevationKind = ElevationKind.ELEVATION) =
-        ElevationRecord.pending(kind.refPrefix + "1", ElevationAsk(kind, "TEN-1", op, "CASE-1"))
+        ElevationRecord.pending(
+            kind.refPrefix + "1",
+            ten1,
+            ElevationAsk(kind, if (kind == ElevationKind.ELEVATION) ten1.value else "INST-1", op, "CASE-1"),
+        )
 
     @Test
     fun `a pending record opens nothing`() {
@@ -49,18 +56,20 @@ class ElevationTest {
     @Test
     fun `operator access matches the requester, the tenant and the kind by equality`() {
         val elv = checkNotNull(pending().granted(officer, now, Duration.ofMinutes(30)))
-        assertTrue(OperatorAccess.elevated(listOf(elv), op, "TEN-1", now))
-        assertFalse(OperatorAccess.elevated(listOf(elv), op, "TEN-10", now))
-        assertFalse(OperatorAccess.elevated(listOf(elv), IdentityRef("user:op2"), "TEN-1", now))
-        assertFalse(OperatorAccess.invited(listOf(elv), op, now))
+        assertTrue(OperatorAccess.elevated(listOf(elv), op, ten1, now))
+        assertFalse(OperatorAccess.elevated(listOf(elv), op, TenantRef("TEN-10"), now))
+        assertFalse(OperatorAccess.elevated(listOf(elv), IdentityRef("user:op2"), ten1, now))
+        assertFalse(OperatorAccess.invited(listOf(elv), op, ten1, now))
         val inv =
             checkNotNull(pending(ElevationKind.DIAGNOSTIC_INVITATION).granted(officer, now, Duration.ofMinutes(30)))
-        assertTrue(OperatorAccess.invited(listOf(inv), op, now))
-        assertFalse(OperatorAccess.invited(listOf(pending(ElevationKind.DIAGNOSTIC_INVITATION)), op, now))
+        assertTrue(OperatorAccess.invited(listOf(inv), op, ten1, now))
+        assertFalse(OperatorAccess.invited(listOf(inv), op, TenantRef("TEN-2"), now))
+        assertFalse(OperatorAccess.invited(listOf(pending(ElevationKind.DIAGNOSTIC_INVITATION)), op, ten1, now))
         assertFalse(
             OperatorAccess.invited(
                 listOf(checkNotNull(pending(ElevationKind.DIAGNOSTIC_INVITATION).withdrawn())),
                 op,
+                ten1,
                 now,
             ),
         )
