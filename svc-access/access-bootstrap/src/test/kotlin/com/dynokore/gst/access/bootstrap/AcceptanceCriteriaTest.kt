@@ -261,8 +261,9 @@ class AcceptanceCriteriaTest {
             BoundaryFixture.asSuperuser { c ->
                 c.createStatement().use {
                     it.execute(
-                        "insert into access.elevation (id, tenant_id, elevation_ref, kind, subject_ref, requester_ref, " +
-                            "case_id, status, valid_from, valid_until, decided_by, created_at, created_by, " +
+                        "insert into access.elevation (id, tenant_id, elevation_ref, kind, subject_ref, " +
+                            "requester_ref, case_id, status, valid_from, valid_until, decided_by, created_at, " +
+                            "created_by, " +
                             "updated_at, " +
                             "updated_by, version) values (gen_random_uuid(), '$tenantA', 'DIAG-925', " +
                             "'DIAGNOSTIC_INVITATION', 'INST-1', 'IDN-OPERATOR', 'CASE-925', 'GRANTED', " +
