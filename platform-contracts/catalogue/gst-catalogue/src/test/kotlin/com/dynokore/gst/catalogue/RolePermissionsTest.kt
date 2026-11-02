@@ -368,7 +368,8 @@ class RolePermissionsTest {
                 privateForm to setOf("deployment.operator"),
             )
         both.forEach { form ->
-            val actual = RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            val actual =
+                RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
             assertEquals(holders.getValue(form).associateWith { y }, actual, "$key $form")
         }
         assertNull(RolePermissions.kind("operator-session.opens"))
