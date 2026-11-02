@@ -47,8 +47,7 @@ sealed interface ExtractionChoice {
 object ExtractionFrequency {
     val DEFAULT = ExtractionSetting(ExtractionOption.DAILY, null)
 
-    // The six-argument signature is fixed by the task; every decision and catalogue fact is an argument.
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // six-argument signature fixed by INV-T-16261; every fact is an argument
     fun choose(
         option: ExtractionOption,
         runsPerDay: Int?,
