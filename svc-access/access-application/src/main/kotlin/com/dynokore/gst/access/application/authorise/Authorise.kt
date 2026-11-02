@@ -47,7 +47,12 @@ class Authorise(
         return tx.inTransaction {
             val held = liveGrants(principal, permission, target, membership, now)
             val base =
-                AuthorisationPolicy.decide(held, AuthorisationPolicy.Question(permission, target, membership), matrix, now)
+                AuthorisationPolicy.decide(
+                    held,
+                    AuthorisationPolicy.Question(permission, target, membership),
+                    matrix,
+                    now,
+                )
             // the operator rules of INV-REQ-862 and INV-REQ-888 read their records in this same transaction
             operators.apply(base, principal, permission, membership.tenant, now)
         }

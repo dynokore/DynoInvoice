@@ -1,6 +1,5 @@
 package com.dynokore.gst.access.adapters.elevation
 
-import com.dynokore.gst.access.adapters.persistence.jooq.tables.records.ElevationRecord as ElevationRow
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ELEVATION
 import com.dynokore.gst.access.application.elevation.Elevations
 import com.dynokore.gst.access.domain.elevation.ElevationAsk
@@ -15,6 +14,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
 import java.time.Clock
 import java.time.ZoneOffset
+import com.dynokore.gst.access.adapters.persistence.jooq.tables.records.ElevationRecord as ElevationRow
 
 /** TPL-11. The listeners of the DSLContext add the bound tenant to every statement; row-level security stays behind. */
 class JooqElevations(

@@ -4,14 +4,14 @@ import com.dynokore.gst.access.adapters.elevation.ElevationController
 import com.dynokore.gst.access.adapters.http.ApiConflict
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.AuthoriseController
+import com.dynokore.gst.access.application.elevation.ElevationOutcome
+import com.dynokore.gst.access.application.elevation.OpenElevationUseCase
 import com.dynokore.gst.access.contract.model.AuthoriseResponse
 import com.dynokore.gst.access.contract.model.DecideElevationRequest
 import com.dynokore.gst.access.contract.model.DiagnosticInvitationRequest
 import com.dynokore.gst.access.contract.model.DiagnosticInvitationResponse
 import com.dynokore.gst.access.contract.model.ElevationRequest
 import com.dynokore.gst.access.contract.model.ElevationResponse
-import com.dynokore.gst.access.application.elevation.ElevationOutcome
-import com.dynokore.gst.access.application.elevation.OpenElevationUseCase
 import com.dynokore.gst.access.domain.elevation.ElevationAsk
 import com.dynokore.gst.access.domain.elevation.ElevationKind
 import com.dynokore.gst.access.domain.elevation.OperatorAccess
@@ -106,8 +106,9 @@ class ElevationAcceptanceTest {
         fun removePlatformRows() =
             BoundaryFixture.asSuperuser { c ->
                 c.createStatement().use {
-                    it.execute("delete from access.role_grant where tenant_id = '$platform' and identity_ref like '%-$run'")
-                    it.execute("delete from access.identity where tenant_id = '$platform' and identity_ref like '%-$run'")
+                    val own = "tenant_id = '$platform' and identity_ref like '%-$run'"
+                    it.execute("delete from access.role_grant where $own")
+                    it.execute("delete from access.identity where $own")
                 }
             }
 
@@ -166,8 +167,7 @@ class ElevationAcceptanceTest {
             permission: String,
             entity: String = "ENT-A",
             tenant: TenantId = a,
-        ): AuthoriseResponse =
-            into(tenant, actor) { authorise.authorise(actor, permission, "entity:$entity").body!! }
+        ): AuthoriseResponse = into(tenant, actor) { authorise.authorise(actor, permission, "entity:$entity").body!! }
 
         fun decision(
             actor: String,
@@ -185,8 +185,13 @@ class ElevationAcceptanceTest {
                                 "and type like '%AuditEntryRecorded%' order by seq",
                         ).use { r ->
                             generateSequence { if (r.next()) r.getString(1) else null }
-                                .map { Regex("\"action\":\\s*\"([^\"]+)\"").find(it)?.groupValues?.get(1).orEmpty() }
-                                .toList()
+                                .map {
+                                    Regex("\"action\":\\s*\"([^\"]+)\"")
+                                        .find(it)
+                                        ?.groupValues
+                                        ?.get(1)
+                                        .orEmpty()
+                                }.toList()
                         }
                 }
             }
@@ -238,7 +243,7 @@ class ElevationAcceptanceTest {
         }
 
     @Test
-    fun `INV-AC-1930 an elevation waits for the security officer, no content before approval, approval and use are audited`() =
+    fun `INV-AC-1930 an elevation waits for the officer, shows no content before approval, and is audited`() =
         run("SAAS") { env ->
             val pending = env.request()
             assertThat(pending.status).isEqualTo(ElevationResponse.Status.PENDING)
@@ -262,7 +267,7 @@ class ElevationAcceptanceTest {
         }
 
     @Test
-    fun `INV-AC-2251 the tenant admin cannot approve under the default, the officer can, the box is time-boxed and audited`() =
+    fun `INV-AC-2251 the tenant admin cannot approve by default, the officer can, time-boxed and audited`() =
         run("SAAS") { env ->
             // VP-07 is planned in the pinned catalogue, so the tenant.admin option is not in force (INV-REQ-1268)
             val vp07 = GstVariationPointCatalogue("access-svc").find(VariationPointKey("VP-07"))
@@ -331,7 +336,8 @@ class ElevationAcceptanceTest {
             assertThat(refusal { env.request(actor = env.admin) }).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
             val ref = env.request().requestRef
             assertThat(refusal { env.decide(ref, actor = env.support) }).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
-            assertThat(refusal { env.withdrawElevation(ref, actor = env.officer) }).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            assertThat(refusal { env.withdrawElevation(ref, actor = env.officer) })
+                .isEqualTo(ClosedErrorCode.ACCESS_DENIED)
             // elevation.request only (support) asking to invite; the SAAS form has no diagnostic.invite cell
             assertThat(refusal { env.invite(actor = env.support) }).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
             assertThat(refusal { env.invite(actor = env.operator) }).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
@@ -388,7 +394,9 @@ class ElevationAcceptanceTest {
             env.decide(env.request().requestRef)
             assertThat(OperatorAccess.OPENED_BY_ELEVATION).containsExactly(Permission(content))
             assertThat(env.decision(env.support, content)).isEqualTo(allow)
-            listOf("audit-pack.export", "doc.view.contents", "Doc.View.Content", "$content ", "audit-log.view").forEach {
+            val others =
+                listOf("audit-pack.export", "doc.view.contents", "Doc.View.Content", "$content ", "audit-log.view")
+            others.forEach {
                 assertThat(env.decision(env.support, it)).describedAs(it).isEqualTo(deny)
             }
             // another tenant's content, asked in the bound tenant of A and of B

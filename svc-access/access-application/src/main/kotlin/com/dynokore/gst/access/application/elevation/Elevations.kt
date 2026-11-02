@@ -167,7 +167,11 @@ class DecideElevationUseCase(
             val before = elevations.lock(ref) ?: return@inTransaction ElevationOutcome.NotFound
             val after =
                 if (grant) {
-                    before.granted(approver, clock.instant(), Duration.ofMinutes(checkNotNull(validForMinutes).toLong()))
+                    before.granted(
+                        approver,
+                        clock.instant(),
+                        Duration.ofMinutes(checkNotNull(validForMinutes).toLong()),
+                    )
                 } else {
                     before.refused(approver)
                 } ?: return@inTransaction ElevationOutcome.NotPending
@@ -201,7 +205,14 @@ class WithdrawElevationUseCase(
             if (before.status == ElevationStatus.WITHDRAWN) return@inTransaction ElevationOutcome.Done(before, true)
             val after = before.withdrawn() ?: return@inTransaction ElevationOutcome.NotPending
             elevations.update(before, after)
-            val action = if (kind == ElevationKind.ELEVATION) "withdrawElevationRequest" else "withdrawDiagnosticInvitation"
+            val action =
+                if (kind ==
+                    ElevationKind.ELEVATION
+                ) {
+                    "withdrawElevationRequest"
+                } else {
+                    "withdrawDiagnosticInvitation"
+                }
             audit(audit, actor, action, after, null, before.status)
             ElevationOutcome.Done(after)
         }

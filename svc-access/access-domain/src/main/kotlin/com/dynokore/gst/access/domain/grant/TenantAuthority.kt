@@ -41,7 +41,8 @@ object TenantAuthority {
         permission: Permission,
         matrix: PermissionMatrix,
         at: Instant,
-    ): Boolean = grants.any { it.liveTenantWide(tenant, at) && matrix.allowance(it.role, permission) == Allowance.PERMITTED }
+    ): Boolean =
+        grants.any { it.liveTenantWide(tenant, at) && matrix.allowance(it.role, permission) == Allowance.PERMITTED }
 
     /** The roles of the grants that are live at [at] and of [tenant] scope. */
     fun tenantRoles(

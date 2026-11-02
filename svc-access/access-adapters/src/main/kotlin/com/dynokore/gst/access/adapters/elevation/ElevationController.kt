@@ -125,13 +125,25 @@ open class ElevationController(
 
     private fun settled(outcome: ElevationOutcome): ElevationRecord =
         when (outcome) {
-            is ElevationOutcome.Done -> outcome.record
-            ElevationOutcome.NotFound -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            ElevationOutcome.NotPending -> throw ApiConflict("the request is no longer pending")
+            is ElevationOutcome.Done -> {
+                outcome.record
+            }
+
+            ElevationOutcome.NotFound -> {
+                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            ElevationOutcome.NotPending -> {
+                throw ApiConflict("the request is no longer pending")
+            }
+
             ElevationOutcome.BadDecision -> {
                 throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "validForMinutes is required to grant")
             }
-            ElevationOutcome.BadCase -> error("a decision never ends as $outcome")
+
+            ElevationOutcome.BadCase -> {
+                error("a decision never ends as $outcome")
+            }
         }
 
     private fun elevationBody(record: ElevationRecord) =

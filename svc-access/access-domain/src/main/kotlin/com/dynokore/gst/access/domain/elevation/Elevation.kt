@@ -30,6 +30,7 @@ data class ElevationAsk(
  * change returns a new instance (CS-07). The requester of [ask] is the operator identity the access opens for. Only a
  * PENDING record can be decided or withdrawn; a record is usable only while GRANTED and inside its [window].
  */
+@Suppress("LongParameterList") // one field per column of the stored record
 class ElevationRecord(
     val ref: String,
     val tenant: TenantRef,
@@ -125,7 +126,7 @@ object OperatorAccess {
         at: Instant,
     ): Boolean = invitedHere(records.filter { it.tenant == tenant }, requester, at)
 
-    /** As [invited], for [records] that one read bound to one tenant returned (row-level security keeps the rest out). */
+    /** As [invited], for [records] that one read bound to one tenant returned (row-level security keeps the rest). */
     fun invitedHere(
         records: List<ElevationRecord>,
         requester: IdentityRef,
