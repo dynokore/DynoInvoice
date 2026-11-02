@@ -38,13 +38,15 @@ object EvidenceEvents {
      * The platform events that have a topic (`PlatformEventCatalogue.ALL`, producer every service): the job runtime of
      * service-runtime writes `JobRegistered` and `JobRunRecorded` through the outbox, and the emission guard refuses
      * any type the catalogue lacks (INV-Q-12992 A, INV-Q-10922 A). `AuditEntryRecorded` is already a record entry, so
-     * it is left out here, and `PolicyChanged` is the hand-written entry of [platformEntries].
+     * it is left out here, and `PolicyChanged` and `TenantWideEvidenceIntegrityFailed` are the hand-written entries of
+     * [platformEntries] (the latter with evidence-svc as its only producer).
      */
     private val jobEntries: List<CatalogueEntry> =
         PlatformEventCatalogue.ALL
             .filterNot {
                 it == PlatformEventCatalogue.AUDIT_ENTRY_RECORDED ||
-                    it == PlatformEventCatalogue.POLICY_CHANGED
+                    it == PlatformEventCatalogue.POLICY_CHANGED ||
+                    it == PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED
             }.mapNotNull { event ->
                 event.topic?.let {
                     CatalogueEntry(event.eventType, it, setOf(CatalogueEntry.EVERY_SERVICE), contentTopic = false)
@@ -100,6 +102,8 @@ object EvidenceEvents {
     /**
      * `PolicyChanged` (platform-contracts `event-log/topics.yaml`): every service produces it, none subscribes. The
      * `setPolicy` of service-runtime emits it on a stored change, so the emission guard needs the entry.
+     * `TenantWideEvidenceIntegrityFailed` (INV-Q-12994 A): the platform event of a failed tenant-wide chain, produced
+     * by evidence-svc alone, since a domain event cannot carry the tenant-wide entity.
      */
     val platformEntries: List<CatalogueEntry> =
         jobEntries +
@@ -107,6 +111,14 @@ object EvidenceEvents {
                 "com.dynokore.gst.platform.PolicyChanged.v1",
                 "gst.platform.policy-changed.v1",
                 setOf(CatalogueEntry.EVERY_SERVICE),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ) +
+            CatalogueEntry(
+                "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1",
+                "gst.platform.tenant-wide-evidence-integrity-failed.v1",
+                setOf(SERVICE),
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,

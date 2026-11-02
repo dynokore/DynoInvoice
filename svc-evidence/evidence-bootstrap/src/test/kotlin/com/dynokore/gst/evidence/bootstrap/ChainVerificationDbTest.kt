@@ -82,8 +82,10 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException as S3NoSuchKe
  * INV-AC-7255 (its last step), INV-AC-7256 and INV-AC-12970 over PostgreSQL, through the TPL-18 context (P109): the
  * job body of `evidence-chain-verification` runs against fixed chains, a period digest and an in-memory object store.
  * Chains are altered outside the service with a superuser connection, as an attacker with database access would. The
- * key of INV-AC-12970 is in no row of ac-keys.tsv, so the status test does not carry it in its name.
+ * key of INV-AC-12970 is in no row of ac-keys.tsv, so the status test does not carry it in its name. One class holds
+ * the Boundary helpers every verification test shares; splitting it would copy them.
  */
+@Suppress("LargeClass")
 class ChainVerificationDbTest {
     private val actor = "svc:evidence-svc"
     private val entity = "ENT-3F2A9C"
@@ -156,24 +158,26 @@ class ChainVerificationDbTest {
         ): T = scope.bind(tenant, actor) { runner.inTransaction { block() } }
 
         /** Appends [count] records to a chain and marks each as applied, as the record consumers do. */
+        @Suppress("LongParameterList")
         fun fill(
             tenant: TenantId,
             kind: RecordKind,
             type: EvidenceType,
             count: Int,
             forEntity: String = entity,
+            forPeriod: String = period,
         ) = tx(tenant) {
             repeat(count) {
                 val record =
                     ledgers
                         .getValue(kind)
-                        .append(tenant, EntityRef(forEntity), PeriodRef(period), type, """{"n":$it}""".toByteArray())
+                        .append(tenant, EntityRef(forEntity), PeriodRef(forPeriod), type, """{"n":$it}""".toByteArray())
                 JooqAppliedStore(dsl).insert(
                     tenant,
                     AppliedRecord(
                         "ev-${kind.table}-$forEntity-$it",
                         kind,
-                        ChainKey(forEntity, period),
+                        ChainKey(forEntity, forPeriod),
                         record.sequence,
                         Instant.now(),
                     ),
@@ -226,9 +230,18 @@ class ChainVerificationDbTest {
         fun status(
             tenant: TenantId,
             forEntity: String = entity,
+            forPeriod: String = period,
         ) = tx(tenant) {
-            IntegrityStatusQueryHandler(JooqIntegrityStore(dsl)).handle(tenant, IntegrityStatusQuery(forEntity, period))
+            IntegrityStatusQueryHandler(
+                JooqIntegrityStore(dsl),
+            ).handle(tenant, IntegrityStatusQuery(forEntity, forPeriod))
         }
+
+        /** The outbox rows of exactly [type], by equality (the domain type is a suffix of the platform type). */
+        fun eventsOfType(
+            tenant: TenantId,
+            type: String,
+        ) = tx(tenant) { dsl.fetch(OUTBOX).filter { it.type == type } }
     }
 
     private fun run(
@@ -507,21 +520,101 @@ class ChainVerificationDbTest {
     }
 
     @Test
-    fun `the entity source lists the pairs through the sys function and leaves the reserved tenant-wide entity out`(
+    fun `the entity source lists the tenant-wide entity and a look-alike as an ordinary entity`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         chains(tenant)
         chains(tenant, forEntity = EventEntityRef.TENANT_WIDE.value)
         val listed = VerificationEntitySource(scope, dsl).entities(ChainVerificationJob.DEFINITION)
         (JobTarget.Entity(tenant, EventEntityRef(entity)) in listed) shouldBe true
-        listed.none { it.entity.isTenantWide } shouldBe true
+        (JobTarget.Entity(tenant, EventEntityRef.TENANT_WIDE) in listed) shouldBe true
         // probe: the look-alike entity of the same tenant is an ordinary entity
         val lookAlikeEntity = "00000000-0000-0000-0000-000000000001"
         chains(tenant, forEntity = lookAlikeEntity)
-        (
-            JobTarget.Entity(tenant, EventEntityRef(lookAlikeEntity)) in
-                VerificationEntitySource(scope, dsl).entities(ChainVerificationJob.DEFINITION)
-        ) shouldBe true
+        val again = VerificationEntitySource(scope, dsl).entities(ChainVerificationJob.DEFINITION)
+        val pair = JobTarget.Entity(tenant, EventEntityRef(lookAlikeEntity))
+        (pair in again) shouldBe true
+        again.single { it == pair }.entity.isTenantWide shouldBe false
+    }
+
+    private val tenantWide = EventEntityRef.TENANT_WIDE.value
+    private val auditPeriod = "AUDIT-2026-10"
+    private val domainType = ChainVerificationRecorder.EVENT_TYPE
+    private val platformType = ChainVerificationRecorder.TENANT_WIDE_EVENT_TYPE
+
+    private fun Boundary.auditChain(
+        tenant: TenantId,
+        forEntity: String = tenantWide,
+    ) = fill(tenant, RecordKind.AUDIT_LOG, EvidenceType.AUDIT_LOG, 3, forEntity, auditPeriod)
+
+    private fun Boundary.alterAudit(
+        tenant: TenantId,
+        forEntity: String = tenantWide,
+    ) = tamper(
+        "audit_log",
+        "update evidence.audit_log set content = '\\x7b7d' where seq = 1 and entity_ref = '$forEntity' " +
+            "and tenant_id = '${tenant.value}'",
+    )
+
+    @ParameterizedTest(name = "{displayName} [{0}]")
+    @EnumSource(EvidenceDb.Version::class)
+    fun `INV-AC-13289 an altered tenant-wide chain opens one failure and one platform event, a repeat adds none`(
+        version: EvidenceDb.Version,
+        @TempDir dir: Path,
+    ) = run(dir, version) { tenant ->
+        val other = TenantId(UUID.randomUUID())
+        val intact = TenantId(UUID.randomUUID())
+        listOf(tenant, other, intact).forEach { auditChain(it) }
+        alterAudit(tenant)
+        alterAudit(other)
+        listOf(tenant, other, intact).forEach { runJob(it, tenantWide) }
+
+        val run = runs(tenant).single()
+        run.result shouldBe "FAILED"
+        run.cause shouldBe "VERIFICATION"
+        run.entityRef shouldBe tenantWide
+        val failure = failures(tenant).single()
+        failure.kind shouldBe "BROKEN_CHAIN"
+        failure.entityRef shouldBe tenantWide
+        failure.evidenceType shouldBe RecordKind.AUDIT_LOG.evidenceType
+        failure.periodRef shouldBe auditPeriod
+        val event = eventsOfType(tenant, platformType).single()
+        event.entityRef shouldBe tenantWide
+        eventsOfType(tenant, domainType).size shouldBe 0
+        val record = json.readTree(event.data!!.data())["failingRecord"]
+        record["entityRef"].asString() shouldBe tenantWide
+        record["kind"].asString() shouldBe "BROKEN_CHAIN"
+
+        // the same failure in another tenant opens its own row and event; the intact chain is VERIFIED
+        failures(other).single().entityRef shouldBe tenantWide
+        eventsOfType(other, platformType).size shouldBe 1
+        runs(intact).single().result shouldBe "VERIFIED"
+        failures(intact).size shouldBe 0
+        eventsOfType(intact, platformType).size shouldBe 0
+        status(tenant, tenantWide, auditPeriod).result shouldBe IntegrityState.FAILED
+        status(intact, tenantWide, auditPeriod).result shouldBe IntegrityState.VERIFIED
+
+        runJob(tenant, tenantWide) // again
+        failures(tenant).size shouldBe 1
+        eventsOfType(tenant, platformType).size shouldBe 1
+        runs(tenant).map { it.result } shouldBe listOf("FAILED", "FAILED")
+    }
+
+    @Test
+    fun `INV-AC-13289 the look-alike entity gives the domain event, the pair stays in its tenant`(
+        @TempDir dir: Path,
+    ) = run(dir) { tenant ->
+        val other = TenantId(UUID.randomUUID())
+        val lookAlikeEntity = "00000000-0000-0000-0000-000000000001"
+        auditChain(tenant, lookAlikeEntity)
+        auditChain(other)
+        alterAudit(tenant, lookAlikeEntity)
+        runJob(tenant, lookAlikeEntity)
+        eventsOfType(tenant, domainType).size shouldBe 1
+        eventsOfType(tenant, platformType).size shouldBe 0
+        // the tenant-wide pair of tenant A is not verified under tenant B: no row of B is written for tenant
+        runs(other).size shouldBe 0
+        runs(tenant).single().entityRef shouldBe lookAlikeEntity
     }
 
     @Test

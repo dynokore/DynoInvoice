@@ -22,9 +22,9 @@ import java.util.UUID
  * function `verification_entities`, owned by `evidence_sys` (TPL-09, ARC 4.3 step 1a), read as the platform tenant
  * the way service-runtime's own cross-tenant maintenance reads its sys functions.
  *
- * The reserved tenant-wide entity of the audit chains (`EntityRef.TENANT_WIDE`) cannot be a [JobTarget.Entity]
- * (service-runtime refuses it), so a pair that names it is left out here and those chains are not verified by this
- * task; INV-T-13295 and INV-T-13297 add them (INV-Q-12984 A). The SQL function lists them without a filter.
+ * The pairs include the reserved tenant-wide entity of the audit chains (`EntityRef.TENANT_WIDE`), which
+ * [JobTarget.Entity] accepts (INV-T-13295), so those chains are verified too (INV-Q-12984 A, INV-AC-13289). The SQL
+ * function lists them without a filter.
  */
 class VerificationEntitySource(
     private val scope: TenantScope,
@@ -49,8 +49,7 @@ class VerificationEntitySource(
                     .map {
                         EntityRef(it["entity_ref"].asString()) to
                             TenantId(UUID.fromString(it["tenant_id"].asString()))
-                    }.filterNot { (entity, _) -> entity.isTenantWide }
-                    .map { (entity, tenant) -> JobTarget.Entity(tenant, entity) }
+                    }.map { (entity, tenant) -> JobTarget.Entity(tenant, entity) }
             }
         }
 }
