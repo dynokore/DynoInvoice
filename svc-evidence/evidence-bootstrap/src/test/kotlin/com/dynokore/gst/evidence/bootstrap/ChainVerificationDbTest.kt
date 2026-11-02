@@ -82,8 +82,10 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException as S3NoSuchKe
  * INV-AC-7255 (its last step), INV-AC-7256 and INV-AC-12970 over PostgreSQL, through the TPL-18 context (P109): the
  * job body of `evidence-chain-verification` runs against fixed chains, a period digest and an in-memory object store.
  * Chains are altered outside the service with a superuser connection, as an attacker with database access would. The
- * key of INV-AC-12970 is in no row of ac-keys.tsv, so the status test does not carry it in its name.
+ * key of INV-AC-12970 is in no row of ac-keys.tsv, so the status test does not carry it in its name. One class holds
+ * the Boundary helpers every verification test shares; splitting it would copy them.
  */
+@Suppress("LargeClass")
 class ChainVerificationDbTest {
     private val actor = "svc:evidence-svc"
     private val entity = "ENT-3F2A9C"
@@ -156,6 +158,7 @@ class ChainVerificationDbTest {
         ): T = scope.bind(tenant, actor) { runner.inTransaction { block() } }
 
         /** Appends [count] records to a chain and marks each as applied, as the record consumers do. */
+        @Suppress("LongParameterList")
         fun fill(
             tenant: TenantId,
             kind: RecordKind,
@@ -229,7 +232,9 @@ class ChainVerificationDbTest {
             forEntity: String = entity,
             forPeriod: String = period,
         ) = tx(tenant) {
-            IntegrityStatusQueryHandler(JooqIntegrityStore(dsl)).handle(tenant, IntegrityStatusQuery(forEntity, forPeriod))
+            IntegrityStatusQueryHandler(
+                JooqIntegrityStore(dsl),
+            ).handle(tenant, IntegrityStatusQuery(forEntity, forPeriod))
         }
 
         /** The outbox rows of exactly [type], by equality (the domain type is a suffix of the platform type). */
@@ -553,7 +558,7 @@ class ChainVerificationDbTest {
 
     @ParameterizedTest(name = "{displayName} [{0}]")
     @EnumSource(EvidenceDb.Version::class)
-    fun `INV-AC-13289 an altered tenant-wide audit chain opens one failure and one platform event, a repeat adds nothing`(
+    fun `INV-AC-13289 an altered tenant-wide chain opens one failure and one platform event, a repeat adds none`(
         version: EvidenceDb.Version,
         @TempDir dir: Path,
     ) = run(dir, version) { tenant ->
@@ -596,7 +601,7 @@ class ChainVerificationDbTest {
     }
 
     @Test
-    fun `INV-AC-13289 the look-alike entity gives the domain event and the tenant-wide pair stays in its tenant`(
+    fun `INV-AC-13289 the look-alike entity gives the domain event, the pair stays in its tenant`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         val other = TenantId(UUID.randomUUID())
