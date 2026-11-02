@@ -4,7 +4,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 
-/** INV-T-8853 migration `V202611021100__create_break_glass_account.sql`: the table, its RLS, its grants and checks. */
+/** INV-T-8853 migration `V202611021200__create_break_glass_account.sql`: the table, its RLS, its grants and checks. */
 class BreakGlassAccountMigrationTest {
     private fun scalar(
         c: Connection,
