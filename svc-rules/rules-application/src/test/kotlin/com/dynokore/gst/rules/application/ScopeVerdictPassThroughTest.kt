@@ -6,6 +6,7 @@ import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.gst.rules.domain.scope.ScopeFacts
+import com.dynokore.gst.rules.domain.scope.ScopeOutcome
 import com.dynokore.gst.rules.domain.scope.ScopeVerdict
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.rulepackkernel.InMemoryPackRegistry
@@ -78,5 +79,46 @@ class ScopeVerdictPassThroughTest {
             val e = assertThrows<IllegalStateException> { useCase(port).scopeVerdictOf(tenant, date, line) }
             (e === boom) shouldBe true
         }
+    }
+
+    @Test
+    fun `scopeOutcomeOf returns the port outcome unchanged for a coded and a refused line`() {
+        listOf(coded, refused).forEach { line ->
+            val facts = ScopeFacts(tenant, date, line, sameGroup = true)
+            val expected = ScopeOutcome(ScopeVerdict.IN_SCOPE, disregardedSupplyWarning = true)
+            val port =
+                object : ScopeVerdictPort {
+                    override fun verdictOf(facts: ScopeFacts): ScopeVerdict = ScopeVerdict.OUT_OF_SCOPE
+
+                    override fun outcomeOf(facts: ScopeFacts): ScopeOutcome = expected
+                }
+            useCase(port).scopeOutcomeOf(facts) shouldBe expected
+        }
+    }
+
+    @Test
+    fun `scopeOutcomeOf with the default port body carries the verdict and no warning`() {
+        val facts = ScopeFacts(tenant, date, coded)
+        useCase(Recording(ScopeVerdict.PRE_OBLIGATION)).scopeOutcomeOf(facts) shouldBe
+            ScopeOutcome(ScopeVerdict.PRE_OBLIGATION, false)
+    }
+
+    @Test
+    fun `scopeOutcomeOf with no port raises ScopeRulesMissing`() {
+        listOf(coded, refused).forEach { line ->
+            val e = assertThrows<ScopeRulesMissing> { useCase(null).scopeOutcomeOf(ScopeFacts(tenant, date, line)) }
+            e.message shouldBe "no ScopeVerdictPort is configured"
+        }
+    }
+
+    @Test
+    fun `an exception of the port outcome propagates as the same instance`() {
+        val boom = IllegalStateException("boom")
+        val port =
+            object : ScopeVerdictPort {
+                override fun verdictOf(facts: ScopeFacts): ScopeVerdict = throw boom
+            }
+        val e = assertThrows<IllegalStateException> { useCase(port).scopeOutcomeOf(ScopeFacts(tenant, date, coded)) }
+        (e === boom) shouldBe true
     }
 }

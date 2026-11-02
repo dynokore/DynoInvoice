@@ -12,6 +12,7 @@ import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.ResolutionDates
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.gst.rules.domain.scope.ScopeFacts
+import com.dynokore.gst.rules.domain.scope.ScopeOutcome
 import com.dynokore.gst.rules.domain.scope.ScopeVerdict
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.rulepackkernel.PackType
@@ -68,6 +69,12 @@ class EvaluateDocument(
     ): ScopeVerdict {
         val port = scopeVerdicts ?: throw ScopeRulesMissing()
         return port.verdictOf(ScopeFacts(tenant, date, line))
+    }
+
+    /** The port's outcome unchanged, for a coded and a refused line alike; no port fails closed ([ScopeRulesMissing]). */
+    fun scopeOutcomeOf(facts: ScopeFacts): ScopeOutcome {
+        val port = scopeVerdicts ?: throw ScopeRulesMissing()
+        return port.outcomeOf(facts)
     }
 
     fun handle(command: EvaluateCommand): EvaluateResult =
