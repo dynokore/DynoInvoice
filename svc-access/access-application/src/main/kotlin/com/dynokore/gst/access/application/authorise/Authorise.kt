@@ -3,6 +3,7 @@ package com.dynokore.gst.access.application.authorise
 import com.dynokore.gst.access.application.consent.AgentScope
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.domain.elevation.OperatorAccess
 import com.dynokore.gst.access.domain.grant.AuthorisationPolicy
 import com.dynokore.gst.access.domain.grant.Decision
 import com.dynokore.gst.access.domain.grant.EntityMembership
@@ -45,7 +46,27 @@ class Authorise(
         val membership = directory.membership(target.entity) ?: return Decision.Deny(UNKNOWN_ENTITY)
         // a live read of the grant table in one transaction under the bound tenant; nothing is kept between calls
         val now = clock.instant()
-        return tx.inTransaction {
+        val first = decide(principal, permission, target, membership, now, operatorLive = false)
+        // an elevation opens a key only for an operator whose platform grant is live; that grant is read in its own
+        // platform-bound transaction, so only a DENY of an elevation key pays for the read
+        if (first is Decision.Deny && permission in OperatorAccess.OPENED_BY_ELEVATION &&
+            operators.operatorLive(principal, now)
+        ) {
+            return decide(principal, permission, target, membership, now, operatorLive = true)
+        }
+        return first
+    }
+
+    @Suppress("LongParameterList") // the question of authorise plus the live platform answer
+    private fun decide(
+        principal: IdentityRef,
+        permission: Permission,
+        target: Target,
+        membership: EntityMembership,
+        now: Instant,
+        operatorLive: Boolean,
+    ): Decision =
+        tx.inTransaction {
             val held = liveGrants(principal, permission, target, membership, now)
             val base =
                 AuthorisationPolicy.decide(
@@ -55,9 +76,8 @@ class Authorise(
                     now,
                 )
             // the operator rules of INV-REQ-862 and INV-REQ-888 read their records in this same transaction
-            operators.apply(base, principal, permission, membership.tenant, now)
+            operators.apply(base, principal, permission, membership.tenant, now, operatorLive)
         }
-    }
 
     private fun liveGrants(
         principal: IdentityRef,

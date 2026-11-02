@@ -8,10 +8,12 @@ import com.dynokore.gst.access.domain.elevation.ElevationKind
 import com.dynokore.gst.access.domain.elevation.ElevationRecord
 import com.dynokore.gst.access.domain.elevation.ElevationStatus
 import com.dynokore.gst.access.domain.grant.Decision
+import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.PlatformAuthorisation
-import com.dynokore.gst.access.domain.grant.TenantAuthority
+import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
+import com.dynokore.gst.access.domain.role.Allowance
 import com.dynokore.gst.access.domain.role.Permission
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -20,6 +22,9 @@ import java.time.Duration
 
 /** The permission keys the five operations ask for, compared by equality (INV-Q-15950 A); no code compares a role. */
 object ElevationKeys {
+    /** The longest time box a decision may open, in minutes: `maximum` of `validForMinutes` in the access contract. */
+    const val MAX_VALID_MINUTES = 1440
+
     val REQUEST = Permission("elevation.request")
     val DECIDE = Permission("elevation.decide")
     val INVITE = Permission("diagnostic.invite")
@@ -71,7 +76,14 @@ class ElevationCallers(
         permission: Permission,
     ): Boolean {
         val held = tx.inTransaction { grants.findByIdentity(actor) }
-        return TenantAuthority.holds(held, tenant, permission, matrix, clock.instant())
+        val at = clock.instant()
+        // one live grant covering the whole of the bound tenant whose role has a PERMITTED cell for the key
+        return held.any {
+            it.status == GrantStatus.ACTIVE &&
+                it.window.isValidAt(at) &&
+                it.scope == Scope.Tenant(tenant) &&
+                matrix.allowance(it.role, permission) == Allowance.PERMITTED
+        }
     }
 }
 
@@ -163,7 +175,11 @@ class DecideElevationUseCase(
         grant: Boolean,
         validForMinutes: Int?,
     ): ElevationOutcome {
-        if (grant && (validForMinutes == null || validForMinutes < 1)) return ElevationOutcome.BadDecision
+        if (grant &&
+            (validForMinutes == null || validForMinutes !in 1..ElevationKeys.MAX_VALID_MINUTES)
+        ) {
+            return ElevationOutcome.BadDecision
+        }
         return tx.inTransaction {
             val before = elevations.lock(ref) ?: return@inTransaction ElevationOutcome.NotFound
             val after =

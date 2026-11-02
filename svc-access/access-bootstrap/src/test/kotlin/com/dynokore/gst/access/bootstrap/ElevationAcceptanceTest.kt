@@ -4,6 +4,8 @@ import com.dynokore.gst.access.adapters.elevation.ElevationController
 import com.dynokore.gst.access.adapters.http.ApiConflict
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.AuthoriseController
+import com.dynokore.gst.access.application.elevation.DecideElevationUseCase
+import com.dynokore.gst.access.application.elevation.ElevationKeys
 import com.dynokore.gst.access.application.elevation.ElevationOutcome
 import com.dynokore.gst.access.application.elevation.OpenElevationUseCase
 import com.dynokore.gst.access.contract.model.AuthoriseResponse
@@ -141,16 +143,29 @@ class ElevationAcceptanceTest {
             actor: String = officer,
             tenant: TenantId = a,
             grant: Boolean = true,
+            minutes: Int = 30,
+            key: UUID = UUID.randomUUID(),
         ) = into(tenant, actor) {
             api.decideElevation(
                 ref,
-                UUID.randomUUID(),
+                key,
                 DecideElevationRequest(
                     if (grant) DecideElevationRequest.Decision.GRANT else DecideElevationRequest.Decision.REFUSE,
-                    if (grant) 30 else null,
+                    if (grant) minutes else null,
                 ),
             )
         }
+
+        /** The operator's platform grant ends (revoked), as the grant lifecycle would do it. */
+        fun revokePlatformGrant(identity: String) =
+            BoundaryFixture.asSuperuser { c ->
+                c.createStatement().use {
+                    it.execute(
+                        "update access.role_grant set status = 'REVOKED' " +
+                            "where tenant_id = '$platform' and identity_ref = '$identity'",
+                    )
+                }
+            }
 
         fun withdrawElevation(
             ref: String,
@@ -432,5 +447,67 @@ class ElevationAcceptanceTest {
                     }
                 }
             assertThat(other).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+        }
+
+    @Test
+    fun `INV-AC-2251 an elevation closes at once when the operator's platform grant is revoked after approval`() =
+        run("SAAS") { env ->
+            env.decide(env.request().requestRef)
+            assertThat(env.decision(env.support, content)).isEqualTo(allow)
+            env.revokePlatformGrant(env.support)
+            assertThat(env.decision(env.support, content)).isEqualTo(deny)
+        }
+
+    @Test
+    fun `INV-AC-2251 the time box is at most 1440 minutes, one more is refused`() =
+        run("SAAS") { env ->
+            val max = ElevationKeys.MAX_VALID_MINUTES
+            assertThat(max).isEqualTo(1440)
+            env.decide(env.request().requestRef, minutes = max)
+            assertThat(env.decision(env.support, content)).isEqualTo(allow)
+            // the contract's maximum refuses the controller call before the use case runs ...
+            val second = env.request(case = "CASE-2")
+            assertThat(catchThrowable { env.decide(second.requestRef, minutes = max + 1) }.javaClass.simpleName)
+                .isEqualTo("ConstraintViolationException")
+            // ... and the use case holds the same bound for a caller that skips it
+            val decide = env.context.getBean(DecideElevationUseCase::class.java)
+            listOf(max + 1, 0, -1, Int.MAX_VALUE).forEach {
+                val outcome =
+                    env.into(
+                        env.a,
+                        env.officer,
+                    ) { decide.handle(IdentityRef(env.officer), second.requestRef, true, it) }
+                assertThat(outcome).describedAs("$it").isEqualTo(ElevationOutcome.BadDecision)
+            }
+        }
+
+    @Test
+    fun `INV-AC-7953 a replay of an Idempotency-Key returns the stored answer, another body under it is refused`() =
+        run("SAAS") { env ->
+            val key = UUID.randomUUID()
+            val ref = env.request().requestRef
+            val first = env.decide(ref, key = key)
+            val replay = env.decide(ref, key = key)
+            assertThat(replay.statusCode).isEqualTo(first.statusCode)
+            assertThat(replay.body).isEqualTo(first.body)
+            // without the key a second decision of the settled record is a conflict
+            assertThat(catchThrowable { env.decide(ref) }).isInstanceOf(ApiConflict::class.java)
+            // the same key with another body
+            assertThat(
+                refusal { env.decide(ref, grant = false, key = key) },
+            ).isEqualTo(ClosedErrorCode.DIFFERENT_REQUEST)
+            // a withdraw replay answers the same 204 after the record was withdrawn once
+            val other = env.request(case = "CASE-3").requestRef
+            val withdrawKey = UUID.randomUUID()
+            val one = env.into(env.a, env.support) { env.api.withdrawElevationRequest(other, withdrawKey) }
+            val two = env.into(env.a, env.support) { env.api.withdrawElevationRequest(other, withdrawKey) }
+            assertThat(one.statusCode).isEqualTo(two.statusCode)
+            // a replayed request returns the stored 201 and body, and writes no second row
+            val askKey = UUID.randomUUID()
+            val ask = ElevationRequest("CASE-4", env.a.toString(), "investigate")
+            val r1 = env.into(env.a, env.support) { env.api.requestElevation(askKey, ask) }
+            val r2 = env.into(env.a, env.support) { env.api.requestElevation(askKey, ask) }
+            assertThat(r2.statusCode).isEqualTo(r1.statusCode)
+            assertThat(r2.body).isEqualTo(r1.body)
         }
 }

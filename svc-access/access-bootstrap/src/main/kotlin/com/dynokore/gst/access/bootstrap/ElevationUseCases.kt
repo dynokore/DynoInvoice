@@ -30,7 +30,9 @@ class ElevationUseCases {
     fun operatorOverlay(
         elevations: Elevations,
         audit: GrantAudit,
-    ) = OperatorOverlay(elevations, audit)
+        platform: PlatformRead,
+        dependencies: GrantDependencies,
+    ) = OperatorOverlay(elevations, audit, platform, dependencies.grants, dependencies.matrix)
 
     @Bean
     fun elevationCallers(

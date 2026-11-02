@@ -1,5 +1,10 @@
-package com.dynokore.gst.access.domain.elevation
+package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.domain.elevation.ElevationAsk
+import com.dynokore.gst.access.domain.elevation.ElevationKind
+import com.dynokore.gst.access.domain.elevation.ElevationRecord
+import com.dynokore.gst.access.domain.elevation.ElevationStatus
+import com.dynokore.gst.access.domain.elevation.OperatorAccess
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.TenantRef
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -10,7 +15,7 @@ import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.time.Instant
 
-class ElevationTest {
+class ElevationRecordTest {
     private val now = Instant.parse("2026-11-02T08:00:00Z")
     private val op = IdentityRef("user:op")
     private val officer = IdentityRef("user:officer")
