@@ -131,7 +131,8 @@ class ScopeRulesTest {
         v(facts("TX", direction = p, claimed = true)) shouldBe ScopeVerdict.IN_SCOPE
         v(facts("TX", direction = p, claimed = true, voluntary = true)) shouldBe ScopeVerdict.IN_SCOPE
         v(facts("TX", direction = ScopeDirection.SALE, claimed = false)) shouldBe ScopeVerdict.IN_SCOPE
-        v(facts("TX", direction = ScopeDirection.SALE, claimed = false, voluntary = true)) shouldBe ScopeVerdict.IN_SCOPE
+        v(facts("TX", direction = ScopeDirection.SALE, claimed = false, voluntary = true)) shouldBe
+            ScopeVerdict.IN_SCOPE
         v(facts("SR", direction = p, claimed = false)) shouldBe ScopeVerdict.IN_SCOPE
     }
 
@@ -178,25 +179,29 @@ class ScopeRulesTest {
     @Test
     fun `INV-REQ-720 no warning when the window or a refusal stops the line`() {
         outcome(facts(sameGroup = true, date = start.minusDays(1))).disregardedSupplyWarning shouldBe false
-        outcome(facts(sameGroup = true, line = LineCoding.Refused(ErrorCode.RUL_001))).disregardedSupplyWarning shouldBe false
+        outcome(facts(sameGroup = true, line = LineCoding.Refused(ErrorCode.RUL_001))).disregardedSupplyWarning shouldBe
+            false
         outcome(facts(sameGroup = true, date = end.plusDays(1), regEnd = end)).disregardedSupplyWarning shouldBe false
     }
 
     @Test
     fun `INV-REQ-720 the outcome verdict equals the verdict of verdictOf for every combination`() {
         val r = rules()
-        for (code in listOf("SR", "OS", "DS", "TX", "SRRC", "ZZ")) {
-            for (sg in listOf(false, true)) {
-                for (vol in listOf(false, true)) {
-                    for (c in listOf(null, false, true)) {
-                        for (dir in ScopeDirection.entries) {
-                            val f = facts(code, sameGroup = sg, voluntary = vol, claimed = c, direction = dir)
-                            r.outcomeOf(f).verdict shouldBe r.verdictOf(f)
+        val codes = listOf("SR", "OS", "DS", "TX", "SRRC", "ZZ")
+        val all =
+            codes.flatMap { code ->
+                listOf(false, true).flatMap { sg ->
+                    listOf(false, true).flatMap { vol ->
+                        listOf(null, false, true).flatMap { c ->
+                            ScopeDirection.entries.map { dir ->
+                                facts(code, sameGroup = sg, voluntary = vol, claimed = c, direction = dir)
+                            }
                         }
                     }
                 }
             }
-        }
+        all.size shouldBe 144
+        all.forEach { f -> r.outcomeOf(f).verdict shouldBe r.verdictOf(f) }
     }
 
     @Test

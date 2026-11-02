@@ -71,7 +71,7 @@ class EvaluateDocument(
         return port.verdictOf(ScopeFacts(tenant, date, line))
     }
 
-    /** The port's outcome unchanged, for a coded and a refused line alike; no port fails closed ([ScopeRulesMissing]). */
+    /** The port's outcome unchanged, for a coded and a refused line alike; no port fails closed. */
     fun scopeOutcomeOf(facts: ScopeFacts): ScopeOutcome {
         val port = scopeVerdicts ?: throw ScopeRulesMissing()
         return port.outcomeOf(facts)

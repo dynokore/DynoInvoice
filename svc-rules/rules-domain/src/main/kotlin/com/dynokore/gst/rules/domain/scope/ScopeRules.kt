@@ -23,34 +23,55 @@ class ScopeRules(
 
     override fun outcomeOf(facts: ScopeFacts): ScopeOutcome = decide(facts)
 
-    private fun decide(f: ScopeFacts): ScopeOutcome {
-        // Step 1: the registration window; an absent obligation start date fails closed.
-        val start = f.obligationStartDate ?: return plain(ScopeVerdict.PRE_OBLIGATION)
-        if (f.date.value < start.value) return plain(ScopeVerdict.PRE_OBLIGATION)
+    private fun decide(f: ScopeFacts): ScopeOutcome =
+        windowVerdict(f)?.let(::plain)
+            ?: (f.line as? LineCoding.Coded)?.let { decideCoded(f, it.categoryCode) }
+            ?: plain(ScopeVerdict.NOT_SUBMITTABLE) // step 2: a refused line
+
+    /** Step 1: the registration window; an absent obligation start date fails closed. */
+    private fun windowVerdict(f: ScopeFacts): ScopeVerdict? {
+        val start = f.obligationStartDate
         val end = f.registrationEndDate
-        if (end != null && f.date.value > end.value) return plain(ScopeVerdict.NOT_SUBMITTABLE)
-        // Step 2: a refused line.
-        val line = f.line as? LineCoding.Coded ?: return plain(ScopeVerdict.NOT_SUBMITTABLE)
-        // Step 3: intra-group treatment other than PASS_THROUGH, or absent.
-        if (f.sameGroup && data.intraGroupTreatment != PASS_THROUGH) return plain(ScopeVerdict.NOT_SUBMITTABLE)
-        val code = line.categoryCode
-        // Step 4: DS, and a code the data does not know.
-        if (code == "DS") return plain(ScopeVerdict.NOT_SUBMITTABLE)
-        val lineVerdict = data.lineVerdicts[code] ?: return plain(ScopeVerdict.NOT_SUBMITTABLE)
-        val warning = f.sameGroup && lineVerdict == ScopeVerdict.IN_SCOPE
-        // Step 5: a purchase of a standard-rated code with no input tax claimed.
-        if (f.direction == ScopeDirection.PURCHASE &&
-            code in data.purchaseStandardRatedCodes &&
-            f.inputTaxClaimedNonZero == false
-        ) {
-            val v = if (f.voluntaryOverSubmission) ScopeVerdict.SUBMITTABLE else ScopeVerdict.OUT_OF_SCOPE
-            return ScopeOutcome(v, warning)
+        return when {
+            start == null || f.date.value < start.value -> ScopeVerdict.PRE_OBLIGATION
+            end != null && f.date.value > end.value -> ScopeVerdict.NOT_SUBMITTABLE
+            else -> null
         }
-        // Step 6: OS under voluntary over-submission.
-        if (code == "OS" && f.voluntaryOverSubmission) return ScopeOutcome(ScopeVerdict.SUBMITTABLE, warning)
-        // Step 7: the pack's line verdict.
-        return ScopeOutcome(lineVerdict, warning)
     }
+
+    /** Steps 3 to 7 for a coded line that is inside the window. */
+    private fun decideCoded(
+        f: ScopeFacts,
+        code: String,
+    ): ScopeOutcome {
+        val lineVerdict = data.lineVerdicts[code]
+        // Step 3: intra-group treatment other than PASS_THROUGH or absent; step 4: DS and a code the data lacks.
+        val denied = (f.sameGroup && data.intraGroupTreatment != PASS_THROUGH) || code == "DS"
+        if (denied || lineVerdict == null) return plain(ScopeVerdict.NOT_SUBMITTABLE)
+        val warning = f.sameGroup && lineVerdict == ScopeVerdict.IN_SCOPE
+        return ScopeOutcome(overrideVerdict(f, code) ?: lineVerdict, warning)
+    }
+
+    /** Step 5 (a purchase with no input tax claimed) and step 6 (OS under voluntary over-submission). */
+    private fun overrideVerdict(
+        f: ScopeFacts,
+        code: String,
+    ): ScopeVerdict? =
+        when {
+            f.direction == ScopeDirection.PURCHASE &&
+                code in data.purchaseStandardRatedCodes &&
+                f.inputTaxClaimedNonZero == false -> {
+                if (f.voluntaryOverSubmission) ScopeVerdict.SUBMITTABLE else ScopeVerdict.OUT_OF_SCOPE
+            }
+
+            code == "OS" && f.voluntaryOverSubmission -> {
+                ScopeVerdict.SUBMITTABLE
+            }
+
+            else -> {
+                null
+            }
+        }
 
     private fun plain(v: ScopeVerdict) = ScopeOutcome(v, disregardedSupplyWarning = false)
 
