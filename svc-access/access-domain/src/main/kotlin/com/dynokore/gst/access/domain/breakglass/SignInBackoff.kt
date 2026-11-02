@@ -54,6 +54,7 @@ data class SignInBackoff(
         }
 
         /** Whether the failure count [failures] raises the ACC-002 SIGN_IN_FAILED alert: 5, 15, 25 and so on. */
-        fun isAlertCount(failures: Int): Boolean = failures >= FIRST_ALERT_COUNT && (failures - FIRST_ALERT_COUNT) % ALERT_EVERY == 0
+        fun isAlertCount(failures: Int): Boolean =
+            failures >= FIRST_ALERT_COUNT && (failures - FIRST_ALERT_COUNT) % ALERT_EVERY == 0
     }
 }
