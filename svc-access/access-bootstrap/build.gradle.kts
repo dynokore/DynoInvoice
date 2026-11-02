@@ -39,4 +39,12 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
 }
 
-tasks.withType<Test>().configureEach { useJUnitPlatform() }
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+    // CI-FAST: the 750 bootstrap tests ran in one JVM (about 560 s of the unit-test job on a merge request, where the
+    // test task is not restored from the build cache). The test classes share nothing across JVMs: BoundaryFixture
+    // starts one PostgreSQL per JVM, the identity-provider simulators are started per JVM on random host ports and no
+    // class writes a shared file. The CI test policy (platform-build gst-test-policy) sets the real fork count from
+    // the job container (CPUs, memory, cap 4); locally this runs 3 forks at most.
+    maxParallelForks = 3
+}
