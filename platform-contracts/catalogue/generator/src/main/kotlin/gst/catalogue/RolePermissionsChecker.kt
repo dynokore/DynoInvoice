@@ -116,6 +116,7 @@ object RolePermissionsChecker {
             "Open a tenant-scoped operator session",
             "Release a document held for manual review",
             "Request an implementation consultant grant",
+            "View the exception queue",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -163,6 +164,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the held-document release key (INV-T-16540, INV-Q-16154 A), compared by equality. */
     val heldDocumentPairs: Map<String, String> =
         mapOf("held-document.release" to "Release a document held for manual review")
+
+    /** The (key, row) pair of the exception queue read key (INV-T-16573, INV-Q-15877 A), compared by equality. */
+    val exceptionViewPairs: Map<String, String> =
+        mapOf("exception.view" to "View the exception queue")
 
     /** The (key, row) pair of the break-glass reseal key (INV-T-16106, INV-Q-10127 A), compared by equality. */
     val resealPairs: Map<String, String> =
@@ -390,6 +395,11 @@ object RolePermissionsChecker {
                     PermissionKind.WRITE,
                     cells(permitted, saasForm, "platform.support") + cells(permitted, privateForm, "deployment.operator"),
                 ),
+            "exception.view" to
+                Required(
+                    PermissionKind.READ,
+                    cells(permitted, both, "tenant.admin", "tax.operator", "tax.approver") + cells(withinScope, both, "agent.operator"),
+                ),
         )
 
     fun check(
@@ -506,6 +516,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in heldDocumentPairs && (it.row in heldDocumentPairs.values || it.key.startsWith("held-document")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${heldDocumentPairs.keys.joinToString()}, which alone carry the held document release row (INV-T-16540)."
+        }
+        exceptionViewPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${exceptionViewPairs.keys.joinToString()}, INV-T-16573)."
+        }
+        table.permissions.filter { it.key !in exceptionViewPairs && (it.row in exceptionViewPairs.values || it.key.startsWith("exception.view")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${exceptionViewPairs.keys.joinToString()}, which alone carry the exception queue row (INV-T-16573)."
         }
         resealPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }

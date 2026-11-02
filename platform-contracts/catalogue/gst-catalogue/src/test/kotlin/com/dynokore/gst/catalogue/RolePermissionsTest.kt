@@ -359,6 +359,21 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `INV-AC-16572 exception view is READ and held exactly as masterdata-exception resolve`() {
+        val key = "exception.view"
+        assertEquals(PermissionKind.READ, RolePermissions.kind(key))
+        both.forEach { form ->
+            val cells = RolePermissions.cells(form)
+
+            fun held(k: String) = cells.mapNotNull { (role, perms) -> perms[k]?.let { Triple(role, form, it) } }.toSet()
+
+            assertEquals(held("masterdata-exception.resolve"), held(key), "$key $form")
+            assertEquals(4, held(key).size, "$key $form")
+        }
+        assertNull(RolePermissions.kind("exception.views"))
+    }
+
+    @Test
     fun `the operator session key is WRITE with exactly three cells and every other role is DENIED`() {
         val key = "operator-session.open"
         assertEquals(PermissionKind.WRITE, RolePermissions.kind(key))
