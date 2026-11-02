@@ -49,7 +49,8 @@ class VerificationEntitySource(
                     .map {
                         EntityRef(it["entity_ref"].asString()) to
                             TenantId(UUID.fromString(it["tenant_id"].asString()))
-                    }.map { (entity, tenant) -> JobTarget.Entity(tenant, entity) }
+                    }
+                    .map { (entity, tenant) -> JobTarget.Entity(tenant, entity) }
             }
         }
 }
