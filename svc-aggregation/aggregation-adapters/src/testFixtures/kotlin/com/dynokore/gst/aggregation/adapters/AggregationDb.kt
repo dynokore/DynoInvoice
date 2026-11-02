@@ -6,6 +6,7 @@ import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.sql.Connection
 import java.sql.DriverManager
+import java.time.Duration
 
 /**
  * A PostgreSQL 18 database with the roles of INV-AC-2175, the signed-binding functions of the schema and the Flyway
@@ -35,6 +36,9 @@ object AggregationDb {
         runCatching {
             val postgres =
                 PostgreSQLContainer(DockerImageName.parse(IMAGE).asCompatibleSubstituteFor("postgres"))
+                    .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+                    .withStartupAttempts(PG_START_ATTEMPTS)
+                    .withCommand(*pgFastCommand)
                     .withCopyFileToContainer(
                         MountableFile.forClasspathResource("db/roles.sql"),
                         "${INIT_DIRECTORY}00-roles.sql",
@@ -76,3 +80,10 @@ object AggregationDb {
             .migrate()
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
