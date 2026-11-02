@@ -644,6 +644,52 @@ class RolePermissionsCheckerTest {
         assertReported(real.copy(permissions = real.permissions.filterNot { it.key == eca }), "key $eca: missing")
     }
 
+    private val ecw = "election-change.withdraw"
+    private val ecl = "election-change.list"
+
+    @Test
+    fun `election-change withdraw and list carry the entity-config confirm row and cells`() {
+        listOf(ecw to PermissionKind.WRITE, ecl to PermissionKind.READ).forEach { (k, kind) ->
+            assertEquals(permission(real, "entity-config.confirm").row, permission(real, k).row)
+            assertEquals(kind, permission(real, k).kind)
+            assertEquals(
+                permission(real, "entity-config.confirm").cells.map { Triple(it.role, it.form, it.allowance) }.toSet(),
+                permission(real, k).cells.map { Triple(it.role, it.form, it.allowance) }.toSet(),
+            )
+        }
+        assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
+    }
+
+    @Test
+    fun `probe election-change list and withdraw cells kinds and rows changed alone are each reported`() {
+        assertReported(cellAdd(ecl, "auditor", DeploymentForm.SAAS), "key $ecl")
+        assertReported(cellAdd(ecw, "client.signatory", DeploymentForm.SAAS), "key $ecw")
+        listOf(ecw, ecl).forEach { k ->
+            assertReported(cellRemove(k, "entity.admin", DeploymentForm.PRIVATE), "role entity.admin key $k form PRIVATE")
+            assertReported(withPermission(k) { it.copy(row = it.row + " ") }, "key $k")
+        }
+        assertReported(withPermission(ecl) { it.copy(kind = PermissionKind.WRITE) }, "key $ecl")
+    }
+
+    @Test
+    fun `probe election-change withdraw and list renamed or removed are reported missing`() {
+        listOf("$ecw ", "election-change.withdrawn", "election-change.lists", "Election-change.list").forEach { name ->
+            val k = if (name.contains("list", ignoreCase = true)) ecl else ecw
+            assertReported(withPermission(k) { it.copy(key = name) }, "key $k: missing")
+        }
+        listOf(ecw, ecl).forEach { k ->
+            assertReported(real.copy(permissions = real.permissions.filterNot { it.key == k }), "key $k: missing")
+        }
+    }
+
+    @Test
+    fun `probe election-change approve given the cells of entity-config confirm is reported`() {
+        assertReported(
+            withPermission(eca) { p -> p.copy(cells = permission(real, "entity-config.confirm").cells) },
+            "role entity.admin key $eca",
+        )
+    }
+
     @Test
     fun `probe 50 the approve row changed to a look-alike is reported and the true label has no key`() {
         val t = withPermission("regulatory-pack.approve") { it.copy(row = "Approve a regulatory packs") }

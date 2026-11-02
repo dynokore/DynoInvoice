@@ -232,6 +232,19 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `election-change withdraw and list have their kinds and the holders of entity-config confirm in both forms`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("election-change.withdraw"))
+        assertEquals(PermissionKind.READ, RolePermissions.kind("election-change.list"))
+        both.forEach { form ->
+            listOf("election-change.withdraw", "election-change.list").forEach { key ->
+                val holders = RolePermissions.cells(form).filter { (_, perms) -> perms[key] == y }.keys
+                assertEquals(setOf("entity.admin", "tenant.admin", "tax.approver"), holders, "$key $form")
+            }
+        }
+        assertNull(RolePermissions.kind("election-change.decline"))
+    }
+
+    @Test
     fun `the enquiry lookups and the rendition sample check have their kinds and exact holders in both forms`() {
         val expected =
             mapOf(

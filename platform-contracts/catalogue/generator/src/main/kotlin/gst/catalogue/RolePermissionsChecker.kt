@@ -342,6 +342,10 @@ object RolePermissionsChecker {
             "vp-62.acknowledge.client-signatory" to Required(PermissionKind.WRITE, cells(withinScope, both, "client.signatory")),
             "authority-incarnation.bump" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "election-change.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "election-change.withdraw" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin", "tenant.admin", "tax.approver")),
+            "election-change.list" to
+                Required(PermissionKind.READ, cells(permitted, both, "entity.admin", "tenant.admin", "tax.approver")),
             "enquiry-lookup.by-acknowledgement" to
                 Required(PermissionKind.READ, cells(permitted, both, "auditor", "tax.approver", "tax.operator")),
             "enquiry-lookup.reverse" to Required(PermissionKind.READ, cells(permitted, both, "auditor", "tax.approver")),
@@ -462,8 +466,8 @@ object RolePermissionsChecker {
         table.permissions.filter { it.key.startsWith("break-glass.") && it.key !in required }.forEach { p ->
             v += "key ${p.key}: not one of the break-glass keys the criteria require (INV-T-16106)."
         }
-        table.permissions.firstOrNull { it.key == "election-change.approve" }?.let { p ->
-            if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123)."
+        table.permissions.filter { it.key in setOf("election-change.approve", "election-change.withdraw", "election-change.list") }.forEach { p ->
+            if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123, INV-T-13530)."
         }
         val used = table.permissions.map { it.row }.toSet()
         (publishedRows + added).filter { it !in used }.forEach { v += "row '$it': no key transcribes it." }

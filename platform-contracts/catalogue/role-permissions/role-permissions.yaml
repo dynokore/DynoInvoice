@@ -1105,6 +1105,26 @@ permissions:
     cells:
       - {role: tax.approver, form: SAAS, allowance: PERMITTED}
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: election-change.withdraw
+    kind: WRITE
+    row: "Manage entity registry, identity triple, elections, issuance mode, trigger waivers, go-live, suspension, deregistration, offboarding"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: election-change.list
+    kind: READ
+    row: "Manage entity registry, identity triple, elections, issuance mode, trigger waivers, go-live, suspension, deregistration, offboarding"
+    cells:
+      - {role: entity.admin, form: SAAS, allowance: PERMITTED}
+      - {role: entity.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
   - key: enquiry-lookup.by-acknowledgement
     kind: READ
     row: "Look up an enquiry by Acknowledgement ID"
