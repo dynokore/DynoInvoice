@@ -100,7 +100,12 @@ class CapturingOutboxWriter(
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
     private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
-    val container: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17").withLabel("inv.agent", "c-inv-t-4942")
+    val container: PostgreSQLContainer<*> =
+        PostgreSQLContainer("postgres:17")
+            .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+            .withStartupAttempts(PG_START_ATTEMPTS)
+            .withCommand(*pgFastCommand)
+            .withLabel("inv.agent", "c-inv-t-4942")
 
     private val migrationsDir: Path =
         Path.of(
@@ -227,3 +232,10 @@ object BoundaryFixture {
                 "service-runtime.datasource.credential=db/masterdata_runtime",
             )
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
