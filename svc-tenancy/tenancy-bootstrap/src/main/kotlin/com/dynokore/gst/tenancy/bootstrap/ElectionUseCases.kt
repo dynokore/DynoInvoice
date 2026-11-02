@@ -71,12 +71,13 @@ class ElectionUseCases {
         /** Wraps the `PolicyWriter` bean in the [ElectionPolicyWriterGuard], so every holder of it gets the guard. */
         @JvmStatic
         @Bean
-        fun electionPolicyWriterGuard(): BeanPostProcessor = ElectionPolicyWriterGuardPostProcessor()
+        fun electionPolicyWriterGuard(): ElectionPolicyWriterGuardPostProcessor =
+            ElectionPolicyWriterGuardPostProcessor()
 
         /** Wraps the `PolicyWriter` bean in the [GstSchemeEventDecorator] (VP-53 events, ruling INV-Q-12262). */
         @JvmStatic
         @Bean
-        fun gstSchemeEventDecorator(beans: ObjectProvider<SchemeEventBeans>): BeanPostProcessor =
+        fun gstSchemeEventDecorator(beans: ObjectProvider<SchemeEventBeans>): GstSchemeEventDecoratorPostProcessor =
             GstSchemeEventDecoratorPostProcessor(beans)
     }
 

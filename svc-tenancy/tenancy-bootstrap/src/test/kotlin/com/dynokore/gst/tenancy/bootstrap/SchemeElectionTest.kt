@@ -12,6 +12,7 @@ import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SetPolicyCommand
 import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.VariationPointCatalogue
+import com.dynokore.platform.configresolver.VariationPointDefinition
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.configresolver.VpStatus
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -22,6 +23,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.test.util.ReflectionTestUtils
 import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 import java.util.UUID
 
@@ -50,7 +52,6 @@ class SchemeElectionTest {
         keys: List<String>,
         on: LocalDate,
         key: VariationPointKey = vp53,
-        roles: Set<String> = setOf("entity.admin"),
     ) = env.inTx {
         env.writer.setPolicy(
             SetPolicyCommand(
@@ -60,7 +61,7 @@ class SchemeElectionTest {
                 keys.map { SelectedOption(it) },
                 on,
                 "scheme test",
-                Actor("user:test", roles),
+                Actor("user:test", setOf("entity.admin")),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),
@@ -218,7 +219,7 @@ class SchemeElectionTest {
                     GstVariationPointCatalogue().all().first {
                         it.status == VpStatus.PLANNED && ScopeLevel.ENTITY in it.scopeLevels && it.options.isNotEmpty()
                     }
-                val error = runCatching { select(env, entity, listOf(planned.options.first().key), TODAY, planned.key) }
+                val error = runCatching { setPlanned(env, entity, planned) }
                 assertThat((error.exceptionOrNull() as? PolicyRefused)?.refusal)
                     .describedAs(planned.key.value)
                     .isEqualTo(PolicyRefusal.PLANNED)
@@ -245,13 +246,34 @@ class SchemeElectionTest {
         return definition.options.size
     }
 
+    /** A write of the first option of a PLANNED row by the roles that may set it. */
+    private fun setPlanned(
+        env: ProfileEnv,
+        entity: EntityResponse,
+        planned: VariationPointDefinition,
+    ) = env.inTx {
+        env.writer.setPolicy(
+            SetPolicyCommand(
+                planned.key,
+                PolicyScope.entity(env.tenants.current(), entity.entityRef),
+                ScopeLevel.ENTITY,
+                listOf(SelectedOption(planned.options.first().key)),
+                TODAY,
+                "planned row test",
+                Actor("user:test", planned.setBy),
+                CorrelationId("corr-${UUID.randomUUID()}"),
+                CausationId("cause-${UUID.randomUUID()}"),
+            ),
+        )
+    }
+
     private fun delegateOf(writer: Any): Any? =
         runCatching { ReflectionTestUtils.getField(writer, "delegate") }.getOrNull()
 
     private companion object {
         const val NONE = "NONE"
         const val EXPECTED_SCHEME_KEYS = 14
-        val JSON =
+        val JSON: JsonMapper =
             tools.jackson.databind.json.JsonMapper
                 .builder()
                 .build()
