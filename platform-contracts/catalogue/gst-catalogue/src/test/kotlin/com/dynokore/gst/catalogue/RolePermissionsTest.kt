@@ -376,6 +376,25 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `the held document release key is WRITE with two tax approver cells, others DENIED`() {
+        val key = "held-document.release"
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind(key))
+        both.forEach { form ->
+            val actual =
+                RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            assertEquals(mapOf("tax.approver" to y), actual, "$key $form")
+        }
+    }
+
+    @Test
+    fun `INV-AC-16537 held-document release is tax approver only`() {
+        assertEquals(y, cell(saas, "tax.approver", "held-document.release"))
+        // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
+        assertNull(cell(saas, "tax.operator", "held-document.release"))
+        assertNull(RolePermissions.kind("held-document.releases"))
+    }
+
+    @Test
     fun `INV-AC-922 platform support opens a session but sees no invoice content`() {
         assertEquals(y, cell(saas, "platform.support", "operator-session.open"))
         // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).

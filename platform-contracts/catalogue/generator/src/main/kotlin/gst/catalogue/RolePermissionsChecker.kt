@@ -114,6 +114,7 @@ object RolePermissionsChecker {
             "Invite operator diagnostics, time-boxed",
             "Reseal a break-glass session",
             "Open a tenant-scoped operator session",
+            "Release a document held for manual review",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -153,6 +154,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the operator session key (INV-T-16477, INV-Q-16469 A), compared by equality. */
     val operatorSessionPairs: Map<String, String> =
         mapOf("operator-session.open" to "Open a tenant-scoped operator session")
+
+    /** The (key, row) pair of the held-document release key (INV-T-16540, INV-Q-16154 A), compared by equality. */
+    val heldDocumentPairs: Map<String, String> =
+        mapOf("held-document.release" to "Release a document held for manual review")
 
     /** The (key, row) pair of the break-glass reseal key (INV-T-16106, INV-Q-10127 A), compared by equality. */
     val resealPairs: Map<String, String> =
@@ -370,6 +375,11 @@ object RolePermissionsChecker {
                     PermissionKind.WRITE,
                     cells(permitted, saasForm, "platform.support", "platform.engineer") + cells(permitted, privateForm, "deployment.operator"),
                 ),
+            "held-document.release" to
+                Required(
+                    PermissionKind.WRITE,
+                    cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver"),
+                ),
         )
 
     fun check(
@@ -472,6 +482,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in operatorSessionPairs && (it.row in operatorSessionPairs.values || it.key.startsWith("operator-session")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${operatorSessionPairs.keys.joinToString()}, which alone carry the operator session row (INV-T-16477)."
+        }
+        heldDocumentPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${heldDocumentPairs.keys.joinToString()}, INV-T-16540)."
+        }
+        table.permissions.filter { it.key !in heldDocumentPairs && (it.row in heldDocumentPairs.values || it.key.startsWith("held-document")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${heldDocumentPairs.keys.joinToString()}, which alone carry the held document release row (INV-T-16540)."
         }
         resealPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
