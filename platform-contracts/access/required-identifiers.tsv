@@ -151,3 +151,4 @@ ProposedProfile.profileVersion	schema_property	openapi.yaml	INV-REQ-1256
 proposedProfile	property	openapi.yaml	INV-REQ-1257
 ProposedProfile.profileRef	schema_property	openapi.yaml	INV-REQ-1257
 ProposedProfile.profileVersion	schema_property	openapi.yaml	INV-REQ-1257
+# INV-T-13564. INV-REQ-584, INV-AC-13560: the claim principal_type and its six values are text of the issueAccessToken description, pinned by the spec-facts row of access/spec-facts.tsv; this table has no kind for a claim name in a description, and the six values are the enum rows above (INGEST to CERTIFICATION).
