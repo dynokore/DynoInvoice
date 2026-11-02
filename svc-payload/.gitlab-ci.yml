@@ -24,4 +24,10 @@ include:
       ac_pattern: 'INV-AC-\d+(?!\d)'
 
 variables:
+  # CI-FAST, owner ruling 2026-10-17 ("skip repeated checks"; platform-build ci/stages.gitlab-ci.yml): main skips a
+  # listed job when the same commit already passed a merge-request pipeline. Only lint is listed. Not unit-test, compile,
+  # verify-rules, keel-report, the image, scan and publish jobs: they are Keel done evidence or produce artefacts. Not
+  # semgrep: it runs in merge requests only, so main has nothing to skip.
+  GST_SKIP_REPEATS: "true"
+  GST_SKIP_WHEN_VERIFIED_JOBS: "lint"
   IMAGE_NAME: "svc-payload"
