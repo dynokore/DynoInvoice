@@ -1,8 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessionView
-import com.dynokore.gst.access.bootstrap.served.TENANT_A
-import com.dynokore.gst.access.bootstrap.served.TENANT_B
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionReplica
 import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
@@ -49,7 +47,8 @@ class BreakGlassSessionViewTest {
         var result: T? = null
         BoundaryFixture.runner().run { context ->
             context.startupFailure?.let { throw it }
-            result = block(context.getBean(BreakGlassSessionView::class.java), context.getBean(TenantContext::class.java))
+            result =
+                block(context.getBean(BreakGlassSessionView::class.java), context.getBean(TenantContext::class.java))
         }
         @Suppress("UNCHECKED_CAST")
         return result as T
@@ -65,15 +64,15 @@ class BreakGlassSessionViewTest {
     }
 
     @Test
-    fun `INV-AC-9383 the view answers the matching open session of the tenant and null otherwise`() =
+    fun `INV-AC-9383 the view answers the matching open session of the tenant and null otherwise`(): Unit =
         withView { view, tenants ->
             val tenant = TenantId(UUID.randomUUID())
             val other = TenantId(UUID.randomUUID())
             val e = at.plusSeconds(3600)
             insert(tenant, "BG-OPEN", e, "UNLOCKED", listOf("p1", "p2"))
             insert(tenant, "BG-SEALED", e.plusSeconds(10), "SEALED", listOf("p1", "p2"))
-            insert(tenant, "BG-OLD", at, "UNLOCKED", listOf("p1"))
-            insert(other, "BG-OTHER", e, "UNLOCKED", listOf("p9"))
+            insert(tenant, "BG-OLD", at, "UNLOCKED", listOf("p1", "p0"))
+            insert(other, "BG-OTHER", e, "UNLOCKED", listOf("p9", "p8"))
 
             fun ask(
                 t: TenantId,
@@ -102,20 +101,19 @@ class BreakGlassSessionViewTest {
             // a tenant other than the bound one reads nothing (row-level security and the bound check)
             assertThat(ask(tenant, "p1", bound = other)).isNull()
             assertThat(ask(other, "p9", bound = tenant)).isNull()
-            assertThat(TENANT_A).isNotEqualTo(TENANT_B)
         }
 
     @Test
-    fun `INV-AC-9383 several rows give the latest expiry and a tie gives the smaller unlock ref`() =
+    fun `INV-AC-9383 several rows give the latest expiry and a tie gives the smaller unlock ref`(): Unit =
         withView { view, tenants ->
             val tenant = TenantId(UUID.randomUUID())
             val late = at.plusSeconds(7200)
-            insert(tenant, "BG-B", late, "UNLOCKED", listOf("p1"))
-            insert(tenant, "BG-A", late, "UNLOCKED", listOf("p1"))
-            insert(tenant, "BG-C", at.plusSeconds(60), "UNLOCKED", listOf("p1"))
+            insert(tenant, "BG-B", late, "UNLOCKED", listOf("p1", "p0"))
+            insert(tenant, "BG-A", late, "UNLOCKED", listOf("p1", "p0"))
+            insert(tenant, "BG-C", at.plusSeconds(60), "UNLOCKED", listOf("p1", "p0"))
             assertThat(tenants.bind(tenant, "t") { view.restrictedSession(tenant, "p1", at) }?.unlockRef)
                 .isEqualTo("BG-A")
-            insert(tenant, "BG-Z", late.plusSeconds(1), "UNLOCKED", listOf("p1"))
+            insert(tenant, "BG-Z", late.plusSeconds(1), "UNLOCKED", listOf("p1", "p0"))
             assertThat(tenants.bind(tenant, "t") { view.restrictedSession(tenant, "p1", at) }?.unlockRef)
                 .isEqualTo("BG-Z")
         }

@@ -24,7 +24,11 @@ class BreakGlassLifecycleResourceTest {
                 .getResources("META-INF/gst/break-glass-lifecycle-operations.tsv")
                 .toList()
         assertThat(urls).describedAs("one resource on the class path").hasSize(1)
-        return urls.single().readText().removeSuffix("\n").split('\n')
+        return urls
+            .single()
+            .readText()
+            .removeSuffix("\n")
+            .split('\n')
     }
 
     @Test

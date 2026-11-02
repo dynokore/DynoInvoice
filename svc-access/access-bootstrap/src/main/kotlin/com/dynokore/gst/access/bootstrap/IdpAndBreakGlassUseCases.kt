@@ -167,7 +167,7 @@ class BreakGlassUseCases {
         clock: Clock,
     ): BreakGlassSessions = JooqBreakGlassSessions(dsl, tenants, clock)
 
-    /** Replaces the default view of service-runtime's restricted mode: access-svc reads its own table (INV-Q-9298 B). */
+    /** Replaces the default view of the restricted mode: access-svc reads its own table (INV-Q-9298 B). */
     @Bean
     fun breakGlassSessionView(
         dsl: DSLContext,

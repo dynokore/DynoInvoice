@@ -375,7 +375,7 @@ class ServedContext(
         }
     }
 
-    /** The chain without the sync-edge caller filter, so a request under /internal/v1/ with no line reaches the later filters. */
+    /** The chain without the sync-edge caller filter, so a request with no edge line reaches the later filters. */
     private val modeOnlyMvc: MockMvc by lazy {
         MockMvcBuilders
             .webAppContextSetup(context.sourceApplicationContext as WebApplicationContext)
@@ -386,7 +386,7 @@ class ServedContext(
 
     /**
      * A request to [path] that is no operation of the contract (a look-alike), sent through the same filters, or with
-     * [edge] false through the same filters but the sync-edge caller filter (order -85, which refuses such a request first).
+     * [edge] false through the same filters but the sync-edge caller filter (order -85, which refuses it first).
      */
     fun raw(
         method: String,
