@@ -612,9 +612,18 @@ class ChainVerificationDbTest {
         runJob(tenant, lookAlikeEntity)
         eventsOfType(tenant, domainType).size shouldBe 1
         eventsOfType(tenant, platformType).size shouldBe 0
-        // the tenant-wide pair of tenant A is not verified under tenant B: no row of B is written for tenant
-        runs(other).size shouldBe 0
         runs(tenant).single().entityRef shouldBe lookAlikeEntity
+        // the tenant-wide chain of tenant A is altered; the job run for tenant B reads only B's intact chain
+        auditChain(tenant)
+        alterAudit(tenant)
+        runJob(tenant, tenantWide)
+        runJob(other, tenantWide)
+        runs(tenant).map { it.entityRef to it.result }.last() shouldBe (tenantWide to "FAILED")
+        runs(other).single().entityRef shouldBe tenantWide
+        runs(other).single().result shouldBe "VERIFIED"
+        failures(other).size shouldBe 0
+        eventsOfType(other, platformType).size shouldBe 0
+        eventsOfType(tenant, platformType).size shouldBe 1
     }
 
     @Test
