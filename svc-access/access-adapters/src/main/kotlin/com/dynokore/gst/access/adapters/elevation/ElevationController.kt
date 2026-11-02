@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.elevation
 
+import com.dynokore.gst.access.adapters.elevation.ElevationCommands.Reply
 import com.dynokore.gst.access.adapters.http.ApiConflict
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.application.elevation.DecideElevationUseCase
@@ -52,9 +53,7 @@ open class ElevationController(
     private val withdraw: WithdrawElevationUseCase,
     private val callers: ElevationCallers,
     private val tenants: TenantContext,
-    private val tx: TransactionRunner,
-    private val idempotency: IdempotencyStore,
-    private val mapper: ObjectMapper,
+    private val commands: ElevationCommands,
 ) : ElevationApi {
     override fun requestElevation(
         idempotencyKey: UUID,
@@ -65,9 +64,8 @@ open class ElevationController(
         // a request is for the bound tenant only
         if (elevationRequest.tenantRef != tenant) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val ask = ElevationAsk(ElevationKind.ELEVATION, tenant, actor, elevationRequest.caseId)
-        return once(actor, idempotencyKey, "POST requestElevation", elevationRequest, {
-            mapper.readValue(it, ElevationResponse::class.java)
-        }) {
+        val id = CommandKey(actor, idempotencyKey, "POST requestElevation")
+        return commands.once(id, elevationRequest, commands.reader(ElevationResponse::class.java)) {
             Reply(HttpStatus.CREATED, elevationBody(opened(open.handle(actor, ask, elevationRequest.reason))))
         }
     }
@@ -84,12 +82,10 @@ open class ElevationController(
                 actor,
                 diagnosticInvitationRequest.caseId,
             )
-        return once(
-            actor,
-            idempotencyKey,
-            "POST inviteDiagnostics",
+        return commands.once(
+            CommandKey(actor, idempotencyKey, "POST inviteDiagnostics"),
             diagnosticInvitationRequest,
-            { mapper.readValue(it, DiagnosticInvitationResponse::class.java) },
+            commands.reader(DiagnosticInvitationResponse::class.java),
         ) {
             Reply(HttpStatus.CREATED, invitationBody(opened(open.handle(actor, ask, null))))
         }
@@ -105,12 +101,10 @@ open class ElevationController(
             throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         }
         val grant = decideElevationRequest.decision == DecideElevationRequest.Decision.GRANT
-        return once(
-            actor,
-            idempotencyKey,
-            "POST decideElevation $requestRef",
+        return commands.once(
+            CommandKey(actor, idempotencyKey, "POST decideElevation $requestRef"),
             decideElevationRequest,
-            ::decisionBody,
+            commands::decisionBody,
         ) {
             val record = settled(decide.handle(actor, requestRef, grant, decideElevationRequest.validForMinutes))
             Reply(
@@ -131,7 +125,8 @@ open class ElevationController(
         idempotencyKey: UUID,
     ): ResponseEntity<Unit> {
         val actor = operator(ElevationKeys.REQUEST)
-        return once(actor, idempotencyKey, "DELETE withdrawElevationRequest $requestRef", null, null) {
+        val id = CommandKey(actor, idempotencyKey, "DELETE withdrawElevationRequest $requestRef")
+        return commands.once(id, null, null) {
             settled(withdraw.handle(actor, requestRef, ElevationKind.ELEVATION))
             Reply(HttpStatus.NO_CONTENT, null)
         }
@@ -142,62 +137,11 @@ open class ElevationController(
         idempotencyKey: UUID,
     ): ResponseEntity<Unit> {
         val actor = operator(ElevationKeys.INVITE)
-        return once(actor, idempotencyKey, "DELETE withdrawDiagnosticInvitation $invitationRef", null, null) {
+        val id = CommandKey(actor, idempotencyKey, "DELETE withdrawDiagnosticInvitation $invitationRef")
+        return commands.once(id, null, null) {
             settled(withdraw.handle(actor, invitationRef, ElevationKind.DIAGNOSTIC_INVITATION))
             Reply(HttpStatus.NO_CONTENT, null)
         }
-    }
-
-    /** What a command answers: the status and the body, or null for a 204. */
-    private class Reply<T : Any>(
-        val status: HttpStatus,
-        val body: T?,
-    )
-
-    /**
-     * API-15, TPL-04: the command and the key record commit in one transaction. A replay of the same key with the same
-     * method, operation and body returns the stored status and body; the same key with another one is 422, one still
-     * running is 409. A refusal thrown by [command] rolls back and stores nothing.
-     */
-    private fun <B : Any, T> once(
-        actor: IdentityRef,
-        key: UUID,
-        operation: String,
-        request: B?,
-        read: ((String) -> T)?,
-        command: () -> Reply<T>,
-    ): ResponseEntity<T> where T : Any {
-        val fingerprint = fingerprint(operation, request?.let { mapper.writeValueAsBytes(it) } ?: ByteArray(0))
-        val outcome =
-            tx.inTransaction {
-                idempotency.once(tenants.current(), actor.value, key, fingerprint) {
-                    val reply = command()
-                    StoredResponse(reply.status.value(), reply.body?.let { mapper.writeValueAsString(it) }.orEmpty())
-                }
-            }
-        val stored =
-            when (outcome) {
-                is IdempotencyOutcome.Fresh -> outcome.response
-                is IdempotencyOutcome.Replay -> outcome.response
-                IdempotencyOutcome.InFlight -> throw ApiRefusal(ClosedErrorCode.IN_FLIGHT)
-                IdempotencyOutcome.DifferentRequest -> throw ApiRefusal(ClosedErrorCode.DIFFERENT_REQUEST)
-            }
-        val status = HttpStatus.valueOf(stored.status)
-        return if (read == null || stored.body.isEmpty()) {
-            ResponseEntity.status(status).build()
-        } else {
-            ResponseEntity.status(status).body(read(stored.body))
-        }
-    }
-
-    private fun fingerprint(
-        operation: String,
-        body: ByteArray,
-    ): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update("$operation\n".toByteArray(StandardCharsets.UTF_8))
-        digest.update(body)
-        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /** The calling operator, after the live check of [permission] on its platform grants; 403 otherwise. */
@@ -235,14 +179,6 @@ open class ElevationController(
             ElevationOutcome.BadCase -> {
                 error("a decision never ends as $outcome")
             }
-        }
-
-    /** A decision answers the record it settled: an elevation (has a case) or a diagnostic invitation. */
-    private fun decisionBody(stored: String): DecideElevation200Response =
-        if (mapper.readTree(stored).has("caseId")) {
-            mapper.readValue(stored, ElevationResponse::class.java)
-        } else {
-            mapper.readValue(stored, DiagnosticInvitationResponse::class.java)
         }
 
     private fun elevationBody(record: ElevationRecord) =

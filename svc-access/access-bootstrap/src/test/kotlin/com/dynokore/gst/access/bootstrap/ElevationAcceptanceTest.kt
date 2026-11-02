@@ -138,6 +138,7 @@ class ElevationAcceptanceTest {
                 api.inviteDiagnostics(UUID.randomUUID(), DiagnosticInvitationRequest("INST-1", case)).body!!
             }
 
+        @Suppress("LongParameterList") // test helper with defaults
         fun decide(
             ref: String,
             actor: String = officer,

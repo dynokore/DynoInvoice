@@ -44,6 +44,15 @@ class Authorise(
         target: Target,
     ): Decision {
         val membership = directory.membership(target.entity) ?: return Decision.Deny(UNKNOWN_ENTITY)
+        return decideLive(principal, permission, target, membership)
+    }
+
+    private fun decideLive(
+        principal: IdentityRef,
+        permission: Permission,
+        target: Target,
+        membership: EntityMembership,
+    ): Decision {
         // a live read of the grant table in one transaction under the bound tenant; nothing is kept between calls
         val now = clock.instant()
         val first = decide(principal, permission, target, membership, now, operatorLive = false)
