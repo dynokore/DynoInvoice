@@ -36,7 +36,7 @@ class BreakGlassRestrictionTest {
         )
     private val p3Token = "Bearer token-p3"
     private val p1OfT2Token = "Bearer token-p1-t2"
-    private val unlockRef = "BG-9383"
+    private val unlockRef = "BG-1"
 
     @BeforeEach
     fun reset() {
@@ -60,7 +60,7 @@ class BreakGlassRestrictionTest {
     private fun actionRows(): Int =
         BoundaryFixture.asSuperuser { c ->
             c.createStatement().use { s ->
-                s.executeQuery("select count(*) from access.break_glass_action where unlock_ref = '$unlockRef'").use {
+                s.executeQuery("select count(*) from access.break_glass_action").use {
                     it.next()
                     it.getInt(1)
                 }
@@ -96,11 +96,7 @@ class BreakGlassRestrictionTest {
 
     private fun deleteSession() =
         BoundaryFixture.asSuperuser { c ->
-            c.createStatement().use {
-                it.executeUpdate(
-                    "delete from access.break_glass_session where unlock_ref = '$unlockRef'",
-                )
-            }
+            c.createStatement().use { it.executeUpdate("delete from access.break_glass_session") }
         }
 
     private fun ServedContext.isMapped(operation: ContractOperation) = mappedHandlers().any { it.key == operation.key }

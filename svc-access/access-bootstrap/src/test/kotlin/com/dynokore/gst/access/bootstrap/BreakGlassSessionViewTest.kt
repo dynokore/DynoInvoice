@@ -71,8 +71,8 @@ class BreakGlassSessionViewTest {
             val e = at.plusSeconds(3600)
             insert(tenant, "BG-OPEN", e, "UNLOCKED", listOf("p1", "p2"))
             insert(tenant, "BG-SEALED", e.plusSeconds(10), "SEALED", listOf("p1", "p2"))
-            insert(tenant, "BG-OLD", at, "UNLOCKED", listOf("p1", "p0"))
-            insert(other, "BG-OTHER", e, "UNLOCKED", listOf("p9", "p8"))
+            insert(tenant, "BG-OLD", at, "UNLOCKED", listOf("p1"))
+            insert(other, "BG-OTHER", e, "UNLOCKED", listOf("p9"))
 
             fun ask(
                 t: TenantId,
@@ -108,12 +108,12 @@ class BreakGlassSessionViewTest {
         withView { view, tenants ->
             val tenant = TenantId(UUID.randomUUID())
             val late = at.plusSeconds(7200)
-            insert(tenant, "BG-B", late, "UNLOCKED", listOf("p1", "p0"))
-            insert(tenant, "BG-A", late, "UNLOCKED", listOf("p1", "p0"))
-            insert(tenant, "BG-C", at.plusSeconds(60), "UNLOCKED", listOf("p1", "p0"))
+            insert(tenant, "BG-B", late, "UNLOCKED", listOf("p1"))
+            insert(tenant, "BG-A", late, "UNLOCKED", listOf("p1"))
+            insert(tenant, "BG-C", at.plusSeconds(60), "UNLOCKED", listOf("p1"))
             assertThat(tenants.bind(tenant, "t") { view.restrictedSession(tenant, "p1", at) }?.unlockRef)
                 .isEqualTo("BG-A")
-            insert(tenant, "BG-Z", late.plusSeconds(1), "UNLOCKED", listOf("p1", "p0"))
+            insert(tenant, "BG-Z", late.plusSeconds(1), "UNLOCKED", listOf("p1"))
             assertThat(tenants.bind(tenant, "t") { view.restrictedSession(tenant, "p1", at) }?.unlockRef)
                 .isEqualTo("BG-Z")
         }
