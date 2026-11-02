@@ -4,6 +4,7 @@ import com.dynokore.gst.access.adapters.elevation.ElevationController
 import com.dynokore.gst.access.adapters.http.ApiConflict
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.AuthoriseController
+import com.dynokore.gst.access.adapters.http.SoleOperatorController
 import com.dynokore.gst.access.application.elevation.DecideElevationUseCase
 import com.dynokore.gst.access.application.elevation.ElevationKeys
 import com.dynokore.gst.access.application.elevation.ElevationOutcome
@@ -14,6 +15,7 @@ import com.dynokore.gst.access.contract.model.DiagnosticInvitationRequest
 import com.dynokore.gst.access.contract.model.DiagnosticInvitationResponse
 import com.dynokore.gst.access.contract.model.ElevationRequest
 import com.dynokore.gst.access.contract.model.ElevationResponse
+import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
 import com.dynokore.gst.access.domain.elevation.ElevationAsk
 import com.dynokore.gst.access.domain.elevation.ElevationKind
 import com.dynokore.gst.access.domain.elevation.OperatorAccess
@@ -212,6 +214,20 @@ class ElevationAcceptanceTest {
                 }
             }
 
+        fun activeAcknowledgements(): Int =
+            BoundaryFixture.asSuperuser { c ->
+                c.createStatement().use { st ->
+                    st
+                        .executeQuery(
+                            "select count(*) from access.sole_operator_ack " +
+                                "where tenant_id = '$a' and status = 'ACTIVE'",
+                        ).use {
+                            it.next()
+                            it.getInt(1)
+                        }
+                }
+            }
+
         fun rows(): String =
             BoundaryFixture.asSuperuser { c ->
                 c.createStatement().use { s ->
@@ -298,6 +314,30 @@ class ElevationAcceptanceTest {
             assertThat(env.decision(env.support, content)).isEqualTo(allow)
             env.clock.advance(Duration.ofMinutes(31))
             assertThat(env.decision(env.support, content)).isEqualTo(deny)
+            assertThat(env.auditActions()).contains("approveElevation")
+        }
+
+    @Test
+    fun `INV-AC-2251 VP-07 planned, a tenant admin with an ACTIVE sole-operator acknowledgement is still refused`() =
+        run("SAAS") { env ->
+            // INV-Q-16448 A: the tenant.admin approver option is not built while VP-07 is planned
+            val vp07 = GstVariationPointCatalogue("access-svc").find(VariationPointKey("VP-07"))
+            assertThat(vp07!!.status).isEqualTo(VpStatus.PLANNED)
+            val ref = env.request().requestRef
+            val soleOperator = env.context.getBean(SoleOperatorController::class.java)
+            env.into(env.a, env.admin) {
+                soleOperator.recordSoleOperator(UUID.randomUUID(), SoleOperatorAckRequest(env.a.toString(), "audit"))
+            }
+            assertThat(env.activeAcknowledgements()).isEqualTo(1)
+            val before = env.rows()
+            assertThat(refusal { env.decide(ref, actor = env.admin) }).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            assertThat(env.rows()).isEqualTo(before)
+            assertThat(env.rows()).contains("PENDING")
+            assertThat(env.auditActions()).doesNotContain("approveElevation")
+            assertThat(env.decision(env.support, content)).isEqualTo(deny)
+            // the control: the security.officer of the tenant approves
+            val decided = env.decide(ref).body as ElevationResponse
+            assertThat(decided.status).isEqualTo(ElevationResponse.Status.GRANTED)
             assertThat(env.auditActions()).contains("approveElevation")
         }
 
