@@ -121,6 +121,7 @@ private class Env {
     val authorityRefs = mutableListOf<Triple<String, String, String>>()
     var allowedEntity: String? = null
     var denyAll = false
+    var heldOnly: String? = null
     var delta: String? = "delta-1"
     var decision: PackApprovalDecision = PackApprovalDecision.Allow(false, null, "A", emptySet())
     val decideArgs = mutableListOf<List<String>>()
@@ -137,7 +138,8 @@ private class Env {
                 { actor, ref, perm ->
                     calls += "authority"
                     authorityRefs += Triple(actor, ref, perm)
-                    !denyAll && (allowedEntity == null || allowedEntity == ref)
+                    !denyAll && (heldOnly == null || heldOnly == perm) &&
+                        (allowedEntity == null || allowedEntity == ref)
                 },
                 { _, _ ->
                     calls += "delta"
@@ -318,6 +320,94 @@ class MappingPackAuthoringTest {
         e.store.state() shouldBe before
         e.holderRequests shouldBe emptyList()
         e.approve() shouldBe Done(PackStatus.APPROVED)
+    }
+
+    @Test
+    fun `INV-Q-16632 draft and mapTaxCode need AUTHOR, a fake that holds only APPROVE refuses both`() {
+        val e = Env()
+        e.draft()
+        e.heldOnly = MappingPackPermissions.APPROVE
+        val before = e.store.state()
+        e.draft(id = "P2").shouldBeInstanceOf<Forbidden>().code shouldBe ErrorCode.SRT_004
+        e.map("A", "SR").shouldBeInstanceOf<Forbidden>().code shouldBe ErrorCode.SRT_004
+        e.store.state() shouldBe before
+        e.denyAll = true
+        e.draft(id = "P3").shouldBeInstanceOf<Forbidden>()
+        e.map("A", "SR").shouldBeInstanceOf<Forbidden>()
+        e.store.state() shouldBe before
+        e.denyAll = false
+        e.heldOnly = MappingPackPermissions.AUTHOR
+        e.draft(id = "P2") shouldBe Done(PackStatus.DRAFT)
+        e.map("A", "SR") shouldBe Done(PackStatus.DRAFT)
+        e.authorityRefs.map { it.third }.takeLast(2) shouldBe
+            listOf(MappingPackPermissions.AUTHOR, MappingPackPermissions.AUTHOR)
+    }
+
+    @Test
+    fun `INV-Q-16632 each command passes its own permission key to the authority`() {
+        val e = Env()
+        val keys = mutableListOf<String>()
+
+        fun key(call: () -> MappingPackResult): String {
+            val n = e.authorityRefs.size
+            call()
+            e.authorityRefs.size shouldBe n + 1
+            return e.authorityRefs
+                .last()
+                .third
+                .also { keys += it }
+        }
+        key { e.draft() } shouldBe MappingPackPermissions.AUTHOR
+        key { e.map("B", "ZR", SourceClass.SECONDARY) } shouldBe MappingPackPermissions.AUTHOR
+        key { e.accept("B") } shouldBe MappingPackPermissions.APPROVE
+        key { e.submit() } shouldBe MappingPackPermissions.AUTHOR
+        key { e.approve() } shouldBe MappingPackPermissions.APPROVE
+        key { e.activate() } shouldBe MappingPackPermissions.ACTIVATE
+        keys.size shouldBe 6
+    }
+
+    @Test
+    fun `INV-Q-16634 an entityRef that is empty, blank or over 64 characters is Forbidden with zero authority calls`() {
+        val e = Env().submitted()
+        val before = e.store.state()
+        e.authorityRefs.clear()
+        for (ref in listOf("", "   ", "a".repeat(65))) {
+            val results =
+                listOf(
+                    e.authoring.draft(DraftCommand("u", ref, "PX", TENANT, "v")),
+                    e.authoring.mapTaxCode(MapTaxCodeCommand("author-1", ref, "P1", "C", "SR", SourceClass.PRIMARY)),
+                    e.authoring.acceptEntry(AcceptEntryCommand("approver-1", ref, "P1", "B", "ok", TODAY.plusDays(5))),
+                    e.authoring.submit(PackActionCommand("author-1", ref, "P1")),
+                    e.approve(entityRef = ref),
+                    e.authoring.activate(ActivateCommand("approver-1", ref, "P1", TODAY, null, "1.0.0")),
+                )
+            results.forEach {
+                it shouldBe Forbidden(ErrorCode.SRT_004, "the action is not permitted")
+            }
+        }
+        e.authorityRefs shouldBe emptyList()
+        e.store.state() shouldBe before
+        val ok = "a".repeat(64)
+        e.authoring.draft(DraftCommand("u", ok, "P64", TENANT, "v")) shouldBe Done(PackStatus.DRAFT)
+        e.authorityRefs.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-Q-14652 a pack drafted for E-001 refuses all five commands for E-002 and for the look-alike e-001`() {
+        val e = Env().submitted()
+        val before = e.store.state()
+        for (other in listOf("E-002", "e-001")) {
+            listOf(
+                e.authoring.mapTaxCode(MapTaxCodeCommand("author-1", other, "P1", "C", "SR", SourceClass.PRIMARY)),
+                e.authoring.acceptEntry(AcceptEntryCommand("approver-1", other, "P1", "B", "ok", TODAY.plusDays(5))),
+                e.authoring.submit(PackActionCommand("author-1", other, "P1")),
+                e.approve(entityRef = other),
+                e.authoring.activate(ActivateCommand("approver-1", other, "P1", TODAY, null, "1.0.0")),
+            ).forEach { it shouldBe Forbidden(ErrorCode.SRT_004, "the action is not permitted") }
+        }
+        e.store.state() shouldBe before
+        e.holderRequests shouldBe emptyList()
+        e.approve(entityRef = "E-001") shouldBe Done(PackStatus.APPROVED)
     }
 
     @Test
