@@ -165,3 +165,15 @@ QuestionnaireRecommendation.ref	schema_property	openapi.yaml	INV-REQ-1246
 QuestionnaireRecommendation.reason	schema_property	openapi.yaml	INV-REQ-1246
 QuestionnaireRecommendation.kind.VARIATION_POINT	schema_enum_value	openapi.yaml	INV-REQ-1246
 QuestionnaireRecommendation.kind.PROFILE	schema_enum_value	openapi.yaml	INV-REQ-1246
+# INV-T-16120. Extension target, scope and submission due date (INV-REQ-86).
+PeriodExtensionRequest.target	schema_property	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.newSubmissionDueDate	schema_property	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.scope	schema_property	openapi.yaml	INV-REQ-86
+PeriodExtensionResponse.target	schema_property	openapi.yaml	INV-REQ-86
+PeriodExtensionResponse.newSubmissionDueDate	schema_property	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.target.FILING_DUE_DATE	schema_enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.target.SUBMISSION_DUE_DATE	schema_enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.target.BOTH	schema_enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.scope.kind.PERIOD	schema_enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.scope.kind.DOCUMENT_SET	schema_enum_value	openapi.yaml	INV-REQ-86
+PeriodExtensionRequest.scope.kind.DATE_RANGE	schema_enum_value	openapi.yaml	INV-REQ-86

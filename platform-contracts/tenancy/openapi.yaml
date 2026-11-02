@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.26.0
+  version: 1.27.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1900,8 +1900,13 @@ paths:
     post:
       operationId: recordExtension
       summary: Record an IRAS-granted filing extension (SDS §7, SCR-07.3)
-      description: Changes the due date; never silent. Emits PeriodExtended. Tenancy records the extension
+      description: >-
+        Changes the due date; never silent. Emits PeriodExtended. Tenancy records the extension
         only — it never computes a due date (submission-svc recomputes).
+        Mapping into PeriodExtended: target FILING_DUE_DATE fills newFilingDueDate from newDueDate;
+        SUBMISSION_DUE_DATE fills newSubmissionDueDate from newDueDate; BOTH fills both
+        (newFilingDueDate from newDueDate, newSubmissionDueDate from newSubmissionDueDate);
+        target and scope are copied.
       tags:
       - periods
       x-principal: filing-workflow
@@ -4231,6 +4236,13 @@ components:
           maxLength: 128
     PeriodExtensionRequest:
       type: object
+      description: >-
+        newDueDate is the new absolute date of the named target (for BOTH, the filing due date).
+        BOTH requires newSubmissionDueDate and the other targets forbid it. Scope kind DOCUMENT_SET
+        requires a non-empty documentRefs. Scope kind DATE_RANGE requires dateFrom and dateTo, with
+        dateFrom not after dateTo. Target FILING_DUE_DATE requires scope kind PERIOD. A request
+        without target and scope means FILING_DUE_DATE and PERIOD. Each refusal is a 400 of the
+        error envelope and stores nothing.
       required:
       - newDueDate
       - irasReference
@@ -4245,6 +4257,110 @@ components:
         evidenceRef:
           type: string
           maxLength: 64
+        target:
+          type: string
+          description: Which due date the extension moves.
+          enum:
+          - FILING_DUE_DATE
+          - SUBMISSION_DUE_DATE
+          - BOTH
+          default: FILING_DUE_DATE
+        newSubmissionDueDate:
+          type: string
+          format: date
+          description: New absolute submission due date; present exactly when target is BOTH.
+        scope:
+          type: object
+          description: What the extension covers; absent means kind PERIOD.
+          required:
+          - kind
+          properties:
+            kind:
+              type: string
+              description: Extension scope kind.
+              enum:
+              - PERIOD
+              - DOCUMENT_SET
+              - DATE_RANGE
+              default: PERIOD
+            documentRefs:
+              type: array
+              description: Doc UUIDs in scope, present when kind is DOCUMENT_SET (non-empty).
+              items:
+                type: string
+                format: uuid
+            dateFrom:
+              type: string
+              format: date
+              description: Range start, present when kind is DATE_RANGE; not after dateTo.
+            dateTo:
+              type: string
+              format: date
+              description: Range end, present when kind is DATE_RANGE.
+          allOf:
+          - if:
+              properties:
+                kind:
+                  const: DOCUMENT_SET
+              required:
+              - kind
+            then:
+              required:
+              - documentRefs
+              properties:
+                documentRefs:
+                  minItems: 1
+          - if:
+              properties:
+                kind:
+                  const: DATE_RANGE
+              required:
+              - kind
+            then:
+              required:
+              - dateFrom
+              - dateTo
+      allOf:
+      - if:
+          properties:
+            target:
+              const: BOTH
+          required:
+          - target
+        then:
+          required:
+          - newSubmissionDueDate
+      - if:
+          required:
+          - newSubmissionDueDate
+        then:
+          required:
+          - target
+          properties:
+            target:
+              const: BOTH
+      - if:
+          properties:
+            target:
+              const: FILING_DUE_DATE
+          required:
+          - target
+        then:
+          properties:
+            scope:
+              properties:
+                kind:
+                  const: PERIOD
+      - if:
+          not:
+            required:
+            - target
+        then:
+          properties:
+            scope:
+              properties:
+                kind:
+                  const: PERIOD
     PeriodExtensionResponse:
       type: object
       required:
@@ -4261,6 +4377,17 @@ components:
         newDueDate:
           type: string
           format: date
+        target:
+          type: string
+          description: Which due date the extension moved.
+          enum:
+          - FILING_DUE_DATE
+          - SUBMISSION_DUE_DATE
+          - BOTH
+        newSubmissionDueDate:
+          type: string
+          format: date
+          description: New absolute submission due date, present when target is BOTH.
     RenditionResponsibilityRequest:
       type: object
       required:

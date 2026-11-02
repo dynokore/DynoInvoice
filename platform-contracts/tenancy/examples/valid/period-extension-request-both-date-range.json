@@ -1,0 +1,12 @@
+{
+  "newDueDate": "2026-05-14",
+  "irasReference": "IRAS-EXT-2026-118",
+  "evidenceRef": "DOC-9911",
+  "target": "BOTH",
+  "newSubmissionDueDate": "2026-05-21",
+  "scope": {
+    "kind": "DATE_RANGE",
+    "dateFrom": "2026-03-01",
+    "dateTo": "2026-03-15"
+  }
+}
