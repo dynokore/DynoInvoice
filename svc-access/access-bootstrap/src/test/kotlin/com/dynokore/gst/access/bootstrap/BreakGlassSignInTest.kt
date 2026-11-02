@@ -77,7 +77,7 @@ class BreakGlassSignInTest {
             assertThat(served.signIn(b.tenant, refB, credentialA).status).isEqualTo(403)
             assertThat(served.signIn(b.tenant, refB, credentialB).status).isEqualTo(200)
             // a wrong credential, one character off
-            assertThat(served.signIn(a.tenant, refA, credentialA.dropLast(1) + (if (credentialA.last() == 'A') "B" else "A")).status).isEqualTo(403)
+            assertThat(served.signIn(a.tenant, refA, credentialA.dropLast(1) + "A").status).isEqualTo(403)
             // a tenant with no account row: fail closed, the same 403
             val bare = newTenant()
             served.pair(bare)
