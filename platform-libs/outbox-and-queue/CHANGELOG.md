@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.12.1] - 2026-11-02
+### Fixed
+- `claim_due` (emitted by `QueueSchema.ddl`) no longer locks its candidate rows: the candidate query ends `order by q.seq limit 20` and only the row the claim takes is locked (`for update of q skip locked` in the re-check, under the partition advisory lock), so an uncommitted claim no longer hides the heads of other partitions (INV-Q-15728, INV-REQ-549, INV-T-15732).
+
 ## [6.12.0] - 2026-11-02
 ### Added
 - `Envelope.allowsTenantWide(type)`: the envelope accepts the tenant-wide entity for the domain event `com.dynokore.gst.transport.AccessPointRouteChanged.v1` (exact type string, a closed set of one; not a platform type, still needs a real tenant) and for no other domain event; `realTenantEntityOf` and `JdbcOutboxWriter` follow (INV-Q-15474, INV-REQ-1162, INV-AC-15489, INV-T-15490).

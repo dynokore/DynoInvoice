@@ -24,11 +24,10 @@ private const val DEFAULT_CLAIM_TIMEOUT_MINUTES = 5L
  *   consumer) is still in the table, claimed or not. Within a lane, a document's items are therefore
  *   handled one at a time in enqueue order; across lanes the priority applies, so a live item never waits for
  *   an earlier backfill item of the same document.
- * - **SKIP LOCKED.** Candidates are selected `FOR UPDATE SKIP LOCKED`, so workers never queue behind each other.
- *   A candidate row lock alone cannot keep a later item of a partition from being claimed while the head's
- *   claim is still uncommitted, so each claim also takes a transaction advisory lock on its partition and
- *   re-checks eligibility under it. All of this runs inside the `<svc>_sys`-owned definer function
- *   [QueueSchema.CLAIM_DUE], in one short transaction.
+ * - **SKIP LOCKED.** Candidates are read without a row lock, so one open claim never hides the heads of other
+ *   partitions. Each claim takes a transaction advisory lock on its partition and re-checks eligibility under it,
+ *   locking only the row it takes (`FOR UPDATE SKIP LOCKED`), so workers never queue behind each other. All of this
+ *   runs inside the `<svc>_sys`-owned definer function [QueueSchema.CLAIM_DUE], in one short transaction.
  * - **Cross-tenant claim (ARC 4.3 step 1a; INV-Q-3953).** The claim is a jOOQ read of [QueueSchema.CLAIM_DUE] in its
  *   own transaction under the platform binding, which gets the claim columns only; the payload is read later in the
  *   item's own tenant transaction.

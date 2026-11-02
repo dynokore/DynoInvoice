@@ -135,8 +135,9 @@ object QueueSchema {
     }
 
     /**
-     * The claim, as [JdbcWorkQueue] ran it on the former worker connection: candidates `FOR UPDATE SKIP LOCKED`, a
-     * transaction advisory lock on the candidate's partition, a re-check under it, then the claim. Handed to the sys
+     * The claim, as [JdbcWorkQueue] ran it on the former worker connection: candidates read without a row
+     * lock, a transaction advisory lock on the candidate's partition, a re-check under it that locks only the row it
+     * takes (`FOR UPDATE SKIP LOCKED`), then the claim. Handed to the sys
      * role, EXECUTE for the runtime login only.
      */
     private fun claimDue(
@@ -169,7 +170,7 @@ object QueueSchema {
                           select 1 from $s.$WORK_QUEUE p
                           where p.tenant_id = q.tenant_id and p.partition_key = q.partition_key and p.lane = q.lane
                             and p.consumer is not distinct from q.consumer and p.seq < q.seq)
-                    order by q.seq limit $CANDIDATES for update of q skip locked
+                    order by q.seq limit $CANDIDATES
             """.trimIndent()
     }
 
