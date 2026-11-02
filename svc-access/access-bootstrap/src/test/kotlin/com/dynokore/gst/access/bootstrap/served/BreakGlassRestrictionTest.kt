@@ -36,7 +36,7 @@ class BreakGlassRestrictionTest {
         )
     private val p3Token = "Bearer token-p3"
     private val p1OfT2Token = "Bearer token-p1-t2"
-    private val unlockRef = "BG-1"
+    private val unlockRef = "BG-9383"
 
     @BeforeEach
     fun reset() {
@@ -60,7 +60,7 @@ class BreakGlassRestrictionTest {
     private fun actionRows(): Int =
         BoundaryFixture.asSuperuser { c ->
             c.createStatement().use { s ->
-                s.executeQuery("select count(*) from access.break_glass_action").use {
+                s.executeQuery("select count(*) from access.break_glass_action where unlock_ref = '$unlockRef'").use {
                     it.next()
                     it.getInt(1)
                 }
@@ -96,7 +96,11 @@ class BreakGlassRestrictionTest {
 
     private fun deleteSession() =
         BoundaryFixture.asSuperuser { c ->
-            c.createStatement().use { it.executeUpdate("delete from access.break_glass_session") }
+            c.createStatement().use {
+                it.executeUpdate(
+                    "delete from access.break_glass_session where unlock_ref = '$unlockRef'",
+                )
+            }
         }
 
     private fun ServedContext.isMapped(operation: ContractOperation) = mappedHandlers().any { it.key == operation.key }
@@ -274,5 +278,27 @@ class BreakGlassRestrictionTest {
             assertThat(with.answer()).isEqualTo(without.answer())
             assertThat(served.refused()).isEqualTo(before)
             assertThat(without.status).describedAs("the ordinary decision refuses the withdrawn role").isNotIn(200, 201)
+        }
+
+    @Test
+    fun `INV-AC-9383 the fallback authorise is refused for an approver and decided as usual for a non-approver`() =
+        withServedService(named) { served ->
+            val clock = served.application.getBean(Clock::class.java) as MovableClock
+            val now = clock.freeze()
+            val authorise = op("authorise")
+            assertThat(authorise.callerAuth).isEqualTo("end-user")
+            assertThat(authorise.operationId).isNotIn(lifecycle)
+            val baseline = served.send(authorise, p3Token).answer()
+            insertSession(now.plus(Duration.ofHours(4)))
+            // P1 (an approver of the open session): 403 SRT-004 from the mode, the counter rises by one
+            val before = served.refused()
+            val p1 = served.send(authorise, USER_A_TOKEN)
+            assertThat(p1.status).describedAs(p1.contentAsString).isEqualTo(403)
+            assertThat(p1.contentAsString).contains("SRT-004")
+            assertThat(served.refused()).isEqualTo(before + 1)
+            // P3 (not an approver): the ordinary decision answers, unchanged and not counted by the mode
+            val p3 = served.send(authorise, p3Token)
+            assertThat(served.refused()).isEqualTo(before + 1)
+            assertThat(p3.answer()).isEqualTo(baseline)
         }
 }
