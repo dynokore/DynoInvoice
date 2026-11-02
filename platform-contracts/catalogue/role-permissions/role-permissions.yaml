@@ -298,6 +298,12 @@ permissions:
     cells:
       - {role: tax.approver, form: SAAS, allowance: PERMITTED}
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: consultant-grant.request
+    kind: WRITE
+    row: "Request an implementation consultant grant"
+    cells:
+      - {role: platform.support, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
   - key: access-review.run
     kind: WRITE
     row: "Approve operator elevation or diagnostic invitation; review audit log; run access reviews; handle privacy requests"

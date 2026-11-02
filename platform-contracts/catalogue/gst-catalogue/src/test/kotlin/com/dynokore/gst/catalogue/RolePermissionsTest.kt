@@ -395,6 +395,30 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `the consultant grant request key is WRITE with exactly two cells and every other role is DENIED`() {
+        val key = "consultant-grant.request"
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind(key))
+        val holders =
+            mapOf(
+                saas to setOf("platform.support"),
+                privateForm to setOf("deployment.operator"),
+            )
+        both.forEach { form ->
+            val actual =
+                RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            assertEquals(holders.getValue(form).associateWith { y }, actual, "$key $form")
+            listOf("platform.engineer", "tenant.admin", "security.officer").forEach {
+                assertNull(cell(form, it, key), "$it $form")
+            }
+        }
+        assertEquals(y, cell(saas, "tenant.admin", "user.manage"))
+        assertEquals(y, cell(privateForm, "tenant.admin", "user.manage"))
+        assertNull(cell(saas, "platform.support", "user.manage"))
+        assertNull(cell(privateForm, "deployment.operator", "user.manage"))
+        assertNull(RolePermissions.kind("consultant-grant.requests"))
+    }
+
+    @Test
     fun `INV-AC-922 platform support opens a session but sees no invoice content`() {
         assertEquals(y, cell(saas, "platform.support", "operator-session.open"))
         // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
