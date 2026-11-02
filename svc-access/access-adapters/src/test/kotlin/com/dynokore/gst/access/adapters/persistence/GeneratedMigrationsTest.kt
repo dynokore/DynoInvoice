@@ -40,11 +40,41 @@ class GeneratedMigrationsTest {
 
     @Test
     fun `the outbox migration is the DDL outbox-and-queue generates for the access schema`() {
-        val expected = OutboxSchema.ddl("access", "access_runtime", "access_sys").trim()
+        val generated = OutboxSchema.ddl("access", "access_runtime", "access_sys").trim()
+        // The testmode column is created by the forward migration below (INV-Q-16601 A); the V file stays unedited.
+        assertEquals(1, TESTMODE_COLUMN.findAll(generated).count())
+        val expected = generated.replaceFirst(TESTMODE_COLUMN, "")
         val text = migration("V202610190900__create_outbox.sql")
+        assertTrue("testmode" !in text)
         assertEquals(OUTBOX_RAW_FEFF, text.count { it == FEFF })
         assertEquals(expected, escapeBlankCodePoints(body(text)))
     }
+
+    @Test
+    fun `the outbox testmode migration is the upgrade DDL outbox-and-queue generates for the access schema`() {
+        assertEquals(upgradeStatement(migration(TESTMODE_MIGRATION)), upgradeStatement(OutboxSchema.testModeUpgradeDdl("access")))
+    }
+
+    @Test
+    fun `the testmode upgrade comparison fails on a changed statement`() {
+        val actual = upgradeStatement(migration(TESTMODE_MIGRATION))
+        val probes =
+            listOf(
+                actual.replace("access.outbox", "access.outbox2"),
+                actual.replace("default false", "default true"),
+                "$actual; $actual",
+            )
+        probes.forEach { assertTrue(it != upgradeStatement(OutboxSchema.testModeUpgradeDdl("access")), it) }
+    }
+
+    /** Comment lines removed and the trailing semicolon dropped. */
+    private fun upgradeStatement(text: String): String =
+        text
+            .lines()
+            .filterNot { it.trimStart().startsWith("--") }
+            .joinToString("\n")
+            .trim()
+            .removeSuffix(";")
 
     @Test
     fun `the config migration is the DDL config-resolver generates for the access schema`() {
@@ -121,6 +151,8 @@ class GeneratedMigrationsTest {
     private companion object {
         const val FEFF = '\uFEFF'
         const val OUTBOX_RAW_FEFF = 3
+        const val TESTMODE_MIGRATION = "V202611021300__outbox_testmode.sql"
+        val TESTMODE_COLUMN = Regex(""",\s*testmode boolean not null default false""")
         const val CONFIG_RAW_FEFF = 18
         val BLANK_CODE_POINTS =
             listOf(0x00A0, 0x1680, 0x2000, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF)

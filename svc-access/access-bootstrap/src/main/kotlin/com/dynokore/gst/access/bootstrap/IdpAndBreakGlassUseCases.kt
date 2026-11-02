@@ -8,6 +8,7 @@ import com.dynokore.gst.access.adapters.http.ResealPermissionCheck
 import com.dynokore.gst.access.adapters.http.ResolvedResealPermissionCheck
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassAccounts
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassApprovals
+import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessionView
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessions
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqIdpGroupMappings
@@ -44,6 +45,7 @@ import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -164,6 +166,14 @@ class BreakGlassUseCases {
         tenants: TenantContext,
         clock: Clock,
     ): BreakGlassSessions = JooqBreakGlassSessions(dsl, tenants, clock)
+
+    /** Replaces the default view of the restricted mode: access-svc reads its own table (INV-Q-9298 B). */
+    @Bean
+    fun breakGlassSessionView(
+        dsl: DSLContext,
+        tenants: TenantContext,
+        tx: TransactionRunner,
+    ): BreakGlassSessionView = JooqBreakGlassSessionView(dsl, tenants, tx)
 
     @Bean
     fun breakGlassAlerts(

@@ -1,0 +1,5 @@
+POST	/internal/v1/access/break-glass
+POST	/internal/v1/access/break-glass/approvals
+POST	/internal/v1/access/break-glass/{unlockRef}/sign-in
+POST	/internal/v1/access/break-glass/{unlockRef}/reseal
+POST	/internal/v1/access/break-glass/{unlockRef}/actions

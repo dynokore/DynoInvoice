@@ -4,6 +4,7 @@ import com.dynokore.gst.access.bootstrap.BoundaryFixture
 import com.dynokore.gst.access.bootstrap.CapturedEvents
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
+import com.dynokore.platform.serviceruntime.identity.SyncEdgeCallerFilter
 import com.dynokore.platform.serviceruntime.identity.WorkloadToken
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
@@ -372,6 +373,36 @@ class ServedContext(
             // the stub of the call is removed again: a later refused sweep starts with no stubbing
             if (stubHandler) Mockito.reset(*spies.toTypedArray())
         }
+    }
+
+    /** The chain without the sync-edge caller filter, so a request with no edge line reaches the later filters. */
+    private val modeOnlyMvc: MockMvc by lazy {
+        MockMvcBuilders
+            .webAppContextSetup(context.sourceApplicationContext as WebApplicationContext)
+            .addFilters<DefaultMockMvcBuilder>(
+                *filters(context).filterNot { it is SyncEdgeCallerFilter }.toTypedArray(),
+            ).build()
+    }
+
+    /**
+     * A request to [path] that is no operation of the contract (a look-alike), sent through the same filters, or with
+     * [edge] false through the same filters but the sync-edge caller filter (order -85, which refuses it first).
+     */
+    fun raw(
+        method: String,
+        path: String,
+        workload: String,
+        authorization: String,
+        edge: Boolean = true,
+    ): MockHttpServletResponse {
+        assertNoStubbings()
+        val request =
+            MockMvcRequestBuilders
+                .request(HttpMethod.valueOf(method), path)
+                .header("X-Workload-Token", workload)
+                .header("Authorization", authorization)
+        Mockito.clearInvocations(*spies.toTypedArray())
+        return (if (edge) mvc else modeOnlyMvc).perform(request).andReturn().response
     }
 
     /** A POST of [operation] with the JSON [body] and the idempotency key [key], as [call] sends it. */
