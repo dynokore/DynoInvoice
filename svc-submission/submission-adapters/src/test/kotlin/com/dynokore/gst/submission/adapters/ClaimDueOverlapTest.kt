@@ -21,7 +21,9 @@ class ClaimDueOverlapTest {
     fun after() = clean()
 
     private fun clean() {
-        SubmissionDb.superuser().use { c -> c.createStatement().use { it.execute("delete from submission.work_queue") } }
+        SubmissionDb.superuser().use { c ->
+            c.createStatement().use { it.execute("delete from submission.work_queue") }
+        }
     }
 
     private fun enqueue(partitions: List<String>) {
@@ -76,7 +78,11 @@ class ClaimDueOverlapTest {
             two.claimed() shouldBe emptyList()
             one.commit()
             SubmissionDb.superuser().use { c ->
-                c.createStatement().use { it.execute("delete from submission.work_queue where seq = (select min(seq) from submission.work_queue)") }
+                c.createStatement().use {
+                    it.execute(
+                        "delete from submission.work_queue where seq = (select min(seq) from submission.work_queue)",
+                    )
+                }
             }
             two.claimed() shouldBe listOf("C")
         } finally {
