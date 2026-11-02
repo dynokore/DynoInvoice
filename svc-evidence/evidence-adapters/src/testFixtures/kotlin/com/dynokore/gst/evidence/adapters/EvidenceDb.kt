@@ -7,6 +7,7 @@ import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.sql.Connection
 import java.sql.DriverManager
+import java.time.Duration
 import java.util.UUID
 
 /**
@@ -49,6 +50,9 @@ object EvidenceDb {
             runCatching {
                 val postgres =
                     PostgreSQLContainer(DockerImageName.parse(image).asCompatibleSubstituteFor("postgres"))
+                        .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+                        .withStartupAttempts(PG_START_ATTEMPTS)
+                        .withCommand(*pgFastCommand)
                         .withCopyFileToContainer(
                             MountableFile.forClasspathResource("db/roles.sql"),
                             "${INIT_DIRECTORY}00-roles.sql",
@@ -155,3 +159,10 @@ object EvidenceDb {
             .migrate()
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
