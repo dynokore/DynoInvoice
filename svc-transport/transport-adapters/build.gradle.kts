@@ -57,4 +57,15 @@ dependencies {
     testImplementation(libs.platform.tenancyJooq.impl)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
+    testImplementation(libs.jsonSchemaValidator)
+}
+
+// The route-change publisher test validates the payload against the schema of the pinned platform-contracts bundle,
+// staged by transport-contract (INV-T-15476).
+tasks.withType<Test>().configureEach {
+    val contractDir =
+        project(":transport-contract").layout.buildDirectory.dir(
+            "contracts-repo/platform-contracts/transport/${libs.versions.platformContractsBundle.get()}",
+        )
+    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
 }
