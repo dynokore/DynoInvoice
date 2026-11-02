@@ -27,6 +27,7 @@ object PostgresDb {
     private const val RUNTIME_LOGIN = "controlplane_runtime"
     private const val RUNTIME_PASSWORD = "controlplane_runtime_pw"
     private const val STARTUP_MINUTES = 3L
+    private const val STARTUP_ATTEMPTS = 3
     private const val MIGRATE_LOGIN = "controlplane_migrate"
     private const val MIGRATE_PASSWORD = "controlplane_migrate_pw"
 
@@ -35,6 +36,9 @@ object PostgresDb {
             .withLabel("inv.agent", "c-inv-t-4985")
             // a saturated CI runner starts the container slowly: the default 60 s start-up wait is too short
             .withStartupTimeout(Duration.ofMinutes(STARTUP_MINUTES))
+            // a failed start is retried with a fresh container; the throwaway test database skips fsync
+            .withStartupAttempts(STARTUP_ATTEMPTS)
+            .withCommand("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
 
     init {
         val script = Files.createTempFile("controlplane-init-", ".sql")
