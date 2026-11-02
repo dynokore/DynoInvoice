@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(23, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(24, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -1352,6 +1352,71 @@ class RolePermissionsCheckerTest {
     @Test
     fun `INV-T-16106 the label removed from addedRows while its key stays fails naming the key`() {
         RolePermissionsChecker.resealPairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
+    }
+
+    private val os = "operator-session.open"
+    private val osRow = "Open a tenant-scoped operator session"
+
+    @Test
+    fun `INV-T-16477 the key is WRITE with its pinned row and exactly the three cells`() {
+        assertEquals(mapOf(os to osRow), RolePermissionsChecker.operatorSessionPairs)
+        assertEquals(osRow, permission(real, os).row)
+        assertEquals(PermissionKind.WRITE, permission(real, os).kind)
+        assertEquals(
+            setOf(
+                CellRow("platform.support", saasF, RoleAllowance.PERMITTED),
+                CellRow("platform.engineer", saasF, RoleAllowance.PERMITTED),
+                CellRow("deployment.operator", privF, RoleAllowance.PERMITTED),
+            ),
+            permission(real, os).cells.toSet(),
+        )
+        assertEquals(3, permission(real, os).cells.size)
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-T-16477 probe a renamed key is reported`() {
+        assertReported(withPermission(os) { it.copy(key = "operator-session.opens") }, "key $os: missing")
+        assertReported(withPermission(os) { it.copy(key = "operator-session.opens") }, "key operator-session.opens")
+        assertReported(withPermission(os) { it.copy(key = "operator-sessions.open") }, "key $os: missing")
+        assertReported(withPermission(os) { it.copy(key = "operator-sessions.open") }, "key operator-sessions.open")
+    }
+
+    @Test
+    fun `INV-T-16477 probe a cell in a form the role does not have or an extra role is reported`() {
+        assertReported(cellAdd(os, "platform.support", privF), "role platform.support key $os form PRIVATE", "extra")
+        assertReported(cellAdd(os, "platform.engineer", privF), "role platform.engineer key $os form PRIVATE", "extra")
+        assertReported(cellAdd(os, "deployment.operator", saasF), "role deployment.operator key $os form SAAS")
+        assertReported(cellAdd(os, "security.officer", saasF), "role security.officer key $os form SAAS", "extra")
+        assertReported(cellAdd(os, "tax.approver", saasF), "role tax.approver key $os form SAAS", "extra")
+    }
+
+    @Test
+    fun `INV-T-16477 probe each cell removed is reported`() {
+        assertReported(cellRemove(os, "platform.engineer", saasF), "role platform.engineer key $os form SAAS", "missing")
+        assertReported(cellRemove(os, "platform.support", saasF), "role platform.support key $os form SAAS", "missing")
+        assertReported(cellRemove(os, "deployment.operator", privF), "role deployment.operator key $os form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `INV-T-16477 probe the kind READ instead of WRITE is reported`() {
+        assertReported(withKind(os, PermissionKind.READ), "key $os")
+    }
+
+    @Test
+    fun `INV-T-16477 probe a second new key is reported`() {
+        val second = permission(real, os).copy(key = "operator-session.close")
+        assertReported(real.copy(permissions = real.permissions + second), "key operator-session.close")
+        val other = permission(real, os).copy(key = "operator.other", row = "Another new row")
+        assertReported(real.copy(permissions = real.permissions + other), "operator.other")
+    }
+
+    @Test
+    fun `INV-T-16477 the label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.operatorSessionPairs.forEach { (key, label) ->
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }

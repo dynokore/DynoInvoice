@@ -359,6 +359,29 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `the operator session key is WRITE with exactly three cells and every other role is DENIED`() {
+        val key = "operator-session.open"
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind(key))
+        val holders =
+            mapOf(
+                saas to setOf("platform.support", "platform.engineer"),
+                privateForm to setOf("deployment.operator"),
+            )
+        both.forEach { form ->
+            val actual = RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            assertEquals(holders.getValue(form).associateWith { y }, actual, "$key $form")
+        }
+        assertNull(RolePermissions.kind("operator-session.opens"))
+    }
+
+    @Test
+    fun `INV-AC-922 platform support opens a session but sees no invoice content`() {
+        assertEquals(y, cell(saas, "platform.support", "operator-session.open"))
+        // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
+        assertNull(cell(saas, "platform.support", "doc.view.content"))
+    }
+
+    @Test
     fun `the break-glass reseal key is WRITE with exactly the deployment operator PRIVATE cell`() {
         assertEquals(PermissionKind.WRITE, RolePermissions.kind("break-glass.reseal"))
         assertEquals(

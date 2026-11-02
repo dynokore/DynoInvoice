@@ -285,6 +285,13 @@ permissions:
     row: "Invite operator diagnostics, time-boxed"
     cells:
       - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: operator-session.open
+    kind: WRITE
+    row: "Open a tenant-scoped operator session"
+    cells:
+      - {role: platform.support, form: SAAS, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
   - key: access-review.run
     kind: WRITE
     row: "Approve operator elevation or diagnostic invitation; review audit log; run access reviews; handle privacy requests"
