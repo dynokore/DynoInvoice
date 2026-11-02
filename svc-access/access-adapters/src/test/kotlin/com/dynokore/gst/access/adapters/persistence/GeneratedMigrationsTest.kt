@@ -52,7 +52,10 @@ class GeneratedMigrationsTest {
 
     @Test
     fun `the outbox testmode migration is the upgrade DDL outbox-and-queue generates for the access schema`() {
-        assertEquals(upgradeStatement(migration(TESTMODE_MIGRATION)), upgradeStatement(OutboxSchema.testModeUpgradeDdl("access")))
+        assertEquals(
+            upgradeStatement(migration(TESTMODE_MIGRATION)),
+            upgradeStatement(OutboxSchema.testModeUpgradeDdl("access")),
+        )
     }
 
     @Test
