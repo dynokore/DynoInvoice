@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.20.0
+  version: 1.21.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `authenticatePrincipal`, `getVerificationKeys`, `getRevocationList`, `resolveLandingScreen` and `getSoleOperatorAcknowledgement` are queries, not FR-AC.1 operations (no persistent state change),
@@ -2211,7 +2211,7 @@ paths:
     post:
       operationId: runAccessReview
       summary: Open a quarterly access-review campaign (SDS §7, SCR-25.1, FR-AF.16)
-      description: Open a quarterly access-review campaign (SDS §7, SCR-25.1, FR-AF.16).
+      description: 'Open a quarterly access-review campaign (SDS §7, SCR-25.1, FR-AF.16). The `quarter` is the period label `[0-9]{4}Q[1-4]`, for example 2026Q3. A monthly label is refused with 400 while VP-05 is planned (INV-REQ-1266).'
       tags:
       - access-review
       x-principal: filing-workflow
@@ -2269,7 +2269,7 @@ paths:
     post:
       operationId: closeAccessReview
       summary: Close an access-review campaign with an outcome per grant (SDS §7, SCR-25.1)
-      description: Close an access-review campaign with an outcome per grant (SDS §7, SCR-25.1).
+      description: 'Record outcomes on an access-review campaign and close it once every grant has one (SDS §7, SCR-25.1). Outcomes accumulate across calls. The 200 answer carries `status` OPEN until every grant of the campaign has an outcome, and CLOSED after. An outcome on a grant of the caller''s own identity is refused with 403 SRT-004 unless the tenant''s sole-operator acknowledgement is ACTIVE (INV-REQ-894). The same outcome again is a no-op; a different outcome for the same grant is 409.'
       tags:
       - access-review
       x-principal: filing-workflow
@@ -2283,7 +2283,7 @@ paths:
       x-operation:
         role: security.officer
         scope: tenant
-        precondition: Campaign is open; every grant has an outcome
+        precondition: Campaign is open; it closes when every grant has an outcome
         reversibility: IRREVERSIBLE
         repeatKey: reviewRef — no-op once already closed
       parameters:
@@ -2310,7 +2310,7 @@ paths:
                     outcome: CONFIRMED
       responses:
         "200":
-          description: Closed
+          description: Outcomes recorded
           content:
             application/json:
               schema:
@@ -2329,6 +2329,139 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/consultant-grant-requests:
+    post:
+      operationId: requestConsultantGrant
+      summary: Request an implementation.consultant grant for a tenant (INV-REQ-908)
+      description: 'The operator requests a grant of the role `implementation.consultant` for an identity, to be approved by `tenant.admin` through `decideConsultantGrant` (INV-REQ-908). The caller check is the permission key `consultant-grant.request` (INV-Q-10027); the role names in x-operation.role are descriptive. The request is created with status PENDING.'
+      tags:
+      - grants
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-908
+      - INV-REQ-2465
+      x-error-codes: []
+      x-operation:
+        role: platform.support (SaaS), deployment.operator (private installation)
+        scope: tenant
+        precondition: None
+        reversibility: UNDOABLE
+        repeatKey: (tenantRef, identityRef, goLiveDate) — undoable until decided
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultantGrantRequest'
+            examples:
+              default:
+                value:
+                  tenantRef: TEN-7B1004
+                  identityRef: IDN-0120
+                  goLiveDate: 2026-12-01
+      responses:
+        "201":
+          description: Request recorded as PENDING
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultantGrantRequestResponse'
+              examples:
+                default:
+                  value:
+                    requestRef: CGR-0042
+                    tenantRef: TEN-7B1004
+                    identityRef: IDN-0120
+                    goLiveDate: 2026-12-01
+                    status: PENDING
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/access/consultant-grant-requests/{requestRef}/decide:
+    post:
+      operationId: decideConsultantGrant
+      summary: Decide a pending implementation.consultant grant request (INV-REQ-908, INV-REQ-2465)
+      description: '`tenant.admin` approves or denies a pending consultant grant request (INV-REQ-908). Approval writes one grant of the role `implementation.consultant` ending `goLiveDate` plus `periodDays` calendar days; the grant is returned as `grantRef` with `validTo`. A `periodDays` above 120 (the platform maximum) is refused with 400. A decision on a request that is not PENDING is 409. The approver holds the permission key `user.manage`.'
+      tags:
+      - grants
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->access-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-908
+      - INV-REQ-2465
+      x-error-codes: []
+      x-operation:
+        role: tenant.admin
+        scope: tenant
+        precondition: Request is pending
+        reversibility: COMPENSABLE
+        repeatKey: requestRef — revoke the grant early to compensate
+      parameters:
+      - name: requestRef
+        in: path
+        required: true
+        description: The consultant grant request's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: CGR-0042
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultantGrantDecisionRequest'
+            examples:
+              default:
+                value:
+                  decision: APPROVE
+                  periodDays: 30
+      responses:
+        "200":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultantGrantRequestResponse'
+              examples:
+                default:
+                  value:
+                    requestRef: CGR-0042
+                    tenantRef: TEN-7B1004
+                    identityRef: IDN-0120
+                    goLiveDate: 2026-12-01
+                    status: APPROVED
+                    grantRef: GRT-00301
+                    validTo: 2026-12-31
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -4075,6 +4208,72 @@ components:
           - READINESS
           - DRAIN
           - REPLAY
+    ConsultantGrantRequest:
+      type: object
+      required:
+      - tenantRef
+      - identityRef
+      - goLiveDate
+      properties:
+        tenantRef:
+          type: string
+          maxLength: 64
+        identityRef:
+          type: string
+          maxLength: 64
+        goLiveDate:
+          type: string
+          format: date
+    ConsultantGrantDecisionRequest:
+      type: object
+      required:
+      - decision
+      properties:
+        decision:
+          type: string
+          enum:
+          - APPROVE
+          - DENY
+        periodDays:
+          type: integer
+          minimum: 1
+          maximum: 120
+          default: 30
+          description: Calendar days after go-live until the grant ends. Allowed with APPROVE only. The value is 30 while VP-69 is planned (INV-REQ-2465).
+    ConsultantGrantRequestResponse:
+      type: object
+      required:
+      - requestRef
+      - tenantRef
+      - identityRef
+      - goLiveDate
+      - status
+      properties:
+        requestRef:
+          type: string
+          maxLength: 64
+        tenantRef:
+          type: string
+          maxLength: 64
+        identityRef:
+          type: string
+          maxLength: 64
+        goLiveDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - DENIED
+          x-extensible-enum: true
+        grantRef:
+          type: string
+          maxLength: 64
+        validTo:
+          type: string
+          format: date
     AccessReviewRequest:
       type: object
       required:

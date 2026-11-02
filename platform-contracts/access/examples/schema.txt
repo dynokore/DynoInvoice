@@ -36,3 +36,6 @@
 ../openapi.yaml#/components/schemas/ApproveBreakGlassUnlockResponse approve-break-glass-unlock-response-*.json
 ../openapi.yaml#/components/schemas/SoleOperatorAcknowledgementState sole-operator-acknowledgement-state-*.json
 ../schemas/flow-context.schema.json flow-context-*.json
+../openapi.yaml#/components/schemas/ConsultantGrantRequest consultant-grant-request-body-*.json
+../openapi.yaml#/components/schemas/ConsultantGrantDecisionRequest consultant-grant-decision-request-*.json
+../openapi.yaml#/components/schemas/ConsultantGrantRequestResponse consultant-grant-request-response-*.json

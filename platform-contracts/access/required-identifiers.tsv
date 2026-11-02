@@ -152,3 +152,8 @@ proposedProfile	property	openapi.yaml	INV-REQ-1257
 ProposedProfile.profileRef	schema_property	openapi.yaml	INV-REQ-1257
 ProposedProfile.profileVersion	schema_property	openapi.yaml	INV-REQ-1257
 # INV-T-13564. INV-REQ-584, INV-AC-13560: the claim principal_type and its six values are text of the issueAccessToken description, pinned by the spec-facts row of access/spec-facts.tsv; this table has no kind for a claim name in a description, and the six values are the enum rows above (INGEST to CERTIFICATION).
+# INV-T-15796. INV-REQ-908, INV-REQ-2465, INV-REQ-894 and INV-REQ-1266 (backticked names read from Keel): implementation.consultant, tenant.admin and security.officer are roles, and access-svc is a service, so they are not contract elements and add no row.
+requestConsultantGrant	operation	openapi.yaml	INV-REQ-908
+decideConsultantGrant	operation	openapi.yaml	INV-REQ-908
+goLiveDate	property	openapi.yaml	INV-REQ-908
+periodDays	property	openapi.yaml	INV-REQ-2465
