@@ -1,6 +1,6 @@
 SET lock_timeout = '5s';
 
--- V202611020900__create_break_glass_account.sql (INV-T-8853; INV-REQ-896, INV-REQ-897; INV-Q-8837 A, INV-Q-8893 A;
+-- V202611021100__create_break_glass_account.sql (INV-T-8853; INV-REQ-896, INV-REQ-897; INV-Q-8837 A, INV-Q-8893 A;
 -- CS-19, ARC-20). Run only by the service's migration Job as access_migrate (never at start-up). The sealed local
 -- break-glass account of a tenant or installation: one row per tenant, written in the transaction that makes the
 -- first tenant.admin grant ACTIVE. Only the SHA-256 digest of the sealing credential is stored (lower-case hex, 64

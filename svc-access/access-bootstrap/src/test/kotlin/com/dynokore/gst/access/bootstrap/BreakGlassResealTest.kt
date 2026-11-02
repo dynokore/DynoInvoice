@@ -138,7 +138,7 @@ class BreakGlassResealTest {
     @Test
     fun `INV-AC-8852 a reseal of an open unlock with no account row closes it and returns no credential`() =
         withService { served ->
-            // a tenant that was never activated: it has a pair and an open unlock but no sealed-account row (INV-Q-16102 A)
+            // never activated: a pair and an open unlock but no sealed-account row (INV-Q-16102 A)
             val tenant = newTenant()
             served.pair(tenant)
             val (ref, _) = served.unlocked(tenant)
