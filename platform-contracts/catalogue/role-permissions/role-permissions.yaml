@@ -1170,3 +1170,8 @@ permissions:
       - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
       - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
       - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: break-glass.reseal
+    kind: WRITE
+    row: "Reseal a break-glass session"
+    cells:
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}

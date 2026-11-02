@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A).
      */
     val addedRows: List<String> =
         listOf(
@@ -112,6 +112,7 @@ object RolePermissionsChecker {
             "Defer a document or group in the exception queue",
             "Request elevation",
             "Invite operator diagnostics, time-boxed",
+            "Reseal a break-glass session",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -147,6 +148,10 @@ object RolePermissionsChecker {
             "elevation.request" to "Request elevation",
             "diagnostic.invite" to "Invite operator diagnostics, time-boxed",
         )
+
+    /** The (key, row) pair of the break-glass reseal key (INV-T-16106, INV-Q-10127 A), compared by equality. */
+    val resealPairs: Map<String, String> =
+        mapOf("break-glass.reseal" to "Reseal a break-glass session")
 
     /** Rows whose keys are a closed set (INV-T-10149): any key on them, or named like them, that is not in [required] is reported. */
     private val closedRows: Set<String> = setOf("Acknowledge a control relaxation", "Run the authority incarnation command")
@@ -345,6 +350,7 @@ object RolePermissionsChecker {
             "exception.defer" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(withinScope, both, "agent.operator")),
             "elevation.request" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.support")),
             "diagnostic.invite" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
+            "break-glass.reseal" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
         )
 
     fun check(
@@ -440,6 +446,16 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in elevationRequestPairs && (it.row in elevationRequestPairs.values || it.key.startsWith("elevation.request") || it.key.startsWith("diagnostic.invite")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${elevationRequestPairs.keys.joinToString()}, which alone carry the elevation request and diagnostic invitation rows (INV-T-15959)."
+        }
+        resealPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${resealPairs.keys.joinToString()}, INV-T-16106)."
+        }
+        table.permissions.filter { it.key !in resealPairs && (it.row in resealPairs.values || it.key.startsWith("break-glass.reseal")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${resealPairs.keys.joinToString()}, which alone carry the break-glass reseal row (INV-T-16106)."
+        }
+        table.permissions.filter { it.key.startsWith("break-glass.") && it.key !in required }.forEach { p ->
+            v += "key ${p.key}: not one of the break-glass keys the criteria require (INV-T-16106)."
         }
         table.permissions.firstOrNull { it.key == "election-change.approve" }?.let { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123)."
