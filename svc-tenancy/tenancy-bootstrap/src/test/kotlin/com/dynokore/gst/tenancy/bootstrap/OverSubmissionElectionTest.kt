@@ -162,9 +162,19 @@ class OverSubmissionElectionTest {
         setters: Set<String>,
     ) {
         val stored = versions(env, e1)
+        val audits = count(AUDIT_TOPIC, e1, "VP-21")
+        val changes = count(POLICY_TOPIC, e1, "VP-21")
         val outsiders = rolesHolding("vp-76.set") - setters
         assertThat(outsiders).isNotEmpty
-        assertThat(refusal { set(env, e1, "ON", outsiders) }).isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
+        assertThat(outsiders.intersect(setters)).isEmpty()
+        listOf(outsiders, emptySet(), setOf("entity.admin "), setOf("Entity.Admin")).forEach { roles ->
+            assertThat(refusal { set(env, e1, "ON", roles) })
+                .describedAs(roles.toString())
+                .isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
+            assertThat(versions(env, e1)).isEqualTo(stored)
+            assertThat(count(AUDIT_TOPIC, e1, "VP-21")).isEqualTo(audits)
+            assertThat(count(POLICY_TOPIC, e1, "VP-21")).isEqualTo(changes)
+        }
         listOf("YES", "on").forEach { key ->
             assertThat(refusal { set(env, e1, key, setters) })
                 .describedAs(key)
