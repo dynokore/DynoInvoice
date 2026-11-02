@@ -578,6 +578,15 @@ topics:
     subscribers:
       - console-bff
       - notification-svc
+  - topic: gst.submission.period-filing-status-changed.v1
+    event_type: com.dynokore.gst.submission.PeriodFilingStatusChanged.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - submission-svc
+    subscribers:
+      - tenancy-svc
   - topic: gst.submission.submission-acknowledged.v1
     event_type: com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
@@ -1747,6 +1756,7 @@ replay_topics:
   - topic: gst.submission.replay-tenancy.v1
     event_types:
       - com.dynokore.gst.platform.ReplayCompleted.v1
+      - com.dynokore.gst.submission.PeriodFilingStatusChanged.v1
       - com.dynokore.gst.submission.SubmissionAcknowledged.v1
     content_topic: false
     record_topic: false

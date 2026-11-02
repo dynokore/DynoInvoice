@@ -11,6 +11,7 @@ submission	schemas/submission-despatched-payload.schema.json
 submission	schemas/submission-acknowledged-payload.schema.json
 service-runtime	schemas/privacy-notice-due-payload.schema.json
 submission	schemas/submission-type-decided-payload.schema.json
+submission	schemas/period-filing-status-changed-payload.schema.json
 service-runtime	schemas/accreditation-alert-raised-payload.schema.json
 service-runtime	schemas/break-glass-alert-raised-payload.schema.json
 service-runtime	schemas/authority-changed-payload.schema.json

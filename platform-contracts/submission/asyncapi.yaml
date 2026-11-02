@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: submission events
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Every event submission produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -57,6 +57,11 @@ channels:
     messages:
       SubmissionTypeDecided:
         $ref: '#/components/messages/SubmissionTypeDecided'
+  submissionPeriodFilingStatusChanged:
+    address: 'gst.submission.period-filing-status-changed.v1'
+    messages:
+      PeriodFilingStatusChanged:
+        $ref: '#/components/messages/PeriodFilingStatusChanged'
   submissionExampleHappened:
     address: 'gst.submission.example-happened.v1'
     messages:
@@ -108,6 +113,13 @@ operations:
       $ref: '#/channels/submissionSubmissionTypeDecided'
     messages:
       - $ref: '#/channels/submissionSubmissionTypeDecided/messages/SubmissionTypeDecided'
+  publishPeriodFilingStatusChanged:
+    action: send
+    description: PeriodFilingStatusChanged — the filing status of a period after a change, for the tenancy calendar (INV-Q-16113 A, INV-REQ-85, INV-REQ-917).
+    channel:
+      $ref: '#/channels/submissionPeriodFilingStatusChanged'
+    messages:
+      - $ref: '#/channels/submissionPeriodFilingStatusChanged/messages/PeriodFilingStatusChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -192,6 +204,17 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/submission-type-decided-payload.schema.json'
+    PeriodFilingStatusChanged:
+      name: com.dynokore.gst.submission.PeriodFilingStatusChanged.v1
+      title: PeriodFilingStatusChanged
+      summary: PeriodFilingStatusChanged — the filing status of a period after a change (INV-Q-16113 A).
+      description: >-
+        Domain event giving tenancy-svc the filing status of an entity's period for the filing calendar
+        (INV-REQ-85, INV-REQ-917, INV-Q-16113 A). It is the state of the period after the change (state transfer).
+        Emitted by: submission-svc. Consumed by: tenancy-svc. Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/period-filing-status-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.submission.ExampleHappened.v1
       title: ExampleHappened

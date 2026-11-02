@@ -13,6 +13,7 @@
 ../openapi.yaml#/components/schemas/FilingGateOverrideRequest filing-gate-override-request-*.json
 ../openapi.yaml#/components/schemas/FilingGateOverride filing-gate-override-record-*.json
 ../schemas/submission-type-decided-payload.schema.json submission-type-decided-*.json
+../schemas/period-filing-status-changed-payload.schema.json period-filing-status-changed-*.json
 ../openapi.yaml#/components/schemas/PendingFilingGateOverride pending-filing-gate-override-*.json
 ../openapi.yaml#/components/schemas/FilingGateOverrideList filing-gate-override-list-*.json
 ../openapi.yaml#/components/schemas/FilingGateOverrideEntry filing-gate-override-entry-*.json

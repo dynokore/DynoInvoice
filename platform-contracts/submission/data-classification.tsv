@@ -18,3 +18,9 @@ schemas/compliance-alert-values-measured-payload.schema.json	measuredOn	NONE
 schemas/compliance-alert-values-measured-payload.schema.json	documentsWithoutSubmission	NONE
 schemas/compliance-alert-values-measured-payload.schema.json	documentsPastDue	NONE
 schemas/compliance-alert-values-measured-payload.schema.json	daysToNearestDeadline	NONE
+schemas/period-filing-status-changed-payload.schema.json	entityRef	NONE
+schemas/period-filing-status-changed-payload.schema.json	period	NONE
+schemas/period-filing-status-changed-payload.schema.json	submissionLate	NONE
+schemas/period-filing-status-changed-payload.schema.json	recordedAt	NONE
+schemas/period-filing-status-changed-payload.schema.json	governingFiledAt	NONE
+schemas/period-filing-status-changed-payload.schema.json	conflict	NONE

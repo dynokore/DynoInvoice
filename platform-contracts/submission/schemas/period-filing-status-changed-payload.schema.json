@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/period-filing-status-changed-payload.schema.json",
+  "title": "PeriodFilingStatusChangedPayload",
+  "description": "Payload of the PeriodFilingStatusChanged event (class: domain), which gives tenancy-svc the filing status of an entity's period for the filing calendar (INV-REQ-85, INV-REQ-917; INV-Q-16113 A). The event is the state of the period after the change (state transfer), not the change itself. It is published whenever the governing filing date is recorded, changes or is corrected, or submissionLate changes. A consumer keeps the event with the greatest recordedAt for an entity and period. Within a major version this schema is additive-only (API-41): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The entity the period belongs to."
+    },
+    "period": {
+      "type": "string",
+      "description": "The prescribed period reference, as in the PeriodExtended event."
+    },
+    "submissionLate": {
+      "type": "boolean",
+      "description": "True when at least one document of the period is past its submission due date and not acknowledged."
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this state of the period was recorded; a consumer keeps the event with the greatest recordedAt."
+    },
+    "governingFiledAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The governing filing date (INV-REQ-917, VP-13). Absent until a filing fact is recorded."
+    },
+    "conflict": {
+      "type": "boolean",
+      "description": "True while two filing facts disagree (PER-010)."
+    }
+  },
+  "required": [
+    "entityRef",
+    "period",
+    "submissionLate",
+    "recordedAt"
+  ],
+  "additionalProperties": true
+}
