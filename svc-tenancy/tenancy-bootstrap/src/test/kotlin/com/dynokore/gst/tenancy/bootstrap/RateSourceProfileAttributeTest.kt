@@ -70,7 +70,8 @@ class RateSourceProfileAttributeTest {
             c
                 .prepareStatement(
                     "select tenant_id, data::text from tenancy.outbox " +
-                        "where type = 'com.dynokore.gst.tenancy.EntityProfileChanged.v1' and entity_ref = ? order by seq",
+                        "where type = 'com.dynokore.gst.tenancy.EntityProfileChanged.v1' " +
+                        "and entity_ref = ? order by seq",
                 ).use { s ->
                     s.setString(1, entity.entityRef)
                     s.executeQuery().use { rs ->

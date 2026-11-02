@@ -22,7 +22,7 @@ import java.time.LocalDate
 /** The profile attribute the issuance mode is published under on EntityProfileChanged (INV-Q-4993 B). */
 const val ISSUANCE_MODE_ATTRIBUTE = "issuanceMode"
 
-/** The profile attribute the elected exchange-rate source is published under on EntityProfileChanged (INV-Q-16533 A). */
+/** The profile attribute the elected rate source is published under on EntityProfileChanged (INV-Q-16533 A). */
 const val RATE_SOURCE_ATTRIBUTE = "exchangeRateSource"
 
 sealed interface ElectionOutcome {
