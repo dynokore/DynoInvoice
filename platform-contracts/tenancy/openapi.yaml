@@ -2042,7 +2042,7 @@ paths:
       summary: List the entity's pending election changes
       description: >-
         The PENDING election changes of the entity only; a change that is approved, withdrawn or declined is not listed, and a pending change stays listed however long it waits (it never expires, INV-Q-10115 (A)). The caller must hold the permission election-change.list on the entity (INV-Q-10119 (A)).
-        Paging follows listPeriodRecords (API-18): limit defaults to 100 and is at most 500 (a larger value is refused with 400); cursor is opaque and integrity-protected, bound to the principal, filters and sort that produced it, and valid for at least 24 hours (another principal or an expired cursor is refused with 400); the order is total (requestedAt ascending, and changeRef breaks ties); nextPageToken is omitted on the last page; there is no offset and no total count.
+        Paging follows listPeriodRecords (API-18): limit defaults to 100 and is at most 500 (a larger value is refused with 400); cursor is opaque and integrity-protected, bound to the principal, filters and sort that produced it, and valid for at least 24 hours (another principal or an expired cursor is refused with 400); the order is total (requestedAt ascending, and changeRef breaks ties); nextCursor is omitted on the last page; there is no offset and no total count.
       tags:
       - entities
       x-principal: filing-workflow
@@ -4415,7 +4415,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PendingElectionChange'
-        nextPageToken:
+        nextCursor:
           type: string
     ElectionStatusResponse:
       type: object
