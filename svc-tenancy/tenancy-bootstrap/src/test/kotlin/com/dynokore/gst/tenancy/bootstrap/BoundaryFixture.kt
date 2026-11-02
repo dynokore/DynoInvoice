@@ -17,6 +17,7 @@ import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
+import java.time.Duration
 import java.util.UUID
 
 /** The PostgreSQL major the suite runs on (STK-14 lists 17 and 18); the other major has its own database below. */
@@ -34,7 +35,12 @@ open class BoundaryDatabase(
         const val RUNTIME_PASSWORD = "runtime-password-for-tests"
     }
 
-    val container: PostgreSQLContainer<*> = PostgreSQLContainer(image).withLabel("inv.agent", agent)
+    val container: PostgreSQLContainer<*> =
+        PostgreSQLContainer(image)
+            .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+            .withStartupAttempts(PG_START_ATTEMPTS)
+            .withCommand(*pgFastCommand)
+            .withLabel("inv.agent", agent)
 
     /**
      * The tables config-resolver's ConfigSchema.ddl creates (a platform library, INV-T-4926). Their `entity_id` is null
@@ -290,3 +296,10 @@ open class BoundaryDatabase(
             ).run()
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
