@@ -217,7 +217,7 @@ TransactionStatus.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV
 notSubmittableReason	property	schemas/obligation-register-entry.schema.json	INV-REQ-324
 ISSUANCE_REFUSED	enum_value	schemas/obligation-register-entry.schema.json	INV-REQ-324
 NOT_SUBMITTABLE	enum_value	schemas/lifecycle-states.schema.json	INV-REQ-324
-# INV-T-16121 (INV-Q-16113 A). Payload members of PeriodFilingStatusChanged. The event name has no row: the checker has no event kind (reported as a gap).
+# INV-T-16121 (INV-Q-16113 A). Payload members of PeriodFilingStatusChanged. No row for the event name (INV-Q-16129): the job event-log-topics-drift-check pins it.
 entityRef	property	schemas/period-filing-status-changed-payload.schema.json	INV-REQ-85
 period	property	schemas/period-filing-status-changed-payload.schema.json	INV-REQ-85
 submissionLate	property	schemas/period-filing-status-changed-payload.schema.json	INV-REQ-85
