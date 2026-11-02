@@ -75,7 +75,14 @@ class RateSourceProfileAttributeTest {
                     s.setString(1, entity.entityRef)
                     s.executeQuery().use { rs ->
                         generateSequence {
-                            if (rs.next()) Row(rs.getObject(1, UUID::class.java), mapper.readTree(rs.getString(2))) else null
+                            if (rs.next()) {
+                                Row(
+                                    rs.getObject(1, UUID::class.java),
+                                    mapper.readTree(rs.getString(2)),
+                                )
+                            } else {
+                                null
+                            }
                         }.toList()
                     }
                 }
