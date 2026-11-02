@@ -36,7 +36,7 @@ class BreakGlassRestrictionTest {
         )
     private val p3Token = "Bearer token-p3"
     private val p1OfT2Token = "Bearer token-p1-t2"
-    private val unlockRef = "BG-9383"
+    private val unlockRef = "BG-1"
 
     @BeforeEach
     fun reset() {
@@ -60,7 +60,7 @@ class BreakGlassRestrictionTest {
     private fun actionRows(): Int =
         BoundaryFixture.asSuperuser { c ->
             c.createStatement().use { s ->
-                s.executeQuery("select count(*) from access.break_glass_action where unlock_ref = '$unlockRef'").use {
+                s.executeQuery("select count(*) from access.break_glass_action").use {
                     it.next()
                     it.getInt(1)
                 }
@@ -88,15 +88,13 @@ class BreakGlassRestrictionTest {
     private fun seal() =
         BoundaryFixture.asSuperuser { c ->
             c.createStatement().use {
-                it.executeUpdate(
-                    "update access.break_glass_session set status = 'SEALED' where unlock_ref = '$unlockRef'",
-                )
+                it.executeUpdate("update access.break_glass_session set status = 'SEALED' where unlock_ref = '$unlockRef'")
             }
         }
 
     private fun deleteSession() =
         BoundaryFixture.asSuperuser { c ->
-            c.createStatement().use { it.executeUpdate("delete from access.break_glass_session where unlock_ref = '$unlockRef'") }
+            c.createStatement().use { it.executeUpdate("delete from access.break_glass_session") }
         }
 
     private fun ServedContext.isMapped(operation: ContractOperation) = mappedHandlers().any { it.key == operation.key }
@@ -115,7 +113,8 @@ class BreakGlassRestrictionTest {
         return call(operation, workloadToken(allowedCallers(operation, named).first()), token, stubHandler = stub)
     }
 
-    /** True when the mode refused the request: `break_glass_refused_total` rose (the ordinary 403 has its code). */
+
+    /** True when the mode refused the request: `break_glass_refused_total` rose (the ordinary 403 has the same code). */
     private fun ServedContext.refusedByMode(block: () -> MockHttpServletResponse): Boolean {
         val before = refused()
         block()
@@ -186,9 +185,7 @@ class BreakGlassRestrictionTest {
             // (e) the workload token and the signed link are not touched
             workloadOps.forEach {
                 val answer = served.send(it, null)
-                assertThat(answer.status)
-                    .describedAs(it.operationId)
-                    .isEqualTo(workloadBaseline.getValue(it.operationId))
+                assertThat(answer.status).describedAs(it.operationId).isEqualTo(workloadBaseline.getValue(it.operationId))
             }
             assertThat(served.refused()).isEqualTo(before)
         }
@@ -241,7 +238,7 @@ class BreakGlassRestrictionTest {
             }
             insertSession(clock.freeze().plus(Duration.ofHours(4)))
             lookAlikes.forEach { (method, path) ->
-                // full chain: the sync-edge filter (API-25, order -85) refuses first, 403 SRT-004, no mode count
+                // through the full chain the sync-edge filter (API-25, order -85) refuses first: 403 SRT-004, no mode count
                 served.reset()
                 val full = served.raw(method, path, workload, USER_A_TOKEN)
                 assertThat(full.status).describedAs("$method $path full chain").isEqualTo(403)
@@ -260,12 +257,11 @@ class BreakGlassRestrictionTest {
         }
 
     @Test
-    fun `INV-AC-9383 the session grants nothing - approve without the role answers as without a session`() =
+    fun `INV-AC-9383 the session grants nothing - approveBreakGlassUnlock without the role answers as without a session`() =
         withServedService(named) { served ->
             val clock = served.application.getBean(Clock::class.java) as MovableClock
             val now = clock.freeze()
-            val withdrawn = SeedSpec("user-a", Role.TAX_APPROVER, status = GrantStatus.REVOKED)
-            Seeds.grant(served.application, TENANT_A, withdrawn)
+            Seeds.grant(served.application, TENANT_A, SeedSpec("user-a", Role.TAX_APPROVER, status = GrantStatus.REVOKED))
             val approve = op("approveBreakGlassUnlock")
             val without = served.send(approve, USER_A_TOKEN)
             insertSession(now.plus(Duration.ofHours(4)))
