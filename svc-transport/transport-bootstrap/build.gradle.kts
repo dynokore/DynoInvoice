@@ -36,3 +36,13 @@ dependencies {
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(testFixtures(project(":transport-adapters")))
 }
+
+// CI-FAST: transport-bootstrap's test task is not restored from the build cache on a merge request and ran in one JVM
+// (about 3.5 min of the unit-test job). The tests share nothing across JVMs: TransportDb starts one PostgreSQL per
+// JVM (mapped port, no fixed database name), ApSimulator is a per-JVM container on a mapped port, Spring contexts
+// bind port 0 and secret mounts are JUnit @TempDir.
+// The CI test policy (platform-build gst-test-policy) sets the real fork count from the job container (CPUs, memory,
+// cap 4); locally this runs 3 forks at most.
+tasks.named<Test>("test") {
+    maxParallelForks = 3
+}
