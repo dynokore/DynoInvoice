@@ -38,6 +38,9 @@ data class SignInBackoff(
     companion object {
         const val FREE_FAILURES = 2
         const val MAX_DELAY_SECONDS = 60L
+        private const val CAP_EXPONENT = 6
+        private const val FIRST_ALERT_COUNT = 5
+        private const val ALERT_EVERY = 10
 
         /** No failure yet, the first try allowed at once. */
         val INITIAL = SignInBackoff(0, Instant.EPOCH)
@@ -47,10 +50,10 @@ data class SignInBackoff(
             if (failures <= FREE_FAILURES) return 0
             val exponent = failures - FREE_FAILURES - 1
             // 2^6 = 64 is already above the cap; the guard keeps the shift in range for any count
-            return if (exponent >= 6) MAX_DELAY_SECONDS else minOf(1L shl exponent, MAX_DELAY_SECONDS)
+            return if (exponent >= CAP_EXPONENT) MAX_DELAY_SECONDS else minOf(1L shl exponent, MAX_DELAY_SECONDS)
         }
 
         /** Whether the failure count [failures] raises the ACC-002 SIGN_IN_FAILED alert: 5, 15, 25 and so on. */
-        fun isAlertCount(failures: Int): Boolean = failures >= 5 && (failures - 5) % 10 == 0
+        fun isAlertCount(failures: Int): Boolean = failures >= FIRST_ALERT_COUNT && (failures - FIRST_ALERT_COUNT) % ALERT_EVERY == 0
     }
 }
