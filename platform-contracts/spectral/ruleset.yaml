@@ -234,9 +234,9 @@ rules:
             - if: { not: { required: ["kind"] } }
               then: { required: ["role"] }
             - if: { required: ["kind"], properties: { kind: { const: "PERMISSION" } } }
-              then: { required: ["permission"] }
+              then: { required: ["permission"], not: { required: ["caller"] } }
             - if: { required: ["kind"], properties: { kind: { const: "CALLER" } } }
-              then: { required: ["caller"] }
+              then: { required: ["caller"], not: { required: ["permission"] } }
             # permission-also only beside kind PERMISSION
             - if: { required: ["permission-also"] }
               then: { required: ["kind"], properties: { kind: { const: "PERMISSION" } } }
