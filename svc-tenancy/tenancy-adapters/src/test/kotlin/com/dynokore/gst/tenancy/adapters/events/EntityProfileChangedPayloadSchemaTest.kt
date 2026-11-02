@@ -153,11 +153,11 @@ class EntityProfileChangedPayloadSchemaTest {
             ),
     )
 
-    @Test
-    fun `the gstScheme events validate and the first one without changedAttributes is refused`() {
-        val keys = schemeKeys()
-        keys.size shouldBe 14
-        val (first, second) = keys
+    /** The events of a first selection of two keys, a reduction to one and the selection NONE (probes (a) to (c)). */
+    private fun schemeEvents(
+        first: String,
+        second: String,
+    ): List<EntityProfileChange> {
         val later = effective.plusDays(1)
         val last = effective.plusDays(2)
         val firstEvent =
@@ -190,12 +190,21 @@ class EntityProfileChangedPayloadSchemaTest {
                     ProfileEntry("gstScheme.$second", "OFF", later),
                 ),
             )
-        for (change in listOf(firstEvent, reduced, none)) {
+        return listOf(firstEvent, reduced, none)
+    }
+
+    @Test
+    fun `the gstScheme events validate and the first one without changedAttributes is refused`() {
+        val keys = schemeKeys()
+        keys.size shouldBe 14
+        val (first, second) = keys
+        val events = schemeEvents(first, second)
+        for (change in events) {
             val payload = outbox.payload(change)
             SchemaFixture.errors(schema, payload.toString()).shouldBeEmpty()
             payload["changedAttributes"].forEach { (it["attribute"].asString().startsWith("gstScheme.")) shouldBe true }
         }
-        val payload = outbox.payload(firstEvent)
+        val payload = outbox.payload(events.first())
         payload["changedAttributes"].size() shouldBe 2
         payload["changedAttributes"][0].has("oldValue") shouldBe false
         payload.remove("changedAttributes")

@@ -86,8 +86,7 @@ class GstSchemeEventDecorator(
     private val dependencies: () -> SchemeEventDependencies,
 ) : PolicyWriter by delegate {
     override fun setPolicy(command: SetPolicyCommand): PolicyChange {
-        if (command.key != SCHEME_KEY || command.level != ScopeLevel.ENTITY) return delegate.setPolicy(command)
-        val entityRef = command.scope.entity ?: return delegate.setPolicy(command)
+        val entityRef = schemeEntity(command) ?: return delegate.setPolicy(command)
         val deps = dependencies()
         val before = schemeTimeline(deps.history, deps.tenants, entityRef)
         val change = delegate.setPolicy(command)
@@ -97,6 +96,10 @@ class GstSchemeEventDecorator(
         if (changed.isNotEmpty()) publish(deps, entityRef, changed, date)
         return change
     }
+
+    /** The entity of an entity-level VP-53 write (key compared by equality), null for every other write. */
+    private fun schemeEntity(command: SetPolicyCommand): String? =
+        if (command.key == SCHEME_KEY && command.level == ScopeLevel.ENTITY) command.scope.entity else null
 
     private fun changedAttributes(
         before: List<SchemeVersion>,

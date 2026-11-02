@@ -117,57 +117,60 @@ class OverSubmissionElectionTest {
     @Test
     fun `INV-AC-12496 VP-21 ON for one entity reads ON there and OFF elsewhere with one audit entry and one event`() {
         run { _, env ->
-            val catalogue = env.context.getBean(VariationPointCatalogue::class.java)
-            val row = checkNotNull(catalogue.find(vp21))
+            val row = checkNotNull(env.context.getBean(VariationPointCatalogue::class.java).find(vp21))
             assertThat(row.status).isEqualTo(VpStatus.AVAILABLE)
             val setters = rolesHolding("vp-21.set")
             assertThat(setters).isNotEmpty
-            val entities = mutableListOf<EntityResponse>()
             env.withGroup(2) { _, _, own ->
-                entities += own
-                val e1 = own[0]
-                val e2 = own[1]
-                // (a) nothing set: the default OFF
-                assertThat(resolved(env, e1)).isEqualTo("OFF")
-                assertThat(resolved(env, e2)).isEqualTo("OFF")
                 val profileEventsBefore = profileEvents(env)
-
-                // (b) ON at E1 by an actor holding vp-21.set
-                set(env, e1, "ON", setters)
-                assertThat(resolved(env, e1)).isEqualTo("ON")
-                assertThat(resolved(env, e2)).isEqualTo("OFF")
-                // (c) one audit entry and one PolicyChanged outbox row for VP-21 of E1
-                assertThat(count(AUDIT_TOPIC, e1, "VP-21")).isEqualTo(1)
-                assertThat(count(POLICY_TOPIC, e1, "VP-21")).isEqualTo(1)
-                val event = policyChanged(env).last { it["vpId"].asString() == row.key.value }
-                assertThat(event["value"].toString()).contains("ON")
-                assertThat(event.propertyNames().toList()).contains("scope", "vpId", "value", "effectiveDate", "source")
-
-                // (d) OFF returns E1 to OFF
-                set(env, e1, "OFF", setters)
-                assertThat(resolved(env, e1)).isEqualTo("OFF")
-
-                // (e) an actor without a role that holds vp-21.set is refused and nothing is stored
-                val stored = versions(env, e1)
-                val outsiders = rolesHolding("vp-76.set") - setters
-                assertThat(outsiders).isNotEmpty
-                assertThat(refusal { set(env, e1, "ON", outsiders) }).isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
-                assertThat(versions(env, e1)).isEqualTo(stored)
-
-                // (f) the option keys YES and on are refused UNKNOWN_OPTION and nothing is stored
-                listOf("YES", "on").forEach { key ->
-                    assertThat(refusal { set(env, e1, key, setters) })
-                        .describedAs(key)
-                        .isEqualTo(PolicyRefusal.UNKNOWN_OPTION)
-                }
-                assertThat(versions(env, e1)).isEqualTo(stored)
-
+                onThenOff(env, own[0], own[1], setters, row.key.value)
+                refusals(env, own[0], setters)
                 // (g) no EntityProfileChanged event for any of these writes
                 assertThat(profileEvents(env)).isEqualTo(profileEventsBefore)
             }
             // the third entity, of another tenant, still reads the default
             env.withGroup(1) { _, _, other -> assertThat(resolved(env, other.single())).isEqualTo("OFF") }
         }
+    }
+
+    /** Cases (a) to (d): the default OFF, ON at E1 with one audit entry and one PolicyChanged, then OFF again. */
+    private fun onThenOff(
+        env: ProfileEnv,
+        e1: EntityResponse,
+        e2: EntityResponse,
+        setters: Set<String>,
+        vpId: String,
+    ) {
+        assertThat(resolved(env, e1)).isEqualTo("OFF")
+        assertThat(resolved(env, e2)).isEqualTo("OFF")
+        set(env, e1, "ON", setters)
+        assertThat(resolved(env, e1)).isEqualTo("ON")
+        assertThat(resolved(env, e2)).isEqualTo("OFF")
+        assertThat(count(AUDIT_TOPIC, e1, "VP-21")).isEqualTo(1)
+        assertThat(count(POLICY_TOPIC, e1, "VP-21")).isEqualTo(1)
+        val event = policyChanged(env).last { it["vpId"].asString() == vpId }
+        assertThat(event["value"].toString()).contains("ON")
+        assertThat(event.propertyNames().toList()).contains("scope", "vpId", "value", "effectiveDate", "source")
+        set(env, e1, "OFF", setters)
+        assertThat(resolved(env, e1)).isEqualTo("OFF")
+    }
+
+    /** Cases (e) and (f): an actor without the permission and unknown option keys are refused, nothing is stored. */
+    private fun refusals(
+        env: ProfileEnv,
+        e1: EntityResponse,
+        setters: Set<String>,
+    ) {
+        val stored = versions(env, e1)
+        val outsiders = rolesHolding("vp-76.set") - setters
+        assertThat(outsiders).isNotEmpty
+        assertThat(refusal { set(env, e1, "ON", outsiders) }).isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
+        listOf("YES", "on").forEach { key ->
+            assertThat(refusal { set(env, e1, key, setters) })
+                .describedAs(key)
+                .isEqualTo(PolicyRefusal.UNKNOWN_OPTION)
+        }
+        assertThat(versions(env, e1)).isEqualTo(stored)
     }
 
     @Test

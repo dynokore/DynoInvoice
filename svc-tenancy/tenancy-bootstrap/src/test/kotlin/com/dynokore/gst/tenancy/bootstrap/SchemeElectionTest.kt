@@ -17,6 +17,7 @@ import com.dynokore.platform.configresolver.VpStatus
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.test.util.ReflectionTestUtils
@@ -49,6 +50,7 @@ class SchemeElectionTest {
         keys: List<String>,
         on: LocalDate,
         key: VariationPointKey = vp53,
+        roles: Set<String> = setOf("entity.admin"),
     ) = env.inTx {
         env.writer.setPolicy(
             SetPolicyCommand(
@@ -58,7 +60,7 @@ class SchemeElectionTest {
                 keys.map { SelectedOption(it) },
                 on,
                 "scheme test",
-                Actor("user:test", setOf("entity.admin")),
+                Actor("user:test", roles),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),
@@ -70,9 +72,9 @@ class SchemeElectionTest {
             event["changedAttributes"].values().any { it["attribute"].asString().startsWith(prefix) }
         }
 
-    private fun JsonNode.changes(): Map<String, Triple<String?, String, Unit>> =
+    private fun JsonNode.changes(): Map<String, Pair<String?, String>> =
         this["changedAttributes"].values().associate {
-            it["attribute"].asString() to Triple(it["oldValue"]?.asString(), it["newValue"].asString(), Unit)
+            it["attribute"].asString() to (it["oldValue"]?.asString() to it["newValue"].asString())
         }
 
     private fun JsonNode.profileSchemes(): List<Triple<String, String, String>> =
@@ -105,64 +107,56 @@ class SchemeElectionTest {
             env.withGroup(1) { _, _, entities ->
                 val entity = entities.single()
                 val (first, second) = schemeKeys(env)
-                val day1 = TODAY
                 val day2 = TODAY.plusDays(1)
                 val day3 = TODAY.plusDays(2)
 
                 // (a) a first selection of two keys
-                select(env, entity, listOf(first, second), day1)
+                select(env, entity, listOf(first, second), TODAY)
                 val a = schemeEvents(env).single()
-                assertThat(a.changes().mapValues { it.value.first to it.value.second })
-                    .containsOnly(
-                        org.assertj.core.api.Assertions
-                            .entry(prefix + first, null to "ON"),
-                        org.assertj.core.api.Assertions
-                            .entry(prefix + second, null to "ON"),
-                    )
+                assertThat(a.changes()).containsOnly(entry(first, null to "ON"), entry(second, null to "ON"))
                 assertThat(a.profileSchemes())
                     .containsExactlyInAnyOrder(
-                        Triple(prefix + first, "ON", day1.toString()),
-                        Triple(prefix + second, "ON", day1.toString()),
+                        Triple(prefix + first, "ON", TODAY.toString()),
+                        Triple(prefix + second, "ON", TODAY.toString()),
                     )
 
                 // (b) reduced to one of them: the dropped key goes OFF with oldValue ON, the kept key has no entry
                 select(env, entity, listOf(first), day2)
-                val b = schemeEvents(env).last()
                 assertThat(schemeEvents(env)).hasSize(2)
-                assertThat(b.changes().mapValues { it.value.first to it.value.second })
-                    .containsOnly(
-                        org.assertj.core.api.Assertions
-                            .entry(prefix + second, "ON" to "OFF"),
-                    )
-                assertThat(b.profileSchemes()).contains(Triple(prefix + second, "OFF", day2.toString()))
+                assertThat(schemeEvents(env).last().changes()).containsOnly(entry(second, "ON" to "OFF"))
+                assertThat(schemeEvents(env).last().profileSchemes())
+                    .contains(Triple(prefix + second, "OFF", day2.toString()))
 
-                // (c) NONE turns the remaining key OFF and there is no entry named gstScheme.NONE
+                // (c) NONE turns the remaining key OFF; (d) the same selection again publishes no event
                 select(env, entity, listOf(NONE), day3)
-                val c = schemeEvents(env).last()
                 assertThat(schemeEvents(env)).hasSize(3)
-                assertThat(c.changes().mapValues { it.value.first to it.value.second })
-                    .containsOnly(
-                        org.assertj.core.api.Assertions
-                            .entry(prefix + first, "ON" to "OFF"),
-                    )
-
-                // (d) the same selection again publishes no event
+                assertThat(schemeEvents(env).last().changes()).containsOnly(entry(first, "ON" to "OFF"))
                 select(env, entity, listOf(NONE), day3.plusDays(1))
                 assertThat(schemeEvents(env)).hasSize(3)
 
                 // (h) the look-alike attribute names are never produced
-                val attributes =
-                    env.captured.envelopes
-                        .filter { it.type == ProductEventTypes.ENTITY_PROFILE_CHANGED }
-                        .flatMap { event ->
-                            val tree = JSON.readTree(event.dataJson)
-                            tree["changedAttributes"].values().map { it["attribute"].asString() } +
-                                tree["node"]["profile"].values().map { it["attribute"].asString() }
-                        }
-                assertThat(attributes).doesNotContain("gstSchemes", "gstScheme.self_billing", "gstScheme.NONE")
+                assertThat(
+                    publishedAttributes(env),
+                ).doesNotContain("gstSchemes", "gstScheme.self_billing", "gstScheme.NONE")
             }
         }
     }
+
+    private fun entry(
+        scheme: String,
+        change: Pair<String?, String>,
+    ) = org.assertj.core.api.Assertions
+        .entry(prefix + scheme, change)
+
+    /** Every attribute name of every EntityProfileChanged event, in changedAttributes and node.profile. */
+    private fun publishedAttributes(env: ProfileEnv): List<String> =
+        env.captured.envelopes
+            .filter { it.type == ProductEventTypes.ENTITY_PROFILE_CHANGED }
+            .flatMap { event ->
+                val tree = JSON.readTree(event.dataJson)
+                tree["changedAttributes"].values().map { it["attribute"].asString() } +
+                    tree["node"]["profile"].values().map { it["attribute"].asString() }
+            }
 
     @Test
     fun `an option key that is not in the catalogue row is refused UNKNOWN_OPTION and nothing is published`() {
@@ -218,59 +212,37 @@ class SchemeElectionTest {
             val catalogue = env.context.getBean(VariationPointCatalogue::class.java)
             env.withGroup(1) { _, _, entities ->
                 val entity = entities.single()
-                var checked = 0
-                listOf("VP-21", "VP-53").forEach { id ->
-                    val definition = checkNotNull(catalogue.find(VariationPointKey(id)))
-                    assertThat(definition.status).describedAs(id).isEqualTo(VpStatus.AVAILABLE)
-                    definition.options.forEachIndexed { index, option ->
-                        val on = TODAY.plusDays(index.toLong() + 1)
-                        select(env, entity, listOf(option.key), on, definition.key)
-                        val resolved =
-                            env.inTx {
-                                env.reader.resolve(
-                                    definition.key,
-                                    PolicyScope.entity(env.tenants.current(), entity.entityRef),
-                                    on,
-                                )
-                            }
-                        assertThat(resolved.selected.map { it.key })
-                            .describedAs("$id ${option.key}")
-                            .containsExactly(option.key)
-                        checked++
-                    }
-                }
+                val checked = listOf("VP-21", "VP-53").sumOf { id -> everyOption(env, entity, catalogue, id) }
                 assertThat(checked).isEqualTo(2 + EXPECTED_SCHEME_KEYS + 1)
                 val planned =
-                    com.dynokore.platform.productruntime.catalogue
-                        .GstVariationPointCatalogue()
-                        .all()
-                        .first {
-                            it.status == VpStatus.PLANNED && ScopeLevel.ENTITY in it.scopeLevels &&
-                                it.options.isNotEmpty()
-                        }
-                val refusal =
-                    runCatching {
-                        env.inTx {
-                            env.writer.setPolicy(
-                                SetPolicyCommand(
-                                    planned.key,
-                                    PolicyScope.entity(env.tenants.current(), entity.entityRef),
-                                    ScopeLevel.ENTITY,
-                                    listOf(SelectedOption(planned.options.first().key)),
-                                    TODAY,
-                                    "planned row test",
-                                    Actor("user:test", planned.setBy),
-                                    CorrelationId("corr-${UUID.randomUUID()}"),
-                                    CausationId("cause-${UUID.randomUUID()}"),
-                                ),
-                            )
-                        }
-                    }.exceptionOrNull()
-                assertThat((refusal as? PolicyRefused)?.refusal)
+                    GstVariationPointCatalogue().all().first {
+                        it.status == VpStatus.PLANNED && ScopeLevel.ENTITY in it.scopeLevels && it.options.isNotEmpty()
+                    }
+                val error = runCatching { select(env, entity, listOf(planned.options.first().key), TODAY, planned.key) }
+                assertThat((error.exceptionOrNull() as? PolicyRefused)?.refusal)
                     .describedAs(planned.key.value)
                     .isEqualTo(PolicyRefusal.PLANNED)
             }
         }
+    }
+
+    /** Sets every option of the row [id] in turn on its own day and reads it back; returns how many it set. */
+    private fun everyOption(
+        env: ProfileEnv,
+        entity: EntityResponse,
+        catalogue: VariationPointCatalogue,
+        id: String,
+    ): Int {
+        val definition = checkNotNull(catalogue.find(VariationPointKey(id)))
+        assertThat(definition.status).describedAs(id).isEqualTo(VpStatus.AVAILABLE)
+        definition.options.forEachIndexed { index, option ->
+            val on = TODAY.plusDays(index.toLong() + 1)
+            select(env, entity, listOf(option.key), on, definition.key)
+            val scope = PolicyScope.entity(env.tenants.current(), entity.entityRef)
+            val resolved = env.inTx { env.reader.resolve(definition.key, scope, on) }
+            assertThat(resolved.selected.map { it.key }).describedAs("$id ${option.key}").containsExactly(option.key)
+        }
+        return definition.options.size
     }
 
     private fun delegateOf(writer: Any): Any? =

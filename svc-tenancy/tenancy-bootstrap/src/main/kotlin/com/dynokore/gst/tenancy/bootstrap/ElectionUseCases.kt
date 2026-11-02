@@ -56,6 +56,7 @@ import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.Ordered
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 
@@ -300,7 +301,12 @@ class LazyInboxConsumer(
 }
 
 /** Applies the [ElectionPolicyWriterGuard] to every bean of type [PolicyWriter] once (ruling INV-Q-10023). */
-class ElectionPolicyWriterGuardPostProcessor : BeanPostProcessor {
+class ElectionPolicyWriterGuardPostProcessor :
+    BeanPostProcessor,
+    Ordered {
+    /** Runs after the scheme decorator, so the guard is the outermost writer and refuses before anything else. */
+    override fun getOrder(): Int = 2
+
     override fun postProcessAfterInitialization(
         bean: Any,
         beanName: String,
@@ -330,7 +336,10 @@ class SchemeEventBeans(
 /** Applies the [GstSchemeEventDecorator] to every bean of type [PolicyWriter] once; the guard stays in the chain. */
 class GstSchemeEventDecoratorPostProcessor(
     private val beans: ObjectProvider<SchemeEventBeans>,
-) : BeanPostProcessor {
+) : BeanPostProcessor,
+    Ordered {
+    override fun getOrder(): Int = 1
+
     override fun postProcessAfterInitialization(
         bean: Any,
         beanName: String,
