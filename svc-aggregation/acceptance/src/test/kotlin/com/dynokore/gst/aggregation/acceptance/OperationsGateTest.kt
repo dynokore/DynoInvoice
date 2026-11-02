@@ -185,12 +185,21 @@ class OperationsGateTest {
             "intakeAggregationBatch"
         OperationsGate.assignmentFindings(tsv.replace("\tINV-T-4979\t", "\tINV-T-49790\t")).single() stringContain
             "channel aggregationAggregateReady: task 'INV-T-49790'"
-        OperationsGate.assignmentFindings(tsv.replace("\tINV-T-8453\t", "\tUNASSIGNED\t")).single() stringContain
+        OperationsGate.assignmentFindings(tsv.replace("\tINV-T-14464\t", "\tUNASSIGNED\t")).single() stringContain
             "aggregationAggregateWindowChanged"
         OperationsGate
             .assignmentFindings(
                 tsv.lines().filterNot { it.contains("getAggregateDrillDown") }.joinToString("\n"),
             ).single() stringContain "operation getAggregateDrillDown: no row"
+    }
+
+    @Test
+    fun `INV-AC-1574 the channel of the window change is assigned to the task that publishes it`() {
+        val key = "channel" to "aggregationAggregateWindowChanged"
+        OperationsGate.ASSIGNED[key] shouldBe "INV-T-14464"
+        val rows = tsv.lines().drop(1).map { it.split("\t") }
+        val row = rows.single { it.size >= 3 && it[0] == key.first && it[1] == key.second }
+        row[2] shouldBe "INV-T-14464"
     }
 
     @Test

@@ -131,7 +131,7 @@ object OperationsGate {
             ("operation" to "intakeAggregationBatch") to "INV-T-8473",
             ("operation" to "getAggregateDrillDown") to "INV-T-4980",
             ("channel" to "aggregationAggregateReady") to "INV-T-4979",
-            ("channel" to "aggregationAggregateWindowChanged") to "INV-T-8453",
+            ("channel" to "aggregationAggregateWindowChanged") to "INV-T-14464",
         )
 
     fun assignmentFindings(tsv: String): List<String> {

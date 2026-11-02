@@ -2,5 +2,5 @@ kind	id	task	state
 operation	intakeAggregationBatch	INV-T-8473	open
 operation	getAggregateDrillDown	INV-T-4980	open
 channel	aggregationAggregateReady	INV-T-4979	open
-channel	aggregationAggregateWindowChanged	INV-T-8453	open
+channel	aggregationAggregateWindowChanged	INV-T-14464	open
 channel	aggregationExampleHappened	PLACEHOLDER	open
