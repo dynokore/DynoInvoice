@@ -100,8 +100,11 @@ class BlankCheckRepairMigrationTest {
                 .use { stream ->
                     stream.map { it.fileName.toString() }.filter { it.endsWith(".sql") }.toList()
                 }.associateBy { Regex("""^V(\d+)__""").find(it)!!.groupValues[1].toLong() }
-        assertEquals(file, versions[versions.keys.max()])
-        assertEquals(202610270900L, versions.keys.max())
+        assertEquals("V202610270900__repair_blank_checks.sql", versions[202610270900L])
+        assertEquals(
+            setOf("V202611021000__claim_due_locks_only_the_claimed_row.sql"),
+            versions.filterKeys { it > 202610270900L }.values.toSet(),
+        )
     }
 
     private data class Facts(
