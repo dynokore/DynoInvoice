@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.adapters.http.TenancyRefusal
 import com.dynokore.gst.tenancy.adapters.http.WorkspacesController
 import com.dynokore.gst.tenancy.adapters.workspace.ReplicaTenantAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
+import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
 import com.dynokore.gst.tenancy.application.workspace.ArchiveWorkspace
 import com.dynokore.gst.tenancy.application.workspace.CreateWorkspace
@@ -224,8 +225,13 @@ class SampleCopyTest {
                 )
             val api =
                 WorkspacesController(
-                    CreateWorkspace(context.getBean(TenantContext::class.java), tx, store),
-                    ArchiveWorkspace(tx, store),
+                    CreateWorkspace(
+                        context.getBean(TenantContext::class.java),
+                        tx,
+                        store,
+                        context.getBean(StructureChangePublisher::class.java),
+                    ),
+                    ArchiveWorkspace(tx, store, context.getBean(StructureChangePublisher::class.java)),
                     context.getBean(LoadCredential::class.java),
                     copies,
                     people,

@@ -1,10 +1,13 @@
 package com.dynokore.gst.tenancy.application.workspace
 
+import com.dynokore.gst.tenancy.application.structure.ChangeType
+import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.gst.tenancy.application.tenant.TenantCreation
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.TenantRefused
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchival
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
+import com.dynokore.gst.tenancy.application.tenant.tenantChange
 import com.dynokore.gst.tenancy.domain.Environment
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -31,6 +34,7 @@ class CreateWorkspace(
     private val tenants: TenantContext,
     private val tx: TransactionRunner,
     private val store: WorkspaceStore,
+    private val publisher: StructureChangePublisher,
 ) {
     fun handle(
         production: String,
@@ -63,9 +67,18 @@ class CreateWorkspace(
                     workspaceName = name,
                 )
             when (val outcome = store.create(sibling)) {
-                is TenantCreation.Created -> WorkspaceCreation.Done(outcome.tenant, repeated = false)
-                is TenantCreation.Repeated -> WorkspaceCreation.Done(outcome.tenant, repeated = true)
-                TenantCreation.Conflict -> WorkspaceCreation.Conflict
+                is TenantCreation.Created -> {
+                    publisher.publish(tenantChange(outcome.tenant, ChangeType.CREATED))
+                    WorkspaceCreation.Done(outcome.tenant, repeated = false)
+                }
+
+                is TenantCreation.Repeated -> {
+                    WorkspaceCreation.Done(outcome.tenant, repeated = true)
+                }
+
+                TenantCreation.Conflict -> {
+                    WorkspaceCreation.Conflict
+                }
             }
         }
 }
@@ -74,7 +87,15 @@ class CreateWorkspace(
 class ArchiveWorkspace(
     private val tx: TransactionRunner,
     private val store: WorkspaceStore,
+    private val publisher: StructureChangePublisher,
 ) {
     fun handle(workspaceRef: String): WorkspaceArchival =
-        tx.inTransaction { store.archiveWorkspace(workspaceRef).outcome }
+        tx.inTransaction {
+            val archived = store.archiveWorkspace(workspaceRef)
+            val row = archived.tenant
+            if (archived.outcome == WorkspaceArchival.ARCHIVED && row != null) {
+                publisher.publish(tenantChange(row, ChangeType.RETIRED))
+            }
+            archived.outcome
+        }
 }

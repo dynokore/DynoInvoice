@@ -78,7 +78,8 @@ class UseCases {
         tenants: TenantContext,
         tx: TransactionRunner,
         store: TenantStore,
-    ): CreateTenant = CreateTenant(tenants as PlatformTenantBinding, tx, store, "tenancy-svc")
+        publisher: StructureChangePublisher,
+    ): CreateTenant = CreateTenant(tenants as PlatformTenantBinding, tx, store, "tenancy-svc", publisher)
 
     @Bean
     fun structureCommands(

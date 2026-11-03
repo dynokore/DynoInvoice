@@ -1,5 +1,10 @@
 package com.dynokore.gst.tenancy.application.tenant
 
+import com.dynokore.gst.tenancy.application.structure.ChangeType
+import com.dynokore.gst.tenancy.application.structure.NodeType
+import com.dynokore.gst.tenancy.application.structure.StructureChange
+import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
+import com.dynokore.gst.tenancy.application.structure.tenantNode
 import com.dynokore.gst.tenancy.domain.Environment
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -79,7 +84,25 @@ class CreateTenant(
     private val tx: TransactionRunner,
     private val store: TenantStore,
     private val actor: String,
+    private val publisher: StructureChangePublisher,
 ) {
     fun handle(tenant: TenantRecord): TenantCreation =
-        platform.bindPlatform(actor) { tx.inTransaction { store.create(tenant) } }
+        platform.bindPlatform(actor) {
+            tx.inTransaction {
+                store.create(tenant).also { outcome ->
+                    if (outcome is TenantCreation.Created) {
+                        publisher.publish(
+                            tenantChange(outcome.tenant, ChangeType.CREATED),
+                        )
+                    }
+                }
+            }
+        }
 }
+
+/** The event of the tenant's own TENANT node (INV-Q-15377 A): the event's tenant is the tenant the node describes. */
+fun tenantChange(
+    row: TenantRecord,
+    changeType: ChangeType,
+): StructureChange =
+    StructureChange(row.tenantId, row.ref, NodeType.TENANT, row.ref, changeType, null, null, tenantNode(row))

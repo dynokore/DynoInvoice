@@ -17,7 +17,7 @@ class WorkspacesTest {
     private val context = InMemoryTenantContext(productionId)
     private val store =
         InMemoryWorkspaceStore(context, TenantRecord(productionId.value, production, "Acme", "plan", "c-1"))
-    private val create = CreateWorkspace(context, DirectTransactions, store)
+    private val create = CreateWorkspace(context, DirectTransactions, store, RecordingPublisher())
 
     @Test
     fun `the sibling takes its id and ref only from TenantRefs and pairs to the production tenant`() {
@@ -51,7 +51,7 @@ class WorkspacesTest {
     @Test
     fun `archiving twice archives once`() {
         val ref = (create.handle(production, "uat") as WorkspaceCreation.Done).workspace.ref
-        val archive = ArchiveWorkspace(DirectTransactions, store)
+        val archive = ArchiveWorkspace(DirectTransactions, store, RecordingPublisher())
         assertEquals(WorkspaceArchival.ARCHIVED, archive.handle(ref))
         assertEquals(WorkspaceArchival.ALREADY_ARCHIVED, archive.handle(ref))
         assertEquals(WorkspaceArchival.MISSING, archive.handle("nothing"))

@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.bootstrap
 import com.dynokore.gst.tenancy.adapters.persistence.JooqSampleApprovals
 import com.dynokore.gst.tenancy.adapters.policy.PolicyProductionSamplePolicy
 import com.dynokore.gst.tenancy.adapters.workspace.ReplicaTenantAuthority
+import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
 import com.dynokore.gst.tenancy.application.workspace.ArchiveWorkspace
 import com.dynokore.gst.tenancy.application.workspace.CreateWorkspace
@@ -54,13 +55,15 @@ class WorkspaceUseCases {
         tenants: TenantContext,
         tx: TransactionRunner,
         store: WorkspaceStore,
-    ): CreateWorkspace = CreateWorkspace(tenants, tx, store)
+        publisher: StructureChangePublisher,
+    ): CreateWorkspace = CreateWorkspace(tenants, tx, store, publisher)
 
     @Bean
     fun archiveWorkspace(
         tx: TransactionRunner,
         store: WorkspaceStore,
-    ): ArchiveWorkspace = ArchiveWorkspace(tx, store)
+        publisher: StructureChangePublisher,
+    ): ArchiveWorkspace = ArchiveWorkspace(tx, store, publisher)
 
     /**
      * The credential store belongs to the Access Point service; no binder is bound yet, so every accepted

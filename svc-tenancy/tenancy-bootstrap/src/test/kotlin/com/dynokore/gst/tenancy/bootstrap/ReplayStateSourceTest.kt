@@ -525,13 +525,13 @@ class ReplayStateSourceTest {
             scenario(env) { s ->
                 val all = env.states(s.tenant, env.structure)
                 assertThat(env.structure.eventType).isEqualTo(STRUCTURE_TYPE)
-                // INV-Q-15469 A: the tenant's own TENANT state is an optional first state (0 or 1, never 2 or more)
+                // INV-T-15383 Tighten: exactly one TENANT state, the first, equal to the node getEntityStructure answers
                 val tenantStates = all.filter { it.aggregateKey == s.tenantRef }
-                assertThat(tenantStates.size).isLessThanOrEqualTo(1)
-                if (tenantStates.isNotEmpty()) {
-                    assertThat(all.first()).isSameAs(tenantStates.single())
-                    assertThat(tenantStates.single().entity).isEqualTo(EntityRef(s.tenantRef))
-                }
+                assertThat(tenantStates).hasSize(1)
+                assertThat(all.first()).isSameAs(tenantStates.single())
+                assertThat(tenantStates.single().entity).isEqualTo(EntityRef(s.tenantRef))
+                assertThat(nodeOf(tenantStates.single().dataJson))
+                    .isEqualTo(env.profile.inTx { env.queries.node(s.tenantRef)!!.node })
                 val states = all.filter { it.aggregateKey != s.tenantRef }
                 val ordered = listOf(s.group) + listOf(s.live1, s.live2, s.retired).sorted()
                 assertThat(states.map { it.aggregateKey }).containsExactlyElementsOf(ordered)
@@ -633,10 +633,10 @@ class ReplayStateSourceTest {
         run { env ->
             scenario(env) { s ->
                 val whole = env.states(s.tenant, env.structure)
-                // INV-Q-15469 A: 4 nodes plus the tenant's own TENANT state when the replay holds it (0 or 1)
-                val tenantStates = whole.count { it.aggregateKey == s.tenantRef }
-                assertThat(tenantStates).isBetween(0, 1)
-                val n = 4 + tenantStates
+                // INV-T-15383 Tighten: 4 nodes plus exactly one TENANT state, which comes first
+                assertThat(whole.count { it.aggregateKey == s.tenantRef }).isEqualTo(1)
+                assertThat(whole.first().aggregateKey).isEqualTo(s.tenantRef)
+                val n = 5
                 assertThat(whole).hasSize(n)
                 for (limit in listOf(1, 2, 4, 5)) {
                     val pages = env.pages(s.tenant, env.structure, limit = limit)

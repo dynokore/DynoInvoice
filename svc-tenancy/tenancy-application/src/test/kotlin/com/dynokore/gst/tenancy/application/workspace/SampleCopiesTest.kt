@@ -14,7 +14,7 @@ class SampleCopiesTest {
     private val workspaceRef = TenantRefs.refOfWorkspace("acme", "uat")
     private val store =
         InMemoryWorkspaceStore(context, TenantRecord(productionId.value, "acme", "Acme", "plan", "c-1")).also {
-            CreateWorkspace(context, DirectTransactions, it).handle("acme", "uat")
+            CreateWorkspace(context, DirectTransactions, it, RecordingPublisher()).handle("acme", "uat")
         }
     private val approvals = InMemoryApprovals()
     private val rows =
