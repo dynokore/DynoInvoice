@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -161,6 +161,54 @@ paths:
         '403':
           $ref: '#/components/responses/Error'
         '503':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/entities/{entityRef}/periods/{periodRef}/drain-preview:
+    get:
+      operationId: previewDrainPeriod
+      summary: Preview the document count and total value that a drain of the period would attempt
+      description: >-
+        A read-only preview for the first step of the irreversible
+        confirmation of `drainPeriod` (INV-REQ-1012 behaviour #2,
+        INV-AC-1062). It changes no state. It counts the documents
+        `drainPeriod` would attempt and returns their total value in SGD,
+        selecting exactly the set `drainPeriod` attempts across all three of
+        its tiers as the `drainPeriod` description states them: tier 1, any
+        document already inside its own safety-margin window, whatever its
+        period; tier 2, the backlog of the period being drained; tier 3,
+        routine traffic. Each document is counted once, and no document that
+        `drainPeriod` does not attempt is counted (`drainedByTier` and
+        `residualItems` of `DrainResult` carry the tiers 1 to 3). The service
+        uses the same selection as `drainPeriod`, not a second query.
+        Access is decided per request by the permission key
+        `period-readiness.run` through `AuthorityReplica.decide`, never by a
+        role name (INV-Q-10027); a caller whose decision is deny gets `403`
+        (SRT-004) and no count.
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: [SRT-004]
+      x-requirements: [INV-REQ-1012]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      responses:
+        '200':
+          description: The count and total value a drain of the period would attempt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IrreversibleImpact'
+              examples:
+                default:
+                  summary: Three tier 2 documents (100.00, 250.50, 0.50), one tier 1 document of another period inside its safety-margin window (10.00) and one tier 3 routine document (5.00)
+                  value:
+                    documentCount: 5
+                    totalAmount: "366.00"
+        '403':
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
@@ -1397,6 +1445,74 @@ paths:
                     replayedAt: "2026-03-20T03:21:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/entities/{entityRef}/replay-preview:
+    get:
+      operationId: previewReplayScope
+      summary: Preview the document count and total value that a replay of one scope would re-enqueue
+      description: >-
+        A read-only preview for the first step of the irreversible
+        confirmation of `replaySubmissionsByScope` (INV-REQ-1012). It
+        selects the DEAD_LETTERED versions exactly as
+        `replaySubmissionsByScope` does, before its `limit` of 500:
+        SENT_UNCONFIRMED versions are never selected, and a version with
+        another in-flight version of its Doc UUID is not counted. It changes
+        no state. The optional query parameters have the schemas of the
+        properties of `ReplayScopeRequest`. Access is decided per request by
+        the permission key `submission.replay` through
+        `AuthorityReplica.decide`, never by a role name (INV-Q-10027).
+      tags: [transactions]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: [SRT-001, SRT-004, SRT-005]
+      x-requirements: [INV-REQ-1012]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: periodRef
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+          description: Opaque, calendar-issued (API-11); clients never construct it.
+        - name: docUuid
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: failureClass
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}-[0-9]{3}$'
+          description: A code of the error catalogue.
+      responses:
+        '200':
+          description: The count and total value a replay of the scope would re-enqueue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IrreversibleImpact'
+              examples:
+                default:
+                  summary: Two dead-lettered versions (40.00 and 60.00) in period 2026-Q1
+                  value:
+                    documentCount: 2
+                    totalAmount: "100.00"
+        '400':
+          description: SRT-001 — a query parameter is malformed or not allowed.
+          $ref: '#/components/responses/Error'
+        '403':
+          description: SRT-004 — the caller does not hold the permission submission.replay on the entity; no count is returned.
+          $ref: '#/components/responses/Error'
+        '404':
+          description: SRT-005 — no entity with the reference.
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/entities/{entityRef}/replay:
     post:
       operationId: replaySubmissionsByScope
@@ -2178,6 +2294,18 @@ components:
           type: string
           format: date-time
       required: [docUuid, version, state, replayedAt]
+    IrreversibleImpact:
+      type: object
+      additionalProperties: false
+      description: The consequence an irreversible confirmation states (INV-REQ-1012), read before the command runs.
+      properties:
+        documentCount:
+          type: integer
+          minimum: 0
+        totalAmount:
+          $ref: '#/components/schemas/Money'
+          description: Total value of the counted documents, in SGD.
+      required: [documentCount, totalAmount]
     ReplayScopeRequest:
       type: object
       additionalProperties: false

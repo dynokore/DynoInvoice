@@ -224,3 +224,8 @@ submissionLate	property	schemas/period-filing-status-changed-payload.schema.json
 recordedAt	property	schemas/period-filing-status-changed-payload.schema.json	INV-REQ-85
 governingFiledAt	property	schemas/period-filing-status-changed-payload.schema.json	INV-REQ-85
 conflict	property	schemas/period-filing-status-changed-payload.schema.json	INV-REQ-85
+# INV-T-14240 (INV-Q-14208 A). Rows for INV-REQ-1012: the read-only previews before an irreversible drain or replay.
+previewDrainPeriod	operation	openapi.yaml	INV-REQ-1012
+previewReplayScope	operation	openapi.yaml	INV-REQ-1012
+IrreversibleImpact.documentCount	schema_property	openapi.yaml	INV-REQ-1012
+IrreversibleImpact.totalAmount	schema_property	openapi.yaml	INV-REQ-1012
