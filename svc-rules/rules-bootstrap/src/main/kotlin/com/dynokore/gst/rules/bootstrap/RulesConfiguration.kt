@@ -40,8 +40,10 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.Schema
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -117,14 +119,26 @@ class RulesConfiguration {
         )
 
     /**
+     * The runtime offers no [RebuildRequiredSink] bean, and the entity-profile consumer below is created only when one
+     * exists. rules-svc records the signal in the log (the probe service's choice); a service that routes it further
+     * declares its own bean.
+     */
+    @Bean
+    @ConditionalOnMissingBean(RebuildRequiredSink::class)
+    fun rebuildRequiredSink(): RebuildRequiredSink {
+        val log = LoggerFactory.getLogger(RulesConfiguration::class.java)
+        return RebuildRequiredSink { log.warn("rebuild required: {} on {}", it.consumer, it.topic) }
+    }
+
+    /**
      * rules-svc is a subscriber of `gst.tenancy.entity-profile-changed.v1` (platform-contracts event-log/topics.yaml):
      * the consumer applies each `EntityProfileChanged` to the structure replica, which holds `obligationStartDate` and
      * `registrationEndDate` for the submission window (INV-Q-16175). The catalogue below is the consumer's own and not
-     * a bean: rules-svc publishes only its three pack events.
+     * a bean: rules-svc publishes only its three pack events. The bean is unconditional: a condition on beans of the
+     * runtime's auto-configuration is evaluated before they exist and silently left the replica without a feed.
      */
     @Bean
-    @ConditionalOnBean(EventLogReader::class, TenantScope::class, RebuildRequiredSink::class)
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // the consumer's five collaborators are all injected platform beans
     fun entityProfileConsumer(
         reader: EventLogReader,
         scope: TenantScope,

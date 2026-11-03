@@ -47,7 +47,6 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 private const val POLICY_TOPIC = "gst.platform.policy-changed.v1"
-private const val SIX_MEMBERS = "the six ScopeVerdict members"
 
 /**
  * `evaluateDocument` at the service boundary over the real controller, use case, pack reader and the production
@@ -450,7 +449,6 @@ class ScopeVerdictBoundaryTest {
             evaluate(f, "SR").scopeVerdict.name shouldBe member.name
             seen.size shouldBe 1
         }
-        SIX_MEMBERS.isNotEmpty() shouldBe true
     }
 
     @Test

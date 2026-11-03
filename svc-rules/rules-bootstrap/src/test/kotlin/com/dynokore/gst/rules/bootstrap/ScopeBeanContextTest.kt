@@ -4,6 +4,7 @@ import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.domain.scope.ScopeFacts
 import com.dynokore.gst.rules.domain.scope.ScopeVerdict
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
+import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import io.kotest.matchers.shouldBe
@@ -68,6 +69,14 @@ class ScopeBeanContextTest {
     fun `a second ScopeVerdictPort bean makes the context fail to start`() {
         runner().withBean("secondScopeVerdictPort", ScopeVerdictPort::class.java, { second }).run { context ->
             (context.startupFailure != null) shouldBe true
+        }
+    }
+
+    @Test
+    fun `the context holds the entity-profile consumer that feeds the structure replica`() {
+        runner().run { context ->
+            context.startupFailure?.let { throw it }
+            context.getBeansOfType(JdbcInboxConsumer::class.java).keys shouldBe setOf("entityProfileConsumer")
         }
     }
 }
