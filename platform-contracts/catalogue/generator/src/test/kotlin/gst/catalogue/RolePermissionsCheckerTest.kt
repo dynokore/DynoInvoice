@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(27, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(28, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -1485,6 +1485,74 @@ class RolePermissionsCheckerTest {
     @Test
     fun `INV-T-16540 the label removed from addedRows while its key stays fails naming the key`() {
         RolePermissionsChecker.heldDocumentPairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
+    }
+
+    private val pe = "period-extension.record"
+    private val peRow = "Record an IRAS-granted filing extension"
+
+    @Test
+    fun `INV-T-16683 the key is WRITE with its pinned row and exactly the two tax approver cells`() {
+        assertEquals(mapOf(pe to peRow), RolePermissionsChecker.periodExtensionPairs)
+        assertTrue(peRow in RolePermissionsChecker.addedRows)
+        assertEquals(peRow, permission(real, pe).row)
+        assertEquals(PermissionKind.WRITE, permission(real, pe).kind)
+        assertEquals(
+            setOf(
+                CellRow("tax.approver", saasF, RoleAllowance.PERMITTED),
+                CellRow("tax.approver", privF, RoleAllowance.PERMITTED),
+            ),
+            permission(real, pe).cells.toSet(),
+        )
+        assertEquals(2, permission(real, pe).cells.size)
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-T-16683 probe a renamed key is reported`() {
+        listOf("period-extensions.record", "period-extension.recorded", "Period-extension.record").forEach { k ->
+            assertReported(withPermission(pe) { it.copy(key = k) }, "key $pe: missing")
+            assertReported(withPermission(pe) { it.copy(key = k) }, "key $k")
+        }
+    }
+
+    @Test
+    fun `INV-T-16683 probe an extra cell or role is reported`() {
+        assertReported(cellAdd(pe, "entity.admin", saasF), "role entity.admin key $pe form SAAS", "extra")
+        assertReported(cellAdd(pe, "tenant.admin", privF), "role tenant.admin key $pe form PRIVATE", "extra")
+        assertReported(cellAdd(pe, "tax.operator", saasF), "role tax.operator key $pe form SAAS", "extra")
+        assertReported(
+            withPermission(pe) { p ->
+                p.copy(cells = p.cells.map { if (it.role == "tax.approver" && it.form == saasF) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it })
+            },
+            "role tax.approver key $pe form SAAS",
+        )
+    }
+
+    @Test
+    fun `INV-T-16683 probe each cell removed is reported`() {
+        assertReported(cellRemove(pe, "tax.approver", saasF), "role tax.approver key $pe form SAAS", "missing")
+        assertReported(cellRemove(pe, "tax.approver", privF), "role tax.approver key $pe form PRIVATE", "missing")
+    }
+
+    @Test
+    fun `INV-T-16683 probe the kind READ instead of WRITE is reported`() {
+        assertReported(withKind(pe, PermissionKind.READ), "key $pe")
+    }
+
+    @Test
+    fun `INV-T-16683 probe a second new key is reported`() {
+        val second = permission(real, pe).copy(key = "period-extension.revoke")
+        assertReported(real.copy(permissions = real.permissions + second), "key period-extension.revoke")
+        val other = permission(real, pe).copy(key = "extension.other", row = "Another new row")
+        assertReported(real.copy(permissions = real.permissions + other), "extension.other")
+    }
+
+    @Test
+    fun `INV-T-16683 the label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.periodExtensionPairs.forEach { (key, label) ->
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }

@@ -402,6 +402,26 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `period-extension record is WRITE with two tax approver cells, others DENIED`() {
+        val key = "period-extension.record"
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind(key))
+        both.forEach { form ->
+            val actual =
+                RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            assertEquals(mapOf("tax.approver" to y), actual, "$key $form")
+        }
+    }
+
+    @Test
+    fun `INV-AC-16682 period-extension record is tax approver only in both forms`() {
+        assertEquals(y, cell(saas, "tax.approver", "period-extension.record"))
+        assertEquals(y, cell(privateForm, "tax.approver", "period-extension.record"))
+        // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
+        assertNull(cell(saas, "entity.admin", "period-extension.record"))
+        assertNull(RolePermissions.kind("period-extensions.record"))
+    }
+
+    @Test
     fun `INV-AC-16537 held-document release is tax approver only`() {
         assertEquals(y, cell(saas, "tax.approver", "held-document.release"))
         // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).

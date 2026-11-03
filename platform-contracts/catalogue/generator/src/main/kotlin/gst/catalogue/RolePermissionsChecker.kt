@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A).
      */
     val addedRows: List<String> =
         listOf(
@@ -117,6 +117,7 @@ object RolePermissionsChecker {
             "Release a document held for manual review",
             "Request an implementation consultant grant",
             "View the exception queue",
+            "Record an IRAS-granted filing extension",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -164,6 +165,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the held-document release key (INV-T-16540, INV-Q-16154 A), compared by equality. */
     val heldDocumentPairs: Map<String, String> =
         mapOf("held-document.release" to "Release a document held for manual review")
+
+    /** The (key, row) pair of the period extension record key (INV-T-16683, INV-Q-16671 A), compared by equality. */
+    val periodExtensionPairs: Map<String, String> =
+        mapOf("period-extension.record" to "Record an IRAS-granted filing extension")
 
     /** The (key, row) pair of the exception queue read key (INV-T-16573, INV-Q-15877 A), compared by equality. */
     val exceptionViewPairs: Map<String, String> =
@@ -390,6 +395,11 @@ object RolePermissionsChecker {
                     PermissionKind.WRITE,
                     cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver"),
                 ),
+            "period-extension.record" to
+                Required(
+                    PermissionKind.WRITE,
+                    cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver"),
+                ),
             "consultant-grant.request" to
                 Required(
                     PermissionKind.WRITE,
@@ -537,6 +547,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in heldDocumentPairs && (it.row in heldDocumentPairs.values || it.key.startsWith("held-document")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${heldDocumentPairs.keys.joinToString()}, which alone carry the held document release row (INV-T-16540)."
+        }
+        periodExtensionPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${periodExtensionPairs.keys.joinToString()}, INV-T-16683)."
+        }
+        table.permissions.filter { it.key !in periodExtensionPairs && (it.row in periodExtensionPairs.values || it.key.startsWith("period-extension")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${periodExtensionPairs.keys.joinToString()}, which alone carry the period extension record row (INV-T-16683)."
         }
         exceptionViewPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
