@@ -260,7 +260,8 @@ class CanonicalRecorderAdapterTest {
     }
 
     private fun compactBody(function: String) =
-        """{"tenantId":"$tenant","entityRef":"ENT-1","sourceSystem":"erp-acme","sourceKey":"INV-1","sourceRevision":3,""" +
+        """{"tenantId":"$tenant","entityRef":"ENT-1","sourceSystem":"erp-acme","sourceKey":"INV-1",""" +
+            """"sourceRevision":3,""" +
             """"documentFunction":"$function","transactionDate":"2026-10-01","currency":"SGD",""" +
             """"sourceTimeZone":"Asia/Singapore","lines":[{"lineNumber":1,"lineAmount":"10.00","taxCode":"SR"}]}"""
 
@@ -271,11 +272,12 @@ class CanonicalRecorderAdapterTest {
     fun `INV-AC-13667 the generated documentFunction has the six values of INV-Q-6507 A`() {
         RecordDocumentRequest.DocumentFunction.entries
             .map { it.name }
-            .toSet() shouldBe setOf("INVOICE", "CREDIT_NOTE", "DEBIT_NOTE", "BILL_FOR_PAYMENT", "ADJUSTMENT", "NOT_A_BILL")
+            .toSet() shouldBe
+            setOf("INVOICE", "CREDIT_NOTE", "DEBIT_NOTE", "BILL_FOR_PAYMENT", "ADJUSTMENT", "NOT_A_BILL")
     }
 
     @Test
-    fun `INV-AC-13667 an ADJUSTMENT body and a CREDIT_NOTE body without linkage go out unchanged and both get ING-019 400`() {
+    fun `INV-AC-13667 an ADJUSTMENT body and a CREDIT_NOTE body without linkage go out unchanged, both ING-019 400`() {
         stub.reply = CanonicalStub.Reply(400, ing019)
         val answers =
             listOf("ADJUSTMENT", "CREDIT_NOTE").map { function ->
