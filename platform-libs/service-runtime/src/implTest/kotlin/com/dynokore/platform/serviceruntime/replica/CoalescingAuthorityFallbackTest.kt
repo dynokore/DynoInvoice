@@ -65,7 +65,7 @@ class CoalescingAuthorityFallbackTest {
     }
 
     @Test
-    fun `50 equal requests reach the stub once and all get its answer`() {
+    fun `INV-AC-9090 50 equal requests reach the stub once and all get its answer`() {
         val futures = mutableListOf(submit(request()))
         entered.await(10, TimeUnit.SECONDS)
         repeat(49) { futures += submit(request()) }
@@ -77,7 +77,7 @@ class CoalescingAuthorityFallbackTest {
     }
 
     @Test
-    fun `the same 50 split over two actions reach the stub twice`() {
+    fun `INV-AC-9090 the same 50 split over two actions reach the stub twice`() {
         val futures = mutableListOf(submit(request(action = "X")), submit(request(action = "Y")))
         waitFor { calls.get() == 2 }
         repeat(24) { futures += submit(request(action = "X")) }
@@ -88,7 +88,7 @@ class CoalescingAuthorityFallbackTest {
     }
 
     @Test
-    fun `another entityRef, another tenant and a call after return are separate calls`() {
+    fun `INV-AC-9090 another entityRef, another tenant and a call after return are separate calls`() {
         val futures = listOf(submit(request()), submit(request(entityRef = "E2")), submit(request(tenant = tenantB)))
         waitFor { calls.get() == 3 }
         releaseAndGet(futures)
@@ -99,7 +99,7 @@ class CoalescingAuthorityFallbackTest {
     }
 
     @Test
-    fun `a failing call gives every waiter Unavailable and the next call is new`() {
+    fun `INV-AC-9090 a failing call gives every waiter Unavailable and the next call is new`() {
         answer = { throw IllegalStateException("boom") }
         val futures = mutableListOf(submit(request()))
         entered.await(10, TimeUnit.SECONDS)
@@ -113,7 +113,7 @@ class CoalescingAuthorityFallbackTest {
     }
 
     @Test
-    fun `a waiter with an expired deadline returns Unavailable while another still gets the answer`() {
+    fun `INV-AC-9090 a waiter with an expired deadline returns Unavailable while another still gets the answer`() {
         val leader = submit(request())
         entered.await(10, TimeUnit.SECONDS)
         val patient = submit(request())

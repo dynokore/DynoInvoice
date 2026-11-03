@@ -74,27 +74,27 @@ class ExtensibleEnumDecodingTest {
     }
 
     @Test
-    fun `the feed decodes the unlisted kind WAREHOUSE to UNKNOWN`() {
+    fun `INV-AC-12574 the feed decodes the unlisted kind WAREHOUSE to UNKNOWN`() {
         fed("WAREHOUSE").kind shouldBe StructureNodeKind.UNKNOWN
     }
 
     @Test
-    fun `the fallback decodes the unlisted kind WAREHOUSE to UNKNOWN`() {
+    fun `INV-AC-12574 the fallback decodes the unlisted kind WAREHOUSE to UNKNOWN`() {
         fallen("WAREHOUSE").kind shouldBe StructureNodeKind.UNKNOWN
     }
 
     @Test
-    fun `the feed keeps the listed kind ENTITY`() {
+    fun `INV-AC-12574 the feed keeps the listed kind ENTITY`() {
         fed("ENTITY").kind shouldBe StructureNodeKind.ENTITY
     }
 
     @Test
-    fun `the fallback keeps the listed kind ENTITY`() {
+    fun `INV-AC-12574 the fallback keeps the listed kind ENTITY`() {
         fallen("ENTITY").kind shouldBe StructureNodeKind.ENTITY
     }
 
     @Test
-    fun `a feed node without the required kind is still a ContractViolation`() {
+    fun `INV-AC-12574 a feed node without the required kind is still a ContractViolation`() {
         assertThrows<ContractViolation> { fed(null) }
     }
 }
