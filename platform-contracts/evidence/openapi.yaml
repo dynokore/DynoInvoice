@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -1335,6 +1335,72 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/evidence/cases/{caseId}/subject-access-export:
+    post:
+      operationId: generateSubjectAccessExport
+      summary: Generate the scoped, audit-logged export for an access request case
+      description: >-
+        INV-REQ-885. The export holds only the records that the `subjectRef`
+        of the case identifies, found through the fields classified
+        IDENTIFYING or SENSITIVE (`evidence/data-classification.tsv`), and no
+        record of another individual. The call writes one audit entry holding
+        the acting user ID (never a role), the action
+        `generateSubjectAccessExport` and the case. A repeat for the same case
+        returns the stored export and writes no second export. A CLOSED case
+        is refused with 409. The caller is decided per request by the
+        permission key `privacy-request.handle` through
+        `AuthorityReplica.decide`, never by a role name (INV-Q-10027). The
+        answer deadline is the `responseDeadline` of the case and is not
+        changed.
+      tags: [privacy]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-885]
+      x-operation:
+        role: privacy-request.handle
+        scope: tenant
+        precondition: "The case is OPEN or EXPORT_READY."
+        reversibility: UNDOABLE
+        repeatKey: "caseId — a repeat for the same case returns the stored export."
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The export of the subject's records for the case.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubjectAccessExport'
+              examples:
+                default:
+                  value:
+                    generatedAt: "2026-03-05T09:00:00Z"
+                    manifestUri: "s3://evidence-exports/3fa85f64-5717-4562-b3fc-2c963f66afa6/manifest.json"
+                    itemCount: 12
+                    recordClasses: [IDENTIFYING, SENSITIVE]
+        '404':
+          description: No case has the `caseId`.
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The case is CLOSED.
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/evidence/cases/{caseId}/annotations:
     post:
       operationId: appendEvidenceAnnotation
@@ -1905,6 +1971,16 @@ components:
           format: date-time
         manifestUri:
           type: string
+        itemCount:
+          type: integer
+          minimum: 0
+        recordClasses:
+          type: array
+          items:
+            type: string
+            enum: [IDENTIFYING, SENSITIVE]
+            x-extensible-enum: true
+          uniqueItems: true
       required: [generatedAt, manifestUri]
     PrivacyCase:
       type: object

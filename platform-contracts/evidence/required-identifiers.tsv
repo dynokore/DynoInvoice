@@ -86,3 +86,7 @@ measuredAt	property	schemas/archive-volume-measured-payload.schema.json	INV-REQ-
 getDecisionTrace	operation	openapi.yaml	INV-REQ-942
 DecisionTraceEntry.ruleId	schema_property	openapi.yaml	INV-REQ-942
 DecisionTraceEntry.packVersions	schema_property	openapi.yaml	INV-REQ-942
+# INV-REQ-885 (INV-AC-15748): the subject access export operation and the two properties its answer names.
+generateSubjectAccessExport	operation	openapi.yaml	INV-REQ-885
+SubjectAccessExport.itemCount	schema_property	openapi.yaml	INV-REQ-885
+SubjectAccessExport.recordClasses	schema_property	openapi.yaml	INV-REQ-885
