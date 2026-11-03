@@ -13,7 +13,6 @@ dependencies {
     implementation(project(":submission-contract"))
     implementation(project(":submission-domain"))
     implementation(libs.platform.serviceRuntime.impl)
-    implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.tenancyKernel.impl)

@@ -46,10 +46,9 @@ class JobRuntimeCompositionTest {
     private fun <T> ApplicationContext.asTenant(
         tenant: UUID,
         block: () -> T,
-    ): T =
-        getBean(TenantContext::class.java).bind(TenantId(tenant), actor) {
-            getBean(TransactionRunner::class.java).inTransaction(block)
-        }
+    ): T = getBean(TenantContext::class.java).bind(TenantId(tenant), actor) {
+        getBean(TransactionRunner::class.java).inTransaction(block)
+    }
 
     private fun ApplicationContext.seed(
         tenant: UUID,
@@ -112,8 +111,6 @@ class JobRuntimeCompositionTest {
         val items = context.payloads(tenant, doc)
         items.size shouldBe 1
         Regex("\"version\"\\s*:\\s*2\\b").containsMatchIn(items.single()) shouldBe true
-        // the lock of the first run is held for lockAtLeastFor (30 s, real clock): wait it out so the body runs again
-        Thread.sleep(LOCK_LEASE_WAIT.toMillis())
         runtime.fire("waiting-sweep", first.plusSeconds(60)) shouldBe mapOf(JobTarget.Whole to FireResult.RAN)
         context.states(tenant, doc) shouldBe mapOf(1 to "ACKNOWLEDGED", 2 to "QUEUED")
         context.payloads(tenant, doc) shouldBe items
@@ -147,8 +144,7 @@ class JobRuntimeCompositionTest {
         listOf("release.manager", "platform.engineer", "svc:submission-svc", "").forEach { who ->
             JobCommand.entries.forEach { command ->
                 authorizer.isPlatformOperator(who, command) shouldBe false
-                authorizer.mayCommandEntity(who, TenantId(UUID.randomUUID()), EntityRef.PLATFORM, command) shouldBe
-                    false
+                authorizer.mayCommandEntity(who, TenantId(UUID.randomUUID()), EntityRef.PLATFORM, command) shouldBe false
                 authorizer.mayCommandEntity(who, TenantId.PLATFORM, EntityRef.PLATFORM, command) shouldBe false
             }
         }
@@ -158,16 +154,7 @@ class JobRuntimeCompositionTest {
     fun `the job tables migration is the DDL service-runtime generates for the submission schema`() {
         val text =
             checkNotNull(javaClass.getResource("/db/migration/$migration")) { "no migration $migration" }.readText()
-        val statements =
-            text
-                .lines()
-                .filterNot { it.startsWith("--") }
-                .joinToString("\n")
-                .trim()
+        val statements = text.lines().filterNot { it.startsWith("--") }.joinToString("\n").trim()
         statements shouldBe JobSchema.ddl(SubmissionDb.SCHEMA, SubmissionDb.RUNTIME, SubmissionDb.SYS).trim()
-    }
-
-    private companion object {
-        val LOCK_LEASE_WAIT: Duration = Duration.ofSeconds(31)
     }
 }

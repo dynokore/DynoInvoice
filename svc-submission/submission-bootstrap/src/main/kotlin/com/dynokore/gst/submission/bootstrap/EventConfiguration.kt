@@ -2,7 +2,6 @@ package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
-import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -14,8 +13,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue =
-        EventCatalogue(SubmissionEvents.entries + SubmissionEvents.consumed + SubmissionEvents.platformEntries)
+    fun eventCatalogue(): EventCatalogue = EventCatalogue(SubmissionEvents.entries + SubmissionEvents.consumed)
 }
 
 object SubmissionEvents {
@@ -34,22 +32,6 @@ object SubmissionEvents {
     val entries: List<CatalogueEntry> =
         topicByType.map { (type, topic) ->
             CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
-        }
-
-    /**
-     * The two platform events the job runtime of service-runtime writes through the outbox (INV-Q-16766 A): the
-     * emission guard refuses any type the catalogue lacks. Another platform event is catalogued by the task that emits it.
-     */
-    val platformEntries: List<CatalogueEntry> =
-        listOf(PlatformEventCatalogue.JOB_RUN_RECORDED, PlatformEventCatalogue.JOB_REGISTERED).map { event ->
-            CatalogueEntry(
-                event.eventType,
-                checkNotNull(event.topic),
-                setOf(CatalogueEntry.EVERY_SERVICE),
-                contentTopic = false,
-                recordTopic = false,
-                retainedWhileResolvable = false,
-            )
         }
 
     const val PAYLOAD_READY_TOPIC = "gst.payload.payload-ready.v1"

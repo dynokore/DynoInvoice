@@ -35,27 +35,7 @@ class Tpl16ServiceCompositionTest {
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:submission-svc"
             catalogueTypes(context) shouldBe
-                (SubmissionEvents.entries + SubmissionEvents.consumed).map { it.eventType }.toSet() +
-                setOf(
-                    "com.dynokore.gst.platform.JobRunRecorded.v1",
-                    "com.dynokore.gst.platform.JobRegistered.v1",
-                )
-            val platform =
-                context
-                    .getBean(EventCatalogue::class.java)
-                    .entries()
-                    .filter { it.eventType.startsWith("com.dynokore.gst.platform.") }
-                    .associateBy { it.eventType }
-            platform.getValue("com.dynokore.gst.platform.JobRunRecorded.v1").topic shouldBe
-                "gst.platform.job-run-recorded.v1"
-            platform.getValue("com.dynokore.gst.platform.JobRegistered.v1").topic shouldBe
-                "gst.platform.job-registered.v1"
-            platform.values.forEach {
-                it.producers shouldBe setOf("every service")
-                it.contentTopic shouldBe false
-                it.recordTopic shouldBe false
-                it.retainedWhileResolvable shouldBe false
-            }
+                (SubmissionEvents.entries + SubmissionEvents.consumed).map { it.eventType }.toSet()
         }
     }
 
