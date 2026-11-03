@@ -353,7 +353,11 @@ class ScopeVerdictBoundaryTest {
     fun `INV-AC-2268 INV-REQ-1282 the pinned catalogue offers VP-21 as available with the option ON`() {
         val vp = VariationPoint.fromId(VoluntaryOverSubmission.VARIATION_POINT)
         vp?.status shouldBe VpStatus.AVAILABLE
-        (vp?.optionSpecs ?: emptyList()).map { it.key }.contains(VoluntaryOverSubmission.ON) shouldBe true
+        vp
+            ?.optionSpecs
+            .orEmpty()
+            .map { it.key }
+            .contains(VoluntaryOverSubmission.ON) shouldBe true
     }
 
     @Test
