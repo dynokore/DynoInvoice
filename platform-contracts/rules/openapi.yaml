@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.16.0
+  version: 1.17.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -916,6 +916,7 @@ paths:
         scope: tenant
         precondition: "All instances acknowledged (FR-K.7); private form only (FR-AB.10)."
         reversibility: COMPENSABLE
+        compensationCost: "Correctable by a superseding pack (rollbackPack, then reprocessPopulation), but both activations remain in the audit trail; there is no un-arm."
         repeatKey: "(packType, version) — no-op if already armed (INV-REQ-1010 armPack example)."
       parameters:
         - name: packType
