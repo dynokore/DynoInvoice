@@ -6,6 +6,9 @@ import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
+import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
+import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
+import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.application.ActivePackReader
 import com.dynokore.gst.rules.application.DocumentCoder
@@ -16,18 +19,32 @@ import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
+import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventLogReader
+import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
+import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
+import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
+import com.dynokore.platform.serviceruntime.replica.PolicyReplica
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
+import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.Schema
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import java.time.Clock
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
@@ -58,6 +75,28 @@ class RulesConfiguration {
     ): PackContentsReader = PackContentsReader(ArmedPackLookup(dsl), registry::artefactOf)
 
     /**
+     * The one production scope verdict port (INV-Q-13820): the SCOPE pack in force on the transaction date decides,
+     * the catalogue supplies the standard-rated purchase codes.
+     */
+    @Bean
+    fun scopeVerdictPort(
+        dsl: DSLContext,
+        registry: PersistedPackRegistry,
+        reader: PackContentsReader,
+    ): ScopeVerdictPort = PackScopeVerdictPort(ArmedPackLookup(dsl), registry::artefactOf, reader)
+
+    /** The obligation start and registration end of the entity, from the structure replica (INV-Q-16175). */
+    @Bean
+    fun profileScopeFacts(
+        structure: StructureReplica,
+        clock: Clock,
+    ): ProfileScopeFacts = ProfileScopeFacts(structure, clock)
+
+    /** The VP-21 election of the entity, from the policy replica only (INV-REQ-1282). */
+    @Bean
+    fun voluntaryOverSubmission(policy: PolicyReplica): VoluntaryOverSubmission = VoluntaryOverSubmission(policy)
+
+    /**
      * The evaluation core over the armed packs of rules-svc's own schema, with the per-line coding over the decoded
      * packs. The rules and the pack types an evaluation binds are registered by the tasks that specialise it.
      */
@@ -72,8 +111,44 @@ class RulesConfiguration {
             Evaluator(emptyList()),
             emptyList(),
             DocumentCoder(reader, reader, reader),
-            // no scope rules bean: no verdict is ever invented, the evaluation fails closed (ScopeRulesMissing)
+            // the one ScopeVerdictPort bean; a second bean fails the start of the context (NoUniqueBeanDefinition)
             scopeVerdicts.getIfAvailable(),
+        )
+
+    /**
+     * rules-svc is a subscriber of `gst.tenancy.entity-profile-changed.v1` (platform-contracts event-log/topics.yaml):
+     * the consumer applies each `EntityProfileChanged` to the structure replica, which holds `obligationStartDate` and
+     * `registrationEndDate` for the submission window (INV-Q-16175). The catalogue below is the consumer's own and not
+     * a bean: rules-svc publishes only its three pack events.
+     */
+    @Bean
+    @ConditionalOnBean(EventLogReader::class, TenantScope::class, RebuildRequiredSink::class)
+    @Suppress("LongParameterList")
+    fun entityProfileConsumer(
+        reader: EventLogReader,
+        scope: TenantScope,
+        rebuildRequired: RebuildRequiredSink,
+        clock: Clock,
+        handler: StructureFeedHandler,
+    ): JdbcInboxConsumer =
+        JdbcInboxConsumer(
+            ConsumerSubscription(RulesEventCatalogue.SERVICE, ProductEventTypes.ENTITY_PROFILE_CHANGED_TOPIC, SCHEMA),
+            EventCatalogue(
+                listOf(
+                    CatalogueEntry(
+                        ProductEventTypes.ENTITY_PROFILE_CHANGED,
+                        ProductEventTypes.ENTITY_PROFILE_CHANGED_TOPIC,
+                        setOf(CatalogueEntry.EVERY_SERVICE),
+                        contentTopic = false,
+                    ),
+                ),
+            ),
+            reader,
+            scope,
+            TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), scope.tenants, scope.transactions),
+            handler,
+            rebuildRequired,
+            clock,
         )
 
     /** The cursor integrity key is read through SecretStore at every use (STK-29): no restart on rotation. */
@@ -97,5 +172,6 @@ class RulesConfiguration {
 
     private companion object {
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
+        const val SCHEMA = "rules"
     }
 }

@@ -4,18 +4,25 @@ import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.application.CodeDocumentCommand
 import com.dynokore.gst.rules.application.DocumentCodingResult
 import com.dynokore.gst.rules.application.DocumentLine
+import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
+import com.dynokore.gst.rules.adapters.scope.ScopePackMissing
+import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.contract.api.EvaluationApi
 import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
 import com.dynokore.gst.rules.contract.model.EvaluationResultSelfBillingAssignment
 import com.dynokore.gst.rules.contract.model.PackVersionApplied
+import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.domain.coding.Direction
 import com.dynokore.gst.rules.domain.coding.LineCoder
 import com.dynokore.gst.rules.domain.coding.LineCoding
 import com.dynokore.gst.rules.domain.coding.LineInput
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
+import com.dynokore.gst.rules.domain.scope.ScopeDirection
+import com.dynokore.gst.rules.domain.scope.ScopeFacts
+import com.dynokore.gst.rules.domain.scope.ScopeOutcome
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -37,6 +44,8 @@ open class EvaluationController(
     private val packs: PackContentsReader,
     private val tenants: TenantContext,
     private val transactions: TransactionRunner,
+    private val profile: ProfileScopeFacts,
+    private val voluntary: VoluntaryOverSubmission,
 ) : EvaluationApi {
     override fun evaluateDocument(evaluateDocumentRequest: EvaluateDocumentRequest): ResponseEntity<EvaluationResult> =
         ResponseEntity.ok(evaluated(evaluateDocumentRequest))
@@ -63,8 +72,40 @@ open class EvaluationController(
                     CodeDocumentCommand(tenant, date, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input))),
                 )
             val coding = codingOf(result, tenant, date, input)
-            val verdict = evaluate.scopeVerdictOf(tenant, date, coding)
-            answer(verdict, coding, result, versionsApplied(tenant, date))
+            val (outcome, answered) = scopeOutcomeOf(request, tenant, date, coding)
+            answer(outcome, answered, result, versionsApplied(tenant, date))
+        }
+    }
+
+    /**
+     * The scope outcome of the line from the request's facts, the entity profile and the VP-21 election, all read
+     * from replicas. With no SCOPE pack on the date the answer is a RUL-002 refusal, never a verdict.
+     */
+    private fun scopeOutcomeOf(
+        request: EvaluateDocumentRequest,
+        tenant: TenantId,
+        date: TransactionDate,
+        coding: LineCoding,
+    ): Pair<ScopeOutcome, LineCoding> {
+        val dates = profile.datesOf(tenant, request.entityRef, date)
+        val facts =
+            ScopeFacts(
+                tenant = tenant,
+                date = date,
+                line = coding,
+                direction = request.direction?.let { ScopeDirection.valueOf(it.value) } ?: ScopeDirection.SALE,
+                sameGroup = request.sameGroup ?: false,
+                inputTaxClaimedNonZero = request.inputTaxClaimedNonZero,
+                voluntaryOverSubmission = voluntary.isOn(tenant, request.entityRef, date),
+                obligationStartDate = dates.obligationStartDate,
+                registrationEndDate = dates.registrationEndDate,
+            )
+        return try {
+            evaluate.scopeOutcomeOf(facts) to coding
+        } catch (_: ScopePackMissing) {
+            // a refused line is never submitted; the refusal itself is the answer (INV-REQ-1089)
+            ScopeOutcome(DomainScopeVerdict.NOT_SUBMITTABLE, disregardedSupplyWarning = false) to
+                LineCoding.Refused(ErrorCode.RUL_002)
         }
     }
 
@@ -102,12 +143,13 @@ open class EvaluationController(
         }
 
     private fun answer(
-        verdict: DomainScopeVerdict,
+        outcome: ScopeOutcome,
         coding: LineCoding,
         result: DocumentCodingResult,
         versions: List<PackVersionApplied>,
     ): EvaluationResult {
-        val scope = EvaluationResult.ScopeVerdict.valueOf(verdict.name)
+        val scope = EvaluationResult.ScopeVerdict.valueOf(outcome.verdict.name)
+        val warning = if (outcome.disregardedSupplyWarning) true else null
         return when (coding) {
             is LineCoding.Refused -> {
                 EvaluationResult(
@@ -115,6 +157,7 @@ open class EvaluationController(
                     packVersionsApplied = versions,
                     severity = EvaluationResult.Severity.valueOf(coding.severity.name),
                     code = coding.code.code,
+                    disregardedSupplyWarning = warning,
                 )
             }
 
@@ -125,6 +168,7 @@ open class EvaluationController(
                     categoryCode = coding.categoryCode,
                     rate = line.rate,
                     ibt022Statement = coding.ibt022Statement,
+                    disregardedSupplyWarning = warning,
                     packVersionsApplied = versions,
                     selfBillingAssignment =
                         coding.selfBillingAssignment?.let {

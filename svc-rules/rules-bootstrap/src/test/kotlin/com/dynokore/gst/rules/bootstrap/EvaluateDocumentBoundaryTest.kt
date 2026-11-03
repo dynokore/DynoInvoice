@@ -190,6 +190,7 @@ class BoundaryScope(
 @TestConfiguration(proxyBeanMethods = false)
 class BoundaryDoubles {
     @Bean
+    @org.springframework.context.annotation.Primary // the production port is a bean too; this double is the one asked
     fun boundaryScope(emitter: PackEventEmitter): BoundaryScope = BoundaryScope(emitter)
 }
 

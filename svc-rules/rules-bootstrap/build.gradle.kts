@@ -17,6 +17,7 @@ dependencies {
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.jooq)
     implementation(libs.platform.serviceRuntime.impl)
+    implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.productRuntime.impl)
     // The impl halves service-runtime's composition root wires when they are on the classpath (TPL-01, TPL-18).
     implementation(libs.platform.tenancyKernel.impl)
