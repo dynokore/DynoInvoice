@@ -20,8 +20,8 @@ class ScopePackMissing(
 ) : IllegalStateException("no scope pack is armed on $date")
 
 /**
- * The production [ScopeVerdictPort] (INV-Q-13820, INV-Q-13824): the SCOPE pack version effective at the transaction date
- * is resolved through the armed-pack lookup and read from the holder copy ([artefacts] is
+ * The production [ScopeVerdictPort] (INV-Q-13820, INV-Q-13824): the SCOPE pack version effective at the
+ * transaction date is resolved through the armed-pack lookup and read from the holder copy ([artefacts] is
  * `PersistedPackRegistry.artefactOf`); `lineScopeRules`, `intraGroupRule.treatment` and the catalogue codes of group
  * PURCHASE_STANDARD_RATED become the data of the pure [ScopeRules], which decides.
  */
