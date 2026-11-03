@@ -1,0 +1,6 @@
+file	pointer	relation	value	requirement
+openapi.yaml	/paths/~1internal~1v1~1rules~1mapping-packs~1{packId}/get/parameters	contains	{"name":"entityRef","in":"query","required":false,"schema":{"type":"string","minLength":1,"maxLength":64}}	INV-REQ-380
+openapi.yaml	/paths/~1internal~1v1~1rules~1mapping-packs~1{packId}~1entries/get/parameters	contains	{"name":"entityRef","in":"query","required":false,"schema":{"type":"string","minLength":1,"maxLength":64}}	INV-REQ-380
+openapi.yaml	/paths/~1internal~1v1~1rules~1mapping-packs~1{packId}~1submissions/post/parameters	contains	{"name":"entityRef","in":"query","required":false,"schema":{"type":"string","minLength":1,"maxLength":64}}	INV-REQ-380
+openapi.yaml	/paths/~1internal~1v1~1rules~1mapping-packs~1{packId}~1approval/post/parameters	contains	{"name":"entityRef","in":"query","required":false,"schema":{"type":"string","minLength":1,"maxLength":64}}	INV-REQ-380
+openapi.yaml	/components/schemas/MappingPack/properties/entityRef/maxLength	equals	64	INV-REQ-380
