@@ -34,7 +34,8 @@ class ClaimDueOverlapTest {
         PayloadDb.superuser().use { c ->
             c
                 .prepareStatement(
-                    "insert into payload.work_queue (tenant_id, partition_key, lane, payload) values (?, ?, 'LIVE', '{}'::jsonb)",
+                    "insert into payload.work_queue (tenant_id, partition_key, lane, payload) " +
+                        "values (?, ?, 'LIVE', '{}'::jsonb)",
                 ).use {
                     it.setObject(1, tenant)
                     it.setString(2, partition)
