@@ -1,5 +1,6 @@
 package com.dynokore.gst.ingestion.adapters.clients
 
+import com.dynokore.gst.ingestion.adapters.clients.model.RecordDocumentRequest
 import com.dynokore.gst.ingestion.application.recording.CanonicalRecorder
 import com.dynokore.gst.ingestion.application.recording.RecordDocumentCommand
 import com.dynokore.gst.ingestion.application.recording.RecordTransaction
@@ -256,6 +257,45 @@ class CanonicalRecorderAdapterTest {
         withAdapter { it.record(command) } shouldBe CanonicalAnswer.Rejected(null, 202)
         stub.reply = replyJson(201)
         withAdapter { it.record(command) } shouldBe CanonicalAnswer.Created(docUuid, 2)
+    }
+
+    private fun compactBody(function: String) =
+        """{"tenantId":"$tenant","entityRef":"ENT-1","sourceSystem":"erp-acme","sourceKey":"INV-1","sourceRevision":3,""" +
+            """"documentFunction":"$function","transactionDate":"2026-10-01","currency":"SGD",""" +
+            """"sourceTimeZone":"Asia/Singapore","lines":[{"lineNumber":1,"lineAmount":"10.00","taxCode":"SR"}]}"""
+
+    private val ing019 =
+        """{"type":"https://errors/ING-019","title":"Linkage missing","status":400,"code":"ING-019","correlationId":"c-1"}"""
+
+    @Test
+    fun `INV-AC-13667 the generated documentFunction has the six values of INV-Q-6507 A`() {
+        RecordDocumentRequest.DocumentFunction.entries
+            .map { it.name }
+            .toSet() shouldBe setOf("INVOICE", "CREDIT_NOTE", "DEBIT_NOTE", "BILL_FOR_PAYMENT", "ADJUSTMENT", "NOT_A_BILL")
+    }
+
+    @Test
+    fun `INV-AC-13667 an ADJUSTMENT body and a CREDIT_NOTE body without linkage go out unchanged and both get ING-019 400`() {
+        stub.reply = CanonicalStub.Reply(400, ing019)
+        val answers =
+            listOf("ADJUSTMENT", "CREDIT_NOTE").map { function ->
+                stub.seen.clear()
+                val sent = compactBody(function)
+                val answer = withAdapter { it.record(command.copy(body = sent)) }
+                stub.seen.single().body shouldBe sent
+                answer
+            }
+        answers[0] shouldBe CanonicalAnswer.Rejected("ING-019", 400)
+        answers[1] shouldBe CanonicalAnswer.Rejected("ING-019", 400)
+        answers[0] shouldBe answers[1]
+    }
+
+    @Test
+    fun `INV-AC-13667 a body with documentFunction PROFORMA is passed on unchanged and the stub answer decides`() {
+        stub.reply = replyJson(201)
+        val sent = compactBody("PROFORMA")
+        withAdapter { it.record(command.copy(body = sent)) } shouldBe CanonicalAnswer.Created(docUuid, 2)
+        stub.seen.single().body shouldBe sent
     }
 
     private companion object {
