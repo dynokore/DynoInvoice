@@ -87,8 +87,10 @@ class WorkQueueIT {
             if (item == null) {
                 idle++
             } else {
-                worker.kit.inTx(tenant) { worker.queue.complete(item) }
+                // Record before completing: the partition's next item becomes claimable only after complete commits,
+                // so recording first makes the append order of one partition equal its claim order.
                 done += item.partitionKey to item.seq
+                worker.kit.inTx(tenant) { worker.queue.complete(item) }
             }
         }
     }
