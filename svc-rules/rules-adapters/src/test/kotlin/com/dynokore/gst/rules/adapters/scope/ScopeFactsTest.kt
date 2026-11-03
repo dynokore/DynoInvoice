@@ -70,11 +70,16 @@ class ScopeFactsTest {
 
     @Test
     fun `look-alike attribute names give null for both members`() {
-        listOf("registrationEnd", "deregistrationDate", "implementationDate", "registrationStartDate", "ObligationStartDate")
-            .forEach { name ->
-                replicaWith("E1", tenant, name to "2027-01-01").datesOf(tenant, "E1", on(day)) shouldBe
-                    ProfileDates(null, null)
-            }
+        listOf(
+            "registrationEnd",
+            "deregistrationDate",
+            "implementationDate",
+            "registrationStartDate",
+            "ObligationStartDate",
+        ).forEach { name ->
+            replicaWith("E1", tenant, name to "2027-01-01").datesOf(tenant, "E1", on(day)) shouldBe
+                ProfileDates(null, null)
+        }
     }
 
     @Test

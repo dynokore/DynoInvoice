@@ -6,10 +6,10 @@ import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
+import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
 import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
-import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.application.ActivePackReader
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.EvaluateDocument
@@ -25,9 +25,9 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.binding.SecretRef
@@ -48,6 +48,7 @@ import java.time.Clock
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
+@Suppress("TooManyFunctions") // one bean method per wired port; the composition root is the single place (TPL-18)
 class RulesConfiguration {
     /** The generated schema, checked at start-up against the table classes (INV-Q-4815, INV-ADR-3968 item 4a). */
     @Bean

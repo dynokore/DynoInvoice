@@ -35,7 +35,8 @@ class PackScopeVerdictPort(
     override fun outcomeOf(facts: ScopeFacts): ScopeOutcome = ScopeRules(dataAt(facts)).outcomeOf(facts)
 
     private fun dataAt(facts: ScopeFacts): ScopeRulesData {
-        val version = lookup.resolve(PackTypes.SCOPE, facts.tenant, facts.date.value) ?: throw ScopePackMissing(facts.date)
+        val version =
+            lookup.resolve(PackTypes.SCOPE, facts.tenant, facts.date.value) ?: throw ScopePackMissing(facts.date)
         val artefact =
             checkNotNull(artefacts(version)) {
                 "the SCOPE version ${version.version.value} is resolved but its artefact is not held"

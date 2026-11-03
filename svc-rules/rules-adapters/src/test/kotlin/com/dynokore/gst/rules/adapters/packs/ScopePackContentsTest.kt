@@ -61,6 +61,9 @@ class ScopePackContentsTest {
 
     // ---- the scope data of INV-T-4968: lineScopeRules and intraGroupRule ----
 
+    private val intraPassThrough =
+        ""","intraGroupRule":{"treatment":"PASS_THROUGH","sourceClass":"INFERRED","sourceReference":"t"}"""
+
     private fun rule(
         code: String,
         verdict: String,
@@ -68,7 +71,7 @@ class ScopePackContentsTest {
 
     private fun scopePack(
         rules: List<String>,
-        intra: String = ""","intraGroupRule":{"treatment":"PASS_THROUGH","sourceClass":"INFERRED","sourceReference":"t"}""",
+        intra: String = intraPassThrough,
     ) = """{"lineScopeRules":[${rules.joinToString(",")}]$intra}""".toByteArray()
 
     @Test
@@ -97,7 +100,10 @@ class ScopePackContentsTest {
 
     @Test
     fun `a missing intraGroupRule decodes to an absent treatment`() {
-        ScopePackContents.decodeScopeData(scopePack(listOf(rule("SR", "IN_SCOPE")), intra = "")).intraGroupTreatment shouldBe
+        ScopePackContents
+            .decodeScopeData(
+                scopePack(listOf(rule("SR", "IN_SCOPE")), intra = ""),
+            ).intraGroupTreatment shouldBe
             null
     }
 

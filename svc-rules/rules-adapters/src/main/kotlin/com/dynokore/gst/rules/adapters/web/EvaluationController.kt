@@ -1,19 +1,19 @@
 package com.dynokore.gst.rules.adapters.web
 
+import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
-import com.dynokore.gst.rules.application.CodeDocumentCommand
-import com.dynokore.gst.rules.application.DocumentCodingResult
-import com.dynokore.gst.rules.application.DocumentLine
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
 import com.dynokore.gst.rules.adapters.scope.ScopePackMissing
 import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
+import com.dynokore.gst.rules.application.CodeDocumentCommand
+import com.dynokore.gst.rules.application.DocumentCodingResult
+import com.dynokore.gst.rules.application.DocumentLine
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.contract.api.EvaluationApi
 import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
 import com.dynokore.gst.rules.contract.model.EvaluationResultSelfBillingAssignment
 import com.dynokore.gst.rules.contract.model.PackVersionApplied
-import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.domain.coding.Direction
 import com.dynokore.gst.rules.domain.coding.LineCoder
 import com.dynokore.gst.rules.domain.coding.LineCoding

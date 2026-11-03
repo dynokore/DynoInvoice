@@ -46,7 +46,11 @@ object ScopePackContents {
         rules.forEach { rule ->
             val code = rule.text("categoryCode", pattern = CODE_PATTERN)
             val verdict = ScopeVerdict.valueOf(rule.text("lineVerdict", oneOf = LINE_VERDICT_NAMES))
-            if (verdicts.put(code, verdict) != null) root.fail("lineScopeRules", "holds the category code '$code' twice")
+            if (verdicts.put(code, verdict) !=
+                null
+            ) {
+                root.fail("lineScopeRules", "holds the category code '$code' twice")
+            }
         }
         val treatment = root.member("intraGroupRule")?.let { root.obj("intraGroupRule").optionalText("treatment") }
         return ScopeData(verdicts, treatment)

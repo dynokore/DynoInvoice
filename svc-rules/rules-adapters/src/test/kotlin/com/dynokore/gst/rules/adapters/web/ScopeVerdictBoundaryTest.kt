@@ -72,7 +72,8 @@ class ScopeVerdictBoundaryTest {
         """"sourceReference":"invented"}"""
 
     private val mapping =
-        listOf("SR", "OS", "DS", "SRRC", "OP", "ZZ").mapIndexed { i, c -> entry("e$i", c, c) }
+        listOf("SR", "OS", "DS", "SRRC", "OP", "ZZ")
+            .mapIndexed { i, c -> entry("e$i", c, c) }
             .joinToString(",", """{"entries":[""", "]}")
     private val catalogue =
         listOf(
@@ -146,7 +147,13 @@ class ScopeVerdictBoundaryTest {
         val policy = PolicyReplica(clock, setOf(POLICY_TOPIC))
         val scope = port(PackScopeVerdictPort(lookup, artefacts, reader))
         val evaluate =
-            EvaluateDocument(PackResolver(lookup), Evaluator(emptyList()), emptyList(), DocumentCoder(reader, reader, reader), scope)
+            EvaluateDocument(
+                PackResolver(lookup),
+                Evaluator(emptyList()),
+                emptyList(),
+                DocumentCoder(reader, reader, reader),
+                scope,
+            )
         val tenants =
             object : TenantContext {
                 override fun current() = tenant
@@ -164,7 +171,14 @@ class ScopeVerdictBoundaryTest {
                 override fun <T> inTransaction(block: () -> T): T = block()
             }
         val controller =
-            EvaluationController(evaluate, reader, tenants, tx, ProfileScopeFacts(structure, clock), VoluntaryOverSubmission(policy))
+            EvaluationController(
+                evaluate,
+                reader,
+                tenants,
+                tx,
+                ProfileScopeFacts(structure, clock),
+                VoluntaryOverSubmission(policy),
+            )
         return Fixture(controller, structure, policy)
     }
 
@@ -195,7 +209,16 @@ class ScopeVerdictBoundaryTest {
         vp: String = "VP-21",
         offset: Long = 1,
     ) = f.policy.accept(
-        PolicyChanged(PolicyScope.entity(tenant, entity), vp, value, start, PolicySource.PROFILE, null, POLICY_TOPIC, offset),
+        PolicyChanged(
+            PolicyScope.entity(tenant, entity),
+            vp,
+            value,
+            start,
+            PolicySource.PROFILE,
+            null,
+            POLICY_TOPIC,
+            offset,
+        ),
     )
 
     private fun request(
@@ -215,8 +238,7 @@ class ScopeVerdictBoundaryTest {
         date: String = "2026-04-01",
         extra: String = "",
         entity: String = "E1",
-    ): EvaluationResult =
-        checkNotNull(f.controller.evaluateDocument(request(code, date, extra, entity)).body)
+    ): EvaluationResult = checkNotNull(f.controller.evaluateDocument(request(code, date, extra, entity)).body)
 
     private val purchase = ""","direction":"PURCHASE""""
 
@@ -226,7 +248,11 @@ class ScopeVerdictBoundaryTest {
         entity: String = "E1",
     ): Pair<EvaluationResult, EvaluationResult> {
         val off = fixture().also { profile(it) }
-        val on = fixture().also { profile(it); election(it, "ON") }
+        val on =
+            fixture().also {
+                profile(it)
+                election(it, "ON")
+            }
         return evaluate(off, code, extra = extra, entity = entity) to evaluate(on, code, extra = extra, entity = entity)
     }
 
@@ -291,7 +317,7 @@ class ScopeVerdictBoundaryTest {
     // ---- voluntary over-submission ----
 
     @Test
-    fun `INV-AC-396 INV-AC-384 INV-AC-2268 an OS line is OUT_OF_SCOPE by default and SUBMITTABLE with OS when VP-21 is ON`() {
+    fun `INV-AC-396 INV-AC-384 INV-AC-2268 an OS line is OUT_OF_SCOPE by default, SUBMITTABLE with VP-21 ON`() {
         val (off, on) = both("OS")
         off.pair() shouldBe (EvaluationResult.ScopeVerdict.OUT_OF_SCOPE to "OS")
         on.pair() shouldBe (EvaluationResult.ScopeVerdict.SUBMITTABLE to "OS")
@@ -324,14 +350,23 @@ class ScopeVerdictBoundaryTest {
     @Test
     fun `INV-AC-2268 the replica holding OFF, or the look-alike key VP-22 or VP-210, gives the OFF verdict`() {
         listOf(Triple("OFF", "E1", "VP-21"), Triple("ON", "E1", "VP-22"), Triple("ON", "E1", "VP-210")).forEach {
-            val f = fixture().also { fx -> profile(fx); election(fx, it.first, it.second, it.third) }
+            val f =
+                fixture().also { fx ->
+                    profile(fx)
+                    election(fx, it.first, it.second, it.third)
+                }
             evaluate(f, "OS").scopeVerdict shouldBe EvaluationResult.ScopeVerdict.OUT_OF_SCOPE
         }
     }
 
     @Test
     fun `INV-AC-2268 the ON value of entity E1 is not applied to entity E2`() {
-        val f = fixture().also { profile(it); profile(it, "E2"); election(it, "ON", "E1") }
+        val f =
+            fixture().also {
+                profile(it)
+                profile(it, "E2")
+                election(it, "ON", "E1")
+            }
         evaluate(f, "OS", entity = "E1").scopeVerdict shouldBe EvaluationResult.ScopeVerdict.SUBMITTABLE
         evaluate(f, "OS", entity = "E2").scopeVerdict shouldBe EvaluationResult.ScopeVerdict.OUT_OF_SCOPE
     }
@@ -339,7 +374,11 @@ class ScopeVerdictBoundaryTest {
     @Test
     fun `INV-AC-2268 a PolicyChanged for VP-21 carrying YES, on or ON with a blank is not applied`() {
         listOf("YES", "on", "ON ", "true", "").forEach {
-            val f = fixture().also { fx -> profile(fx); election(fx, it) }
+            val f =
+                fixture().also { fx ->
+                    profile(fx)
+                    election(fx, it)
+                }
             evaluate(f, "OS").scopeVerdict shouldBe EvaluationResult.ScopeVerdict.OUT_OF_SCOPE
         }
     }
