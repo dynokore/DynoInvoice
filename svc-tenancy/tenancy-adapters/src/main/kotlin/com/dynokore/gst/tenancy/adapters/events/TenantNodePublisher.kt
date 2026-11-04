@@ -9,7 +9,6 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
-import org.jooq.JSONB
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import tools.jackson.databind.ObjectMapper
@@ -40,7 +39,7 @@ class TenantNodePublisher(
                 DSL.function(
                     DSL.name("tenancy", "publish_tenant_node"),
                     SQLDataType.OTHER,
-                    DSL.`val`(JSONB.valueOf(stagedRow(change).toString()), SQLDataType.JSONB),
+                    DSL.`val`(stagedRow(change).toString()).cast(SQLDataType.JSONB),
                 ),
             ).execute()
     }
