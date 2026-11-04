@@ -1,7 +1,10 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
+import com.dynokore.gst.access.bootstrap.AcceptFirstAdministratorFixture.token
+import com.dynokore.gst.access.bootstrap.AcceptFirstAdministratorFixture.viaConsole
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.json
+import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.operation
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.rows
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.withService
 import com.dynokore.gst.access.bootstrap.SealFixture.activated
@@ -227,6 +230,116 @@ class BreakGlassSignInBackoffTest {
                 val actor = node.findValue("actor")?.asString()
                 assertThat(actor).isEqualTo(SealFixture.ADMIN)
                 assertThat(actor).isNotEqualTo("break-glass:${s.bg1}").isNotEqualTo("tenant.admin").isNotEmpty()
+            }
+        }
+
+    private fun ServedContext.signInAs(
+        s: Setup,
+        caller: String,
+        unlockRef: String,
+        presented: String,
+        key: UUID,
+    ): MockHttpServletResponse =
+        post(
+            operation("signInBreakGlass"),
+            viaConsole(token(caller, s.tenant)),
+            """{"sealingCredential":"$presented"}""",
+            key,
+            "/internal/v1/access/break-glass/$unlockRef/sign-in",
+        )
+
+    private fun keyRows(
+        s: Setup,
+        key: UUID,
+    ): List<String> =
+        rows("access.idempotency_key", s.tenant)
+            .filter { json(it)["idempotency_key"].asString() == key.toString() }
+
+    @Test
+    fun `INV-AC-9184 a repeat of the key of a wrong try returns the original and counts nothing again`() =
+        withService { served ->
+            val s = served.setup()
+            val k1 = UUID.randomUUID()
+            val first = served.signInAs(s, SealFixture.ADMIN, s.bg1, wrong, k1)
+            val repeat = served.signInAs(s, SealFixture.ADMIN, s.bg1, wrong, k1)
+            assertThat(first.status).isEqualTo(403)
+            assertThat(repeat.status).isEqualTo(403)
+            assertThat(json(repeat)["code"].asString()).isEqualTo(json(first)["code"].asString())
+            assertThat(counter(s.tenant, s.bg1)).isEqualTo(1)
+            val rows = keyRows(s, k1)
+            assertThat(rows).hasSize(1)
+            assertThat(json(rows.single())["principal"].asString()).isEqualTo(SealFixture.ADMIN)
+            // look-alike: the same body with a new key counts
+            assertThat(served.signInAs(s, SealFixture.ADMIN, s.bg1, wrong, UUID.randomUUID()).status).isEqualTo(403)
+            assertThat(counter(s.tenant, s.bg1)).isEqualTo(2)
+            // (b) the key with another credential or on another unlock is 422 and counts nothing
+            assertThat(served.signInAs(s, SealFixture.ADMIN, s.bg1, wrong + "x", k1).status).isEqualTo(422)
+            assertThat(served.signInAs(s, SealFixture.ADMIN, s.bg2, wrong, k1).status).isEqualTo(422)
+            assertThat(counter(s.tenant, s.bg1)).isEqualTo(2)
+            assertThat(counter(s.tenant, s.bg2)).isNull()
+            // (c) another actor of the tenant is evaluated afresh: the principal is part of the key
+            assertThat(served.signInAs(s, SealFixture.APPROVER, s.bg2, wrong, k1).status).isEqualTo(403)
+            assertThat(counter(s.tenant, s.bg2)).isEqualTo(1)
+            assertThat(keyRows(s, k1)).hasSize(2)
+        }
+
+    @Test
+    fun `INV-AC-9184 the repeat of the 5th failure raises no second alert and the waiting 429 stores no key`() =
+        withService { served ->
+            val s = served.setup()
+            repeat(4) { served.failOnce(s, s.bg1) }
+            assertThat(served.alerts()).isEmpty()
+            served.signIn(s.tenant, s.bg1, s.credential).let { if (it.status == 429) served.waitOut(it) }
+            val k5 = UUID.randomUUID()
+            assertThat(served.signInAs(s, SealFixture.ADMIN, s.bg1, wrong, k5).status).isEqualTo(403)
+            assertThat(served.alerts()).hasSize(1)
+            assertThat(served.audits()).hasSize(1)
+            assertThat(served.signInAs(s, SealFixture.ADMIN, s.bg1, wrong, k5).status).isEqualTo(403)
+            assertThat(served.alerts()).hasSize(1)
+            assertThat(served.audits()).hasSize(1)
+            assertThat(counter(s.tenant, s.bg1)).isEqualTo(5)
+            // (e) while the back-off waits the key answers 429 SRT-012 and stores nothing; after the wait it works
+            val k3 = UUID.randomUUID()
+            val waiting = served.signInAs(s, SealFixture.ADMIN, s.bg1, s.credential, k3)
+            assertThat(waiting.status).isEqualTo(429)
+            assertThat(json(waiting)["code"].asString()).isEqualTo("SRT-012")
+            assertThat(retryAfter(waiting)).isNotNull()
+            assertThat(keyRows(s, k3)).isEmpty()
+            served.waitOut(waiting)
+            assertThat(served.signInAs(s, SealFixture.ADMIN, s.bg1, s.credential, k3).status).isEqualTo(200)
+        }
+
+    @Test
+    fun `INV-AC-9184 the repeat of a right credential returns the same session and leaves the counter alone`() =
+        withService { served ->
+            val s = served.setup()
+            val k4 = UUID.randomUUID()
+            val first = served.signInAs(s, SealFixture.ADMIN, s.bg1, s.credential, k4)
+            val repeat = served.signInAs(s, SealFixture.ADMIN, s.bg1, s.credential, k4)
+            assertThat(first.status).isEqualTo(200)
+            assertThat(repeat.status).isEqualTo(200)
+            assertThat(json(repeat)).isEqualTo(json(first))
+            assertThat(counter(s.tenant, s.bg1)).isEqualTo(0)
+            assertThat(keyRows(s, k4)).hasSize(1)
+        }
+
+    @Test
+    fun `INV-AC-9184 two concurrent requests with one key and a wrong credential count once`() =
+        withService { served ->
+            val s = served.setup()
+            val k = UUID.randomUUID()
+            val pool =
+                java.util.concurrent.Executors
+                    .newFixedThreadPool(2)
+            try {
+                val results =
+                    (1..2)
+                        .map { pool.submit<Int> { served.signInAs(s, SealFixture.ADMIN, s.bg1, wrong, k).status } }
+                        .map { it.get() }
+                assertThat(results).allSatisfy { assertThat(it).isIn(403, 409) }
+                assertThat(counter(s.tenant, s.bg1)).isEqualTo(1)
+            } finally {
+                pool.shutdown()
             }
         }
 }

@@ -22,6 +22,7 @@ class BreakGlassSigninCounterMigrationTest {
             assertThat(scalar(c, flags)).isEqualTo("true,true")
             val key = "select pg_get_constraintdef(oid) from pg_constraint where conrelid = $table and contype = 'p'"
             assertThat(scalar(c, key)).isEqualTo("PRIMARY KEY (tenant_id, unlock_ref)")
+
             fun has(privilege: String) =
                 scalar(
                     c,
