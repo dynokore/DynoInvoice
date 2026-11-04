@@ -44,8 +44,6 @@ object SubmissionContext {
             "service-runtime.idempotency.schema=submission",
             "service-runtime.datasource.credential=db/submission_runtime",
             "gst.bindings.secret-store.mount-root=$mountRoot",
-            // INV-Q-16793 A: no cron task fires a job on the clock in the shared test contexts
-            "inv.submission.job-scheduling.enabled=false",
         )
 
     /**

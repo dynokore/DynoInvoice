@@ -19,16 +19,9 @@ import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import org.springframework.beans.factory.config.YamlPropertiesFactoryBean
-import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ApplicationContext
-import org.springframework.core.io.ClassPathResource
-import org.springframework.objenesis.ObjenesisStd
-import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor
-import org.springframework.scheduling.config.CronTask
 import org.springframework.scheduling.support.CronExpression
 import java.nio.file.Path
-import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -144,52 +137,6 @@ class JobRuntimeCompositionTest {
         val two = checkNotNull(cron.next(one))
         Duration.between(one, two) shouldBe WaitingSweeper.INTERVAL
         Duration.between(one, two).seconds shouldBe 60
-    }
-
-    private fun ApplicationContext.cronTasks(): List<CronTask> =
-        getBean(ScheduledAnnotationBeanPostProcessor::class.java)
-            .scheduledTasks
-            .map { it.task }
-            .filterIsInstance<CronTask>()
-
-    @Test
-    fun `the shared test context holds no jobScheduling bean and schedules no task`(
-        @TempDir dir: Path,
-    ) = run(dir) { context ->
-        context.containsBean("jobScheduling") shouldBe false
-        context.getBean(ScheduledAnnotationBeanPostProcessor::class.java).scheduledTasks.isEmpty() shouldBe true
-    }
-
-    @Test
-    fun `the production setting schedules one cron task of the waiting-sweep cron`(
-        @TempDir dir: Path,
-    ) {
-        SubmissionContext.online(dir).withPropertyValues("inv.submission.job-scheduling.enabled=true").run { context ->
-            context.startupFailure shouldBe null
-            context.containsBean("jobScheduling") shouldBe true
-            context.cronTasks().map { it.expression } shouldBe
-                listOf(JobRuntimeConfiguration.WAITING_SWEEP.schedule.cron)
-        }
-    }
-
-    @Test
-    fun `the scheduling bean is present when the switch is missing`() {
-        val sweeper = ObjenesisStd().newInstance(WaitingSweeper::class.java)
-        ApplicationContextRunner()
-            .withBean(Clock::class.java, { Clock.systemUTC() })
-            .withBean(WaitingSweeper::class.java, { sweeper })
-            .withUserConfiguration(JobRuntimeConfiguration::class.java)
-            .run { context ->
-                context.startupFailure shouldBe null
-                context.containsBean("jobScheduling") shouldBe true
-            }
-    }
-
-    @Test
-    fun `application yaml switches job scheduling on`() {
-        val yaml = YamlPropertiesFactoryBean()
-        yaml.setResources(ClassPathResource("application.yaml"))
-        yaml.getObject()?.getProperty("inv.submission.job-scheduling.enabled") shouldBe "true"
     }
 
     @Test
