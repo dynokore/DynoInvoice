@@ -19,6 +19,7 @@ service-runtime:
   event-log-pool.minimum-idle: 1
   modules.schema: submission
   idempotency.schema: submission
+  jobs.retention: P30D # how long finished job runs are kept; the migration runner writes the same value to the job-retention row (INV-Q-4346)
 management:
   server.port: 8081 # API-33: health, metrics and diagnostics only on the management port, no token
   endpoints.web:
