@@ -38,7 +38,6 @@ import java.util.UUID
  * tenant row (INV-Q-16720 A).
  */
 class TenantNodeDbTest {
-    private val actor = "svc:tenancy-svc"
     private val mapper = JsonMapper.builder().build()
     private val platform = TenantId.PLATFORM
 
