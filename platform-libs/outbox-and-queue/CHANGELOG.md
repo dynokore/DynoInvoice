@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.14.0] - 2026-11-05
+### Added
+- `OutboxWriter.stage` builds the row of a domain event for a real tenant (unsequenced; the tenant of its context, which may differ from the tenant bound to the connection) so a SECURITY DEFINER function can write another tenant's outbox row; a domain event under the platform tenant is still refused (INV-Q-16720, INV-Q-3018, INV-AC-16722, INV-T-16724).
+
 ## [6.13.1] - 2026-11-03
 ### Fixed
 - CI-FAST: the `testFixtures` PostgreSQL fixture container now starts with a 3 min startup timeout, 3 start attempts and fsync off, so a loaded CI host no longer fails the test database start. Test-fixtures only; no production or public runtime API change (PATCH). The `-test-fixtures` jar bytes changed, so the released 6.13.0 is not republished.

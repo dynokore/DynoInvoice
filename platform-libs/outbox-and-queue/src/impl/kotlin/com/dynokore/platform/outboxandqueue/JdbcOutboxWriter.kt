@@ -73,7 +73,7 @@ class JdbcOutboxWriter(
     }
 
     /**
-     * The rows [append] would write for unsequenced platform events, built and not written (coordinator ruling
+     * The rows [append] would write for unsequenced events, built and not written (coordinator ruling
      * INV-Q-4254 A): the same emission checks, the same envelope, the catalogued topic. It never touches the
      * connection, so it reserves no `docsequence`.
      */
@@ -84,8 +84,12 @@ class JdbcOutboxWriter(
         require(context.docUuid == null && context.aggregateVersion == null) {
             "only unsequenced events are staged: no Doc UUID and no aggregate version"
         }
-        events.firstOrNull { !Envelope.isPlatformType(it.type) }?.let {
-            throw IllegalArgumentException("only platform events are staged, was '${it.type}'")
+        if (context.tenant.isPlatform) {
+            events.firstOrNull { !Envelope.isPlatformType(it.type) }?.let {
+                throw IllegalArgumentException(
+                    "a domain event is not staged under the platform tenant, was '${it.type}' (INV-Q-3018, INV-Q-16720)",
+                )
+            }
         }
         if (events.isEmpty()) return emptyList()
         val entries = permitted(events, context)

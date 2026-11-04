@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.24] - 2026-11-05
+### Changed
+- Metadata-only change (INV-T-16724, G-DVS): depends on `outbox-and-queue 6.14.0`, whose version steps; no code change.
+
 ## [4.0.23] - 2026-11-04
 ### Changed
 - Metadata-only change (CI-FAST, G-DVS): depends on `outbox-and-queue 6.13.1`, `tenancy-kernel 4.2.1` and `tenancy-jooq 1.4.4`, whose versions step; no production code change.
