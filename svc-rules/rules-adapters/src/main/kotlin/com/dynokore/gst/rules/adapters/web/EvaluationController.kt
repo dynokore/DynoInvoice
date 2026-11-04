@@ -73,7 +73,7 @@ open class EvaluationController(
                 )
             val coding = codingOf(result, tenant, date, input)
             val (outcome, answered) = scopeOutcomeOf(request, tenant, date, coding)
-            answer(outcome, answered, result, versionsApplied(tenant, date))
+            answer(outcome, answered, result, versionsApplied(tenant, date), traceOf(result, tenant, date, input))
         }
     }
 
@@ -134,6 +134,26 @@ open class EvaluationController(
             }
         }
 
+    /**
+     * The decision trace of a line under a scheme tag (INV-REQ-2447 behavior 3): the handler, the pack entry and its
+     * source class, and the counterparty data used. Null for any other line, and when no pack answered.
+     */
+    private fun traceOf(
+        result: DocumentCodingResult,
+        tenant: TenantId,
+        date: TransactionDate,
+        input: LineInput,
+    ): Map<String, Any>? =
+        if (result is DocumentCodingResult.Refused) {
+            null
+        } else {
+            LineCoder(
+                checkNotNull(packs.mappingAt(tenant, date)),
+                checkNotNull(packs.catalogueAt(tenant, date)),
+                checkNotNull(packs.scenarioAt(tenant, date)),
+            ).codeWithTrace(input).second.takeIf { it.isNotEmpty() }
+        }
+
     private fun versionsApplied(
         tenant: TenantId,
         date: TransactionDate,
@@ -147,6 +167,7 @@ open class EvaluationController(
         coding: LineCoding,
         result: DocumentCodingResult,
         versions: List<PackVersionApplied>,
+        trace: Map<String, Any>?,
     ): EvaluationResult {
         val scope = EvaluationResult.ScopeVerdict.valueOf(outcome.verdict.name)
         val warning = if (outcome.disregardedSupplyWarning) true else null
@@ -158,6 +179,7 @@ open class EvaluationController(
                     severity = EvaluationResult.Severity.valueOf(coding.severity.name),
                     code = coding.code.code,
                     disregardedSupplyWarning = warning,
+                    decisionTrace = trace,
                 )
             }
 
@@ -169,6 +191,7 @@ open class EvaluationController(
                     rate = line.rate,
                     ibt022Statement = coding.ibt022Statement,
                     disregardedSupplyWarning = warning,
+                    decisionTrace = trace,
                     packVersionsApplied = versions,
                     selfBillingAssignment =
                         coding.selfBillingAssignment?.let {

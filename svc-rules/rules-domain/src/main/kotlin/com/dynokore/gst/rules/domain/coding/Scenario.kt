@@ -34,6 +34,9 @@ data class Treatment(
     val counterpartyApprovedUnder: Set<String>,
     val writtenAgreement: String?,
     val ibt022Statement: String?,
+    /** The source class and citation of the pack entry, kept for the decision trace (INV-REQ-2447 b3). */
+    val sourceClass: String? = null,
+    val sourceReference: String? = null,
 )
 
 /**

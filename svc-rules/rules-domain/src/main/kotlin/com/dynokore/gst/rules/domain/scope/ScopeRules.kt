@@ -82,7 +82,8 @@ class ScopeRules(
                 if (f.voluntaryOverSubmission) ScopeVerdict.SUBMITTABLE else ScopeVerdict.OUT_OF_SCOPE
             }
 
-            code == "OS" && f.voluntaryOverSubmission -> {
+            // INV-REQ-2437 behavior 2: an import permit mapped to ME, IGDS or IM is transmitted only under VP-21 ON
+            (code == "OS" || code in IMPORT_PERMIT_CODES) && f.voluntaryOverSubmission -> {
                 ScopeVerdict.SUBMITTABLE
             }
 
@@ -95,5 +96,6 @@ class ScopeRules(
 
     private companion object {
         const val PASS_THROUGH = "PASS_THROUGH"
+        val IMPORT_PERMIT_CODES = setOf("ME", "IGDS", "IM")
     }
 }
