@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-05
+### Added
+- `inDeadlineMode`, `deadlineOrder`, `PeriodDue`, `hoursToGate` and `HoursToGate`: pure deadline-mode decisions with the
+  window in days as an argument (INV-REQ-1019, INV-REQ-1280, INV-AC-15749, INV-Q-15741; INV-T-15752)
+
 ## [1.4.1] - 2026-10-19
 ### Changed
 - detekt type-resolution findings fixed (platform-build 0.21.0, INV-Q-4629); no behaviour or API change
