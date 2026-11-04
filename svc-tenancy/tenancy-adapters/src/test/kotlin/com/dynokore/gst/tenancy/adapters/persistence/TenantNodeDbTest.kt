@@ -38,6 +38,7 @@ import java.util.UUID
  * tenant row (INV-Q-16720 A).
  */
 class TenantNodeDbTest {
+    private val actor = "svc:tenancy-svc"
     private val mapper = JsonMapper.builder().build()
     private val platform = TenantId.PLATFORM
 
@@ -206,47 +207,47 @@ class TenantNodeDbTest {
         refused(TenantId(other.p.id), productionRow, "42501")
     }
 
-    /** The unaltered row of the workspace, each time with one member altered (INV-AC-16723 d). */
-    private fun alteredRows(
-        base: ObjectNode,
-        foreignRef: String,
-        version: Long,
-    ): Map<String, JsonNode> {
-        fun mutated(edit: (ObjectNode) -> Unit): JsonNode = base.deepCopy().also { edit(it) }
-
-        fun data(n: ObjectNode) = n.get("data") as ObjectNode
-
-        fun node(n: ObjectNode) = data(n).get("node") as ObjectNode
-        return mapOf(
-            "type v2" to mutated { it.put("type", "com.dynokore.gst.tenancy.OrganisationStructureChanged.v2") },
-            "topic" to mutated { it.put("topic", "gst.tenancy.other.v1") },
-            "nodeRef" to mutated { data(it).put("nodeRef", "T-other") },
-            "structureVersion" to mutated { node(it).put("structureVersion", version + 1) },
-            "environment" to mutated { node(it).put("environment", "PRODUCTION") },
-            "changeType RETIRED" to mutated { data(it).put("changeType", "RETIRED") },
-            "unknown tenant" to mutated { it.put("tenant_id", UUID.randomUUID().toString()) },
-            "foreign entity_ref" to mutated { it.put("entity_ref", foreignRef) },
-            "extra member" to mutated { it.put("extra", "x") },
-            "non-v7 id" to mutated { it.put("id", UUID.randomUUID().toString()) },
-            "parentRef" to mutated { data(it).put("parentRef", "G-1") },
-        )
-    }
-
     @Test
     fun `INV-AC-16723 a row that differs from the stored tenant row is refused`() {
         val seed = seed()
         val base = Db.bound(TenantId(seed.p.id)) { row(it, change(seed.s.json)) }
         val binding = TenantId(seed.p.id)
 
+        fun mutated(edit: (ObjectNode) -> Unit): JsonNode = base.deepCopy().also { edit(it) }
+
+        fun data(n: ObjectNode) = n.get("data") as ObjectNode
+
+        fun node(n: ObjectNode) = data(n).get("node") as ObjectNode
         val cases =
-            alteredRows(
-                base,
-                seed.p.json
-                    .get("ref")
-                    .asString(),
-                seed.s.json
-                    .get("structureVersion")
-                    .asLong(),
+            mapOf(
+                "type v2" to
+                    mutated { it.put("type", "com.dynokore.gst.tenancy.OrganisationStructureChanged.v2") },
+                "topic" to mutated { it.put("topic", "gst.tenancy.other.v1") },
+                "nodeRef" to mutated { data(it).put("nodeRef", "T-other") },
+                "structureVersion" to
+                    mutated {
+                        node(it).put(
+                            "structureVersion",
+                            seed.s.json
+                                .get("structureVersion")
+                                .asLong() + 1,
+                        )
+                    },
+                "environment" to mutated { node(it).put("environment", "PRODUCTION") },
+                "changeType RETIRED" to mutated { data(it).put("changeType", "RETIRED") },
+                "unknown tenant" to mutated { it.put("tenant_id", UUID.randomUUID().toString()) },
+                "foreign entity_ref" to
+                    mutated {
+                        it.put(
+                            "entity_ref",
+                            seed.p.json
+                                .get("ref")
+                                .asString(),
+                        )
+                    },
+                "extra member" to mutated { it.put("extra", "x") },
+                "non-v7 id" to mutated { it.put("id", UUID.randomUUID().toString()) },
+                "parentRef" to mutated { data(it).put("parentRef", "G-1") },
             )
         cases.forEach { (name, bad) ->
             runCatching { refused(binding, bad, "22023") }.onFailure { throw AssertionError("case '$name': $it", it) }
