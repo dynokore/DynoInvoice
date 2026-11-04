@@ -69,14 +69,13 @@ class RouteEventWithoutEntityRefTest {
     /** The structured JSON of a route event with a real tenant and no `entityref` member. */
     private fun record(
         type: String,
-        tenant: TenantId,
-        connection: String,
-        entityRefs: List<String>,
-        route: String?,
-        version: Long,
+        row: Row,
     ): String {
-        val refs = entityRefs.joinToString(",") { "\"$it\"" }
-        val routeText = route?.let { ",\"acknowledgementRoute\":\"$it\"" }.orEmpty()
+        val tenant = row.tenant
+        val connection = row.connection
+        val refs = row.entityRefs.joinToString(",") { "\"$it\"" }
+        val version = row.version
+        val routeText = row.route?.let { ",\"acknowledgementRoute\":\"$it\"" }.orEmpty()
         return """{"specversion":"1.0","id":"ev-${UUID.randomUUID()}","source":"/gst/transport-svc","type":"$type",""" +
             """"subject":"$connection","time":"${Instant.now()}","datacontenttype":"application/json",""" +
             """"tenantid":"$tenant","instanceid":"transport-svc-0","correlationid":"corr-${UUID.randomUUID()}",""" +
@@ -115,7 +114,7 @@ class RouteEventWithoutEntityRefTest {
         run { log, consumer, env ->
             env.withEntity { tenant, entity ->
                 val refs = listOf(entity.entityRef, "ENT-2")
-                log.add(record(type, tenant, "AP-1", refs, "AP_CALLBACK", 3))
+                log.add(record(type, Row(tenant.toString(), "AP-1", refs, "AP_CALLBACK", 3)))
                 assertThat(consumer.pollOnce()).isEqualTo(PollResult(1, 0, 0, 0, 0))
                 assertThat(stored(tenant, "AP-1")).isEqualTo(Row(tenant.toString(), "AP-1", refs, "AP_CALLBACK", 3))
             }
@@ -126,9 +125,9 @@ class RouteEventWithoutEntityRefTest {
     fun `INV-AC-15489 a later event with entityRefs empty replaces the stored list with the empty list`() {
         run { log, consumer, env ->
             env.withEntity { tenant, entity ->
-                log.add(record(type, tenant, "AP-1", listOf(entity.entityRef), "POLLING", 1))
+                log.add(record(type, Row(tenant.toString(), "AP-1", listOf(entity.entityRef), "POLLING", 1)))
                 assertThat(consumer.pollOnce()).isEqualTo(PollResult(1, 0, 0, 0, 0))
-                log.add(record(type, tenant, "AP-1", emptyList(), null, 2))
+                log.add(record(type, Row(tenant.toString(), "AP-1", emptyList(), null, 2)))
                 assertThat(consumer.pollOnce()).isEqualTo(PollResult(1, 0, 0, 0, 0))
                 assertThat(stored(tenant, "AP-1")).isEqualTo(Row(tenant.toString(), "AP-1", emptyList(), null, 2))
             }
@@ -140,9 +139,9 @@ class RouteEventWithoutEntityRefTest {
         run { log, consumer, env ->
             env.withEntity { tenant, entity ->
                 val refs = listOf(entity.entityRef)
-                log.add(record(type, tenant, "AP-1", refs, "POLLING", 5))
+                log.add(record(type, Row(tenant.toString(), "AP-1", refs, "POLLING", 5)))
                 assertThat(consumer.pollOnce()).isEqualTo(PollResult(1, 0, 0, 0, 0))
-                log.add(record(type, tenant, "AP-1", emptyList(), null, 4))
+                log.add(record(type, Row(tenant.toString(), "AP-1", emptyList(), null, 4)))
                 val result = consumer.pollOnce()
                 assertThat(result.deadLettered).isZero()
                 assertThat(result.applied).isZero()
@@ -156,7 +155,7 @@ class RouteEventWithoutEntityRefTest {
         run { log, consumer, env ->
             env.withEntity { tenant, entity ->
                 val other = "com.dynokore.gst.tenancy.AccessPointRouteChanged.v1"
-                val raw = record(other, tenant, "AP-1", listOf(entity.entityRef), "POLLING", 1)
+                val raw = record(other, Row(tenant.toString(), "AP-1", listOf(entity.entityRef), "POLLING", 1))
                 assertThatThrownBy { EnvelopeJson().read(raw) }
                     .isInstanceOf(ContractViolation::class.java)
                     .hasMessageContaining("entityref is required")
