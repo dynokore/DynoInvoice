@@ -11,7 +11,7 @@ operation, when:
   - the operation is missing, or is declared in two operations of that file;
   - its x-operation.reversibility is not exactly the string IRREVERSIBLE;
   - it has a requestBody key;
-  - a parameter (a #/components/parameters/<name> $ref is resolved; an unresolvable one fails)
+  - a parameter of the operation or of its path item (a #/components/parameters/<name> $ref is resolved; an unresolvable one fails)
     has `in` other than `path`;
   - the YAML or the TSV is unreadable, the TSV header differs, a row has other than two
     fields, or a row is a duplicate.
@@ -56,13 +56,13 @@ def read_tsv(path: Path, errors: list) -> list:
 
 
 def operations(doc) -> list:
-    """Every operation object of the document's paths."""
+    """Every operation object of the document's paths, as (operation, path-item parameters)."""
     found = []
     paths = doc.get("paths") if isinstance(doc, dict) else None
     if isinstance(paths, dict):
         for item in paths.values():
             if isinstance(item, dict):
-                found.extend(item[m] for m in METHODS if isinstance(item.get(m), dict))
+                found.extend((item[m], item.get("parameters")) for m in METHODS if isinstance(item.get(m), dict))
     return found
 
 
@@ -93,35 +93,38 @@ def main(argv) -> int:
             continue
         ops, comps = docs[d]
         where = f"{d}/openapi.yaml: operation {op_id}"
-        matches = [o for o in ops if o.get("operationId") == op_id]
+        matches = [m for m in ops if m[0].get("operationId") == op_id]
         if not matches:
             errors.append(f"{where}: missing from that file")
             continue
         if len(matches) > 1:
             errors.append(f"{where}: declared in {len(matches)} operations")
             continue
-        op = matches[0]
+        op, item_params = matches[0]
         x_op = op.get("x-operation")
         declared = x_op.get("reversibility") if isinstance(x_op, dict) else None
         if declared != "IRREVERSIBLE" or not isinstance(declared, str):
             errors.append(f"{where}: x-operation.reversibility {declared!r} is not IRREVERSIBLE: the row names a routine irreversible operation")
         if "requestBody" in op:
             errors.append(f"{where}: has a requestBody, which could carry a typed confirmation phrase")
-        params = op.get("parameters", [])
-        if params is None:
-            params = []
-        if not isinstance(params, list):
-            errors.append(f"{where}: parameters is not a list")
-            params = []
-        for i, p in enumerate(params):
-            label = f"parameter {i}"
+        # parameters beside the method (path item) apply to the operation as well
+        checked = []
+        for scope, params in (("path-item parameter", item_params), ("parameter", op.get("parameters"))):
+            if params is None:
+                params = []
+            if not isinstance(params, list):
+                errors.append(f"{where}: {scope}s is not a list")
+                params = []
+            checked.extend((scope, i, p) for i, p in enumerate(params))
+        for scope, i, p in checked:
+            label = f"{scope} {i}"
             if isinstance(p, dict) and "$ref" in p:
                 ref = p["$ref"]
                 name = ref[len(REF_PREFIX):] if isinstance(ref, str) and ref.startswith(REF_PREFIX) else None
                 if name is None or name not in comps:
-                    errors.append(f"{where}: parameter {i} $ref {ref!r} cannot be resolved")
+                    errors.append(f"{where}: {scope} {i} $ref {ref!r} cannot be resolved")
                     continue
-                label = f"parameter {name}"
+                label = f"{scope} {name}"
                 p = comps[name]
             loc = p.get("in") if isinstance(p, dict) else None
             if loc != "path":
