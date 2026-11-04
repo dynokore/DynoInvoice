@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.persistence
 
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.PERIOD_RECORD
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.PROPOSED_PERIOD
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.RAISED_ITEM
@@ -102,6 +103,35 @@ class JooqPeriodRecordStore(
                 ).execute()
         check(updated == 1) { "period $periodRef of the entity is not in force" }
     }
+
+    override fun setDueDate(
+        entityId: UUID,
+        periodRef: String,
+        dueDate: LocalDate,
+    ) {
+        val updated =
+            dsl
+                .update(PERIOD_RECORD)
+                .set(PERIOD_RECORD.DUE_DATE, dueDate)
+                .where(
+                    PERIOD_RECORD.ENTITY_ID
+                        .eq(entityId)
+                        .and(PERIOD_RECORD.PERIOD_REF.eq(periodRef))
+                        .and(PERIOD_RECORD.RECORD_STATE.eq(IN_FORCE)),
+                ).execute()
+        check(updated == 1) { "period $periodRef of the entity is not in force" }
+    }
+
+    override fun entityRefsWithRecords(): List<String> =
+        dsl
+            .selectDistinct(ENTITY.REF)
+            .from(PERIOD_RECORD)
+            .join(ENTITY)
+            .on(ENTITY.ID.eq(PERIOD_RECORD.ENTITY_ID))
+            .where(PERIOD_RECORD.RECORD_STATE.eq(IN_FORCE))
+            .orderBy(ENTITY.REF)
+            .fetch(ENTITY.REF)
+            .map { it.column("ref") }
 }
 
 /** The proposals of frequency changes and their raised items of the bound tenant's entities (jOOQ only, CS-18). */

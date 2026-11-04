@@ -53,6 +53,13 @@ SANDBOX, else PRODUCTION (INV-Q-11905 A). The operations `loadCredential`, `reco
 refuse with TNC-005, TNC-006 and TNC-007 (422); the two sample operations are decided by the permission keys
 `sample-copy.approve` and `sample-copy.request` through `AuthorityReplica.decideTenant`, never by a role name.
 
+## Secrets (STK-29)
+
+`tenancy/period-list-cursor-key` (at least 32 bytes) signs the `listPeriodRecords` cursor (HMAC-SHA256, INV-Q-16673); it is read
+through the secret store at every use. The optional `tenancy/period-list-cursor-key-previous` is accepted for verification
+only, so a rotation keeps issued cursors valid for their 24 hours. A missing or short current key makes a paged read fail
+with a 5xx; there is no unsigned fallback. The deployment values that mount the secret are not in this repository.
+
 ## Owns
 
 Tenants, groups, entities and business units; entity profiles and their history; period records and extensions; workspaces; certification status; entitlement and metering counters; licence status; questionnaire answers and the applied operating profile (FR-AI.7, FR-AI.8); installation facts — release train and supported window, backup-target verification (FR-H.23), installation platform (VP-52), heartbeat target (FR-AE.70)

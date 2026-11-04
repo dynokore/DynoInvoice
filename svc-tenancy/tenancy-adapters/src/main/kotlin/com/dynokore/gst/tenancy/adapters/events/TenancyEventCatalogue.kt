@@ -18,6 +18,8 @@ object TenancyEventCatalogue {
     const val SERVICE = "tenancy-svc"
     const val SHORT_CODE_USED_TYPE = "com.dynokore.gst.aggregation.ShortCodeUsed.v1"
     const val SHORT_CODE_USED_TOPIC = "gst.aggregation.short-code-used.v1"
+    const val PERIOD_FILING_STATUS_TYPE = "com.dynokore.gst.submission.PeriodFilingStatusChanged.v1"
+    const val PERIOD_FILING_STATUS_TOPIC = "gst.submission.period-filing-status-changed.v1"
     const val ASYNCAPI_RESOURCE = "gst/contracts/tenancy/asyncapi.yaml"
 
     /**
@@ -47,15 +49,10 @@ object TenancyEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        val consumedDomain =
-            CatalogueEntry(
-                SHORT_CODE_USED_TYPE,
-                SHORT_CODE_USED_TOPIC,
-                setOf("aggregation-svc"),
-                contentTopic = false,
-            )
-        val elections = electionEvents(ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE)
-        val seen = (ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + elections.map { it.eventType })
+        val consumedDomain = consumedDomainEvents()
+        val known = ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE
+        val elections = electionEvents(known)
+        val seen = known + elections.map { it.eventType }
         val platform =
             PlatformEventCatalogue.ALL
                 .filter { it.topic != null && it.eventType !in seen }
@@ -69,6 +66,18 @@ object TenancyEventCatalogue {
                 }
         return EventCatalogue(own + consumed + consumedDomain + elections + platform)
     }
+
+    /** The events of other domains tenancy-svc consumes: ShortCodeUsed and PeriodFilingStatusChanged. */
+    private fun consumedDomainEvents() =
+        listOf(
+            CatalogueEntry(SHORT_CODE_USED_TYPE, SHORT_CODE_USED_TOPIC, setOf("aggregation-svc"), contentTopic = false),
+            CatalogueEntry(
+                PERIOD_FILING_STATUS_TYPE,
+                PERIOD_FILING_STATUS_TOPIC,
+                setOf("submission-svc"),
+                contentTopic = false,
+            ),
+        )
 
     /**
      * The events tenancy-svc consumes for the elections (route replica, scope pack replica): configuration only, the

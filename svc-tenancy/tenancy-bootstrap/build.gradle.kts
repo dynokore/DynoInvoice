@@ -28,6 +28,7 @@ dependencies {
     implementation(libs.platform.tenancyJooq.impl)
     implementation(libs.platform.configResolver.api)
     implementation(libs.platform.configResolver.impl)
+    implementation(libs.platform.crypto.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)
     implementation(libs.springBoot.starterJdbc)

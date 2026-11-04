@@ -49,22 +49,34 @@ class PeriodPlanner(
             .maxByOrNull { it.effectiveFrom }
             ?.registrationStartDate
 
-    /** The periods for [entries] (non-superseded, by effective date); [packOn] selects the pack in force. */
+    /**
+     * The periods for [entries] (non-superseded, by effective date); [packOn] selects the pack in force, unless an
+     * [explicitPack] is given (a staged release in a dry run); [ruleOn] is the date VP-62 is resolved on
+     * (default [packOn]).
+     */
+    @Suppress("LongParameterList") // the two optional overrides serve the recomputation and the dry run only
     fun plan(
         entity: EntityRecord,
         entries: List<FrequencyEntry>,
         packOn: LocalDate?,
         deregistrationDate: LocalDate?,
+        ruleOn: LocalDate? = null,
+        explicitPack: CalendarPack? = null,
     ): Plan {
         val registration = registrationDate(entity)
-        val pack = registration?.let { packs.inForce(packOn ?: it) }
+        val pack = explicitPack ?: registration?.let { packs.inForce(packOn ?: it) }
         val sorted = entries.sortedBy { it.effectiveFrom }
         val refusal = refusalOf(registration, pack, sorted, deregistrationDate)
         return refusal
             ?: generate(
                 entity,
                 sorted,
-                Inputs(checkNotNull(registration), checkNotNull(pack), packOn ?: registration, deregistrationDate),
+                Inputs(
+                    checkNotNull(registration),
+                    checkNotNull(pack),
+                    ruleOn ?: packOn ?: registration,
+                    deregistrationDate,
+                ),
             )
     }
 

@@ -11,6 +11,8 @@ import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
+import com.dynokore.platform.configresolver.BackdatingFloor
+import com.dynokore.platform.configresolver.DelegationProbe
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -27,6 +29,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import java.time.Clock
+import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -126,12 +129,22 @@ class TestPeople :
             ElectionPermissions.CONFIRM -> roles.any { it in CONFIRMING }
             PeriodPermissions.FILING_FREQUENCY_CHANGE -> ElectionRoles.ENTITY_ADMIN in roles
             PeriodPermissions.PERIOD_CONFIRM -> roles.any { it in PERIOD_CONFIRMING }
+            PeriodPermissions.EXTENSION_RECORD -> roles.any { it in EXTENDING }
             ElectionPermissions.APPROVE -> approvals.holds(person, entityRef, action)
             else -> false
         }
     }
 
     private companion object {
+        /** The roles the catalogue permits `period-extension.record`, read through RolePermissions (INV-Q-16671). */
+        val EXTENDING: Set<String> =
+            DeploymentForm.entries
+                .flatMap { form ->
+                    RolePermissions
+                        .cells(form)
+                        .filterValues { it[PeriodPermissions.EXTENSION_RECORD] == RoleAllowance.PERMITTED }
+                        .keys
+                }.toSet()
         val PERIOD_CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TAX_APPROVER)
         val TENANT = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000a1"))
         val CONFIRMING: Set<String> =
@@ -185,6 +198,18 @@ class BoundaryTestConfiguration {
 
     @Bean
     fun capturedEvents(): CapturedEvents = CapturedEvents()
+
+    /**
+     * A healthy authority replica with no agent consent: an entity-level target is not delegated, a client-entity
+     * target always is (as product-runtime's probe answers them); the VP-62 tests of INV-T-4930 need the first.
+     */
+    @Bean
+    fun testDelegationProbe(): DelegationProbe =
+        DelegationProbe { target, _ -> target.level == com.dynokore.platform.configresolver.ScopeLevel.CLIENT_ENTITY }
+
+    /** The stand-in for the owning service's floor (INV-Q-3140): no value may take effect before 2026-01-01. */
+    @Bean
+    fun testBackdatingFloor(): BackdatingFloor = BackdatingFloor { _, _ -> LocalDate.of(2026, 1, 1) }
 
     @Bean
     fun capturingOutbox(captured: CapturedEvents): BeanPostProcessor =

@@ -115,7 +115,8 @@ class PolicyNonBusinessDayRuleReader(
         entityRef: String,
         on: LocalDate,
     ): NonBusinessDayRule {
-        val scope = PolicyScope.entity(tenants.current(), entityRef, group = groupRef)
+        // the client entity level is the entity itself where an agent operates for it (INV-Q-2349)
+        val scope = PolicyScope.entity(tenants.current(), entityRef, group = groupRef, clientEntity = entityRef)
         val option = policy.resolve(TenancyVariationPoints.NON_BUSINESS_DAY_RULE, scope, on).selected.single()
         return when (option.key) {
             TenancyVariationPoints.NO_MOVE -> NonBusinessDayRule.NO_MOVE

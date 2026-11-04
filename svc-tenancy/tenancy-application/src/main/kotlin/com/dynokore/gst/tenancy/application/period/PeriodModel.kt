@@ -155,6 +155,16 @@ interface PeriodRecordStore {
         entityId: UUID,
         periodRef: String,
     )
+
+    /** Sets the filing due date of the record in force (an extension or a recomputation: the only two writers). */
+    fun setDueDate(
+        entityId: UUID,
+        periodRef: String,
+        dueDate: LocalDate,
+    )
+
+    /** The references of the entities that have at least one record in force. */
+    fun entityRefsWithRecords(): List<String>
 }
 
 /** The calendar pack in force on a date; null when none is known, and then every operation that needs it refuses. */

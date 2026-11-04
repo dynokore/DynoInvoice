@@ -7,6 +7,8 @@ import java.nio.file.Path
 object TestSecrets {
     const val BINDING_KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 
+    const val CURSOR_KEY = "cursor-key-for-tests-0123456789abcdef"
+
     fun mount(
         databasePassword: String = "unused-in-composition-tests",
         bindingKey: String = BINDING_KEY,
@@ -14,6 +16,7 @@ object TestSecrets {
     ): Path {
         val root = mountRoot ?: Files.createTempDirectory("tenancy-secrets")
         write(root, "tenancy/binding-key-current", bindingKey)
+        write(root, "tenancy/period-list-cursor-key", CURSOR_KEY)
         write(root, "db/tenancy_runtime", databasePassword)
         if (mountRoot == null) root.toFile().deleteOnExit()
         return root

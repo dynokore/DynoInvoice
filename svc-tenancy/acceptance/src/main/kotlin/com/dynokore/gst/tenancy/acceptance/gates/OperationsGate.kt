@@ -212,6 +212,7 @@ internal object Assignments {
             of("INV-T-4926", "assessPhase", "setEntityStatus") +
             of("INV-T-4927", "setIssuanceMode", "recordElection", "electRateSource", "getElectionStatus") +
             of("INV-T-10125", "approveElectionChange") +
+            of("INV-T-15888", "withdrawElectionChange", "declineElectionChange", "listElectionChanges") +
             of("INV-T-4929", "changeFilingFrequency", "confirmPeriods") +
             of("INV-T-4930", "recordExtension", "listPeriodRecords") +
             of(

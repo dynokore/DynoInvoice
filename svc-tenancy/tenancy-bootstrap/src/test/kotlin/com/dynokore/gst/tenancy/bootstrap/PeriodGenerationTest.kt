@@ -185,13 +185,13 @@ class PeriodGenerationTest {
     }
 
     @Test
-    fun `the production profile starts with the calendar pack port unbound and refuses the initial frequency`() {
+    fun `the production profile binds the calendar pack port and refuses the initial frequency with no pack`() {
         BoundaryFixture
             .runner()
             .withPropertyValues("spring.profiles.active=prod")
             .run { context: AssertableWebApplicationContext ->
                 context.startupFailure?.let { throw it }
-                assertThat(context.getBeansOfType(CalendarPackSource::class.java)).isEmpty()
+                assertThat(context.getBeansOfType(CalendarPackSource::class.java)).hasSize(1)
                 assertThat(context.getBeansOfType(PeriodGeneration::class.java)).hasSize(1)
                 val env = ProfileEnv(context)
                 val period = PeriodEnv(env)

@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.FilingFrequencyChangedOutbox
+import com.dynokore.gst.tenancy.adapters.persistence.JooqCalendarPackSource
 import com.dynokore.gst.tenancy.adapters.persistence.JooqFrequencyHistoryStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqPeriodRecordStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqProposalStore
@@ -34,8 +35,8 @@ import tools.jackson.databind.ObjectMapper
 /**
  * TPL-18: the filing-frequency and period use cases (INV-T-4929), constructed here and nowhere else.
  *
- * The port `CalendarPackSource` has no adapter in the production profile and fails closed (INV-Q-9725 A): it answers
- * no pack, so every operation that needs one is refused 422 POL-014 (INV-T-4930 binds the port). The permission checks
+ * The port `CalendarPackSource` is bound in CalendarPackUseCases (INV-T-4930, INV-Q-9725 A); with no pack activated
+ * for the date it answers null, and every operation that needs a pack is refused 422 POL-014. The permission checks
  * use the caller and authority ports of INV-T-4927 (INV-Q-10127 A); with no replica every check answers false, so both
  * operations are refused 403 SRT-004. Start-up succeeds either way.
  */
@@ -82,9 +83,9 @@ class PeriodUseCases {
     @Bean
     fun periodPlanner(
         statuses: EntityStatusStore,
-        packs: ObjectProvider<CalendarPackSource>,
+        sources: ObjectProvider<CalendarPackSource>,
         rules: NonBusinessDayRuleReader,
-    ): PeriodPlanner = PeriodPlanner(statuses, packs.getIfAvailable { CalendarPackSource { null } }, rules)
+    ): PeriodPlanner = PeriodPlanner(statuses, selectedCalendarSource(sources), rules)
 
     @Bean
     fun periodGeneration(
@@ -120,4 +121,10 @@ class PeriodUseCases {
         stores: PeriodStores,
         publisher: FilingFrequencyChangePublisher,
     ): ConfirmPeriods = ConfirmPeriods(tx, structure, access, stores, publisher)
+}
+
+/** The fixture adapter of a test profile, when there is one, takes precedence over the replica source. */
+internal fun selectedCalendarSource(sources: ObjectProvider<CalendarPackSource>): CalendarPackSource {
+    val all = sources.stream().toList()
+    return all.firstOrNull { it !is JooqCalendarPackSource } ?: all.singleOrNull() ?: CalendarPackSource { null }
 }

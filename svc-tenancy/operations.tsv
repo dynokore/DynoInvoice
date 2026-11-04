@@ -14,8 +14,8 @@ setIssuanceMode	operation	INV-T-4927	done
 getElectionStatus	operation	INV-T-4927	done
 changeFilingFrequency	operation	INV-T-4929	done
 confirmPeriods	operation	INV-T-4929	done
-recordExtension	operation	INV-T-4930	pending
-listPeriodRecords	operation	INV-T-4930	pending
+recordExtension	operation	INV-T-4930	done
+listPeriodRecords	operation	INV-T-4930	done
 goLive	operation	INV-T-4931	pending
 certifySandbox	operation	INV-T-4931	pending
 suspendEntity	operation	INV-T-4931	pending
@@ -38,8 +38,8 @@ OrganisationStructureChanged	channel	INV-T-4925	done
 ExampleHappened	channel	INV-T-4925	done
 EntityProfileChanged	channel	INV-T-4926	done
 FilingFrequencyChanged	channel	INV-T-4929	done
-PeriodExtended	channel	INV-T-4930	pending
-PeriodDueDateChanged	channel	INV-T-4930	pending
+PeriodExtended	channel	INV-T-4930	done
+PeriodDueDateChanged	channel	INV-T-4930	done
 InstallationStatusChanged	channel	INV-T-4933	pending
 approveElectionChange	operation	INV-T-10125	done
 recordEntitlement	operation	INV-T-4933	pending
@@ -51,3 +51,6 @@ getLicenceStatus	operation	INV-T-4933	pending
 getPlatformElection	operation	INV-T-4933	pending
 recordInstallationFacts	operation	INV-T-4933	pending
 PlanLimitExceeded	channel	INV-T-4933	pending
+withdrawElectionChange	operation	INV-T-15888	pending
+declineElectionChange	operation	INV-T-15888	pending
+listElectionChanges	operation	INV-T-15888	pending

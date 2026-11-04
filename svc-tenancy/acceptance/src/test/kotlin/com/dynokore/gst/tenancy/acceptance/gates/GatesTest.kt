@@ -147,6 +147,7 @@ class GatesTest {
     fun `the election operations of the pinned contract are assigned to their tasks by equality`() {
         Assignments.operations["approveElectionChange"] shouldBe "INV-T-10125"
         Assignments.operations["getElectionStatus"] shouldBe "INV-T-4927"
+        Assignments.operations["listElectionChanges"] shouldBe "INV-T-15888"
     }
 
     @Test

@@ -25,18 +25,26 @@ class RolePermissionsPinTest {
     ): Set<String> = cells.filterValues { it.containsKey(permission) }.keys
 
     @Test
-    fun `the gstCatalogue entry of libs_versions_toml equals 2_21_0 by string equality`() {
+    fun `the gstCatalogue entry of libs_versions_toml is a release at or above 2_31_0`() {
         val toml = Files.readString(Path.of("..", "gradle", "libs.versions.toml"))
-        assertThat(pinOf(toml)).isEqualTo(PINNED)
+        assertThat(atLeastMinimum(pinOf(toml))).isTrue()
     }
 
     @Test
-    fun `the pin check refuses 1_14_0, 2_20_0, 2_22_0 and a snapshot of 2_21_0`() {
-        listOf("1.14.0", "2.20.0", "2.22.0", "2.21.0-SNAPSHOT", "2.21.0 ", "2.21").forEach { version ->
-            assertThat(pinOf("[versions]\ngstCatalogue = \"$version\"\n")).describedAs(version).isNotEqualTo(PINNED)
+    fun `the pin check refuses 1_14_0, 2_21_0, 2_30_0, a snapshot of 2_31_0 and look-alikes`() {
+        val refused =
+            listOf("1.14.0", "2.21.0", "2.30.9", "2.31.0-SNAPSHOT", "2.31.0 ", "2.31", "2.31.0.1", "", "x.31.0")
+        refused.forEach {
+            assertThat(atLeastMinimum(it)).describedAs(it).isFalse()
         }
-        assertThat(pinOf("[versions]\ngstCatalogue = \"2.21.0\"\n")).isEqualTo(PINNED)
-        assertThat(pinOf("[versions]\nother = \"2.21.0\"\n")).isNull()
+        listOf(
+            "2.31.0",
+            "2.31.1",
+            "2.32.0",
+            "3.0.0",
+        ).forEach { assertThat(atLeastMinimum(it)).describedAs(it).isTrue() }
+        assertThat(pinOf("[versions]\ngstCatalogue = \"2.31.0\"\n")).isEqualTo(MINIMUM)
+        assertThat(pinOf("[versions]\nother = \"2.31.0\"\n")).isNull()
     }
 
     @Test
@@ -88,7 +96,15 @@ class RolePermissionsPinTest {
     private fun pinOf(toml: String): String? =
         Regex("""(?m)^gstCatalogue\s*=\s*"([^"]*)"\s*$""").find(toml)?.groupValues?.get(1)
 
+    /** INV-T-16683 publishes the key period-extension.record in 2.31.0; a later release is accepted. */
+    private fun atLeastMinimum(version: String?): Boolean {
+        val found = Regex("""(\d+)\.(\d+)\.(\d+)""").matchEntire(version.orEmpty()) ?: return false
+        val parts = found.groupValues.drop(1).map { it.toInt() }
+        val floor = MINIMUM.split('.').map { it.toInt() }
+        return compareValuesBy(parts, floor, { it[0] }, { it[1] }, { it[2] }) >= 0
+    }
+
     private companion object {
-        const val PINNED = "2.21.0"
+        const val MINIMUM = "2.31.0"
     }
 }

@@ -112,8 +112,17 @@ val stageContractResources =
             into("gst/contracts/tenancy")
         }
         from(stagedRepo.map { it.dir(".bundle/service-runtime/schemas") }) {
-            include("error-envelope.schema.json", "cloud-event-envelope.schema.json")
+            include(
+                "error-envelope.schema.json",
+                "cloud-event-envelope.schema.json",
+                "policy-changed-payload.schema.json",
+            )
             into("gst/contracts/service-runtime/schemas")
+        }
+        // the payload schema of the one event tenancy consumes from submission-svc (PeriodFilingStatusChanged)
+        from(stagedRepo.map { it.dir(".bundle/submission/schemas") }) {
+            include("period-filing-status-changed-payload.schema.json")
+            into("gst/contracts/submission/schemas")
         }
         into(contractResources)
     }
