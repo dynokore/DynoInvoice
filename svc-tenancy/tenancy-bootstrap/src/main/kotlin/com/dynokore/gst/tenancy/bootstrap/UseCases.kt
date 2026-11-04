@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureChangedOutbox
+import com.dynokore.gst.tenancy.adapters.events.TenantNodePublisher
 import com.dynokore.gst.tenancy.adapters.persistence.InstallationFactRow
 import com.dynokore.gst.tenancy.adapters.persistence.JooqEntityStatusStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqInstallationFactRepository
@@ -56,7 +57,9 @@ class UseCases {
     fun structureChangePublisher(
         outbox: OutboxWriter,
         mapper: ObjectMapper,
-    ): StructureChangePublisher = OrganisationStructureChangedOutbox(outbox, mapper)
+        dsl: DSLContext,
+    ): StructureChangePublisher =
+        TenantNodePublisher(outbox, OrganisationStructureChangedOutbox(outbox, mapper), dsl, mapper)
 
     @Bean
     fun tenantStore(
