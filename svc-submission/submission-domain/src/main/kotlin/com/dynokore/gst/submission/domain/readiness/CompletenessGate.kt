@@ -18,7 +18,12 @@ sealed interface CompletenessState {
 }
 
 /** How a block code is cleared; a domain value tied to the published catalogue by CompletenessGateTest. */
-enum class BlockDisposition { OVERRIDABLE, MANUAL }
+enum class BlockDisposition(
+    val permitsOverride: Boolean,
+) {
+    OVERRIDABLE(true),
+    MANUAL(false),
+}
 
 /** Block codes of the period verdict; text and disposition are domain values guarded by the catalogue drift test. */
 enum class BlockCode(
@@ -88,7 +93,7 @@ object CompletenessGate {
         code: BlockCode,
     ): OverrideOutcome {
         if (verdict !is PeriodVerdict.NotReady || code !in verdict.codes) return OverrideOutcome.NothingToOverride
-        return if (code.disposition == BlockDisposition.OVERRIDABLE) {
+        return if (code.disposition.permitsOverride) {
             OverrideOutcome.Allowed
         } else {
             OverrideOutcome.Refused(code, code.disposition)
