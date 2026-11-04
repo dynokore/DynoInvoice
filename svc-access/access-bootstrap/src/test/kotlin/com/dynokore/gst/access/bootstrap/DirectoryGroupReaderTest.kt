@@ -46,7 +46,7 @@ class DirectoryGroupReaderTest {
         assertThatThrownBy { directory.members("tenant.admin") }.isInstanceOf(IllegalStateException::class.java)
     }
 
-    private val expectedDigest = "sha256:b4bea10a288d18eff1e2a38dd3677a953cb9398765d35a370045085b1cb7e2a4"
+    private val expectedDigest = "sha256:5e88f848a9582d1352a82b180783387666acd259c5a86f80de73d31420184739"
 
     /** True when [reference] pulls the image by exactly [digest] (a tag reference or any other digest is false). */
     private fun pinnedTo(
