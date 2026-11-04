@@ -25,11 +25,13 @@ import com.dynokore.gst.access.domain.breakglass.BreakGlassAction
 import com.dynokore.gst.access.domain.breakglass.BreakGlassRules
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.StoredResponse
 import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
+import tools.jackson.databind.ObjectMapper
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -38,6 +40,8 @@ class BreakGlassSealing(
     val signIn: SignInWithBackoffUseCase,
     val reseal: ResealBreakGlassUseCase,
     val permission: ResealPermissionCheck,
+    val replay: BreakGlassSignInReplay,
+    val mapper: ObjectMapper,
 )
 
 /**
@@ -48,7 +52,8 @@ class BreakGlassSealing(
  * counts as available needs the override reason (409). Recording on a session that is resealed or past its expiry
  * is 409. The contract lists no error code for 409, so the problem body carries a detail that says what is wrong and
  * no catalogue code (INV-Q-8845 A).
- * signInBreakGlass (INV-T-8853, INV-T-13465) answers 429 (SRT-012, Retry-After) while the back-off runs, 404 for an unknown unlock, 409 (no code) when the unlock is resealed or
+ * signInBreakGlass (INV-T-8853, INV-T-13465) answers 429 (SRT-012, Retry-After) while the back-off runs, 404 for an
+ * unknown unlock, 409 (no code) when the unlock is resealed or
  * past its expiry, 403 for a wrong credential or a tenant with no account row, and 200 otherwise.
  * resealBreakGlass needs the permission `break-glass.reseal` (403 otherwise, nothing changes), is 409 (no code)
  * after the expiry, and carries the new
@@ -179,17 +184,30 @@ open class BreakGlassController(
         unlockRef: String,
         idempotencyKey: UUID,
         breakGlassSignInRequest: BreakGlassSignInRequest,
-    ): ResponseEntity<BreakGlassSessionResponse> =
-        when (
-            val outcome =
-                sealing.signIn.handle(
-                    checkNotNull(tenants.currentActor()) { "no actor is bound" },
-                    unlockRef,
-                    breakGlassSignInRequest.sealingCredential,
-                )
-        ) {
+    ): ResponseEntity<BreakGlassSessionResponse> {
+        val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
+        val stored =
+            sealing.replay.once(sealing.signIn, actor, unlockRef, idempotencyKey, breakGlassSignInRequest) { outcome ->
+                signInReply(outcome)
+            }
+        // rebuilt outside the transaction: a refusal thrown inside it would roll the counter back
+        return when (stored.status) {
+            HttpStatus.OK.value() -> {
+                ResponseEntity.ok(sealing.mapper.readValue(stored.body, BreakGlassSessionResponse::class.java))
+            }
+
+            HttpStatus.NOT_FOUND.value() -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            HttpStatus.FORBIDDEN.value() -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            HttpStatus.CONFLICT.value() -> throw ApiConflict("the break-glass session is not open")
+            else -> error("unexpected stored status ${stored.status}")
+        }
+    }
+
+    /** The reply stored under the key; the waiting back-off is thrown, so it is stored nowhere (429, Retry-After). */
+    private fun signInReply(outcome: SignInWithBackoffOutcome): StoredResponse =
+        when (outcome) {
             is SignInWithBackoffOutcome.SignedIn -> {
-                ResponseEntity.ok(
+                val body =
                     BreakGlassSessionResponse(
                         unlockRef = outcome.session.ref,
                         tenantRef = outcome.session.tenantRef,
@@ -198,20 +216,20 @@ open class BreakGlassController(
                             BreakGlassRules.PERMITTED_ACTIONS
                                 .map { BreakGlassSessionResponse.PermittedActions.valueOf(it.name) }
                                 .toSet(),
-                    ),
-                )
+                    )
+                StoredResponse(HttpStatus.OK.value(), sealing.mapper.writeValueAsString(body))
             }
 
             SignInWithBackoffOutcome.NotFound -> {
-                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+                StoredResponse(HttpStatus.NOT_FOUND.value(), "")
             }
 
             SignInWithBackoffOutcome.NotOpen -> {
-                throw ApiConflict("the break-glass session is not open")
+                StoredResponse(HttpStatus.CONFLICT.value(), "")
             }
 
             SignInWithBackoffOutcome.WrongCredential -> {
-                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+                StoredResponse(HttpStatus.FORBIDDEN.value(), "")
             }
 
             is SignInWithBackoffOutcome.Waiting -> {
