@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.Locale
@@ -41,11 +42,40 @@ class GeneratedMigrationsTest {
 
     @Test
     fun `the outbox migration is the DDL outbox-and-queue generates for the tenancy schema`() {
-        val expected = OutboxSchema.ddl("tenancy", "tenancy_runtime", "tenancy_sys").trim()
+        // the create migration predates the testmode column (outbox-and-queue 6.10.0): V202611041000 adds it
+        val generated = OutboxSchema.ddl("tenancy", "tenancy_runtime", "tenancy_sys").trim()
+        assertEquals(1, TESTMODE_COLUMN.findAll(generated).count())
+        val expected = TESTMODE_COLUMN.replaceFirst(generated, "")
         val text = migration("V202610190930__create_outbox.sql")
+        assertFalse("testmode" in text)
         assertEquals(OUTBOX_RAW_FEFF, text.count { it == FEFF })
         assertEquals(expected, escapeBlankCodePoints(body(text)))
     }
+
+    @Test
+    fun `the outbox testmode migration is the upgrade DDL outbox-and-queue generates for the tenancy schema`() {
+        assertTrue(isTestModeUpgrade(statements(migration("V202611041000__outbox_testmode.sql"))))
+    }
+
+    private fun isTestModeUpgrade(statements: List<String>): Boolean =
+        statements == listOf("SET lock_timeout = '5s';", OutboxSchema.testModeUpgradeDdl("tenancy") + ";")
+
+    @Test
+    fun `the outbox testmode upgrade check fails for each look-alike`() {
+        val upgrade = OutboxSchema.testModeUpgradeDdl("tenancy") + ";"
+        val lookAlikes =
+            listOf(
+                listOf("SET lock_timeout = '5s';", upgrade.replace("tenancy.outbox", "tenancy.outbox2")),
+                listOf("SET lock_timeout = '5s';", upgrade.replace("default false", "default true")),
+                listOf("SET lock_timeout = '5s';", upgrade, "select 1;"),
+            )
+        assertTrue(isTestModeUpgrade(listOf("SET lock_timeout = '5s';", upgrade)))
+        lookAlikes.forEach { assertFalse(isTestModeUpgrade(it), it.toString()) }
+    }
+
+    /** The non-blank, non-comment lines of a migration. */
+    private fun statements(text: String): List<String> =
+        text.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("--") }
 
     @Test
     fun `the idempotency migration is the DDL service-runtime generates for the tenancy schema`() {
@@ -73,6 +103,7 @@ class GeneratedMigrationsTest {
     }
 
     private companion object {
+        val TESTMODE_COLUMN = Regex(",\\s*testmode boolean not null default false")
         const val FEFF = '\uFEFF'
         const val OUTBOX_RAW_FEFF = 3
         const val CONFIG_RAW_FEFF = 18
