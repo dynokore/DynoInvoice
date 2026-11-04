@@ -41,11 +41,12 @@ inv:
     # tenant-free object of the schema that the start-up classification (TableClasses.verify, INV-ADR-3968 item 4a)
     # cannot see as library-declared: the sys-owned claim function of the queue (QueueSchema.CLAIM_DUE, a table-valued
     # function in the generated code). The signed-binding key table is not generated (INV-T-7430), so it is not declared.
-    platform-scoped-tables: submission.claim_due,submission.retry_due_tenants,submission.waiting_tenants
+    platform-scoped-tables: submission.claim_due,submission.retry_due_tenants,submission.waiting_tenants,submission.compliance_tenants
   submission:
     # INV-Q-14316 A: the retry window of the planner (VP-48 retry_boundary) until the tenant values are read through
     # PolicyReader (a later slice). A positive integer; a missing, zero or negative value fails the start.
     retry-boundary-minutes: 240 # provisional
+    job-scheduling.enabled: true # INV-Q-16793 A: fire the registered jobs on their cron; tests set it false (SubmissionContext)
   compliance-metrics:
     # The read of getComplianceMetrics (INV-REQ-1069, INV-REQ-1070); numeric thresholds are configuration, never constants of code.
     many-versions-from: 3 # INV-REQ-1070 behaviour 1: documents with three or more versions; per-company default, overridden by configuration
