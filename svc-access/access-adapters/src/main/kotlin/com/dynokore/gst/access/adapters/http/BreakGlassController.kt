@@ -188,11 +188,65 @@ open class BreakGlassController(
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
         val stored =
             sealing.replay.once(sealing.signIn, actor, unlockRef, idempotencyKey, breakGlassSignInRequest) { outcome ->
-                signInReply(outcome, sealing.mapper)
+                signInReply(outcome)
             }
         // rebuilt outside the transaction: a refusal thrown inside it would roll the counter back
-        return rebuiltSignIn(stored, sealing.mapper)
+        return when (stored.status) {
+            HttpStatus.OK.value() -> {
+                ResponseEntity.ok(sealing.mapper.readValue(stored.body, BreakGlassSessionResponse::class.java))
+            }
+
+            HttpStatus.NOT_FOUND.value() -> {
+                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            HttpStatus.FORBIDDEN.value() -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+
+            HttpStatus.CONFLICT.value() -> {
+                throw ApiConflict("the break-glass session is not open")
+            }
+
+            else -> {
+                error("unexpected stored status ${stored.status}")
+            }
+        }
     }
+
+    /** The reply stored under the key; the waiting back-off is thrown, so it is stored nowhere (429, Retry-After). */
+    private fun signInReply(outcome: SignInWithBackoffOutcome): StoredResponse =
+        when (outcome) {
+            is SignInWithBackoffOutcome.SignedIn -> {
+                val body =
+                    BreakGlassSessionResponse(
+                        unlockRef = outcome.session.ref,
+                        tenantRef = outcome.session.tenantRef,
+                        expiresAt = outcome.session.expiresAt.atOffset(ZoneOffset.UTC),
+                        permittedActions =
+                            BreakGlassRules.PERMITTED_ACTIONS
+                                .map { BreakGlassSessionResponse.PermittedActions.valueOf(it.name) }
+                                .toSet(),
+                    )
+                StoredResponse(HttpStatus.OK.value(), sealing.mapper.writeValueAsString(body))
+            }
+
+            SignInWithBackoffOutcome.NotFound -> {
+                StoredResponse(HttpStatus.NOT_FOUND.value(), "")
+            }
+
+            SignInWithBackoffOutcome.NotOpen -> {
+                StoredResponse(HttpStatus.CONFLICT.value(), "")
+            }
+
+            SignInWithBackoffOutcome.WrongCredential -> {
+                StoredResponse(HttpStatus.FORBIDDEN.value(), "")
+            }
+
+            is SignInWithBackoffOutcome.Waiting -> {
+                throw ApiRefusal(ClosedErrorCode.RATE_LIMITED, retryAfterSeconds = outcome.retryAfterSeconds)
+            }
+        }
 
     override fun resealBreakGlass(
         unlockRef: String,
@@ -251,59 +305,3 @@ open class BreakGlassController(
                 BreakGlassRules.PERMITTED_ACTIONS.map { BreakGlassResponse.PermittedActions.valueOf(it.name) }.toSet(),
         )
 }
-
-/** The reply of `signInBreakGlass` rebuilt from the stored status and body. */
-private fun rebuiltSignIn(
-    stored: StoredResponse,
-    mapper: ObjectMapper,
-): ResponseEntity<BreakGlassSessionResponse> {
-    val refusal =
-        when (stored.status) {
-            HttpStatus.NOT_FOUND.value() -> ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            HttpStatus.FORBIDDEN.value() -> ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
-            else -> null
-        }
-    if (refusal != null) throw refusal
-    check(stored.status == HttpStatus.OK.value() || stored.status == HttpStatus.CONFLICT.value()) {
-        "unexpected stored status ${stored.status}"
-    }
-    if (stored.status == HttpStatus.CONFLICT.value()) throw ApiConflict("the break-glass session is not open")
-    return ResponseEntity.ok(mapper.readValue(stored.body, BreakGlassSessionResponse::class.java))
-}
-
-/** The reply stored under the key; the waiting back-off is thrown, so it is stored nowhere (429, Retry-After). */
-private fun signInReply(
-    outcome: SignInWithBackoffOutcome,
-    mapper: ObjectMapper,
-): StoredResponse =
-    when (outcome) {
-        is SignInWithBackoffOutcome.SignedIn -> {
-            val body =
-                BreakGlassSessionResponse(
-                    unlockRef = outcome.session.ref,
-                    tenantRef = outcome.session.tenantRef,
-                    expiresAt = outcome.session.expiresAt.atOffset(ZoneOffset.UTC),
-                    permittedActions =
-                        BreakGlassRules.PERMITTED_ACTIONS
-                            .map { BreakGlassSessionResponse.PermittedActions.valueOf(it.name) }
-                            .toSet(),
-                )
-            StoredResponse(HttpStatus.OK.value(), mapper.writeValueAsString(body))
-        }
-
-        SignInWithBackoffOutcome.NotFound -> {
-            StoredResponse(HttpStatus.NOT_FOUND.value(), "")
-        }
-
-        SignInWithBackoffOutcome.NotOpen -> {
-            StoredResponse(HttpStatus.CONFLICT.value(), "")
-        }
-
-        SignInWithBackoffOutcome.WrongCredential -> {
-            StoredResponse(HttpStatus.FORBIDDEN.value(), "")
-        }
-
-        is SignInWithBackoffOutcome.Waiting -> {
-            throw ApiRefusal(ClosedErrorCode.RATE_LIMITED, retryAfterSeconds = outcome.retryAfterSeconds)
-        }
-    }
