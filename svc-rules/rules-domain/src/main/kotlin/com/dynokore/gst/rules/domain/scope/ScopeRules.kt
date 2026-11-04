@@ -45,11 +45,29 @@ class ScopeRules(
         code: String,
     ): ScopeOutcome {
         val lineVerdict = data.lineVerdicts[code]
-        // Step 3: intra-group treatment other than PASS_THROUGH or absent; step 4: DS and a code the data lacks.
-        val denied = (f.sameGroup && data.intraGroupTreatment != PASS_THROUGH) || code == "DS"
-        if (denied || lineVerdict == null) return plain(ScopeVerdict.NOT_SUBMITTABLE)
-        val warning = f.sameGroup && lineVerdict == ScopeVerdict.IN_SCOPE
-        return ScopeOutcome(overrideVerdict(f, code) ?: lineVerdict, warning)
+        return when {
+            // Step 3: intra-group treatment other than PASS_THROUGH or absent.
+            f.sameGroup && data.intraGroupTreatment != PASS_THROUGH -> {
+                plain(ScopeVerdict.NOT_SUBMITTABLE)
+            }
+
+            // Step 4: DS is EXCLUDED_TXN in either mode whatever the data says (INV-REQ-493, INV-Q-16736).
+            code == "DS" -> {
+                plain(ScopeVerdict.EXCLUDED_TXN)
+            }
+
+            // Step 4b: a code the data lacks.
+            lineVerdict == null -> {
+                plain(ScopeVerdict.NOT_SUBMITTABLE)
+            }
+
+            else -> {
+                ScopeOutcome(
+                    overrideVerdict(f, code) ?: lineVerdict,
+                    f.sameGroup && lineVerdict == ScopeVerdict.IN_SCOPE,
+                )
+            }
+        }
     }
 
     /** Step 5 (a purchase with no input tax claimed) and step 6 (OS under voluntary over-submission). */

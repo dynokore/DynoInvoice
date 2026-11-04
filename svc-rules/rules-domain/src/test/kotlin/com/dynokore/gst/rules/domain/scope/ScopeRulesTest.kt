@@ -112,9 +112,9 @@ class ScopeRulesTest {
     }
 
     @Test
-    fun `INV-REQ-494 DS is NOT_SUBMITTABLE in either mode and the look-alikes are not`() {
-        v(facts(Case("DS"))) shouldBe ScopeVerdict.NOT_SUBMITTABLE
-        v(facts(Case("DS", voluntary = true))) shouldBe ScopeVerdict.NOT_SUBMITTABLE
+    fun `INV-REQ-494 DS is EXCLUDED_TXN in either mode and the look-alikes are not`() {
+        v(facts(Case("DS"))) shouldBe ScopeVerdict.EXCLUDED_TXN
+        v(facts(Case("DS", voluntary = true))) shouldBe ScopeVerdict.EXCLUDED_TXN
         v(facts(Case("DSX"))) shouldBe ScopeVerdict.IN_SCOPE
         v(facts(Case("ds"))) shouldBe ScopeVerdict.IN_SCOPE
     }

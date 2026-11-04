@@ -269,9 +269,9 @@ class ScopeVerdictBoundaryTest {
     }
 
     @Test
-    fun `INV-AC-513 INV-AC-523 a DS supply line is NOT_SUBMITTABLE and the line is still coded, not blocked`() {
+    fun `INV-AC-513 INV-AC-523 a DS supply line is EXCLUDED_TXN and the line is still coded, not blocked`() {
         val answer = evaluate(fixture().also { profile(it) }, "DS")
-        answer.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.NOT_SUBMITTABLE
+        answer.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.EXCLUDED_TXN
         answer.categoryCode shouldBe "DS"
         answer.code shouldBe null
         answer.severity shouldBe null
@@ -325,13 +325,13 @@ class ScopeVerdictBoundaryTest {
     }
 
     @Test
-    fun `INV-AC-1506 INV-AC-523 with VP-21 ON the OS line is SUBMITTABLE and the DS line stays NOT_SUBMITTABLE`() {
+    fun `INV-AC-1506 INV-AC-523 with VP-21 ON the OS line is SUBMITTABLE and the DS line stays EXCLUDED_TXN`() {
         val (offOs, onOs) = both("OS")
         val (offDs, onDs) = both("DS")
         onOs.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.SUBMITTABLE
         offOs.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.OUT_OF_SCOPE
-        onDs.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.NOT_SUBMITTABLE
-        offDs.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.NOT_SUBMITTABLE
+        onDs.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.EXCLUDED_TXN
+        offDs.scopeVerdict shouldBe EvaluationResult.ScopeVerdict.EXCLUDED_TXN
     }
 
     @Test
