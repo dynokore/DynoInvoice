@@ -71,7 +71,7 @@ class SchemeHandlerBoundaryTest {
         iras: String,
         tag: String? = null,
     ) = """{"entryId":"e-$internal","internalTaxCode":"$internal","irasCode":"$iras","sourceClass":"PRIMARY"""" +
-        (tag?.let { ""","schemeTag":"$it"""" } ?: "") + "}"
+        tag?.let { ""","schemeTag":"$it"""" }.orEmpty() + "}"
 
     private fun tagSide(
         tag: String,
@@ -81,6 +81,7 @@ class SchemeHandlerBoundaryTest {
         (if (pending) """"pendingReference":"INV-NOTE-4 Q-4",""" else "") +
         """"sourceClass":"PRIMARY","sourceReference":"s"}"""
 
+    @Suppress("LongParameterList") // the members of one invented treatment row
     private fun treatment(
         tag: String,
         side: String,
@@ -90,8 +91,8 @@ class SchemeHandlerBoundaryTest {
         agreement: String? = null,
     ) = """{"tag":"$tag","side":"$side","categoryCode":"$code","rateBasis":"FIXED","rate":"0",""" +
         """"counterpartyApprovedUnder":[$under],""" +
-        (agreement?.let { """"writtenAgreement":"$it",""" } ?: "") +
-        (statement?.let { """"ibt022Statement":"$it",""" } ?: "") +
+        agreement?.let { """"writtenAgreement":"$it",""" }.orEmpty() +
+        statement?.let { """"ibt022Statement":"$it",""" }.orEmpty() +
         """"sourceClass":"INFERRED","sourceReference":"invented"}"""
 
     private fun rule(
@@ -199,6 +200,7 @@ class SchemeHandlerBoundaryTest {
         val policy: PolicyReplica,
     )
 
+    @Suppress("LongMethod") // one wiring of the real controller over in-memory packs and replicas
     private fun fixture(scenarioJson: String = scenario()): Fixture {
         val held =
             mapOf(
@@ -286,8 +288,8 @@ class SchemeHandlerBoundaryTest {
     ): EvaluationResult {
         val json =
             """{"entityRef":"E1","transactionDate":"2026-04-01","internalTaxCode":"$code"""" +
-                (election?.let { ""","election":"$it"""" } ?: "") +
-                (schemes?.let { s -> ""","counterpartySchemeData":{"approvedSchemes":${quoted(s)}}""" } ?: "") +
+                election?.let { ""","election":"$it"""" }.orEmpty() +
+                schemes?.let { s -> ""","counterpartySchemeData":{"approvedSchemes":${quoted(s)}}""" }.orEmpty() +
                 (if (purchase) ""","direction":"PURCHASE"""" else "") + "}"
         return checkNotNull(
             f.controller.evaluateDocument(mapper.readValue(json, EvaluateDocumentRequest::class.java)).body,

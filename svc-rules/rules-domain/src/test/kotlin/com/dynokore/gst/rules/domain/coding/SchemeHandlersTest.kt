@@ -33,6 +33,7 @@ class SchemeHandlersTest {
         h: Handling = Handling.HANDLED,
     ) = SchemeTagSide(tag, s, h)
 
+    @Suppress("LongParameterList") // the members of one invented treatment row
     private fun t(
         tag: String,
         s: Side,
