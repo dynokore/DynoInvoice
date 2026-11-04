@@ -56,8 +56,8 @@ class JobRuntimeConfiguration {
     /**
      * Registers one cron task per definition the JobRuntime holds, once at startup. The cron and the zone are read from
      * the registered definition, never copied as text; the build refuses a string attribute on @Scheduled (INV-Q-4690),
-     * so the tasks are registered through the configurer. The switch
-     * `inv.submission.job-scheduling.enabled` (INV-Q-16793 A) is on when true or missing.
+     * so the tasks are registered through the configurer. The switch `inv.submission.job-scheduling.enabled` (INV-Q-16793 A)
+     * is on when true or missing.
      */
     @Bean
     @ConditionalOnProperty(
