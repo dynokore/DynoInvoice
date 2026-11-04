@@ -1,8 +1,5 @@
 package com.dynokore.gst.submission.domain.readiness
 
-import com.dynokore.gst.catalogue.Disposition
-import com.dynokore.gst.catalogue.ErrorCode
-
 /** The completeness control state of a period (INV-REQ-791 outcome); the controls themselves are a later slice. */
 sealed interface CompletenessState {
     data object Passed : CompletenessState
@@ -20,12 +17,16 @@ sealed interface CompletenessState {
     data object Unavailable : CompletenessState
 }
 
-/** Block codes of the period verdict; each code is read from the catalogue. */
+/** How a block code is cleared; a domain value tied to the published catalogue by CompletenessGateTest. */
+enum class BlockDisposition { OVERRIDABLE, MANUAL }
+
+/** Block codes of the period verdict; text and disposition are domain values guarded by the catalogue drift test. */
 enum class BlockCode(
     val code: String,
+    val disposition: BlockDisposition,
 ) {
-    PER_001(ErrorCode.PER_001.code),
-    PER_002(ErrorCode.PER_002.code),
+    PER_001("PER-001", BlockDisposition.OVERRIDABLE),
+    PER_002("PER-002", BlockDisposition.MANUAL),
 }
 
 sealed interface PeriodVerdict {
@@ -45,7 +46,7 @@ sealed interface OverrideOutcome {
 
     data class Refused(
         val code: BlockCode,
-        val disposition: Disposition,
+        val disposition: BlockDisposition,
     ) : OverrideOutcome
 
     data object NothingToOverride : OverrideOutcome
@@ -53,7 +54,7 @@ sealed interface OverrideOutcome {
 
 /**
  * A failed completeness control blocks the period verdict and cannot be overridden (INV-REQ-792, INV-AC-1848).
- * Pure: no clock, no state. Whether a code may be overridden is the catalogue disposition, never a literal here.
+ * Pure: no clock, no state. Whether a code may be overridden is its disposition, never a branch on a code.
  */
 object CompletenessGate {
     fun decide(
@@ -68,10 +69,17 @@ object CompletenessGate {
                 if (failed != null) add(BlockCode.PER_002)
             }
         return when {
-            readiness is ReadinessResult.UnableToDetermine || completeness is CompletenessState.Unavailable ->
+            readiness is ReadinessResult.UnableToDetermine || completeness is CompletenessState.Unavailable -> {
                 PeriodVerdict.UnableToDetermine
-            codes.isEmpty() -> PeriodVerdict.Ready
-            else -> PeriodVerdict.NotReady(codes, blocked?.count ?: 0, failed?.controls.orEmpty())
+            }
+
+            codes.isEmpty() -> {
+                PeriodVerdict.Ready
+            }
+
+            else -> {
+                PeriodVerdict.NotReady(codes, blocked?.count ?: 0, failed?.controls.orEmpty())
+            }
         }
     }
 
@@ -80,11 +88,10 @@ object CompletenessGate {
         code: BlockCode,
     ): OverrideOutcome {
         if (verdict !is PeriodVerdict.NotReady || code !in verdict.codes) return OverrideOutcome.NothingToOverride
-        val disposition = ErrorCode.fromCode(code.code).disposition
-        return if (disposition == Disposition.OVERRIDABLE) {
+        return if (code.disposition == BlockDisposition.OVERRIDABLE) {
             OverrideOutcome.Allowed
         } else {
-            OverrideOutcome.Refused(code, disposition)
+            OverrideOutcome.Refused(code, code.disposition)
         }
     }
 }
