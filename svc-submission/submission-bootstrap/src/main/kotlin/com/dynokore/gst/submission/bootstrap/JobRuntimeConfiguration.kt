@@ -13,6 +13,7 @@ import com.dynokore.platform.serviceruntime.jobs.JobSchedule
 import com.dynokore.platform.tenancykernel.TenantId
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.SmartInitializingSingleton
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
@@ -55,9 +56,15 @@ class JobRuntimeConfiguration {
     /**
      * Registers one cron task per definition the JobRuntime holds, once at startup. The cron and the zone are read from
      * the registered definition, never copied as text; the build refuses a string attribute on @Scheduled (INV-Q-4690),
-     * so the tasks are registered through the configurer.
+     * so the tasks are registered through the configurer. The switch
+     * `inv.submission.job-scheduling.enabled` (INV-Q-16793 A) is on when true or missing.
      */
     @Bean
+    @ConditionalOnProperty(
+        name = ["inv.submission.job-scheduling.enabled"],
+        havingValue = "true",
+        matchIfMissing = true,
+    )
     fun jobScheduling(
         runtime: ObjectProvider<JobRuntime>,
         clock: Clock,

@@ -19,9 +19,16 @@ import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ApplicationContext
+import org.springframework.core.io.ClassPathResource
+import org.springframework.objenesis.ObjenesisStd
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor
+import org.springframework.scheduling.config.CronTask
 import org.springframework.scheduling.support.CronExpression
 import java.nio.file.Path
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -46,9 +53,10 @@ class JobRuntimeCompositionTest {
     private fun <T> ApplicationContext.asTenant(
         tenant: UUID,
         block: () -> T,
-    ): T = getBean(TenantContext::class.java).bind(TenantId(tenant), actor) {
-        getBean(TransactionRunner::class.java).inTransaction(block)
-    }
+    ): T =
+        getBean(TenantContext::class.java).bind(TenantId(tenant), actor) {
+            getBean(TransactionRunner::class.java).inTransaction(block)
+        }
 
     private fun ApplicationContext.seed(
         tenant: UUID,
@@ -111,6 +119,8 @@ class JobRuntimeCompositionTest {
         val items = context.payloads(tenant, doc)
         items.size shouldBe 1
         Regex("\"version\"\\s*:\\s*2\\b").containsMatchIn(items.single()) shouldBe true
+        // the lock of the first run is held for lockAtLeastFor (30 s, real clock): wait it out so the body runs again
+        Thread.sleep(LOCK_LEASE_WAIT.toMillis())
         runtime.fire("waiting-sweep", first.plusSeconds(60)) shouldBe mapOf(JobTarget.Whole to FireResult.RAN)
         context.states(tenant, doc) shouldBe mapOf(1 to "ACKNOWLEDGED", 2 to "QUEUED")
         context.payloads(tenant, doc) shouldBe items
@@ -136,6 +146,52 @@ class JobRuntimeCompositionTest {
         Duration.between(one, two).seconds shouldBe 60
     }
 
+    private fun ApplicationContext.cronTasks(): List<CronTask> =
+        getBean(ScheduledAnnotationBeanPostProcessor::class.java)
+            .scheduledTasks
+            .map { it.task }
+            .filterIsInstance<CronTask>()
+
+    @Test
+    fun `the shared test context holds no jobScheduling bean and schedules no task`(
+        @TempDir dir: Path,
+    ) = run(dir) { context ->
+        context.containsBean("jobScheduling") shouldBe false
+        context.getBean(ScheduledAnnotationBeanPostProcessor::class.java).scheduledTasks.isEmpty() shouldBe true
+    }
+
+    @Test
+    fun `the production setting schedules one cron task of the waiting-sweep cron`(
+        @TempDir dir: Path,
+    ) {
+        SubmissionContext.online(dir).withPropertyValues("inv.submission.job-scheduling.enabled=true").run { context ->
+            context.startupFailure shouldBe null
+            context.containsBean("jobScheduling") shouldBe true
+            context.cronTasks().map { it.expression } shouldBe
+                listOf(JobRuntimeConfiguration.WAITING_SWEEP.schedule.cron)
+        }
+    }
+
+    @Test
+    fun `the scheduling bean is present when the switch is missing`() {
+        val sweeper = ObjenesisStd().newInstance(WaitingSweeper::class.java)
+        ApplicationContextRunner()
+            .withBean(Clock::class.java, { Clock.systemUTC() })
+            .withBean(WaitingSweeper::class.java, { sweeper })
+            .withUserConfiguration(JobRuntimeConfiguration::class.java)
+            .run { context ->
+                context.startupFailure shouldBe null
+                context.containsBean("jobScheduling") shouldBe true
+            }
+    }
+
+    @Test
+    fun `application yaml switches job scheduling on`() {
+        val yaml = YamlPropertiesFactoryBean()
+        yaml.setResources(ClassPathResource("application.yaml"))
+        yaml.getObject()?.getProperty("inv.submission.job-scheduling.enabled") shouldBe "true"
+    }
+
     @Test
     fun `the authorizer permits no actor to command a job`(
         @TempDir dir: Path,
@@ -144,7 +200,8 @@ class JobRuntimeCompositionTest {
         listOf("release.manager", "platform.engineer", "svc:submission-svc", "").forEach { who ->
             JobCommand.entries.forEach { command ->
                 authorizer.isPlatformOperator(who, command) shouldBe false
-                authorizer.mayCommandEntity(who, TenantId(UUID.randomUUID()), EntityRef.PLATFORM, command) shouldBe false
+                authorizer.mayCommandEntity(who, TenantId(UUID.randomUUID()), EntityRef.PLATFORM, command) shouldBe
+                    false
                 authorizer.mayCommandEntity(who, TenantId.PLATFORM, EntityRef.PLATFORM, command) shouldBe false
             }
         }
@@ -154,7 +211,16 @@ class JobRuntimeCompositionTest {
     fun `the job tables migration is the DDL service-runtime generates for the submission schema`() {
         val text =
             checkNotNull(javaClass.getResource("/db/migration/$migration")) { "no migration $migration" }.readText()
-        val statements = text.lines().filterNot { it.startsWith("--") }.joinToString("\n").trim()
+        val statements =
+            text
+                .lines()
+                .filterNot { it.startsWith("--") }
+                .joinToString("\n")
+                .trim()
         statements shouldBe JobSchema.ddl(SubmissionDb.SCHEMA, SubmissionDb.RUNTIME, SubmissionDb.SYS).trim()
+    }
+
+    private companion object {
+        val LOCK_LEASE_WAIT: Duration = Duration.ofSeconds(31)
     }
 }
