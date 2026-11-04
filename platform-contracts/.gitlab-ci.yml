@@ -209,6 +209,7 @@ contract-rules:
     - gst_check error-code-catalogue-check python3 spectral/check-error-code-catalogue.py .
     - gst_check audited-operations-check python3 spectral/check-audited-operations.py .
     - gst_check flow-resumption-check python3 spectral/check-flow-resumption.py .
+    - gst_check hold-release-kinds-check python3 spectral/check-hold-release-kinds.py .
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
     - gst_check compliance-score-check python3 spectral/check-forbidden-properties.py --table spectral/forbidden-score-properties.tsv --discover .
     - gst_check forbidden-request-properties-check python3 spectral/check-forbidden-properties.py --requests ingestion/
@@ -324,6 +325,7 @@ tool-self-tests:
     - gst_check self-test-error-code-catalogue sh spectral/self-test-error-code-catalogue.sh
     - gst_check self-test-audited-operations sh spectral/self-test-audited-operations.sh
     - gst_check self-test-flow-resumption sh spectral/self-test-flow-resumption.sh
+    - gst_check self-test-hold-release-kinds sh spectral/self-test-hold-release-kinds.sh
     - gst_check self-test-forbidden-properties sh spectral/self-test-forbidden-properties.sh
     - gst_check self-test-data-classification sh spectral/self-test-data-classification.sh
     - gst_check self-test-spec-facts sh spectral/self-test-spec-facts.sh
