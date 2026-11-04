@@ -46,9 +46,10 @@ class JobRuntimeCompositionTest {
     private fun <T> ApplicationContext.asTenant(
         tenant: UUID,
         block: () -> T,
-    ): T = getBean(TenantContext::class.java).bind(TenantId(tenant), actor) {
-        getBean(TransactionRunner::class.java).inTransaction(block)
-    }
+    ): T =
+        getBean(TenantContext::class.java).bind(TenantId(tenant), actor) {
+            getBean(TransactionRunner::class.java).inTransaction(block)
+        }
 
     private fun ApplicationContext.seed(
         tenant: UUID,
@@ -146,7 +147,8 @@ class JobRuntimeCompositionTest {
         listOf("release.manager", "platform.engineer", "svc:submission-svc", "").forEach { who ->
             JobCommand.entries.forEach { command ->
                 authorizer.isPlatformOperator(who, command) shouldBe false
-                authorizer.mayCommandEntity(who, TenantId(UUID.randomUUID()), EntityRef.PLATFORM, command) shouldBe false
+                authorizer.mayCommandEntity(who, TenantId(UUID.randomUUID()), EntityRef.PLATFORM, command) shouldBe
+                    false
                 authorizer.mayCommandEntity(who, TenantId.PLATFORM, EntityRef.PLATFORM, command) shouldBe false
             }
         }
@@ -156,7 +158,12 @@ class JobRuntimeCompositionTest {
     fun `the job tables migration is the DDL service-runtime generates for the submission schema`() {
         val text =
             checkNotNull(javaClass.getResource("/db/migration/$migration")) { "no migration $migration" }.readText()
-        val statements = text.lines().filterNot { it.startsWith("--") }.joinToString("\n").trim()
+        val statements =
+            text
+                .lines()
+                .filterNot { it.startsWith("--") }
+                .joinToString("\n")
+                .trim()
         statements shouldBe JobSchema.ddl(SubmissionDb.SCHEMA, SubmissionDb.RUNTIME, SubmissionDb.SYS).trim()
     }
 

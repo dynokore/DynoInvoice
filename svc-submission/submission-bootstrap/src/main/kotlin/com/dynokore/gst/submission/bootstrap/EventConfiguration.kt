@@ -14,7 +14,8 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(SubmissionEvents.entries + SubmissionEvents.consumed + SubmissionEvents.platformEntries)
+    fun eventCatalogue(): EventCatalogue =
+        EventCatalogue(SubmissionEvents.entries + SubmissionEvents.consumed + SubmissionEvents.platformEntries)
 }
 
 object SubmissionEvents {
