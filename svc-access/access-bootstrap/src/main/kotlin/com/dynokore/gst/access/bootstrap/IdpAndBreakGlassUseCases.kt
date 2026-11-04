@@ -13,6 +13,7 @@ import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessions
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqIdpGroupMappings
 import com.dynokore.gst.access.adapters.persistence.JooqMappedGrants
+import com.dynokore.gst.access.adapters.persistence.JooqSignInAttempts
 import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUseCase
 import com.dynokore.gst.access.application.breakglass.BreakGlassAccounts
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
@@ -25,7 +26,8 @@ import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseC
 import com.dynokore.gst.access.application.breakglass.ResealBreakGlassUseCase
 import com.dynokore.gst.access.application.breakglass.SealedAccountKeeper
 import com.dynokore.gst.access.application.breakglass.SealingCredentials
-import com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCase
+import com.dynokore.gst.access.application.breakglass.SignInAttempts
+import com.dynokore.gst.access.application.breakglass.SignInWithBackoffUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.GrantAudit
@@ -273,18 +275,28 @@ class SealedAccountUseCases {
     fun sealingCredentials(): SealingCredentials = SecureRandomSealingCredentials()
 
     @Bean
+    fun signInAttempts(
+        dsl: DSLContext,
+        tenants: TenantContext,
+        clock: Clock,
+    ): SignInAttempts = JooqSignInAttempts(dsl, tenants, clock)
+
+    @Bean
     fun sealedAccountKeeper(
         accounts: BreakGlassAccounts,
         credentials: SealingCredentials,
     ) = SealedAccountKeeper(accounts, credentials)
 
+    @Suppress("LongParameterList") // one collaborator per port of the use case, as its constructor
     @Bean
     fun signInBreakGlassUseCase(
         dependencies: GrantDependencies,
         sessions: BreakGlassSessions,
         keeper: SealedAccountKeeper,
+        attempts: SignInAttempts,
+        effects: BreakGlassEffects,
         clock: Clock,
-    ) = SignInBreakGlassUseCase(dependencies.tx, sessions, keeper, clock)
+    ) = SignInWithBackoffUseCase(dependencies.tx, sessions, keeper, attempts, effects, clock)
 
     @Bean
     fun resealBreakGlassUseCase(
@@ -304,7 +316,7 @@ class SealedAccountUseCases {
 
     @Bean
     fun breakGlassSealing(
-        signIn: SignInBreakGlassUseCase,
+        signIn: SignInWithBackoffUseCase,
         reseal: ResealBreakGlassUseCase,
         permission: ResealPermissionCheck,
     ) = BreakGlassSealing(signIn, reseal, permission)

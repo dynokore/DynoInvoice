@@ -18,6 +18,7 @@ import java.util.UUID
 class ApiRefusal(
     val code: ClosedErrorCode,
     val detail: String? = null,
+    val retryAfterSeconds: Long? = null,
 ) : RuntimeException("${code.code}: ${detail ?: code.title}")
 
 /**
@@ -38,6 +39,7 @@ class ApiRefusalAdvice {
                 refusal.code,
                 CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
                 refusal.detail,
+                refusal.retryAfterSeconds,
             )
         val headers = HttpHeaders()
         problem.headers.forEach { (name, value) -> headers.add(name, value) }

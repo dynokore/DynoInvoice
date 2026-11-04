@@ -13,7 +13,8 @@ import com.dynokore.gst.access.application.breakglass.BreakGlassSettings
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseCase
 import com.dynokore.gst.access.application.breakglass.ResealBreakGlassUseCase
 import com.dynokore.gst.access.application.breakglass.SealedAccountKeeper
-import com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCase
+import com.dynokore.gst.access.application.breakglass.SignInAttempts
+import com.dynokore.gst.access.application.breakglass.SignInWithBackoffUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
@@ -23,6 +24,7 @@ import com.dynokore.gst.access.application.idp.IdentityProviderProbe
 import com.dynokore.gst.access.contract.model.UnlockBreakGlassRequest
 import com.dynokore.gst.access.domain.breakglass.BreakGlassAction
 import com.dynokore.gst.access.domain.breakglass.BreakGlassPairing
+import com.dynokore.gst.access.domain.breakglass.SignInBackoff
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantRef
@@ -218,7 +220,21 @@ class BreakGlassControllerOverrideTest {
 
     private val sealing =
         BreakGlassSealing(
-            SignInBreakGlassUseCase(tx, sessions, keeper, clock),
+            SignInWithBackoffUseCase(
+                tx,
+                sessions,
+                keeper,
+                object : SignInAttempts {
+                    override fun readForUpdate(unlockRef: String) = SignInBackoff.INITIAL
+
+                    override fun save(
+                        unlockRef: String,
+                        state: SignInBackoff,
+                    ) = Unit
+                },
+                effects,
+                clock,
+            ),
             ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock),
             { false },
         )

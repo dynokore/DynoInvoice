@@ -7,8 +7,8 @@ import com.dynokore.gst.access.application.breakglass.RecordBreakGlassActionUseC
 import com.dynokore.gst.access.application.breakglass.RecordBreakGlassOutcome
 import com.dynokore.gst.access.application.breakglass.ResealBreakGlassOutcome
 import com.dynokore.gst.access.application.breakglass.ResealBreakGlassUseCase
-import com.dynokore.gst.access.application.breakglass.SignInBreakGlassOutcome
-import com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCase
+import com.dynokore.gst.access.application.breakglass.SignInWithBackoffOutcome
+import com.dynokore.gst.access.application.breakglass.SignInWithBackoffUseCase
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassOutcome
 import com.dynokore.gst.access.application.breakglass.UnlockBreakGlassUseCase
 import com.dynokore.gst.access.contract.api.BreakGlassApi
@@ -35,7 +35,7 @@ import java.util.UUID
 
 /** The collaborators of `signInBreakGlass` and `resealBreakGlass` (INV-T-8853). */
 class BreakGlassSealing(
-    val signIn: SignInBreakGlassUseCase,
+    val signIn: SignInWithBackoffUseCase,
     val reseal: ResealBreakGlassUseCase,
     val permission: ResealPermissionCheck,
 )
@@ -48,7 +48,8 @@ class BreakGlassSealing(
  * counts as available needs the override reason (409). Recording on a session that is resealed or past its expiry
  * is 409. The contract lists no error code for 409, so the problem body carries a detail that says what is wrong and
  * no catalogue code (INV-Q-8845 A).
- * signInBreakGlass (INV-T-8853) answers 404 for an unknown unlock, 409 (no code) when the unlock is resealed or
+ * signInBreakGlass (INV-T-8853, INV-T-13465) answers 429 (SRT-012, Retry-After) while the back-off runs, 404 for an
+ * unknown unlock, 409 (no code) when the unlock is resealed or
  * past its expiry, 403 for a wrong credential or a tenant with no account row, and 200 otherwise.
  * resealBreakGlass needs the permission `break-glass.reseal` (403 otherwise, nothing changes), is 409 (no code)
  * after the expiry, and carries the new
@@ -180,8 +181,15 @@ open class BreakGlassController(
         idempotencyKey: UUID,
         breakGlassSignInRequest: BreakGlassSignInRequest,
     ): ResponseEntity<BreakGlassSessionResponse> =
-        when (val outcome = sealing.signIn.handle(unlockRef, breakGlassSignInRequest.sealingCredential)) {
-            is SignInBreakGlassOutcome.SignedIn -> {
+        when (
+            val outcome =
+                sealing.signIn.handle(
+                    checkNotNull(tenants.currentActor()) { "no actor is bound" },
+                    unlockRef,
+                    breakGlassSignInRequest.sealingCredential,
+                )
+        ) {
+            is SignInWithBackoffOutcome.SignedIn -> {
                 ResponseEntity.ok(
                     BreakGlassSessionResponse(
                         unlockRef = outcome.session.ref,
@@ -195,16 +203,20 @@ open class BreakGlassController(
                 )
             }
 
-            SignInBreakGlassOutcome.NotFound -> {
+            SignInWithBackoffOutcome.NotFound -> {
                 throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
             }
 
-            SignInBreakGlassOutcome.NotOpen -> {
+            SignInWithBackoffOutcome.NotOpen -> {
                 throw ApiConflict("the break-glass session is not open")
             }
 
-            SignInBreakGlassOutcome.WrongCredential -> {
+            SignInWithBackoffOutcome.WrongCredential -> {
                 throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+
+            is SignInWithBackoffOutcome.Waiting -> {
+                throw ApiRefusal(ClosedErrorCode.RATE_LIMITED, retryAfterSeconds = outcome.retryAfterSeconds)
             }
         }
 
