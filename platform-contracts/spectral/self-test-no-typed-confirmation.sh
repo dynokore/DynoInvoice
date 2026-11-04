@@ -9,28 +9,23 @@ CHECK="$PWD/check-no-typed-confirmation.py"
 failed=0
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 OP='drainPeriod'
-# mkroot name: a clean root. The optional variables change the operation alone: BODY (requestBody lines),
-# XPARAM (an extra parameter line), REV (reversibility), OPID, REF2 (second parameter $ref), TWICE (a second path),
-# PIN (the in: of PeriodRef). Plain sh and POSIX sed only (the CI image has BusyBox).
+# mkroot name: a clean root; the operation text is in $T/<name>/submission/openapi.yaml
 mkroot() {
   d="$T/$1"; mkdir -p "$d/spectral" "$d/submission" "$d/other"
   printf 'directory\toperationId\nsubmission\tdrainPeriod\n' > "$d/spectral/routine-irreversible-operations.tsv"
-  cat > "$d/submission/openapi.yaml" <<YAML
+  cat > "$d/submission/openapi.yaml" <<'YAML'
 openapi: 3.1.0
 info: {title: submission, version: 1.0.0}
 paths:
   /v1/entities/{entityRef}/periods/{periodRef}/drain:
     post:
-      operationId: ${OPID:-drainPeriod}
-      x-operation: {reversibility: ${REV:-IRREVERSIBLE}}
-${BODY:-      # no request body}
+      operationId: drainPeriod
+      x-operation: {reversibility: IRREVERSIBLE}
       parameters:
-        - \$ref: '#/components/parameters/EntityRef'
-        - \$ref: '${REF2:-#/components/parameters/PeriodRef}'
-${XPARAM:-        # no further parameter}
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
       responses:
         "200": {description: ok}
-${TWICE:-  # no second path}
   /v1/replay:
     post:
       operationId: replaySubmissionsByScope
@@ -42,7 +37,7 @@ ${TWICE:-  # no second path}
 components:
   parameters:
     EntityRef: {name: entityRef, in: path, required: true, schema: {type: string}}
-    PeriodRef: {name: periodRef, in: ${PIN:-path}, required: true, schema: {type: string}}
+    PeriodRef: {name: periodRef, in: path, required: true, schema: {type: string}}
 YAML
   printf 'openapi: 3.1.0\ninfo: {title: other, version: 1.0.0}\npaths: {}\n' > "$d/other/openapi.yaml"
 }
@@ -60,33 +55,28 @@ expect_fail() { # name, finding line (printed with the two-space dash prefix)
 Y() { echo "$T/$1/submission/openapi.yaml"; }
 W='submission/openapi.yaml: operation drainPeriod'
 mkroot pass; expect_pass pass
-(BODY='      requestBody:
-        content: {application/json: {schema: {type: object, properties: {confirmationPhrase: {type: string}}}}}' mkroot body)
+mkroot body; sed -i '0,/^      parameters:/s//      requestBody:\n        content: {application\/json: {schema: {type: object, properties: {confirmationPhrase: {type: string}}}}}\n      parameters:/' "$(Y body)"
 expect_fail body "$W: has a requestBody, which could carry a typed confirmation phrase"
-(XPARAM='        - {name: confirm, in: query, schema: {type: string}}' mkroot query)
+mkroot query; sed -i '0,/^      responses:/s//        - {name: confirm, in: query, schema: {type: string}}\n      responses:/' "$(Y query)"
 expect_fail query "$W: parameter 2 is in 'query', only path parameters are allowed"
-(XPARAM='        - {name: X-Confirm, in: header, schema: {type: string}}' mkroot header)
+mkroot header; sed -i '0,/^      responses:/s//        - {name: X-Confirm, in: header, schema: {type: string}}\n      responses:/' "$(Y header)"
 expect_fail header "$W: parameter 2 is in 'header', only path parameters are allowed"
-(XPARAM='        - {name: c, in: cookie, schema: {type: string}}' mkroot cookie)
+mkroot cookie; sed -i '0,/^      responses:/s//        - {name: c, in: cookie, schema: {type: string}}\n      responses:/' "$(Y cookie)"
 expect_fail cookie "$W: parameter 2 is in 'cookie', only path parameters are allowed"
-(PIN=query mkroot ref-query)
+mkroot ref-query; sed -i 's/^    PeriodRef: {name: periodRef, in: path/    PeriodRef: {name: periodRef, in: query/' "$(Y ref-query)"
 expect_fail ref-query "$W: parameter PeriodRef is in 'query', only path parameters are allowed"
-(REV=COMPENSABLE mkroot compensable)
+mkroot compensable; sed -i '0,/reversibility: IRREVERSIBLE/s//reversibility: COMPENSABLE/' "$(Y compensable)"
 expect_fail compensable "$W: x-operation.reversibility 'COMPENSABLE' is not IRREVERSIBLE: the row names a routine irreversible operation"
-(REV='null' mkroot no-reversibility)
+mkroot no-reversibility; sed -i '0,/      x-operation: {reversibility: IRREVERSIBLE}/{//d}' "$(Y no-reversibility)"
 expect_fail no-reversibility "$W: x-operation.reversibility None is not IRREVERSIBLE: the row names a routine irreversible operation"
-(OPID=drainPeriods mkroot renamed)
+mkroot renamed; sed -i 's/operationId: drainPeriod$/operationId: drainPeriods/' "$(Y renamed)"
 expect_fail renamed "$W: missing from that file"
-(TWICE='  /v1/second:
-    post:
-      operationId: drainPeriod
-      x-operation: {reversibility: IRREVERSIBLE}
-      responses:
-        "200": {description: ok}' mkroot twice)
+mkroot twice; printf '  /v1/second:\n    post:\n      operationId: drainPeriod\n      x-operation: {reversibility: IRREVERSIBLE}\n      responses:\n        "200": {description: ok}\n' > "$T/twice/ins"
+sed -i '/^components:/e cat '"$T/twice/ins" "$(Y twice)"
 expect_fail twice "$W: declared in 2 operations"
-(REF2='#/components/parameters/Nope' mkroot bad-ref)
+mkroot bad-ref; sed -i "0,/#\/components\/parameters\/PeriodRef/s//#\/components\/parameters\/Nope/" "$(Y bad-ref)"
 expect_fail bad-ref "$W: parameter 1 \$ref '#/components/parameters/Nope' cannot be resolved"
-(REF2='other.yaml#/components/parameters/PeriodRef' mkroot ext-ref)
+mkroot ext-ref; sed -i "0,/#\/components\/parameters\/PeriodRef/s//other.yaml#\/components\/parameters\/PeriodRef/" "$(Y ext-ref)"
 expect_fail ext-ref "$W: parameter 1 \$ref 'other.yaml#/components/parameters/PeriodRef' cannot be resolved"
 # table and file faults
 mkroot header-diff; sed -i '1s/directory/Directory/' "$T/header-diff/spectral/routine-irreversible-operations.tsv"
