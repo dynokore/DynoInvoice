@@ -6,11 +6,18 @@ import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.images.builder.Transferable
 import org.testcontainers.utility.DockerImageName
+import java.time.Duration
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
 private class Postgres(
     image: DockerImageName,
-) : PostgreSQLContainer<Postgres>(image)
+) : PostgreSQLContainer<Postgres>(image) {
+    init {
+        withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+        withStartupAttempts(PG_START_ATTEMPTS)
+        withCommand(*pgFastCommand)
+    }
+}
 
 /**
  * Isolation-test fixture for this module's own tests (done-when's own
@@ -84,3 +91,10 @@ class EvidenceStorePostgresFixture(
         }
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-04
+### Changed
+- Metadata-only change (CI-FAST, G-DVS): depends on `outbox-and-queue 6.13.1`, `tenancy-kernel 4.2.1`, `tenancy-jooq 1.4.4`, `audit-log 4.0.23`, `config-resolver 5.0.20` and `service-runtime 10.32.3`, whose versions step; no production code change.
+
 ## [2.5.0] - 2026-11-03
 ### Added
 - `PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED` (`gst.platform.tenant-wide-archive-volume-measured.v1`), appended last to `ALL` (INV-Q-14069, INV-REQ-878, INV-AC-16554, INV-T-16568).

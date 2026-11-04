@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-11-04
+### Fixed
+- Metadata-only change (CI-FAST, G-DVS): depends on `tenancy-kernel 4.2.1` and `tenancy-jooq 1.4.4`, whose versions step; no production code change. The `testFixtures` PostgreSQL fixture now starts with a 3 min startup timeout, 3 start attempts and fsync off (CI-FAST); the `-test-fixtures` jar bytes change, test-fixtures only.
+
 ## [2.4.0] - 2026-10-31
 ### Added
 - `PackageCandidate`, `AssemblyRefusal`, `AssemblyResult` and `AuditPackAssembler` (package `exportpackage`): choose the items of an entity-and-period or whole-tenant package from candidates, refuse an item of another tenant and a duplicate class and name, and compose `AuditPackWriter` (INV-REQ-988, INV-REQ-877, INV-T-13407; INV-AC-13403, INV-AC-13404).

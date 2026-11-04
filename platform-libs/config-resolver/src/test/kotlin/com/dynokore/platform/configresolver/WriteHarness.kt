@@ -36,6 +36,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.images.builder.Transferable
 import org.testcontainers.utility.DockerImageName
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -43,7 +44,13 @@ import java.util.UUID
 
 private class WritePostgres(
     image: DockerImageName,
-) : PostgreSQLContainer<WritePostgres>(image)
+) : PostgreSQLContainer<WritePostgres>(image) {
+    init {
+        withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+        withStartupAttempts(PG_START_ATTEMPTS)
+        withCommand(*pgFastCommand)
+    }
+}
 
 /** What a refused statement ended with: its SQLSTATE and the database's message. */
 data class Refusal(
@@ -531,3 +538,10 @@ data class WriterPorts(
     val backdating: BackdatingFloor? = null,
     val constraints: ValueConstraints? = null,
 )
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")

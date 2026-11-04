@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.13.1] - 2026-11-03
+### Fixed
+- CI-FAST: the `testFixtures` PostgreSQL fixture container now starts with a 3 min startup timeout, 3 start attempts and fsync off, so a loaded CI host no longer fails the test database start. Test-fixtures only; no production or public runtime API change (PATCH). The `-test-fixtures` jar bytes changed, so the released 6.13.0 is not republished.
+
 ## [6.13.0] - 2026-11-03
 ### Added
 - `TenantWideArchiveVolumeMeasured` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name; tenant-wide for a real tenant), which now holds seventeen platform events (INV-Q-14069, INV-REQ-878, INV-AC-16554, INV-T-16568).

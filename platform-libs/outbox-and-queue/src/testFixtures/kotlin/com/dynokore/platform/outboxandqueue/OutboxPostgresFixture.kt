@@ -15,12 +15,19 @@ import org.testcontainers.utility.DockerImageName
 import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import javax.sql.DataSource
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing. */
 private class Postgres(
     image: DockerImageName,
-) : PostgreSQLContainer<Postgres>(image)
+) : PostgreSQLContainer<Postgres>(image) {
+    init {
+        withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+        withStartupAttempts(PG_START_ATTEMPTS)
+        withCommand(*pgFastCommand)
+    }
+}
 
 /**
  * A fresh PostgreSQL container (STK-14, STK-15; the PG 16, 17 and 18 matrix, TPL-14, owner ruling INV-Q-3965) with the
@@ -519,3 +526,10 @@ class OutboxPostgresFixture(
             mapOf("reconciliation-svc" to "recon", "submission-svc" to "sub", "evidence-svc" to "evidence")
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")

@@ -20,6 +20,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.time.Duration
 import java.time.LocalDate
 import java.util.UUID
 
@@ -51,7 +52,13 @@ private class MigratedTable(
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
 private class Postgres(
     image: DockerImageName,
-) : PostgreSQLContainer<Postgres>(image)
+) : PostgreSQLContainer<Postgres>(image) {
+    init {
+        withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+        withStartupAttempts(PG_START_ATTEMPTS)
+        withCommand(*pgFastCommand)
+    }
+}
 
 /**
  * Proves [PackRegistryMigration]'s row-level security and its `register_platform_pack` function against a real
@@ -506,3 +513,10 @@ class PackRegistryMigrationPostgresIT {
         assertEquals(mapOf("a-by-actor" to "user:a", "platform-scope" to "svc:rules-svc"), stored)
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")

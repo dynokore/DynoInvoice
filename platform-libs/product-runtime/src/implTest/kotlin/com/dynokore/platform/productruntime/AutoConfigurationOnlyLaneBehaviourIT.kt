@@ -28,6 +28,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -59,7 +60,11 @@ class AutoConfigurationOnlyLaneBehaviourIT {
     class AutoConfigurationOnlyApplication
 
     private fun postgres(): PostgreSQLContainer<*> =
-        PostgreSQLContainer(DockerImageName.parse(IMAGE)).also { it.start() }
+        PostgreSQLContainer(DockerImageName.parse(IMAGE))
+            .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+            .withStartupAttempts(PG_START_ATTEMPTS)
+            .withCommand(*pgFastCommand)
+            .also { it.start() }
 
     /** The service of AutoConfigurationOnlyOrderTest over the container; its login is mounted in SecretStore. */
     private fun service(vararg properties: String): ApplicationContextRunner {
@@ -331,3 +336,10 @@ class AutoConfigurationOnlyLaneBehaviourIT {
         const val MINIMAL_POOL_MAXIMUM = REQUEST_PERMITS + BACKGROUND_PERMITS
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")

@@ -8,10 +8,17 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.time.Duration
 
 private class BarePostgres(
     image: DockerImageName,
-) : PostgreSQLContainer<BarePostgres>(image)
+) : PostgreSQLContainer<BarePostgres>(image) {
+    init {
+        withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+        withStartupAttempts(PG_START_ATTEMPTS)
+        withCommand(*pgFastCommand)
+    }
+}
 
 /**
  * Precondition sample of INV-T-5364 (coordinator ruling INV-Q-6663): the module's DDL does not create the binding
@@ -75,3 +82,10 @@ class PackRegistryPreconditionPostgresIT {
         sql,
     )
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")

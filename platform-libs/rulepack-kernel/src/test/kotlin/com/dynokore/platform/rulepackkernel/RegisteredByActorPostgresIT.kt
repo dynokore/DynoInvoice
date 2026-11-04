@@ -9,12 +9,19 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import java.time.Duration
 import java.util.UUID
 
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing (Kotlin, unlike Java, has no raw types). */
 private class ActorPostgres(
     image: DockerImageName,
-) : PostgreSQLContainer<ActorPostgres>(image)
+) : PostgreSQLContainer<ActorPostgres>(image) {
+    init {
+        withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+        withStartupAttempts(PG_START_ATTEMPTS)
+        withCommand(*pgFastCommand)
+    }
+}
 
 /**
  * The actor rule of [PackRegistryMigration] is tenancy-kernel's shared `BlankText` (coordinator rulings INV-Q-4614 (A)
@@ -184,3 +191,10 @@ class RegisteredByActorPostgresIT {
         val VISIBLE_ACTORS = listOf("x\u200By", "CASE 5521", "a".repeat(254) + "z")
     }
 }
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")

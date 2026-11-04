@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-11-04
+### Changed
+- Metadata-only change (CI-FAST, G-DVS): depends on `tenancy-kernel 4.2.1`, whose versions step; no production code change.
+
 ## [1.4.3] - 2026-10-26
 ### Changed
 - Metadata-only release (INV-T-11066, INV-Q-11056, G-DVS): depends on `tenancy-kernel 4.2.0`, whose published module metadata changed; no code change.

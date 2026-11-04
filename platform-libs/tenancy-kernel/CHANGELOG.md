@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.2.1] - 2026-11-03
+### Fixed
+- CI-FAST: the `testFixtures` PostgreSQL fixture container now starts with a 3 min startup timeout, 3 start attempts and fsync off, so a loaded CI host no longer fails the test database start. Test-fixtures only; no production or public runtime API change (PATCH). The `-test-fixtures` jar bytes changed, so the released 4.2.0 is not republished.
+
 ## [4.2.0] - 2026-10-26
 ### Added
 - `TransactionRunner.afterCommit(action)` (INV-T-11066; INV-Q-11056 (A); INV-REQ-1384): the action runs once, in registration order, after the outermost transaction committed and its connection closed; no action runs on rollback or a failed commit; with no open transaction the call throws `IllegalStateException`. The member has a default body that throws `UnsupportedOperationException` naming the runner's class, so existing implementors still compile (MINOR). `TransactionRunnerImpl` implements it (README.md "Transaction binding").

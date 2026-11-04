@@ -17,6 +17,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.images.builder.Transferable
 import org.testcontainers.utility.DockerImageName
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -26,7 +27,13 @@ import java.util.UUID
 /** Testcontainers needs a concrete subclass for its fluent `self()` typing. */
 private class Postgres(
     image: DockerImageName,
-) : PostgreSQLContainer<Postgres>(image)
+) : PostgreSQLContainer<Postgres>(image) {
+    init {
+        withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
+        withStartupAttempts(PG_START_ATTEMPTS)
+        withCommand(*pgFastCommand)
+    }
+}
 
 /**
  * One PostgreSQL container (16, 17 or 18) holding this module's tables in a fixture service schema `svc`, created at
@@ -213,3 +220,10 @@ data class Slot(
     val entity: String? = null,
     val profile: Pair<String, String>? = null,
 )
+
+// CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
+// start is retried with a fresh container, and the throwaway test database skips fsync.
+private const val PG_START_TIMEOUT_MINUTES = 3L
+private const val PG_START_ATTEMPTS = 3
+private val pgFastCommand =
+    arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
