@@ -4,7 +4,6 @@ import com.dynokore.gst.access.adapters.breakglass.SecureRandomSealingCredential
 import com.dynokore.gst.access.adapters.breakglass.VariationPointBreakGlassSettings
 import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
 import com.dynokore.gst.access.adapters.http.BreakGlassSealing
-import com.dynokore.gst.access.adapters.http.BreakGlassSignInReplay
 import com.dynokore.gst.access.adapters.http.ResealPermissionCheck
 import com.dynokore.gst.access.adapters.http.ResolvedResealPermissionCheck
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassAccounts
@@ -47,7 +46,6 @@ import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -289,7 +287,6 @@ class SealedAccountUseCases {
         credentials: SealingCredentials,
     ) = SealedAccountKeeper(accounts, credentials)
 
-    @Suppress("LongParameterList") // one collaborator per port of the use case, as its constructor
     @Bean
     fun signInBreakGlassUseCase(
         dependencies: GrantDependencies,
@@ -317,19 +314,9 @@ class SealedAccountUseCases {
     ): ResealPermissionCheck = ResolvedResealPermissionCheck(tenants, roles, matrix)
 
     @Bean
-    fun breakGlassSignInReplay(
-        dependencies: GrantDependencies,
-        idempotency: IdempotencyStore,
-        tenants: TenantContext,
-        mapper: ObjectMapper,
-    ) = BreakGlassSignInReplay(dependencies.tx, idempotency, tenants, mapper)
-
-    @Bean
     fun breakGlassSealing(
         signIn: SignInWithBackoffUseCase,
         reseal: ResealBreakGlassUseCase,
         permission: ResealPermissionCheck,
-        replay: BreakGlassSignInReplay,
-        mapper: ObjectMapper,
-    ) = BreakGlassSealing(signIn, reseal, permission, replay, mapper)
+    ) = BreakGlassSealing(signIn, reseal, permission)
 }
