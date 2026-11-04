@@ -11,6 +11,7 @@ import org.jooq.DataType
 import org.jooq.Field
 import org.jooq.JSONB
 import org.jooq.Table
+import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.testcontainers.containers.PostgreSQLContainer
@@ -94,32 +95,75 @@ class ConfigHarness(
     ): UUID =
         asTenant(tenant) {
             val (ref, entity, profile) = slot
+            val entered = Instant.now()
             app.inTransaction {
                 val id = UUID.randomUUID()
-                dsl
-                    .insertInto(setting)
-                    .set(
-                        mapOf<Field<*>, Any?>(
-                            field("id", SQLDataType.UUID) to id,
-                            field("tenant_id", SQLDataType.UUID) to tenant.value,
-                            field("entity_id", SQLDataType.CLOB) to entity,
-                            field("vp_key", SQLDataType.CLOB) to key.value,
-                            field("scope_level", SQLDataType.CLOB) to ref.level.name,
-                            field("scope_id", SQLDataType.CLOB) to ref.id,
-                            OptionColumns.keys to OptionColumns.keysOf(selected),
-                            OptionColumns.values to OptionColumns.valuesOf(selected),
-                            field("source", SQLDataType.CLOB) to if (profile == null) "OVERRIDE" else "PROFILE",
-                            field("profile_id", SQLDataType.CLOB) to profile?.first,
-                            field("profile_version", SQLDataType.CLOB) to profile?.second,
-                            field("effective_from", SQLDataType.LOCALDATE) to from,
-                            field("set_by", SQLDataType.CLOB) to "user-1",
-                            field("reason", SQLDataType.CLOB) to "test",
-                            field("recorded_at", SQLDataType.TIMESTAMPWITHTIMEZONE) to recordedAt(),
-                        ),
-                    ).execute()
+                val state = captureBinding(tenant, entered)
+                try {
+                    dsl
+                        .insertInto(setting)
+                        .set(
+                            mapOf<Field<*>, Any?>(
+                                field("id", SQLDataType.UUID) to id,
+                                field("tenant_id", SQLDataType.UUID) to tenant.value,
+                                field("entity_id", SQLDataType.CLOB) to entity,
+                                field("vp_key", SQLDataType.CLOB) to key.value,
+                                field("scope_level", SQLDataType.CLOB) to ref.level.name,
+                                field("scope_id", SQLDataType.CLOB) to ref.id,
+                                OptionColumns.keys to OptionColumns.keysOf(selected),
+                                OptionColumns.values to OptionColumns.valuesOf(selected),
+                                field("source", SQLDataType.CLOB) to if (profile == null) "OVERRIDE" else "PROFILE",
+                                field("profile_id", SQLDataType.CLOB) to profile?.first,
+                                field("profile_version", SQLDataType.CLOB) to profile?.second,
+                                field("effective_from", SQLDataType.LOCALDATE) to from,
+                                field("set_by", SQLDataType.CLOB) to "user-1",
+                                field("reason", SQLDataType.CLOB) to "test",
+                                field("recorded_at", SQLDataType.TIMESTAMPWITHTIMEZONE) to recordedAt(),
+                            ),
+                        ).execute()
+                } catch (refused: DataAccessException) {
+                    val report = IllegalStateException(state)
+                    refused.addSuppressed(report)
+                    System.err.println(state)
+                    throw refused
+                }
                 id
             }
         }
+
+    /**
+     * The state a refused insert needs for diagnosis (INV-T-13950): one read-only statement on the transaction's own
+     * connection, and the host time at entry to [asTenant] and now. Holds no binding signature, key or credential.
+     */
+    private fun captureBinding(
+        tenant: TenantId,
+        entered: Instant,
+    ): String {
+        val provider = dsl.configuration().connectionProvider()
+        val connection = checkNotNull(provider.acquire()) { "no transaction connection" }
+        val row: List<Any?> =
+            try {
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("select svc.bound_tenant(), now(), clock_timestamp()").use { rs ->
+                        check(rs.next()) { "the binding probe returned no row" }
+                        listOf(rs.getObject(1), rs.getString(2), rs.getString(3))
+                    }
+                }
+            } finally {
+                provider.release(connection)
+            }
+        val probed = Instant.now()
+        val bound = row[0]?.toString()
+        val boundText =
+            when (bound) {
+                null -> "null"
+                tenant.value.toString() -> "equal"
+                else -> "other:$bound"
+            }
+        return "RLS-STATE tenant=${tenant.value} bound_tenant=$boundText now()=${row[1]} " +
+            "clock_timestamp()=${row[2]} host_entry=$entered host_probe=$probed " +
+            "host_diff_ms=${Duration.between(entered, probed).toMillis()}"
+    }
 
     /**
      * Inserts an installation setting as the owner login in a platform transaction: the runtime login cannot, and the
