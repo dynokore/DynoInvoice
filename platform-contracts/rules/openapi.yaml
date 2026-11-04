@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.17.0
+  version: 1.18.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1316,7 +1316,18 @@ components:
               items:
                 type: string
                 maxLength: 20
+            arcsGstChargeAgreed:
+              type: boolean
+              description: >-
+                Whether the parties agreed in writing to charge GST, the counterparty's default
+                (INV-REQ-2434 behavior 1). The name and type of ResolutionResult.arcsGstChargeAgreed of
+                masterdata/openapi.yaml. Absent means no written agreement is recorded.
           additionalProperties: true
+        lineArcsGstChargeAgreed:
+          type: boolean
+          description: >-
+            The line's own written-agreement value, which overrides the counterparty default for this
+            line (INV-REQ-2434 behavior 2). Absent means the line carries none.
         documentFunction:
           type: string
           enum: [BILL_FOR_PAYMENT, ADJUSTMENT, NOT_A_BILL]
