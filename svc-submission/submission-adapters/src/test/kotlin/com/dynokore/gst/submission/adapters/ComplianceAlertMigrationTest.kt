@@ -63,10 +63,15 @@ class ComplianceAlertMigrationTest {
 
     private fun ownerRows(sql: String) = SubmissionDb.superuser().use { it.strings(sql) }
 
+    private fun visibleTenants(t: UUID) =
+        inTx(t) {
+            dsl.fetch("select tenant_id from submission.compliance_alert_ledger").map { it[0].toString() }
+        }
+
     private val d = LocalDate.of(2026, 11, 3)
 
     @Test
-    fun `INV-AC-16760 the ledger accepts one claim per day, a later day, refuses an earlier or equal day and isolates tenants`() {
+    fun `INV-AC-16760 the ledger claims once per day, refuses earlier days and isolates tenants`() {
         val t1 = tenant()
         val t2 = tenant()
         listOf(d, d, d.plusDays(1), d).map { claim(t1, it) } shouldBe listOf(true, false, true, false)
@@ -76,10 +81,8 @@ class ComplianceAlertMigrationTest {
         ownerRows(
             "select count(*) from submission.compliance_alert_ledger where tenant_id in ('$t1', '$t2')",
         ) shouldBe listOf("2")
-        inTx(t2) { dsl.fetch("select tenant_id from submission.compliance_alert_ledger").map { it[0].toString() } } shouldBe
-            listOf(t2.toString())
-        inTx(t1) { dsl.fetch("select tenant_id from submission.compliance_alert_ledger").map { it[0].toString() } } shouldBe
-            listOf(t1.toString())
+        visibleTenants(t2) shouldBe listOf(t2.toString())
+        visibleTenants(t1) shouldBe listOf(t1.toString())
     }
 
     @Test
@@ -104,16 +107,20 @@ class ComplianceAlertMigrationTest {
         val both = tenant()
         val onlyOut = tenant()
         SubmissionDb.superuser().use { c ->
-            listOf(Triple(both, "a1", true), Triple(both, "a2", true), Triple(both, "a3", false), Triple(onlyOut, "b1", false))
-                .forEach { (t, doc, scope) ->
-                    c.createStatement().use {
-                        it.execute(
-                            "insert into submission.obligation_register_entry " +
-                                "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) " +
-                                "values ('$t', '$t-$doc', 'E1', 'P1', '2026-11-30', $scope, 'INVOICE')",
-                        )
-                    }
+            listOf(
+                Triple(both, "a1", true),
+                Triple(both, "a2", true),
+                Triple(both, "a3", false),
+                Triple(onlyOut, "b1", false),
+            ).forEach { (t, doc, scope) ->
+                c.createStatement().use {
+                    it.execute(
+                        "insert into submission.obligation_register_entry " +
+                            "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) " +
+                            "values ('$t', '$t-$doc', 'E1', 'P1', '2026-11-30', $scope, 'INVOICE')",
+                    )
                 }
+            }
         }
         SubmissionDb.connect(SubmissionDb.RUNTIME, SubmissionDb.RUNTIME_PASSWORD).use { r ->
             r.createStatement().use { st ->
@@ -141,7 +148,8 @@ class ComplianceAlertMigrationTest {
             "select has_table_privilege('submission_runtime', 'submission.compliance_alert_ledger', 'delete')",
         ) shouldBe listOf("f")
         ownerRows(
-            "select has_table_privilege('submission_runtime', 'submission.compliance_alert_ledger', 'select,insert,update')",
+            "select has_table_privilege('submission_runtime', 'submission.compliance_alert_ledger', " +
+                "'select,insert,update')",
         ) shouldBe listOf("t")
     }
 
