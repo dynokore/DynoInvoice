@@ -328,9 +328,7 @@ class BreakGlassSignInBackoffTest {
         withService { served ->
             val s = served.setup()
             val k = UUID.randomUUID()
-            val pool =
-                java.util.concurrent.Executors
-                    .newFixedThreadPool(2)
+            val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
             try {
                 val results =
                     (1..2)

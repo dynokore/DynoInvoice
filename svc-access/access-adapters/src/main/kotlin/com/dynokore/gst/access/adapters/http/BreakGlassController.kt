@@ -196,21 +196,10 @@ open class BreakGlassController(
                 ResponseEntity.ok(sealing.mapper.readValue(stored.body, BreakGlassSessionResponse::class.java))
             }
 
-            HttpStatus.NOT_FOUND.value() -> {
-                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            }
-
-            HttpStatus.FORBIDDEN.value() -> {
-                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
-            }
-
-            HttpStatus.CONFLICT.value() -> {
-                throw ApiConflict("the break-glass session is not open")
-            }
-
-            else -> {
-                error("unexpected stored status ${stored.status}")
-            }
+            HttpStatus.NOT_FOUND.value() -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            HttpStatus.FORBIDDEN.value() -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            HttpStatus.CONFLICT.value() -> throw ApiConflict("the break-glass session is not open")
+            else -> error("unexpected stored status ${stored.status}")
         }
     }
 
