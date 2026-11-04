@@ -70,13 +70,13 @@ class ClaimDueOverlapTest {
     private fun claim(connection: Connection): List<String> =
         connection
             .prepareStatement(
-                "select claimed_partition from reconciliation.claim_due('LIVE', null, now(), now() - interval '1 hour')",
+                "select claimed_partition from reconciliation.claim_due(" + CLAIM_ARGS,
             ).use { st -> st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } } }
 
     private fun claimSeqs(connection: Connection): List<Long> =
         connection
             .prepareStatement(
-                "select claimed_seq from reconciliation.claim_due('LIVE', null, now(), now() - interval '1 hour')",
+                "select claimed_seq from reconciliation.claim_due(" + CLAIM_ARGS,
             ).use { st -> st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getLong(1)) } } }
 
     private fun enqueue(partition: String): Long =
@@ -101,3 +101,5 @@ class ClaimDueOverlapTest {
         }
     }
 }
+
+private const val CLAIM_ARGS = "'LIVE', null, now(), now() - interval '1 hour')"
