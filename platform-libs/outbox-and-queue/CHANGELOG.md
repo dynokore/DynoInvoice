@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.15.0] - 2026-11-05
+### Added
+- `OperatorSessionKeysChanged` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds eighteen platform events; `com.dynokore.gst.access.OperatorSessionKeysChanged.v1` stays a domain type refused under the platform tenant (INV-Q-16498 A, INV-REQ-1226, INV-AC-16503, INV-T-16507).
+
 ## [6.14.0] - 2026-11-05
 ### Added
 - `OutboxWriter.stage` builds the row of a domain event for a real tenant (unsequenced; the tenant of its context, which may differ from the tenant bound to the connection) so a SECURITY DEFINER function can write another tenant's outbox row; a domain event under the platform tenant is still refused (INV-Q-16720, INV-Q-3018, INV-AC-16722, INV-T-16724).

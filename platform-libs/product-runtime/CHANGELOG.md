@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-05
+### Added
+- `PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED` (`gst.platform.operator-session-keys-changed.v1`), in `ALL` after `AUTHORITY_CHANGED` (INV-Q-16498 A, INV-REQ-1226, INV-AC-16503, INV-T-16507).
+
 ## [2.5.2] - 2026-11-05
 ### Changed
 - Metadata-only change (INV-T-16724, G-DVS): depends on `outbox-and-queue 6.14.0`, whose version steps; no code change.

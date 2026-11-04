@@ -28,6 +28,7 @@ class PlatformClassEventsTest {
             "AccreditationAlertRaised",
             "BreakGlassAlertRaised",
             "AuthorityChanged",
+            "OperatorSessionKeysChanged",
             "TenantWideEvidenceIntegrityFailed",
             "BreakGlassSessionChanged",
             "BreakGlassActionReported",
@@ -243,6 +244,39 @@ class PlatformClassEventsTest {
     fun `INV-AC-16554 TenantWideArchiveVolumeMeasured domain, look-alike, case and sibling types are refused`() {
         refused.takeLast(5).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-16503 name set holds OperatorSessionKeysChanged and not the look-alike`() {
+        assertTrue(Envelope.isPlatformType("com.dynokore.gst.platform.OperatorSessionKeysChanged.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.OperatorSessionKeyChanged.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.operatorSessionKeysChanged.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.OperatorSessionKeysChangedX.v1"))
+    }
+
+    @Test
+    fun `INV-AC-16503 OperatorSessionKeysChanged under the platform tenant is built and reads back platform pair`() {
+        val e =
+            envelope("com.dynokore.gst.platform.OperatorSessionKeysChanged.v1", TenantId.PLATFORM, EntityRef.PLATFORM)
+        val text = json.write(e)
+        assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+        val back = json.read(text)
+        assertEquals(TenantId.PLATFORM, back.tenant)
+        assertEquals(EntityRef.PLATFORM, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-16503 OperatorSessionKeysChanged access type and look-alike are refused under platform tenant`() {
+        listOf(
+            "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
+            "com.dynokore.gst.platform.OperatorSessionKeyChanged.v1",
+        ).forEach {
+            assertThrows(
+                IllegalArgumentException::class.java,
+                { envelope(it, TenantId.PLATFORM, EntityRef.PLATFORM) },
+                it,
+            )
         }
     }
 

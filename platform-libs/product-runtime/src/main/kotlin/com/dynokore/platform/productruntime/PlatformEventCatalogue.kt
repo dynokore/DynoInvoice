@@ -39,6 +39,7 @@ object PlatformEventCatalogue {
     val ACCREDITATION_ALERT_RAISED = fixed("AccreditationAlertRaised", "accreditation-alert-raised")
     val BREAK_GLASS_ALERT_RAISED = fixed("BreakGlassAlertRaised", "break-glass-alert-raised")
     val AUTHORITY_CHANGED = fixed("AuthorityChanged", "authority-changed")
+    val OPERATOR_SESSION_KEYS_CHANGED = fixed("OperatorSessionKeysChanged", "operator-session-keys-changed")
     val TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED =
         fixed("TenantWideEvidenceIntegrityFailed", "tenant-wide-evidence-integrity-failed")
     val BREAK_GLASS_SESSION_CHANGED = fixed("BreakGlassSessionChanged", "break-glass-session-changed")
@@ -62,6 +63,7 @@ object PlatformEventCatalogue {
             ACCREDITATION_ALERT_RAISED,
             BREAK_GLASS_ALERT_RAISED,
             AUTHORITY_CHANGED,
+            OPERATOR_SESSION_KEYS_CHANGED,
             TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED,
             BREAK_GLASS_SESSION_CHANGED,
             BREAK_GLASS_ACTION_REPORTED,

@@ -47,6 +47,7 @@ class ProductConfigurationTest {
                 "AccreditationAlertRaised",
                 "BreakGlassAlertRaised",
                 "AuthorityChanged",
+                "OperatorSessionKeysChanged",
                 "TenantWideEvidenceIntegrityFailed",
                 "BreakGlassSessionChanged",
                 "BreakGlassActionReported",
@@ -100,6 +101,18 @@ class ProductConfigurationTest {
             "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1") shouldBe true
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.evidence.TenantWideArchiveVolumeMeasured.v1") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-16503 the catalogue holds OperatorSessionKeysChanged with its topic and type (INV-Q-16498)`() {
+        PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.topic shouldBe
+            "gst.platform.operator-session-keys-changed.v1"
+        PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.eventType shouldBe
+            "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1"
+        PlatformEventCatalogue.ALL.contains(PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED) shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.OperatorSessionKeysChanged.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.access.OperatorSessionKeysChanged.v1") shouldBe false
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.OperatorSessionKeyChanged.v1") shouldBe false
     }
 
     @Test
