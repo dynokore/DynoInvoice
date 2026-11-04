@@ -237,17 +237,6 @@ class BreakGlassControllerOverrideTest {
             ),
             ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock),
             { false },
-            BreakGlassSignInReplay(
-                tx,
-                org.mockito.Mockito.mock(com.dynokore.platform.serviceruntime.http.IdempotencyStore::class.java),
-                tenants,
-                tools.jackson.databind.json.JsonMapper
-                    .builder()
-                    .build(),
-            ),
-            tools.jackson.databind.json.JsonMapper
-                .builder()
-                .build(),
         )
 
     private fun controller(idpUp: Boolean): BreakGlassController {
