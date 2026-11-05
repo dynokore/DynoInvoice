@@ -18,6 +18,8 @@ data class SchemeTagSide(
     val tag: String,
     val side: Side,
     val handling: Handling,
+    /** The scheme the entity must have elected for this tag; absent means the tag is itself that scheme (INV-Q-16840). */
+    val parentScheme: String? = null,
 )
 
 enum class Side { SUPPLY, PURCHASE }

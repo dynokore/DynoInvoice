@@ -189,6 +189,44 @@ class SchemeHandlersTest {
     }
 
     @Test
+    fun `INV-AC-2518 a released sub-flow row compares the election with its parentScheme`() {
+        val released =
+            scenario.copy(
+                schemeTagSides =
+                    scenario.schemeTagSides.filter { it.tag != "ACMT_RECIPIENT_ACCOUNTING" } +
+                        SchemeTagSide("ACMT_RECIPIENT_ACCOUNTING", Side.SUPPLY, Handling.HANDLED, "ACMT"),
+            )
+        val c = LineCoder(mapping, catalogue, released)
+        c.code(LineInput("ACR", election = "AMCS")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        c.code(LineInput("ACR", election = "ACMT_RECIPIENT_ACCOUNTING")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        c.code(LineInput("ACR", election = "ACMT")) shouldBe coded("SR", null, null)
+    }
+
+    @Test
+    fun `INV-AC-2453 the recipient side of A3PL alone needs no election`() {
+        val s = setOf("A3PL")
+        coder.code(LineInput("A3P", purchase, election = null, counterpartyApprovedSchemes = s)) shouldBe
+            coded("TXNA", "0", a3pl)
+        coder.code(LineInput("A3S", election = null, counterpartyApprovedSchemes = setOf("MES"))) shouldBe
+            LineCoding.Refused(ErrorCode.RUL_004)
+        // look-alike tags on the purchase side still need the election
+        val lookAlikes =
+            LineCoder(
+                listOf(MappingEntry("L1", "TXNA", "A3PL2"), MappingEntry("L2", "TXNA", "a3pl")),
+                catalogue,
+                scenario.copy(
+                    schemeTagSides =
+                        scenario.schemeTagSides + side("A3PL2", Side.PURCHASE) + side("a3pl", Side.PURCHASE),
+                ),
+            )
+        listOf("L1", "L2").forEach {
+            val (coding, trace) = lookAlikes.codeWithTrace(LineInput(it, purchase, election = null))
+            coding shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+            trace["outcome"] shouldBe "SCHEME_NOT_ELECTED"
+        }
+    }
+
+    @Test
     fun `INV-AC-2538 an NA line under ARCS to a counterparty with no ARCS status is RUL-011`() {
         listOf<Set<String>?>(emptySet(), setOf("MES"), null).forEach {
             coder.code(LineInput("ARS-NA", election = "ARCS", counterpartyApprovedSchemes = it)) shouldBe

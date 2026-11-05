@@ -77,7 +77,9 @@ class SchemeHandlerBoundaryTest {
         tag: String,
         side: String,
         pending: Boolean = false,
+        parent: String? = null,
     ) = """{"tag":"$tag","side":"$side","handling":"${if (pending) "PENDING_QUESTION" else "HANDLED"}",""" +
+        parent?.let { """"parentScheme":"$it",""" }.orEmpty() +
         (if (pending) """"pendingReference":"INV-NOTE-4 Q-4",""" else "") +
         """"sourceClass":"PRIMARY","sourceReference":"s"}"""
 
@@ -108,6 +110,7 @@ class SchemeHandlerBoundaryTest {
             entry("AMP", "ZP", "AMCS"),
             entry("AMSELF", "ZP", "AMCS_SELF_ACCOUNTING"),
             entry("ARS", "NA", "ARCS"),
+            entry("ARSR", "SR", "ARCS"),
             entry("ACR", "SR", "ACMT_RECIPIENT_ACCOUNTING"),
             entry("ACOC", "TX", "ACMT_OVERSEAS_CLIENT_PURCHASE"),
             entry("ACDA", "SR", "ACMT"),
@@ -139,7 +142,10 @@ class SchemeHandlerBoundaryTest {
             cat("ME2", "PURCHASE_ZERO_RATED_NON_REPORTABLE", "PURCHASE", "0"),
         ).joinToString(",", """{"complete":true,"codes":[""", "]}")
 
-    private fun scenario(pendingCash: Boolean = true): String {
+    private fun scenario(
+        pendingCash: Boolean = true,
+        releasedRecipient: Boolean = false,
+    ): String {
         val sides =
             listOf(
                 tagSide("A3PL", "SUPPLY"),
@@ -152,7 +158,12 @@ class SchemeHandlerBoundaryTest {
                 tagSide("CASH_ACCOUNTING", "PURCHASE", pending = pendingCash),
                 tagSide("AMCS_SELF_ACCOUNTING", "SUPPLY", pending = true),
                 tagSide("ACMT_OVERSEAS_CLIENT_PURCHASE", "PURCHASE", pending = true),
-                tagSide("ACMT_RECIPIENT_ACCOUNTING", "SUPPLY", pending = true),
+                tagSide(
+                    "ACMT_RECIPIENT_ACCOUNTING",
+                    "SUPPLY",
+                    pending = !releasedRecipient,
+                    parent = "ACMT".takeIf { releasedRecipient },
+                ),
             )
         val treatments =
             listOf(
@@ -161,6 +172,9 @@ class SchemeHandlerBoundaryTest {
                 treatment("AMCS", "SUPPLY", "ZR", """"AMCS"""", amcs),
                 treatment("AMCS", "PURCHASE", "ZP", """"AMCS"""", amcs),
                 treatment("ARCS", "SUPPLY", "NA", """"ARCS"""", arcs, "NOT_AGREED"),
+                """{"tag":"ARCS","side":"SUPPLY","categoryCode":"SR","rateBasis":"PREVAILING",""" +
+                    """"counterpartyApprovedUnder":["ARCS"],"writtenAgreement":"AGREED",""" +
+                    """"sourceClass":"INFERRED","sourceReference":"invented"}""",
             )
         return """{"selfBillingAssignment":{"customerCumIssuer":{"direction":"PURCHASE","submissionType":"TYPE_3",""" +
             """"sourceClass":"INFERRED","sourceReference":"s"},"supplierCumRecipient":{"direction":"SALE",""" +
@@ -285,11 +299,18 @@ class SchemeHandlerBoundaryTest {
         election: String?,
         schemes: List<String>? = null,
         purchase: Boolean = false,
+        counterpartyAgreed: Boolean? = null,
+        lineAgreed: Boolean? = null,
     ): EvaluationResult {
         val json =
             """{"entityRef":"E1","transactionDate":"2026-04-01","internalTaxCode":"$code"""" +
                 election?.let { ""","election":"$it"""" }.orEmpty() +
-                schemes?.let { s -> ""","counterpartySchemeData":{"approvedSchemes":${quoted(s)}}""" }.orEmpty() +
+                schemes
+                    ?.let { s ->
+                        ""","counterpartySchemeData":{"approvedSchemes":${quoted(s)}""" +
+                            counterpartyAgreed?.let { ""","arcsGstChargeAgreed":$it""" }.orEmpty() + "}"
+                    }.orEmpty() +
+                lineAgreed?.let { ""","lineArcsGstChargeAgreed":$it""" }.orEmpty() +
                 (if (purchase) ""","direction":"PURCHASE"""" else "") + "}"
         return checkNotNull(
             f.controller.evaluateDocument(mapper.readValue(json, EvaluateDocumentRequest::class.java)).body,
@@ -361,6 +382,52 @@ class SchemeHandlerBoundaryTest {
     @Test
     fun `INV-AC-2456 an ARCS supply with no written agreement recorded is NA at rate 0 with the ARCS statement`() {
         eval(fixture(), "ARS", "ARCS", listOf("ARCS")).treated() shouldBe Triple("NA", "0", arcs)
+    }
+
+    @Test
+    fun `INV-AC-2457 the counterparty flag, the line override and both absent decide the ARCS treatment`() {
+        val arcsSchemes = listOf("ARCS")
+        // counterparty flag set: the NA line contradicts it, the SR line is coded
+        eval(fixture(), "ARS", "ARCS", arcsSchemes, counterpartyAgreed = true).blockedWith("RUL-011")
+        eval(fixture(), "ARSR", "ARCS", arcsSchemes, counterpartyAgreed = true).categoryCode shouldBe "SR"
+        // the line overrides the counterparty flag to not agreed: the waiver applies
+        eval(fixture(), "ARS", "ARCS", arcsSchemes, counterpartyAgreed = true, lineAgreed = false).treated() shouldBe
+            Triple("NA", "0", arcs)
+        // the line overrides the other way
+        eval(
+            fixture(),
+            "ARSR",
+            "ARCS",
+            arcsSchemes,
+            counterpartyAgreed = false,
+            lineAgreed = true,
+        ).categoryCode shouldBe
+            "SR"
+        // both absent: no written agreement recorded, the waiver is the default
+        eval(fixture(), "ARS", "ARCS", arcsSchemes).treated() shouldBe Triple("NA", "0", arcs)
+        eval(fixture(), "ARSR", "ARCS", arcsSchemes).blockedWith("RUL-011")
+    }
+
+    @Test
+    fun `INV-AC-2457 the decision trace names both ARCS inputs and the one used`() {
+        val line = eval(fixture(), "ARS", "ARCS", listOf("ARCS"), counterpartyAgreed = true, lineAgreed = false)
+        val trace = checkNotNull(line.decisionTrace)
+        trace["lineArcsGstChargeAgreed"] shouldBe "NOT_AGREED"
+        trace["counterpartyArcsGstChargeAgreed"] shouldBe "AGREED"
+        trace["writtenAgreementSource"] shouldBe "LINE"
+        val counterparty =
+            checkNotNull(eval(fixture(), "ARSR", "ARCS", listOf("ARCS"), counterpartyAgreed = true).decisionTrace)
+        counterparty["writtenAgreementSource"] shouldBe "COUNTERPARTY"
+        val none = checkNotNull(eval(fixture(), "ARS", "ARCS", listOf("ARCS")).decisionTrace)
+        none["writtenAgreementSource"] shouldBe "NONE"
+    }
+
+    @Test
+    fun `INV-AC-2518 a released sub-flow row with parentScheme ACMT needs the ACMT election`() {
+        val f = { fixture(scenario(releasedRecipient = true)) }
+        eval(f(), "ACR", "AMCS").blockedWith("RUL-004")
+        eval(f(), "ACR", null).blockedWith("RUL-004")
+        eval(f(), "ACR", "ACMT").categoryCode shouldBe "SR"
     }
 
     @Test

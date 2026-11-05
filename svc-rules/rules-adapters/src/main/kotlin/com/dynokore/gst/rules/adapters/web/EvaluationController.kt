@@ -65,6 +65,8 @@ open class EvaluationController(
                 direction = request.direction?.let { Direction.valueOf(it.value) },
                 election = request.election,
                 counterpartyApprovedSchemes = request.counterpartySchemeData?.approvedSchemes?.toSet(),
+                writtenAgreement = agreementOf(request.lineArcsGstChargeAgreed),
+                counterpartyWrittenAgreement = agreementOf(request.counterpartySchemeData?.arcsGstChargeAgreed),
             )
         return transactions.inTransaction {
             val result =
@@ -153,6 +155,8 @@ open class EvaluationController(
                 checkNotNull(packs.scenarioAt(tenant, date)),
             ).codeWithTrace(input).second.takeIf { it.isNotEmpty() }
         }
+
+    private fun agreementOf(flag: Boolean?): String? = flag?.let { if (it) "AGREED" else "NOT_AGREED" }
 
     private fun versionsApplied(
         tenant: TenantId,

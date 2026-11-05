@@ -50,6 +50,7 @@ object ScenarioPackContents {
         val side = node.text("side", oneOf = SIDES)
         val handling = node.text("handling", oneOf = Handling.entries.map { it.name }.toSet())
         node.optionalText("pendingReference", min = 1, max = 300)
+        val parent = node.optionalText("parentScheme", pattern = TAG)
         cited(node)
         if (handling == "PENDING_QUESTION" && !node.has("pendingReference")) {
             node.fail("pendingReference", "is required for handling PENDING_QUESTION")
@@ -57,7 +58,7 @@ object ScenarioPackContents {
         if (handling == "HANDLED" && node.has("pendingReference")) {
             node.fail("pendingReference", "must be absent for handling HANDLED")
         }
-        return SchemeTagSide(tag, Side.valueOf(side), Handling.valueOf(handling))
+        return SchemeTagSide(tag, Side.valueOf(side), Handling.valueOf(handling), parent)
     }
 
     private fun treatment(node: ContentsNode): Treatment {

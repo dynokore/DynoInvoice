@@ -120,13 +120,16 @@ class LineCoder(
                         .sorted()
                         .joinToString(","),
                 "writtenAgreement" to agreementOf(line),
+                "lineArcsGstChargeAgreed" to line.writtenAgreement.orEmpty(),
+                "counterpartyArcsGstChargeAgreed" to line.counterpartyWrittenAgreement.orEmpty(),
+                "writtenAgreementSource" to agreementSource(line),
             )
         return when {
             row == null || row.handling == Handling.PENDING_QUESTION -> {
                 LineCoding.Refused(ErrorCode.RUL_004) to (base + ("outcome" to "FLOW_BLOCKED"))
             }
 
-            !electionSatisfied(tag, side, line.election) -> {
+            !electionSatisfied(tag, side, row.parentScheme ?: tag, line.election) -> {
                 LineCoding.Refused(ErrorCode.RUL_004) to (base + ("outcome" to "SCHEME_NOT_ELECTED"))
             }
 
@@ -148,12 +151,21 @@ class LineCoder(
     private fun electionSatisfied(
         tag: String,
         side: Side,
+        required: String,
         election: String?,
-    ): Boolean = election == tag || (tag to side) == RECIPIENT_WITHOUT_ELECTION
+    ): Boolean = election == required || (tag to side) == RECIPIENT_WITHOUT_ELECTION
 
     /** The line's own value, else the counterparty's, else NOT_AGREED: the waiver treatment (INV-REQ-2434 b4). */
     private fun agreementOf(line: LineInput): String =
         line.writtenAgreement ?: line.counterpartyWrittenAgreement ?: NOT_AGREED
+
+    /** Which input decided the value in force: the line's own, the counterparty's, or none recorded (INV-Q-16838). */
+    private fun agreementSource(line: LineInput): String =
+        when {
+            line.writtenAgreement != null -> "LINE"
+            line.counterpartyWrittenAgreement != null -> "COUNTERPARTY"
+            else -> "NONE"
+        }
 
     private fun treated(
         entry: MappingEntry,
