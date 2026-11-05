@@ -17,6 +17,7 @@ import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcOutboxRelay
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.JdbcReplayDelivery
+import com.dynokore.platform.outboxandqueue.JdbcReplayIntake
 import com.dynokore.platform.outboxandqueue.JdbcRetentionPurge
 import com.dynokore.platform.outboxandqueue.JdbcStalenessMonitor
 import com.dynokore.platform.outboxandqueue.JdbcUnrelayedEventCheck
@@ -410,7 +411,7 @@ class OutboxAndQueueWiring(
         properties: UnrelayedEventProperties,
     ): UnrelayedEventCheckSchedule = UnrelayedEventCheckSchedule(gauge, properties.checkInterval)
 
-    /** One consumer per service by default; a service with several declares its own [JdbcInboxConsumer]s. */
+    /** One consumer per service by default; it backs off for any [InboxConsumer] except a [JdbcReplayIntake]. */
     @Bean
     @ConditionalOnBean(
         value = [
@@ -418,7 +419,7 @@ class OutboxAndQueueWiring(
             EventLogReader::class, TenantScope::class,
         ],
     )
-    @ConditionalOnMissingBean(InboxConsumer::class)
+    @ConditionalOnMissingBean(value = [InboxConsumer::class], ignored = [JdbcReplayIntake::class])
     @Suppress("LongParameterList")
     fun inboxConsumer(
         subscription: ConsumerSubscription,

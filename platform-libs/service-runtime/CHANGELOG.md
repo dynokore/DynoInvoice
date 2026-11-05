@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.35.0] - 2026-11-06
+### Changed
+- The default `inboxConsumer` backs off for every `InboxConsumer` bean except a `JdbcReplayIntake` (`@ConditionalOnMissingBean(..., ignored = [JdbcReplayIntake::class])`), so a replay intake no longer leaves a service without a live consumer (INV-Q-16934 A; INV-T-16938).
+
 ## [10.34.0] - 2026-11-05
 ### Added
 - Retry budget (INV-T-9099, INV-Q-9083 A, INV-AC-9091): `RetryPolicy.budget: RetryBudget?` (default `null`, behaviour unchanged) takes a retry only while retries started in the window are at most `maxRetryRatio` times the first attempts started in it; otherwise the call ends unavailable and `edge.retry.budget.exhausted` (tag `edge`) counts it. The `access-svc` edge carries 10 s / 0.10 (`service-runtime.resilience.edges.access-svc.retry-budget-window` and `...retry-budget-ratio`).
