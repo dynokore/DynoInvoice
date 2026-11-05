@@ -55,7 +55,10 @@ in one pass:
 - `mapIdpGroup`, `unmapIdpGroup`, `unlockBreakGlass` and `recordBreakGlassAction` are built. ACC-002 travels as the
   platform event `BreakGlassAlertRaised`; `AccessAlertRaised` stays the entity-scoped event of ACC-001, ACC-003 and
   ACC-004 (its publisher is `AccessAlertOutbox`, wired by INV-T-4941). `signInBreakGlass` and `resealBreakGlass` are
-  INV-T-8853.
+  INV-T-8853. access-svc consumes the platform event `BreakGlassActionReported` (topic
+  `gst.platform.break-glass-action-reported.v1`, emitted by tenancy-svc) and records each reported action once per
+  `reportId` with the caller `tenancy-svc`, with the same alert and audit entry as `recordBreakGlassAction`; a refused
+  report is counted in `break_glass_report_rejected_total` by reason (INV-T-9172).
 - The simulator image of the tests is named by digest in `access-bootstrap/src/test/resources/simulators.properties`.
 
 ## Open items
