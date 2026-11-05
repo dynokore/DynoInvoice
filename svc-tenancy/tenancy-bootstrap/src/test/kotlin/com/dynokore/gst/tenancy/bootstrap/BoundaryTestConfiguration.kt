@@ -17,6 +17,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.outboxandqueue.StagedOutboxRow
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -48,6 +49,15 @@ class CapturingOutboxWriter(
         events: List<OutboundEvent>,
         context: EventContext,
     ): List<Envelope> = delegate.append(events, context).also { captured.envelopes.addAll(it) }
+
+    /** The TENANT event is staged and written by the definer function (INV-Q-16720 A): captured as it is staged. */
+    override fun stage(
+        events: List<OutboundEvent>,
+        context: EventContext,
+    ): List<StagedOutboxRow> =
+        delegate.stage(events, context).also { rows ->
+            captured.envelopes.addAll(rows.map { it.envelope })
+        }
 }
 
 /**

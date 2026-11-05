@@ -360,6 +360,10 @@ private fun nodeOf(dataJson: String): StructureNodeState {
             val date = LocalDate.parse(it["effectiveDate"].asString())
             ProfileEntry(it["attribute"].asString(), it["value"].asString(), date)
         },
+        node["environment"]?.asString()?.let {
+            com.dynokore.gst.tenancy.domain.Environment
+                .valueOf(it)
+        },
     )
 }
 
