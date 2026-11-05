@@ -82,10 +82,9 @@ class LookupGstRegister(
                         draft(
                             question.entity,
                             checkNotNull(party),
-                            RegisteredField.REGISTERED_NAME,
-                            decision.registerName,
-                            decision.currentName,
                             recordKey,
+                            RegisteredField.REGISTERED_NAME,
+                            decision.registerName to decision.currentName,
                         ),
                     )
                 }
@@ -114,7 +113,7 @@ class LookupGstRegister(
         recordKey: String?,
     ): RegisterSuggestion? {
         val value = registerGstnToAdd(held.second, fact) ?: return null
-        val draft = draft(entity, held.first, RegisteredField.GSTN, value, null, recordKey)
+        val draft = draft(entity, held.first, recordKey, RegisteredField.GSTN, value to null)
         return if (policy == RegisterPolicy.SUGGEST_CONFIRM) {
             suggestions.suggest(draft)
         } else {
@@ -128,11 +127,10 @@ class LookupGstRegister(
     private fun draft(
         entity: String,
         party: PartyRef,
-        field: RegisteredField,
-        registerValue: String,
-        currentValue: String?,
         recordKey: String?,
-    ) = SuggestionDraft(entity, party, field, registerValue, currentValue, recordKey, clock.instant())
+        field: RegisteredField,
+        values: Pair<String, String?>,
+    ) = SuggestionDraft(entity, party, field, values.first, values.second, recordKey, clock.instant())
 
     /** Writes the register name with the provenance of a register write and leaves the record of the applied value. */
     private fun apply(
@@ -147,10 +145,9 @@ class LookupGstRegister(
             draft(
                 entity,
                 party,
-                RegisteredField.REGISTERED_NAME,
-                decision.registerName,
-                decision.currentName,
                 recordKey,
+                RegisteredField.REGISTERED_NAME,
+                decision.registerName to decision.currentName,
             ),
         )
     }
