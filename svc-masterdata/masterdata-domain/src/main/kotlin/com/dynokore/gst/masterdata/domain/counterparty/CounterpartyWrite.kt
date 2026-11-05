@@ -11,9 +11,11 @@ import java.time.LocalDate
 /**
  * Where a write comes from, which fixes the provenance it records (INV-REQ-314, INV-REQ-1111). A value entered by the
  * business is `INTERNAL`; one the counterparty confirmed through its signed link is `COUNTERPARTY`; `MIGRATED` is set
- * only by [IMPORT], the applied import from a prior solution. No caller supplies a `providedBy`.
+ * only by [IMPORT], the applied import from a prior solution; `REGISTER` is a value the GST register lookup applied
+ * (INV-REQ-1290) and records the provenance `INTERNAL`: `providedBy` never takes the value `REGISTER` (INV-Q-10169 A),
+ * and a register name write leaves the `providedBy` the record held. No caller supplies a `providedBy`.
  */
-enum class WriteOrigin { OPERATOR, COUNTERPARTY_LINK, IMPORT }
+enum class WriteOrigin { OPERATOR, COUNTERPARTY_LINK, IMPORT, REGISTER }
 
 /** An identifier a write supplies; the provenance is added by [CounterpartyContent.after]. */
 data class IdentifierInput(
@@ -70,9 +72,17 @@ fun CounterpartyContent?.after(
                     provenanceOf(origin, it.evidenceRef?.let(::EvidenceRef) ?: evidence, at),
                 )
             } ?: this?.schemes.orEmpty(),
-        providedBy = newest?.provenance?.providedBy ?: provenance.providedBy,
+        providedBy = providedBy(origin, change, newest?.provenance?.providedBy ?: provenance.providedBy),
     )
 }
+
+/** A register name write keeps the `providedBy` the record held (INV-Q-10169 A); any other write sets it. */
+private fun CounterpartyContent?.providedBy(
+    origin: WriteOrigin,
+    change: CounterpartyChange,
+    written: ProvidedBy,
+): ProvidedBy =
+    if (origin == WriteOrigin.REGISTER && change.identifiers.isEmpty()) this?.providedBy ?: written else written
 
 private fun provenanceOf(
     origin: WriteOrigin,
@@ -83,4 +93,5 @@ private fun provenanceOf(
         WriteOrigin.OPERATOR -> Provenance.declared(ProvidedBy.INTERNAL, evidence, at)
         WriteOrigin.COUNTERPARTY_LINK -> Provenance.declared(ProvidedBy.COUNTERPARTY, evidence, at)
         WriteOrigin.IMPORT -> Provenance.migrated(evidence, at)
+        WriteOrigin.REGISTER -> Provenance.declared(ProvidedBy.INTERNAL, evidence, at)
     }

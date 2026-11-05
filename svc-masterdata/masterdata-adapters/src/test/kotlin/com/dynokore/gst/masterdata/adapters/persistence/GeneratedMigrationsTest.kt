@@ -1,6 +1,8 @@
 package com.dynokore.gst.masterdata.adapters.persistence
 
+import com.dynokore.platform.configresolver.ConfigSchema
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -18,6 +20,9 @@ class GeneratedMigrationsTest {
     private val outbox = "V202610210890__create_outbox.sql"
     private val triples = "V202610210900__create_identity_triple.sql"
     private val counterparties = "V202610220900__create_counterparty.sql"
+    private val idempotency = "V202610250900__create_idempotency.sql"
+    private val configResolver = "V202610250910__create_config_resolver.sql"
+    private val registry = "V202610250920__create_registry_lookups.sql"
 
     private fun migration(name: String): String =
         checkNotNull(
@@ -50,8 +55,20 @@ class GeneratedMigrationsTest {
     }
 
     @Test
+    fun `the idempotency migration is the DDL service-runtime generates for the masterdata schema`() {
+        val expected = IdempotencySchema.ddl("masterdata", "masterdata_runtime", "masterdata_sys").trim()
+        assertEquals(expected, body(migration(idempotency)))
+    }
+
+    @Test
+    fun `the config-resolver migration is the DDL config-resolver generates for the masterdata schema`() {
+        val expected = ConfigSchema.ddl("masterdata", "masterdata_runtime", "masterdata_sys").trim()
+        assertEquals(expected, body(migration(configResolver)))
+    }
+
+    @Test
     fun `no migration creates the binding functions or the binding key table`() {
-        listOf(outbox, triples, counterparties).forEach { file ->
+        listOf(outbox, triples, counterparties, idempotency, configResolver, registry).forEach { file ->
             val text = migration(file)
             assertTrue("CREATE TABLE masterdata.binding_key" !in text, file)
             assertTrue("CREATE FUNCTION masterdata.bound_" !in text, file)
@@ -79,8 +96,23 @@ class GeneratedMigrationsTest {
     }
 
     @Test
+    fun `every registry table carries the generated tenant policy`() {
+        val text = migration(registry)
+        listOf(
+            "directory_cache",
+            "register_cache",
+            "lookup_record",
+            "register_suggestion",
+            "network_registration",
+        ).forEach { table ->
+            assertTrue(TenantRlsMigration.ddl("masterdata", table, "tenant_isolation") in text, table)
+            assertTrue("CREATE TABLE masterdata.$table (" in text, table)
+        }
+    }
+
+    @Test
     fun `every table the service migration creates has a forced row policy`() {
-        val text = migration(triples) + migration(counterparties)
+        val text = migration(triples) + migration(counterparties) + migration(registry)
         val tables = Regex("""(?i)create table\s+masterdata\.(\w+)""").findAll(text).map { it.groupValues[1] }.toList()
         assertTrue(tables.isNotEmpty())
         tables.forEach { table ->

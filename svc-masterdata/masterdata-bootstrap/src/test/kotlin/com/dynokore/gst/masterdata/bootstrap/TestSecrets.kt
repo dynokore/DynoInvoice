@@ -7,15 +7,18 @@ import java.nio.file.Path
  * A mounted secret directory (STK-29: secrets are mounted files, never properties) with the secrets the service reads.
  */
 object TestSecrets {
+    const val CURSOR_KEY = "register-suggestion-cursor-key-for-tests-only"
     const val BINDING_KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 
     fun mount(
         databasePassword: String = "unused-in-composition-tests",
         bindingKey: String = BINDING_KEY,
+        cursorKeyPath: String? = "masterdata/register-suggestion-cursor-key",
     ): Path {
         val root = Files.createTempDirectory("masterdata-secrets")
         write(root, "tenancy/binding-key-current", bindingKey)
         write(root, "db/masterdata_runtime", databasePassword)
+        cursorKeyPath?.let { write(root, it, CURSOR_KEY) }
         root.toFile().deleteOnExit()
         return root
     }

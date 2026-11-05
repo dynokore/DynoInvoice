@@ -9,12 +9,14 @@ import com.dynokore.gst.masterdata.application.counterparty.RecordCounterparty
 import com.dynokore.gst.masterdata.application.counterparty.ResolveCounterparty
 import com.dynokore.gst.masterdata.application.identity.ResolveCommand
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple
+import com.dynokore.gst.masterdata.application.registry.ResolveReachability
 import com.dynokore.gst.masterdata.contract.api.ResolutionApi
 import com.dynokore.gst.masterdata.contract.model.Counterparty
 import com.dynokore.gst.masterdata.contract.model.CounterpartyHistory
 import com.dynokore.gst.masterdata.contract.model.CounterpartyVersion
 import com.dynokore.gst.masterdata.contract.model.IdentityTripleFacts
 import com.dynokore.gst.masterdata.contract.model.IngestedCounterpartyRequest
+import com.dynokore.gst.masterdata.contract.model.Reachability
 import com.dynokore.gst.masterdata.contract.model.ResolutionResult
 import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
 import com.dynokore.gst.masterdata.domain.counterparty.WriteOrigin
@@ -45,6 +47,7 @@ open class ResolutionController(
     private val resolveParty: ResolveCounterparty,
     private val history: ReadCounterpartyHistory,
     private val record: RecordCounterparty,
+    private val reachability: ResolveReachability,
 ) : ResolutionApi {
     override fun resolveCounterparty(
         entityRef: String,
@@ -88,7 +91,7 @@ open class ResolutionController(
         val findings = answer.findings.map(CounterpartyMapping::finding).ifEmpty { null }
         return when (answer) {
             is PartyAnswer.Unresolved -> {
-                ResolutionResult(facts, findings = findings)
+                ResolutionResult(facts, findings = findings, reachability = reachabilityOf(entityRef, named, null))
             }
 
             is PartyAnswer.Resolved -> {
@@ -106,8 +109,34 @@ open class ResolutionController(
                     arcsGstChargeAgreed = counterparty.arcsGstChargeAgreed,
                     approvedSchemes = counterparty.approvedSchemes,
                     findings = findings,
+                    reachability = reachabilityOf(entityRef, named, answer),
                 )
             }
+        }
+    }
+
+    /**
+     * The reachability fact of the party's Peppol ID (INV-REQ-318): the value the query names when it names the scheme
+     * `PEPPOL_PARTICIPANT_ID`, else the Peppol identifier the counterparty holds; none when the party has no Peppol ID,
+     * as there is nothing to look up. The fact is returned, never a submission type (INV-AC-9499).
+     */
+    private fun reachabilityOf(
+        entityRef: String,
+        named: NamedParty,
+        answer: PartyAnswer?,
+    ): Reachability? {
+        val held =
+            (answer as? PartyAnswer.Resolved)
+                ?.version
+                ?.content
+                ?.identifiers
+                ?.firstOrNull { it.scheme == IdentifierScheme.PEPPOL_PARTICIPANT_ID }
+                ?.value
+        val peppolId =
+            named.partyValue.takeIf { named.partyScheme == IdentifierScheme.PEPPOL_PARTICIPANT_ID.name } ?: held
+        return peppolId?.let {
+            val fact = reachability.handle(entityRef, it)
+            Reachability(fact.onNetwork, fact.degradationCode)
         }
     }
 

@@ -29,3 +29,20 @@ variables:
   GST_SKIP_REPEATS: "true"
   GST_SKIP_WHEN_VERIFIED_JOBS: "lint"
   IMAGE_NAME: "svc-masterdata"
+
+# INV-T-4946 (INV-Q-9655, INV-Q-8039): the boundary tests start the certification-kit Peppol directory and Check GST
+# Register simulators from the local images certkit/<image>:dev. The job pulls each by the digest pinned in
+# <image>.digest (ci/pull-simulator.sh fails closed on a missing or malformed file and on a registry digest that
+# differs) before the tests, with the job-local auth file of platform-build's `.gst-registry-auth` and no `docker login`.
+unit-test:
+  extends: [.gradle-job, .gst-registry]
+  image: "$CI_GRADLE_DOCKER_IMAGE"
+  # platform-build's unit-test inherits tags [inv-arm64] (the Mac runner), whose Docker daemon cannot pull the HTTP Nexus
+  # image $CI_GRADLE_DOCKER_IMAGE. Per the CI-FAST B1 rule, tool-image jobs run on the amd64 group runner, so the
+  # inherited tags are cleared.
+  tags: []
+  before_script:
+    - !reference [.gradle-job, before_script]
+    - !reference [.gst-registry-auth, script]
+    - sh ci/pull-simulator.sh peppol-directory-simulator peppol-directory-simulator.digest
+    - sh ci/pull-simulator.sh gst-register-simulator gst-register-simulator.digest

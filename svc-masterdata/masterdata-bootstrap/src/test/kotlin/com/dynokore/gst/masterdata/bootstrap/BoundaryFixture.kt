@@ -56,6 +56,7 @@ object TestRoles {
                 "IDN-ADMIN" to setOf("entity.admin"),
                 "IDN-ADMIN-2" to setOf("tenant.admin"),
                 "IDN-ADVISOR" to setOf("tax.approver"),
+                "IDN-INTEGRATOR" to setOf("integration.engineer"),
                 "IDN-OUTSIDER" to setOf("entity.viewer"),
             ),
         )
@@ -99,7 +100,7 @@ class CapturingOutboxWriter(
 
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 object BoundaryFixture {
-    private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
+    internal const val RUNTIME_PASSWORD = "runtime-password-for-tests"
     val container: PostgreSQLContainer<*> =
         PostgreSQLContainer("postgres:17")
             .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))

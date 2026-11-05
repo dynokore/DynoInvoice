@@ -6,6 +6,7 @@ import com.dynokore.platform.partyregistry.Provenance
 import com.dynokore.platform.partyregistry.ProvidedBy
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -125,8 +126,13 @@ class CounterpartyDomainTest {
     private fun providedByOf(origin: WriteOrigin) =
         when (origin) {
             WriteOrigin.OPERATOR -> ProvidedBy.INTERNAL
+
             WriteOrigin.COUNTERPARTY_LINK -> ProvidedBy.COUNTERPARTY
+
             WriteOrigin.IMPORT -> ProvidedBy.MIGRATED
+
+            // INV-Q-10169 A: providedBy never takes REGISTER; a register write records INTERNAL
+            WriteOrigin.REGISTER -> ProvidedBy.INTERNAL
         }
 
     @Test
@@ -281,5 +287,29 @@ class CounterpartyDomainTest {
     fun `a parent that is no group or holds no GSTN gives sameTenant only`() {
         assertEquals(tenantOnly, samenessOf("X", "UY", changed("GRP") { it.copy(gstn = null) }))
         assertEquals(tenantOnly, samenessOf("X", "UY", changed("GRP") { it.copy(kind = "TENANT") }))
+    }
+
+    @Test
+    fun `a register name write keeps the providedBy the record held and never takes REGISTER`() {
+        val held =
+            null.after(
+                CounterpartyChange(emptyList(), "Acme", null, null, null),
+                "EV-0",
+                WriteOrigin.COUNTERPARTY_LINK,
+                now,
+            )
+        val named =
+            held.after(
+                CounterpartyChange(emptyList(), "ACME PTE. LTD.", null, null, null),
+                "EV-1",
+                WriteOrigin.REGISTER,
+                now,
+            )
+        assertEquals(ProvidedBy.COUNTERPARTY, held.providedBy)
+        assertEquals(held.providedBy, named.providedBy)
+        assertEquals("ACME PTE. LTD.", named.legalName)
+        WriteOrigin.entries.forEach {
+            assertNotEquals(ProvidedBy.REGISTER, null.after(provenanceChange, "EV-2", it, now).providedBy)
+        }
     }
 }
