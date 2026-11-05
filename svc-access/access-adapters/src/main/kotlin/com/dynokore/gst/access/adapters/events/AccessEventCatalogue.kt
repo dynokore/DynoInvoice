@@ -22,13 +22,7 @@ object AccessEventCatalogue {
      */
     private val PLACEHOLDER_CHANNELS = setOf("accessExampleHappened")
 
-    fun load(): EventCatalogue {
-        val text =
-            checkNotNull(AccessEventCatalogue::class.java.classLoader.getResourceAsStream(ASYNCAPI_RESOURCE)) {
-                "$ASYNCAPI_RESOURCE is not on the classpath"
-            }.use { it.readBytes().toString(Charsets.UTF_8) }
-        return build(text)
-    }
+    fun load(): EventCatalogue = build(loadText())
 
     fun build(asyncApi: String): EventCatalogue {
         val own = producedBy(asyncApi)
@@ -86,4 +80,34 @@ object AccessEventCatalogue {
                 CatalogueEntry(message["name"] as String, topic, setOf(SERVICE), contentTopic = false)
             }
     }
+
+    /**
+     * The services that may produce [eventType] for access-svc, from the root extension `x-consumed-events` of the
+     * contract. Never empty: a missing key, entry or list is a start failure, so a handler never runs without producers.
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun producersOf(
+        eventType: String,
+        asyncApi: String = loadText(),
+    ): Set<String> {
+        val document = Yaml().load<Map<String, Any?>>(asyncApi)
+        val declared =
+            checkNotNull(document[CONSUMED_EVENTS_KEY] as? List<Map<String, Any?>>) {
+                "$ASYNCAPI_RESOURCE has no root key $CONSUMED_EVENTS_KEY"
+            }
+        val entry =
+            checkNotNull(declared.firstOrNull { it["event_type"] == eventType }) {
+                "$CONSUMED_EVENTS_KEY has no entry for $eventType"
+            }
+        val producers = (entry["producers"] as? List<Any?>).orEmpty().map { it as String }.toSet()
+        check(producers.isNotEmpty()) { "$CONSUMED_EVENTS_KEY lists no producers for $eventType" }
+        return producers
+    }
+
+    private const val CONSUMED_EVENTS_KEY = "x-consumed-events"
+
+    private fun loadText(): String =
+        checkNotNull(AccessEventCatalogue::class.java.classLoader.getResourceAsStream(ASYNCAPI_RESOURCE)) {
+            "$ASYNCAPI_RESOURCE is not on the classpath"
+        }.use { it.readBytes().toString(Charsets.UTF_8) }
 }
