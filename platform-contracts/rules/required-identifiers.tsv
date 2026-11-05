@@ -336,6 +336,7 @@ EXEMPT	enum_value	openapi.yaml	INV-Q-10703
 OUT_OF_SCOPE	enum_value	openapi.yaml	INV-Q-10703
 IMPORTS	enum_value	openapi.yaml	INV-Q-10703
 # INV-T-10698 (INV-REQ-992, INV-REQ-994, INV-REQ-995, INV-REQ-996): `tax.approver`, `tenant.admin` and `agent.operator` are roles; `approvePack` is an operation row that exists (INV-REQ-772).
+#   INV-T-16864 (INV-Q-16862): the name `electedSchemes` comes from ruling INV-Q-16862 and not from a backticked name of INV-REQ-2447 (INV-REQ-2447 backticks no `electedSchemes`; Inference: the name). `election` has no row in this table at platform-contracts origin/main cfd2bb9f (case-insensitive search returns 0 lines) and none is added: it is an existing property whose text this task changes, not a new identifier. The backticked names of INV-REQ-2447 (approvedSchemes, arcsGstChargeAgreed, canonical-svc, masterdata-svc, payload-svc, rules-svc, service-runtime) are rows or listed above as not rows (INV-T-6512).
 MappingPack.packVersion	schema_property	openapi.yaml	INV-REQ-996
 MappingPack.approvals	schema_property	openapi.yaml	INV-REQ-994
 MappingPack.activation	schema_property	openapi.yaml	INV-REQ-992
@@ -372,3 +373,4 @@ inputTaxClaimedNonZero	property	openapi.yaml	INV-REQ-375
 arcsGstChargeAgreed	property	openapi.yaml	INV-REQ-2434
 lineArcsGstChargeAgreed	property	openapi.yaml	INV-REQ-2434
 parentScheme	property	schemas/scenario-pack-handlers.schema.json	INV-REQ-2444
+electedSchemes	property	openapi.yaml	INV-REQ-2447

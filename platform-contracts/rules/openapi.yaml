@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.18.0
+  version: 1.19.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1306,7 +1306,21 @@ components:
         election:
           type: string
           maxLength: 40
-          description: The entity's VP-53 scheme election.
+          description: >-
+            The entity's VP-53 scheme election. Deprecated in favour of electedSchemes; it is read only
+            when electedSchemes is absent.
+        electedSchemes:
+          type: array
+          uniqueItems: true
+          maxItems: 14
+          items:
+            type: string
+            pattern: '^[A-Z][A-Z0-9_]{0,39}$'
+          description: >-
+            The schemes of INV-REQ-1314 (VP-53) that the entity has elected, any combination. An empty
+            array means no scheme elected. When the property is present it is the set in force and
+            election is not read. The strings are compared by equality with the scenario pack tag and
+            with parentScheme (INV-Q-16862).
         counterpartySchemeData:
           type: object
           description: The masterdata-svc resolution's approved-scheme facts (FR-1.14, FR-1.15).
