@@ -48,6 +48,7 @@ private const val TOPIC = "gst.platform.policy-changed.v1"
  * the entity profile are fed through the replicas' own events. Each acceptance-criterion key sits in the name of the
  * test that proves it.
  */
+@Suppress("LargeClass") // one boundary class per task keeps the fixtures and the acceptance keys together
 class SchemeHandlerBoundaryTest {
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000b2"))
     private val clock = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC)
@@ -293,6 +294,7 @@ class SchemeHandlerBoundaryTest {
         PolicyChanged(PolicyScope.entity(tenant, entity), key, value, start, PolicySource.PROFILE, null, TOPIC, 1),
     )
 
+    @Suppress("LongParameterList") // the request members of one invented evaluation
     private fun eval(
         f: Fixture,
         code: String,
@@ -405,7 +407,8 @@ class SchemeHandlerBoundaryTest {
             "SR"
         // both absent: no written agreement recorded, the waiver is the default
         eval(fixture(), "ARS", "ARCS", arcsSchemes).treated() shouldBe Triple("NA", "0", arcs)
-        eval(fixture(), "ARSR", "ARCS", arcsSchemes).blockedWith("RUL-011")
+        // the handler decides the code from the pack row, not from the entry code
+        eval(fixture(), "ARSR", "ARCS", arcsSchemes).treated() shouldBe Triple("NA", "0", arcs)
     }
 
     @Test
