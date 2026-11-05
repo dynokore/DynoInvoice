@@ -56,6 +56,11 @@ class RecordGateRunTest {
         )
     private val version = TrainVersion("2026.10.0")
 
+    private fun permitted(
+        actor: String,
+        key: String,
+    ) = key == ReleasePermission.CERTIFY && actor in holders
+
     private val scenarios = GateRunSubmission(Gate.SCENARIOS, ReferenceEnvironment.SAAS, GateOutcome.PASSED)
 
     private fun command(
@@ -217,5 +222,36 @@ class RecordGateRunTest {
         val atLimit = scenarios.copy(candidateFindings = List(500) { "F-$it" }, evidenceRef = "x".repeat(256))
         atLimit.violation() shouldBe null
         runs.rows shouldBe emptyList()
+    }
+
+    /** A store where a concurrent call stored [rival] after this call's load and before its insert. */
+    private fun racedOperation(rival: GateRunRecord): RecordGateRun {
+        val raced =
+            object : GateRunRepository by runs {
+                override fun insert(record: GateRunRecord): Boolean {
+                    runs.rows.add(rival)
+                    return false
+                }
+            }
+        return RecordGateRun(raced, trainRepository, { actor, key -> permitted(actor, key) }, clock)
+    }
+
+    @Test
+    fun `a lost insert race for the same result returns the stored record`() {
+        val rival = (run(command()) as GateRunRecord).also { runs.rows.clear() }
+        val cmd = command()
+        val raced = racedOperation(rival)
+        raced.perform(cmd, raced.load(cmd)) shouldBe rival
+        runs.rows shouldBe listOf(rival)
+    }
+
+    @Test
+    fun `a lost insert race for a different result is refused as CPL-005 and stores nothing more`() {
+        val rival = (run(command()) as GateRunRecord).also { runs.rows.clear() }
+        val cmd = command(scenarios.copy(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1")))
+        val raced = racedOperation(rival)
+        val refused = shouldThrow<GateRunRaced> { raced.perform(cmd, raced.load(cmd)) }
+        refused.refusal.code shouldBe Refusal.GATE_RUN_DIFFERENT
+        runs.rows shouldBe listOf(rival)
     }
 }

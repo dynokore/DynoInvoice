@@ -8,6 +8,7 @@ import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntriesCommand
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditOutcome
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
+import com.dynokore.gst.controlPlane.application.release.GateRunRaced
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
 import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
 import com.dynokore.gst.controlPlane.application.release.RecordGateRun
@@ -318,7 +319,12 @@ class ReleasesController(
                     RequestContext(caller.correlationId, idempotencyKey.toString()),
                 )
             }
-        val outcome = platform.bindPlatform(caller.actor) { runner.run(recordGateRun, caller.actor, command) }
+        val outcome =
+            try {
+                platform.bindPlatform(caller.actor) { runner.run(recordGateRun, caller.actor, command) }
+            } catch (raced: GateRunRaced) {
+                refuse(raced.refusal, caller.correlationId)
+            }
         val record =
             when (outcome) {
                 is OperationOutcome.Performed -> outcome.result

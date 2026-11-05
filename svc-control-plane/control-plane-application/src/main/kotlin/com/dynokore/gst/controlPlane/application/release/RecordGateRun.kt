@@ -24,6 +24,11 @@ data class RecordGateRunCommand(
     val request: RequestContext,
 )
 
+/** A concurrent call stored a different result for the key first; the caller answers it as CPL-005. */
+class GateRunRaced(
+    val refusal: Refusal,
+) : RuntimeException(refusal.encode(), null, false, false)
+
 /** What recordGateRun reads: the record that holds the key, and whether the train is already published. */
 data class GateRunState(
     val existing: GateRunRecord?,
@@ -95,8 +100,11 @@ class RecordGateRun(
         state: GateRunState,
     ): GateRunRecord {
         val record = recordOf(command)
-        check(runs.insert(record)) { "gate run ${repeatKey(command)} was recorded concurrently" }
-        return record
+        if (runs.insert(record)) return record
+        // a concurrent first call took the key between load and insert: the stored record decides
+        val stored = runs.find(GateRunKey(command.trainVersion, command.result.gate, command.result.environment))
+        if (stored != null && stored.sameResultAs(record)) return stored
+        throw GateRunRaced(Refusal(Refusal.GATE_RUN_DIFFERENT, "${repeatKey(command)} holds a different result"))
     }
 
     override fun audit(
