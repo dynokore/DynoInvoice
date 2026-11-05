@@ -16,6 +16,7 @@ import com.dynokore.gst.masterdata.contract.model.RegisterSuggestionList
 import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
 import com.dynokore.gst.masterdata.domain.identity.EntityRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.MasterdataErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -138,15 +139,20 @@ open class RegisterSuggestionsController(
             evidenceRef = it.evidenceRef,
         )
 
-    /** Both refusals are 409 SRT-008 now; MDM-007 at 409 is not in MasterdataErrorCode yet (gap in the MR). */
-    private fun refusal(cause: SuggestionRefused) =
-        ApiRefusal(
-            ClosedErrorCode.STALE_AGGREGATE,
-            when (cause) {
-                is SuggestionGstnConflict -> "MDM-007: the counterparty holds a different GSTN (${cause.suggestionRef})"
-                is SuggestionNotPending -> "the suggestion is not pending (${cause.suggestionRef})"
-            },
-        )
+    /** A GSTN conflict is 409 MDM-007 (INV-Q-16979); a suggestion that is not PENDING stays 409 SRT-008. */
+    private fun refusal(cause: SuggestionRefused): RuntimeException =
+        when (cause) {
+            is SuggestionGstnConflict -> {
+                MasterdataRefusal(
+                    MasterdataErrorCode.COUNTERPARTY_GSTN_CONFLICT,
+                    "the counterparty holds a different GSTN (${cause.suggestionRef})",
+                )
+            }
+
+            is SuggestionNotPending -> {
+                ApiRefusal(ClosedErrorCode.STALE_AGGREGATE, "the suggestion is not pending (${cause.suggestionRef})")
+            }
+        }
 
     private fun invalid(message: String): Nothing = throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, message)
 

@@ -230,6 +230,8 @@ object BoundaryFixture {
                 "service-runtime.pool.profile=minimal",
                 "service-runtime.event-loops.enabled=false",
                 "gst.bindings.secret-store.mount-root=${TestSecrets.mount(RUNTIME_PASSWORD)}",
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
                 "service-runtime.datasource.credential=db/masterdata_runtime",
             )
 }

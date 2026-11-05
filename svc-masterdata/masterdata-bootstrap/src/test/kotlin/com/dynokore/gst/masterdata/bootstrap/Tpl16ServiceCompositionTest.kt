@@ -39,6 +39,8 @@ class Tpl16ServiceCompositionTest {
                 "service-runtime.modules.schema=masterdata",
                 "management.server.port=8081",
                 "gst.bindings.secret-store.mount-root=${TestSecrets.mount()}",
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
                 "service-runtime.datasource.credential=db/masterdata_runtime",
             )
 

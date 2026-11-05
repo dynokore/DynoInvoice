@@ -1,4 +1,4 @@
--- V202610250910__create_config_resolver.sql (INV-T-4946; INV-REQ-1242, INV-Q-9649 A, TPL-12)
+-- V202611061010__create_config_resolver.sql (INV-T-4946; INV-REQ-1242, INV-Q-9649 A, TPL-12)
 -- Generated: config-resolver's ConfigSchema.ddl("masterdata", "masterdata_runtime", "masterdata_sys") of the BOM 0.112.0 train: the
 -- policy store behind the shared setPolicy for VP-29, VP-38 and VP-65. GeneratedMigrationsTest fails when this file
 -- differs from what the pinned module generates. The binding functions are created before the migrations (TPL-12).

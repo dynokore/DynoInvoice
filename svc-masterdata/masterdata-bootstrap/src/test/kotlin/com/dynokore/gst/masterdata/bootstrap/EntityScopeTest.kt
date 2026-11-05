@@ -211,7 +211,6 @@ class EntityScopeTest {
             val malformed =
                 listOf(
                     gap("1"),
-                    gap("[\"E-001\"]"),
                     gap("null"),
                     gap("{\"v\":\"E-001\"}"),
                     gap().replaceFirst("{", "{\"entityRef\":\"E-001\","),
@@ -227,6 +226,18 @@ class EntityScopeTest {
                 assertThat(answer).describedAs(body.take(80)).contains("SRT-001")
                 assertThat(scope.state()).describedAs(body.take(80)).isEqualTo(Triple(0, 0, 0))
             }
+        }
+
+    @Test
+    fun `INV-AC-8515 a list-valued entityRef is judged per element`() =
+        run { scope ->
+            // service-runtime INV-T-9632: a list is judged element by element (no longer a 400 of the filter)
+            val (outside, body) = scope.post(gap("[\"E-002\"]"))
+            assertThat(outside).describedAs(body).isEqualTo(403)
+            assertThat(body).contains("SRT-004")
+            val (inside, _) = scope.post(gap("[\"E-001\"]"))
+            assertThat(inside).isEqualTo(400)
+            assertThat(scope.state()).isEqualTo(Triple(0, 0, 0))
         }
 
     @Test

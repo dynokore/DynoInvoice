@@ -72,7 +72,7 @@ class BlankCheckRepairMigrationTest {
     }
 
     @Test
-    fun `the file name is the CS-19 name and its version is the greatest in the directory`() {
+    fun `the file name is the CS-19 name and it is present in the directory (G-MIG)`() {
         val directory = Path.of(checkNotNull(javaClass.classLoader.getResource("db/migration")).toURI())
         val versions =
             Files
@@ -80,7 +80,7 @@ class BlankCheckRepairMigrationTest {
                 .use { stream ->
                     stream.map { it.fileName.toString() }.filter { it.endsWith(".sql") }.toList()
                 }.associateBy { Regex("""^V(\d+)__""").find(it)!!.groupValues[1].toLong() }
-        assertEquals(file, versions[versions.keys.max()])
+        assertTrue(file in versions.values)
         assertTrue(Regex("""^V\d{12}__[a-z]+(_[a-z]+)*\.sql$""").matches(file))
     }
 

@@ -20,9 +20,10 @@ class GeneratedMigrationsTest {
     private val outbox = "V202610210890__create_outbox.sql"
     private val triples = "V202610210900__create_identity_triple.sql"
     private val counterparties = "V202610220900__create_counterparty.sql"
-    private val idempotency = "V202610250900__create_idempotency.sql"
-    private val configResolver = "V202610250910__create_config_resolver.sql"
-    private val registry = "V202610250920__create_registry_lookups.sql"
+    private val idempotency = "V202611061000__create_idempotency.sql"
+    private val configResolver = "V202611061010__create_config_resolver.sql"
+    private val registry = "V202611061020__create_registry_lookups.sql"
+    private val outboxTestMode = "V202611061030__outbox_testmode.sql"
 
     private fun migration(name: String): String =
         checkNotNull(
@@ -48,10 +49,21 @@ class GeneratedMigrationsTest {
 
     @Test
     fun `the outbox migration is the DDL outbox-and-queue generates for the masterdata schema`() {
-        val expected = OutboxSchema.ddl("masterdata", "masterdata_runtime", "masterdata_sys").trim()
+        // the testmode column is created by the forward migration (outboxTestMode); an applied V file is never edited
+        val expected =
+            OutboxSchema
+                .ddl("masterdata", "masterdata_runtime", "masterdata_sys")
+                .trim()
+                .replace(",\n    testmode boolean not null default false", "")
         val text = migration(outbox)
         assertEquals(OUTBOX_RAW_FEFF, text.count { it == FEFF })
         assertEquals(expected, escapeBlankCodePoints(body(text)))
+    }
+
+    @Test
+    fun `the outbox testmode upgrade is the DDL outbox-and-queue generates for the masterdata schema`() {
+        val expected = OutboxSchema.testModeUpgradeDdl("masterdata").trim() + ";"
+        assertEquals(expected, body(migration(outboxTestMode)))
     }
 
     @Test

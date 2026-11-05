@@ -1,6 +1,7 @@
 package com.dynokore.gst.masterdata.bootstrap
 
 import com.dynokore.gst.masterdata.adapters.http.ApiRefusal
+import com.dynokore.gst.masterdata.adapters.http.MasterdataRefusal
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.RecordCounterparty
 import com.dynokore.gst.masterdata.application.registry.LookupEvidenceLog
@@ -18,6 +19,7 @@ import com.dynokore.gst.masterdata.domain.registry.CacheLifetimes
 import com.dynokore.gst.masterdata.domain.registry.Reconciliation
 import com.dynokore.gst.masterdata.domain.registry.RegisterPolicy
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.MasterdataErrorCode
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -222,7 +224,13 @@ class RegistrySuggestionTest {
                     env.ce.request("UEN" to uen, "GSTN" to "M2-7654321-0", name = "Acme Pte Ltd", address = ADDRESS),
                 )
                 val before = versions(env, party)
-                assertThatThrownBy { env.confirm(pending.suggestionId) }.isInstanceOf(ApiRefusal::class.java)
+                assertThatThrownBy { env.confirm(pending.suggestionId) }
+                    .isInstanceOfSatisfying(MasterdataRefusal::class.java) {
+                        // INV-Q-16979 A: 409 MDM-007 through Problems.renderMasterdata
+                        assertThat(it.code).isEqualTo(MasterdataErrorCode.COUNTERPARTY_GSTN_CONFLICT)
+                        assertThat(it.code.code).isEqualTo("MDM-007")
+                        assertThat(it.code.httpStatus).isEqualTo(409)
+                    }
                 assertThat(versions(env, party)).isEqualTo(before)
                 assertThat(env.suggestionsOf(party, "PENDING")).hasSize(1)
                 // a new lookup for the counterparty that now holds a different GSTN suggests nothing and writes nothing

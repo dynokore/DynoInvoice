@@ -1,4 +1,4 @@
--- V202610250920__create_registry_lookups.sql (INV-T-4946; INV-REQ-318, INV-REQ-319, INV-REQ-320, INV-REQ-802,
+-- V202611061020__create_registry_lookups.sql (INV-T-4946; INV-REQ-318, INV-REQ-319, INV-REQ-320, INV-REQ-802,
 -- INV-REQ-1290; CS-19, ARC-20, TPL-12)
 -- Run only by the service's migration Job as masterdata_migrate (never at start-up). The two registry caches hold one
 -- answer per Peppol ID and per UEN until a later lookup replaces it; the lookup record is the evidence of one lookup

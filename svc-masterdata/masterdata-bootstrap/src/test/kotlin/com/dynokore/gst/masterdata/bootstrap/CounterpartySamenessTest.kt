@@ -24,7 +24,9 @@ class CounterpartySamenessTest {
             env.structure(y, "ENTITY", group, "UY-$tag", type = ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED)
             env.structure("Z-$tag", "ENTITY", tenantNode, "UZ-$tag")
             env.triple(x)
-            listOf("Y" to "UY-$tag", "Z" to "UZ-$tag", "N" to "UY-$tag".dropLast(1) + "9").forEach { (name, uen) ->
+            // one character apart from UY; the last character differs whatever the random tag ends with
+            val apart = "UY-$tag".dropLast(1) + (if (tag.last() == '9') "8" else "9")
+            listOf("Y" to "UY-$tag", "Z" to "UZ-$tag", "N" to apart).forEach { (name, uen) ->
                 env.write("P-$name-$tag", env.request("UEN" to uen, name = name, address = ADDRESS))
             }
 
@@ -33,7 +35,7 @@ class CounterpartySamenessTest {
             val nested = env.resolve(x, "UEN", "UY-$tag").counterparty!!
             assertThat(nested.sameTenant to nested.sameGroup).isEqualTo(both)
             assertThat(flags("UZ-$tag")).isEqualTo(tenantOnly)
-            assertThat(flags("UY-$tag".dropLast(1) + "9")).describedAs("one character apart").isEqualTo(neither)
+            assertThat(flags(apart)).describedAs("one character apart").isEqualTo(neither)
         }
 
     @Test
