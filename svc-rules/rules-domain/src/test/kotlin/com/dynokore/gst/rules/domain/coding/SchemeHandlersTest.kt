@@ -311,6 +311,11 @@ class SchemeHandlersTest {
             SchemeTagCheck.Refused("NEWSCHEME", Side.SUPPLY)
         SchemeTagAuthoring.check(MappingEntry("X", "QQ", "SWS"), catalogue, sws) shouldBe
             SchemeTagCheck.Refused("SWS", null)
+        // look-alikes of a declared tag are different tags: exact equality, never prefix or case folding
+        SchemeTagAuthoring.check(MappingEntry("X", "ZR", "SWSX"), catalogue, sws) shouldBe
+            SchemeTagCheck.Refused("SWSX", Side.SUPPLY)
+        SchemeTagAuthoring.check(MappingEntry("X", "ZR", "sws"), catalogue, sws) shouldBe
+            SchemeTagCheck.Refused("sws", Side.SUPPLY)
     }
 
     @Test
