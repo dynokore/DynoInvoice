@@ -1,0 +1,7 @@
+{
+  "depCode": "DEP-004",
+  "status": "RAISED",
+  "cause": "Installation certificate expired",
+  "installationRef": "inst-1",
+  "extra": "allowed"
+}

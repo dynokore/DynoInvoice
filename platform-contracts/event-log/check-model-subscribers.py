@@ -25,6 +25,12 @@ import yaml
 MODEL_ONLY = frozenset({"ReplayRequested", "ReplayCompleted"})
 EXEMPT_TOPICS = frozenset({"gst.access.authority-changed.v1"})
 EXEMPT_TYPES: frozenset[str] = frozenset()
+# Old topic kept beside its replacement during a deprecation window (INV-Q-16626 A, expand-contract). Exact
+# names, old topic to replacement; shrink-only: the pair is deleted with its old topic, and a pair whose old
+# topic or replacement is missing from topics.yaml is a finding.
+SUPERSEDED_TOPICS = {
+    "gst.tenancy.installation-status-changed.v1": "gst.platform.installation-status-changed.v1",
+}
 NON_EVENT_SERVICES = frozenset({"console-web"})
 EVERY_SERVICE = "every service"
 PRODUCER_ALIASES = frozenset({
@@ -109,7 +115,7 @@ def check(model_dir: Path, root: Path) -> tuple[list[str], list[str]]:
 
     types_of: dict[str, list[str]] = {}
     for name, ti in tinfo.items():
-        if name not in EXEMPT_TOPICS:
+        if name not in EXEMPT_TOPICS and name not in SUPERSEDED_TOPICS:
             types_of.setdefault(ti["type"], []).append(name)
 
     feeds: set[str] = set()
@@ -170,6 +176,9 @@ def check(model_dir: Path, root: Path) -> tuple[list[str], list[str]]:
     for name in sorted(EXEMPT_TYPES):
         if name in by_id or name not in all_types:
             f.append(f"exemption {name} is stale")
+    for old, new in sorted(SUPERSEDED_TOPICS.items()):
+        if old not in tinfo or new not in tinfo:
+            f.append(f"superseded topic {old} is stale")
     for name in sorted(MODEL_ONLY):
         if name not in by_id or name in types_of:
             f.append(f"exemption {name} is stale")

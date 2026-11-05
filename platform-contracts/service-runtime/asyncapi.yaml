@@ -1,14 +1,14 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.16.0
+  version: 1.17.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed, InstallationStatusChanged — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
@@ -90,6 +90,12 @@ channels:
     messages:
       TenantWideEvidenceIntegrityFailed:
         $ref: '#/components/messages/TenantWideEvidenceIntegrityFailed'
+
+  platformInstallationStatusChanged:
+    address: 'gst.platform.installation-status-changed.v1'
+    messages:
+      InstallationStatusChanged:
+        $ref: '#/components/messages/InstallationStatusChanged'
 
   platformBreakGlassSessionChanged:
     address: 'gst.platform.break-glass-session-changed.v1'
@@ -204,6 +210,14 @@ operations:
       $ref: '#/channels/platformTenantWideEvidenceIntegrityFailed'
     messages:
       - $ref: '#/channels/platformTenantWideEvidenceIntegrityFailed/messages/TenantWideEvidenceIntegrityFailed'
+
+  publishInstallationStatusChanged:
+    action: send
+    description: InstallationStatusChanged — a deployment-readiness condition DEP-004 to DEP-006 of an installation is raised or cleared (INV-REQ-1226, INV-Q-14289 A).
+    channel:
+      $ref: '#/channels/platformInstallationStatusChanged'
+    messages:
+      - $ref: '#/channels/platformInstallationStatusChanged/messages/InstallationStatusChanged'
 
   publishBreakGlassSessionChanged:
     action: send
@@ -398,6 +412,20 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/tenant-wide-evidence-integrity-failed-payload.schema.json'
+
+    InstallationStatusChanged:
+      name: com.dynokore.gst.platform.InstallationStatusChanged.v1
+      title: InstallationStatusChanged
+      summary: InstallationStatusChanged
+      description: >-
+        A deployment-readiness condition of an installation (DEP-004 to DEP-006) was raised or cleared,
+        with a cause (INV-REQ-1226, INV-Q-14289 A). Class: platform. Written under the platform tenant
+        with the platform entity: the wire form has no tenantid and no entityref. The payload names the
+        registered entity (entityRef) or the installation (installationRef) it concerns. Emitted by: tenancy-svc. Consumed by: console-bff, notification-svc, submission-svc. Delivery: At-least-once.
+        The payload carries no invoice content.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/installation-status-changed-payload.schema.json'
 
     BreakGlassSessionChanged:
       name: com.dynokore.gst.platform.BreakGlassSessionChanged.v1

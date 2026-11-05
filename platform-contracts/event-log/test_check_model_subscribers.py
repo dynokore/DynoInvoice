@@ -25,6 +25,8 @@ _spec.loader.exec_module(chk)
 SERVICES = ["a-svc", "b-svc", "c-svc", "console-web"]
 UNIVERSE = ["a-svc", "b-svc", "c-svc"]
 GONE = "gst.old.gone.v1"
+OLD = "gst.tenancy.installation-status-changed.v1"
+NEW = "gst.platform.installation-status-changed.v1"
 
 
 def _topic(name, etype, producers, subscribers):
@@ -45,6 +47,9 @@ def base():
     for n in chk.MODEL_ONLY:
         ev.append({"id": n, "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
     tp.append(_topic("gst.access.authority-changed.v1", "FeedA", ["a-svc"], []))
+    ev.append({"id": "Swap", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+    tp.append(_topic(OLD, "Swap", ["a-svc"], ["b-svc"]))
+    tp.append(_topic(NEW, "Swap", ["a-svc"], ["b-svc"]))
     return ev, tp
 
 
@@ -82,6 +87,9 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(chk.EXEMPT_TOPICS, {"gst.access.authority-changed.v1"})
         self.assertEqual(chk.EXEMPT_TYPES, set())
         self.assertEqual(chk.NON_EVENT_SERVICES, {"console-web"})
+
+    def test_superseded_topics_are_exact(self):
+        self.assertEqual(chk.SUPERSEDED_TOPICS, {OLD: NEW})
 
 
 class TestCheck(Case):
@@ -167,6 +175,45 @@ class TestCheck(Case):
         self.topics.append(_topic("gst.y.plain.v1", "Plain", ["a-svc"], ["b-svc"]))
         _, out = self.run_check()
         self.assertIn("Plain: more than one topic carries the event type: [gst.x.plain.v1, gst.y.plain.v1]", out)
+
+    def test_superseded_pair_passes_rule_1(self):
+        code, out = self.run_check()
+        self.assertEqual((code, out[1:]), (0, []))
+        self.assertFalse([ln for ln in out if "more than one topic" in ln])
+
+    def test_superseded_old_topic_removed_is_stale(self):
+        self.topics = [t for t in self.topics if t["topic"] != OLD]
+        _, out = self.run_check()
+        self.assertEqual(out[1:], [f"superseded topic {OLD} is stale"])
+
+    def test_superseded_replacement_removed_is_stale(self):
+        self.topics = [t for t in self.topics if t["topic"] != NEW]
+        _, out = self.run_check()
+        self.assertEqual(out[1:], ["Swap: no topic carries the event type", f"superseded topic {OLD} is stale"])
+
+    def test_superseded_rules_apply_to_the_replacement(self):
+        self.topic(NEW)["subscribers"] = ["c-svc"]
+        _, out = self.run_check()
+        self.assertIn(f"Swap: consumer b-svc is not a subscriber of {NEW}", out)
+
+    def test_superseded_old_topic_still_needs_an_event(self):
+        self.events = [e for e in self.events if e["id"] != "Swap"]
+        _, out = self.run_check()
+        self.assertIn(f"topic {OLD}: event type Swap has no event in events.yaml", out)
+
+    def test_superseded_lookalike_keys_still_fail_rule_1(self):
+        for bad in (OLD.replace(".v1", ".v2"), OLD.upper(), OLD + " ", NEW):
+            with self.subTest(bad=bad):
+                self.topics = [t for t in self.topics if t["topic"] not in (OLD, NEW)]
+                # the real pair is kept present (so it is not stale) under another event type
+                self.topics.append(_topic(OLD, "Plain2", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic(NEW, "Plain2", ["a-svc"], ["b-svc"]))
+                self.events = [e for e in self.events if e["id"] != "Plain2"]
+                self.events.append({"id": "Plain2", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+                self.topics.append(_topic("gst.q.swap-a.v1", "Swap", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic(bad, "Swap", ["a-svc"], ["b-svc"]))
+                _, out = self.run_check()
+                self.assertTrue([ln for ln in out if ln.startswith("Swap: more than one topic carries the event type")], out)
 
     def test_model_only_with_topic_or_missing_is_stale(self):
         self.topics.append(_topic("gst.x.replayrequested.v1", "ReplayRequested", ["a-svc"], []))

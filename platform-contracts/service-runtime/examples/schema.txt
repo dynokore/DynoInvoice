@@ -13,3 +13,4 @@
 ../schemas/break-glass-session-changed-payload.schema.json break-glass-session-changed-payload-*.json
 ../schemas/break-glass-action-reported-payload.schema.json break-glass-action-reported-payload-*.json
 ../schemas/tenant-wide-evidence-integrity-failed-payload.schema.json tenant-wide-evidence-integrity-failed-payload-*.json
+../schemas/installation-status-changed-payload.schema.json installation-status-changed-payload-*.json

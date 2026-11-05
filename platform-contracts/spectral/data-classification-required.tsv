@@ -19,3 +19,4 @@ service-runtime	schemas/break-glass-session-changed-payload.schema.json
 service-runtime	schemas/break-glass-action-reported-payload.schema.json
 submission	schemas/compliance-alert-values-measured-payload.schema.json
 service-runtime	schemas/tenant-wide-evidence-integrity-failed-payload.schema.json
+service-runtime	schemas/installation-status-changed-payload.schema.json

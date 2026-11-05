@@ -46,3 +46,8 @@ schemas/break-glass-action-reported-payload.schema.json	occurredAt	NONE
 schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	range	NONE
 schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	failingRecord	IDENTIFYING
 schemas/authority-changed-payload.schema.json	incarnation	NONE
+schemas/installation-status-changed-payload.schema.json	depCode	NONE
+schemas/installation-status-changed-payload.schema.json	status	NONE
+schemas/installation-status-changed-payload.schema.json	cause	NONE
+schemas/installation-status-changed-payload.schema.json	entityRef	NONE
+schemas/installation-status-changed-payload.schema.json	installationRef	NONE

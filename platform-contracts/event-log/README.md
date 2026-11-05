@@ -57,6 +57,16 @@ accepts a contract that is ahead of the model and rejects a model that is
 ahead of the contract, so for a new consumer or producer the contract task
 merges first and the model task second.
 
+`SUPERSEDED_TOPICS` (INV-Q-16626 A) names an old topic that a deprecation window
+keeps beside its replacement, as a dict from old topic to replacement. Its value
+is exactly `{"gst.tenancy.installation-status-changed.v1":
+"gst.platform.installation-status-changed.v1"}`. Rule 1 leaves the old topic out
+and applies the consumer, producer and replica-feed rules to the replacement; rule 4
+still applies to the old topic. The constant is exact and shrink-only: an entry
+is deleted in the same change that removes its old topic from `topics.yaml`, and
+an entry whose old topic or replacement is missing prints
+`superseded topic <old> is stale`.
+
 ## Consumed-event producers (INV-T-14082, INV-Q-14079 A)
 
 A service's `asyncapi.yaml` may declare, as a root key before `channels`, the

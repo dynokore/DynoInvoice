@@ -113,3 +113,8 @@ REPLAY	enum_value	schemas/break-glass-action-reported-payload.schema.json	INV-RE
 range	property	schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	INV-REQ-662
 failingRecord	property	schemas/tenant-wide-evidence-integrity-failed-payload.schema.json	INV-REQ-662
 incarnation	property	schemas/authority-changed-payload.schema.json	INV-REQ-1201
+depCode	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
+status	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
+cause	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
+entityRef	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
+installationRef	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
