@@ -66,6 +66,23 @@ fun interface BreakGlassSettings {
 }
 
 /**
+ * The status a break-glass session reports in the platform event `BreakGlassSessionChanged`: exactly the wire values
+ * of its payload (INV-Q-9119 A, INV-AC-9303).
+ */
+enum class BreakGlassSessionStatus { OPEN, SEALED }
+
+/**
+ * Announces that a break-glass session changed, so the platform event `BreakGlassSessionChanged` can reach every
+ * service's authority replica (INV-Q-9119 A, INV-AC-9303). The adapter that appends the event is a later slice.
+ */
+fun interface BreakGlassSessionEvents {
+    fun changed(
+        session: BreakGlassSession,
+        status: BreakGlassSessionStatus,
+    )
+}
+
+/**
  * Raises ACC-002 as the platform event `BreakGlassAlertRaised` in the command transaction (INV-REQ-897, INV-Q-8839 A):
  * [action] is UNLOCK or the break-glass action name, [unlockRef] the session the alert belongs to.
  */
