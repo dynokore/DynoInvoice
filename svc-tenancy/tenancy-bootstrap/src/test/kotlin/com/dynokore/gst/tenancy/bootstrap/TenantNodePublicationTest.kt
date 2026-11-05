@@ -217,4 +217,55 @@ class TenantNodePublicationTest {
             }
         }
     }
+
+    /** Writes the real outbox row first, then throws: the rollback must take the written row away too. */
+    private fun throwingAfterWrite(real: StructureChangePublisher) =
+        object : StructureChangePublisher {
+            override fun publish(change: StructureChange) {
+                real.publish(change)
+                error("after the outbox write")
+            }
+        }
+
+    private fun outboxRows(ref: String) =
+        scalar("select count(*) from tenancy.outbox where data::jsonb ->> 'nodeRef' = ?", ref)
+
+    @Test
+    fun `INV-AC-15381 a rolled-back transaction leaves no outbox row and no tenant row`() {
+        run { env ->
+            val ctx = env.context
+            val tx = ctx.getBean(TransactionRunner::class.java)
+            val tenants = ctx.getBean(TenantContext::class.java)
+            val real = ctx.getBean(StructureChangePublisher::class.java)
+            val failing = throwingAfterWrite(real)
+            val contract = "C-${UUID.randomUUID()}"
+            val ref = TenantRefs.refOfContract(contract)
+            val record = TenantRecord(TenantRefs.idOf(ref).value, ref, "Name", "PLAN-A", contract)
+            val store = ctx.getBean(TenantStore::class.java)
+            val createTenant = CreateTenant(tenants as PlatformTenantBinding, tx, store, "tenancy-svc", failing)
+            assertThatThrownBy { createTenant.handle(record) }.hasMessageContaining("after the outbox write")
+            assertThat(rows(ref)).isZero()
+            assertThat(outboxRows(ref)).isZero()
+
+            env.withTenant { production ->
+                val workspaceStore = ctx.getBean(WorkspaceStore::class.java)
+                val wsRef =
+                    workspaces(env)
+                        .createWorkspace(UUID.randomUUID(), CreateWorkspaceRequest(production.value.toString(), "uat"))
+                        .body!!
+                        .workspaceRef
+                assertThat(outboxRows(wsRef)).isEqualTo(1)
+                assertThatThrownBy { ArchiveWorkspace(tx, workspaceStore, failing).handle(wsRef) }
+                    .hasMessageContaining("after the outbox write")
+                assertThat(retired(wsRef)).isZero()
+                assertThat(outboxRows(wsRef)).isEqualTo(1)
+                val other = TenantRefs.refOfWorkspace(production.value.toString(), "other")
+                val create = CreateWorkspace(tenants, tx, workspaceStore, failing)
+                assertThatThrownBy { create.handle(production.value.toString(), "other") }
+                    .hasMessageContaining("after the outbox write")
+                assertThat(rows(other)).isZero()
+                assertThat(outboxRows(other)).isZero()
+            }
+        }
+    }
 }
