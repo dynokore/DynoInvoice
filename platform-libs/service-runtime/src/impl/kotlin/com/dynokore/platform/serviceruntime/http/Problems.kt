@@ -178,15 +178,26 @@ object Problems {
     }
 
     /**
-     * The MDM refusal [code] as a complete response (INV-Q-7886 A): status 422, the headers of [renderTenancy] and
-     * the API-20 envelope with the catalogue disposition MANUAL, with [detail] as a client error carries it (API-22).
+     * The MDM refusal [code] as a complete response (INV-Q-7886 A): the entry's status, the headers of
+     * [renderTenancy] and the API-20 envelope with the entry's severity and the catalogue disposition MANUAL, with
+     * [detail] as a client error carries it (API-22).
      */
     fun renderMasterdata(
         code: MasterdataErrorCode,
         correlationId: String,
         detail: String? = null,
     ): ProblemResponse {
-        val response = coded(code.httpStatus, code.title, detail, correlationId, code.code, "MANUAL", code.owner.text)
+        val response =
+            coded(
+                code.httpStatus,
+                code.title,
+                detail,
+                correlationId,
+                code.code,
+                "MANUAL",
+                code.owner.text,
+                code.severity,
+            )
         return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
     }
 
@@ -236,6 +247,7 @@ object Problems {
         code: String,
         disposition: String,
         owner: String,
+        severity: String = BLOCK,
     ): StoredResponse {
         val node =
             mapper.createObjectNode().apply {
@@ -245,7 +257,7 @@ object Problems {
                 detail?.let { put("detail", it) }
                 put("correlationId", correlationId)
                 put("code", code)
-                put("severity", BLOCK)
+                put("severity", severity)
                 put("disposition", disposition)
                 put("remediationOwner", owner)
             }

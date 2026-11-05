@@ -8,10 +8,12 @@ import org.yaml.snakeyaml.Yaml
 import tools.jackson.databind.ObjectMapper
 
 /**
- * MDM-005 against the pinned catalogue snapshot (`src/implTest/resources/contracts/catalogue/errors/error-codes.yaml`):
- * the snapshot holds exactly one MDM-005 row, the enum has exactly that one entry, and its code, title (the row's
- * condition in full) and owner equal the row's (coordinator ruling INV-Q-7886 A). The status is the 422 that INV-T-7894
- * declares for MDM-005 on `resolveCounterparty`. The rendered envelope validates against the pinned schema.
+ * MDM-005 and MDM-007 against the pinned catalogue snapshot (`src/implTest/resources/contracts/catalogue/errors/
+ * error-codes.yaml`; INV-AC-16982): the snapshot holds exactly one row for each, the enum has exactly those two
+ * entries, and each entry's code, title (the row's condition in full), owner and severity equal its row's
+ * (coordinator rulings INV-Q-7886 A and INV-Q-16979 A). The status is the 422 that `resolveCounterparty` declares for
+ * MDM-005 and the 409 that `confirmRegisterSuggestion` declares for MDM-007. Each rendered envelope validates
+ * against the pinned schema.
  */
 class MasterdataErrorCodeTest {
     private class Row(
@@ -37,43 +39,62 @@ class MasterdataErrorCodeTest {
                     it["owner"].toString(),
                 )
             }
-        }.filter { it.code == "MDM-005" }
+        }.filter { it.code == "MDM-005" || it.code == "MDM-007" }
+
+    private val declaredStatus =
+        mapOf(
+            MasterdataErrorCode.IDENTITY_TRIPLE_NOT_CONFIGURED to 422,
+            MasterdataErrorCode.COUNTERPARTY_GSTN_CONFLICT to 409,
+        )
+
+    private fun rowOf(entry: MasterdataErrorCode): Row = rows.single { it.code == entry.code }
 
     @Test
-    fun `the snapshot holds exactly one MDM-005 row and the enum exactly one entry`() {
-        rows.size shouldBe 1
-        MasterdataErrorCode.entries.size shouldBe 1
-        MasterdataErrorCode.Owner.entries.size shouldBe 1
+    fun `the snapshot holds exactly one row for each of MDM-005 and MDM-007 and the enum exactly two entries`() {
+        rows.size shouldBe 2
+        rows.count { it.code == "MDM-005" } shouldBe 1
+        rows.count { it.code == "MDM-007" } shouldBe 1
+        MasterdataErrorCode.entries.size shouldBe 2
+        MasterdataErrorCode.entries.toSet() shouldBe declaredStatus.keys
+        MasterdataErrorCode.Owner.entries.size shouldBe 2
     }
 
     @Test
-    fun `the code, title, owner and status of the entry are the row's and the declared 422`() {
-        val row = rows.single()
-        val entry = MasterdataErrorCode.entries.single()
-        entry shouldBe MasterdataErrorCode.IDENTITY_TRIPLE_NOT_CONFIGURED
-        entry.code shouldBe row.code
-        entry.title shouldBe row.condition
-        entry.owner.text shouldBe row.owner
-        entry.httpStatus shouldBe 422
+    fun `the code, title, owner, severity and status of each entry are the row's and the declared status`() {
+        MasterdataErrorCode.entries.forEach { entry ->
+            val row = rowOf(entry)
+            entry.code shouldBe row.code
+            entry.title shouldBe row.condition
+            entry.owner.text shouldBe row.owner
+            entry.severity shouldBe row.severity
+            entry.httpStatus shouldBe declaredStatus.getValue(entry)
+        }
+        MasterdataErrorCode.IDENTITY_TRIPLE_NOT_CONFIGURED.code shouldBe "MDM-005"
+        MasterdataErrorCode.IDENTITY_TRIPLE_NOT_CONFIGURED.severity shouldBe "BLOCK"
+        MasterdataErrorCode.COUNTERPARTY_GSTN_CONFLICT.code shouldBe "MDM-007"
+        MasterdataErrorCode.COUNTERPARTY_GSTN_CONFLICT.severity shouldBe "WARN"
     }
 
     @Test
-    fun `renderMasterdata gives a 422 envelope with the row's severity and disposition that validates`() {
-        val row = rows.single()
-        val code = MasterdataErrorCode.IDENTITY_TRIPLE_NOT_CONFIGURED
-        val response = Problems.renderMasterdata(code, "corr-1", "what went wrong")
-        response.status shouldBe 422
-        response.headers shouldBe mapOf("Content-Type" to "application/problem+json")
-        val body = mapper.readTree(response.body)
-        contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
-        body.get("code").asString() shouldBe row.code
-        body.get("title").asString() shouldBe row.condition
-        body.get("status").asInt() shouldBe 422
-        body.get("severity").asString() shouldBe row.severity
-        body.get("disposition").asString() shouldBe row.disposition
-        body.get("remediationOwner").asString() shouldBe row.owner
-        body.get("correlationId").asString() shouldBe "corr-1"
-        body.get("detail").asString() shouldBe "what went wrong"
-        mapper.readTree(Problems.renderMasterdata(code, "c").body).has("detail") shouldBe false
+    fun `renderMasterdata gives the entry's status with the row's severity and disposition and validates`() {
+        MasterdataErrorCode.entries.forEach { code ->
+            val row = rowOf(code)
+            val status = declaredStatus.getValue(code)
+            val response = Problems.renderMasterdata(code, "corr-1", "what went wrong")
+            response.status shouldBe status
+            response.headers shouldBe mapOf("Content-Type" to "application/problem+json")
+            response.headers shouldBe Problems.renderTenancy(TenancyErrorCode.entries.first(), "corr-1").headers
+            val body = mapper.readTree(response.body)
+            contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+            body.get("code").asString() shouldBe row.code
+            body.get("title").asString() shouldBe row.condition
+            body.get("status").asInt() shouldBe status
+            body.get("severity").asString() shouldBe row.severity
+            body.get("disposition").asString() shouldBe row.disposition
+            body.get("remediationOwner").asString() shouldBe row.owner
+            body.get("correlationId").asString() shouldBe "corr-1"
+            body.get("detail").asString() shouldBe "what went wrong"
+            mapper.readTree(Problems.renderMasterdata(code, "c").body).has("detail") shouldBe false
+        }
     }
 }
