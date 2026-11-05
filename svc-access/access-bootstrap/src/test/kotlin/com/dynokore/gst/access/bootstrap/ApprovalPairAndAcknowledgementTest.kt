@@ -25,11 +25,6 @@ class ApprovalPairAndAcknowledgementTest {
 
     private fun ApprovalEnv.tenantScope() = "tenant:$tenant"
 
-    private fun ApprovalEnv.bothFor(person: String) {
-        grant(person, "tax.approver", "entity:ENT-1")
-        grant(person, "tenant.admin", tenantScope())
-    }
-
     @Test
     fun `INV-AC-2042 the pair is refused in both orders without the acknowledgement and granted with it`() =
         approvalRun { env ->

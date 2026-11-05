@@ -71,6 +71,7 @@ sealed interface PackVerdict {
  * not know allows nothing.
  */
 object PackApprovalRules {
+    @Suppress("LongParameterList") // the question of INV-T-4936: option, two people, standing, acknowledgement, prior
     fun decide(
         option: PackApprovalOption,
         author: IdentityRef,

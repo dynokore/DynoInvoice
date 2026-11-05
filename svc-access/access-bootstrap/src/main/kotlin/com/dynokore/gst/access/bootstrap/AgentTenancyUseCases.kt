@@ -53,8 +53,10 @@ class AgentTenancyUseCases {
         properties: GstProperties,
     ): AgentTenancy = VariationPointAgentTenancy(reader, clock, properties.form.name == "SAAS")
 
-    /** The checks `setPolicy` asks of its owning service: VP-73 (INV-Q-3167), the pair of VP-08, VP-74 (INV-REQ-2757
-     * behaviour 4), VP-82 (INV-REQ-9271) and the amount of VP-32 (INV-REQ-1293); no other variation point is checked. */
+    /**
+     * The checks `setPolicy` asks of its owning service: VP-73 (INV-Q-3167), the pair of VP-08, VP-74 (INV-REQ-2757
+     * behaviour 4), VP-82 (INV-REQ-9271) and the amount of VP-32 (INV-REQ-1293); no other variation point is checked.
+     */
     @Bean
     fun valueConstraints(
         catalogue: RoleCatalogue,

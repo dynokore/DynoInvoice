@@ -114,6 +114,7 @@ class ApprovalUseCases {
         identities: Identities,
     ) = ApproverStandings(authorise, identities)
 
+    @Suppress("LongParameterList") // one collaborator per port of the use case
     @Bean
     fun decidePackApprovalUseCase(
         tx: TransactionRunner,

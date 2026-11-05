@@ -283,6 +283,7 @@ internal class PairsEnv(
  */
 class ConflictingPairsGrantTest {
     private val pairDetail = "these two roles cannot be held by the same person in this tenant"
+    private val overrideAckRequired = "tax.approver and tenant.admin need the recorded sole-operator acknowledgement"
     private val ackRequired = "security.officer and tenant.admin need the recorded sole-operator acknowledgement"
     private val operatorDetail = "an operator role cannot be granted in a customer tenant"
     private val operatorWires =
@@ -340,6 +341,11 @@ class ConflictingPairsGrantTest {
 
             setOf(held, Role.ofWire(granted)) == setOf(Role.SECURITY_OFFICER, Role.TENANT_ADMIN) -> {
                 "${ClosedErrorCode.ACCESS_DENIED}:$ackRequired"
+            }
+
+            // the override pair of INV-T-4936 (INV-REQ-860)
+            setOf(held, Role.ofWire(granted)) == setOf(Role.TAX_APPROVER, Role.TENANT_ADMIN) -> {
+                "${ClosedErrorCode.ACCESS_DENIED}:$overrideAckRequired"
             }
 
             else -> {

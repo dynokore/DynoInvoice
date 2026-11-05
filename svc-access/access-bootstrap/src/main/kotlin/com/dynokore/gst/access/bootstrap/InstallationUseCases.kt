@@ -98,6 +98,7 @@ class InstallationUseCases {
         mapper: ObjectMapper,
     ): InstallationJournal = StoreBackedJournal(store, tx, mapper)
 
+    @Suppress("LongParameterList") // one collaborator per port of the use case
     @Bean
     fun installationFactOperations(
         recordFact: RecordInstallationFactUseCase,

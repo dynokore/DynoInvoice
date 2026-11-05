@@ -116,6 +116,7 @@ class ApprovalRulesTest {
     private val above = OverridePolicy(OverrideReleaseOption.SECOND_APPROVER_ABOVE_AMOUNT, BigDecimal("1000.00"))
     private val always = OverridePolicy(OverrideReleaseOption.SECOND_APPROVER_ALWAYS, null)
 
+    @Suppress("LongParameterList") // test helper mirroring the rule's inputs
     private fun release(
         policy: OverridePolicy,
         total: String?,

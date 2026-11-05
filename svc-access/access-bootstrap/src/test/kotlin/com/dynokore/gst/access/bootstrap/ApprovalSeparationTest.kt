@@ -61,6 +61,7 @@ class ApprovalSeparationTest {
             block: () -> T,
         ): T = tenants.bind(tenant, identity) { block() }
 
+        @Suppress("LongParameterList") // test helper mirroring the grantRole request
         fun grant(
             caller: String,
             identity: String,
