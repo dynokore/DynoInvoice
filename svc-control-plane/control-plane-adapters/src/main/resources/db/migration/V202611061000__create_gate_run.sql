@@ -1,4 +1,4 @@
--- V202610311000__create_gate_run.sql (TPL-12, CS-19, INV-T-8749, INV-REQ-2657, INV-Q-8717 A, INV-Q-10647)
+-- V202611061000__create_gate_run.sql (TPL-12, CS-19, INV-T-8749, INV-REQ-2657, INV-Q-8717 A, INV-Q-10647)
 -- The gate results of a release train, recorded by recordGateRun: one row per train, gate and environment, append-only.
 -- PLATFORM data (no tenant column). recorded_by is the user ID of the caller, never a role name. The runtime login
 -- reads and appends; the service never updates or deletes a row.

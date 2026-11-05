@@ -14,6 +14,7 @@ import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
 import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
 import com.dynokore.gst.controlPlane.domain.release.TrainKind
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
@@ -122,9 +123,9 @@ class RecordGateRunTest {
     fun `the same key with another result or other findings is a conflict`() {
         val failed = scenarios.copy(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1"))
         run(command(failed))
-        refusalOf(command(scenarios)) shouldBe Refusal.GATE_RUN_CONFLICT
-        refusalOf(command(failed.copy(candidateFindings = listOf("F-2")))) shouldBe Refusal.GATE_RUN_CONFLICT
-        refusalOf(command(failed.copy(evidenceRef = "x"))) shouldBe Refusal.GATE_RUN_CONFLICT
+        refusalOf(command(scenarios)) shouldBe Refusal.GATE_RUN_DIFFERENT
+        refusalOf(command(failed.copy(candidateFindings = listOf("F-2")))) shouldBe Refusal.GATE_RUN_DIFFERENT
+        refusalOf(command(failed.copy(evidenceRef = "x"))) shouldBe Refusal.GATE_RUN_DIFFERENT
         runs.rows.size shouldBe 1
     }
 
@@ -146,7 +147,7 @@ class RecordGateRunTest {
                 ReleaseRecord(emptyList(), false, ActorId("rita"), clock.instant()),
                 AccreditationCheck(false, null, null),
             )
-        refusalOf(command()) shouldBe Refusal.GATE_RUN_CONFLICT
+        refusalOf(command()) shouldBe Refusal.GATE_RUN_TRAIN_PUBLISHED
         runs.rows shouldBe emptyList()
     }
 
@@ -161,16 +162,60 @@ class RecordGateRunTest {
         runs.rows shouldBe emptyList()
     }
 
+    private fun fieldOf(command: RecordGateRunCommand) = (run(command) as Refusal).detail.substringBefore(' ')
+
+    private val published =
+        ReleaseTrain(
+            version,
+            TrainKind.TRAIN,
+            false,
+            ReleaseRecord(emptyList(), false, ActorId("rita"), clock.instant()),
+            AccreditationCheck(false, null, null),
+        )
+
     @Test
-    fun `a baseline sent with a PASSED candidate, or a gate the service produces itself, is refused`() {
+    fun `a baseline sent with a PASSED candidate is a rule refusal naming the field`() {
         refusalOf(command(scenarios.copy(baseline = GateOutcome.PASSED))) shouldBe Refusal.GATE_RUN_INVALID
+        fieldOf(command(scenarios.copy(baseline = GateOutcome.PASSED))) shouldBe "/baselineResult"
         refusalOf(command(scenarios.copy(baselineFindings = listOf("F-1")))) shouldBe Refusal.GATE_RUN_INVALID
+        fieldOf(command(scenarios.copy(baselineFindings = listOf("F-1")))) shouldBe "/baselineFindings"
+        runs.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `a gate the service produces itself is a rule refusal on the field gate`() {
         listOf(Gate.CORPUS, Gate.STAGING).forEach {
             refusalOf(command(scenarios.copy(gate = it, environment = null))) shouldBe Refusal.GATE_RUN_INVALID
-            refusalOf(command(scenarios.copy(gate = it))) shouldBe Refusal.GATE_RUN_INVALID
+            fieldOf(command(scenarios.copy(gate = it))) shouldBe "/gate"
         }
-        refusalOf(command(scenarios.copy(candidateFindings = List(501) { "F-$it" }))) shouldBe Refusal.GATE_RUN_INVALID
-        refusalOf(command(scenarios.copy(evidenceRef = "x".repeat(257)))) shouldBe Refusal.GATE_RUN_INVALID
+        fieldOf(command(scenarios.copy(environment = null))) shouldBe "/environment"
+        runs.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `a record that breaks a gate rule for a published train is the rule refusal`() {
+        trains[version] = published
+        refusalOf(command(scenarios.copy(environment = null))) shouldBe Refusal.GATE_RUN_INVALID
+    }
+
+    @Test
+    fun `a different record for the key of a published train is the published refusal`() {
+        val failed = scenarios.copy(candidate = GateOutcome.FAILED, candidateFindings = listOf("F-1"))
+        run(command(failed))
+        trains[version] = published
+        refusalOf(command(scenarios)) shouldBe Refusal.GATE_RUN_TRAIN_PUBLISHED
+    }
+
+    @Test
+    fun `a size-rule violation is no CPL refusal`() {
+        shouldThrow<IllegalArgumentException> { scenarios.copy(candidateFindings = List(501) { "F-$it" }) }
+        shouldThrow<IllegalArgumentException> { scenarios.copy(baselineFindings = List(501) { "F-$it" }) }
+        shouldThrow<IllegalArgumentException> { scenarios.copy(candidateFindings = listOf(" ")) }
+        shouldThrow<IllegalArgumentException> { scenarios.copy(candidateFindings = listOf("x".repeat(257))) }
+        shouldThrow<IllegalArgumentException> { scenarios.copy(evidenceRef = " ") }
+        shouldThrow<IllegalArgumentException> { scenarios.copy(evidenceRef = "x".repeat(257)) }
+        val atLimit = scenarios.copy(candidateFindings = List(500) { "F-$it" }, evidenceRef = "x".repeat(256))
+        atLimit.violation() shouldBe null
         runs.rows shouldBe emptyList()
     }
 }

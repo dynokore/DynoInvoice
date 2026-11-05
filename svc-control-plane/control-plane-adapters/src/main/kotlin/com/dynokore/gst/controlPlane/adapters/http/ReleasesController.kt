@@ -61,8 +61,8 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * publishTrain, setSupportWindow and recordGateRun (TPL-08). The caller is the verified token's `sub`, never a request field
- * (API-24); a train is platform data, so the command runs in a transaction bound to the platform tenant. The
+ * publishTrain, setSupportWindow and recordGateRun (TPL-08). The caller is the verified token's `sub`, never a request
+ * field (API-24); a train is platform data, so the command runs in a transaction bound to the platform tenant. The
  * accreditation task operations of the same contract tag are not overridden here: the generated interface answers
  * 501. recordAccreditation and getAccreditation are (INV-T-7322).
  * purgeAuditEntries (INV-T-3099) also sits on the `releases` tag; it runs the audited purge of the operator's local
@@ -374,10 +374,37 @@ class ReleasesController(
             // a release gate holds the train back: the detail names each gate and the finding the train introduced
             Refusal.GATE_FAILED,
             Refusal.NO_GATE_EVIDENCE,
-            Refusal.GATE_RUN_INVALID,
-            Refusal.GATE_RUN_CONFLICT,
             -> {
                 problem(ClosedErrorCode.CONTRACT_VIOLATION, correlationId, "${refusal.code}: ${refusal.detail}")
+            }
+
+            // recordGateRun (INV-Q-14041 A): the detail of a rule refusal starts with the field of the request
+            Refusal.GATE_RUN_INVALID -> {
+                throw ProblemException(
+                    GateRunProblems.render(
+                        GateRunProblems.RULE_BROKEN,
+                        refusal.detail.substringBefore(' '),
+                        refusal.detail.substringAfter(' '),
+                        correlationId,
+                    ),
+                )
+            }
+
+            Refusal.GATE_RUN_TRAIN_PUBLISHED -> {
+                throw ProblemException(
+                    GateRunProblems.render(
+                        GateRunProblems.TRAIN_PUBLISHED,
+                        "/trainVersion",
+                        refusal.detail,
+                        correlationId,
+                    ),
+                )
+            }
+
+            Refusal.GATE_RUN_DIFFERENT -> {
+                throw ProblemException(
+                    GateRunProblems.render(GateRunProblems.RECORD_DIFFERS, "/gate", refusal.detail, correlationId),
+                )
             }
 
             else -> {

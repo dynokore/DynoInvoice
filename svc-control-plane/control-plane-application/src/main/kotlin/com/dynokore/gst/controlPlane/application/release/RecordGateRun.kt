@@ -34,8 +34,8 @@ data class GateRunState(
  * recordGateRun (/internal/v1/control-plane/release-trains/{trainVersion}/gate-runs): a holder of the certify
  * permission records one gate result of a release train (INV-REQ-2657). The record is append-only and holds the user ID
  * of the caller (INV-Q-10647). A repeat of the same result returns the stored record; a different result for the same
- * key, or any record for a train already published, is refused (409); a result that breaks the contract's rules is
- * refused (422).
+ * key is refused 409 CPL-005, a record for a train already published 409 CPL-004, and a result that breaks a gate rule
+ * 422 CPL-006 (INV-Q-14041 A); that is also the order when more than one applies.
  */
 class RecordGateRun(
     private val runs: GateRunRepository,
@@ -73,15 +73,15 @@ class RecordGateRun(
         val violation = command.result.violation()
         return when {
             violation != null -> {
-                Refusal(Refusal.GATE_RUN_INVALID, violation).encode()
+                Refusal(Refusal.GATE_RUN_INVALID, "${violation.field} ${violation.message}").encode()
             }
 
             state.published -> {
-                Refusal(Refusal.GATE_RUN_CONFLICT, "${command.trainVersion} is already published").encode()
+                Refusal(Refusal.GATE_RUN_TRAIN_PUBLISHED, "${command.trainVersion} is already published").encode()
             }
 
             state.existing != null -> {
-                Refusal(Refusal.GATE_RUN_CONFLICT, "${repeatKey(command)} holds a different result").encode()
+                Refusal(Refusal.GATE_RUN_DIFFERENT, "${repeatKey(command)} holds a different result").encode()
             }
 
             else -> {

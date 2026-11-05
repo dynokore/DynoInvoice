@@ -15,8 +15,10 @@ import com.dynokore.gst.controlPlane.application.audit.AuditPurgeFloorSource
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntries
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
+import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
+import com.dynokore.gst.controlPlane.application.release.RecordGateRun
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SupportWindowRepository
 import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
@@ -147,18 +149,21 @@ class AuditPurgeHttpIT {
 
     private fun yearsAgo(years: Long): Instant = Instant.now().minus(years * DAYS_PER_YEAR, ChronoUnit.DAYS)
 
-    private fun controller(
-        floors: AuditPurgeFloorSource,
-        timeout: Duration = Duration.ofSeconds(2),
-    ): ReleasesController {
-        val client =
+    private fun livePermissions(timeout: Duration) =
+        AuthoriseOperatorPermissions(
             AuthoriseClient(
                 URI.create("http://127.0.0.1:${access.address.port}"),
                 { WorkloadToken("workload-secret") },
                 { "Bearer operator-secret" },
                 timeout,
-            )
-        val permissions = AuthoriseOperatorPermissions(client)
+            ),
+        )
+
+    private fun controller(
+        floors: AuditPurgeFloorSource,
+        timeout: Duration = Duration.ofSeconds(2),
+    ): ReleasesController {
+        val permissions = livePermissions(timeout)
         val authority =
             AuditPurgeAuthority {
                 actor,
@@ -188,6 +193,7 @@ class AuditPurgeHttpIT {
             RecordAccreditation(unused<AccreditationRecords>(), noPermission, clock),
             GetAccreditation(unused<AccreditationRecords>(), noPermission, clock),
             useCase,
+            RecordGateRun(unused<GateRunRepository>(), unused<TrainRepository>(), noPermission, clock),
         )
     }
 

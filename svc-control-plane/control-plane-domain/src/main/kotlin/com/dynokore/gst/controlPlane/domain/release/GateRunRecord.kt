@@ -40,7 +40,17 @@ data class GateRunKey(
     val environment: ReferenceEnvironment?,
 )
 
-/** A gate result as a caller submits it, before it is stored. */
+/** A rule of recordGateRun a submission breaks (HTTP 422, CPL-006): the field of the request and the message. */
+data class GateRunViolation(
+    val field: String,
+    val message: String,
+)
+
+/**
+ * A gate result as a caller submits it, before it is stored. The shape limits of the contract (at most 500 findings,
+ * a finding or `evidenceRef` of 1 to 256 characters) are enforced on construction: a breach is an
+ * [IllegalArgumentException], which the HTTP edge answers as a shape violation (400 SRT-001), never as a gate rule.
+ */
 data class GateRunSubmission(
     val gate: Gate,
     val environment: ReferenceEnvironment?,
@@ -50,36 +60,38 @@ data class GateRunSubmission(
     val baselineFindings: List<String> = emptyList(),
     val evidenceRef: String? = null,
 ) {
-    /** The first rule of recordGateRun (HTTP 422) the submission breaks, or null. */
-    @Suppress("CyclomaticComplexMethod")
-    fun violation(): String? =
+    init {
+        require(candidateFindings.size <= MAX_FINDINGS) { "candidateFindings holds at most $MAX_FINDINGS entries" }
+        require(baselineFindings.size <= MAX_FINDINGS) { "baselineFindings holds at most $MAX_FINDINGS entries" }
+        require((candidateFindings + baselineFindings).none { it.isBlank() || it.length > MAX_TEXT }) {
+            "a finding is 1 to $MAX_TEXT characters"
+        }
+        require(evidenceRef == null || (evidenceRef.isNotBlank() && evidenceRef.length <= MAX_TEXT)) {
+            "evidenceRef is 1 to $MAX_TEXT characters"
+        }
+    }
+
+    /** The first gate rule of recordGateRun (HTTP 422, CPL-006) the submission breaks, or null. */
+    fun violation(): GateRunViolation? =
         when {
             gate !in RECORDABLE -> {
-                "gate $gate is not recordable"
+                GateRunViolation("/gate", "gate $gate is not recordable")
             }
 
             gate in PER_ENVIRONMENT && environment == null -> {
-                "environment is required for $gate"
+                GateRunViolation("/environment", "environment is required for $gate")
             }
 
             gate !in PER_ENVIRONMENT && environment != null -> {
-                "environment is not accepted for $gate"
+                GateRunViolation("/environment", "environment is not accepted for $gate")
             }
 
-            candidate == GateOutcome.PASSED && (baseline != null || baselineFindings.isNotEmpty()) -> {
-                "baselineResult and baselineFindings are sent only with a FAILED candidateResult"
+            candidate == GateOutcome.PASSED && baseline != null -> {
+                GateRunViolation("/baselineResult", "baselineResult is sent only with a FAILED candidateResult")
             }
 
-            candidateFindings.size > MAX_FINDINGS || baselineFindings.size > MAX_FINDINGS -> {
-                "at most $MAX_FINDINGS findings"
-            }
-
-            (candidateFindings + baselineFindings).any { it.isBlank() || it.length > MAX_TEXT } -> {
-                "a finding is 1 to $MAX_TEXT characters"
-            }
-
-            evidenceRef != null && (evidenceRef.isBlank() || evidenceRef.length > MAX_TEXT) -> {
-                "evidenceRef is 1 to $MAX_TEXT characters"
+            candidate == GateOutcome.PASSED && baselineFindings.isNotEmpty() -> {
+                GateRunViolation("/baselineFindings", "baselineFindings are sent only with a FAILED candidateResult")
             }
 
             else -> {
