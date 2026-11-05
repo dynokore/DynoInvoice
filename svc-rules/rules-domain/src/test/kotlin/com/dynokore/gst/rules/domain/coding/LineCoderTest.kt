@@ -154,7 +154,10 @@ class LineCoderTest {
                     ),
             )
         val approved = setOf("A3PL")
-        val ok = c.code(LineInput("L", elections = setOf("A3PL"), counterpartyApprovedSchemes = approved)) as LineCoding.Coded
+        val ok =
+            c.code(
+                LineInput("L", elections = setOf("A3PL"), counterpartyApprovedSchemes = approved),
+            ) as LineCoding.Coded
         ok.categoryCode shouldBe "NA"
         ok.rate shouldBe "0"
         ok.ibt022Statement shouldBe "A3PL supply."
@@ -162,7 +165,7 @@ class LineCoderTest {
         c.code(LineInput("L", elections = setOf("A3PL"))) shouldBe LineCoding.Refused(ErrorCode.RUL_011)
         val other = LineInput("L", elections = setOf("A3PL"), counterpartyApprovedSchemes = setOf("MES"))
         c.code(other) shouldBe LineCoding.Refused(ErrorCode.RUL_011)
-        c.code(LineInput("CASH", Direction.PURCHASE, "VP-53")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        c.code(LineInput("CASH", Direction.PURCHASE, setOf("VP-53"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
         c.code(LineInput("U", elections = setOf("VP-53"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
     }
 
@@ -239,7 +242,7 @@ class LineCoderTest {
     fun `INV-REQ-1805 a tag with no row for the line side is RUL-004 and any one listed scheme matches`() {
         val c = coder(mapping = arrayOf(MappingEntry("L", "NA", "A3PL"), MappingEntry("T", "SR", "CASH_ACCOUNTING")))
         // A3PL has a row for SUPPLY only; the purchase side has none
-        c.code(LineInput("L", Direction.PURCHASE, "VP-53")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        c.code(LineInput("L", Direction.PURCHASE, setOf("VP-53"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
         val two =
             selfBilling.treatments.map {
                 if (it.tag ==
@@ -254,7 +257,7 @@ class LineCoderTest {
         coder(scenario = selfBilling.copy(treatments = two), mapping = arrayOf(MappingEntry("L", "NA", "A3PL")))
             .code(anyOne)
             .shouldBeInstanceOf<LineCoding.Coded>()
-        c.code(LineInput("T", Direction.PURCHASE, "VP-53")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        c.code(LineInput("T", Direction.PURCHASE, setOf("VP-53"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
     }
 
     @Test

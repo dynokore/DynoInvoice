@@ -206,7 +206,8 @@ class SchemeHandlersTest {
             )
         val c = LineCoder(mapping, catalogue, released)
         c.code(LineInput("ACR", elections = setOf("AMCS"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
-        c.code(LineInput("ACR", elections = setOf("ACMT_RECIPIENT_ACCOUNTING"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        c.code(LineInput("ACR", elections = setOf("ACMT_RECIPIENT_ACCOUNTING"))) shouldBe
+            LineCoding.Refused(ErrorCode.RUL_004)
         c.code(LineInput("ACR", elections = setOf("ACMT"))) shouldBe coded("SR", null, null)
     }
 
@@ -249,7 +250,8 @@ class SchemeHandlersTest {
 
     @Test
     fun `INV-AC-2534 an ACMT overseas-client purchase is RUL-004 pending the open question`() {
-        coder.code(LineInput("ACOC", purchase, elections = setOf("ACMT"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        coder.code(LineInput("ACOC", purchase, elections = setOf("ACMT"))) shouldBe
+            LineCoding.Refused(ErrorCode.RUL_004)
     }
 
     @Test
@@ -272,7 +274,9 @@ class SchemeHandlersTest {
     @Test
     fun `INV-AC-2460 a line tagged AMCS from an entity that has not elected AMCS is RUL-004`() {
         listOf(null, "ARCS", "AMCS2", "amcs").forEach {
-            coder.code(LineInput("AMS", elections = setOfNotNull(it), counterpartyApprovedSchemes = setOf("AMCS"))) shouldBe
+            coder.code(
+                LineInput("AMS", elections = setOfNotNull(it), counterpartyApprovedSchemes = setOf("AMCS")),
+            ) shouldBe
                 LineCoding.Refused(ErrorCode.RUL_004)
         }
     }
@@ -300,7 +304,9 @@ class SchemeHandlersTest {
     @Test
     fun `INV-REQ-2447 the trace names the handler, the pack entry with its source class and the counterparty data`() {
         val (_, trace) =
-            coder.codeWithTrace(LineInput("A3S", elections = setOf("A3PL"), counterpartyApprovedSchemes = setOf("MES", "A3PL")))
+            coder.codeWithTrace(
+                LineInput("A3S", elections = setOf("A3PL"), counterpartyApprovedSchemes = setOf("MES", "A3PL")),
+            )
         trace["handler"] shouldBe "A3PL"
         trace["entrySourceClass"] shouldBe "INFERRED"
         trace["entrySourceReference"] shouldBe "invented"
@@ -340,20 +346,25 @@ class SchemeHandlersTest {
 
     @Test
     fun `INV-AC-2536 INV-Q-16860 the election check applies to MES IGDS AISS and SWS too`() {
-        listOf("MESS" to ("MES" to "SR"), "IGDSS" to ("IGDS" to "SR"), "AISSS" to ("AISS" to "SR"), "SWSS" to ("SWS" to "ZR"))
-            .forEach { (line, scheme) ->
-                val (tag, plainCode) = scheme
-                outcomeOf(line, tag) shouldBe (coded(plainCode, null, null) to "GENERAL_RULES")
-                outcomeOf(line) shouldBe (LineCoding.Refused(ErrorCode.RUL_004) to "SCHEME_NOT_ELECTED")
-                val other = if (tag == "SWS") "MES" else "SWS"
-                outcomeOf(line, other) shouldBe (LineCoding.Refused(ErrorCode.RUL_004) to "SCHEME_NOT_ELECTED")
-            }
+        listOf(
+            "MESS" to ("MES" to "SR"),
+            "IGDSS" to ("IGDS" to "SR"),
+            "AISSS" to ("AISS" to "SR"),
+            "SWSS" to ("SWS" to "ZR"),
+        ).forEach { (line, scheme) ->
+            val (tag, plainCode) = scheme
+            outcomeOf(line, tag) shouldBe (coded(plainCode, null, null) to "GENERAL_RULES")
+            outcomeOf(line) shouldBe (LineCoding.Refused(ErrorCode.RUL_004) to "SCHEME_NOT_ELECTED")
+            val other = if (tag == "SWS") "MES" else "SWS"
+            outcomeOf(line, other) shouldBe (LineCoding.Refused(ErrorCode.RUL_004) to "SCHEME_NOT_ELECTED")
+        }
     }
 
     @Test
     fun `INV-AC-2536 look-alike tags MESS SWSX and mes are not listed by the pack and are blocked as FLOW_BLOCKED`() {
         listOf("MESX", "SWSXX", "MESL").forEach {
-            outcomeOf(it, "MES", "SWS", "MESS", "SWSX", "mes") shouldBe (LineCoding.Refused(ErrorCode.RUL_004) to "FLOW_BLOCKED")
+            outcomeOf(it, "MES", "SWS", "MESS", "SWSX", "mes") shouldBe
+                (LineCoding.Refused(ErrorCode.RUL_004) to "FLOW_BLOCKED")
         }
     }
 

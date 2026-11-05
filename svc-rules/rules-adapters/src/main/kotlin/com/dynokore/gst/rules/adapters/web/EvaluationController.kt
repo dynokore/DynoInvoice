@@ -14,13 +14,13 @@ import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
 import com.dynokore.gst.rules.contract.model.EvaluationResultSelfBillingAssignment
 import com.dynokore.gst.rules.contract.model.PackVersionApplied
+import com.dynokore.gst.rules.domain.coding.Direction
 import com.dynokore.gst.rules.domain.coding.ELECTED_SCHEMES
 import com.dynokore.gst.rules.domain.coding.ELECTION
-import com.dynokore.gst.rules.domain.coding.NO_ELECTION
-import com.dynokore.gst.rules.domain.coding.Direction
 import com.dynokore.gst.rules.domain.coding.LineCoder
 import com.dynokore.gst.rules.domain.coding.LineCoding
 import com.dynokore.gst.rules.domain.coding.LineInput
+import com.dynokore.gst.rules.domain.coding.NO_ELECTION
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.gst.rules.domain.scope.ScopeDirection
