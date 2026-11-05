@@ -52,3 +52,6 @@ inv:
     many-versions-from: 3 # INV-REQ-1070 behaviour 1: documents with three or more versions; per-company default, overridden by configuration
     high-at-or-above: { numerator: 1, denominator: 10 } # resubmission rate from which the signal reads HIGH; per-company default, overridden by configuration
     trend-periods: 6 # periods in the resubmission trend (the contract allows at most 24); per-company default, overridden by configuration
+  compliance-evaluation:
+    # The daily compliance evaluation (INV-REQ-1069, INV-Q-12767 A, INV-Q-16757 A): a six-field cron, evaluated in UTC; no default in code.
+    cron: "0 0 2 * * *"
