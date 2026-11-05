@@ -169,7 +169,10 @@ class JobRuntimeCompositionTest {
             context.startupFailure shouldBe null
             context.containsBean("jobScheduling") shouldBe true
             context.cronTasks().map { it.expression }.toSet() shouldBe
-                setOf(JobRuntimeConfiguration.WAITING_SWEEP.schedule.cron, "0 0 2 * * *")
+                setOf(
+                    JobRuntimeConfiguration.WAITING_SWEEP.schedule.cron,
+                    context.environment.getProperty("inv.compliance-evaluation.cron"),
+                )
             context.cronTasks().size shouldBe 2
         }
     }
