@@ -165,12 +165,15 @@ open class EvaluationController(
      * The elected set and the property that supplied it (INV-Q-16862): `electedSchemes` when the request has it, even
      * when empty; else `election` as a set of one; else the empty set.
      */
-    private fun electedOf(request: EvaluateDocumentRequest): Pair<Set<String>, String> =
-        when {
-            request.electedSchemes != null -> request.electedSchemes!!.toSet() to ELECTED_SCHEMES
-            request.election != null -> setOf(request.election!!) to ELECTION
+    private fun electedOf(request: EvaluateDocumentRequest): Pair<Set<String>, String> {
+        val array = request.electedSchemes
+        val single = request.election
+        return when {
+            array != null -> array.toSet() to ELECTED_SCHEMES
+            single != null -> setOf(single) to ELECTION
             else -> emptySet<String>() to NO_ELECTION
         }
+    }
 
     private fun agreementOf(flag: Boolean?): String? = flag?.let { if (it) "AGREED" else "NOT_AGREED" }
 
