@@ -24,7 +24,7 @@ PY
 S=$(($(wc -l < "$SRC/$TSV") - 1))
 TEXT="Correctable by a superseding pack, but both activations remain in the audit trail."
 
-fresh() { rm -rf "$TMP/t"; mkdir -p "$TMP/t/spectral"; for f in "$SRC"/*/openapi.yaml; do d=$(basename "$(dirname "$f")"); mkdir "$TMP/t/$d"; cp "$f" "$TMP/t/$d/"; done; cp "$SRC/$TSV" "$TMP/t/$TSV"; }
+fresh() { rm -rf "$TMP/t"; mkdir -p "$TMP/t/spectral"; for f in "$SRC"/*/openapi.yaml; do d=$(basename "$(dirname "$f")"); mkdir "$TMP/t/$d"; cp "$f" "$TMP/t/$d/"; done; cp "$SRC/$TSV" "$TMP/t/$TSV"; cp "$SRC/rules/spec-facts.tsv" "$TMP/t/rules/"; }
 # addop <dir> <operationId> <statement|-> : append an extra COMPENSABLE operation (with the statement unless -)
 addop() { python3 -I - "$TMP/t" "$@" <<'PY'
 import sys
@@ -86,9 +86,29 @@ fresh; setcost rules armRegulatoryPack '"   "'; expect_fail statement-of-spaces 
 fresh; setcost rules armRegulatoryPack '[x]'; expect_fail statement-not-string "rules/openapi.yaml: operation armRegulatoryPack"
 fresh; addop rules armRegulatoryPack "\"$TEXT\""; expect_fail operation-declared-twice "rules/openapi.yaml: operation armRegulatoryPack: declared in 2 operations"
 
+# the pin (INV-AC-16921): each case runs the cost check and the spec-facts check on one changed copy and asserts the exit pair
+PIN="rules/openapi.yaml"
+expect_pair() { # case, expected cost exit, expected spec-facts exit, fragment the spec-facts output must hold (or -)
+  out1=$(python3 check-compensation-cost.py "$TMP/t" 2>&1); rc1=$?
+  out2=$(python3 check-spec-facts.py "$TMP/t" 2>&1); rc2=$?
+  if [ $rc1 -ne "$2" ] || [ $rc2 -ne "$3" ]; then echo "gst-ci: FAIL — INV-AC-16921 '$1' exits $rc1/$rc2, expected $2/$3"; echo "$out1"; echo "$out2"; failed=1
+  elif [ "$4" != "-" ] && ! printf '%s' "$out2" | grep -qF -- "$4"; then echo "gst-ci: FAIL — INV-AC-16921 '$1' spec-facts output lacks '$4':"; echo "$out2"; failed=1
+  else echo "gst-ci: INV-AC-16921 self-test '$1' exits $rc1/$rc2 as expected"; fi
+}
+ARMPTR="/paths/~1internal~1v1~1rules~1regulatory-packs~1{packType}~1{version}~1arming/post/x-operation/compensationCost"
+fresh; expect_pair pin-clean 0 0 -
+fresh; setcost rules armRegulatoryPack '"Correctable."'; expect_pair arm-text-non-blank-other 0 1 "$ARMPTR"
+fresh; sed -i 's/activations remain in/activations remains in/' "$TMP/t/$PIN"; expect_pair arm-text-remains 0 1 "$ARMPTR"
+fresh; setcost rules armRegulatoryPack -; expect_pair arm-text-removed 1 1 "$ARMPTR"
+fresh; addop tenancy probeOp "\"$TEXT\""; expect_pair other-op-statement 0 0 -
+fresh; addop tenancy probeOp "\"$TEXT.\""; expect_pair other-op-statement-trailing-change 0 0 -
+
 # the repository itself passes
 out=$(python3 check-compensation-cost.py .. 2>&1); rc=$?
 if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — INV-AC-15750 repository tree rejected:"; echo "$out"; failed=1; fi
+
+out=$(python3 check-spec-facts.py .. 2>&1); rc=$?
+if [ $rc -ne 0 ]; then echo "gst-ci: FAIL — INV-AC-16921 repository tree rejected by check-spec-facts:"; echo "$out"; failed=1; fi
 
 [ "$failed" -eq 0 ] && echo "gst-ci: INV-AC-15750 check-compensation-cost.py self-test passed."
 exit $failed
