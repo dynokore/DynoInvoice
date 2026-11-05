@@ -23,6 +23,7 @@ import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
 import tools.jackson.databind.ObjectMapper
@@ -37,11 +38,15 @@ private val reportLog = LoggerFactory.getLogger(BreakGlassReportFeed::class.java
  *
  * This is an auto-configuration ordered after `L1CompositionAutoConfiguration`: that class registers `TenantScope` and
  * `EventLogReader`, and a scanned configuration is read before every auto-configuration, so its `@ConditionalOnBean`
- * would never see them (the consumer would silently not exist). `RebuildRequiredSink` is no bean of the platform: the
- * service or its deployment supplies it, and without it no consumer is built.
+ * would never see them (the consumer would silently not exist). `RebuildRequiredSink` is no bean of the platform: this
+ * service binds the logging default of INV-Q-10031 A and INV-Q-10834 A, and a sink of the product replaces it.
  */
 @AutoConfiguration(afterName = ["com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration"])
 class BreakGlassReportFeed {
+    @Bean
+    @ConditionalOnMissingBean(RebuildRequiredSink::class)
+    fun rebuildRequiredSink(): RebuildRequiredSink = LoggingRebuildRequiredSink()
+
     @Bean
     fun breakGlassReportedActions(
         dsl: DSLContext,

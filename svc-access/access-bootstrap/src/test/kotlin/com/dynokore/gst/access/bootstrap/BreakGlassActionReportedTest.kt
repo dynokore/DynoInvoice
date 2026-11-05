@@ -217,7 +217,12 @@ class BreakGlassActionReportedTest {
         }
     }
 
-    private fun run(block: (Env) -> Unit) {
+    private fun run(block: (Env) -> Unit) = runWith(true, block)
+
+    private fun runWith(
+        ownSink: Boolean,
+        block: (Env) -> Unit,
+    ) {
         val topic = TopicFeed()
         BoundaryFixture
             .runner()
@@ -226,10 +231,12 @@ class BreakGlassActionReportedTest {
             .withInitializer { ctx ->
                 (ctx as org.springframework.context.support.GenericApplicationContext).apply {
                     registerBean(TopicFeed::class.java, java.util.function.Supplier { topic })
-                    registerBean(
-                        RebuildRequiredSink::class.java,
-                        java.util.function.Supplier { RebuildRequiredSink { } },
-                    )
+                    if (ownSink) {
+                        registerBean(
+                            RebuildRequiredSink::class.java,
+                            java.util.function.Supplier { RebuildRequiredSink { } },
+                        )
+                    }
                 }
             }.run { context ->
                 context.startupFailure?.let { throw it }
@@ -237,32 +244,120 @@ class BreakGlassActionReportedTest {
             }
     }
 
+    /** A port the context only holds: the beans of the feed are built, never called. */
+    private inline fun <reified T : Any> stub(): T =
+        java.lang.reflect.Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, m, _ ->
+            throw UnsupportedOperationException(m.name)
+        } as T
+
+    private fun feedOnlyRunner() =
+        org.springframework.boot.test.context.runner
+            .ApplicationContextRunner()
+            .withConfiguration(
+                org.springframework.boot.autoconfigure.AutoConfigurations
+                    .of(BreakGlassReportFeed::class.java),
+            ).withBean(org.jooq.DSLContext::class.java, {
+                org.jooq.impl.DSL
+                    .using(org.jooq.SQLDialect.POSTGRES)
+            })
+            .withBean(TenantContext::class.java, { stub<TenantContext>() })
+            .withBean(
+                com.dynokore.platform.tenancykernel.TransactionRunner::class.java,
+                { stub<com.dynokore.platform.tenancykernel.TransactionRunner>() },
+            ).withBean(
+                com.dynokore.gst.access.application.breakglass.BreakGlassSessions::class.java,
+                { stub<com.dynokore.gst.access.application.breakglass.BreakGlassSessions>() },
+            ).withBean(
+                com.dynokore.gst.access.application.breakglass.BreakGlassEffects::class.java,
+                {
+                    com.dynokore.gst.access.application.breakglass.BreakGlassEffects(
+                        stub<com.dynokore.gst.access.application.breakglass.BreakGlassAlerts>(),
+                        stub<com.dynokore.gst.access.application.grant.GrantAudit>(),
+                    )
+                },
+            ).withBean(MeterRegistry::class.java, {
+                io.micrometer.core.instrument.simple
+                    .SimpleMeterRegistry()
+            })
+            .withBean(java.time.Clock::class.java, { java.time.Clock.systemUTC() })
+            .withBean(
+                tools.jackson.databind.ObjectMapper::class.java,
+                {
+                    tools.jackson.databind.json.JsonMapper
+                        .builder()
+                        .build()
+                },
+            )
+
     @Test
     fun `INV-AC-9168 the context starts without the event-log beans, with the use case and the handler only`() {
-        BoundaryFixture
-            .runner()
-            .withBean(DirectoryGroupMembers::class.java, { MovableDirectory() })
-            .run { context ->
-                context.startupFailure?.let { throw it }
-                // no RebuildRequiredSink bean: the consumer is not built, everything else is
-                assertThat(context.getBeanNamesForType(InboxConsumer::class.java)).isEmpty()
-                assertThat(
-                    context.getBeansOfType(
-                        com.dynokore.gst.access.application.breakglass.ReportBreakGlassActionUseCase::class.java,
-                    ),
-                ).hasSize(1)
-                assertThat(
-                    context.getBeansOfType(
-                        com.dynokore.gst.access.adapters.events.BreakGlassActionReportedHandler::class.java,
-                    ),
-                ).hasSize(1)
-                assertThat(
-                    context.getBeansOfType(
-                        com.dynokore.gst.access.application.breakglass.BreakGlassReportObserver::class.java,
-                    ),
-                ).hasSize(1)
-            }
+        feedOnlyRunner().run { context ->
+            context.startupFailure?.let { throw it }
+            assertThat(context.getBeanNamesForType(EventLogReader::class.java)).isEmpty()
+            // no event-log beans: the consumer is not built, everything else is
+            assertThat(context.getBeanNamesForType(InboxConsumer::class.java)).isEmpty()
+            assertThat(context.getBeansOfType(RebuildRequiredSink::class.java).size).isEqualTo(1)
+            assertThat(
+                context.getBeansOfType(
+                    com.dynokore.gst.access.application.breakglass.ReportBreakGlassActionUseCase::class.java,
+                ),
+            ).hasSize(1)
+            assertThat(
+                context.getBeansOfType(
+                    com.dynokore.gst.access.adapters.events.BreakGlassActionReportedHandler::class.java,
+                ),
+            ).hasSize(1)
+            assertThat(
+                context.getBeansOfType(
+                    com.dynokore.gst.access.application.breakglass.BreakGlassReportObserver::class.java,
+                ),
+            ).hasSize(1)
+        }
     }
+
+    @Test
+    fun `INV-AC-9168 the feed is an auto-configuration after L1CompositionAutoConfiguration and listed once`() {
+        val annotation =
+            BreakGlassReportFeed::class.java
+                .getAnnotation(org.springframework.boot.autoconfigure.AutoConfiguration::class.java)
+        assertThat(annotation).isNotNull()
+        assertThat(annotation.afterName.toList())
+            .isEqualTo(listOf("com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration"))
+        assertThat(
+            BreakGlassReportFeed::class.java.isAnnotationPresent(
+                org.springframework.context.annotation.Configuration::class.java,
+            ),
+        ).describedAs("@AutoConfiguration is meta-annotated; the feed must carry no direct @Configuration").isFalse()
+        assertThat(
+            BreakGlassReportFeed::class.java.annotations
+                .map { it.annotationClass.java }
+                .toSet(),
+        ).doesNotContain(org.springframework.stereotype.Component::class.java)
+        val lines =
+            requireNotNull(
+                BreakGlassReportFeed::class.java.classLoader.getResourceAsStream(
+                    "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+                ),
+            ).bufferedReader().readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+        assertThat(lines).isEqualTo(listOf("com.dynokore.gst.access.bootstrap.BreakGlassReportFeed"))
+    }
+
+    @Test
+    fun `INV-AC-9168 a sink of the context is the only sink and the logging default steps aside`() =
+        runWith(true) { env ->
+            val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
+            assertThat(sinks).hasSize(1)
+            assertThat(sinks.values.single().javaClass).isNotEqualTo(LoggingRebuildRequiredSink::class.java)
+            assertThat(env.context.getBeansOfType(InboxConsumer::class.java)).hasSize(1)
+        }
+
+    @Test
+    fun `INV-AC-9168 without a product sink the logging default is bound and the consumer is built`() =
+        runWith(false) { env ->
+            val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
+            assertThat(sinks.values.map { it.javaClass }).isEqualTo(listOf(LoggingRebuildRequiredSink::class.java))
+            assertThat(env.context.getBeansOfType(InboxConsumer::class.java).size).isEqualTo(1)
+        }
 
     @Test
     fun `INV-AC-9168 an event from tenancy-svc stores one row, one alert, one audit entry and a repeat nothing more`() =
