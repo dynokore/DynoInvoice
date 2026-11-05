@@ -114,7 +114,7 @@ class LineCoderTest {
                     ),
             )
         val purchase =
-            c.code(LineInput("CA-IN", Direction.PURCHASE, election = "CUSTOMER_ACCOUNTING"))
+            c.code(LineInput("CA-IN", Direction.PURCHASE, elections = setOf("CUSTOMER_ACCOUNTING")))
                 as LineCoding.Coded
         purchase.categoryCode shouldBe "TXCA"
         purchase.prevailingRate shouldBe true
@@ -154,16 +154,16 @@ class LineCoderTest {
                     ),
             )
         val approved = setOf("A3PL")
-        val ok = c.code(LineInput("L", election = "A3PL", counterpartyApprovedSchemes = approved)) as LineCoding.Coded
+        val ok = c.code(LineInput("L", elections = setOf("A3PL"), counterpartyApprovedSchemes = approved)) as LineCoding.Coded
         ok.categoryCode shouldBe "NA"
         ok.rate shouldBe "0"
         ok.ibt022Statement shouldBe "A3PL supply."
         c.code(LineInput("L", counterpartyApprovedSchemes = approved)) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
-        c.code(LineInput("L", election = "A3PL")) shouldBe LineCoding.Refused(ErrorCode.RUL_011)
-        val other = LineInput("L", election = "A3PL", counterpartyApprovedSchemes = setOf("MES"))
+        c.code(LineInput("L", elections = setOf("A3PL"))) shouldBe LineCoding.Refused(ErrorCode.RUL_011)
+        val other = LineInput("L", elections = setOf("A3PL"), counterpartyApprovedSchemes = setOf("MES"))
         c.code(other) shouldBe LineCoding.Refused(ErrorCode.RUL_011)
         c.code(LineInput("CASH", Direction.PURCHASE, "VP-53")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
-        c.code(LineInput("U", election = "VP-53")) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
+        c.code(LineInput("U", elections = setOf("VP-53"))) shouldBe LineCoding.Refused(ErrorCode.RUL_004)
     }
 
     @Test
@@ -171,7 +171,7 @@ class LineCoderTest {
         val mapping = arrayOf(MappingEntry("L", "NA", "A3PL"))
         val raised = selfBilling.treatments.map { if (it.tag == "A3PL") it.copy(rate = "5") else it }
         val changed = selfBilling.copy(treatments = raised)
-        val input = LineInput("L", election = "A3PL", counterpartyApprovedSchemes = setOf("A3PL"))
+        val input = LineInput("L", elections = setOf("A3PL"), counterpartyApprovedSchemes = setOf("A3PL"))
         (coder(mapping = mapping).code(input) as LineCoding.Coded).rate shouldBe "0"
         (coder(scenario = changed, mapping = mapping).code(input) as LineCoding.Coded).rate shouldBe "5"
     }
@@ -250,7 +250,7 @@ class LineCoderTest {
                     it
                 }
             }
-        val anyOne = LineInput("L", election = "A3PL", counterpartyApprovedSchemes = setOf("A3PL", "MES"))
+        val anyOne = LineInput("L", elections = setOf("A3PL"), counterpartyApprovedSchemes = setOf("A3PL", "MES"))
         coder(scenario = selfBilling.copy(treatments = two), mapping = arrayOf(MappingEntry("L", "NA", "A3PL")))
             .code(anyOne)
             .shouldBeInstanceOf<LineCoding.Coded>()

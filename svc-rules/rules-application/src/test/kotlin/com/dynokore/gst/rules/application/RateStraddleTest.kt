@@ -58,7 +58,7 @@ class RateStraddleTest {
     private val creditNotes = CreditNoteCoding(coder)
 
     private val line =
-        DocumentLine("1", BigDecimal("100.00"), BigDecimal("0.00"), LineInput("STD", null, election = "x"))
+        DocumentLine("1", BigDecimal("100.00"), BigDecimal("0.00"), LineInput("STD", null, elections = setOf("x")))
 
     private fun invoice(date: LocalDate) =
         coder

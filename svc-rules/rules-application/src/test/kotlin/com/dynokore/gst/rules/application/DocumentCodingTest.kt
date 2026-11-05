@@ -106,7 +106,7 @@ class DocumentCodingTest {
         code: String,
         direction: Direction? = null,
         tax: String = "0.00",
-    ) = DocumentLine(id, BigDecimal(amount), BigDecimal(tax), LineInput(code, direction, election = code))
+    ) = DocumentLine(id, BigDecimal(amount), BigDecimal(tax), LineInput(code, direction, elections = setOf(code)))
 
     private fun command(
         date: LocalDate,

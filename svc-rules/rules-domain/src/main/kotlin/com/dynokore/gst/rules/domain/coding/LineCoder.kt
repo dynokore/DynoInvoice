@@ -7,7 +7,10 @@ import com.dynokore.gst.catalogue.Severity
 data class LineInput(
     val internalTaxCode: String,
     val direction: Direction? = null,
-    val election: String? = null,
+    /** The schemes the entity has elected (INV-Q-16862); the caller resolves the request into this set. */
+    val elections: Set<String> = emptySet(),
+    /** Which request property supplied [elections]: [ELECTED_SCHEMES], [ELECTION] or [NO_ELECTION] (decision trace). */
+    val electionsSource: String = NO_ELECTION,
     /** The counterparty's approved schemes; null when the masterdata resolution gave no scheme data. */
     val counterpartyApprovedSchemes: Set<String>? = null,
     /** The line's own ARCS written-agreement value; it overrides the counterparty's default (INV-REQ-2434). */
@@ -15,6 +18,11 @@ data class LineInput(
     /** The counterparty's default ARCS written-agreement value; absent with the line's own means NOT_AGREED. */
     val counterpartyWrittenAgreement: String? = null,
 )
+
+/** The request property that supplied the elected set (INV-Q-16862). */
+const val ELECTED_SCHEMES = "electedSchemes"
+const val ELECTION = "election"
+const val NO_ELECTION = "none"
 
 sealed interface LineCoding {
     /**
@@ -113,7 +121,8 @@ class LineCoder(
             mapOf(
                 "handler" to tag,
                 "side" to side.name,
-                "election" to line.election.orEmpty(),
+                "elections" to line.elections.sorted().joinToString(","),
+                "electionsSource" to line.electionsSource,
                 "counterpartyApprovedSchemes" to
                     line.counterpartyApprovedSchemes
                         .orEmpty()
@@ -129,7 +138,7 @@ class LineCoder(
                 LineCoding.Refused(ErrorCode.RUL_004) to (base + ("outcome" to "FLOW_BLOCKED"))
             }
 
-            !electionSatisfied(tag, side, row.parentScheme ?: tag, line.election) -> {
+            !electionSatisfied(tag, side, row.parentScheme ?: tag, line.elections) -> {
                 LineCoding.Refused(ErrorCode.RUL_004) to (base + ("outcome" to "SCHEME_NOT_ELECTED"))
             }
 
@@ -152,8 +161,8 @@ class LineCoder(
         tag: String,
         side: Side,
         required: String,
-        election: String?,
-    ): Boolean = election == required || (tag to side) == RECIPIENT_WITHOUT_ELECTION
+        elections: Set<String>,
+    ): Boolean = required in elections || (tag to side) == RECIPIENT_WITHOUT_ELECTION
 
     /** The line's own value, else the counterparty's, else NOT_AGREED: the waiver treatment (INV-REQ-2434 b4). */
     private fun agreementOf(line: LineInput): String =

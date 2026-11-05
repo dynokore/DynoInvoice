@@ -303,10 +303,12 @@ class SchemeHandlerBoundaryTest {
         purchase: Boolean = false,
         counterpartyAgreed: Boolean? = null,
         lineAgreed: Boolean? = null,
+        electedSchemes: List<String>? = null,
     ): EvaluationResult {
         val json =
             """{"entityRef":"E1","transactionDate":"2026-04-01","internalTaxCode":"$code"""" +
                 election?.let { ""","election":"$it"""" }.orEmpty() +
+                electedSchemes?.let { ""","electedSchemes":${quoted(it)}""" }.orEmpty() +
                 schemes
                     ?.let { s ->
                         ""","counterpartySchemeData":{"approvedSchemes":${quoted(s)}""" +
@@ -431,6 +433,22 @@ class SchemeHandlerBoundaryTest {
         eval(f(), "ACR", "AMCS").blockedWith("RUL-004")
         eval(f(), "ACR", null).blockedWith("RUL-004")
         eval(f(), "ACR", "ACMT").categoryCode shouldBe "SR"
+    }
+
+    @Test
+    fun `INV-AC-2537 the electedSchemes array wins over election even when empty and the trace names the source`() {
+        val both = eval(fixture(), "ARS", "ARCS", listOf("ARCS"), electedSchemes = listOf("ACMT", "ARCS"))
+        both.treated() shouldBe Triple("NA", "0", arcs)
+        both.decisionTrace?.get("elections") shouldBe "ACMT,ARCS"
+        both.decisionTrace?.get("electionsSource") shouldBe "electedSchemes"
+        eval(fixture(), "ARS", "ARCS", listOf("ARCS"), electedSchemes = listOf("ACMT")).blockedWith("RUL-004")
+        val empty = eval(fixture(), "ARS", "ARCS", listOf("ARCS"), electedSchemes = emptyList())
+        empty.blockedWith("RUL-004")
+        empty.decisionTrace?.get("electionsSource") shouldBe "electedSchemes"
+        val legacy = eval(fixture(), "ARS", "ARCS", listOf("ARCS"))
+        legacy.treated() shouldBe Triple("NA", "0", arcs)
+        legacy.decisionTrace?.get("electionsSource") shouldBe "election"
+        eval(fixture(), "ARS", null, listOf("ARCS")).decisionTrace?.get("electionsSource") shouldBe "none"
     }
 
     @Test

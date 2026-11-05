@@ -14,6 +14,9 @@ import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
 import com.dynokore.gst.rules.contract.model.EvaluationResultSelfBillingAssignment
 import com.dynokore.gst.rules.contract.model.PackVersionApplied
+import com.dynokore.gst.rules.domain.coding.ELECTED_SCHEMES
+import com.dynokore.gst.rules.domain.coding.ELECTION
+import com.dynokore.gst.rules.domain.coding.NO_ELECTION
 import com.dynokore.gst.rules.domain.coding.Direction
 import com.dynokore.gst.rules.domain.coding.LineCoder
 import com.dynokore.gst.rules.domain.coding.LineCoding
@@ -59,11 +62,13 @@ open class EvaluationController(
         // one resolution date per document: the preceding document's for a linked credit note, which the caller
         // derives and passes in (INV-REQ-362 behavior 4); never derived here
         val date = TransactionDate(request.precedingDocumentDate ?: request.transactionDate)
+        val elected = electedOf(request)
         val input =
             LineInput(
                 internalTaxCode = request.internalTaxCode,
                 direction = request.direction?.let { Direction.valueOf(it.value) },
-                election = request.election,
+                elections = elected.first,
+                electionsSource = elected.second,
                 counterpartyApprovedSchemes = request.counterpartySchemeData?.approvedSchemes?.toSet(),
                 writtenAgreement = agreementOf(request.lineArcsGstChargeAgreed),
                 counterpartyWrittenAgreement = agreementOf(request.counterpartySchemeData?.arcsGstChargeAgreed),
@@ -154,6 +159,17 @@ open class EvaluationController(
                 checkNotNull(packs.catalogueAt(tenant, date)),
                 checkNotNull(packs.scenarioAt(tenant, date)),
             ).codeWithTrace(input).second.takeIf { it.isNotEmpty() }
+        }
+
+    /**
+     * The elected set and the property that supplied it (INV-Q-16862): `electedSchemes` when the request has it, even
+     * when empty; else `election` as a set of one; else the empty set.
+     */
+    private fun electedOf(request: EvaluateDocumentRequest): Pair<Set<String>, String> =
+        when {
+            request.electedSchemes != null -> request.electedSchemes!!.toSet() to ELECTED_SCHEMES
+            request.election != null -> setOf(request.election!!) to ELECTION
+            else -> emptySet<String>() to NO_ELECTION
         }
 
     private fun agreementOf(flag: Boolean?): String? = flag?.let { if (it) "AGREED" else "NOT_AGREED" }
