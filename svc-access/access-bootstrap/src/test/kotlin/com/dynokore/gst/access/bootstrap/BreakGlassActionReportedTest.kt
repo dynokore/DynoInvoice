@@ -316,6 +316,42 @@ class BreakGlassActionReportedTest {
     }
 
     @Test
+    fun `INV-AC-9168 the feed is an auto-configuration after L1CompositionAutoConfiguration and listed once`() {
+        val annotation =
+            BreakGlassReportFeed::class.java
+                .getAnnotation(org.springframework.boot.autoconfigure.AutoConfiguration::class.java)
+        assertThat(annotation).isNotNull()
+        assertThat(annotation.afterName.toList())
+            .isEqualTo(listOf("com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration"))
+        assertThat(
+            BreakGlassReportFeed::class.java.isAnnotationPresent(
+                org.springframework.context.annotation.Configuration::class.java,
+            ),
+        ).describedAs("@AutoConfiguration is meta-annotated; the feed must carry no direct @Configuration").isFalse()
+        assertThat(
+            BreakGlassReportFeed::class.java.annotations
+                .map { it.annotationClass.java }
+                .toSet(),
+        ).doesNotContain(org.springframework.stereotype.Component::class.java)
+        val lines =
+            requireNotNull(
+                BreakGlassReportFeed::class.java.classLoader.getResourceAsStream(
+                    "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+                ),
+            ).bufferedReader().readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+        assertThat(lines).isEqualTo(listOf("com.dynokore.gst.access.bootstrap.BreakGlassReportFeed"))
+    }
+
+    @Test
+    fun `INV-AC-9168 a sink of the context is the only sink and the logging default steps aside`() =
+        runWith(true) { env ->
+            val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
+            assertThat(sinks).hasSize(1)
+            assertThat(sinks.values.single().javaClass).isNotEqualTo(LoggingRebuildRequiredSink::class.java)
+            assertThat(env.context.getBeansOfType(InboxConsumer::class.java)).hasSize(1)
+        }
+
+    @Test
     fun `INV-AC-9168 without a product sink the logging default is bound and the consumer is built`() =
         runWith(false) { env ->
             val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
