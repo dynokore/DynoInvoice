@@ -13,6 +13,7 @@ import com.dynokore.platform.serviceruntime.replica.EntityProfileChanged
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.ProfileEntry
 import com.dynokore.platform.serviceruntime.replica.StructureChange
+import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
 import com.dynokore.platform.serviceruntime.replica.StructureEvent
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
@@ -78,6 +79,7 @@ class StructureFeedHandler(
             code = code,
             profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
             structureVersion = structureVersion.toLong(),
+            environment = environment?.let { StructureEnvironment.of(it.value) },
         )
 
     private fun EntityProfileChangedPayloadNode.toReplicaNode() =

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-05
+### Changed
+- Depends on `service-runtime 10.33.0` and pins `platformContractsBundle` to `0.0.0-dev+0fc8d662`: `StructureFeedHandler` (`OrganisationStructureChanged` only) and `TenancyStructureFallback` fill `StructureNode.environment` from the generated tenancy types (absent gives null, an unrecognised value gives UNKNOWN) (INV-T-9157, INV-T-11807).
+
 ## [2.6.0] - 2026-11-05
 ### Added
 - `PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED` (`gst.platform.operator-session-keys-changed.v1`), in `ALL` after `AUTHORITY_CHANGED` (INV-Q-16498 A, INV-REQ-1226, INV-AC-16503, INV-T-16507).

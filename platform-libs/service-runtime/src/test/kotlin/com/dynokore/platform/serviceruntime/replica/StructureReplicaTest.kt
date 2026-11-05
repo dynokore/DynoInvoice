@@ -56,6 +56,43 @@ class StructureReplicaTest {
     }
 
     @Test
+    fun `StructureEnvironment of maps exact names and everything else to UNKNOWN`() {
+        StructureEnvironment.entries.toList() shouldBe
+            listOf(StructureEnvironment.PRODUCTION, StructureEnvironment.SANDBOX, StructureEnvironment.UNKNOWN)
+        StructureEnvironment.of("PRODUCTION") shouldBe StructureEnvironment.PRODUCTION
+        StructureEnvironment.of("SANDBOX") shouldBe StructureEnvironment.SANDBOX
+        listOf("sandbox", "Sandbox", " SANDBOX", "SANDBOX ", "PRODUCTION2", "", "UNKNOWN").forEach {
+            StructureEnvironment.of(it) shouldBe StructureEnvironment.UNKNOWN
+        }
+    }
+
+    @Test
+    fun `the seven-argument constructor still exists and builds a node without environment`() {
+        val ctor =
+            StructureNode::class.java.getConstructor(
+                StructureNodeKind::class.java,
+                String::class.java,
+                Boolean::class.javaPrimitiveType,
+                String::class.java,
+                String::class.java,
+                List::class.java,
+                Long::class.javaPrimitiveType,
+            )
+        val built = ctor.newInstance(StructureNodeKind.TENANT, null, false, "Acme", null, emptyList<ProfileEntry>(), 1L)
+        built.environment shouldBe null
+    }
+
+    @Test
+    fun `a later node without environment replaces a node that had one whole`() {
+        feed.publish(org("e1", StructureChange.CREATED, node("g1", 1).copy(environment = StructureEnvironment.SANDBOX)))
+        held().environment shouldBe StructureEnvironment.SANDBOX
+        feed.publish(org("e1", StructureChange.UPDATED, node("g1", 2)))
+        held().environment shouldBe null
+        feed.publish(org("e1", StructureChange.UPDATED, node("g1", 1).copy(environment = StructureEnvironment.SANDBOX)))
+        held().environment shouldBe null
+    }
+
+    @Test
     fun `a move and a retirement replace the node`() {
         feed.publish(org("e1", StructureChange.CREATED, node("g1", 1)))
         feed.publish(org("e1", StructureChange.MOVED, node("g2", 2)))

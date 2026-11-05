@@ -82,7 +82,7 @@ reactiveStreams = "1.0.4"
 gstCatalogue = "2.11.0"
 # product-runtime (INV-T-2876, INV-Q-3852): the published platform-contracts bundle its event types and fallback
 # clients are generated from; a main build including INV-T-3298 (fadead4). Bumped deliberately, like gstCatalogue.
-platformContractsBundle = "0.0.0-dev+fadead44"
+platformContractsBundle = "0.0.0-dev+0fc8d662"
 # service-runtime (INV-T-12602): the bundle whose service-runtime/openapi.yaml its sync-edge-callers.tsv is generated from;
 # the first main build with setPolicy's x-sync-edge (platform-contracts 3cdff63e). Bumped deliberately.
 platformContractsServiceRuntimeBundle = "0.0.0-dev+3cdff63e"

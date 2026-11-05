@@ -20,6 +20,21 @@ enum class StructureNodeKind {
 }
 
 /**
+ * A tenant's environment as the tenancy contract carries it on a TENANT node (INV-Q-11799). [UNKNOWN] is
+ * any wire value this version does not recognise; it is never read as [PRODUCTION].
+ */
+enum class StructureEnvironment {
+    PRODUCTION,
+    SANDBOX,
+    UNKNOWN,
+    ;
+
+    companion object {
+        fun of(wire: String): StructureEnvironment = entries.firstOrNull { it != UNKNOWN && it.name == wire } ?: UNKNOWN
+    }
+}
+
+/**
  * `OrganisationStructureChanged`'s changeType (INV-Q-3337). [UNKNOWN] is any wire value this version does
  * not recognise; whatever the value, the event's full-state node is applied.
  */
@@ -52,34 +67,37 @@ data class ProfileEntry(
  * One node of a tenant's organisation structure: the full node state that both structure events and a
  * `getEntityStructure` fill carry (INV-Q-3324 (a)), replaced whole and versioned by [structureVersion].
  */
-data class StructureNode(
-    val kind: StructureNodeKind,
-    val parentRef: String?,
-    val retired: Boolean,
-    val name: String,
-    val code: String?,
-    val profile: List<ProfileEntry>,
-    val structureVersion: Long,
-) {
-    /**
-     * The value of [attribute] in force on [onDate]: the entry with the latest effective date not after
-     * it. A future-dated entry is never served before its date; null when none is in force.
-     */
-    fun attribute(
-        attribute: String,
-        onDate: LocalDate,
-    ): String? =
-        profile
-            .filter { it.attribute == attribute && !it.effectiveDate.isAfter(onDate) }
-            .maxByOrNull { it.effectiveDate }
-            ?.value
+data class StructureNode
+    @JvmOverloads
+    constructor(
+        val kind: StructureNodeKind,
+        val parentRef: String?,
+        val retired: Boolean,
+        val name: String,
+        val code: String?,
+        val profile: List<ProfileEntry>,
+        val structureVersion: Long,
+        val environment: StructureEnvironment? = null,
+    ) {
+        /**
+         * The value of [attribute] in force on [onDate]: the entry with the latest effective date not after
+         * it. A future-dated entry is never served before its date; null when none is in force.
+         */
+        fun attribute(
+            attribute: String,
+            onDate: LocalDate,
+        ): String? =
+            profile
+                .filter { it.attribute == attribute && !it.effectiveDate.isAfter(onDate) }
+                .maxByOrNull { it.effectiveDate }
+                ?.value
 
-    /** Every attribute in force on [onDate]. */
-    fun profileOn(onDate: LocalDate): Map<String, String> {
-        val names = profile.map { it.attribute }.distinct()
-        return names.mapNotNull { name -> attribute(name, onDate)?.let { name to it } }.toMap()
+        /** Every attribute in force on [onDate]. */
+        fun profileOn(onDate: LocalDate): Map<String, String> {
+            val names = profile.map { it.attribute }.distinct()
+            return names.mapNotNull { name -> attribute(name, onDate)?.let { name to it } }.toMap()
+        }
     }
-}
 
 /** The two events that feed the structure replica, each carrying the node's full state after the change. */
 sealed interface StructureEvent {

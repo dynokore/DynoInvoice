@@ -3,6 +3,7 @@ package com.dynokore.platform.productruntime.fallback
 import com.dynokore.gst.productRuntimeTenancyClient.adapters.clients.api.EntitiesApi
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.ProfileEntry
+import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
 import com.dynokore.platform.serviceruntime.replica.StructureFallback
 import com.dynokore.platform.serviceruntime.replica.StructureKey
 import com.dynokore.platform.serviceruntime.replica.StructureNode
@@ -48,5 +49,6 @@ class TenancyStructureFallback(
             code = code,
             profile = profile.map { ProfileEntry(it.attribute, it.`value`, it.effectiveDate) },
             structureVersion = structureVersion,
+            environment = environment?.let { StructureEnvironment.of(it.value) },
         )
 }

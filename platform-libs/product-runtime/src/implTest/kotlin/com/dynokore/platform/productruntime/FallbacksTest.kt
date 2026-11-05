@@ -11,6 +11,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
+import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
 import com.dynokore.platform.serviceruntime.replica.StructureKey
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.resilience.Deadline
@@ -57,6 +58,43 @@ class FallbacksTest {
         node.structureVersion shouldBe 9
         node.parentRef shouldBe "G-1"
         server.verify()
+    }
+
+    private fun environmentFrom(environment: String?): StructureEnvironment? {
+        val field = environment?.let { ""","environment":"$it"""" } ?: ""
+        server
+            .expect(requestTo("http://svc/internal/v1/tenancy/entities/E-001"))
+            .andRespond(
+                withSuccess(
+                    """{"entityRef":"E-001","legalName":"Acme","lifecycleState":"LIVE","node":{"kind":"TENANT",
+                    |"retired":false,"name":"Acme","profile":[],"structureVersion":9$field}}
+                    """.trimMargin(),
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        val result =
+            TenancyStructureFallback(EntitiesApi(builder.build())).fetch(StructureKey(TENANT, "E-001"), deadline)
+        return result.shouldBeInstanceOf<FallbackResult.Found<StructureNode>>().value.environment
+    }
+
+    @Test
+    fun `the tenancy fallback reads SANDBOX`() {
+        environmentFrom("SANDBOX") shouldBe StructureEnvironment.SANDBOX
+    }
+
+    @Test
+    fun `the tenancy fallback reads PRODUCTION`() {
+        environmentFrom("PRODUCTION") shouldBe StructureEnvironment.PRODUCTION
+    }
+
+    @Test
+    fun `the tenancy fallback gives null for an absent environment`() {
+        environmentFrom(null) shouldBe null
+    }
+
+    @Test
+    fun `the tenancy fallback gives UNKNOWN for sandbox`() {
+        environmentFrom("sandbox") shouldBe StructureEnvironment.UNKNOWN
     }
 
     @Test

@@ -15,6 +15,7 @@ import com.dynokore.platform.serviceruntime.replica.ConsentKey
 import com.dynokore.platform.serviceruntime.replica.ConsentState
 import com.dynokore.platform.serviceruntime.replica.Lookup
 import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.serviceruntime.resilience.Deadline
@@ -62,6 +63,60 @@ class FeedHandlersTest {
         node.kind shouldBe StructureNodeKind.ENTITY
         node.structureVersion shouldBe 5
         node.attribute("filingFrequency", LocalDate.parse("2026-10-12")) shouldBe "QUARTERLY"
+    }
+
+    private fun environmentNode(environment: String?) =
+        node(5, "Acme").replace(
+            """"structureVersion":5""",
+            """"structureVersion":5""" + (environment?.let { ""","environment":"$it"""" } ?: ""),
+        )
+
+    private fun environmentOf(
+        eventType: String,
+        payload: String,
+    ): StructureEnvironment? {
+        val replica = StructureReplica(CLOCK)
+        StructureFeedHandler(replica).handle(envelope(eventType, payload))
+        replica.onSnapshotComplete(5)
+        return held(replica).environment
+    }
+
+    private fun structureEnvironment(environment: String?) =
+        environmentOf(
+            ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED,
+            structureChanged(environmentNode(environment)),
+        )
+
+    @Test
+    fun `OrganisationStructureChanged SANDBOX gives SANDBOX`() {
+        structureEnvironment("SANDBOX") shouldBe StructureEnvironment.SANDBOX
+    }
+
+    @Test
+    fun `OrganisationStructureChanged PRODUCTION gives PRODUCTION`() {
+        structureEnvironment("PRODUCTION") shouldBe StructureEnvironment.PRODUCTION
+    }
+
+    @Test
+    fun `OrganisationStructureChanged without environment gives null`() {
+        structureEnvironment(null).shouldBeNull()
+    }
+
+    @Test
+    fun `OrganisationStructureChanged sandbox gives UNKNOWN`() {
+        structureEnvironment("sandbox") shouldBe StructureEnvironment.UNKNOWN
+    }
+
+    @Test
+    fun `OrganisationStructureChanged STAGING gives UNKNOWN`() {
+        structureEnvironment("STAGING") shouldBe StructureEnvironment.UNKNOWN
+    }
+
+    @Test
+    fun `EntityProfileChanged node gives null environment`() {
+        val profile =
+            """{"entityRef":"E-001","changedAttributes":[],"effectiveDate":"2026-07-01","node":${node(5, "Acme")}}"""
+        environmentOf(ProductEventTypes.ENTITY_PROFILE_CHANGED, profile).shouldBeNull()
     }
 
     @Test
