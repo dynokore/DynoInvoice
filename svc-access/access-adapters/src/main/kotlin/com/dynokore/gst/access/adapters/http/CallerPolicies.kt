@@ -44,3 +44,45 @@ class WorkloadGatewayCaller(
         return (verifier.verify(WorkloadToken(header)) as? WorkloadVerification.Verified)?.subject == gatewaySubject
     }
 }
+
+/** Who made a call to an installation operation: the installer's workload, another identity, or nobody. */
+sealed interface InstallerIdentity {
+    data class Installer(
+        val subject: String,
+    ) : InstallerIdentity
+
+    /** Authenticated as something other than the installer, an end user included: 403 SRT-004. */
+    data object Other : InstallerIdentity
+
+    /** No token, or a workload token that does not verify: 401 SRT-003. */
+    data object Absent : InstallerIdentity
+}
+
+fun interface InstallerCaller {
+    fun identify(): InstallerIdentity
+}
+
+/**
+ * Re-verifies the request's workload token and compares its subject, by equality, with the subjects configured as
+ * `deployment.operator` at INSTALLATION scope (`access.installation-roles`, INV-Q-8789 A; `x-operation.role` of
+ * recordInstallationApproverFact). An end-user token is never the installer's.
+ */
+class WorkloadInstallerCaller(
+    private val request: HttpServletRequest,
+    private val verifier: WorkloadTokenVerifier,
+    private val installers: Set<String>,
+) : InstallerCaller {
+    override fun identify(): InstallerIdentity {
+        val header = request.getHeader(WorkloadToken.HEADER_NAME)?.takeIf { it.isNotBlank() }
+        if (header == null) {
+            val endUser = request.getHeader("Authorization")?.isNotBlank() == true
+            return if (endUser) InstallerIdentity.Other else InstallerIdentity.Absent
+        }
+        val verified = verifier.verify(WorkloadToken(header)) as? WorkloadVerification.Verified
+        return when {
+            verified == null -> InstallerIdentity.Absent
+            verified.subject in installers -> InstallerIdentity.Installer(verified.subject)
+            else -> InstallerIdentity.Other
+        }
+    }
+}
