@@ -75,6 +75,7 @@ data class Envelope(
                 "AccreditationAlertRaised",
                 "BreakGlassAlertRaised",
                 "AuthorityChanged",
+                "InstallationStatusChanged",
                 "OperatorSessionKeysChanged",
                 "TenantWideEvidenceIntegrityFailed",
                 "BreakGlassSessionChanged",
@@ -88,8 +89,8 @@ data class Envelope(
          * and AccreditationAlertRaised by INV-Q-7336, BreakGlassAlertRaised by INV-Q-8839, AuthorityChanged by
          * INV-Q-9229, TenantWideEvidenceIntegrityFailed by INV-Q-12994, BreakGlassSessionChanged by INV-Q-9119,
          * BreakGlassActionReported by INV-Q-9313, TenantWideArchiveVolumeMeasured by INV-Q-14069,
-         * OperatorSessionKeysChanged by INV-Q-16498;
-         * eighteen names in all)): the
+         * OperatorSessionKeysChanged by INV-Q-16498, InstallationStatusChanged by INV-Q-14289;
+         * nineteen names in all)): the
          * only types that may be written under `TenantId.PLATFORM` and travel without `tenantid` and
          * `entityref` (INV-Q-3018). A domain event always carries a real tenant (FR-K.3, INV-REQ-1162).
          */

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-05
+### Added
+- `PlatformEventCatalogue.INSTALLATION_STATUS_CHANGED` (`gst.platform.installation-status-changed.v1`), in `ALL` after `AUTHORITY_CHANGED` (INV-Q-14289 A, INV-REQ-1226, INV-AC-14296, INV-T-14300).
+
 ## [2.7.0] - 2026-11-05
 ### Changed
 - Depends on `service-runtime 10.33.0` and pins `platformContractsBundle` to `0.0.0-dev+0fc8d662`: `StructureFeedHandler` (`OrganisationStructureChanged` only) and `TenancyStructureFallback` fill `StructureNode.environment` from the generated tenancy types (absent gives null, an unrecognised value gives UNKNOWN) (INV-T-9157, INV-T-11807).

@@ -28,6 +28,7 @@ class PlatformClassEventsTest {
             "AccreditationAlertRaised",
             "BreakGlassAlertRaised",
             "AuthorityChanged",
+            "InstallationStatusChanged",
             "OperatorSessionKeysChanged",
             "TenantWideEvidenceIntegrityFailed",
             "BreakGlassSessionChanged",
@@ -175,6 +176,39 @@ class PlatformClassEventsTest {
     fun `INV-AC-1404 look-alike and other-package types are refused with the tenant-wide entity`() {
         refused.subList(2, 4).forEach {
             assertThrows(IllegalArgumentException::class.java, { envelope(it, tenant, EntityRef.TENANT_WIDE) }, it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-14296 name set holds InstallationStatusChanged and not the look-alike`() {
+        assertTrue(Envelope.isPlatformType("com.dynokore.gst.platform.InstallationStatusChanged.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.InstallationStatusChange.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.installationStatusChanged.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.InstallationStatusChangedX.v1"))
+    }
+
+    @Test
+    fun `INV-AC-14296 InstallationStatusChanged under the platform tenant is accepted and reads back`() {
+        val e =
+            envelope("com.dynokore.gst.platform.InstallationStatusChanged.v1", TenantId.PLATFORM, EntityRef.PLATFORM)
+        val text = json.write(e)
+        assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+        val back = json.read(text)
+        assertEquals(TenantId.PLATFORM, back.tenant)
+        assertEquals(EntityRef.PLATFORM, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-14296 InstallationStatusChanged tenancy namespace and look-alike are refused under platform tenant`() {
+        listOf(
+            "com.dynokore.gst.tenancy.InstallationStatusChanged.v1",
+            "com.dynokore.gst.platform.InstallationStatusChange.v1",
+        ).forEach {
+            assertThrows(
+                IllegalArgumentException::class.java,
+                { envelope(it, TenantId.PLATFORM, EntityRef.PLATFORM) },
+                it,
+            )
         }
     }
 

@@ -6,6 +6,29 @@ import org.junit.jupiter.api.Test
 
 /** INV-T-2876: the replica feeds, the platform-event catalogue and the fence participants as configuration. */
 class ProductConfigurationTest {
+    private val platformEventNames =
+        listOf(
+            "AuditEntryRecorded",
+            "JobRunRecorded",
+            "JobRegistered",
+            "ConnectionStatusChanged",
+            "EvidenceArtefactRecorded",
+            "PolicyChanged",
+            "PackReadinessAcknowledged",
+            "ReplayRequested",
+            "ReplayCompleted",
+            "PrivacyNoticeDue",
+            "AccreditationAlertRaised",
+            "BreakGlassAlertRaised",
+            "AuthorityChanged",
+            "InstallationStatusChanged",
+            "OperatorSessionKeysChanged",
+            "TenantWideEvidenceIntegrityFailed",
+            "BreakGlassSessionChanged",
+            "BreakGlassActionReported",
+            "TenantWideArchiveVolumeMeasured",
+        )
+
     @Test
     fun `each replica takes its events and falls back to its owner (AD-26)`() {
         ReplicaFeeds.of(ReplicaKind.STRUCTURE).map { it.eventType } shouldContainExactly
@@ -32,27 +55,7 @@ class ProductConfigurationTest {
 
     @Test
     fun `the platform-event catalogue is the platform events of INV-REQ-1226 b1`() {
-        PlatformEventCatalogue.ALL.map { it.name } shouldContainExactly
-            listOf(
-                "AuditEntryRecorded",
-                "JobRunRecorded",
-                "JobRegistered",
-                "ConnectionStatusChanged",
-                "EvidenceArtefactRecorded",
-                "PolicyChanged",
-                "PackReadinessAcknowledged",
-                "ReplayRequested",
-                "ReplayCompleted",
-                "PrivacyNoticeDue",
-                "AccreditationAlertRaised",
-                "BreakGlassAlertRaised",
-                "AuthorityChanged",
-                "OperatorSessionKeysChanged",
-                "TenantWideEvidenceIntegrityFailed",
-                "BreakGlassSessionChanged",
-                "BreakGlassActionReported",
-                "TenantWideArchiveVolumeMeasured",
-            )
+        PlatformEventCatalogue.ALL.map { it.name } shouldContainExactly platformEventNames
         PlatformEventCatalogue.PRIVACY_NOTICE_DUE.topic shouldBe "gst.platform.privacy-notice-due.v1"
         PlatformEventCatalogue.ACCREDITATION_ALERT_RAISED.topic shouldBe "gst.platform.accreditation-alert-raised.v1"
         PlatformEventCatalogue.BREAK_GLASS_ALERT_RAISED.topic shouldBe "gst.platform.break-glass-alert-raised.v1"
@@ -70,6 +73,17 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.access.AuthorityChanged.v1") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-14296 the catalogue holds InstallationStatusChanged with its topic and type (INV-Q-14289)`() {
+        PlatformEventCatalogue.INSTALLATION_STATUS_CHANGED.topic shouldBe "gst.platform.installation-status-changed.v1"
+        PlatformEventCatalogue.INSTALLATION_STATUS_CHANGED.eventType shouldBe
+            "com.dynokore.gst.platform.InstallationStatusChanged.v1"
+        PlatformEventCatalogue.ALL.contains(PlatformEventCatalogue.INSTALLATION_STATUS_CHANGED) shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.InstallationStatusChanged.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.tenancy.InstallationStatusChanged.v1") shouldBe false
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.InstallationStatusChange.v1") shouldBe false
     }
 
     @Test

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.16.0] - 2026-11-05
+### Added
+- `InstallationStatusChanged` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds nineteen platform events; `com.dynokore.gst.tenancy.InstallationStatusChanged.v1` stays a domain type refused under the platform tenant (INV-Q-14289 A, INV-REQ-1226, INV-AC-14296, INV-T-14300).
+
 ## [6.15.0] - 2026-11-05
 ### Added
 - `OperatorSessionKeysChanged` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds eighteen platform events; `com.dynokore.gst.access.OperatorSessionKeysChanged.v1` stays a domain type refused under the platform tenant (INV-Q-16498 A, INV-REQ-1226, INV-AC-16503, INV-T-16507).

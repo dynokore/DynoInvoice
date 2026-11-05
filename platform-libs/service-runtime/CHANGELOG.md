@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.33.1] - 2026-11-05
+### Changed
+- Metadata-only change (INV-T-14300, G-DVS): depends on `outbox-and-queue 6.16.0`, `product-runtime 2.8.0`, `audit-log 4.0.26` and `config-resolver 5.0.23`, whose versions step; no production code change.
+
 ## [10.33.0] - 2026-11-05
 ### Added
 - `StructureEnvironment` (PRODUCTION, SANDBOX, UNKNOWN; `of(wire)` by exact name, any other string is UNKNOWN) and the optional `StructureNode.environment` (default null, `@JvmOverloads` keeps the seven-argument constructor) for the environment of a TENANT node, replaced whole with the node (INV-Q-11799, INV-Q-11801; INV-T-11807).
