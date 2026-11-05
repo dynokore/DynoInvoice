@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.http.Problems
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingRequestHeaderException
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -47,6 +48,15 @@ class ProblemAdvice {
 
     @ExceptionHandler(MethodArgumentNotValidException::class, HandlerMethodValidationException::class)
     fun invalid(): ResponseEntity<String> =
+        respond(Problems.render(ClosedErrorCode.CONTRACT_VIOLATION, newCorrelation()))
+
+    /**
+     * A request body that cannot be read (malformed JSON, a value of the wrong type, a value outside a closed enum)
+     * is a shape violation, 400 SRT-001 (RFC 9110 section 15.5.1, OWASP ASVS V5; INV-Q-17025 A). The response carries
+     * no detail and no exception message (API-22): the rejected value is never echoed.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun unreadable(): ResponseEntity<String> =
         respond(Problems.render(ClosedErrorCode.CONTRACT_VIOLATION, newCorrelation()))
 
     @ExceptionHandler(Exception::class)

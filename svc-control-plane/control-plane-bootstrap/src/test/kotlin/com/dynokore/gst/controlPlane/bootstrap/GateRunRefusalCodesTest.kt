@@ -9,6 +9,7 @@ import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import com.dynokore.gst.controlPlane.syncedge.GateRunDoubles
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
@@ -99,9 +100,22 @@ class GateRunRefusalCodesTest {
         answer.body() shouldContain "\"recordedBy\":\"${GateRunDoubles.ACTOR}\""
     }
 
-    // A gate outside the four (CORPUS, STAGING) cannot be sent here: the generated enum of the contract refuses the
-    // value while the body is read and the service answers 500 (gap G2 of INV-T-8749). RecordGateRunTest asserts the
-    // CPL-006 refusal on `/gate` at operation level.
+    @Test
+    fun `an unreadable body answers 400 SRT-001 and echoes neither the value nor the exception`() {
+        listOf(
+            """{"gate":"CORPUS","candidateResult":"PASSED"}""",
+            """{"gate":"STAGING","candidateResult":"PASSED"}""",
+            """{"gate":"scenarios","environment":"SAAS","candidateResult":"PASSED"}""",
+            "{",
+        ).forEach { body ->
+            val answer = post(body)
+            expect(answer, 400, "SRT-001")
+            answer.body() shouldNotContain "IllegalArgumentException"
+            listOf("CORPUS", "STAGING", "scenarios").forEach { value ->
+                if (body.contains(value)) answer.body() shouldNotContain value
+            }
+        }
+    }
 
     @Test
     fun `a missing environment for SCENARIOS answers 422 CPL-006 on the field environment`() {
