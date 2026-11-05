@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":access-domain"))
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.outboxAndQueue.api)
+    implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.serviceRuntime.api)
     implementation(libs.platform.productRuntime.api)
