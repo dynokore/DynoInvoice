@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-11-06
+### Added
+- `BreakGlassSessionFeedHandler` and `ReplicaKind.BREAK_GLASS_SESSION` (INV-T-9311, INV-Q-9119 A, INV-REQ-896): `ReplicaFeeds.ALL` gains `BreakGlassSessionChanged.v1` (no fallback), and an inbox `EventHandler` bean reads it with `PlatformEventReader.breakGlassSessionChanged` into `AuthorityReplica.breakGlassSessions`; an event that does not meet the contract is a `ContractViolation`.
+
 ## [2.9.0] - 2026-11-06
 ### Added
 - `AuthorityHeadFeed` (INV-T-9059, INV-Q-9047 A, INV-Q-13597 A, INV-REQ-1201): an `EventHandler` for `AuthorityHeadObserved` (`ProductEventTypes.AUTHORITY_HEAD_OBSERVED`) that calls `replica.observeHead(authorityVersion)` from the generated payload type (new project `product-runtime-authority-head-events`); a payload without `authorityVersion` or below 1 and an event of another type are a `ContractViolation`.

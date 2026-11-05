@@ -1,10 +1,11 @@
 package com.dynokore.platform.productruntime
 
-/** The three replicas service-runtime keeps in every service (INV-REQ-1199, INV-ADR-284). */
+/** The replicas service-runtime keeps in every service (INV-REQ-1199, INV-ADR-284; INV-Q-9119 A). */
 enum class ReplicaKind {
     STRUCTURE,
     AUTHORITY,
     POLICY,
+    BREAK_GLASS_SESSION,
 }
 
 /**
@@ -22,7 +23,8 @@ data class ReplicaFeed(
  * The product's configuration of service-runtime's replicas (INV-MOD-2745, AD-26): OrganisationStructureChanged and
  * EntityProfileChanged feed the structure replica with tenancy-svc as its fallback (INV-REQ-1200), AuthorityChanged
  * the authority replica with access-svc as its fallback (INV-REQ-1201), and PolicyChanged the policy replica, which
- * has no fallback (INV-REQ-1241 b2).
+ * has no fallback (INV-REQ-1241 b2), and BreakGlassSessionChanged the break-glass session replica, which has none
+ * either (INV-Q-9119 A).
  */
 object ReplicaFeeds {
     const val TENANCY_SVC = "tenancy-svc"
@@ -52,6 +54,12 @@ object ReplicaFeeds {
                 PlatformEventCatalogue.POLICY_CHANGED.eventType,
                 requireNotNull(PlatformEventCatalogue.POLICY_CHANGED.topic),
                 ReplicaKind.POLICY,
+                null,
+            ),
+            ReplicaFeed(
+                PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.eventType,
+                requireNotNull(PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.topic),
+                ReplicaKind.BREAK_GLASS_SESSION,
                 null,
             ),
         )

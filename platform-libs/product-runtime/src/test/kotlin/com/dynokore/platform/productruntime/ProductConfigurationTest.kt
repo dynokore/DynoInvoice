@@ -42,7 +42,20 @@ class ProductConfigurationTest {
         policy.eventType shouldBe "com.dynokore.gst.platform.PolicyChanged.v1"
         policy.topic shouldBe "gst.platform.policy-changed.v1"
         policy.fallbackService shouldBe null
+        val breakGlass = ReplicaFeeds.of(ReplicaKind.BREAK_GLASS_SESSION).single()
+        breakGlass.eventType shouldBe "com.dynokore.gst.platform.BreakGlassSessionChanged.v1"
+        breakGlass.topic shouldBe "gst.platform.break-glass-session-changed.v1"
+        breakGlass.fallbackService shouldBe null
+        ReplicaFeeds.ALL.map { it.replica } shouldContainExactly
+            listOf(
+                ReplicaKind.STRUCTURE,
+                ReplicaKind.STRUCTURE,
+                ReplicaKind.AUTHORITY,
+                ReplicaKind.POLICY,
+                ReplicaKind.BREAK_GLASS_SESSION,
+            )
         ReplicaFeeds.forType("com.dynokore.gst.payload.PayloadReady.v1") shouldBe null
+        ReplicaFeeds.forType("com.dynokore.gst.platform.BreakGlassSessionChange.v1") shouldBe null
     }
 
     @Test

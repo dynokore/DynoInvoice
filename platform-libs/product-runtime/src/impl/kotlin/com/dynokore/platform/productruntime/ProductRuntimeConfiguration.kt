@@ -9,6 +9,7 @@ import com.dynokore.platform.productruntime.delegation.AuthorityDelegationProbe
 import com.dynokore.platform.productruntime.fallback.AccessAuthorityFallback
 import com.dynokore.platform.productruntime.fallback.TenancyStructureFallback
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
+import com.dynokore.platform.productruntime.feed.BreakGlassSessionFeedHandler
 import com.dynokore.platform.productruntime.feed.PolicyFeed
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.replica.AuthorityFallback
@@ -87,6 +88,10 @@ class ProductRuntimeConfiguration {
 
     @Bean
     fun authorityFeedHandler(replica: AuthorityReplica): AuthorityFeedHandler = AuthorityFeedHandler(replica)
+
+    @Bean
+    fun breakGlassSessionFeedHandler(replica: AuthorityReplica): BreakGlassSessionFeedHandler =
+        BreakGlassSessionFeedHandler(replica)
 
     @Bean
     fun policyFeed(replica: PolicyReplica): PolicyFeed = PolicyFeed(replica)
