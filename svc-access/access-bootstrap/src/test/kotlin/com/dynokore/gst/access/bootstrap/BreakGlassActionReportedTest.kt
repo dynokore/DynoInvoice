@@ -329,7 +329,9 @@ class BreakGlassActionReportedTest {
             ),
         ).describedAs("@AutoConfiguration is meta-annotated; the feed must carry no direct @Configuration").isFalse()
         assertThat(
-            BreakGlassReportFeed::class.java.annotations.map { it.annotationClass.java }.toSet(),
+            BreakGlassReportFeed::class.java.annotations
+                .map { it.annotationClass.java }
+                .toSet(),
         ).doesNotContain(org.springframework.stereotype.Component::class.java)
         val lines =
             requireNotNull(
