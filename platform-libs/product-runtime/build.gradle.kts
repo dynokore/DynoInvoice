@@ -124,6 +124,7 @@ val generatedContracts =
         ":product-runtime-structure-events",
         ":product-runtime-profile-events",
         ":product-runtime-authority-events",
+        ":product-runtime-authority-head-events",
         ":product-runtime-policy-events",
     )
 
@@ -156,6 +157,7 @@ dependencies {
         add(config, project(":config-resolver"))
         add(config, project(":outbox-and-queue"))
         add(config, project(":tenancy-kernel"))
+        add(config, project(":tenancy-jooq"))
         add(config, libs.gstCatalogue)
         generatedContracts.forEach { add(config, project(it)) }
         add(config, platform(libs.springBoot.dependencies))
@@ -164,7 +166,12 @@ dependencies {
         add(config, libs.jackson.databind)
         add(config, libs.jackson.moduleKotlin)
     }
+    // The authority replay intake (JdbcReplayIntake, AuthorityReplicaWiring) is in the impl half of both (INV-T-9059).
+    add("implImplementation", files(outboxImplJar))
+    add("implImplementation", files(tenancyJooqImplJar))
     add("implTestImplementation", files(outboxImplJar))
+    // The start-up IT builds the outbox fixture's PostgreSQL and event log (INV-T-9059).
+    add("implTestImplementation", testFixtures(project(":outbox-and-queue")))
     add("implTestImplementation", files(tenancyKernelImplJar))
     add("implTestImplementation", files(configResolverImplJar))
     add("implTestImplementation", project(":audit-log"))

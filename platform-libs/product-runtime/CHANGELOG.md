@@ -6,6 +6,13 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-11-06
+### Added
+- `AuthorityHeadFeed` (INV-T-9059, INV-Q-9047 A, INV-Q-13597 A, INV-REQ-1201): an `EventHandler` for `AuthorityHeadObserved` (`ProductEventTypes.AUTHORITY_HEAD_OBSERVED`) that calls `replica.observeHead(authorityVersion)` from the generated payload type (new project `product-runtime-authority-head-events`); a payload without `authorityVersion` or below 1 and an event of another type are a `ContractViolation`.
+- `AuthorityReplicaWiring` (auto-configuration after service-runtime's L1 composition), installed only in a context with a `ConsumerSubscription` to `gst.platform.authority-changed.v1`: the `authorityHeadFeed` bean (the tracker expects heartbeats within 1000 ms), the `authorityReplayIntake` bean (a `JdbcReplayIntake` of the replay topic of the pair `access-svc` and the consumer; a catalogue without it stops the start) and the `authorityReplayCompletionListener` bean, which sets the replica's snapshot at its highest applied version only for a replay `ReplicaColdStartSync.isOwnReplay` and a completion whose topics hold the authority topic.
+### Changed
+- The impl half now compiles against outbox-and-queue's impl and tenancy-jooq (INV-Q-13603 A; the bundle pin is main's `0.0.0-dev+0fc8d662`, a descendant of 3c5f864e which carries `event-log/topics.yaml`, INV-Q-13881 A).
+
 ## [2.8.3] - 2026-11-06
 ### Changed
 - Republished only against `service-runtime 10.36.0` (MDM-007, INV-T-16975); no product-runtime source change.

@@ -474,6 +474,7 @@ class L1DependencyOrderTest {
                     "product-runtime-structure-events",
                     "product-runtime-profile-events",
                     "product-runtime-authority-events",
+                    "product-runtime-authority-head-events",
                     "product-runtime-policy-events",
                     "testcontainers-pins",
                 ),
@@ -596,6 +597,7 @@ internal val UNLAYERED =
         "product-runtime-structure-events",
         "product-runtime-profile-events",
         "product-runtime-authority-events",
+        "product-runtime-authority-head-events",
         "product-runtime-policy-events",
     )
 

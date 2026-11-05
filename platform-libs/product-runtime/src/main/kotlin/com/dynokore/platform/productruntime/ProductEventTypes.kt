@@ -11,6 +11,8 @@ object ProductEventTypes {
     )
     const val AUTHORITY_CHANGED = "com.dynokore.gst.access.AuthorityChanged.v1"
 
+    const val AUTHORITY_HEAD_OBSERVED = "com.dynokore.gst.access.AuthorityHeadObserved.v1"
+
     const val ORGANISATION_STRUCTURE_CHANGED_TOPIC = "gst.tenancy.organisation-structure-changed.v1"
     const val ENTITY_PROFILE_CHANGED_TOPIC = "gst.tenancy.entity-profile-changed.v1"
 

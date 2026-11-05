@@ -22,6 +22,10 @@ config-resolver takes its catalogue in either order from service-runtime 3.2.1, 
   `DelegationProbe` over the authority replica, which config-resolver resolves through;
 - `StructureFeedHandler` and `AuthorityFeedHandler` (inbox `EventHandler`s for the topics in `ReplicaFeeds`) and
   `PolicyFeed` (PolicyChanged straight off its producer topic);
+- in a service that subscribes to `gst.platform.authority-changed.v1` (`AuthorityReplicaWiring`): `AuthorityHeadFeed`
+  (the `AuthorityHeadObserved` heartbeat; the tracker expects it within 1000 ms), the `authorityReplayIntake` of the
+  replay topic of the pair (access-svc, this consumer) and the listener that sets the replica's snapshot when the
+  service's own full sync completes (INV-Q-9047 A);
 - the tenancy-svc and access-svc fallbacks, once `product-runtime.fallback.tenancy-svc-url` and
   `product-runtime.fallback.access-svc-url` are set; without them a replica serves what it holds.
 
