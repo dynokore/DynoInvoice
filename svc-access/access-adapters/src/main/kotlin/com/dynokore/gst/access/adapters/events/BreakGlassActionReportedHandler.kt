@@ -14,9 +14,10 @@ import java.time.format.DateTimeParseException
 
 /**
  * INV-Q-9117 A, INV-Q-9313 A: records a break-glass action that tenancy-svc reports as the platform event
- * `BreakGlassActionReported`. An invalid payload is a [ContractViolation] (poison). The emitting service must be one of the
- * producers the access contract declares; it is stored as the calling service and never read from the payload. The actor is the workload principal the inbox binds, since the report
- * carries no human actor. A refused or repeated report is acknowledged (IGNORED); the use case counts and logs it.
+ * `BreakGlassActionReported`. An invalid payload is a [ContractViolation] (poison). The emitting service must be one
+ * of the producers the access contract declares; it is stored as the calling service and never read from the payload.
+ * The actor is the workload principal the inbox binds, since the report carries no human actor. A refused or repeated
+ * report is acknowledged (IGNORED); the use case counts and logs it.
  */
 class BreakGlassActionReportedHandler(
     private val useCase: ReportBreakGlassActionUseCase,

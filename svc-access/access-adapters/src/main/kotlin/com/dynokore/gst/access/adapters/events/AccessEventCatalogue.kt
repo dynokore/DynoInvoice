@@ -83,7 +83,8 @@ object AccessEventCatalogue {
 
     /**
      * The services that may produce [eventType] for access-svc, from the root extension `x-consumed-events` of the
-     * contract. Never empty: a missing key, entry or list is a start failure, so a handler never runs without producers.
+     * contract. Never empty: a missing key, entry or list is a start failure, so a handler never runs without
+     * producers.
      */
     @Suppress("UNCHECKED_CAST")
     fun producersOf(
