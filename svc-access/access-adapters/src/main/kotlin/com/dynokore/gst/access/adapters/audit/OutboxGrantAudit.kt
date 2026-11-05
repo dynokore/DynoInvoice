@@ -20,9 +20,12 @@ class OutboxGrantAudit(
     private val tenants: TenantContext,
 ) : GrantAudit {
     override fun record(entry: GrantAuditEntry) {
+        val tenant = tenants.current()
+        // an installation record is written under the platform tenant, which pairs with the platform entity only
+        val entity = if (tenant.isPlatform) EntityRef.PLATFORM else EntityRef.TENANT_WIDE
         writer.record(
             AuditEntry(entry.actor, entry.action, entry.scope, entry.reason, entry.priorStateJson),
-            EventContexts.forAggregate(tenants.current(), EntityRef.TENANT_WIDE, entry.scope),
+            EventContexts.forAggregate(tenant, entity, entry.scope),
         )
     }
 }

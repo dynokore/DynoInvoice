@@ -165,6 +165,8 @@ class OperatorRoleRefusalTest {
                 "ScopeMissing",
                 "SoleOperatorAckRequired",
                 "SecondHolderRefused",
+                "SecondOverrideHolderRefused",
+                "OverrideAckRequired",
                 "UnknownRole",
                 "ConflictingPairRefused",
                 "OperatorRoleRefused",

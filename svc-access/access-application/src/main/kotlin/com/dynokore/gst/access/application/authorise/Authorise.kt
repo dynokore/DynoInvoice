@@ -118,6 +118,24 @@ class Authorise(
         }
     }
 
+    /**
+     * The grants of [principal] that alone authorise [permission] on [target] now, read live: the grants `handle` would
+     * decide on, narrowed to those that cover the question. Empty when the entity is unknown to the structure.
+     */
+    fun coveringGrants(
+        principal: IdentityRef,
+        permission: Permission,
+        target: Target,
+    ): List<Grant> {
+        val membership = directory.membership(target.entity) ?: return emptyList()
+        val now = clock.instant()
+        return tx.inTransaction {
+            liveGrants(principal, permission, target, membership, now).filter {
+                it.authorises(permission, target, membership, matrix, now)
+            }
+        }
+    }
+
     companion object {
         const val UNKNOWN_ENTITY = "NO_ENTITY"
 

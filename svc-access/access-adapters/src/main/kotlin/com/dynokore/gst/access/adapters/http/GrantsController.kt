@@ -93,7 +93,9 @@ open class GrantsController(
 
             // the contract lists 403 and 409 for grantRole; no catalogue error code names these refusals (INV-REQ-891)
             GrantRoleOutcome.SecondHolderRefused,
+            GrantRoleOutcome.SecondOverrideHolderRefused,
             GrantRoleOutcome.SoleOperatorAckRequired,
+            GrantRoleOutcome.OverrideAckRequired,
             GrantRoleOutcome.ConflictingPairRefused,
             GrantRoleOutcome.OperatorRoleRefused,
             -> {
@@ -175,6 +177,14 @@ private fun refusalDetail(outcome: GrantRoleOutcome) =
     when (outcome) {
         GrantRoleOutcome.SecondHolderRefused -> {
             "only one person may hold security.officer and tenant.admin under the sole-operator acknowledgement"
+        }
+
+        GrantRoleOutcome.SecondOverrideHolderRefused -> {
+            "only one person may hold tax.approver and tenant.admin under the sole-operator acknowledgement"
+        }
+
+        GrantRoleOutcome.OverrideAckRequired -> {
+            "tax.approver and tenant.admin need the recorded sole-operator acknowledgement"
         }
 
         GrantRoleOutcome.ConflictingPairRefused -> {

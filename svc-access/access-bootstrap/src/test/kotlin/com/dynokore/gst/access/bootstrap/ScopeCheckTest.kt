@@ -85,7 +85,7 @@ class ScopeCheckTest {
 
     @Test
     fun `INV-AC-8848 the lock file diff holds one changed line equal to the pin and each probe fails`() {
-        val pin = "21fc1bf0"
+        val pin = "0eac76a2"
         val line = "platform-contracts-bundle:platform-contracts:0.0.0-dev+"
         val good = listOf("-${line}d6f0aac8=contractsBundle", "+$line$pin=contractsBundle")
         assertThat(lockFindings(good, pin)).isEmpty()

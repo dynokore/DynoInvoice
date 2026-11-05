@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 
@@ -45,6 +46,11 @@ class ApiRefusalAdvice {
         problem.headers.forEach { (name, value) -> headers.add(name, value) }
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
     }
+
+    /** A query parameter that does not parse as its declared type (as "1,000.00" for a total) breaks the contract. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun mismatch(failure: MethodArgumentTypeMismatchException): ResponseEntity<String> =
+        refuse(ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "${failure.name} is not a valid value"))
 
     @ExceptionHandler(ApiConflict::class)
     fun conflict(conflict: ApiConflict): ResponseEntity<String> {

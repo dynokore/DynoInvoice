@@ -45,9 +45,9 @@ operation	provisionInstallationFirstAdministrator	INV-T-8226	done
 operation	acceptFirstAdministratorInvitation	INV-T-8227	done
 operation	reissueFirstAdministratorInvitation	INV-T-8282	done
 operation	approveBreakGlassUnlock	INV-T-9314	open
-operation	decidePackApproval	INV-T-4936	open
-operation	decideOverrideRelease	INV-T-4936	open
-operation	getMappingAcknowledgement	INV-T-4936	open
-operation	recordInstallationApproverFact	INV-T-4936	open
-operation	getInstallationApproverFact	INV-T-4936	open
+operation	decidePackApproval	INV-T-4936	done
+operation	decideOverrideRelease	INV-T-4936	done
+operation	getMappingAcknowledgement	INV-T-4936	done
+operation	recordInstallationApproverFact	INV-T-4936	done
+operation	getInstallationApproverFact	INV-T-4936	done
 channel	accessAuthorityHeadObserved	INV-T-9054	open

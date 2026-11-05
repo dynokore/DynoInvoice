@@ -6,6 +6,7 @@ import com.dynokore.gst.access.application.consent.GrantConsentUseCase
 import com.dynokore.gst.access.application.consent.WithdrawConsentOutcome
 import com.dynokore.gst.access.application.consent.WithdrawConsentUseCase
 import com.dynokore.gst.access.contract.api.ConsentApi
+import com.dynokore.gst.access.contract.model.AcknowledgeMappingResponse
 import com.dynokore.gst.access.contract.model.ConsentResponse
 import com.dynokore.gst.access.contract.model.GrantConsentRequest
 import com.dynokore.gst.access.contract.model.WithdrawConsentRequest
@@ -28,7 +29,7 @@ import java.util.UUID
  * TPL-08. grantConsent and withdrawConsent (INV-REQ-713, INV-REQ-912, INV-REQ-955). The caller is the client signatory
  * of the client entity; the use cases check that with the live grants (`consent.grant`, `consent.withdraw`). A legacy
  * free-text `scope` is refused with 400 before anything is read or recorded (INV-REQ-912). acknowledgeMapping belongs
- * to another task and keeps answering 501.
+ * to another task and keeps answering 501; getMappingAcknowledgement is served by [ApprovalOperations] (INV-T-4936).
  */
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
@@ -37,6 +38,7 @@ open class ConsentController(
     private val grantConsent: GrantConsentUseCase,
     private val withdrawConsent: WithdrawConsentUseCase,
     private val tenants: TenantContext,
+    private val approvals: ApprovalOperations,
 ) : ConsentApi {
     override fun grantConsent(
         idempotencyKey: UUID,
@@ -116,6 +118,11 @@ open class ConsentController(
             }
         }
     }
+
+    override fun getMappingAcknowledgement(
+        packVersion: String,
+        clientRef: String,
+    ): ResponseEntity<AcknowledgeMappingResponse> = approvals.getMappingAcknowledgement(packVersion, clientRef)
 
     /** The person is the authenticated subject of the call, never a request field. */
     private fun caller(): IdentityRef =

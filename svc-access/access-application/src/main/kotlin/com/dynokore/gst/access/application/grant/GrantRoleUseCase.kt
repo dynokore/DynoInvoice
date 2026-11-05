@@ -90,7 +90,7 @@ class GrantRoleUseCase(
                 refusal
             }
 
-            // VP-82, read after the built-in pair; a failed read or an unknown value fails the request
+            // VP-82, read after the built-in pairs; a failed read or an unknown value fails the request
             ConflictingPairPolicy.completesListedPair(rules.conflictingPairs.current(), held.toSet(), role) -> {
                 GrantRoleOutcome.ConflictingPairRefused
             }
@@ -101,29 +101,55 @@ class GrantRoleUseCase(
         }
     }
 
-    /** The refusal of the built-in pair of INV-REQ-891 and VP-81, or null when the grant may go on. */
+    /**
+     * The refusal of the built-in pairs (security.officer + tenant.admin of INV-REQ-891, tax.approver + tenant.admin of
+     * INV-REQ-860) and VP-81, or null when the grant may go on. The one-holder rule of VP-81 applies to both pairs.
+     */
     private fun builtInRefusal(
         command: GrantRoleCommand,
         role: Role,
         held: Set<Role>,
-    ): GrantRoleOutcome? =
-        when {
-            !SeparationOfDuty.completesConflict(held, role) -> null
+    ): GrantRoleOutcome? {
+        val officerPair = SeparationOfDuty.completesOfficerPair(held, role)
+        return when {
+            !SeparationOfDuty.completesConflict(held, role) -> {
+                null
+            }
 
-            rules.soleOperators.lockActive() == null -> GrantRoleOutcome.SoleOperatorAckRequired
+            rules.soleOperators.lockActive() == null -> {
+                if (officerPair) GrantRoleOutcome.SoleOperatorAckRequired else GrantRoleOutcome.OverrideAckRequired
+            }
 
             // VP-81, read after the lock; a failed read or an unknown value fails the request (nothing is written)
-            rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> null
+            rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> {
+                null
+            }
 
-            otherPeopleHoldingBoth(command.identity).isNotEmpty() -> GrantRoleOutcome.SecondHolderRefused
+            officerPair && otherPeopleHoldingBoth(command.identity).isNotEmpty() -> {
+                GrantRoleOutcome.SecondHolderRefused
+            }
 
-            else -> null
+            !officerPair && otherOverridePeopleHoldingBoth(command.identity).isNotEmpty() -> {
+                GrantRoleOutcome.SecondOverrideHolderRefused
+            }
+
+            else -> {
+                null
+            }
         }
+    }
 
     /** The people other than [identity] who hold both roles in the bound tenant (VP-81 one-holder values). */
     private fun otherPeopleHoldingBoth(identity: IdentityRef): Set<IdentityRef> =
         SeparationOfDuty.holdingBoth(
             rules.soleOperators.holders(Role.SECURITY_OFFICER),
+            rules.soleOperators.holders(Role.TENANT_ADMIN),
+        ) - identity
+
+    /** The people other than [identity] who hold both `tax.approver` and `tenant.admin` in the bound tenant. */
+    private fun otherOverridePeopleHoldingBoth(identity: IdentityRef): Set<IdentityRef> =
+        SeparationOfDuty.holdingBoth(
+            rules.soleOperators.holders(Role.TAX_APPROVER),
             rules.soleOperators.holders(Role.TENANT_ADMIN),
         ) - identity
 

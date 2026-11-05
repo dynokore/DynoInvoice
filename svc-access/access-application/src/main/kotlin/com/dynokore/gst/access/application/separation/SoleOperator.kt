@@ -64,6 +64,12 @@ sealed interface WithdrawSoleOperatorOutcome {
 
     /** A person still holds both roles (INV-AC-8288 case C6). */
     data object HolderRemains : WithdrawSoleOperatorOutcome
+
+    /** The same as [SecondPersonRequired] for `tax.approver` and `tenant.admin`, while a person holds both. */
+    data object OverrideSecondPersonRequired : WithdrawSoleOperatorOutcome
+
+    /** The same as [HolderRemains] for `tax.approver` and `tenant.admin`. */
+    data object OverrideHolderRemains : WithdrawSoleOperatorOutcome
 }
 
 /** `recordSoleOperator`: a repeat for the same tenant returns the active acknowledgement; the change is audited. */
@@ -128,11 +134,23 @@ class WithdrawSoleOperatorUseCase(
             WithdrawSoleOperatorOutcome.Withdrawn
         }
 
-    /** The refusal the value of VP-81 gives while the holders are counted; null when the withdrawal may proceed. */
+    /**
+     * The refusal the value of VP-81 gives while the holders are counted; null when the withdrawal may proceed. The
+     * officer pair is judged as always. The override pair (`tax.approver`, `tenant.admin`) is judged by the same rules
+     * only while a person holds both of its roles, so that a tenant that never combined them is answered as before
+     * (INV-T-4936).
+     */
     private fun refusalFor(value: SoleOperatorScope): WithdrawSoleOperatorOutcome? {
         if (value == SoleOperatorScope.ANY_NUMBER) return null
-        val officers = acks.holders(Role.SECURITY_OFFICER)
         val admins = acks.holders(Role.TENANT_ADMIN)
+        return officerPairRefusal(value, admins) ?: overridePairRefusal(value, admins)
+    }
+
+    private fun officerPairRefusal(
+        value: SoleOperatorScope,
+        admins: Set<IdentityRef>,
+    ): WithdrawSoleOperatorOutcome? {
+        val officers = acks.holders(Role.SECURITY_OFFICER)
         // D3 before D2 (INV-AC-8288): two different people must hold one of the roles, then nobody may hold both
         return when {
             (officers + admins).size < 2 -> WithdrawSoleOperatorOutcome.SecondPersonRequired
@@ -140,6 +158,19 @@ class WithdrawSoleOperatorUseCase(
             value == SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED &&
                 SeparationOfDuty.holdingBoth(officers, admins).isNotEmpty() -> WithdrawSoleOperatorOutcome.HolderRemains
 
+            else -> null
+        }
+    }
+
+    private fun overridePairRefusal(
+        value: SoleOperatorScope,
+        admins: Set<IdentityRef>,
+    ): WithdrawSoleOperatorOutcome? {
+        val approvers = acks.holders(Role.TAX_APPROVER)
+        return when {
+            SeparationOfDuty.holdingBoth(approvers, admins).isEmpty() -> null
+            (approvers + admins).size < 2 -> WithdrawSoleOperatorOutcome.OverrideSecondPersonRequired
+            value == SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED -> WithdrawSoleOperatorOutcome.OverrideHolderRemains
             else -> null
         }
     }

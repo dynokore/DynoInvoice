@@ -1,8 +1,13 @@
 package com.dynokore.gst.access.adapters.http
 
+import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Grant
+import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.Scope
+import com.dynokore.gst.access.domain.grant.Target
 import com.dynokore.gst.access.domain.grant.TenantAuthority
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.PermissionMatrix
@@ -94,6 +99,7 @@ class InstallationRole(
 class TenantPolicyRoleResolver(
     private val live: LiveTenantGrants,
     installationRoles: List<InstallationRole> = emptyList(),
+    private val directory: EntityDirectory? = null,
 ) : PolicyRoleResolver {
     private val installation: Map<String, Set<String>> =
         installationRoles.groupBy { it.subject }.mapValues { (_, entries) -> entries.map { it.role.wire }.toSet() }
@@ -118,8 +124,47 @@ class TenantPolicyRoleResolver(
                 }.getOrNull().orEmpty()
             }
 
+            entityRef != null && level in ENTITY_LEVELS && (level == ScopeLevel.ENTITY || scopeRef == entityRef) -> {
+                entityRoles(actor, tenant, entityRef)
+            }
+
             else -> {
                 emptySet()
             }
         }
+
+    /**
+     * The roles of the live grants of [actor] that cover exactly [entityRef] (INV-Q-5235): a grant of the whole tenant
+     * or of a group that contains the entity, or of the entity itself. A consent-derived grant never counts: an agent
+     * does not set the values of a client. An entity the structure does not know, and a failed read, give no role.
+     */
+    private fun entityRoles(
+        actor: String,
+        tenant: TenantId,
+        entityRef: String,
+    ): Set<String> =
+        runCatching {
+            val entity = EntityRef(entityRef)
+            live
+                .read(actor, tenant) { grants, _, at ->
+                    // the structure answers for the bound tenant, so the membership is asked inside the binding
+                    val membership = directory?.membership(entity)
+                    if (membership == null) {
+                        emptySet()
+                    } else {
+                        grants
+                            .filter {
+                                it.status == GrantStatus.ACTIVE &&
+                                    it.window.isValidAt(at) &&
+                                    it.scope !is Scope.ConsentDerived &&
+                                    it.scope.covers(Target(entity), membership)
+                            }.map { it.role.wire }
+                            .toSet()
+                    }
+                }.orEmpty()
+        }.getOrNull().orEmpty()
+
+    private companion object {
+        val ENTITY_LEVELS = setOf(ScopeLevel.ENTITY, ScopeLevel.CLIENT_ENTITY)
+    }
 }

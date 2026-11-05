@@ -38,6 +38,12 @@ sealed interface GrantRoleOutcome {
     data object SoleOperatorAckRequired : GrantRoleOutcome
 
     /**
+     * Assigning the second of `tax.approver` and `tenant.admin` to one person in one tenant, with no recorded
+     * sole-operator acknowledgement (INV-REQ-860 behaviours 3 and 4, INV-AC-2042).
+     */
+    data object OverrideAckRequired : GrantRoleOutcome
+
+    /**
      * The grant would give a second person both roles while another person already holds both under the active
      * acknowledgement (INV-REQ-891, INV-AC-8288 case C2; default value `ONE_HOLDER_WITHDRAW_BLOCKED` of VP-81).
      */
@@ -47,6 +53,13 @@ sealed interface GrantRoleOutcome {
      * The grant would give the person both roles of a pair the tenant lists in VP-82 (INV-REQ-9271, INV-AC-12355).
      */
     data object ConflictingPairRefused : GrantRoleOutcome
+
+    /**
+     * The same refusal for the pair `tax.approver` and `tenant.admin`: the grant would give a second person both roles
+     * while another person already holds both under the active acknowledgement (INV-REQ-860 behaviour 4; the rules of
+     * VP-81 apply to this pair, INV-T-4936).
+     */
+    data object SecondOverrideHolderRefused : GrantRoleOutcome
 
     /** The role is not in the role catalogue of this installation's form (INV-NOTE-3 section 22.2, INV-REQ-888). */
     data class UnknownRole(

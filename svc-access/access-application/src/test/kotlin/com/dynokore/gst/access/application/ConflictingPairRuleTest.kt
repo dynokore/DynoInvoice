@@ -192,6 +192,11 @@ class ConflictingPairRuleTest {
                             GrantRoleOutcome.SoleOperatorAckRequired::class.java
                         }
 
+                        // the override pair of INV-T-4936 (INV-REQ-860)
+                        held != granted && setOf(held, granted) == setOf(Role.TAX_APPROVER, Role.TENANT_ADMIN) -> {
+                            GrantRoleOutcome.OverrideAckRequired::class.java
+                        }
+
                         else -> {
                             GrantRoleOutcome.Granted::class.java
                         }

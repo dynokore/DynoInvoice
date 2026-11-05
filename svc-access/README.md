@@ -69,3 +69,25 @@ in one pass:
   permission needs. The permission-to-item table (`ScopeItemRequirements`) is empty in production, so an agent is refused
   until the owner rules it (merge request, "Gaps"). The document-list port of the handover statement is unbound until
   Wave 3 and the statement then names the list as unavailable (INV-Q-4900).
+
+## Approval separation (INV-T-4936, partial)
+
+`grantRole` refuses `tax.approver` and `tenant.admin` for one person without the recorded sole-operator acknowledgement
+(INV-REQ-860 behaviours 3 and 4); VP-81 governs only the `security.officer` and `tenant.admin` pair. The pack-approval
+decisions (author versus approver, VP-03, VP-04, VP-32, the installation fact, the activation record, the override
+approval) need contract surface that the access contract does not publish yet; see the gaps of the merge request.
+
+## Approval separation (INV-T-4936)
+
+- `decidePackApproval`, `decideOverrideRelease`, `getMappingAcknowledgement`, `recordInstallationApproverFact` and
+  `getInstallationApproverFact` are served here (INV-Q-10695). The decisions read the live grants, consent,
+  sole-operator acknowledgement and the VP-03 / VP-04 / VP-32 values at every question; a DENY is a decision (HTTP 200).
+- `recordInstallationApproverFact` admits only the installer: the caller check that service-runtime generates from the
+  contract for the edge `installer->access-svc` refuses another service (403 SRT-004) and a call with no workload token
+  (401 SRT-003), and the audit entry names the verified calling workload (INV-Q-17002 A). A repeated Idempotency-Key
+  returns the stored response only while the fact still equals the body's value, otherwise the body is applied as an
+  update (INV-Q-15370); the key and response are in `access.installation_fact_request`.
+- The row of the fact is the one installation row under the reserved platform tenant; the acknowledgement of a mapping
+  pack is `access.mapping_acknowledgement` (written by `acknowledgeMapping`, INV-T-4940).
+- `setPolicy` for VP-03 and VP-32 by a person who also holds `validation.override` needs the tenant's ACTIVE
+  sole-operator acknowledgement and is audited with it (`setPolicy.soleOperator`).

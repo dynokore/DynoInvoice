@@ -8,6 +8,7 @@ import com.dynokore.gst.access.adapters.http.LiveTenantGrants
 import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
 import com.dynokore.gst.access.adapters.persistence.jooq.Access
 import com.dynokore.gst.access.application.consent.ConsentRepository
+import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.principal.MachinePermissionSets
@@ -86,7 +87,8 @@ class ServiceDefaults {
     fun policyRoleResolver(
         live: LiveTenantGrants,
         installation: InstallationRoleProperties,
-    ): PolicyRoleResolver = TenantPolicyRoleResolver(live, installation.entries())
+        directory: EntityDirectory,
+    ): PolicyRoleResolver = TenantPolicyRoleResolver(live, installation.entries(), directory)
 
     /**
      * The fixed permission set of each of the six machine principal types (INV-REQ-584, INV-Q-8779 A). Built from the

@@ -1,7 +1,9 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.http.GrantsController
+import com.dynokore.gst.access.adapters.http.SoleOperatorController
 import com.dynokore.gst.access.contract.model.GrantRequest
+import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.BusinessDate
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
@@ -129,6 +131,12 @@ class ProductionPolicyMountingTest {
                 OrganisationStructureChanged(tenant, "ENT-1", StructureChange.CREATED, BoundaryFixture.entityNode()),
             )
         val grants = context.getBean(GrantsController::class.java)
+        // one person holds both roles: the sole-operator acknowledgement is recorded first (INV-REQ-860)
+        tenants.bind(tenant, ADMIN) {
+            context
+                .getBean(SoleOperatorController::class.java)
+                .recordSoleOperator(UUID.randomUUID(), SoleOperatorAckRequest(tenant.toString(), "external review"))
+        }
         listOf("tax.approver", "tenant.admin").forEach { role ->
             tenants.bind(tenant, ADMIN) {
                 grants.grantRole(
