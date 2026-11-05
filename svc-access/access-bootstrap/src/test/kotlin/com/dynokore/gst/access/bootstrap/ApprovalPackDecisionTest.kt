@@ -182,7 +182,7 @@ class ApprovalPackDecisionTest {
 
     /** The client CLI-1 under a live consent that holds MAPPING_APPROVAL: P1 authored, P2 and P3 are agent persons. */
     private fun agentSetUp(env: ApprovalEnv) {
-        env.consents.grant(EntityRef("CLI-1"), agentItems, agent = env.tenant.toString())
+        env.consents.grant(EntityRef("CLI-1"), agentItems, agent = "IDN-P1")
         env.seedConsentDerived("IDN-P1", Role.TAX_APPROVER)
         env.seedConsentDerived("IDN-P2", Role.TAX_APPROVER)
         env.seedConsentDerived("IDN-P3", Role.AGENT_OPERATOR)
@@ -218,7 +218,7 @@ class ApprovalPackDecisionTest {
             env.consents.withdraw(EntityRef("CLI-1"))
             assertThat(env.answer("CLI-1", "IDN-P1", "IDN-P2")).isEqualTo(deny(ReasonCode.NOT_STAFF))
             // a consent without MAPPING_APPROVAL does not put the client under VP-04 either
-            env.consents.grant(EntityRef("CLI-1"), setOf(ScopeItem.SUBMIT_INVOICE_DATA), agent = env.tenant.toString())
+            env.consents.grant(EntityRef("CLI-1"), setOf(ScopeItem.SUBMIT_INVOICE_DATA), agent = "IDN-P1")
             assertThat(env.answer("CLI-1", "IDN-P1", "IDN-P2")[2]).isEqualTo(Option.STAFF_APPROVER)
         }
 

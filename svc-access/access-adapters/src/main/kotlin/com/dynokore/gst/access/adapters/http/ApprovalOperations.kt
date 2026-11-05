@@ -70,7 +70,6 @@ class ApprovalOperations(
 
     private fun outstanding(item: Outstanding) = PackApprovalDecision.Outstanding.valueOf(item.name)
 
-    @Suppress("LongParameterList") // the parameters of the generated operation
     fun decideOverrideRelease(
         entityRef: String,
         errorCode: String,

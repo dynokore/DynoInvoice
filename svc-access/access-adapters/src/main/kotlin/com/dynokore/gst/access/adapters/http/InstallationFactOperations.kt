@@ -4,8 +4,6 @@ import com.dynokore.gst.access.application.approval.InstallationApproverFact
 import com.dynokore.gst.access.application.approval.ReadInstallationFactUseCase
 import com.dynokore.gst.access.application.approval.RecordInstallationFactUseCase
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.identity.ServiceCaller
-import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.ResponseEntity
@@ -24,16 +22,12 @@ sealed interface JournalOutcome {
     data object DifferentRequest : JournalOutcome
 }
 
-/**
- * Runs the record per Idempotency-Key (API-15, INV-Q-15370): the same key and body return the stored response while the
- * stored fact still equals the body's value, and apply the body as an update when the fact has changed since; the same
- * key with another body is refused.
- */
+/** Runs the record once per Idempotency-Key and request fingerprint; a replay returns the original fact. */
 fun interface InstallationJournal {
     fun once(
         actor: String,
         key: UUID,
-        distinctTaxApprover: Boolean,
+        fingerprint: String,
         record: () -> InstallationApproverFact,
     ): JournalOutcome
 }
@@ -45,7 +39,7 @@ fun interface InstallationJournal {
 class InstallationFactOperations(
     private val recordFact: RecordInstallationFactUseCase,
     private val readFact: ReadInstallationFactUseCase,
-    private val serviceCaller: ServiceCaller,
+    private val installer: InstallerCaller,
     private val journal: InstallationJournal,
     private val platform: PlatformTenantBinding,
     private val tenants: TenantContext,
@@ -55,26 +49,21 @@ class InstallationFactOperations(
         distinctTaxApprover: Boolean,
     ): ResponseEntity<FactResponse> {
         val actor = installerSubject()
+        val fingerprint = "PUT /internal/v1/access/installation/approver-fact distinctTaxApprover=$distinctTaxApprover"
         val outcome =
             platform.bindPlatform(actor) {
-                journal.once(
-                    actor,
-                    idempotencyKey,
-                    distinctTaxApprover,
-                ) { recordFact.handle(actor, distinctTaxApprover) }
+                journal.once(actor, idempotencyKey, fingerprint) { recordFact.handle(actor, distinctTaxApprover) }
             }
         return ResponseEntity.ok(factOf(factOf(outcome)))
     }
 
-    /**
-     * The verified calling workload. That it is the installer is decided before the call by the caller check that
-     * service-runtime generates from the contract for the edge `installer->access-svc` (INV-Q-17002 A); the audit entry
-     * names this identifier, never a role.
-     */
+    /** The subject of the installer's workload; no token is 401 SRT-003 and any other identity 403 SRT-004. */
     private fun installerSubject(): String =
-        WorkloadPrincipal(
-            serviceCaller.current() ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED),
-        ).value
+        when (val caller = installer.identify()) {
+            InstallerIdentity.Absent -> throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
+            InstallerIdentity.Other -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            is InstallerIdentity.Installer -> caller.subject
+        }
 
     private fun factOf(outcome: JournalOutcome): InstallationApproverFact =
         when (outcome) {

@@ -112,18 +112,14 @@ class GrantRoleUseCase(
     ): GrantRoleOutcome? {
         val officerPair = SeparationOfDuty.completesOfficerPair(held, role)
         return when {
-            !SeparationOfDuty.completesConflict(held, role) -> {
-                null
-            }
+            !SeparationOfDuty.completesConflict(held, role) -> null
 
             rules.soleOperators.lockActive() == null -> {
                 if (officerPair) GrantRoleOutcome.SoleOperatorAckRequired else GrantRoleOutcome.OverrideAckRequired
             }
 
             // VP-81, read after the lock; a failed read or an unknown value fails the request (nothing is written)
-            rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> {
-                null
-            }
+            rules.soleOperatorScope.current() == SoleOperatorScope.ANY_NUMBER -> null
 
             officerPair && otherPeopleHoldingBoth(command.identity).isNotEmpty() -> {
                 GrantRoleOutcome.SecondHolderRefused
@@ -133,9 +129,7 @@ class GrantRoleUseCase(
                 GrantRoleOutcome.SecondOverrideHolderRefused
             }
 
-            else -> {
-                null
-            }
+            else -> null
         }
     }
 

@@ -126,7 +126,6 @@ internal class ApprovalEnv(
         prior: List<String>? = null,
     ): PackApprovalDecision = asUser(ADMIN) { operations.decidePackApproval(entity, author, approver, prior).body!! }
 
-    @Suppress("LongParameterList") // test helper mirroring the decideOverrideRelease request
     fun release(
         entity: String = "ENT-1",
         code: String = "PER-001",
@@ -189,7 +188,6 @@ internal class ApprovalEnv(
     }
 
     /** `setPolicy` of [vp] for [entity]; [level] is ENTITY, or CLIENT_ENTITY for VP-04. */
-    @Suppress("LongParameterList") // test helper mirroring the setPolicy request
     fun set(
         vp: String,
         entity: String,

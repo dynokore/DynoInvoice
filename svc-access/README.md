@@ -82,11 +82,8 @@ approval) need contract surface that the access contract does not publish yet; s
 - `decidePackApproval`, `decideOverrideRelease`, `getMappingAcknowledgement`, `recordInstallationApproverFact` and
   `getInstallationApproverFact` are served here (INV-Q-10695). The decisions read the live grants, consent,
   sole-operator acknowledgement and the VP-03 / VP-04 / VP-32 values at every question; a DENY is a decision (HTTP 200).
-- `recordInstallationApproverFact` admits only the installer: the caller check that service-runtime generates from the
-  contract for the edge `installer->access-svc` refuses another service (403 SRT-004) and a call with no workload token
-  (401 SRT-003), and the audit entry names the verified calling workload (INV-Q-17002 A). A repeated Idempotency-Key
-  returns the stored response only while the fact still equals the body's value, otherwise the body is applied as an
-  update (INV-Q-15370); the key and response are in `access.installation_fact_request`.
+- `recordInstallationApproverFact` admits only a workload token whose subject is configured in
+  `access.installation-roles` with the role `deployment.operator` (403 for any other identity, 401 without a token).
 - The row of the fact is the one installation row under the reserved platform tenant; the acknowledgement of a mapping
   pack is `access.mapping_acknowledgement` (written by `acknowledgeMapping`, INV-T-4940).
 - `setPolicy` for VP-03 and VP-32 by a person who also holds `validation.override` needs the tenant's ACTIVE
