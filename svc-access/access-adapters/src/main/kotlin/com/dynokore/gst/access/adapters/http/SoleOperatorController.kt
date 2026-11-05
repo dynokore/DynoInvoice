@@ -31,6 +31,7 @@ import java.util.UUID
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
 // template)
+@Suppress("LongParameterList") // one collaborator per operation group of the tag
 open class SoleOperatorController(
     private val record: RecordSoleOperatorUseCase,
     private val withdraw: WithdrawSoleOperatorUseCase,

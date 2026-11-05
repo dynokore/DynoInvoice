@@ -24,7 +24,7 @@ class OverrideAmountConstraints(
         onDate: LocalDate,
     ): ConstraintVerdict? =
         if (key == VP_32) {
-            verdictOf(selected.singleOrNull { it.key == ABOVE_AMOUNT }?.let { it.valueJson ?: "" })
+            verdictOf(selected.singleOrNull { it.key == ABOVE_AMOUNT }?.let { it.valueJson.orEmpty() })
         } else {
             null
         }

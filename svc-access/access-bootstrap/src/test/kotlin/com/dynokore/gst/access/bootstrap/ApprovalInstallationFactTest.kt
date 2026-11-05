@@ -1,51 +1,70 @@
 package com.dynokore.gst.access.bootstrap
 
-import com.dynokore.gst.access.adapters.http.InstallationFactOperations
-import com.dynokore.gst.access.adapters.http.InstallationJournal
-import com.dynokore.gst.access.adapters.http.InstallerCaller
-import com.dynokore.gst.access.adapters.http.InstallerIdentity
-import com.dynokore.gst.access.adapters.http.WorkloadInstallerCaller
-import com.dynokore.gst.access.application.approval.ReadInstallationFactUseCase
-import com.dynokore.gst.access.application.approval.RecordInstallationFactUseCase
-import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.identity.WorkloadToken
-import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
-import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
-import com.dynokore.platform.tenancykernel.PlatformTenantBinding
-import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.CALLERS
+import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.INSTALLER
+import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.OTHER
+import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.json
+import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.operation
+import com.dynokore.gst.access.bootstrap.served.ServedContext
+import com.dynokore.gst.access.bootstrap.served.USER_A_TOKEN
+import com.dynokore.gst.access.bootstrap.served.workloadToken
+import com.dynokore.platform.serviceruntime.identity.ServiceCaller
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.mock.web.MockHttpServletResponse
 import java.util.UUID
 
 /**
  * The installation approver fact (INV-T-4936; INV-REQ-992; INV-AC-1048, INV-AC-1063, INV-AC-9553 for the part this
- * service produces): only the installer's workload records, a later value updates, a read before any record is 404,
- * and the audit entry names the acting user ID. The activation record that carries the fact is rules-svc's.
+ * service produces), through the real context with the caller check that service-runtime generates from the contract
+ * for the edge `installer->access-svc` (INV-Q-17002 A): only the installer records, a later value updates, a read
+ * before any record is 404, a repeated key follows INV-Q-15370, and the audit entry names the acting user ID. The
+ * activation record that carries the fact is rules-svc's.
  */
 class ApprovalInstallationFactTest {
-    private val installer = "system:serviceaccount:installer:installer"
+    private val record = "recordInstallationApproverFact"
+    private val read = "getInstallationApproverFact"
+    private val installerActor = WorkloadPrincipal(INSTALLER).value
 
     private fun clear() =
         BoundaryFixture.asSuperuser {
-            it.createStatement().use { statement -> statement.execute("DELETE FROM access.installation_approver_fact") }
+            it.createStatement().use { statement ->
+                statement.execute("DELETE FROM access.installation_approver_fact")
+                statement.execute("DELETE FROM access.installation_fact_request")
+                statement.execute("DELETE FROM access.idempotency_key WHERE principal LIKE 'svc:%'")
+                statement.execute("DELETE FROM access.outbox WHERE data::text LIKE '%recordInstallationApproverFact%'")
+            }
         }
 
-    private fun operations(
-        env: ApprovalEnv,
-        who: InstallerIdentity,
-    ) = env.context.let { c ->
-        InstallationFactOperations(
-            c.getBean(RecordInstallationFactUseCase::class.java),
-            c.getBean(ReadInstallationFactUseCase::class.java),
-            InstallerCaller { who },
-            c.getBean(InstallationJournal::class.java),
-            c.getBean(PlatformTenantBinding::class.java),
-            c.getBean(TenantContext::class.java),
-        )
+    private fun withInstallation(block: (ServedContext) -> Unit) =
+        FirstAdministratorFixture.withService(callers = CALLERS + "installer-alt") { served ->
+            clear()
+            block(served)
+        }
+
+    private fun ServedContext.put(
+        caller: String?,
+        distinct: Boolean,
+        key: UUID = UUID.randomUUID(),
+        auth: String? = null,
+    ): MockHttpServletResponse {
+        (application.getBean(ServiceCaller::class.java) as MovableServiceCaller).value = caller
+        val headers = mutableMapOf<String, String>()
+        caller?.let { headers["X-Workload-Token"] = workloadToken(it) }
+        auth?.let { headers["Authorization"] = it }
+        return post(operation(record), headers, """{"distinctTaxApprover":$distinct}""", key)
     }
 
-    private fun auditRows(actor: String): List<String> =
+    private fun ServedContext.get(): MockHttpServletResponse {
+        (application.getBean(ServiceCaller::class.java) as MovableServiceCaller).value = "console-bff"
+        return call(operation(read), workloadToken("console-bff"), USER_A_TOKEN)
+    }
+
+    private fun factOf(response: MockHttpServletResponse): Boolean? =
+        json(response).get("distinctTaxApprover")?.asBoolean()
+
+    private fun auditRows(actor: String = installerActor): List<String> =
         BoundaryFixture.asSuperuser { connection ->
             connection
                 .prepareStatement(
@@ -61,114 +80,94 @@ class ApprovalInstallationFactTest {
 
     @Test
     fun `INV-AC-1048 the installer records the fact, a later value updates it and a read answers it`() =
-        approvalRun { env ->
-            clear()
-            val ops = operations(env, InstallerIdentity.Installer(installer))
-            val reader = { env.asUser("user:anyone") { ops.getInstallationApproverFact() } }
-            assertThat(env.refusal { reader() }.code).isEqualTo(ClosedErrorCode.NOT_FOUND)
-            val first = ops.recordInstallationApproverFact(UUID.randomUUID(), false)
-            assertThat(first.statusCode.value()).isEqualTo(200)
-            assertThat(first.body!!.distinctTaxApprover).isFalse()
-            assertThat(reader().body!!.distinctTaxApprover).isFalse()
-            val second = ops.recordInstallationApproverFact(UUID.randomUUID(), true)
-            assertThat(second.body!!.distinctTaxApprover).isTrue()
-            assertThat(reader().body!!.distinctTaxApprover).isTrue()
-            assertThat(reader().body!!.recordedAt).isEqualTo(second.body!!.recordedAt)
+        withInstallation { served ->
+            assertThat(served.get().status).isEqualTo(404)
+            assertThat(json(served.get()).toString()).contains("SRT-005")
+            val first = served.put(INSTALLER, false)
+            assertThat(first.status).isEqualTo(200)
+            assertThat(factOf(first)).isFalse()
+            assertThat(factOf(served.get())).isFalse()
+            val second = served.put(INSTALLER, true)
+            assertThat(factOf(second)).isTrue()
+            val reading = json(served.get())
+            assertThat(reading.get("distinctTaxApprover").asBoolean()).isTrue()
+            assertThat(reading.get("recordedAt").asString()).isEqualTo(json(second).get("recordedAt").asString())
         }
 
     @Test
     fun `INV-AC-9553 INV-AC-1063 a deployment without a distinct approver reads false and one with reads true`() =
-        approvalRun { env ->
-            clear()
-            val ops = operations(env, InstallerIdentity.Installer(installer))
-            val read = { env.asUser("user:anyone") { ops.getInstallationApproverFact().body!!.distinctTaxApprover } }
-            ops.recordInstallationApproverFact(UUID.randomUUID(), false)
-            val d1 = listOf(read(), read())
-            ops.recordInstallationApproverFact(UUID.randomUUID(), true)
-            val d2 = read()
+        withInstallation { served ->
+            served.put(INSTALLER, false)
+            val d1 = listOf(factOf(served.get()), factOf(served.get()))
+            served.put(INSTALLER, true)
             // the three reads, in the order of the criterion (D1, D1, D2), compared with false, false, true
-            assertThat(d1 + d2).containsExactly(false, false, true)
+            assertThat(d1 + factOf(served.get())).containsExactly(false, false, true)
         }
 
     @Test
-    fun `INV-AC-1048 an identity other than the installer is 403, no token is 401 and nothing is stored`() =
-        approvalRun { env ->
-            clear()
-            val other = operations(env, InstallerIdentity.Other)
-            val nobody = operations(env, InstallerIdentity.Absent)
-            assertThat(env.refusal { other.recordInstallationApproverFact(UUID.randomUUID(), false) }.code)
-                .isEqualTo(ClosedErrorCode.ACCESS_DENIED)
-            assertThat(env.refusal { nobody.recordInstallationApproverFact(UUID.randomUUID(), false) }.code)
-                .isEqualTo(ClosedErrorCode.UNAUTHENTICATED)
-            val reader = operations(env, InstallerIdentity.Installer(installer))
-            assertThat(env.refusal { env.asUser("user:anyone") { reader.getInstallationApproverFact() } }.code)
-                .isEqualTo(ClosedErrorCode.NOT_FOUND)
-        }
-
-    @Test
-    fun `INV-AC-1048 the workload caller admits a configured installer subject and no look-alike`() {
-        val verifier =
-            WorkloadTokenVerifier { token ->
-                when (token?.value) {
-                    "installer" -> WorkloadVerification.Verified(installer)
-                    "installer-2" -> WorkloadVerification.Verified("$installer-2")
-                    "gateway" -> WorkloadVerification.Verified("system:serviceaccount:gateway:api-gateway")
-                    else -> WorkloadVerification.Refused("invalid")
-                }
+    fun `INV-AC-1048 another service is 403, no workload token or a person alone is 401 and nothing is stored`() =
+        withInstallation { served ->
+            val before = served.stored()
+            listOf("installer-alt", OTHER).forEach {
+                val refused = served.put(it, true)
+                assertThat(refused.status).isEqualTo(403)
+                assertThat(refused.contentAsString).contains("SRT-004")
             }
-
-        fun identify(
-            workload: String?,
-            authorization: String? = null,
-        ): InstallerIdentity {
-            val request = MockHttpServletRequest()
-            workload?.let { request.addHeader(WorkloadToken.HEADER_NAME, it) }
-            authorization?.let { request.addHeader("Authorization", it) }
-            return WorkloadInstallerCaller(request, verifier, setOf(installer)).identify()
+            // an end-user token with another service's workload token
+            assertThat(served.put(OTHER, true, auth = USER_A_TOKEN).status).isEqualTo(403)
+            // no workload token, and a person's end-user token alone
+            val nobody = served.put(null, true)
+            assertThat(nobody.status).isEqualTo(401)
+            assertThat(nobody.contentAsString).contains("SRT-003")
+            assertThat(served.put(null, true, auth = USER_A_TOKEN).status).isEqualTo(401)
+            assertThat(served.stored()).isEqualTo(before)
+            assertThat(served.get().status).isEqualTo(404)
         }
-        assertThat(identify("installer")).isEqualTo(InstallerIdentity.Installer(installer))
-        assertThat(identify("installer-2")).isEqualTo(InstallerIdentity.Other)
-        assertThat(identify("gateway")).isEqualTo(InstallerIdentity.Other)
-        assertThat(identify("forged")).isEqualTo(InstallerIdentity.Absent)
-        assertThat(identify(null)).isEqualTo(InstallerIdentity.Absent)
-        assertThat(identify(" ")).isEqualTo(InstallerIdentity.Absent)
-        // an end-user token is never the installer's, whatever its subject
-        assertThat(identify(null, "Bearer tok:$installer")).isEqualTo(InstallerIdentity.Other)
-        assertThat(identify("gateway", "Bearer tok:$installer")).isEqualTo(InstallerIdentity.Other)
-    }
 
     @Test
     fun `INV-AC-1048 a repeat with the same Idempotency-Key returns the original and writes one audit entry`() =
-        approvalRun { env ->
-            clear()
-            val actor = "system:serviceaccount:installer:repeat-${UUID.randomUUID()}"
-            val ops = operations(env, InstallerIdentity.Installer(actor))
+        withInstallation { served ->
             val key = UUID.randomUUID()
-            val first = ops.recordInstallationApproverFact(key, false)
-            val again = ops.recordInstallationApproverFact(key, false)
-            assertThat(again.body).isEqualTo(first.body)
-            assertThat(auditRows(actor)).hasSize(1)
+            val first = served.put(INSTALLER, false, key)
+            val again = served.put(INSTALLER, false, key)
+            assertThat(again.status).isEqualTo(200)
+            assertThat(again.contentAsString).isEqualTo(first.contentAsString)
+            assertThat(auditRows()).hasSize(1)
             // the same key with another body is SRT-009 and stores nothing
-            val different = env.refusal { ops.recordInstallationApproverFact(key, true) }
-            assertThat(different.code).isEqualTo(ClosedErrorCode.DIFFERENT_REQUEST)
-            assertThat(auditRows(actor)).hasSize(1)
-            assertThat(
-                env.asUser("user:anyone") { ops.getInstallationApproverFact().body!!.distinctTaxApprover },
-            ).isFalse()
+            val different = served.put(INSTALLER, true, key)
+            assertThat(different.contentAsString).contains("SRT-009")
+            assertThat(auditRows()).hasSize(1)
+            assertThat(factOf(served.get())).isFalse()
+        }
+
+    @Test
+    fun `INV-AC-1048 a key repeated after the fact changed is applied as an update`() =
+        withInstallation { served ->
+            val k1 = UUID.randomUUID()
+            val k2 = UUID.randomUUID()
+            val a = served.put(INSTALLER, true, k1)
+            val b = served.put(INSTALLER, false, k2)
+            val c = served.put(INSTALLER, true, k1)
+            assertThat(listOf(a.status, b.status, c.status)).containsOnly(200)
+            assertThat(factOf(c)).isTrue()
+            assertThat(factOf(served.get())).isTrue()
+            assertThat(auditRows()).hasSize(3)
+            assertThat(json(c).get("recordedAt").asString()).isNotEqualTo(json(a).get("recordedAt").asString())
+            // the response under the key is the new one: a fourth call with k1 and the fact unchanged replays it
+            val d = served.put(INSTALLER, true, k1)
+            assertThat(d.contentAsString).isEqualTo(c.contentAsString)
+            assertThat(auditRows()).hasSize(3)
         }
 
     @Test
     fun `INV-AC-1048 the audit entry names the acting user ID and the prior value, never a role`() =
-        approvalRun { env ->
-            clear()
-            val actor = "system:serviceaccount:installer:audit-${UUID.randomUUID()}"
-            val ops = operations(env, InstallerIdentity.Installer(actor))
-            ops.recordInstallationApproverFact(UUID.randomUUID(), false)
-            ops.recordInstallationApproverFact(UUID.randomUUID(), true)
-            val rows = auditRows(actor).map { env.json(it) }
+        withInstallation { served ->
+            served.put(INSTALLER, false)
+            served.put(INSTALLER, true)
+            val rows = auditRows().map { json(it) }
             assertThat(rows).hasSize(2)
             rows.forEach {
-                assertThat(it.toString()).contains(actor).doesNotContain("deployment.operator")
+                assertThat(it.toString()).contains(installerActor).doesNotContain("deployment.operator")
             }
             assertThat(rows.map { it.toString() }.count { it.contains("distinctTaxApprover") }).isEqualTo(1)
         }

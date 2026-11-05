@@ -4,9 +4,7 @@ import com.dynokore.gst.access.adapters.approval.ApprovalPolicyWriter
 import com.dynokore.gst.access.adapters.approval.VariationPointApprovalSettings
 import com.dynokore.gst.access.adapters.http.ApprovalOperations
 import com.dynokore.gst.access.adapters.http.InstallationJournal
-import com.dynokore.gst.access.adapters.http.InstallerCaller
 import com.dynokore.gst.access.adapters.http.JournalOutcome
-import com.dynokore.gst.access.adapters.http.WorkloadInstallerCaller
 import com.dynokore.gst.access.adapters.persistence.JooqIdentities
 import com.dynokore.gst.access.adapters.persistence.JooqInstallationFacts
 import com.dynokore.gst.access.adapters.persistence.JooqMappingAcknowledgements
@@ -114,6 +112,7 @@ class ApprovalUseCases {
         identities: Identities,
     ) = ApproverStandings(authorise, identities)
 
+    @Suppress("LongParameterList") // one collaborator per port of the use case
     @Bean
     fun decidePackApprovalUseCase(
         tx: TransactionRunner,
