@@ -52,10 +52,12 @@ class TenantPublicationTest {
 
             override fun create(tenant: TenantRecord): TenantCreation {
                 val same = rows.firstOrNull { it.ref == tenant.ref }
-                if (same != null) return TenantCreation.Repeated(same)
-                if (rows.any { it.contractReference == tenant.contractReference }) return TenantCreation.Conflict
-                rows += tenant
-                return TenantCreation.Created(tenant)
+                val other = rows.any { it.contractReference == tenant.contractReference }
+                return when {
+                    same != null -> TenantCreation.Repeated(same)
+                    other -> TenantCreation.Conflict
+                    else -> TenantCreation.Created(tenant).also { rows += tenant }
+                }
             }
 
             override fun current(): TenantRecord? = null

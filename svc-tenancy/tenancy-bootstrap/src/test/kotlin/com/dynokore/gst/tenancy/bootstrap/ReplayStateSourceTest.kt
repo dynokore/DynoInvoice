@@ -529,7 +529,7 @@ class ReplayStateSourceTest {
             scenario(env) { s ->
                 val all = env.states(s.tenant, env.structure)
                 assertThat(env.structure.eventType).isEqualTo(STRUCTURE_TYPE)
-                // INV-T-15383 Tighten: exactly one TENANT state, the first, equal to the node getEntityStructure answers
+                // INV-T-15383 Tighten: exactly one TENANT state, first, equal to the getEntityStructure node
                 val tenantStates = all.filter { it.aggregateKey == s.tenantRef }
                 assertThat(tenantStates).hasSize(1)
                 assertThat(all.first()).isSameAs(tenantStates.single())
