@@ -9,6 +9,7 @@ import com.dynokore.gst.access.contract.model.OverrideReleaseDecision
 import com.dynokore.gst.access.contract.model.PackApprovalDecision
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
 import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.Role
@@ -89,10 +90,11 @@ internal class ApprovalEnv(
     fun seedConsentDerived(
         identity: String,
         role: Role,
+        status: GrantStatus = GrantStatus.ACTIVE,
     ) = Seeds.grant(
         context,
         tenant,
-        SeedSpec(identity, role, Scope.ConsentDerived(TenantRef(tenant.toString()), consents.check())),
+        SeedSpec(identity, role, Scope.ConsentDerived(TenantRef(tenant.toString()), consents.check()), status),
     )
 
     fun grant(

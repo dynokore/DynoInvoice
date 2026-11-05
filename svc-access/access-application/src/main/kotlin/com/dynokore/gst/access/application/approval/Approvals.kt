@@ -150,7 +150,7 @@ class DecidePackApprovalUseCase(
                     approver,
                     standing,
                     acks.findActive()?.let { AckRef(it.ref) },
-                    priorApprovers.any { standings.of(it, entity).agentSecondPerson },
+                    priorApprovers.any { it != author && standings.of(it, entity).agentSecondPerson },
                 )
             PackApprovalAnswer(verdict, option)
         }

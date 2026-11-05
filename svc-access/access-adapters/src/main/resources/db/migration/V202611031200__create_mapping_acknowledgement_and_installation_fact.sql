@@ -22,6 +22,17 @@ CREATE TABLE access.installation_approver_fact (
     recorded_by           text        NOT NULL CHECK (length(recorded_by) BETWEEN 1 AND 255)  -- the acting user ID, never a role
 );
 
+-- The Idempotency-Key journal of recordInstallationApproverFact (INV-Q-15370): the body and the response stored under the
+-- key, which a later request with the same key and a changed fact replaces. Platform data, like the fact itself.
+CREATE TABLE access.installation_fact_request (
+    tenant_id             uuid        NOT NULL,
+    actor                 text        NOT NULL CHECK (length(actor) BETWEEN 1 AND 255),  -- the acting user ID, never a role
+    idempotency_key       uuid        NOT NULL,
+    distinct_tax_approver boolean     NOT NULL,  -- the body of the request
+    recorded_at           timestamptz NOT NULL,  -- the response stored under the key
+    PRIMARY KEY (tenant_id, actor, idempotency_key)
+);
+
 ALTER TABLE access.mapping_acknowledgement ENABLE ROW LEVEL SECURITY;
 ALTER TABLE access.mapping_acknowledgement FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON access.mapping_acknowledgement
@@ -34,5 +45,12 @@ CREATE POLICY tenant_isolation ON access.installation_approver_fact
     USING      (tenant_id = (select access.bound_tenant()))
     WITH CHECK (tenant_id = (select access.bound_tenant()));
 
+ALTER TABLE access.installation_fact_request ENABLE ROW LEVEL SECURITY;
+ALTER TABLE access.installation_fact_request FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON access.installation_fact_request
+    USING      (tenant_id = (select access.bound_tenant()))
+    WITH CHECK (tenant_id = (select access.bound_tenant()));
+
 GRANT SELECT, INSERT ON access.mapping_acknowledgement TO access_runtime;
 GRANT SELECT, INSERT, UPDATE ON access.installation_approver_fact TO access_runtime;
+GRANT SELECT, INSERT, UPDATE ON access.installation_fact_request TO access_runtime;

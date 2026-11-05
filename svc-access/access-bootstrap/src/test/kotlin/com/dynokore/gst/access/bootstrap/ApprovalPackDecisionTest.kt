@@ -7,6 +7,7 @@ import com.dynokore.gst.access.contract.model.PackApprovalDecision.Outstanding
 import com.dynokore.gst.access.contract.model.PackApprovalDecision.ReasonCode
 import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.role.Role
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -106,7 +107,7 @@ class ApprovalPackDecisionTest {
         }
 
     @Test
-    fun `INV-AC-9554 the advisor approves on the last valid day and no longer once the grant has expired`() =
+    fun `INV-AC-9554 the advisor approves on the day before the grant ends and no longer once the grant has expired`() =
         approvalRun { env ->
             val validTo = LocalDate.now().plusDays(60)
             env.grant("IDN-X", "tax.approver", "entity:ENT-1", GrantRequest.GranteeKind.EXTERNAL, validTo)
@@ -248,6 +249,31 @@ class ApprovalPackDecisionTest {
             assertThat(one.map { it[0] }).containsOnly(Decision.DENY)
             assertThat(one.map { it[1] }).containsOnly(ReasonCode.AUTHOR_IS_APPROVER, ReasonCode.NOT_CLIENT_APPROVER)
             assertThat(one).hasSize(3)
+        }
+
+    @Test
+    fun `INV-AC-2248 the author among the prior approvers does not make two agent people`() =
+        approvalRun { env ->
+            agentSetUp(env)
+            val chosen = "AGENT_SECOND_PERSON_CLIENT_APPROVAL"
+            env.accepted(env.set("VP-04", "CLI-1", chosen, actor = "IDN-S", level = "CLIENT_ENTITY"))
+            val option = Option.AGENT_SECOND_PERSON_CLIENT_APPROVAL
+            assertThat(env.answer("CLI-1", "IDN-P1", "IDN-Q", listOf("IDN-P1")))
+                .isEqualTo(deny(ReasonCode.NOT_AGENT_SECOND_PERSON, option))
+            assertThat(env.answer("CLI-1", "IDN-P1", "IDN-Q", listOf("IDN-P1", "IDN-P2"))).isEqualTo(allow(option))
+        }
+
+    @Test
+    fun `INV-AC-2248 a prior person whose consent-derived grant has ended (revoked) does not count`() =
+        approvalRun { env ->
+            agentSetUp(env)
+            val chosen = "AGENT_SECOND_PERSON_CLIENT_APPROVAL"
+            env.accepted(env.set("VP-04", "CLI-1", chosen, actor = "IDN-S", level = "CLIENT_ENTITY"))
+            val option = Option.AGENT_SECOND_PERSON_CLIENT_APPROVAL
+            assertThat(env.answer("CLI-1", "IDN-P1", "IDN-Q", listOf("IDN-P2"))).isEqualTo(allow(option))
+            env.seedConsentDerived("IDN-P4", Role.TAX_APPROVER, GrantStatus.REVOKED)
+            assertThat(env.answer("CLI-1", "IDN-P1", "IDN-Q", listOf("IDN-P4")))
+                .isEqualTo(deny(ReasonCode.NOT_AGENT_SECOND_PERSON, option))
         }
 
     @Test
