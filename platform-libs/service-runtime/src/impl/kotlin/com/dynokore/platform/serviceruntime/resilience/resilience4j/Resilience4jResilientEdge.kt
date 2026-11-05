@@ -20,6 +20,8 @@ import io.github.resilience4j.retry.Retry
 import io.github.resilience4j.retry.RetryConfig
 import io.github.resilience4j.timelimiter.TimeLimiter
 import io.github.resilience4j.timelimiter.TimeLimiterConfig
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.web.client.ResourceAccessException
 import java.net.ConnectException
 import java.time.Clock
@@ -27,6 +29,7 @@ import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The one shipped [ResilientEdge]: STK-24's Resilience4j core, composed exactly
@@ -54,16 +57,23 @@ import java.util.concurrent.TimeoutException
  * the owning [Resilience4jResilienceRegistry] itself stops.
  */
 class Resilience4jResilientEdge(
-    edge: String,
+    private val edge: String,
     val policy: EdgePolicy,
     private val clock: Clock,
     private val executorService: ExecutorService = Executors.newVirtualThreadPerTaskExecutor(),
+    meters: MeterRegistry? = null,
 ) : ResilientEdge,
     AutoCloseable {
     private val timeLimiter = TimeLimiter.of(edge, policy.timeout.toResilience4j())
     private val bulkhead = Bulkhead.of(edge, policy.bulkhead.toResilience4j())
     private val circuitBreaker = CircuitBreaker.of(edge, policy.circuitBreaker.toResilience4j())
-    private val retry = policy.retry?.let { Retry.of(edge, it.toResilience4j()) }
+    private val retry = policy.retry?.takeIf { it.budget == null }?.let { Retry.of(edge, it.toResilience4j()) }
+    private val budgeted = policy.retry?.takeIf { it.budget != null }
+    private val budgetTracker = budgeted?.budget?.let { RetryBudgetTracker(it, clock) }
+
+    // INV-T-9099: counts the calls that lost their retry to the budget; absent without a MeterRegistry.
+    private val budgetExhausted: Counter? =
+        if (budgetTracker == null) null else meters?.counter(BUDGET_EXHAUSTED_METER, "edge", edge)
 
     override fun <T> execute(
         deadline: Deadline,
@@ -79,11 +89,24 @@ class Resilience4jResilientEdge(
         val endUserToken = CurrentEndUserToken.current()
         val boundBlock: Callable<T> = Callable { withCallContext(deadline, endUserToken, block) }
 
+        // Counts the attempts that actually reach the block (a breaker or bulkhead refusal does not), per call.
+        val started = AtomicInteger()
         val timeLimited: Callable<T> =
-            Callable { timeLimiter.executeFutureSupplier { executorService.submit(boundBlock) } }
+            Callable {
+                if (started.incrementAndGet() == 1) budgetTracker?.firstAttemptStarted()
+                timeLimiter.executeFutureSupplier { executorService.submit(boundBlock) }
+            }
         val bulkheaded: Callable<T> = Bulkhead.decorateCallable(bulkhead, timeLimited)
         val guarded: Callable<T> = CircuitBreaker.decorateCallable(circuitBreaker, bulkheaded)
-        val toRun: Callable<T> = retry?.let { Retry.decorateCallable(it, guarded) } ?: guarded
+        val perCallRetry =
+            if (budgeted != null &&
+                budgetTracker != null
+            ) {
+                budgetedRetry(budgeted, budgetTracker, started)
+            } else {
+                null
+            }
+        val toRun: Callable<T> = (retry ?: perCallRetry)?.let { Retry.decorateCallable(it, guarded) } ?: guarded
 
         return try {
             toRun.call()
@@ -100,8 +123,39 @@ class Resilience4jResilientEdge(
         }
     }
 
+    /**
+     * A retry for one call whose retry decision asks the budget first (INV-T-9099). A failure that is not retried
+     * anyway (a breaker or bulkhead refusal, or the last attempt) never spends the budget.
+     */
+    private fun budgetedRetry(
+        retryPolicy: RetryPolicy,
+        tracker: RetryBudgetTracker,
+        started: AtomicInteger,
+    ): Retry {
+        val config =
+            RetryConfig
+                .from<Any>(retryPolicy.toResilience4j())
+                .retryOnException { failure ->
+                    failure.isRetryable() &&
+                        (started.get() >= retryPolicy.maxAttempts || withinBudget(tracker))
+                }.build()
+        return Retry.of(edge, config)
+    }
+
+    private fun Throwable.isRetryable(): Boolean = this !is CallNotPermittedException && this !is BulkheadFullException
+
+    private fun withinBudget(tracker: RetryBudgetTracker): Boolean {
+        if (tracker.tryAcquireRetry()) return true
+        budgetExhausted?.increment()
+        return false
+    }
+
     override fun close() {
         executorService.shutdown()
+    }
+
+    companion object {
+        const val BUDGET_EXHAUSTED_METER = "edge.retry.budget.exhausted"
     }
 
     private fun <T> withCallContext(

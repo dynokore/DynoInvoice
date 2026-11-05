@@ -5,6 +5,8 @@ import com.dynokore.platform.serviceruntime.resilience.http.DeadlineServerFilter
 import com.dynokore.platform.serviceruntime.resilience.http.EndUserTokenCaptureFilter
 import com.dynokore.platform.serviceruntime.resilience.http.EndUserTokenPropagationInterceptor
 import com.dynokore.platform.serviceruntime.resilience.resilience4j.Resilience4jResilienceRegistry
+import io.micrometer.core.instrument.MeterRegistry
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -33,7 +35,8 @@ class ResilienceAutoConfiguration {
     fun resilienceRegistry(
         properties: ResilienceProperties,
         clock: Clock,
-    ): ResilienceRegistry = Resilience4jResilienceRegistry(properties, clock)
+        meters: ObjectProvider<MeterRegistry>,
+    ): ResilienceRegistry = Resilience4jResilienceRegistry(properties, clock, meters.ifAvailable)
 
     @Bean
     @ConditionalOnMissingBean

@@ -94,3 +94,23 @@ class ResiliencePolicyTest {
         edge.retry shouldBe null
     }
 }
+
+class RetryBudgetTest {
+    @org.junit.jupiter.api.Test
+    fun `window must be positive and ratio within 0 to 1`() {
+        io.kotest.assertions.throwables.shouldThrow<IllegalArgumentException> {
+            RetryBudget(java.time.Duration.ZERO, 0.1)
+        }
+        io.kotest.assertions.throwables.shouldThrow<IllegalArgumentException> {
+            RetryBudget(java.time.Duration.ofSeconds(-1), 0.1)
+        }
+        io.kotest.assertions.throwables.shouldThrow<IllegalArgumentException> {
+            RetryBudget(java.time.Duration.ofSeconds(1), 1.01)
+        }
+        io.kotest.assertions.throwables.shouldThrow<IllegalArgumentException> {
+            RetryBudget(java.time.Duration.ofSeconds(1), -0.01)
+        }
+        RetryBudget(java.time.Duration.ofSeconds(1), 0.0)
+        RetryBudget(java.time.Duration.ofSeconds(1), 1.0)
+    }
+}

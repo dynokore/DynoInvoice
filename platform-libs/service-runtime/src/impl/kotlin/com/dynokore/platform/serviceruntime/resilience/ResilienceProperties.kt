@@ -39,14 +39,34 @@ data class EdgeProperties(
     val retry: RetryProperties? = null,
     val circuitBreaker: CircuitBreakerProperties = CircuitBreakerProperties(),
     val bulkhead: BulkheadProperties = BulkheadProperties(),
+    /** INV-T-9099: the retry budget's window and ratio; both set or both absent, and only with [retry]. */
+    val retryBudgetWindow: Duration? = null,
+    val retryBudgetRatio: Double? = null,
 ) {
+    init {
+        // Checked at construction so a bad binding fails at startup, not at the first call.
+        require((retryBudgetWindow == null) == (retryBudgetRatio == null)) {
+            "retry-budget-window and retry-budget-ratio must be set together"
+        }
+        require(retryBudgetWindow == null || retry != null) { "a retry budget needs a retry on the same edge" }
+    }
+
     fun toPolicy(): EdgePolicy =
         EdgePolicy(
             timeout = TimeoutPolicy(timeout),
-            retry = retry?.toPolicy(),
+            retry = retry?.toPolicy()?.copy(budget = budget()),
             circuitBreaker = circuitBreaker.toPolicy(),
             bulkhead = bulkhead.toPolicy(),
         )
+
+    private fun budget(): RetryBudget? =
+        if (retryBudgetWindow == null ||
+            retryBudgetRatio == null
+        ) {
+            null
+        } else {
+            RetryBudget(retryBudgetWindow, retryBudgetRatio)
+        }
 }
 
 data class RetryProperties(

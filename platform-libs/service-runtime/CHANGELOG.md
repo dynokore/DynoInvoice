@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.34.0] - 2026-11-05
+### Added
+- Retry budget (INV-T-9099, INV-Q-9083 A, INV-AC-9091): `RetryPolicy.budget: RetryBudget?` (default `null`, behaviour unchanged) takes a retry only while retries started in the window are at most `maxRetryRatio` times the first attempts started in it; otherwise the call ends unavailable and `edge.retry.budget.exhausted` (tag `edge`) counts it. The `access-svc` edge carries 10 s / 0.10 (`service-runtime.resilience.edges.access-svc.retry-budget-window` and `...retry-budget-ratio`).
+
 ## [10.33.1] - 2026-11-05
 ### Changed
 - Metadata-only change (INV-T-14300, G-DVS): depends on `outbox-and-queue 6.16.0`, `product-runtime 2.8.0`, `audit-log 4.0.26` and `config-resolver 5.0.23`, whose versions step; no production code change.

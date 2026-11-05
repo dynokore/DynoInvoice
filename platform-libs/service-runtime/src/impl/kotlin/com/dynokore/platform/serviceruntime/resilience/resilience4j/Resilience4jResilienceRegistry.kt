@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.resilience.resilience4j
 import com.dynokore.platform.serviceruntime.resilience.ResilienceProperties
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.ResilientEdge
+import io.micrometer.core.instrument.MeterRegistry
 import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
 
@@ -18,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
 class Resilience4jResilienceRegistry(
     private val properties: ResilienceProperties,
     private val clock: Clock,
+    private val meters: MeterRegistry? = null,
 ) : ResilienceRegistry,
     AutoCloseable {
     private val edges = ConcurrentHashMap<String, Resilience4jResilientEdge>()
@@ -26,7 +28,7 @@ class Resilience4jResilienceRegistry(
 
     private fun newEdge(edge: String): Resilience4jResilientEdge {
         val edgeProperties = properties.edges[edge] ?: properties.default
-        return Resilience4jResilientEdge(edge, edgeProperties.toPolicy(), clock)
+        return Resilience4jResilientEdge(edge, edgeProperties.toPolicy(), clock, meters = meters)
     }
 
     override fun close() {

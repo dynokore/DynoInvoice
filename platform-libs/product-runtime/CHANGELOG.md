@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-11-05
+### Changed
+- Republished only against `service-runtime 10.34.0` (retry budget, INV-T-9099); no product-runtime source change.
+
 ## [2.8.0] - 2026-11-05
 ### Added
 - `PlatformEventCatalogue.INSTALLATION_STATUS_CHANGED` (`gst.platform.installation-status-changed.v1`), in `ALL` after `AUTHORITY_CHANGED` (INV-Q-14289 A, INV-REQ-1226, INV-AC-14296, INV-T-14300).

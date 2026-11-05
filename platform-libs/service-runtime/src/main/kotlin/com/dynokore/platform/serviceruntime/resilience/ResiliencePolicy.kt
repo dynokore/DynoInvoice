@@ -16,13 +16,14 @@ data class TimeoutPolicy(
  * before attempt *n* is drawn from `initialBackoff * 2^(n-1)`, randomised by
  * [jitter] and capped at [maxBackoff]. An edge with no [EdgePolicy.retry] at all
  * is not idempotent (CS-16) — that discipline is the edge's own configuration,
- * never this type's.
+ * never this type's. An optional [budget] bounds the retries (null: no bound).
  */
 data class RetryPolicy(
     val maxAttempts: Int,
     val initialBackoff: Duration,
     val maxBackoff: Duration,
     val jitter: Double,
+    val budget: RetryBudget? = null,
 ) {
     init {
         require(maxAttempts >= 1) { "maxAttempts must be at least 1, was $maxAttempts" }
@@ -33,6 +34,22 @@ data class RetryPolicy(
             "maxBackoff ($maxBackoff) must be at least initialBackoff ($initialBackoff)"
         }
         require(jitter in 0.0..1.0) { "jitter must be within 0.0..1.0, was $jitter" }
+    }
+}
+
+/**
+ * Caps retries on an edge as a share of its first attempts (INV-T-9099, INV-Q-9083 A; the retry-budget pattern of the
+ * Google SRE book): a retry is taken only while the retries started in the last [window], this one included, are at
+ * most [maxRetryRatio] times the first attempts started in the same [window]. Otherwise the call ends as the edge's
+ * unavailable outcome without the retry.
+ */
+data class RetryBudget(
+    val window: Duration,
+    val maxRetryRatio: Double,
+) {
+    init {
+        require(!window.isNegative && !window.isZero) { "window must be positive, was $window" }
+        require(maxRetryRatio in 0.0..1.0) { "maxRetryRatio must be within 0.0..1.0, was $maxRetryRatio" }
     }
 }
 
