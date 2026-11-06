@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/period-records-changed-payload.schema.json",
+  "title": "PeriodRecordsChangedPayload",
+  "description": "Payload of the PeriodRecordsChanged event (catalogued in model/architecture/events.yaml; class: domain; INV-Q-16535 A). Carries the complete set of period records in force of the entity (a superseded record is absent), earliest periodStart first. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "description": "The registered entity whose period records changed."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Version of the entity's period records; a consumer ignores an event whose version is not above the one it holds (idempotent consumer by version)."
+    },
+    "periods": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 600,
+      "description": "The complete set of period records in force of the entity, earliest periodStart first.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "periodRef": {
+            "type": "string",
+            "description": "Reference of the period record."
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date",
+            "description": "First day of the period."
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date",
+            "description": "Last day of the period."
+          }
+        },
+        "required": [
+          "periodRef",
+          "periodStart",
+          "periodEnd"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "entityRef",
+    "version",
+    "periods"
+  ],
+  "additionalProperties": true
+}

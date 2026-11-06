@@ -44,3 +44,4 @@
 ../openapi.yaml#/components/schemas/PendingElectionChangeList election-change-list-*.json
 ../openapi.yaml#/components/schemas/CertifySandboxRequest certify-sandbox-request-*.json
 ../openapi.yaml#/components/schemas/CertificationResponse certification-response-*.json
+../schemas/period-records-changed-payload.schema.json period-records-changed-*.json

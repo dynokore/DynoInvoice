@@ -745,6 +745,16 @@ topics:
     subscribers:
       - console-bff
       - submission-svc
+  - topic: gst.tenancy.period-records-changed.v1
+    event_type: com.dynokore.gst.tenancy.PeriodRecordsChanged.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - tenancy-svc
+    subscribers:
+      - aggregation-svc
+      - canonical-svc
   - topic: gst.tenancy.plan-limit-exceeded.v1
     event_type: com.dynokore.gst.tenancy.PlanLimitExceeded.v1
     content_topic: false
@@ -1836,6 +1846,7 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.tenancy.EntityProfileChanged.v1
       - com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
+      - com.dynokore.gst.tenancy.PeriodRecordsChanged.v1
     content_topic: false
     record_topic: false
     retained_while_resolvable: false
@@ -1849,6 +1860,7 @@ replay_topics:
       - com.dynokore.gst.tenancy.EntityProfileChanged.v1
       - com.dynokore.gst.tenancy.FilingFrequencyChanged.v1
       - com.dynokore.gst.tenancy.OrganisationStructureChanged.v1
+      - com.dynokore.gst.tenancy.PeriodRecordsChanged.v1
     content_topic: false
     record_topic: false
     retained_while_resolvable: false

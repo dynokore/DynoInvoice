@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: tenancy events
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Every event tenancy produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -41,6 +41,12 @@ channels:
     messages:
       FilingFrequencyChanged:
         $ref: '#/components/messages/FilingFrequencyChanged'
+
+  tenancyPeriodRecordsChanged:
+    address: 'gst.tenancy.period-records-changed.v1'
+    messages:
+      PeriodRecordsChanged:
+        $ref: '#/components/messages/PeriodRecordsChanged'
 
   tenancyPeriodExtended:
     address: 'gst.tenancy.period-extended.v1'
@@ -93,6 +99,14 @@ operations:
       $ref: '#/channels/tenancyFilingFrequencyChanged'
     messages:
       - $ref: '#/channels/tenancyFilingFrequencyChanged/messages/FilingFrequencyChanged'
+
+  publishPeriodRecordsChanged:
+    action: send
+    description: PeriodRecordsChanged — the complete period records in force of one entity (INV-Q-16535 A).
+    channel:
+      $ref: '#/channels/tenancyPeriodRecordsChanged'
+    messages:
+      - $ref: '#/channels/tenancyPeriodRecordsChanged/messages/PeriodRecordsChanged'
 
   publishPeriodExtended:
     action: send
@@ -178,6 +192,20 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/filing-frequency-changed-payload.schema.json'
+
+    PeriodRecordsChanged:
+      name: com.dynokore.gst.tenancy.PeriodRecordsChanged.v1
+      title: PeriodRecordsChanged
+      summary: PeriodRecordsChanged — the period spans of an entity (model/architecture/events.yaml).
+      description: >-
+        Catalogued event PeriodRecordsChanged (model/architecture/events.yaml; class: domain). Emitted by:
+        tenancy-svc. Consumed by: aggregation-svc, canonical-svc. Delivery: At-least-once. Event-carried
+        state transfer: the payload holds the complete set of period records in force of the entity, so a
+        consumer replaces its read model when the version is above the one it holds (INV-REQ-435,
+        INV-REQ-83, INV-REQ-84; INV-Q-16535 A).
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/period-records-changed-payload.schema.json'
 
     PeriodExtended:
       name: com.dynokore.gst.tenancy.PeriodExtended.v1
