@@ -9,6 +9,7 @@ management:
     exposure.include: health,prometheus,diagnostics
     path-mapping.prometheus: metrics
   endpoint.health:
+    validate-group-membership: false # TEMPORARY (INV-Q-17448 C ruling round 2): ready.include names db, which INV-T-14458 adds; INV-T-14458 removes this line
     status.order: DOWN,OUT_OF_SERVICE,DEGRADED,UP,UNKNOWN
     status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
     group:
