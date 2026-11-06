@@ -17,9 +17,8 @@ import com.dynokore.platform.outboxandqueue.EntityRef as EnvelopeEntity
 /**
  * INV-REQ-899, ruling INV-Q-17416 B: issues the signed link on the event `SignedLinkRequested` of masterdata-svc, with
  * no call from a person (owner direction INV-Q-17201). The payload maps as `purpose` to the link purpose,
- * `subjectReference` to the subject, `recipient.email` and `recipient.mobileNumber` to the recipient and `expiry`
- * to the expiry; the alert entity of the link is the entity of the envelope. The CloudEvents id of the delivery is
- * the origin
+ * `subjectReference` to the subject, `recipient.email` and `recipient.mobileNumber` to the recipient and `expiry` to the
+ * expiry; the alert entity of the link is the entity of the envelope. The CloudEvents id of the delivery is the origin
  * event id, so a redelivery stores no second link and requests no second message (the topic is at-least-once). The
  * `source` of the event is not a sender: the sender of the messages is the system. A payload without a usable expiry or
  * recipient e-mail is a [ContractViolation] (poison): no link and no message.
@@ -70,8 +69,9 @@ class SignedLinkRequestedHandler(
         field: String,
         max: Int,
     ): String? {
-        val node = get(field)
-        return if (node == null || node.isNull) null else text(field, max)
+        val node = get(field) ?: return null
+        if (node.isNull) return null
+        return text(field, max)
     }
 
     private fun JsonNode.expiry(): Instant {

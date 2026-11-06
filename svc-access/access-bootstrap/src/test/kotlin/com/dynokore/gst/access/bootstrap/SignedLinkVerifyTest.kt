@@ -50,9 +50,8 @@ class SignedLinkVerifyTest {
                 connection
                     .prepareStatement(
                         "insert into access.signed_link (id, tenant_id, link_ref, purpose, client_ref, consent_ref, " +
-                            "alert_entity, recipient_email, expires_at, passcode_digest, status, wrong_entries, " +
-                            "invalidated_at, source, source_event_id, created_at, created_by, updated_at, " +
-                            "updated_by, version) " +
+                            "alert_entity, recipient_email, expires_at, passcode_digest, status, wrong_entries, invalidated_at, " +
+                            "source, source_event_id, created_at, created_by, updated_at, updated_by, version) " +
                             "values (?, ?, ?, 'CONFIRM_FILING', ?, ?, ?, 'signatory@client.example', ?, ?, ?, 0, ?, " +
                             "?, ?, now(), 'test', now(), 'test', 0)",
                     ).use { statement ->

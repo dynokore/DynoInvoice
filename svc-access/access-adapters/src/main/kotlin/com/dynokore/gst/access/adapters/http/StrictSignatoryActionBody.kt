@@ -15,7 +15,7 @@ import java.lang.reflect.Type
  * The body of `recordSignatoryAction` has exactly the properties of the contract (`additionalProperties: false`). The
  * consent, the client entity and the actor are never request fields (INV-REQ-899): a body that names `consentRef`,
  * `clientRef` or any other property is a 400 before the use case runs, instead of being dropped silently by the
- * binder. The allowed names are the three properties of the contract's request schema.
+ * binder. The allowed names are those of the generated request class, so a change of the contract changes this check.
  */
 @ControllerAdvice
 class StrictSignatoryActionBody(
@@ -52,7 +52,9 @@ class StrictSignatoryActionBody(
     }
 
     private companion object {
-        /** The properties of `SignatoryActionRequest` in the contract; a test sends each, and one more. */
-        val ALLOWED: Set<String> = setOf("kind", "packVersion", "queryText")
+        val ALLOWED: Set<String> =
+            SignatoryActionRequest::class.java.declaredFields
+                .map { it.name }
+                .toSet()
     }
 }

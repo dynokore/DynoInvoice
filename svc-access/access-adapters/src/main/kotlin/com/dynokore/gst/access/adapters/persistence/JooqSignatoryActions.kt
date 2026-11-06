@@ -11,7 +11,6 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import java.time.Clock
 import java.time.ZoneOffset
-import java.time.temporal.ChronoUnit
 
 /**
  * TPL-11. The evidence of the signatory actions of a link (INV-REQ-900). The listeners of the DSLContext add the bound
@@ -58,10 +57,8 @@ class JooqSignatoryActions(
             .set(SIGNATORY_ACTION.QUERY_TEXT, action.queryText)
             .set(SIGNATORY_ACTION.CLIENT_REF, action.client.value)
             .set(SIGNATORY_ACTION.ACTOR, action.actor)
-            .set(
-                SIGNATORY_ACTION.RECORDED_AT,
-                action.recordedAt.truncatedTo(ChronoUnit.MICROS).atOffset(ZoneOffset.UTC),
-            ).set(SIGNATORY_ACTION.CREATED_AT, now)
+            .set(SIGNATORY_ACTION.RECORDED_AT, action.recordedAt.atOffset(ZoneOffset.UTC))
+            .set(SIGNATORY_ACTION.CREATED_AT, now)
             .set(SIGNATORY_ACTION.CREATED_BY, actor)
             .execute()
     }

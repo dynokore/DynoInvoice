@@ -370,7 +370,7 @@ object BoundaryFixture {
     /** A mounted directory with the runtime login password of this database and [signingKey] as the token key. */
     fun mount(signingKey: com.nimbusds.jose.jwk.ECKey?) = TestSecrets.mount(RUNTIME_PASSWORD, signingKey = signingKey)
 
-    /** A mounted directory whose delivery key secret is [deliveryKeyPem] (absent when null). */
+    /** A mounted directory whose delivery key secret is [deliveryKeyPem] (absent when null), for the start-up probes. */
     fun mountWithDeliveryKey(deliveryKeyPem: String?) =
         TestSecrets.mount(RUNTIME_PASSWORD, deliveryKeyPem = deliveryKeyPem)
 

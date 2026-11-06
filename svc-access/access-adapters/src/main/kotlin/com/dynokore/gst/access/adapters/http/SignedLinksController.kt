@@ -92,29 +92,41 @@ open class SignedLinksController(
                 packVersion = signatoryActionRequest.packVersion,
                 queryText = signatoryActionRequest.queryText,
             )
-        val outcome = tenants.bind(tenant, actor) { record.handle(command) }
-        if (outcome !is SignatoryActionOutcome.Recorded) throw refusalOf(outcome)
-        val action = outcome.action
-        return ResponseEntity.status(HttpStatus.CREATED).body(
-            SignatoryActionResponse(
-                linkRef = action.linkRef.value,
-                kind = SignatoryActionResponse.Kind.valueOf(action.kind.name),
-                evidenceRef = SignatoryEvidenceRefs.refOf(tenant, action),
-                // the stored value has the precision of the column, so a repeat answers the same instant
-                recordedAt = action.recordedAt.truncatedTo(ChronoUnit.MICROS).atOffset(ZoneOffset.UTC),
-            ),
-        )
-    }
+        return when (val outcome = tenants.bind(tenant, actor) { record.handle(command) }) {
+            is SignatoryActionOutcome.Recorded -> {
+                val action = outcome.action
+                ResponseEntity.status(HttpStatus.CREATED).body(
+                    SignatoryActionResponse(
+                        linkRef = action.linkRef.value,
+                        kind = SignatoryActionResponse.Kind.valueOf(action.kind.name),
+                        evidenceRef = SignatoryEvidenceRefs.refOf(tenant, action),
+                        // the stored value has the precision of the column, so a repeat answers the same instant
+                        recordedAt = action.recordedAt.truncatedTo(ChronoUnit.MICROS).atOffset(ZoneOffset.UTC),
+                    ),
+                )
+            }
 
-    private fun refusalOf(outcome: SignatoryActionOutcome): RuntimeException =
-        when (outcome) {
-            SignatoryActionOutcome.Unauthenticated -> ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
-            SignatoryActionOutcome.Invalidated -> ApiLinkInvalidated()
-            SignatoryActionOutcome.Forbidden -> ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
-            SignatoryActionOutcome.ConsentNotLive -> ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            is SignatoryActionOutcome.Invalid -> ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, outcome.reason)
-            is SignatoryActionOutcome.Recorded -> IllegalStateException("a recorded action is no refusal")
+            SignatoryActionOutcome.Unauthenticated -> {
+                throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
+            }
+
+            SignatoryActionOutcome.Invalidated -> {
+                throw ApiLinkInvalidated()
+            }
+
+            SignatoryActionOutcome.Forbidden -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+
+            SignatoryActionOutcome.ConsentNotLive -> {
+                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            is SignatoryActionOutcome.Invalid -> {
+                throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, outcome.reason)
+            }
         }
+    }
 
     /** Unknown or expired: 401 SRT-003; invalidated or revoked: 410 ACC-004. */
     private fun refusalOf(outcome: VerifyLinkOutcome): RuntimeException =

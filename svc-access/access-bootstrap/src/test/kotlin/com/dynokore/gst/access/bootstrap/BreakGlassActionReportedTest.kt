@@ -76,7 +76,6 @@ class BreakGlassActionReportedTest {
     private val type = "com.dynokore.gst.platform.BreakGlassActionReported.v1"
     private val auditType = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
     private val meter = "break_glass_report_rejected_total"
-    private val breakGlassConsumer = "breakGlassReportConsumer"
 
     private inner class Env(
         val context: AssertableWebApplicationContext,
@@ -347,14 +346,7 @@ class BreakGlassActionReportedTest {
                     "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
                 ),
             ).bufferedReader().readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-        // INV-T-17453 adds the feed of SignedLinkRequested; the break-glass feed is still listed once
-        assertThat(lines)
-            .isEqualTo(
-                listOf(
-                    "com.dynokore.gst.access.bootstrap.BreakGlassReportFeed",
-                    "com.dynokore.gst.access.bootstrap.SignedLinkFeed",
-                ),
-            )
+        assertThat(lines).isEqualTo(listOf("com.dynokore.gst.access.bootstrap.BreakGlassReportFeed"))
     }
 
     @Test
@@ -363,12 +355,7 @@ class BreakGlassActionReportedTest {
             val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
             assertThat(sinks).hasSize(1)
             assertThat(sinks.values.single().javaClass).isNotEqualTo(LoggingRebuildRequiredSink::class.java)
-            assertThat(
-                env.context
-                    .getBeansOfType(InboxConsumer::class.java)
-                    .keys
-                    .filter { it == breakGlassConsumer },
-            ).hasSize(1)
+            assertThat(env.context.getBeansOfType(InboxConsumer::class.java)).hasSize(1)
         }
 
     @Test
@@ -376,12 +363,7 @@ class BreakGlassActionReportedTest {
         runWith(false) { env ->
             val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
             assertThat(sinks.values.map { it.javaClass }).isEqualTo(listOf(LoggingRebuildRequiredSink::class.java))
-            assertThat(
-                env.context
-                    .getBeansOfType(InboxConsumer::class.java)
-                    .keys
-                    .filter { it == breakGlassConsumer },
-            ).hasSize(1)
+            assertThat(env.context.getBeansOfType(InboxConsumer::class.java).size).isEqualTo(1)
         }
 
     @Test

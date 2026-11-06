@@ -18,8 +18,7 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 
 /**
- * TPL-18, INV-REQ-899: access-svc's consumer of `SignedLinkRequested` (topic
- * `gst.masterdata.signed-link-requested.v1`).
+ * TPL-18, INV-REQ-899: access-svc's consumer of `SignedLinkRequested` (topic `gst.masterdata.signed-link-requested.v1`).
  * Like [BreakGlassReportFeed] it is an auto-configuration ordered after `L1CompositionAutoConfiguration` and after that
  * feed, so `TenantScope`, `EventLogReader` and `RebuildRequiredSink` exist when its conditions are read. The consumer
  * of the break-glass report stays the primary one for the replay wiring; this one is a second consumer on its own topic

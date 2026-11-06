@@ -38,8 +38,8 @@ operation	withdrawConsent	INV-T-4939	done
 operation	acknowledgeMapping	INV-T-17453	done
 channel	accessAuthorityChanged	INV-T-4934	done
 channel	accessOperatorSessionKeysChanged	INV-T-4154	open
-channel	accessAccessAlertRaised	INV-T-4938	open
-channel	accessMessageRequested	INV-T-4940	open
+channel	accessAccessAlertRaised	INV-T-17453	done
+channel	accessMessageRequested	INV-T-17453	done
 channel	accessExampleHappened	UNASSIGNED	open
 operation	provisionFirstAdministrator	INV-T-8226	done
 operation	provisionInstallationFirstAdministrator	INV-T-8226	done
