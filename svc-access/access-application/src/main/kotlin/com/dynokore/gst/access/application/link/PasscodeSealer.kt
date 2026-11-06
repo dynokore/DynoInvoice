@@ -64,6 +64,9 @@ class OaepPasscodeSealer(
                 MGF1ParameterSpec.SHA256,
                 PSource.PSpecified(recipientAddress.toByteArray(Charsets.UTF_8)),
             )
+        // "ECB" is only the JCA name for single-block RSA (no block chaining); the padding is randomised OAEP.
+        // The JDK accepts no other mode token for RSA, so the generic ECB rule is a false positive here.
+        // nosemgrep: kotlin.lang.security.ecb-cipher.ecb-cipher
         val cipher = Cipher.getInstance("RSA/ECB/OAEPPadding")
         cipher.init(Cipher.ENCRYPT_MODE, sealing.key, spec)
         val sealed = cipher.doFinal(passcode.toByteArray(Charsets.UTF_8))
