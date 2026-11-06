@@ -480,6 +480,7 @@ paths:
         precondition: "A bundle was exported from a workspace; the approver of the domain has approved (INV-NOTE-7 §7 row promoteConfiguration)."
         reversibility: COMPENSABLE
         repeatKey: "(bundleId, domain) — a repeat returns the recorded promotion unchanged."
+        compensationCost: "Compensated by promoting the previous version of the bundle for the domain (INV-NOTE-7 §7 row promoteConfiguration); both promotions remain in the audit trail."
       requestBody:
         required: true
         content:
