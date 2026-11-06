@@ -1,0 +1,7 @@
+{
+  "outcome": "PASSED",
+  "suiteVersion": "2026.1",
+  "failedScenarios": [
+    "SCN-014"
+  ]
+}

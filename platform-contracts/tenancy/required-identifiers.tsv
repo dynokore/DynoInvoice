@@ -189,3 +189,11 @@ ElectionChangeClosed.closedBy	schema_property	openapi.yaml	INV-REQ-505
 ElectionChangeClosed.closedAt	schema_property	openapi.yaml	INV-REQ-505
 PendingElectionChangeList.items	schema_property	openapi.yaml	INV-REQ-505
 PendingElectionChangeList.nextCursor	schema_property	openapi.yaml	INV-REQ-505
+CertifySandboxRequest.failedScenarios	schema_property	openapi.yaml	INV-REQ-987
+CertificationResponse.failedScenarios	schema_property	openapi.yaml	INV-REQ-987
+OffboardTenantRequest.handoverStatementRef	schema_property	openapi.yaml	INV-REQ-956
+deregisterEntity.TNC-008	operation_error_code	openapi.yaml	INV-REQ-956
+offboardTenant.TNC-008	operation_error_code	openapi.yaml	INV-REQ-956
+offboardTenant.TNC-009	operation_error_code	openapi.yaml	INV-REQ-956
+offboardTenant.TNC-010	operation_error_code	openapi.yaml	INV-REQ-956
+# INV-T-16406 adds the seven rows above (INV-Q-16387, INV-Q-16403, INV-Q-16395). sandbox-certification.record is a permission key of catalogue/role-permissions/role-permissions.yaml for which the checker has no kind, so it is pinned by RolePermissionsCheckerTest (ruling INV-Q-17496); no data row names it.
