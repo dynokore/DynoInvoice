@@ -40,8 +40,14 @@ interface ProvisioningRepository {
         recordedBy: String,
     )
 
-    /** Marks the request CREATED once tenancy-svc created the tenant. */
-    fun markCreated(contractReference: CommercialRef)
+    /** Marks the request CREATED with the access-svc `invitationRef` once the first invitation was issued. */
+    fun markInvited(
+        contractReference: CommercialRef,
+        invitationRef: String,
+    )
+
+    /** Marks the request CREATED and records that access-svc refused the first administrator with 409. */
+    fun markRefused(contractReference: CommercialRef)
 }
 
 /** What tenancy-svc `createTenant` is sent (control-plane-svc->tenancy-svc, INV-Q-8675 A, INV-Q-8691 A). */
@@ -74,14 +80,61 @@ fun interface TenantCreator {
     fun create(call: CreateTenantCall): TenantCreation
 }
 
-/** Builds the signed, expiring reference of the first `tenant.admin` invitation (INV-AC-935). */
+/** The one-time invitation code of access-svc: it travels only in the signed invitation and never prints. */
+class InvitationCode(
+    val value: String,
+) {
+    override fun toString() = "InvitationCode(***)"
+}
+
+/** Builds the signed, expiring first `tenant.admin` invitation with the access-svc ref and code (INV-AC-935). */
 fun interface InvitationIssuer {
     fun issue(
         contractReference: CommercialRef,
         tenantRef: CommercialRef,
+        invitation: FirstAdministratorAnswer.Issued,
         issuedAt: Instant,
         expiresAt: Instant,
     ): String
+}
+
+/** `provisionFirstAdministrator` of access-svc (control-plane-svc->access-svc, INV-Q-8185 A). */
+data class ProvisionFirstAdministratorCall(
+    val tenantRef: CommercialRef,
+    val administratorEmail: String,
+    val invitationExpiresAt: Instant,
+    val idempotencyKey: UUID,
+)
+
+/** `reissueFirstAdministratorInvitation` of access-svc (INV-Q-8232 A). */
+data class ReissueFirstAdministratorCall(
+    val tenantRef: CommercialRef,
+    val invitationExpiresAt: Instant,
+    val idempotencyKey: UUID,
+)
+
+sealed interface FirstAdministratorAnswer {
+    /** 201 or 200: the pending grant with its invitation. */
+    class Issued(
+        val invitationRef: String,
+        val invitationCode: InvitationCode,
+    ) : FirstAdministratorAnswer
+
+    /** 409: access-svc refused and stored nothing. */
+    data object Refused : FirstAdministratorAnswer
+
+    /** No answer within the edge policy (timeout, no connection, open breaker, full bulkhead) or HTTP 503. */
+    data object Unavailable : FirstAdministratorAnswer
+
+    /** Any other 5xx, or an answer the access contract does not define. Retrying with the same key stays safe. */
+    data object Failed : FirstAdministratorAnswer
+}
+
+/** The calls to access-svc made under the service identity of control-plane-svc, never an end-user token. */
+interface FirstAdministratorAccess {
+    fun provision(call: ProvisionFirstAdministratorCall): FirstAdministratorAnswer
+
+    fun reissue(call: ReissueFirstAdministratorCall): FirstAdministratorAnswer
 }
 
 /** Writes the invitation MessageRequested to the outbox in the open transaction (INV-Q-8677 A). */
@@ -117,4 +170,35 @@ fun interface LicenceSigner {
         term: String,
         issuedAt: Instant,
     ): ByteArray
+}
+
+/**
+ * One call of `requestFirstAdministratorInvitationReissue` under its Idempotency-Key: the expiry is fixed when the
+ * call first arrives, so every retry sends access-svc the same request. It holds no invitation code.
+ */
+data class ReissueAttempt(
+    val idempotencyKey: UUID,
+    val contractReference: CommercialRef,
+    val invitationExpiresAt: Instant,
+    /** The `invitationRef` access-svc issued; null until it answered 200. */
+    val invitationRef: String?,
+)
+
+/** Reissue attempts, in the open transaction of the command. */
+interface ReissueAttemptRepository {
+    fun find(
+        idempotencyKey: UUID,
+        recordedBy: String,
+    ): ReissueAttempt?
+
+    fun save(
+        attempt: ReissueAttempt,
+        recordedBy: String,
+    )
+
+    fun complete(
+        idempotencyKey: UUID,
+        recordedBy: String,
+        invitationRef: String,
+    )
 }

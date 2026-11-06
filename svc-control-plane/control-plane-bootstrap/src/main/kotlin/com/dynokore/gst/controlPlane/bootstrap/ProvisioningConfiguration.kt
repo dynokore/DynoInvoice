@@ -1,13 +1,17 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.adapters.access.HttpFirstAdministratorAccess
 import com.dynokore.gst.controlPlane.adapters.events.InvitationMessagesOutbox
 import com.dynokore.gst.controlPlane.adapters.persistence.LicenceRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.ProvisioningRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.RegionListJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.ReissueAttemptRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.signing.CmsInvitationIssuer
 import com.dynokore.gst.controlPlane.adapters.signing.CmsLicenceSigner
 import com.dynokore.gst.controlPlane.adapters.signing.PackSigningSettings
 import com.dynokore.gst.controlPlane.adapters.tenancy.HttpTenantCreator
+import com.dynokore.gst.controlPlane.application.commercial.FirstAdministratorAccess
+import com.dynokore.gst.controlPlane.application.commercial.FirstAdministratorAnswer
 import com.dynokore.gst.controlPlane.application.commercial.GetLicence
 import com.dynokore.gst.controlPlane.application.commercial.GetTenantProvisioningRequest
 import com.dynokore.gst.controlPlane.application.commercial.InvitationDelivery
@@ -16,17 +20,25 @@ import com.dynokore.gst.controlPlane.application.commercial.InvitationMessages
 import com.dynokore.gst.controlPlane.application.commercial.IssueLicence
 import com.dynokore.gst.controlPlane.application.commercial.LicenceRepository
 import com.dynokore.gst.controlPlane.application.commercial.LicenceSigner
+import com.dynokore.gst.controlPlane.application.commercial.ProvisionFirstAdministratorCall
 import com.dynokore.gst.controlPlane.application.commercial.ProvisionTenant
 import com.dynokore.gst.controlPlane.application.commercial.ProvisioningRepository
 import com.dynokore.gst.controlPlane.application.commercial.QualificationRepository
 import com.dynokore.gst.controlPlane.application.commercial.RegionList
+import com.dynokore.gst.controlPlane.application.commercial.ReissueAttemptRepository
+import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdministratorCall
+import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdministratorInvitation
 import com.dynokore.gst.controlPlane.application.commercial.TenantCreator
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.PackSigningKeys
+import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
 import com.dynokore.platform.crypto.DetachedSigner
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.identity.WorkloadTokenSource
 import org.jooq.DSLContext
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -100,16 +112,13 @@ class ProvisioningConfiguration {
         provisionings: ProvisioningRepository,
         regions: RegionList,
         tenants: TenantCreator,
-        invitations: InvitationIssuer,
-        messages: InvitationMessages,
+        delivery: InvitationDelivery,
         roles: OperatorRoles,
-        clock: Clock,
-        settings: InvitationSettings,
     ) = ProvisionTenant(
         provisionings,
         regions,
         tenants,
-        InvitationDelivery(invitations, messages, clock, checkNotNull(settings.validity)),
+        delivery,
         roles,
     ) {
         CommercialRef(
@@ -153,6 +162,57 @@ class ProvisioningConfiguration {
         const val TENANT_REF_DIGITS = 12
         const val LICENCE_REF_DIGITS = 12
     }
+}
+
+/**
+ * The first administrator's invitation (INV-AC-8224, INV-AC-8281): the access-svc client under the workload identity
+ * of this service, the delivery of the signed invitation and the reissue operation.
+ */
+@Configuration(proxyBeanMethods = false)
+class FirstAdministratorConfiguration {
+    @Bean
+    fun reissueAttemptRepository(
+        dsl: DSLContext,
+        clock: Clock,
+    ): ReissueAttemptRepository = ReissueAttemptRepositoryJooq(dsl, clock)
+
+    /** Without `controlplane.access.base-url` the client fails closed: every call is unavailable. */
+    @Bean
+    @ConditionalOnProperty(name = ["controlplane.access.base-url"])
+    fun firstAdministratorAccessLive(
+        environment: Environment,
+        workloadTokenSource: WorkloadTokenSource,
+    ): FirstAdministratorAccess =
+        HttpFirstAdministratorAccess(
+            java.net.URI.create(checkNotNull(environment.getProperty("controlplane.access.base-url"))),
+            workloadTokenSource,
+        )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun firstAdministratorAccess(): FirstAdministratorAccess =
+        object : FirstAdministratorAccess {
+            override fun provision(call: ProvisionFirstAdministratorCall) = FirstAdministratorAnswer.Unavailable
+
+            override fun reissue(call: ReissueFirstAdministratorCall) = FirstAdministratorAnswer.Unavailable
+        }
+
+    @Bean
+    fun invitationDelivery(
+        invitations: InvitationIssuer,
+        messages: InvitationMessages,
+        access: FirstAdministratorAccess,
+        clock: Clock,
+        settings: InvitationSettings,
+    ) = InvitationDelivery(invitations, messages, access, clock, checkNotNull(settings.validity))
+
+    @Bean
+    fun reissueFirstAdministratorInvitation(
+        provisionings: ProvisioningRepository,
+        attempts: ReissueAttemptRepository,
+        delivery: InvitationDelivery,
+        permissions: OperatorPermissions,
+    ) = ReissueFirstAdministratorInvitation(provisionings, attempts, delivery, permissions)
 }
 
 /** Where tenancy-svc is and how long the inline `createTenant` may take (`control-plane.tenancy.*`). */

@@ -4,6 +4,7 @@ import com.dynokore.gst.controlPlane.application.pack.OperatorRole
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
+import com.dynokore.gst.controlPlane.domain.commercial.FirstAdministratorOutcome
 import com.dynokore.gst.controlPlane.domain.commercial.PlanRef
 import com.dynokore.gst.controlPlane.domain.commercial.ProvisioningStatus
 import com.dynokore.gst.controlPlane.domain.commercial.RegionKey
@@ -42,6 +43,7 @@ data class ProvisionState(
 class InvitationDelivery(
     val issuer: InvitationIssuer,
     val messages: InvitationMessages,
+    val access: FirstAdministratorAccess,
     val clock: Clock,
     val validity: Duration,
 ) {
@@ -83,14 +85,14 @@ class ProvisionTenant(
             regions.contains(command.dataRegion),
         )
 
+    /** A settled request (CREATED) is returned as it is; a PENDING one is resumed by [perform]. */
     override fun priorResult(
         command: ProvisionTenantCommand,
         state: ProvisionState,
     ): TenantProvisioning? =
         when {
             state.byKey != null && state.byKey.fingerprint != command.fingerprint -> null
-            state.byKey != null -> state.byKey.provisioning
-            else -> state.byContract?.provisioning
+            else -> (state.byKey ?: state.byContract)?.provisioning?.takeIf { it.status == ProvisioningStatus.CREATED }
         }
 
     override fun unmetPrecondition(
@@ -98,8 +100,8 @@ class ProvisionTenant(
         state: ProvisionState,
     ): String? =
         when {
-            state.byKey != null -> DIFFERENT_REQUEST
-            !state.regionListed -> REGION_NOT_LISTED
+            state.byKey != null && state.byKey.fingerprint != command.fingerprint -> DIFFERENT_REQUEST
+            state.byKey == null && state.byContract == null && !state.regionListed -> REGION_NOT_LISTED
             else -> null
         }
 
@@ -107,49 +109,92 @@ class ProvisionTenant(
         command: ProvisionTenantCommand,
         state: ProvisionState,
     ): TenantProvisioning {
-        val tenantRef = newTenantRef()
+        val recorded = (state.byKey ?: state.byContract)?.provisioning ?: record(command)
+        if (createTenant(recorded, command.credential) != TenantCreation.Created) return recorded
+        return when (
+            val answer =
+                invitation.access.provision(
+                    ProvisionFirstAdministratorCall(
+                        recorded.tenantRef,
+                        recorded.firstAdministratorEmail,
+                        recorded.invitationExpiresAt,
+                        accessKeyOf(recorded.contractReference),
+                    ),
+                )
+        ) {
+            is FirstAdministratorAnswer.Issued -> {
+                invite(recorded, answer, command.request)
+            }
+
+            FirstAdministratorAnswer.Refused -> {
+                provisionings.markRefused(recorded.contractReference)
+                recorded.copy(
+                    status = ProvisioningStatus.CREATED,
+                    firstAdministratorOutcome = FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR,
+                )
+            }
+
+            FirstAdministratorAnswer.Unavailable, FirstAdministratorAnswer.Failed -> {
+                recorded
+            }
+        }
+    }
+
+    private fun record(command: ProvisionTenantCommand): TenantProvisioning {
         val issuedAt = invitation.clock.instant().truncatedTo(ChronoUnit.SECONDS)
-        val expiresAt = issuedAt.plus(invitation.validity)
-        val invitationRef = invitation.issuer.issue(command.contractReference, tenantRef, issuedAt, expiresAt)
         val recorded =
             TenantProvisioning(
                 command.contractReference,
-                tenantRef,
+                newTenantRef(),
                 command.legalName,
                 command.planRef,
                 command.firstAdministratorEmail,
                 command.dataRegion,
                 ProvisioningStatus.PENDING,
-                invitationRef,
-                expiresAt,
+                null,
+                issuedAt.plus(invitation.validity),
             )
         provisionings.save(
             ProvisioningRecord(recorded, command.idempotencyKey, command.fingerprint),
             command.actor.value,
         )
-        invitation.messages.request(
-            command.contractReference,
-            command.firstAdministratorEmail,
-            invitationRef,
-            command.request,
+        return recorded
+    }
+
+    /** The only message that carries the code is this signed invitation (INV-AC-8224); the code is stored nowhere. */
+    private fun invite(
+        recorded: TenantProvisioning,
+        answer: FirstAdministratorAnswer.Issued,
+        request: RequestContext,
+    ): TenantProvisioning {
+        val token =
+            invitation.issuer.issue(
+                recorded.contractReference,
+                recorded.tenantRef,
+                answer,
+                invitation.clock.instant().truncatedTo(ChronoUnit.SECONDS),
+                recorded.invitationExpiresAt,
+            )
+        provisionings.markInvited(recorded.contractReference, answer.invitationRef)
+        invitation.messages.request(recorded.contractReference, recorded.firstAdministratorEmail, token, request)
+        return recorded.copy(
+            status = ProvisioningStatus.CREATED,
+            invitationRef = answer.invitationRef,
+            firstAdministratorOutcome = FirstAdministratorOutcome.INVITED,
         )
-        val created = createTenant(tenantRef, command)
-        if (created != TenantCreation.Created) return recorded
-        provisionings.markCreated(command.contractReference)
-        return recorded.copy(status = ProvisioningStatus.CREATED)
     }
 
     private fun createTenant(
-        tenantRef: CommercialRef,
-        command: ProvisionTenantCommand,
+        recorded: TenantProvisioning,
+        credential: CallerCredential,
     ) = tenants.create(
         CreateTenantCall(
-            tenantRef,
-            command.contractReference,
-            command.legalName,
-            command.planRef,
-            command.dataRegion,
-            command.credential,
+            recorded.tenantRef,
+            recorded.contractReference,
+            recorded.legalName,
+            recorded.planRef,
+            recorded.dataRegion,
+            credential,
         ),
     )
 
@@ -163,6 +208,10 @@ class ProvisionTenant(
         /** The refusal codes the runner carries: the SRT code of API-15 and the catalogue code of the region list. */
         const val DIFFERENT_REQUEST = "SRT-009"
         const val REGION_NOT_LISTED = "CPL-003"
+
+        /** The Idempotency-Key of `provisionFirstAdministrator`: the same on every retry of one request. */
+        fun accessKeyOf(contractReference: CommercialRef): UUID =
+            UUID.nameUUIDFromBytes("provisionFirstAdministrator:${contractReference.value}".toByteArray())
     }
 }
 

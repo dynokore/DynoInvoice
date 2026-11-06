@@ -12,10 +12,14 @@ import com.dynokore.gst.controlPlane.application.commercial.ProvisionTenant
 import com.dynokore.gst.controlPlane.application.commercial.ProvisionTenantCommand
 import com.dynokore.gst.controlPlane.application.commercial.RecordQualification
 import com.dynokore.gst.controlPlane.application.commercial.RecordQualificationCommand
+import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdministratorInvitation
+import com.dynokore.gst.controlPlane.application.commercial.ReissueInvitationCommand
+import com.dynokore.gst.controlPlane.application.commercial.ReissueResult
 import com.dynokore.gst.controlPlane.application.pack.OperatorRole
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.contract.api.CommercialApi
+import com.dynokore.gst.controlPlane.contract.model.FirstInvitationReissueResponse
 import com.dynokore.gst.controlPlane.contract.model.IssueLicenceRequest
 import com.dynokore.gst.controlPlane.contract.model.LicenceIssueResponse
 import com.dynokore.gst.controlPlane.contract.model.ManagePlanRequest
@@ -53,7 +57,8 @@ import java.util.UUID
 
 /**
  * The commercial operations of `commercial.admin` (INV-REQ-906 b1, INV-REQ-1306, TPL-08): managePlan,
- * recordQualification, issueLicence, getLicence, provisionTenant and getTenantProvisioningRequest. The other
+ * recordQualification, issueLicence, getLicence, provisionTenant, getTenantProvisioningRequest and
+ * requestFirstAdministratorInvitationReissue. The other
  * operations of the commercial tag are not overridden here, so the generated interface answers 501 for them;
  * `operations.tsv` lists each under its own state. The caller is the verified token's `sub`, never a request
  * field (API-24).
@@ -72,6 +77,7 @@ class CommercialController(
     private val getProvisioning: GetTenantProvisioningRequest,
     private val issueLicence: IssueLicence,
     private val getLicence: GetLicence,
+    private val reissue: ReissueFirstAdministratorInvitation,
 ) : CommercialApi {
     override fun managePlan(
         idempotencyKey: UUID,
@@ -150,6 +156,50 @@ class CommercialController(
         return ResponseEntity.ok(provisioningOf(found ?: problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)))
     }
 
+    override fun requestFirstAdministratorInvitationReissue(
+        idempotencyKey: UUID,
+        contractReference: String,
+    ): ResponseEntity<FirstInvitationReissueResponse> {
+        val caller = OperatorCaller.of(principals)
+        val actor = caller.principal.actor
+        val command =
+            caller.commandOf {
+                ReissueInvitationCommand(
+                    ActorId(actor),
+                    CommercialRef(contractReference),
+                    idempotencyKey,
+                    RequestContext(caller.correlationId, idempotencyKey.toString()),
+                )
+            }
+        val outcome = platform.bindPlatform(actor) { runner.run(reissue, actor, command) }
+        return when (val done = result(outcome, caller)) {
+            is ReissueResult.Issued -> {
+                ResponseEntity.ok(
+                    FirstInvitationReissueResponse(
+                        done.contractReference.value,
+                        done.tenantRef.value,
+                        done.invitationRef,
+                        done.invitationExpiresAt.atOffset(java.time.ZoneOffset.UTC),
+                    ),
+                )
+            }
+
+            ReissueResult.Refused -> {
+                throw ProblemException(ReissueProblems.render(ReissueProblems.NOT_REISSUABLE, caller.correlationId))
+            }
+
+            ReissueResult.Unavailable -> {
+                throw ProblemException(
+                    ReissueProblems.render(ReissueProblems.ACCESS_UNAVAILABLE, caller.correlationId),
+                )
+            }
+
+            ReissueResult.Failed -> {
+                problem(ClosedErrorCode.INTERNAL_ERROR, caller.correlationId)
+            }
+        }
+    }
+
     override fun issueLicence(
         idempotencyKey: UUID,
         issueLicenceRequest: IssueLicenceRequest,
@@ -212,6 +262,14 @@ class CommercialController(
 
             ProvisionTenant.REGION_NOT_LISTED -> {
                 throw ProblemException(RegionNotListed.render(checkNotNull(region), correlationId))
+            }
+
+            ReissueFirstAdministratorInvitation.NOT_FOUND -> {
+                problem(ClosedErrorCode.NOT_FOUND, correlationId)
+            }
+
+            ReissueFirstAdministratorInvitation.NOT_CREATED -> {
+                throw ProblemException(ReissueProblems.render(ReissueProblems.NOT_REISSUABLE, correlationId))
             }
 
             IssueLicence.QUALIFICATION_NOT_RECORDED -> {

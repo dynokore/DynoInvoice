@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.adapters.persistence
 
+import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references.FIRST_INVITATION_REISSUE
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references.LICENCE
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references.REGION
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references.REGION_STATEMENT
@@ -8,7 +9,10 @@ import com.dynokore.gst.controlPlane.application.commercial.LicenceRepository
 import com.dynokore.gst.controlPlane.application.commercial.ProvisioningRecord
 import com.dynokore.gst.controlPlane.application.commercial.ProvisioningRepository
 import com.dynokore.gst.controlPlane.application.commercial.RegionList
+import com.dynokore.gst.controlPlane.application.commercial.ReissueAttempt
+import com.dynokore.gst.controlPlane.application.commercial.ReissueAttemptRepository
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
+import com.dynokore.gst.controlPlane.domain.commercial.FirstAdministratorOutcome
 import com.dynokore.gst.controlPlane.domain.commercial.Licence
 import com.dynokore.gst.controlPlane.domain.commercial.PlanRef
 import com.dynokore.gst.controlPlane.domain.commercial.ProvisioningStatus
@@ -84,11 +88,27 @@ class ProvisioningRepositoryJooq(
             .execute()
     }
 
-    override fun markCreated(contractReference: CommercialRef) {
+    override fun markInvited(
+        contractReference: CommercialRef,
+        invitationRef: String,
+    ) {
         dsl
             .update(TENANT_PROVISIONING_REQUEST)
             .set(TENANT_PROVISIONING_REQUEST.STATUS, ProvisioningStatus.CREATED.name)
+            .set(TENANT_PROVISIONING_REQUEST.INVITATION_REF, invitationRef)
+            .set(TENANT_PROVISIONING_REQUEST.FIRST_ADMINISTRATOR_OUTCOME, FirstAdministratorOutcome.INVITED.name)
             .where(TENANT_PROVISIONING_REQUEST.CONTRACT_REFERENCE.eq(contractReference.value))
+            .execute()
+    }
+
+    override fun markRefused(contractReference: CommercialRef) {
+        dsl
+            .update(TENANT_PROVISIONING_REQUEST)
+            .set(TENANT_PROVISIONING_REQUEST.STATUS, ProvisioningStatus.CREATED.name)
+            .set(
+                TENANT_PROVISIONING_REQUEST.FIRST_ADMINISTRATOR_OUTCOME,
+                FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR.name,
+            ).where(TENANT_PROVISIONING_REQUEST.CONTRACT_REFERENCE.eq(contractReference.value))
             .execute()
     }
 
@@ -103,8 +123,9 @@ class ProvisioningRepositoryJooq(
                 checkNotNull(r.firstAdministratorEmail),
                 RegionKey(checkNotNull(r.dataRegion)),
                 ProvisioningStatus.valueOf(checkNotNull(r.status)),
-                checkNotNull(r.invitationRef),
+                r.invitationRef,
                 checkNotNull(r.invitationExpiresAt).toInstant(),
+                r.firstAdministratorOutcome?.let(FirstAdministratorOutcome::valueOf),
             ),
             checkNotNull(r.idempotencyKey),
             checkNotNull(r.fingerprint),
@@ -157,5 +178,62 @@ class LicenceRepositoryJooq(
             checkNotNull(r.issuedAt).toInstant(),
             checkNotNull(r.signedFile),
         )
+    }
+}
+
+/** Reissue attempts through jOOQ (TPL-11), in the open transaction of the command; no row holds an invitation code. */
+class ReissueAttemptRepositoryJooq(
+    private val dsl: DSLContext,
+    private val clock: Clock,
+) : ReissueAttemptRepository {
+    override fun find(
+        idempotencyKey: UUID,
+        recordedBy: String,
+    ): ReissueAttempt? =
+        dsl
+            .selectFrom(FIRST_INVITATION_REISSUE)
+            .where(
+                FIRST_INVITATION_REISSUE.IDEMPOTENCY_KEY
+                    .eq(idempotencyKey)
+                    .and(FIRST_INVITATION_REISSUE.RECORDED_BY.eq(recordedBy)),
+            ).fetchOne()
+            ?.let {
+                ReissueAttempt(
+                    checkNotNull(it.idempotencyKey),
+                    CommercialRef(checkNotNull(it.contractReference)),
+                    checkNotNull(it.invitationExpiresAt).toInstant(),
+                    it.invitationRef,
+                )
+            }
+
+    override fun save(
+        attempt: ReissueAttempt,
+        recordedBy: String,
+    ) {
+        dsl
+            .insertInto(FIRST_INVITATION_REISSUE)
+            .set(FIRST_INVITATION_REISSUE.IDEMPOTENCY_KEY, attempt.idempotencyKey)
+            .set(FIRST_INVITATION_REISSUE.CONTRACT_REFERENCE, attempt.contractReference.value)
+            .set(
+                FIRST_INVITATION_REISSUE.INVITATION_EXPIRES_AT,
+                OffsetDateTime.ofInstant(attempt.invitationExpiresAt, ZoneOffset.UTC),
+            ).set(FIRST_INVITATION_REISSUE.RECORDED_BY, recordedBy)
+            .set(FIRST_INVITATION_REISSUE.RECORDED_AT, OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
+            .execute()
+    }
+
+    override fun complete(
+        idempotencyKey: UUID,
+        recordedBy: String,
+        invitationRef: String,
+    ) {
+        dsl
+            .update(FIRST_INVITATION_REISSUE)
+            .set(FIRST_INVITATION_REISSUE.INVITATION_REF, invitationRef)
+            .where(
+                FIRST_INVITATION_REISSUE.IDEMPOTENCY_KEY
+                    .eq(idempotencyKey)
+                    .and(FIRST_INVITATION_REISSUE.RECORDED_BY.eq(recordedBy)),
+            ).execute()
     }
 }

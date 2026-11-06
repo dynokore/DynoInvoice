@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.adapters.signing
 
 import com.dynokore.gst.controlPlane.adapters.bundle.CanonicalJson
+import com.dynokore.gst.controlPlane.application.commercial.FirstAdministratorAnswer
 import com.dynokore.gst.controlPlane.application.commercial.InvitationIssuer
 import com.dynokore.gst.controlPlane.application.commercial.LicenceSigner
 import com.dynokore.gst.controlPlane.application.pack.PackSigningKeys
@@ -41,7 +42,8 @@ class CmsLicenceSigner(
 
 /**
  * The first invitation reference (INV-AC-935): `<payload>.<signature>`, both base64url, where the payload is the
- * canonical JSON of the contract reference, the tenant reference and the issue and expiry instants, and the
+ * canonical JSON of the contract reference, the tenant reference, the access-svc invitation reference and code, and the
+ * issue and expiry instants, and the
  * signature is the detached CMS signature over the payload bytes. The expiry is inside the signed payload, so it
  * cannot be moved.
  */
@@ -53,6 +55,7 @@ class CmsInvitationIssuer(
     override fun issue(
         contractReference: CommercialRef,
         tenantRef: CommercialRef,
+        invitation: FirstAdministratorAnswer.Issued,
         issuedAt: Instant,
         expiresAt: Instant,
     ): String {
@@ -61,6 +64,8 @@ class CmsInvitationIssuer(
                 mapOf(
                     "contractReference" to contractReference.value,
                     "tenantRef" to tenantRef.value,
+                    "invitationRef" to invitation.invitationRef,
+                    "invitationCode" to invitation.invitationCode.value,
                     "issuedAt" to issuedAt.toString(),
                     "expiresAt" to expiresAt.toString(),
                 ),

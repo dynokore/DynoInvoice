@@ -40,6 +40,12 @@ value class PlanRef(
 enum class ProvisioningStatus { PENDING, CREATED }
 
 /**
+ * What access-svc answered to `provisionFirstAdministrator` (INV-AC-8224): the invitation was issued, or the tenant
+ * already holds a `tenant.admin` grant (409) and no invitation is sent. Absent until access-svc has answered.
+ */
+enum class FirstAdministratorOutcome { INVITED, TENANT_ALREADY_HAS_ADMINISTRATOR }
+
+/**
  * The recorded request to provision a SaaS tenant (INV-REQ-1306, INV-API-3495): the tenant reference minted when it
  * was recorded, the elected region, and the signed expiring first invitation. The region is fixed for the life of the
  * record: the type has no way to change it.
@@ -52,8 +58,10 @@ data class TenantProvisioning(
     val firstAdministratorEmail: String,
     val dataRegion: RegionKey,
     val status: ProvisioningStatus,
-    val invitationRef: String,
+    /** The `invitationRef` access-svc issued; null until access-svc has answered. The invitation code is never kept. */
+    val invitationRef: String?,
     val invitationExpiresAt: Instant,
+    val firstAdministratorOutcome: FirstAdministratorOutcome? = null,
 )
 
 /** A licence issued for an installation term (INV-REQ-906 b1): [signedFile] is the exact signed document. */

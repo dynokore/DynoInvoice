@@ -3,8 +3,11 @@ package com.dynokore.gst.controlPlane.adapters
 import com.dynokore.gst.controlPlane.adapters.persistence.LicenceRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.ProvisioningRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.RegionListJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.ReissueAttemptRepositoryJooq
 import com.dynokore.gst.controlPlane.application.commercial.ProvisioningRecord
+import com.dynokore.gst.controlPlane.application.commercial.ReissueAttempt
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
+import com.dynokore.gst.controlPlane.domain.commercial.FirstAdministratorOutcome
 import com.dynokore.gst.controlPlane.domain.commercial.Licence
 import com.dynokore.gst.controlPlane.domain.commercial.PlanRef
 import com.dynokore.gst.controlPlane.domain.commercial.ProvisioningStatus
@@ -45,7 +48,7 @@ class ProvisioningPersistenceIT {
             "admin@acme.example",
             RegionKey(region),
             ProvisioningStatus.PENDING,
-            "signed.ref",
+            null,
             Instant.parse("2026-11-03T08:00:00Z"),
         ),
         key,
@@ -97,9 +100,17 @@ class ProvisioningPersistenceIT {
         provisionings.findByContract(saved.provisioning.contractReference) shouldBe saved
         provisionings.findByKey(saved.idempotencyKey, "carol") shouldBe saved
         provisionings.findByKey(saved.idempotencyKey, "bob") shouldBe null
-        provisionings.markCreated(saved.provisioning.contractReference)
+        provisionings.markInvited(saved.provisioning.contractReference, "INVN-1")
         provisionings.findByContract(saved.provisioning.contractReference)?.provisioning?.status shouldBe
             ProvisioningStatus.CREATED
+        provisionings.findByContract(saved.provisioning.contractReference)?.provisioning?.invitationRef shouldBe
+            "INVN-1"
+        provisionings
+            .findByContract(
+                saved.provisioning.contractReference,
+            )?.provisioning
+            ?.firstAdministratorOutcome shouldBe
+            FirstAdministratorOutcome.INVITED
         provisionings.findByContract(saved.provisioning.contractReference)?.provisioning?.dataRegion shouldBe
             RegionKey("SG")
         shouldThrow<Exception> {
@@ -109,6 +120,34 @@ class ProvisioningPersistenceIT {
             )
         }
         has("tenant_provisioning_request", "DELETE") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-8224 a refused first administrator is recorded and the request is CREATED`() {
+        val saved = record()
+        provisionings.save(saved, "carol")
+        provisionings.markRefused(saved.provisioning.contractReference)
+        val found = checkNotNull(provisionings.findByContract(saved.provisioning.contractReference)).provisioning
+        found.status shouldBe ProvisioningStatus.CREATED
+        found.invitationRef shouldBe null
+        found.firstAdministratorOutcome shouldBe FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR
+    }
+
+    @Test
+    fun `INV-AC-8281 a reissue attempt keeps its expiry per key and holds no code column`() {
+        val attempts = ReissueAttemptRepositoryJooq(dsl, Clock.systemUTC())
+        val key = UUID.randomUUID()
+        val attempt = ReissueAttempt(key, CommercialRef("CTR-1"), Instant.parse("2026-11-19T08:00:00Z"), null)
+        attempts.save(attempt, "carol")
+        attempts.find(key, "carol") shouldBe attempt
+        attempts.find(key, "bob") shouldBe null
+        attempts.complete(key, "carol", "INVN-2")
+        attempts.find(key, "carol") shouldBe attempt.copy(invitationRef = "INVN-2")
+        probe.fetchValue(
+            "select count(*) from information_schema.columns " +
+                "where table_name = 'first_invitation_reissue' and column_name like '%code%'",
+        ) shouldBe 0L
+        has("first_invitation_reissue", "DELETE") shouldBe false
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.dynokore.gst.controlPlane.application.pack.OperatorRole
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
+import com.dynokore.gst.controlPlane.domain.commercial.FirstAdministratorOutcome
 import com.dynokore.gst.controlPlane.domain.commercial.PlanRef
 import com.dynokore.gst.controlPlane.domain.commercial.ProvisioningStatus
 import com.dynokore.gst.controlPlane.domain.commercial.RegionKey
@@ -12,6 +13,8 @@ import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Duration
@@ -30,7 +33,10 @@ class ProvisionTenantTest {
     private val records = ArrayList<ProvisioningRecord>()
     private val calls = ArrayList<CreateTenantCall>()
     private val messages = ArrayList<String>()
+    private val accessCalls = ArrayList<ProvisionFirstAdministratorCall>()
     private var creation: TenantCreation = TenantCreation.Created
+    private var access: FirstAdministratorAnswer =
+        FirstAdministratorAnswer.Issued("INVN-1", InvitationCode("code-secret-1"))
     private var counter = 0
 
     private val repository =
@@ -50,10 +56,31 @@ class ProvisionTenantTest {
                 records += record
             }
 
-            override fun markCreated(contractReference: CommercialRef) {
+            override fun markInvited(
+                contractReference: CommercialRef,
+                invitationRef: String,
+            ) = update(contractReference) {
+                it.copy(
+                    status = ProvisioningStatus.CREATED,
+                    invitationRef = invitationRef,
+                    firstAdministratorOutcome = FirstAdministratorOutcome.INVITED,
+                )
+            }
+
+            override fun markRefused(contractReference: CommercialRef) =
+                update(contractReference) {
+                    it.copy(
+                        status = ProvisioningStatus.CREATED,
+                        firstAdministratorOutcome = FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR,
+                    )
+                }
+
+            private fun update(
+                contractReference: CommercialRef,
+                change: (TenantProvisioning) -> TenantProvisioning,
+            ) {
                 val i = records.indexOfFirst { it.provisioning.contractReference == contractReference }
-                val created = records[i].provisioning.copy(status = ProvisioningStatus.CREATED)
-                records[i] = records[i].copy(provisioning = created)
+                records[i] = records[i].copy(provisioning = change(records[i].provisioning))
             }
         }
     private val regions =
@@ -72,8 +99,19 @@ class ProvisionTenantTest {
                 creation
             },
             InvitationDelivery(
-                { contract, tenant, issuedAt, expiresAt -> "signed:$contract:$tenant:$issuedAt:$expiresAt" },
+                { contract, tenant, issued, issuedAt, expiresAt ->
+                    val (ref, code) = issued.invitationRef to issued.invitationCode.value
+                    "signed:$contract:$tenant:$ref:$code:$issuedAt:$expiresAt"
+                },
                 { _, email, ref, _ -> messages += "$email|$ref" },
+                object : FirstAdministratorAccess {
+                    override fun provision(call: ProvisionFirstAdministratorCall): FirstAdministratorAnswer {
+                        accessCalls += call
+                        return access
+                    }
+
+                    override fun reissue(call: ReissueFirstAdministratorCall) = FirstAdministratorAnswer.Unavailable
+                },
                 clock,
                 Duration.ofDays(7),
             ),
@@ -167,9 +205,75 @@ class ProvisionTenantTest {
     fun `INV-AC-935 the first invitation is signed, expires after the call and is messaged`() {
         val provisioned = checkNotNull(run(command()).second)
         val expiry = now.plus(Duration.ofDays(7))
-        provisioned.invitationRef shouldBe "signed:CTR-2026-0091:${provisioned.tenantRef}:$now:$expiry"
+        provisioned.invitationRef shouldBe "INVN-1"
+        provisioned.invitationExpiresAt shouldBe expiry
         provisioned.invitationExpiresAt shouldBeGreaterThan now
-        messages.single() shouldBe "admin@acme.example|${provisioned.invitationRef}"
+        messages.single() shouldBe
+            "admin@acme.example|signed:CTR-2026-0091:${provisioned.tenantRef}:INVN-1:code-secret-1:$now:$expiry"
+    }
+
+    private fun accessKey() = ProvisionTenant.accessKeyOf(CommercialRef("CTR-2026-0091"))
+
+    @Test
+    fun `INV-AC-8224 provisionFirstAdministrator is called once with the minted tenantRef the email and the expiry`() {
+        val provisioned = checkNotNull(run(command()).second)
+        val call = accessCalls.single()
+        call.tenantRef shouldBe provisioned.tenantRef
+        call.administratorEmail shouldBe "admin@acme.example"
+        call.invitationExpiresAt shouldBe now.plus(Duration.ofDays(7))
+        call.idempotencyKey shouldBe accessKey()
+        records.single().provisioning.firstAdministratorOutcome shouldBe FirstAdministratorOutcome.INVITED
+    }
+
+    @Test
+    fun `INV-AC-8224 no access call while PENDING, the retry that reads CREATED sends it, same key`() {
+        creation = TenantCreation.Pending
+        run(command())
+        accessCalls.size shouldBe 0
+        messages.size shouldBe 0
+        creation = TenantCreation.Created
+        val retried = checkNotNull(run(command()).second)
+        retried.status shouldBe ProvisioningStatus.CREATED
+        records.size shouldBe 1
+        accessCalls.single().idempotencyKey shouldBe accessKey()
+        accessCalls.single().tenantRef shouldBe retried.tenantRef
+        messages.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-8224 a 409 of access-svc sends no invitation and the request records the outcome`() {
+        access = FirstAdministratorAnswer.Refused
+        val refused = checkNotNull(run(command()).second)
+        messages.size shouldBe 0
+        refused.firstAdministratorOutcome shouldBe FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR
+        records.single().provisioning.firstAdministratorOutcome shouldBe
+            FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR
+        run(command()) shouldBe (null to refused)
+        accessCalls.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-8224 an unavailable access-svc keeps the request PENDING, the retry reuses the key`() {
+        access = FirstAdministratorAnswer.Unavailable
+        val pending = checkNotNull(run(command()).second)
+        pending.status shouldBe ProvisioningStatus.PENDING
+        records.single().provisioning.status shouldBe ProvisioningStatus.PENDING
+        messages.size shouldBe 0
+        access = FirstAdministratorAnswer.Issued("INVN-2", InvitationCode("code-secret-2"))
+        val done = checkNotNull(run(command()).second)
+        done.status shouldBe ProvisioningStatus.CREATED
+        done.tenantRef shouldBe pending.tenantRef
+        accessCalls.map { it.idempotencyKey }.toSet() shouldBe setOf(accessKey())
+        accessCalls.map { it.invitationExpiresAt }.toSet() shouldBe setOf(pending.invitationExpiresAt)
+        messages.single() shouldContain "code-secret-2"
+    }
+
+    @Test
+    fun `INV-AC-8224 the stored request and its text never hold the invitation code`() {
+        val provisioned = checkNotNull(run(command()).second)
+        records.single().toString() shouldNotContain "code-secret-1"
+        provisioned.toString() shouldNotContain "code-secret-1"
+        InvitationCode("code-secret-1").toString() shouldNotContain "code-secret-1"
     }
 
     @Test

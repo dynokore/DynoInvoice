@@ -4,6 +4,8 @@ import com.dynokore.gst.controlPlane.adapters.bundle.CanonicalJson
 import com.dynokore.gst.controlPlane.adapters.signing.CmsInvitationIssuer
 import com.dynokore.gst.controlPlane.adapters.signing.CmsLicenceSigner
 import com.dynokore.gst.controlPlane.adapters.testing.SigningFixtures
+import com.dynokore.gst.controlPlane.application.commercial.FirstAdministratorAnswer
+import com.dynokore.gst.controlPlane.application.commercial.InvitationCode
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
 import com.dynokore.platform.crypto.BouncyCastleCms
 import com.dynokore.platform.crypto.DetachedVerification
@@ -98,7 +100,14 @@ class LicenceFileTest {
     fun `INV-AC-935 the invitation reference is signed over a payload that carries its expiry`() {
         val issuer = CmsInvitationIssuer(cms, fixtures.keys, fixtures.keyRef)
         val expiresAt = issuedAt.plusSeconds(7 * 24 * 3600L)
-        val ref = issuer.issue(CommercialRef("CTR-1"), CommercialRef("TEN-1"), issuedAt, expiresAt)
+        val ref =
+            issuer.issue(
+                CommercialRef("CTR-1"),
+                CommercialRef("TEN-1"),
+                FirstAdministratorAnswer.Issued("INVN-1", InvitationCode("code-1")),
+                issuedAt,
+                expiresAt,
+            )
         val (payload, signature) = ref.split(".").map { Base64.getUrlDecoder().decode(it) }
         (
             cms.verify(payload, signature, SignatureAlgorithm.ECDSA_P256_SHA256, listOf(fixtures.certificateDer)) is
@@ -106,6 +115,8 @@ class LicenceFileTest {
         ) shouldBe true
         val claims = json.readValue(payload, Map::class.java)
         Instant.parse(claims["expiresAt"] as String).isAfter(issuedAt) shouldBe true
+        claims["invitationRef"] shouldBe "INVN-1"
+        claims["invitationCode"] shouldBe "code-1"
         val moved = json.writeValueAsBytes(claims + ("expiresAt" to "2099-01-01T00:00:00Z"))
         (
             cms.verify(moved, signature, SignatureAlgorithm.ECDSA_P256_SHA256, listOf(fixtures.certificateDer)) is
