@@ -75,7 +75,9 @@ object ApSimulator {
         val deadline = System.nanoTime() + AWAIT_LIMIT.inWholeNanoseconds
         val tick = CountDownLatch(1)
         while (callCount() < expected) {
-            check(System.nanoTime() < deadline) { "the simulator did not reach $expected calls, it is at ${callCount()}" }
+            check(
+                System.nanoTime() < deadline,
+            ) { "the simulator did not reach $expected calls, it is at ${callCount()}" }
             tick.await(POLL.inWholeMilliseconds, TimeUnit.MILLISECONDS)
         }
     }
