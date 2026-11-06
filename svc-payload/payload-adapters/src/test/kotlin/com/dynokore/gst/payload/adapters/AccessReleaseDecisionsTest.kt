@@ -281,7 +281,7 @@ class AccessReleaseDecisionsTest {
     }
 
     @Test
-    fun `INV-AC-17186 a failure, a timeout, an open breaker or an unreadable answer is a denial, only an exact release`() {
+    fun `INV-AC-17186 every failure denies and only an exact ALLOW with RELEASED releases`() {
         val cases =
             listOf(
                 answer("ALLOW", "RELEASED") to ReleaseOutcome.Released,
