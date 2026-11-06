@@ -116,8 +116,6 @@ class SyncEdgeCallerTest {
                     "transport.ap.sandbox-endpoint=${ApSimulator.baseUrl}",
                     "transport.ap.adapters[0].id=${primary.value}",
                     "transport.ap.adapters[0].path=primary",
-                    "management.server.port=0",
-                    "server.port=0",
                 ) + properties(services)
         SpringApplicationBuilder(TransportApplication::class.java, TestWorkloadVerifier::class.java)
             .initializers(
@@ -128,7 +126,7 @@ class SyncEdgeCallerTest {
             ).web(WebApplicationType.SERVLET)
             .resourceLoader(DefaultResourceLoader(classes))
             .properties(*values.toTypedArray())
-            .run()
+            .run("--server.port=0", "--management.server.port=0")
             .use { block(it, primary) }
     }
 

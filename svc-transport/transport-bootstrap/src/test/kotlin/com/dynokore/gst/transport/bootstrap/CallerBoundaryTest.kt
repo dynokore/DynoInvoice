@@ -121,7 +121,6 @@ class CallerBoundaryTest {
                     "transport.ap.adapters[0].path=primary",
                     "transport.ap.adapters[1].id=${secondary.value}",
                     "transport.ap.adapters[1].path=secondary",
-                    "management.server.port=0",
                 ) +
                 callers.entries.flatMapIndexed { i, (service, subject) ->
                     listOf(
@@ -133,7 +132,7 @@ class CallerBoundaryTest {
             SpringApplicationBuilder(TransportApplication::class.java, CallerTestConfig::class.java)
                 .web(WebApplicationType.SERVLET)
                 .properties(*properties.toTypedArray())
-                .run("--server.port=0")
+                .run("--server.port=0", "--management.server.port=0")
         try {
             val port = checkNotNull((context as WebServerApplicationContext).webServer).port
             block(Running(context, Harness(context, primary, secondary), port))
