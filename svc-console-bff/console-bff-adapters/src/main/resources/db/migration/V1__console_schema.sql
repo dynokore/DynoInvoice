@@ -1,0 +1,7 @@
+-- V1__console_schema.sql (TPL-12; INV-T-14436). The schema `console` and nothing else: no table, because the read
+-- models and the search index belong to the tasks that introduce them (INV-MOD-63, "The console schema (§27.3)").
+--
+-- Roles (INV-AC-2175): console_migrate owns the schema and runs this file; console_runtime logs in; console_sys is
+-- NOLOGIN. No role named "console" exists. The schema itself is created by Flyway (the `schemas` setting) or by the
+-- installer, owned by console_migrate; a CREATE SCHEMA statement here would need CREATE on the database, which
+-- console_migrate does not hold (the sibling V1 files rely on the same arrangement).

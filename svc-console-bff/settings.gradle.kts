@@ -153,4 +153,6 @@ include(
     "console-bff-contract",
     "console-bff-domain",
     "console-bff-application",
+    "console-bff-adapters",
+    "console-bff-bootstrap",
 )

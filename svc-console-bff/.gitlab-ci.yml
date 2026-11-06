@@ -24,9 +24,6 @@ include:
       junit_paths: '**/build/test-results/*/TEST-*.xml'
       ac_pattern: 'INV-AC-\d+(?!\d)'
 
-# IMAGE_NAME stays unset (template default "" turns the image jobs off): this slice has no bootBuildImage task;
-# INV-T-14436 (console-bff-bootstrap) sets it (INV-Q-14674).
-
 # CI-FAST 5c: verify-rules writes its check summary (ci-artifacts/check-summary/verify-rules.json) for keel-report.
 # The template's .check-group after_script and artifacts by !reference, not `extends: .check-group`: its
 # `dependencies: []` would drop compile's artifacts and gst-rebase-check's dotenv from the job.
@@ -35,6 +32,8 @@ verify-rules:
   artifacts: !reference [.check-group, artifacts]
 
 variables:
+  # INV-T-14436 (INV-Q-14674): console-bff-bootstrap now has bootBuildImage, so the platform-build image jobs run.
+  IMAGE_NAME: "svc-console-bff"
   # CI-FAST, owner ruling 2026-10-17 ("skip repeated checks"; platform-build ci/stages.gitlab-ci.yml): main skips a
   # listed job when the same commit already passed a merge-request pipeline. Only lint is listed. Not unit-test, compile,
   # verify-rules, keel-report, the image, scan and publish jobs: they are Keel done evidence or produce artefacts. Not
