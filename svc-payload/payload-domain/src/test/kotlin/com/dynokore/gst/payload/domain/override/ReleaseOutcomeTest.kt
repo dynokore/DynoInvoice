@@ -23,37 +23,37 @@ class ReleaseOutcomeTest {
     @Test
     fun `DENY without a reason code is denied as not overridable`() {
         ReleaseOutcome.from("DENY", null, null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
-        ReleaseOutcome.from("DENY", null, " ") shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
+        ReleaseOutcome.from("DENY", null, "  ") shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 
     @Test
     fun `an outcome with a trailing space is denied`() {
-        ReleaseOutcome.from("ALLOW", "RELEASED ", null).shouldBeInstanceOf<ReleaseOutcome.Denied>()
+        ReleaseOutcome.from("ALLOW", "RELEASED ", null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 
     @Test
     fun `a lower case outcome is denied`() {
-        ReleaseOutcome.from("ALLOW", "released", null).shouldBeInstanceOf<ReleaseOutcome.Denied>()
+        ReleaseOutcome.from("ALLOW", "released", null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 
     @Test
     fun `a decision with a trailing space is denied`() {
-        ReleaseOutcome.from("ALLOW ", "RELEASED", null).shouldBeInstanceOf<ReleaseOutcome.Denied>()
+        ReleaseOutcome.from("ALLOW ", "RELEASED", null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 
     @Test
     fun `ALLOW without an outcome is denied`() {
-        ReleaseOutcome.from("ALLOW", null, null).shouldBeInstanceOf<ReleaseOutcome.Denied>()
+        ReleaseOutcome.from("ALLOW", null, null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 
     @Test
     fun `an unknown or missing decision is denied`() {
-        ReleaseOutcome.from("MAYBE", "RELEASED", null).shouldBeInstanceOf<ReleaseOutcome.Denied>()
-        ReleaseOutcome.from(null, "RELEASED", null).shouldBeInstanceOf<ReleaseOutcome.Denied>()
+        ReleaseOutcome.from("MAYBE", "RELEASED", null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
+        ReleaseOutcome.from(null, "RELEASED", null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 
     @Test
     fun `an unknown outcome is denied`() {
-        ReleaseOutcome.from("ALLOW", "SOMETHING_NEW", null).shouldBeInstanceOf<ReleaseOutcome.Denied>()
+        ReleaseOutcome.from("ALLOW", "SOMETHING_NEW", null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 }

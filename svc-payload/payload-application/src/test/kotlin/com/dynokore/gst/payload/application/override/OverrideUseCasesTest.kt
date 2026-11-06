@@ -99,7 +99,7 @@ class OverrideUseCasesTest {
         decisions = FakeDecisions(BigDecimal("1000.00"))
         overridable(d2, total = "1000.01")
         ask("A1", d2).shouldBeInstanceOf<OverrideResult.AwaitsSecond>()
-        approve().execute("A1", d2, 1, "PAY-011") shouldBe OverrideResult.Forbidden
+        approve().execute("A1", d2, 1, "PAY-011") shouldBe OverrideResult.Refused("SAME_PERSON_TWICE")
         store.find(d2, 1, "PAY-011")!!.status shouldBe OverrideStatus.PENDING
         ask("A1", d2).shouldBeInstanceOf<OverrideResult.AwaitsSecond>()
     }
@@ -122,7 +122,7 @@ class OverrideUseCasesTest {
         overridable(d1, version = 1)
         versions.put(d1, 2, "10.00")
         ask("A1", d1, version = 2) shouldBe OverrideResult.NotOverridable
-        ask("A1", d2) shouldBe OverrideResult.NotOverridable // an unknown version
+        ask("A1", d2) shouldBe OverrideResult.NotFound // an unknown version (INV-Q-17225)
         store.rows shouldBe emptyMap()
     }
 
@@ -136,11 +136,45 @@ class OverrideUseCasesTest {
     }
 
     @Test
-    fun `a denied decision is refused with nothing stored`() {
+    fun `a NOT_OVERRIDABLE decision is not overridable with nothing stored`() {
         decisions = FakeDecisions(answer = { ReleaseOutcome.Denied("NOT_OVERRIDABLE") })
         overridable(d1)
-        ask("A1", d1) shouldBe OverrideResult.Forbidden
+        ask("A1", d1) shouldBe OverrideResult.NotOverridable
         store.rows shouldBe emptyMap()
+        audit.entries shouldBe emptyList()
+    }
+
+    @Test
+    fun `any other denied decision is refused with its code and nothing stored`() {
+        overridable(d1)
+        for (code in listOf("NO_SOLE_OPERATOR_ACK", "SAME_PERSON_TWICE", "SOMETHING_NEW")) {
+            decisions = FakeDecisions(answer = { ReleaseOutcome.Denied(code) })
+            ask("A1", d1) shouldBe OverrideResult.Refused(code)
+        }
+        store.rows shouldBe emptyMap()
+        audit.entries shouldBe emptyList()
+    }
+
+    @Test
+    fun `look-alikes of NOT_OVERRIDABLE are refused, not not overridable`() {
+        overridable(d1)
+        for (code in listOf("not_overridable", "NOT_OVERRIDABLE ")) {
+            decisions = FakeDecisions(answer = { ReleaseOutcome.Denied(code) })
+            ask("A1", d1) shouldBe OverrideResult.Refused(code)
+        }
+        store.rows shouldBe emptyMap()
+    }
+
+    @Test
+    fun `an unknown version is not found on all three operations and nothing else is called`() {
+        val decide = FakeDecisions()
+        decisions = decide
+        ask("A1", d1) shouldBe OverrideResult.NotFound
+        approve().execute("A1", d1, 1, "PAY-011") shouldBe OverrideResult.NotFound
+        read().execute("A1", d1, 1, null, 10) shouldBe OverrideResult.NotFound
+        store.rows shouldBe emptyMap()
+        authority.asked shouldBe emptyList()
+        decide.calls shouldBe emptyList()
     }
 
     @Test
@@ -158,7 +192,7 @@ class OverrideUseCasesTest {
         overridable(d2, total = "5.00")
         ask("A1", d2)
         audit.entries shouldBe listOf(RecordingAudit.Entry("requested", "A1", "A1", "register lag"))
-        approve().execute("A1", d2, 1, "PAY-011") shouldBe OverrideResult.Forbidden
+        approve().execute("A1", d2, 1, "PAY-011") shouldBe OverrideResult.Refused("SAME_PERSON_TWICE")
         audit.entries.size shouldBe 1
         approve().execute("A2", d2, 1, "PAY-011").shouldBeInstanceOf<OverrideResult.Released>()
         audit.entries.map { it.kind } shouldBe listOf("requested", "released")
@@ -191,15 +225,42 @@ class OverrideUseCasesTest {
     }
 
     @Test
-    fun `approve is forbidden when the decision is a DENY or awaits yet another approver`() {
+    fun `approve is refused when the decision is a DENY or awaits yet another approver`() {
         decisions = FakeDecisions(BigDecimal("1.00"))
         overridable(d1, total = "5.00")
         ask("A1", d1)
         decisions = FakeDecisions(answer = { ReleaseOutcome.Denied("X") })
-        approve().execute("A2", d1, 1, "PAY-011") shouldBe OverrideResult.Forbidden
+        approve().execute("A2", d1, 1, "PAY-011") shouldBe OverrideResult.Refused("X")
         decisions = FakeDecisions(answer = { ReleaseOutcome.AwaitsSecond })
-        approve().execute("A2", d1, 1, "PAY-011") shouldBe OverrideResult.Forbidden
+        approve().execute("A2", d1, 1, "PAY-011") shouldBe OverrideResult.Refused("NOT_OVERRIDABLE")
         store.find(d1, 1, "PAY-011")!!.status shouldBe OverrideStatus.PENDING
+        audit.entries.size shouldBe 1
+    }
+
+    @Test
+    fun `a refused approval never calls release`() {
+        decisions = FakeDecisions(BigDecimal("1.00"))
+        overridable(d1, total = "5.00")
+        ask("A1", d1)
+        var releases = 0
+        val counting =
+            object : OverrideStore by store {
+                override fun release(
+                    docUuid: UUID,
+                    version: Int,
+                    code: String,
+                    releasedBy: String,
+                ): StoredOverride? {
+                    releases++
+                    return store.release(docUuid, version, code, releasedBy)
+                }
+            }
+        for (outcome in listOf(ReleaseOutcome.Denied("SAME_PERSON_TWICE"), ReleaseOutcome.AwaitsSecond)) {
+            ApproveOverride(versions, authority, FakeDecisions(answer = { outcome }), counting, audit)
+                .execute("A2", d1, 1, "PAY-011")
+                .shouldBeInstanceOf<OverrideResult.Refused>()
+        }
+        releases shouldBe 0
     }
 
     @Test

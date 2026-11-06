@@ -33,6 +33,11 @@ sealed interface OverrideResult {
 
     /** 422 PAY-017: the code is not an OVERRIDABLE code that the version carries. */
     data object NotOverridable : OverrideResult
+
+    /** 403 SRT-004: the decision of `decideOverrideRelease` is not a release (INV-Q-17227); a refused call writes none. */
+    data class Refused(
+        val reasonCode: String,
+    ) : OverrideResult
 }
 
 /** The first approval: stores a pending override or releases it at once (INV-Q-10691 R2). */
@@ -52,8 +57,8 @@ class RequestOverride(
         code: String,
         reason: String?,
     ): OverrideResult {
-        // A version that is not stored carries no code: PAY-017, as a version with no stored finding.
-        val facts = versions.find(docUuid, version) ?: return OverrideResult.NotOverridable
+        // An unknown version, or one of another tenant, is NotFound on all three operations (INV-Q-17225).
+        val facts = versions.find(docUuid, version) ?: return OverrideResult.NotFound
         if (!authority.holds(userId, VALIDATION_OVERRIDE, facts.entityRef)) return OverrideResult.Forbidden
         if (reason.isNullOrBlank()) return OverrideResult.BadRequest
         if (findings.disposition(docUuid, version, code) != FindingDisposition.OVERRIDABLE) {
@@ -66,7 +71,12 @@ class RequestOverride(
             )
         return when (outcome) {
             is ReleaseOutcome.Denied -> {
-                OverrideResult.Forbidden
+                // Exact equality: look-alikes of NOT_OVERRIDABLE are Refused with their own code.
+                if (outcome.reasonCode == ReleaseOutcome.NOT_OVERRIDABLE) {
+                    OverrideResult.NotOverridable
+                } else {
+                    OverrideResult.Refused(outcome.reasonCode)
+                }
             }
 
             ReleaseOutcome.AwaitsSecond -> {
@@ -137,8 +147,12 @@ class ApproveOverride(
                     listOf(pending.requestedBy),
                 ),
             )
-        // Only a release releases; an answer awaiting yet another approver is not in the contract (fail closed).
-        if (outcome != ReleaseOutcome.Released) return OverrideResult.Forbidden
+        // Only a release releases (INV-Q-17227); AwaitsSecond cannot answer with a prior approver (INV-Q-17229).
+        when (outcome) {
+            is ReleaseOutcome.Denied -> return OverrideResult.Refused(outcome.reasonCode)
+            ReleaseOutcome.AwaitsSecond -> return OverrideResult.Refused(ReleaseOutcome.NOT_OVERRIDABLE)
+            ReleaseOutcome.Released -> Unit
+        }
         val released = store.release(docUuid, version, code, userId) ?: return OverrideResult.NotFound
         audit.released(userId, released)
         return OverrideResult.Released(released)
