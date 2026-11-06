@@ -14,13 +14,12 @@ import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleChangedPublisher
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleCorrectedPublisher
 import com.dynokore.gst.masterdata.application.identity.TripleRepository
+import com.dynokore.gst.masterdata.adapters.permission.ReplicaConfirmerRoles
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerRole
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerSet
-import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.Schema
@@ -86,29 +85,17 @@ class ServiceDefaults {
     fun confirmerPolicy(): ConfirmerPolicy = ConfirmerPolicy { PLANNED_CONFIRMERS }
 
     /**
-     * The roles of the confirming subject at the entity come from service-runtime's [PolicyRoleResolver] asked at level
-     * ENTITY with the entity as `scopeRef` and as `entityRef`. This service registers no resolver (the binding to the
-     * authority replica is INV-T-8118). Fail closed (INV-Q-8121 A, CS-23, API-24): no resolver bean, an empty answer
-     * and an exception alike give the empty set, so nobody can confirm.
+     * The roles of the confirming subject at the entity come from the authority replica's public holder query
+     * (service-runtime 12.0.0 removed `PolicyRoleResolver`). Fail closed (INV-Q-8121 A, CS-23, API-24): no replica, a
+     * stale replica and an exception alike give the empty set, so nobody can confirm.
      */
     @Bean
     @ConditionalOnMissingBean
     fun confirmerRoles(
-        resolver: ObjectProvider<PolicyRoleResolver>,
+        replica: ObjectProvider<AuthorityReplica>,
         tenants: TenantContext,
-    ): ConfirmerRoles =
-        ConfirmerRoles { subject, entity ->
-            val bound = resolver.ifAvailable
-            if (bound == null) {
-                emptySet()
-            } else {
-                try {
-                    bound.rolesOf(subject.value, tenants.current(), ScopeLevel.ENTITY, entity.value, entity.value)
-                } catch (_: Exception) {
-                    emptySet()
-                }
-            }
-        }
+        clock: Clock,
+    ): ConfirmerRoles = ReplicaConfirmerRoles(replica.getIfAvailable(), tenants, clock)
 
     /** The permission check of the tenant-scoped operations: the authority replica, fail closed (INV-Q-17215 A). */
     @Bean

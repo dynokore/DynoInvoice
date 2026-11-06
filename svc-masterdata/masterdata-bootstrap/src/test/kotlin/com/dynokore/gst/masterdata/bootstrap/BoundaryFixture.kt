@@ -4,7 +4,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
@@ -48,7 +48,15 @@ class CapturedEvents {
     val envelopes = CopyOnWriteArrayList<Envelope>()
 }
 
-/** The roles of the test subjects, answered through service-runtime's [PolicyRoleResolver] port. */
+/** A test-side roles lookup by actor and entity; the runner wraps it as the [ConfirmerRoles] bean. */
+fun interface TestRoleResolver {
+    fun rolesOf(
+        actor: String,
+        entity: String,
+    ): Set<String>
+}
+
+/** The roles of the test subjects, answered through the [ConfirmerRoles] port (service-runtime 12.0.0 removed PolicyRoleResolver). */
 object TestRoles {
     val roles: ConcurrentHashMap<String, Set<String>> =
         ConcurrentHashMap(
@@ -213,11 +221,11 @@ object BoundaryFixture {
         DriverManager.getConnection(container.jdbcUrl, "masterdata_runtime", RUNTIME_PASSWORD).use(block)
 
     /** The resolver of the test subjects' roles; `null` registers none, as production code does (INV-Q-8121 A). */
-    val testResolver = PolicyRoleResolver { actor, _, _, _, _ -> TestRoles.roles[actor].orEmpty() }
+    val testResolver = TestRoleResolver { actor, _ -> TestRoles.roles[actor].orEmpty() }
 
-    fun runner(resolver: PolicyRoleResolver? = testResolver): WebApplicationContextRunner =
+    fun runner(resolver: TestRoleResolver? = testResolver): WebApplicationContextRunner =
         WebApplicationContextRunner()
-            .let { if (resolver != null) it.withBean(PolicyRoleResolver::class.java, { resolver }) else it }
+            .let { if (resolver != null) it.withBean(ConfirmerRoles::class.java, { ConfirmerRoles { subject, entity -> resolver.rolesOf(subject.value, entity.value) } }) else it }
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(BoundaryTestConfiguration::class.java, MasterdataApplication::class.java)

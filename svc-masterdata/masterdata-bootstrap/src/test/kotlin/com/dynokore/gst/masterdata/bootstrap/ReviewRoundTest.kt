@@ -7,9 +7,7 @@ import com.dynokore.gst.masterdata.domain.identity.Constitution
 import com.dynokore.gst.masterdata.domain.identity.EntityRef
 import com.dynokore.gst.masterdata.domain.identity.IdentityTriple
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
-import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
@@ -30,7 +28,7 @@ class ReviewRoundTest {
     private val agent = Constitution("SECTION_33_2_AGENT")
 
     private fun run(
-        resolver: PolicyRoleResolver? = BoundaryFixture.testResolver,
+        resolver: TestRoleResolver? = BoundaryFixture.testResolver,
         block: (Env) -> Unit,
     ) {
         BoundaryFixture.runner(resolver).run { context ->
@@ -147,7 +145,7 @@ class ReviewRoundTest {
 
     /** One confirmation by a different person holding [held], through a context whose resolver is [resolver]. */
     private fun confirmationUnder(
-        resolver: PolicyRoleResolver?,
+        resolver: TestRoleResolver?,
         entity: String = "ENT-ROLES",
         check: (outcome: Any, pending: Int, versions: Int) -> Unit,
     ) = run(resolver) { env ->
@@ -161,15 +159,13 @@ class ReviewRoundTest {
         val failures =
             mapOf(
                 "no resolver bean" to null,
-                "empty set" to PolicyRoleResolver { _, _, _, _, _ -> emptySet() },
-                "exception" to PolicyRoleResolver { _, _, _, _, _ -> error("authority replica is down") },
-                "role outside the set" to PolicyRoleResolver { _, _, _, _, _ -> setOf("agent.operator") },
-                "look-alike role" to PolicyRoleResolver { _, _, _, _, _ -> setOf("Tenant.Admin", "tenant.admin2") },
+                "empty set" to TestRoleResolver { _, _ -> emptySet() },
+                "exception" to TestRoleResolver { _, _ -> error("authority replica is down") },
+                "role outside the set" to TestRoleResolver { _, _ -> setOf("agent.operator") },
+                "look-alike role" to TestRoleResolver { _, _ -> setOf("Tenant.Admin", "tenant.admin2") },
                 "tenant.admin only for another entity" to
-                    PolicyRoleResolver { _, _, _, scopeRef, entityRef ->
-                        if (scopeRef == "ENT-ANOTHER" &&
-                            entityRef == "ENT-ANOTHER"
-                        ) {
+                    TestRoleResolver { _, entity ->
+                        if (entity == "ENT-ANOTHER") {
                             setOf("tenant.admin")
                         } else {
                             emptySet()
@@ -186,11 +182,11 @@ class ReviewRoundTest {
     }
 
     @Test
-    fun `INV-AC-2254 a resolver asked at level ENTITY for this entity and a confirmer role confirms`() {
+    fun `INV-AC-2254 the roles are asked for the confirming person and this entity and a confirmer role confirms`() {
         val asked = java.util.concurrent.CopyOnWriteArrayList<List<Any?>>()
         val resolver =
-            PolicyRoleResolver { actor, tenant, level, scopeRef, entityRef ->
-                asked += listOf(actor, tenant, level, scopeRef, entityRef)
+            TestRoleResolver { actor, entity ->
+                asked += listOf(actor, entity)
                 if (actor == otherAdmin) setOf("tax.approver") else emptySet()
             }
         confirmationUnder(resolver, "ENT-ROLES-PASS") { outcome, pending, versions ->
@@ -201,24 +197,10 @@ class ReviewRoundTest {
         assertThat(asked).isNotEmpty()
         asked.forEach {
             assertThat(it[0]).isEqualTo(otherAdmin)
-            assertThat(it[1]).isEqualTo(tenantA)
-            assertThat(it[2]).isEqualTo(ScopeLevel.ENTITY)
-            assertThat(it[3]).isEqualTo("ENT-ROLES-PASS")
-            assertThat(it[4]).isEqualTo("ENT-ROLES-PASS")
+            assertThat(it[1]).isEqualTo("ENT-ROLES-PASS")
         }
         // and {tenant.admin} passes too
-        confirmationUnder(
-            PolicyRoleResolver {
-                _,
-                _,
-                _,
-                _,
-                _,
-                ->
-                setOf("tenant.admin")
-            },
-            "ENT-ROLES-ADMIN",
-        ) { outcome, _, _ ->
+        confirmationUnder(TestRoleResolver { _, _ -> setOf("tenant.admin") }, "ENT-ROLES-ADMIN") { outcome, _, _ ->
             assertThat(outcome).isEqualTo(HttpStatus.OK)
         }
     }

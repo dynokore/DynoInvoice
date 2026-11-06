@@ -23,9 +23,7 @@ import com.dynokore.gst.masterdata.domain.identity.PendingChange
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.gst.masterdata.domain.identity.Resolution
 import com.dynokore.gst.masterdata.domain.identity.SubmittingIdentity
-import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
@@ -52,7 +50,7 @@ class AcceptanceCriteriaTest {
     private val nobody = "IDN-NOBODY"
     private val sole = "IDN-SOLE"
 
-    /** The roles each authenticated subject holds, answered through the real PolicyRoleResolver wiring. */
+    /** The roles each authenticated subject holds, answered through the ConfirmerRoles port. */
     private val roles = TestRoles.roles
 
     private val companyViaSoleProp = Constitution("COMPANY_VIA_SOLE_PROPRIETORSHIP")
@@ -62,7 +60,7 @@ class AcceptanceCriteriaTest {
     private val longAgo = LocalDate.of(2026, 1, 1)
 
     private fun run(
-        resolver: PolicyRoleResolver? = BoundaryFixture.testResolver,
+        resolver: TestRoleResolver? = BoundaryFixture.testResolver,
         block: (Env) -> Unit,
     ) {
         BoundaryFixture.runner(resolver).run { context ->
