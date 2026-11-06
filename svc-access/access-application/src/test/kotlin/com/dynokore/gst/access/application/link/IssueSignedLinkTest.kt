@@ -148,6 +148,17 @@ class IssueSignedLinkTest {
         assertRefusedStoringNothing(IssueRefusal.RECIPIENT_OR_PURPOSE_MISSING, kit.command().copy(purpose = ""))
     }
 
+    /** The formatted message and the throwable text of one captured log event. */
+    private fun textOf(record: java.util.logging.LogRecord): String {
+        val message =
+            java.util.logging
+                .SimpleFormatter()
+                .formatMessage(record)
+        val trace = java.io.StringWriter()
+        record.thrown?.printStackTrace(java.io.PrintWriter(trace))
+        return message + trace
+    }
+
     @Test
     fun `no log event of a complete issue run holds the passcode or its digest`() {
         val logger =
@@ -157,22 +168,7 @@ class IssueSignedLinkTest {
         val handler =
             object : java.util.logging.Handler() {
                 override fun publish(record: java.util.logging.LogRecord) {
-                    val text =
-                        java.util.logging
-                            .SimpleFormatter()
-                            .formatMessage(record)
-                    captured +=
-                        text +
-                        (
-                            record.thrown?.let {
-                                java.io
-                                    .StringWriter()
-                                    .also { w ->
-                                        it.printStackTrace(java.io.PrintWriter(w))
-                                    }.toString()
-                            }
-                                ?: ""
-                        )
+                    captured += textOf(record)
                 }
 
                 override fun flush() = Unit
@@ -183,12 +179,9 @@ class IssueSignedLinkTest {
         try {
             val (link, passcode) = kit.issued()
             kit.verify.handle(link.ref, passcode)
-            assertEquals(
-                Unit,
-                java.util.logging.Logger
-                    .getLogger("probe")
-                    .info("run done"),
-            )
+            java.util.logging.Logger
+                .getLogger("probe")
+                .info("run done")
             assertTrue(captured.isNotEmpty(), "the capture works: the probe line was seen")
             assertTrue(captured.none { it.contains(passcode) || it.contains(link.passcodeDigest) })
             // probe: a deliberate line holding the passcode is caught by the same predicate
