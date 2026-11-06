@@ -6,9 +6,18 @@ import com.dynokore.platform.serviceruntime.http.MasterdataErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpHeaders
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.web.HttpMediaTypeNotAcceptableException
+import org.springframework.web.HttpMediaTypeNotSupportedException
+import org.springframework.web.HttpRequestMethodNotSupportedException
+import org.springframework.web.bind.ServletRequestBindingException
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.method.annotation.HandlerMethodValidationException
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.servlet.NoHandlerFoundException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.util.UUID
 
@@ -63,5 +72,44 @@ class ApiRefusalAdvice {
         val headers = HttpHeaders()
         problem.headers.forEach { (name, value) -> headers.add(name, value) }
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
+    }
+
+    /**
+     * Spring MVC refusals before or while binding (INV-Q-17119 A): the envelope with a fixed detail that never echoes
+     * the body, a request value or the exception message (API-22). The catalogue holds no 415 or 406 row, so SRT-001
+     * is the nearest existing code.
+     */
+    @ExceptionHandler(
+        HttpMessageNotReadableException::class,
+        MethodArgumentTypeMismatchException::class,
+        ServletRequestBindingException::class,
+        HandlerMethodValidationException::class,
+        HttpMediaTypeNotSupportedException::class,
+        HttpMediaTypeNotAcceptableException::class,
+    )
+    fun malformed(): ResponseEntity<String> = envelope(ClosedErrorCode.CONTRACT_VIOLATION, MALFORMED_DETAIL)
+
+    @ExceptionHandler(NoResourceFoundException::class, NoHandlerFoundException::class)
+    fun unknownPath(): ResponseEntity<String> = envelope(ClosedErrorCode.NOT_FOUND, null)
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun wrongMethod(failure: HttpRequestMethodNotSupportedException): ResponseEntity<String> =
+        envelope(ClosedErrorCode.METHOD_NOT_ALLOWED, null, failure.supportedHttpMethods?.joinToString(", ") { it.name() })
+
+    private fun envelope(
+        code: ClosedErrorCode,
+        detail: String?,
+        allow: String? = null,
+    ): ResponseEntity<String> {
+        val problem =
+            Problems.render(code, CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(), detail)
+        val headers = HttpHeaders()
+        problem.headers.forEach { (name, value) -> headers.add(name, value) }
+        allow?.let { headers.add(HttpHeaders.ALLOW, it) }
+        return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
+    }
+
+    private companion object {
+        const val MALFORMED_DETAIL = "The request does not match the published contract."
     }
 }

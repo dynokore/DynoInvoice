@@ -12,6 +12,7 @@ import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.http.MediaType
+import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
@@ -129,7 +130,13 @@ class EntityScopeTest {
             body: String,
             token: String? = "T-E1",
             path: String = "resolution",
-        ): Pair<Int, String> =
+        ): Pair<Int, String> = send(body, token, path).let { it.status to it.contentAsString }
+
+        fun send(
+            body: String,
+            token: String? = "T-E1",
+            path: String = "resolution",
+        ): MockHttpServletResponse =
             mvc
                 .perform(
                     MockMvcRequestBuilders
@@ -140,7 +147,6 @@ class EntityScopeTest {
                         .content(body),
                 ).andReturn()
                 .response
-                .let { it.status to it.contentAsString }
     }
 
     private fun gap(entity: String = "\"E-001\"") =
@@ -235,8 +241,16 @@ class EntityScopeTest {
             val (outside, body) = scope.post(gap("[\"E-002\"]"))
             assertThat(outside).describedAs(body).isEqualTo(403)
             assertThat(body).contains("SRT-004")
-            val (inside, _) = scope.post(gap("[\"E-001\"]"))
-            assertThat(inside).isEqualTo(400)
+            val inside = scope.send(gap("[\"E-001\"]"))
+            val answer = inside.contentAsString
+            assertThat(inside.status).describedAs(answer).isEqualTo(400)
+            assertThat(inside.contentType).isEqualTo("application/problem+json")
+            val json = tools.jackson.databind.json.JsonMapper().readTree(answer)
+            assertThat(json["code"].asString()).isEqualTo("SRT-001")
+            assertThat(json["type"].asString()).isEqualTo("https://errors.invoice.internal/SRT-001")
+            assertThat(json["status"].asInt()).isEqualTo(400)
+            assertThat(json["correlationId"].asString()).isNotBlank()
+            assertThat(answer).doesNotContain("E-001")
             assertThat(scope.state()).isEqualTo(Triple(0, 0, 0))
         }
 

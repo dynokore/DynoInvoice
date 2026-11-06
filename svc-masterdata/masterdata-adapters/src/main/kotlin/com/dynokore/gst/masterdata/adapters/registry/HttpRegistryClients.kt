@@ -3,6 +3,8 @@ package com.dynokore.gst.masterdata.adapters.registry
 import com.dynokore.gst.masterdata.application.registry.DirectoryClient
 import com.dynokore.gst.masterdata.application.registry.DirectoryReply
 import com.dynokore.gst.masterdata.application.registry.RegisterClient
+import com.dynokore.gst.masterdata.application.registry.MDM_008
+import com.dynokore.gst.masterdata.application.registry.REGISTER_UNAVAILABLE
 import com.dynokore.gst.masterdata.application.registry.RegisterReply
 import com.dynokore.gst.masterdata.domain.registry.RegisterFact
 import com.dynokore.platform.adapterruntime.ResilientExecutor
@@ -19,7 +21,15 @@ import java.time.LocalDate
 /** The registry answered with a status that is neither a found nor a not-found answer, or could not be reached. */
 class RegistryUnreachable(
     message: String,
-) : RuntimeException(message)
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
+
+/** The class name of the innermost cause: what the log names, never the message (CS-34). */
+private fun rootClass(failure: Throwable): String {
+    var current = failure
+    while (current.cause != null && current.cause !== current) current = checkNotNull(current.cause)
+    return current.javaClass.simpleName
+}
 
 /**
  * A registry as the wire reads: `GET {base}/lookup/{value}` answers 200 with the entry or 404 with a not-found body
@@ -46,7 +56,7 @@ internal class RegistryHttp(
                 try {
                     http.send(request, HttpResponse.BodyHandlers.ofString())
                 } catch (expected: IOException) {
-                    throw RegistryUnreachable("I/O failure: ${expected.javaClass.simpleName}")
+                    throw RegistryUnreachable("I/O failure: ${expected.javaClass.simpleName}", expected)
                 }
             if (response.statusCode() != OK && response.statusCode() != NOT_FOUND) {
                 throw RegistryUnreachable("status ${response.statusCode()}")
@@ -98,7 +108,7 @@ class HttpDirectoryClient internal constructor(
             if (status == FOUND) DirectoryReply.Found(apReference(body), body) else DirectoryReply.NotFound(body)
         } catch (expected: Exception) {
             // the executor rethrows after its bounded retry: a timeout, an open breaker, a full bulkhead or a failure
-            log.warn("directory lookup failed: {}", expected.javaClass.simpleName) // CS-34: class only
+            log.warn("directory lookup failed: {} {}", MDM_008, rootClass(expected)) // CS-34: key and class only
             DirectoryReply.Unreachable
         }
 
@@ -124,7 +134,7 @@ class HttpRegisterClient internal constructor(
             val (status, body) = wire.get(uen)
             RegisterReply.Answered(fact(status, body), body)
         } catch (expected: Exception) {
-            log.warn("register lookup failed: {}", expected.javaClass.simpleName) // CS-34: class only
+            log.warn("register lookup failed: {} {}", REGISTER_UNAVAILABLE, rootClass(expected)) // CS-34
             RegisterReply.Unavailable
         }
 
