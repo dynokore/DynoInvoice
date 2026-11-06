@@ -195,11 +195,13 @@ class WriteHarness(
         withOutbox: Boolean = true,
         platform: Boolean = false,
         ports: WriterPorts = WriterPorts(),
+        permission: SetterPermission? = RoleGrants.permission,
+        catalogue: VariationPointCatalogue = WriteCatalogue.catalogue,
     ): JdbcPolicyWriter {
         val installation = platform && mode == EventMode.OUTBOX
         return JdbcPolicyWriter(
             dsl = dsl,
-            catalogue = WriteCatalogue.catalogue,
+            catalogue = catalogue,
             form = form,
             schema = SCHEMA,
             audit = if (platform) installationAudit(app, clock) else audit(),
@@ -214,6 +216,7 @@ class WriteHarness(
             delegation = ports.delegation,
             backdating = ports.backdating,
             constraints = ports.constraints,
+            permission = permission,
         )
     }
 

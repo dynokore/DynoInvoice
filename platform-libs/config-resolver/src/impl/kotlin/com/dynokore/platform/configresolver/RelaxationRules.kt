@@ -65,6 +65,22 @@ internal class RelaxationRules(
         return required.map { it.key to it.value }
     }
 
+    /**
+     * The acknowledge permission keys of the places whose role in this form is [asRole], over the looser options
+     * (INV-Q-10140 C); empty when no place names it.
+     */
+    fun acknowledgeKeys(
+        definition: VariationPointDefinition,
+        looser: List<OptionSpec>,
+        asRole: String,
+    ): Set<String> =
+        looser
+            .flatMap { option ->
+                option.acknowledgers
+                    .filter { it.roleIn(form) == asRole }
+                    .map { acknowledgePermissionKey(definition.key.value, option, it) }
+            }.toCollection(linkedSetOf())
+
     /** A client entity is always delegated; otherwise the probe, and no answer counts as delegated (INV-Q-3136). */
     private fun isDelegated(
         target: SettingTarget,

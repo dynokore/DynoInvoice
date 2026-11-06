@@ -1,10 +1,10 @@
 package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.configresolver.PolicyWriter
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.SignedBinding
 import com.dynokore.platform.tenancykernel.TenantContextImpl
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
@@ -21,7 +21,7 @@ import javax.sql.DataSource
 /**
  * The Spring wiring of the policy servlet (P109), built as the job command tests build theirs: an
  * [ApplicationContextRunner] over [JobCommandHttpAutoConfiguration]. The servlet is mounted only when a [PolicyWriter]
- * bean exists, shares the idempotency store, picks up the service's [PolicyRoleResolver] when it declares one, and a
+ * bean exists, shares the idempotency store, picks up the service's [SetterPermission] when it declares one, and a
  * service with neither jobs nor a writer gets nothing.
  */
 class PolicyCommandWiringTest {
@@ -79,14 +79,14 @@ class PolicyCommandWiringTest {
     }
 
     @Test
-    fun `the service's PolicyRoleResolver is the one the servlet asks`() {
-        val port = PolicyRoleResolver { _, _, _, _, _ -> setOf("tax.approver") }
+    fun `the service's SetterPermission is the one the servlet uses`() {
+        val port = SetterPermission { _, _, _, _, _, _ -> true }
         runner()
             .withBean(PolicyWriter::class.java, { writer })
-            .withBean(PolicyRoleResolver::class.java, { port })
+            .withBean(SetterPermission::class.java, { port })
             .run { context ->
                 mappings(context) shouldBe listOf(PolicyCommandServlet.MAPPING)
-                context.getBean(PolicyRoleResolver::class.java) shouldBe port
+                context.getBean(SetterPermission::class.java) shouldBe port
             }
     }
 

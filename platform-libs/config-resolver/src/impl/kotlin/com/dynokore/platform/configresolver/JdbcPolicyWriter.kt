@@ -7,6 +7,7 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.json.JsonMapper
@@ -38,6 +39,8 @@ import java.util.UUID
  * @param delegation `null` means every scope counts as delegated (INV-Q-3136, fail closed).
  * @param backdating `null` refuses every back-dated value (INV-Q-3140).
  * @param constraints `null` refuses every value that needs the owning service's check (INV-Q-3167).
+ * @param permission the only source of the caller's right (INV-Q-10027): `null` refuses every setting and every
+ *   acknowledgement with POL-004, as do an answer of false and an exception (fail closed).
  */
 @Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
 class JdbcPolicyWriter(
@@ -51,6 +54,7 @@ class JdbcPolicyWriter(
     val delegation: DelegationProbe? = null,
     backdating: BackdatingFloor? = null,
     constraints: ValueConstraints? = null,
+    private val permission: SetterPermission? = null,
 ) : PolicyWriter {
     private val store = JdbcSettingStore(dsl, schema)
     private val writes = JdbcSettingWrites(dsl, schema)
@@ -66,6 +70,23 @@ class JdbcPolicyWriter(
     private val relaxations = RelaxationRules(form, delegation, writes, mapper)
     private val effectiveDates = EffectiveDateCheck(writes, backdating, clock)
     private val payloads = PolicyPayloads(mapper)
+
+    init {
+        // Start-up (fail closed): every setting key and derived acknowledge key must be a key of the catalogue.
+        catalogue.permissionKeys()?.let { known ->
+            catalogue.keys().forEach { row ->
+                val definition = catalogue.require(row)
+                val derived =
+                    listOf(definition.setPermission) +
+                        definition.options.flatMap { option ->
+                            option.acknowledgers.map { acknowledgePermissionKey(row.value, option, it) }
+                        }
+                derived.filterNot { it in known }.let {
+                    check(it.isEmpty()) { "$row: permission keys $it are not in the catalogue key set" }
+                }
+            }
+        }
+    }
 
     override fun setPolicy(command: SetPolicyCommand): PolicyChange {
         val definition = checks.settable(command.key)
@@ -127,8 +148,8 @@ class JdbcPolicyWriter(
         command: SetPolicyCommand,
     ): String {
         val key = definition.key
-        if (definition.setBy.none { it in command.actor.roles }) {
-            refuse(key, PolicyRefusal.ROLE_NOT_ALLOWED, "setting needs one of ${definition.setBy.sorted()}")
+        if (!holds(command.actor, target, definition.setPermission)) {
+            refuse(key, PolicyRefusal.ROLE_NOT_ALLOWED, "setting needs the permission ${definition.setPermission}")
         }
         val reason =
             command.reason?.takeIf { it.isNotBlank() } ?: refuse(key, PolicyRefusal.REASON_REQUIRED, "no reason")
@@ -146,6 +167,28 @@ class JdbcPolicyWriter(
             )
         }
         return reason
+    }
+
+    /** The permission answer for [permissionKey] at [target]; false, an exception and no binding are all false. */
+    private fun holds(
+        actor: Actor,
+        target: SettingTarget,
+        permissionKey: String,
+    ): Boolean {
+        val port = permission ?: return false
+        val installation = target.level == ScopeLevel.INSTALLATION
+        return try {
+            port.holds(
+                actor,
+                target.tenant ?: TenantId.PLATFORM,
+                target.level,
+                if (installation) null else target.ref.id,
+                target.entity,
+                permissionKey,
+            )
+        } catch (_: RuntimeException) {
+            false
+        }
     }
 
     private fun versionOf(
@@ -212,8 +255,13 @@ class JdbcPolicyWriter(
         // Only the roles that apply here may acknowledge: an UNDER_DELEGATION role where no delegation applies
         // is not accountable for this relaxation (T26 slot default_source, INV-Q-3136).
         val allowed = required.toSet()
-        if (command.asRole !in allowed || command.asRole !in command.actor.roles) {
-            refuse(key, PolicyRefusal.ACKNOWLEDGER_NOT_ALLOWED, "acknowledging needs one of ${allowed.sorted()}, held")
+        if (command.asRole !in allowed) {
+            refuse(key, PolicyRefusal.ACKNOWLEDGER_NOT_ALLOWED, "acknowledging needs one of ${allowed.sorted()}")
+        }
+        // The place whose role is asRole names the permission key; asRole itself stays recorded data (INV-Q-10140 C).
+        val needed = relaxations.acknowledgeKeys(definition, looser, command.asRole)
+        if (needed.isEmpty() || !needed.all { holds(command.actor, target, it) }) {
+            refuse(key, PolicyRefusal.ACKNOWLEDGER_NOT_ALLOWED, "acknowledging as ${command.asRole} needs $needed")
         }
         val tenant = checkNotNull(target.tenant)
         val relaxation = command.relaxation ?: RelaxationId(UUID.randomUUID())

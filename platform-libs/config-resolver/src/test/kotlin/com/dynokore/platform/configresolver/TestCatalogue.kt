@@ -29,7 +29,6 @@ object TestCatalogue {
     ) {
         var vpClass = VpClass.CONTROL
         var status = VpStatus.AVAILABLE
-        var setBy = setOf("tax.approver")
         var defaultByForm: Map<DeploymentForm, String> = emptyMap()
         var mustBeElected = false
         var multiSelect = false
@@ -41,7 +40,7 @@ object TestCatalogue {
                 modifiers = emptySet(),
                 status = status,
                 scopeLevels = levels,
-                setBy = setBy,
+                setPermission = SetterPermission.settingKey(key),
                 options = options,
                 defaultByForm = defaultByForm,
                 mustBeElected = mustBeElected,
@@ -76,7 +75,6 @@ object TestCatalogue {
                 options = listOf(OptionSpec("ON", Strictness.NEUTRAL), OptionSpec("OFF", Strictness.NEUTRAL)),
             ) {
                 vpClass = VpClass.POLICY
-                setBy = setOf("platform.engineer", "deployment.operator")
                 defaultByForm = mapOf(DeploymentForm.SAAS to "ON", DeploymentForm.PRIVATE to "OFF")
             },
             row(
@@ -89,7 +87,6 @@ object TestCatalogue {
                     ),
             ) {
                 vpClass = VpClass.PARAMETER
-                setBy = setOf("platform.engineer", "deployment.operator")
             },
             row(
                 MULTI,

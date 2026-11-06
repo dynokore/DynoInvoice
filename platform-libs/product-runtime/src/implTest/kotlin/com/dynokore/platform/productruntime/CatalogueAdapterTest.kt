@@ -2,7 +2,7 @@ package com.dynokore.platform.productruntime
 
 import com.dynokore.gst.catalogue.AckCondition
 import com.dynokore.gst.catalogue.BoundValue
-import com.dynokore.gst.catalogue.RolePermissions
+import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.catalogue.TypedValue
 import com.dynokore.gst.catalogue.VariationPoint
 import com.dynokore.gst.catalogue.VpOption
@@ -13,7 +13,9 @@ import com.dynokore.platform.configresolver.CatalogueListingUnavailable
 import com.dynokore.platform.configresolver.DeploymentForm
 import com.dynokore.platform.configresolver.Strictness
 import com.dynokore.platform.configresolver.TypedValueSpec
+import com.dynokore.platform.configresolver.VariationPointDefinition
 import com.dynokore.platform.configresolver.VariationPointKey
+import com.dynokore.platform.configresolver.acknowledgePermissionKey
 import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -40,11 +42,10 @@ class CatalogueAdapterTest {
             def.status.name shouldBe vp.status.name
             def.modifiers.map { it.name }.toSet() shouldBe vp.classModifiers.map { it.name }.toSet()
             def.scopeLevels.map { it.name } shouldContainExactly vp.scopeLevels.orEmpty().map { it.name }
-            def.setBy shouldBe
-                GstForm.entries
-                    .flatMap { form ->
-                        RolePermissions.cells(form).filterValues { vp.setPermission in it.keys }.keys
-                    }.toSet()
+            def.setPermission shouldBe vp.setPermission
+            withClue("${vp.id} setPermission is its id lower-cased with .set") {
+                def.setPermission shouldBe vp.id.lowercase() + ".set"
+            }
             def.options.map { it.key } shouldContainExactly vp.optionSpecs.orEmpty().map { it.key }
             def.options.zip(vp.optionSpecs.orEmpty()).forEach { (mapped, source) ->
                 mapped.strictness.name shouldBe source.strictness.name
@@ -62,9 +63,59 @@ class CatalogueAdapterTest {
     }
 
     @Test
-    fun `setBy of VP-52 holds deployment operator and setBy of VP-04 holds client signatory`() {
-        requireNotNull(catalogue.find(VariationPointKey("VP-52"))).setBy shouldContain "deployment.operator"
-        requireNotNull(catalogue.find(VariationPointKey("VP-04"))).setBy shouldContain "client.signatory"
+    fun `setPermission of VP-52 is held by deployment operator and setPermission of VP-04 by client signatory`() {
+        fun holders(definition: VariationPointDefinition) =
+            GstForm.entries.flatMapTo(linkedSetOf()) { OperationRoles.rolesFor(it, definition.setPermission).keys }
+        holders(requireNotNull(catalogue.find(VariationPointKey("VP-52")))) shouldContain "deployment.operator"
+        holders(requireNotNull(catalogue.find(VariationPointKey("VP-04")))) shouldContain "client.signatory"
+    }
+
+    @Test
+    fun `look-alikes of the VP-01 setting permission are not accepted`() {
+        val permission = requireNotNull(catalogue.find(VariationPointKey("VP-01"))).setPermission
+        permission shouldBe "vp-01.set"
+        val known = catalogue.permissionKeys()
+        known shouldContain permission
+        listOf("VP-01.set", "vp-01.acknowledge", "vp-01.set ", "vp-01.set\n", "VP-01.SET", "vp-1.set")
+            .forEach { lookAlike ->
+                withClue(lookAlike) {
+                    (lookAlike == permission) shouldBe false
+                    known.contains(lookAlike) shouldBe false
+                }
+            }
+    }
+
+    @Test
+    fun `every setting key and every derived acknowledge key is in the catalogue key set`() {
+        val known = catalogue.permissionKeys()
+        catalogue.all().forEach { definition ->
+            withClue(definition.key.value) {
+                known shouldContain definition.setPermission
+                definition.options.forEach { option ->
+                    option.acknowledgers.forEach {
+                        known shouldContain acknowledgePermissionKey(definition.key.value, option, it)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `the acknowledge keys of the thirteen rows are the expected ones, compared by equality`() {
+        val derived =
+            catalogue
+                .all()
+                .flatMap { definition ->
+                    definition.options.flatMap { option ->
+                        option.acknowledgers.map { acknowledgePermissionKey(definition.key.value, option, it) }
+                    }
+                }.toSet()
+        val expected =
+            listOf("03", "07", "13", "40", "44", "50", "61", "66", "81").map { "vp-$it.acknowledge" } +
+                listOf("vp-59", "vp-62").flatMap {
+                    listOf("$it.acknowledge.tax-approver", "$it.acknowledge.client-signatory")
+                }
+        derived shouldBe expected.toSet()
     }
 
     private fun assertSameTyped(
@@ -154,6 +205,32 @@ class CatalogueAdapterTest {
                 Acknowledger("tax.approver", AcknowledgerCondition.UNDER_DELEGATION, true),
                 Acknowledger("finance.controller", AcknowledgerCondition.UNDER_DELEGATION, true),
             )
+    }
+
+    @Test
+    fun `an entry of roles a-x and b-y gives two acknowledgers whose keys are in the key set only if listed`() {
+        val option =
+            VpOption(
+                "RELAXED",
+                "relaxed",
+                com.dynokore.gst.catalogue.Strictness.LOOSER,
+                null,
+                listOf(GstAcknowledger(listOf("a.x", "b.y"), AckCondition.UNDER_DELEGATION, false, emptyMap())),
+            )
+        val acknowledgers = GstVariationPointCatalogue.acknowledgers(option)
+        acknowledgers.map { it.condition } shouldBe List(2) { AcknowledgerCondition.UNDER_DELEGATION }
+        val spec =
+            com.dynokore.platform.configresolver.OptionSpec(
+                "RELAXED",
+                Strictness.LOOSER,
+                acknowledgers = acknowledgers,
+            )
+        val derived = acknowledgers.map { acknowledgePermissionKey("VP-99", spec, it) }
+        derived shouldBe listOf("vp-99.acknowledge.a-x", "vp-99.acknowledge.b-y")
+        val listed = setOf("vp-99.set") + derived
+        derived.all { it in listed } shouldBe true
+        derived.all { it in listed - "vp-99.acknowledge.b-y" } shouldBe false
+        derived.all { it in listed - "vp-99.acknowledge.a-x" } shouldBe false
     }
 
     @Test

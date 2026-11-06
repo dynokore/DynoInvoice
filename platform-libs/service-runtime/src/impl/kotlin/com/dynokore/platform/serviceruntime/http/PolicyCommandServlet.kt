@@ -3,6 +3,7 @@ package com.dynokore.platform.serviceruntime.http
 import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
 import com.dynokore.platform.configresolver.Actor
 import com.dynokore.platform.configresolver.PolicyChange
+import com.dynokore.platform.configresolver.PolicyRefusal
 import com.dynokore.platform.configresolver.PolicyRefused
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.PolicySource
@@ -12,6 +13,7 @@ import com.dynokore.platform.configresolver.RelaxationStatus
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SetPolicyCommand
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.SettingSource
 import com.dynokore.platform.configresolver.SettingVersion
 import com.dynokore.platform.configresolver.UnknownVariationPoint
@@ -25,7 +27,9 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.TokenIssuerUnavailableException
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
@@ -37,6 +41,7 @@ import tools.jackson.databind.node.ObjectNode
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Clock
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.util.UUID
@@ -55,10 +60,13 @@ import java.util.UUID
  *   ruling INV-Q-4115); a token with a tenant never reaches INSTALLATION.
  * - for TENANT the `scopeRef` must be exactly the token tenant's canonical text (INV-Q-5233).
  * - for the entity-scoped levels the `entityRef` is checked against the token's entity set when it is current; when
- *   it is stale the set is not consulted and the proof is the [PolicyRoleResolver]'s roles on that `entityRef`
+ *   it is stale the set is not consulted and the permission decision on that `entityRef` is the proof
  *   (INV-Q-5235, applying INV-Q-3771 and INV-Q-3782).
- * - the roles come from [roles]; an unbound port, an error, no answer or an empty set is 403 SRT-004. The writer
- *   checks them against the setting role (POL-004).
+ * - the caller's right is a permission (INV-Q-10027): the writer asks [SetterPermission] for the row's `vp-NN.set`
+ *   key (or the acknowledge key). When the service supplies a [permission] the servlet binds nothing and consults no
+ *   replica; otherwise the key is decided by `AuthorityReplica.decide` at the policy level of the call, allowed only
+ *   for source LOCAL or FALLBACK (INV-Q-10025). DEGRADED, a denial, an exception and no replica are 403 SRT-004 with
+ *   nothing bound or stored.
  *
  * `entityRef` equal to `scopeRef` for ENTITY is not stateable in JSON Schema and is checked here with SRT-001
  * (INV-Q-5217), exactly (no trimming, no case folding), as are the present-exactly-when rules of `scopeRef` and
@@ -71,7 +79,9 @@ class PolicyCommandServlet(
     private val principals: EndUserPrincipalResolver,
     private val scope: TenantScope,
     private val idempotency: IdempotencyStore,
-    private val roles: PolicyRoleResolver? = null,
+    private val permission: SetterPermission? = null,
+    private val authority: AuthorityReplica? = null,
+    private val clock: Clock = Clock.systemUTC(),
 ) : HttpServlet() {
     private val mapper = ObjectMapper()
 
@@ -96,7 +106,6 @@ class PolicyCommandServlet(
     private class Admitted(
         val principal: EndUserPrincipal,
         val parsed: Parsed,
-        val granted: Set<String>,
         val body: ByteArray,
     )
 
@@ -118,7 +127,7 @@ class PolicyCommandServlet(
                     CommandHttp.bound(scope, principal) {
                         scope.transactions.inTransaction {
                             idempotency.once(principal.tenant, principal.actor, admitted.parsed.key, fingerprint) {
-                                execute(admitted.parsed, Actor(principal.actor, admitted.granted), correlation)
+                                executeDecided(admitted.parsed, principal, correlation)
                             }
                         }
                     }
@@ -146,20 +155,24 @@ class PolicyCommandServlet(
                         body = CommandHttp.jsonObject(mapper, body),
                     )
                 }.andThen { parsed ->
-                    access(principal, parsed)?.let { Step.Go(Admitted(principal, parsed, it, body)) }
-                        ?: Step.Stop(Problems.accessDenied(correlation))
+                    if (access(principal, parsed)) {
+                        Step.Go(Admitted(principal, parsed, body))
+                    } else {
+                        Step.Stop(Problems.accessDenied(correlation))
+                    }
                 }
         }
     }
 
     /**
-     * The access checks (CS-23, API-24; fail closed): the roles the actor holds at the target, or `null` for 403
-     * SRT-004. Nothing is bound or stored before it answers.
+     * The access checks (CS-23, API-24; fail closed): false is 403 SRT-004. Nothing is bound or stored before it
+     * answers. The scope checks and the existence of a decision path are made here; the permission itself is decided
+     * for the row's key inside the writer.
      */
     private fun access(
         principal: EndUserPrincipal,
         parsed: Parsed,
-    ): Set<String>? {
+    ): Boolean {
         val tenant = principal.tenant
         val level = parsed.level
         val entity = parsed.entity
@@ -167,17 +180,22 @@ class PolicyCommandServlet(
             (tenant == null) == (level == ScopeLevel.INSTALLATION) &&
                 !(level == ScopeLevel.TENANT && parsed.scopeRef != tenant.toString()) &&
                 !(entity != null && principal.entitySetCurrent && !principal.covers(entity))
-        val held =
-            if (inScope) {
-                try {
-                    roles?.rolesOf(principal.actor, tenant ?: TenantId.PLATFORM, level, parsed.scopeRef, entity?.value)
-                } catch (_: RuntimeException) {
-                    null
-                }
-            } else {
-                null
-            }
-        return held?.takeIf { it.isNotEmpty() }
+        return inScope && (permission != null || authority != null)
+    }
+
+    /**
+     * Runs [execute] with the request's permission bound: the service's own [permission] is used as it is; otherwise
+     * the replica decision is bound for this request and a refusal that came from it is 403 SRT-004.
+     */
+    private fun executeDecided(
+        parsed: Parsed,
+        principal: EndUserPrincipal,
+        correlation: String,
+    ): StoredResponse {
+        val actor = Actor(principal.actor)
+        if (permission != null || authority == null) return execute(parsed, actor, correlation, null)
+        val decided = ReplicaSetterPermission(authority, clock, principalKindOf(principal))
+        return RequestBoundSetterPermission.bind(decided) { execute(parsed, actor, correlation, decided) }
     }
 
     private inner class Parsed(
@@ -374,6 +392,7 @@ class PolicyCommandServlet(
         parsed: Parsed,
         actor: Actor,
         correlation: String,
+        decided: ReplicaSetterPermission?,
     ): StoredResponse =
         try {
             val key = VariationPointKey(parsed.variationPoint.takeIf { KEY.matches(it) } ?: throw UnknownKey())
@@ -392,7 +411,11 @@ class PolicyCommandServlet(
         } catch (_: VariationPointRetired) {
             Problems.policy(PolicyErrorCode.VARIATION_POINT_RETIRED, correlation)
         } catch (refused: PolicyRefused) {
-            Problems.policy(PolicyErrorCode.of(refused.refusal), correlation)
+            if (decided?.denied == true && refused.refusal in PERMISSION_REFUSALS) {
+                Problems.accessDenied(correlation)
+            } else {
+                Problems.policy(PolicyErrorCode.of(refused.refusal), correlation)
+            }
         } catch (invalid: IllegalArgumentException) {
             Problems.contractViolation(invalid.message.orEmpty(), correlation)
         }
@@ -452,10 +475,19 @@ class PolicyCommandServlet(
     /** A key the catalogue could never register (config-resolver keys are VP-nn or VP-nnn): not registered. */
     private class UnknownKey : RuntimeException()
 
+    /**
+     * The principal kind of a replica request (INV-Q-17483). The servlet admits only [EndUserPrincipal] (an operator
+     * session is still an end-user token), so HUMAN is the only answer today; a principal type added later extends this.
+     */
+    @Suppress("UnusedParameter")
+    private fun principalKindOf(principal: EndUserPrincipal): PrincipalKind = PrincipalKind.HUMAN
+
     companion object {
         /** The servlet mapping of the two operations. */
         const val MAPPING = "/internal/v1/policies/*"
         private val ROUTE = Regex("^/internal/v1/policies/([^/]+)(/relaxations)?$")
+        private val PERMISSION_REFUSALS =
+            setOf(PolicyRefusal.ROLE_NOT_ALLOWED, PolicyRefusal.ACKNOWLEDGER_NOT_ALLOWED)
         private val VARIATION_POINT = Regex("^VP-[0-9]+$")
         private val KEY = Regex("^VP-[0-9]{2,3}$")
         private const val JSON = "application/json"

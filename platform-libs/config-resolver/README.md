@@ -63,8 +63,8 @@ Released on its own version with its own changelog. Services consume it only as 
 ## What 1.1.0 offers (INV-T-2870)
 
 - `PolicyWriter.setPolicy` at every scope the row allows, installation included (INV-REQ-1242, INV-AC-2227):
-  the setting role is checked against the actor's own roles for every source, profile values included
-  (INV-Q-3169); a reason is required (INV-AC-2229); values are effective-dated and never retroactive by the
+  the setting permission `vp-NN.set` is decided through the `SetterPermission` port for every source, profile
+  values included (INV-Q-3169, INV-Q-10027); an unbound port, `false` and an exception are POL-004; a reason is required (INV-AC-2229); values are effective-dated and never retroactive by the
   Singapore business date, except a scope's first value back to the `BackdatingFloor` port's floor, which
   fails closed (INV-Q-2940, INV-Q-3140). Shape, numeric and enum bounds and record fields are checked here;
   named bounds, references, `rule` and cross-option constraints go to the `ValueConstraints` port, and an
@@ -74,7 +74,8 @@ Released on its own version with its own changelog. Services consume it only as 
   `EntityRef.TENANT_WIDE` (INV-Q-3165).
 - `acknowledgeControlRelaxation` (INV-AC-205, INV-AC-2230): a looser option of a waivable CONTROL needs every
   acknowledger role its catalogue row names (`OptionSpec.acknowledgers`: role or role by form, `ALWAYS` or
-  `UNDER_DELEGATION`, distinct from the setter), each by a distinct person; nobody accountable means refused
+  `UNDER_DELEGATION`, distinct from the setter), each by a distinct person, the caller holding the row's acknowledge permission (`acknowledgePermissionKey`,
+  INV-Q-10140 C; `asRole` is recorded data); nobody accountable means refused
   (INV-Q-3134). A client-entity scope is always delegated, otherwise the `DelegationProbe` port decides and
   an unbound or failing probe counts as delegated (INV-Q-3136). Acknowledgements are kept in
   `config_relaxation_acknowledgement`, grouped by `relaxation_id`, and back exactly one matching setting

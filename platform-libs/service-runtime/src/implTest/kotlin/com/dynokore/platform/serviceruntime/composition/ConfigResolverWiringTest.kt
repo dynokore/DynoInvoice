@@ -21,6 +21,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -36,7 +37,12 @@ class ConfigResolverWiringTest {
         ApplicationContextRunner()
             .withUserConfiguration(ConfigResolverWiring::class.java)
             .withBean(CurrentConnection::class.java, { mockk<CurrentConnection>() })
-            .withBean(VariationPointCatalogue::class.java, { mockk<VariationPointCatalogue>() })
+            .withBean(VariationPointCatalogue::class.java, {
+                mockk<VariationPointCatalogue> {
+                    every { permissionKeys() } returns
+                        null
+                }
+            })
             .withBean(GstProperties::class.java, { GstProperties() })
             .withBean(ModuleProperties::class.java, { ModuleProperties(schema = "submission") })
             .withBean(Clock::class.java, { Clock.systemUTC() })

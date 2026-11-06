@@ -74,7 +74,8 @@ data class OptionSpec(
  * own. product-runtime adapts the generated `VariationPoint` to this shape (INV-Q-3119).
  *
  * @property scopeLevels the levels the row allows (INV-REQ-1242 behaviour #1).
- * @property setBy the roles that may set it.
+ * @property setPermission the one catalogue permission key (`vp-NN.set`) whose holders may set it; the writer
+ *   learns a caller's right only through [SetterPermission] for this key (INV-Q-10027).
  * @property options the options in catalogue order, each with its own [Strictness].
  * @property defaultByForm the default per deployment form, for a row whose default depends on it (e.g. VP-74).
  * @property mustBeElected the row has no default: nothing set means [ElectionRequired] (INV-Q-2930).
@@ -99,7 +100,7 @@ data class VariationPointDefinition(
     val modifiers: Set<VpModifier>,
     val status: VpStatus,
     val scopeLevels: Set<ScopeLevel>,
-    val setBy: Set<String>,
+    val setPermission: String,
     val options: List<OptionSpec>,
     val defaultByForm: Map<DeploymentForm, String> = emptyMap(),
     val mustBeElected: Boolean = false,
@@ -114,6 +115,9 @@ data class VariationPointDefinition(
     private val byKey: Map<String, OptionSpec> = options.associateBy { it.key }
 
     init {
+        require(setPermission == SetterPermission.settingKey(key)) {
+            "$key: the setting permission is ${SetterPermission.settingKey(key)}, was '$setPermission'"
+        }
         require(status == VpStatus.RETIRED || options.isNotEmpty()) { "$key has no options" }
         require(byKey.size == options.size) { "$key option keys must be distinct" }
         require(status == VpStatus.RETIRED || scopeLevels.isNotEmpty()) { "$key allows no scope" }
@@ -194,6 +198,13 @@ fun interface VariationPointCatalogue {
     fun keys(): Set<VariationPointKey> = throw CatalogueListingUnavailable()
 
     fun require(key: VariationPointKey): VariationPointDefinition = find(key) ?: throw UnknownVariationPoint(key)
+
+    /**
+     * The permission keys the catalogue states, or `null` when the binding does not state them. When given, the
+     * writer checks at start-up that the setting key and every derived acknowledge key of the rows from [keys] is
+     * in it, and fails to start otherwise (fail closed).
+     */
+    fun permissionKeys(): Set<String>? = null
 }
 
 /** The catalogue binding cannot list the rows its service owns: a view that needs the list is refused. */

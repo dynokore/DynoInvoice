@@ -8,12 +8,11 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * The verified principal and the roles it holds for the scope concerned. The command API takes the roles
- * from the token, never from the request body.
+ * The verified principal. It carries no roles: the caller's right is learned only through [SetterPermission]
+ * (INV-Q-10027).
  */
 data class Actor(
     val principal: String,
-    val roles: Set<String>,
 ) {
     init {
         require(BlankText.isActor(principal)) {

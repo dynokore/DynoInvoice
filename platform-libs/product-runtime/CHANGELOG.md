@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-11-06
+### Changed
+- INV-T-10128 (INV-Q-10027, INV-Q-17279 A): `GstVariationPointCatalogue` maps `VariationPointDefinition.setPermission` from `VariationPoint.setPermission` unchanged, in place of `setBy`, and states the pinned catalogue's permission keys through `permissionKeys()`, so the writer fails at start-up on a setting or acknowledge key the catalogue lacks. Depends on `config-resolver 6.0.0`.
+
 ## [2.13.1] - 2026-11-06
 ### Changed
 - Metadata-only release (INV-T-17142, G-DVS): depends on `service-runtime 11.1.0`, whose published module metadata changed; no code change.

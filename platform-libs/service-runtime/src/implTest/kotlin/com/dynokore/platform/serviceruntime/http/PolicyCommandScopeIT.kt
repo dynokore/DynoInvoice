@@ -252,7 +252,7 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         answer.ok()
         answer.body.has("scopeRef") shouldBe false
         answer.body.get("setBy").asString() shouldBe "op"
-        s.portCalls.single() shouldBe listOf("op", TenantId.PLATFORM, ScopeLevel.INSTALLATION, null, null)
+        s.portCalls.single() shouldBe listOf("op", TenantId.PLATFORM, ScopeLevel.INSTALLATION, null, null, "vp-72.set")
         s.writer.sets
             .single()
             .scope
@@ -270,6 +270,10 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
             Triple("VP-62", "NEXT_WORKING_DAY", "tax.approver")
         }
 
+    /** A service-supplied permission that answers false or throws reaches the writer, which refuses (INV-Q-10027). */
+    private fun permissionRefusal(op: PolicyOp) =
+        if (op == PolicyOp.SET) PolicyErrorCode.ROLE_NOT_ALLOWED else PolicyErrorCode.ACKNOWLEDGER_NOT_ALLOWED
+
     private fun entityBody(op: PolicyOp): String {
         val (_, option, role) = entityTarget(op)
         return request(op, ScopeLevel.ENTITY, "E-1", "E-1", RequestFields(option = option, asRole = role))
@@ -283,34 +287,35 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         for (op in PolicyOp.entries) {
             val token = s.user("stale-empty-$op", current = false, roleSet = admin)
             s.post(op.path(entityTarget(op).first), entityBody(op), token).status shouldBe 200
-            s.portCalls.last() shouldBe listOf("stale-empty-$op", s.tenant, ScopeLevel.ENTITY, "E-1", "E-1")
+            s.portCalls.last().take(PORT_SCOPE_FIELDS) shouldBe
+                listOf("stale-empty-$op", s.tenant, ScopeLevel.ENTITY, "E-1", "E-1")
         }
         s.writer.calls shouldBe 2
     }
 
     @OnPostgres
-    fun `stale entity set and the port answering an empty set is 403 SRT-004 though the set holds the entity`(
+    fun `stale entity set and the port answering an empty set is the writer's refusal though the set holds it`(
         image: String,
     ) {
         val s = Service(image)
         for (op in PolicyOp.entries) {
             val token = s.user("stale-holding-$op", "E-1", current = false, roleSet = emptySet())
-            s.post(op.path(entityTarget(op).first), entityBody(op), token).closed(ClosedErrorCode.ACCESS_DENIED)
+            s.post(op.path(entityTarget(op).first), entityBody(op), token).refused(permissionRefusal(op))
             s.portCalls.size shouldBe op.ordinal + 1
         }
-        s.writer.calls shouldBe 0
+        s.writer.calls shouldBe 2
         s.stored() shouldBe 0
     }
 
     @OnPostgres
-    fun `stale entity set and the port throwing is 403 SRT-004`(image: String) {
+    fun `stale entity set and the port throwing is the writer's permission refusal`(image: String) {
         val s = Service(image)
         s.portFailure = { throw IllegalStateException("access-svc unreachable") }
         for (op in PolicyOp.entries) {
             val token = s.user("stale-throwing-$op", "E-1", current = false, roleSet = admin)
-            s.post(op.path(entityTarget(op).first), entityBody(op), token).closed(ClosedErrorCode.ACCESS_DENIED)
+            s.post(op.path(entityTarget(op).first), entityBody(op), token).refused(permissionRefusal(op))
         }
-        s.writer.calls shouldBe 0
+        s.writer.calls shouldBe 2
         s.stored() shouldBe 0
     }
 
@@ -326,14 +331,16 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
     }
 
     @OnPostgres
-    fun `current entity set and the entity inside it with an empty port answer is 403 SRT-004`(image: String) {
+    fun `current entity set and the entity inside it with an empty port answer is the writer's permission refusal`(
+        image: String,
+    ) {
         val s = Service(image)
         for (op in PolicyOp.entries) {
             val token = s.user("current-inside-$op", "E-1", roleSet = emptySet())
-            s.post(op.path(entityTarget(op).first), entityBody(op), token).closed(ClosedErrorCode.ACCESS_DENIED)
+            s.post(op.path(entityTarget(op).first), entityBody(op), token).refused(permissionRefusal(op))
         }
         s.portCalls.size shouldBe 2
-        s.writer.calls shouldBe 0
+        s.writer.calls shouldBe 2
     }
 
     @OnPostgres
@@ -412,7 +419,6 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         command.profileVersion shouldBe "3"
         command.relaxation!!.value.toString() shouldBe relaxation
         command.actor.principal shouldBe "u1"
-        command.actor.roles shouldBe admin
         command.causation.value shouldBe "idempotency-key:$key"
         command.correlation.value.startsWith("http:") shouldBe true
 
@@ -444,5 +450,10 @@ class PolicyCommandScopeIT : PolicyHttpBase() {
         s.stored() shouldBe 0
         set("$profile,\"profileRef\":\"p1\",\"profileVersion\":2").ok()
         s.stored() shouldBe 1
+    }
+
+    private companion object {
+        /** The leading fields of a permission call: actor, tenant, level, scopeRef, entityRef (the key follows). */
+        const val PORT_SCOPE_FIELDS = 5
     }
 }

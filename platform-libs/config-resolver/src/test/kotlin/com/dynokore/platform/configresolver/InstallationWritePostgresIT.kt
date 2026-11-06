@@ -41,7 +41,7 @@ import java.util.UUID
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class InstallationWritePostgresIT {
     private val harnesses = mutableMapOf<Pair<String, EventMode>, WriteHarness>()
-    private val operator = Actor("op", setOf("deployment.operator"))
+    private val operator = RoleGrants.actor("op", "deployment.operator")
     private val effective = InstallationCalls.effective
     private val backdated = InstallationCalls.backdated
 

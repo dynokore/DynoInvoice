@@ -17,10 +17,12 @@ import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ResolutionRecorder
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.ValueConstraints
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -129,6 +131,7 @@ class ConfigResolverWiring {
         delegation: ObjectProvider<DelegationProbe>,
         backdating: ObjectProvider<BackdatingFloor>,
         constraints: ObjectProvider<ValueConstraints>,
+        permission: ObjectProvider<SetterPermission>,
         clock: Clock,
     ): JdbcPolicyWriter =
         JdbcPolicyWriter(
@@ -142,6 +145,8 @@ class ConfigResolverWiring {
             delegation.ifAvailable,
             backdating.ifAvailable,
             constraints.ifAvailable,
+            // The service's own decision (access-svc) or, without one, the one the policy servlet binds per request.
+            permission.ifAvailable ?: RequestBoundSetterPermission(),
         )
 
     /**

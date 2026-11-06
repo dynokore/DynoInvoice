@@ -19,8 +19,8 @@ open class WritePathBase {
 
     protected val today = LocalDate.of(2026, 10, 1)
     protected val nextMonth = LocalDate.of(2026, 11, 1)
-    protected val approver = Actor("ta", setOf("tax.approver"))
-    protected val admin = Actor("admin", setOf("tenant.admin"))
+    protected val approver = RoleGrants.actor("ta", "tax.approver")
+    protected val admin = RoleGrants.actor("admin", "tenant.admin")
 
     /** One tenant on one database; every helper writes inside that tenant. */
     protected inner class Run(
@@ -72,7 +72,7 @@ open class WritePathBase {
     protected fun actor(
         principal: String,
         vararg roles: String,
-    ) = Actor(principal, roles.toSet())
+    ) = RoleGrants.actor(principal, *roles)
 
     @Suppress("LongParameterList") // mirrors SetPolicyCommand's fields with test defaults
     protected fun set(

@@ -16,6 +16,7 @@ import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.RelaxationStatus
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SetPolicyCommand
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.Strictness
 import com.dynokore.platform.configresolver.TypedValueSpec
 import com.dynokore.platform.configresolver.ValueType
@@ -25,6 +26,7 @@ import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.configresolver.VpClass
 import com.dynokore.platform.configresolver.VpModifier
 import com.dynokore.platform.configresolver.VpStatus
+import com.dynokore.platform.configresolver.acknowledgePermissionKey
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
@@ -92,7 +94,8 @@ class PolicyHttpHarness(
             clock,
         )
 
-    val real: PolicyWriter =
+    /** The real writer deciding every right through [permission] (INV-Q-10027). */
+    fun writerWith(permission: SetterPermission): PolicyWriter =
         JdbcPolicyWriter(
             dsl,
             Fixtures.catalogue,
@@ -102,6 +105,7 @@ class PolicyHttpHarness(
             outbox,
             clock,
             DelegationProbe { _, _ -> false },
+            permission = permission,
         )
 
     /** Rows of config-resolver's settings table for [tenant] (nothing stored means zero). */
@@ -202,7 +206,27 @@ object Fixtures {
         options: List<OptionSpec>,
         vpClass: VpClass,
         setBy: Set<String>,
-    ) = VariationPointDefinition(key, vpClass, emptySet(), VpStatus.AVAILABLE, levels, setBy, options)
+    ) = VariationPointDefinition(key, vpClass, emptySet(), VpStatus.AVAILABLE, levels, setting(key, setBy), options)
+        .also(::registerAcknowledgers)
+
+    /** The roles that hold each permission key: the fake permission path maps roles to keys, production never does. */
+    val keyRoles = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
+
+    private fun setting(
+        key: VariationPointKey,
+        roles: Set<String>,
+    ): String = SetterPermission.settingKey(key).also { keyRoles[it] = roles }
+
+    private fun registerAcknowledgers(definition: VariationPointDefinition) {
+        definition.options.forEach { option ->
+            option.acknowledgers.forEach { place ->
+                val roles = listOfNotNull(place.role) + place.roleByForm.values
+                keyRoles.merge(acknowledgePermissionKey(definition.key.value, option, place), roles.toSet()) { a, b ->
+                    a + b
+                }
+            }
+        }
+    }
 
     private val rows =
         listOf(

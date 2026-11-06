@@ -1,7 +1,7 @@
 package com.dynokore.platform.productruntime.catalogue
 
 import com.dynokore.gst.catalogue.BoundValue
-import com.dynokore.gst.catalogue.OperationRoles
+import com.dynokore.gst.catalogue.RolePermissions
 import com.dynokore.gst.catalogue.TypedValue
 import com.dynokore.gst.catalogue.VariationPoint
 import com.dynokore.gst.catalogue.VpConstraint
@@ -63,6 +63,10 @@ class GstVariationPointCatalogue(
         return owners.filterValues { it == service }.keys
     }
 
+    /** Every permission key the pinned gst-catalogue grants to some role in some form (start-up key check). */
+    override fun permissionKeys(): Set<String> =
+        GstForm.entries.flatMapTo(linkedSetOf()) { form -> RolePermissions.cells(form).values.flatMap { it.keys } }
+
     /** Every registered row, in catalogue order. */
     fun all(): Collection<VariationPointDefinition> = definitions.values
 
@@ -74,7 +78,7 @@ class GstVariationPointCatalogue(
                 modifiers = vp.classModifiers.mapTo(linkedSetOf()) { VpModifier.valueOf(it.name) },
                 status = VpStatus.valueOf(vp.status.name),
                 scopeLevels = vp.scopeLevels.orEmpty().mapTo(linkedSetOf()) { ScopeLevel.valueOf(it.name) },
-                setBy = setters(vp),
+                setPermission = vp.setPermission,
                 options = vp.optionSpecs.orEmpty().map(::option),
                 defaultByForm = vp.defaultByForm.mapKeys { DeploymentForm.valueOf(it.key) },
                 mustBeElected = vp.mustBeElected,
@@ -86,10 +90,6 @@ class GstVariationPointCatalogue(
                 installationBound = vp.installationParameter != null || vp.installationParameterRef != null,
                 installationParameter = vp.installationParameterRef?.row?.let(::VariationPointKey),
             )
-
-        /** The roles holding the row's set permission in any deployment form, PERMITTED and WITHIN_SCOPE alike. */
-        private fun setters(vp: VariationPoint): Set<String> =
-            GstForm.entries.flatMapTo(linkedSetOf()) { OperationRoles.rolesFor(it, vp.setPermission).keys }
 
         fun crossOption(constraints: List<VpConstraint>): String? =
             constraints

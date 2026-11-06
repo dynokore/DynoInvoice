@@ -58,6 +58,7 @@ class PolicyWriterProbe(
                 outbox = outbox,
                 clock = WriteHarness.CLOCK,
                 delegation = DelegationProbe { _, _ -> false },
+                permission = { actor, _, _, _, _, key -> actor.principal == "admin" && key == "vp-12.set" },
             )
         harness.inTenant(tenant) {
             writer.setPolicy(
@@ -68,7 +69,7 @@ class PolicyWriterProbe(
                     listOf(SelectedOption("B")),
                     LocalDate.of(2026, 10, 1),
                     "because",
-                    Actor("admin", setOf("tenant.admin")),
+                    Actor("admin"),
                     WriteHarness.CORRELATION,
                     WriteHarness.CAUSATION,
                     SettingSource.OVERRIDE,

@@ -1,13 +1,13 @@
 package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.configresolver.PolicyWriter
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.composition.orConnectionless
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.jobs.JobCommands
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import org.jooq.DSLContext
 import org.springframework.beans.factory.ObjectProvider
@@ -106,9 +106,9 @@ class JobCommandHttpAutoConfiguration {
     /**
      * Serves setPolicy and acknowledgeControlRelaxation (INV-T-5180, INV-Q-5172) only in a service that has a
      * config-resolver
-     * [PolicyWriter]; a service without one mounts nothing, so both paths are unknown to it. The [PolicyRoleResolver]
-     * is the
-     * service's own port; unbound, both operations answer 403 SRT-004 (fail closed).
+     * [PolicyWriter]; a service without one mounts nothing, so both paths are unknown to it. A [SetterPermission] bean is the
+     * service's own decision (access-svc, the authority, holds no replica); without one the servlet decides through the
+     * [AuthorityReplica], and with neither both operations answer 403 SRT-004 (fail closed, INV-Q-10027).
      */
     @Bean
     @ConditionalOnBean(PolicyWriter::class)
@@ -117,9 +117,20 @@ class JobCommandHttpAutoConfiguration {
         principals: EndUserPrincipalResolver,
         scope: TenantScope,
         idempotency: IdempotencyStore,
-        roles: ObjectProvider<PolicyRoleResolver>,
+        permission: ObjectProvider<SetterPermission>,
+        authority: ObjectProvider<AuthorityReplica>,
+        clock: Clock,
     ): ServletRegistrationBean<PolicyCommandServlet> {
-        val servlet = PolicyCommandServlet(writer, principals, scope, idempotency, roles.ifAvailable)
+        val servlet =
+            PolicyCommandServlet(
+                writer,
+                principals,
+                scope,
+                idempotency,
+                permission.ifAvailable,
+                authority.ifAvailable,
+                clock,
+            )
         return ServletRegistrationBean(servlet, PolicyCommandServlet.MAPPING)
     }
 }

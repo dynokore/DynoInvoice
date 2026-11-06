@@ -22,7 +22,7 @@ internal fun breakGlass(key: VariationPointKey): VariationPointDefinition {
         modifiers = setOf(VpModifier.NON_WAIVABLE_IN_PART),
         status = VpStatus.AVAILABLE,
         scopeLevels = setOf(ScopeLevel.INSTALLATION, ScopeLevel.TENANT),
-        setBy = setOf("security.officer"),
+        setPermission = RoleGrants.setting(key, setOf("security.officer")),
         options =
             listOf(
                 OptionSpec(

@@ -31,6 +31,11 @@ object WriteCatalogue {
     /** A looser option whose by-form acknowledger names the private form only. */
     val PRIVATE_ONLY_ACK = VariationPointKey("VP-61")
 
+    /** INV-AC-10161: a POLICY, a PARAMETER and a CONTROL row, each bounded 1 to 4 at tenant level. */
+    val AC_POLICY = VariationPointKey("VP-91")
+    val AC_PARAMETER = VariationPointKey("VP-92")
+    val AC_CONTROL = VariationPointKey("VP-93")
+
     /** A looser option whose acknowledger must not be the setter. */
     val DISTINCT_ACK = VariationPointKey("VP-40")
 
@@ -109,13 +114,13 @@ object WriteCatalogue {
                 modifiers = modifiers,
                 status = status,
                 scopeLevels = levels,
-                setBy = setBy,
+                setPermission = RoleGrants.setting(key, setBy),
                 options = options,
                 crossOption = crossOption,
                 crossScope = crossScope,
                 installationBound = installationBound,
                 installationParameter = installationParameter,
-            )
+            ).let(RoleGrants::register)
     }
 
     private fun def(
@@ -135,6 +140,19 @@ object WriteCatalogue {
         key: String,
         vararg acknowledgers: Acknowledger,
     ) = OptionSpec(key, Strictness.LOOSER, acknowledgers = acknowledgers.toList())
+
+    private fun acRow(
+        key: VariationPointKey,
+        vpClass: VpClass,
+        holder: String,
+    ) = def(
+        key,
+        setOf(ScopeLevel.TENANT),
+        listOf(OptionSpec("LAST_PERIOD", Strictness.DEFAULT), OptionSpec("LAST_N", Strictness.STRICTER, true, int1to4)),
+    ) {
+        this.vpClass = vpClass
+        setBy = setOf(holder)
+    }
 
     private val int1to4 =
         TypedValueSpec(
@@ -228,6 +246,9 @@ object WriteCatalogue {
                 vpClass = VpClass.PARAMETER
                 setBy = setOf("security.officer")
             },
+            acRow(AC_POLICY, VpClass.POLICY, "tenant.admin"),
+            acRow(AC_PARAMETER, VpClass.PARAMETER, "security.officer"),
+            acRow(AC_CONTROL, VpClass.CONTROL, "tax.approver"),
             def(
                 RECORD,
                 setOf(ScopeLevel.ENTITY),

@@ -53,6 +53,7 @@ class WriteValidationTest {
             null,
             WriteHarness.CLOCK,
             constraints = constraints,
+            permission = RoleGrants.permission,
         )
 
     private fun one(key: String) = listOf(SelectedOption(key))
@@ -183,7 +184,7 @@ class WriteValidationTest {
                 modifiers = emptySet(),
                 status = VpStatus.AVAILABLE,
                 scopeLevels = setOf(ScopeLevel.TENANT),
-                setBy = setOf("integration.engineer"),
+                setPermission = RoleGrants.setting(VariationPointKey("VP-67"), setOf("integration.engineer")),
                 options =
                     listOf(
                         OptionSpec("H72", Strictness.DEFAULT),

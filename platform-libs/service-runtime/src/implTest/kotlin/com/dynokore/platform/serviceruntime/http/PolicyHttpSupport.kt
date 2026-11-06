@@ -1,11 +1,13 @@
 package com.dynokore.platform.serviceruntime.http
 
 import com.dynokore.platform.configresolver.ScopeLevel
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.contract.ContractValidator
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -61,10 +63,10 @@ open class PolicyHttpBase {
     protected inner class Service(
         image: String,
         bindRoles: Boolean = true,
+        authority: AuthorityReplica? = null,
     ) {
         val h = harness(image)
         val tenant = TenantId(UUID.randomUUID())
-        val writer = RecordingWriter(h.real)
 
         /** Roles per actor the fake port answers; a missing actor gets the empty set. */
         val roles = ConcurrentHashMap<String, Set<String>>()
@@ -78,14 +80,18 @@ open class PolicyHttpBase {
                 header?.removePrefix("Bearer ")?.let { tokens[it] }
             }
         private val port =
-            PolicyRoleResolver { actor, tenant, level, scopeRef, entityRef ->
-                portCalls += listOf(actor, tenant, level, scopeRef, entityRef)
+            SetterPermission { actor, tenant, level, scopeRef, entityRef, permissionKey ->
+                portCalls += listOf(actor.principal, tenant, level, scopeRef, entityRef, permissionKey)
                 portFailure?.invoke()
-                roles[actor].orEmpty()
+                roles[actor.principal].orEmpty().any { it in Fixtures.keyRoles[permissionKey].orEmpty() }
             }
+
+        /** The service supplies its own permission only in the default mode; otherwise the servlet binds the replica. */
+        private val supplied = port.takeIf { bindRoles && authority == null }
+        val writer = RecordingWriter(h.writerWith(supplied ?: RequestBoundSetterPermission()))
         val idempotency = IdempotencyStore(h.scope, h.dsl, PolicyHttpHarness.SCHEMA)
         val servlet =
-            PolicyCommandServlet(writer, resolver, h.scope, idempotency, port.takeIf { bindRoles })
+            PolicyCommandServlet(writer, resolver, h.scope, idempotency, supplied, authority)
 
         /** Registers `Bearer <name>` for a tenant user holding [entities] (current set unless [current] is false). */
         fun user(
@@ -93,8 +99,10 @@ open class PolicyHttpBase {
             vararg entities: String,
             current: Boolean = true,
             roleSet: Set<String> = emptySet(),
+            session: com.dynokore.platform.serviceruntime.identity.OperatorSession? = null,
         ): String {
-            tokens[name] = EndUserPrincipal(name, tenant, entities.map { EntityRef(it) }.toSet(), current)
+            tokens[name] =
+                EndUserPrincipal(name, tenant, entities.map { EntityRef(it) }.toSet(), current, session)
             roles[name] = roleSet
             return "Bearer $name"
         }

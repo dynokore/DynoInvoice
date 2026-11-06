@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-11-06
+### Changed
+- BREAKING (INV-T-10128, INV-Q-10027): `VariationPointDefinition.setBy` is replaced by `setPermission` (`vp-NN.set`); `Actor` carries no roles; `JdbcPolicyWriter` takes a `SetterPermission` and refuses with POL-004 when it answers false, throws or is unbound (SRT-004 is the refusal of the servlet's replica decision in service-runtime, not of this writer); `acknowledgeControlRelaxation` decides the acknowledge permission (`acknowledgePermissionKey`, INV-Q-10140 C) instead of `asRole in actor.roles`; `VariationPointCatalogue.permissionKeys()` lets the writer fail at start-up on a key the catalogue lacks.
+
 ## [5.0.24] - 2026-11-06
 ### Changed
 - Metadata-only change (INV-T-17086, G-DVS): depends on `outbox-and-queue 6.17.0`, whose version steps; no production code change.
