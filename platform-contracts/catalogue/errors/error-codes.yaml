@@ -1,6 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
 # pinned at commit 6d20b5449f5612af8e4133518606e1d6ec582673 (2026-11-01), the merge of invoice-docs INV-T-15458 adding CPL-007 (INV-T-15459, coordinator rulings INV-Q-15428 A, INV-Q-15478 A);
-# previously pinned at commit 760e58d9f6a94d9d423d9bd8046314bf9305e007 (2026-10-31), the merge of invoice-docs INV-T-14043 adding CPL-004 to CPL-006 (INV-T-14044, coordinator ruling INV-Q-14041 A);
+# previously pinned at 760e58d9f6a94d9d423d9bd8046314bf9305e007 (2026-10-31), the merge of invoice-docs INV-T-14043 adding CPL-004 to CPL-006 (INV-T-14044, coordinator ruling INV-Q-14041 A);
 # previously pinned at de167d5df41f41414e39eea3412ae1b2fecad86c (2026-10-29), the merge of invoice-docs INV-T-12599 adding EVD-001 (INV-T-12600, coordinator ruling INV-Q-12582 A);
 # previously pinned at 0c05e262b978bd07fb5f7d4e3e93053867417583 (2026-10-28), the merge of invoice-docs INV-T-11908 adding TNC-005 to TNC-007 (INV-T-11909, coordinator ruling INV-Q-11899 A);
 # previously pinned at b04d614dfb522d6935e00b203fb0f97d86c6105c (2026-10-27), the merge of invoice-docs INV-T-11268 adding ING-022 (INV-T-11269, coordinator ruling INV-Q-11264 A; this re-vendor also brings SUB-023 from INV-T-9686);
