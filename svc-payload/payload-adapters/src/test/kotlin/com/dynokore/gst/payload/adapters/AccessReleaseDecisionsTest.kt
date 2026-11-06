@@ -403,7 +403,6 @@ class AccessReleaseDecisionsTest {
             decide(reply) shouldBe expected
             // the request carries documentRef, documentVersion and documentTotalSgd together
             assertRequestCarriesDocumentFacts()
-            names shouldContain "documentTotalSgd"
         }
         decide(timingOut(), registry(timeout = Duration.ofMillis(300))) shouldBe unavailable
         val closed = ServerSocket(0).use { it.localPort }
