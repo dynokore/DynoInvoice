@@ -28,7 +28,7 @@ class UenFormatTest {
                 "U08LL0001B", // prefix U
                 "T8LL0001B", // 1-digit year
                 "T08L10001B", // a digit in the entity type
-                "５３０１２３４５X", // full-width digits
+                "\uFF15\uFF13\uFF10\uFF11\uFF12\uFF13\uFF14\uFF15X", // full-width digits
                 "",
                 "NA",
             )
