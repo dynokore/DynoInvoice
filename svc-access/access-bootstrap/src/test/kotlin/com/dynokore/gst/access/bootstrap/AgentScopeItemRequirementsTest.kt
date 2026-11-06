@@ -50,6 +50,9 @@ class AgentScopeItemRequirementsTest {
         private val tenants = context.getBean(TenantContext::class.java)
         private var next = 0
         var lastConsentRef = ""
+        private val consentRefs = mutableMapOf<String, String>()
+
+        fun lastConsentRefOf(client: String): String = consentRefs.getValue(client)
 
         /**
          * A fresh client entity with a live consent of [consentAgent] holding [items], the operator's and the
@@ -89,7 +92,10 @@ class AgentScopeItemRequirementsTest {
                         ),
                     ).body!!
                     .consentRef
-                    .also { lastConsentRef = it }
+                    .also {
+                        lastConsentRef = it
+                        consentRefs[client] = it
+                    }
             }
             return client
         }
@@ -216,6 +222,25 @@ class AgentScopeItemRequirementsTest {
                 .isEqualTo(Decision.ALLOW)
             val withoutConsent = "CLI-NONE"
             assertThat(env.decide(approver, withoutConsent, "mapping-pack.approve")).isEqualTo(Decision.DENY)
+        }
+
+    @Test
+    fun `INV-AC-17814 an operator grant stored in another tenant is refused, a withdrawn consent is refused`() =
+        run { env ->
+            val tenantU = TenantId(UUID.randomUUID())
+            val operatorU = "user:operator-u"
+            val ofU = env.client(all, consentAgent = tenantU.toString())
+            val ofT = env.client(all)
+            val entityScope = { client: String -> Scope.Entity(EntityRef(client)) }
+            Seeds.grant(env.context, tenantU, SeedSpec(operatorU, Role.AGENT_OPERATOR, entityScope(ofU)))
+            Seeds.grant(env.context, tenantU, SeedSpec(operatorU, Role.AGENT_OPERATOR, entityScope(ofT)))
+            val key = "transaction.ingest"
+            env.assertDecision(Decision.DENY, operatorU, ofU, key, "grant of tenant U, consent names U, entity in T")
+            env.assertDecision(Decision.DENY, operatorU, ofT, key, "grant of tenant U, consent names T, entity in T")
+            env.assertDecision(Decision.ALLOW, agent, ofT, key, "grant of tenant T, consent names T")
+            env.assertDecision(Decision.DENY, agent, ofU, key, "grant of tenant T, consent names U")
+            env.withdraw(env.lastConsentRefOf(ofT))
+            env.assertDecision(Decision.DENY, agent, ofT, key, "withdrawn consent")
         }
 
     @Test
