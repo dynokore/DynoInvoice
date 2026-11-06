@@ -12,8 +12,8 @@ import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.resilience4j.Resilience4jResilienceRegistry
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.collections.shouldContain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -281,7 +281,7 @@ class AccessReleaseDecisionsTest {
     }
 
     @Test
-    fun `INV-AC-17186 every failure denies and only an exact ALLOW with RELEASED releases`() {
+    fun `INV-AC-17186 a failure, a timeout, an open breaker or an unreadable answer is a denial, only an exact release`() {
         val cases =
             listOf(
                 answer("ALLOW", "RELEASED") to ReleaseOutcome.Released,
@@ -297,11 +297,7 @@ class AccessReleaseDecisionsTest {
             stub.seen.clear()
             decide(reply) shouldBe expected
             // the request carries documentRef, documentVersion and documentTotalSgd together
-            val names =
-                stub.seen
-                    .first()
-                    .query
-                    .map { it.first }
+            val names = stub.seen.first().query.map { it.first }
             names shouldContain "documentRef"
             names shouldContain "documentVersion"
             names shouldContain "documentTotalSgd"
