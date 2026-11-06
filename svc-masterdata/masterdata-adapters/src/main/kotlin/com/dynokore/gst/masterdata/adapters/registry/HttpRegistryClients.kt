@@ -35,8 +35,7 @@ internal class RegistryHttp(
     /** The status and body of the lookup; an I/O failure or a status outside 200 and 404 is [RegistryUnreachable]. */
     fun get(value: String): Pair<Int, String> =
         executor.execute {
-            // the multi-argument constructor quotes what a path may not hold and keeps the `:` of a Peppol ID
-            val target = URI(base.scheme, base.authority, base.path.trimEnd('/') + "/lookup/" + value, null, null)
+            val target = lookupUri(base, value)
             val request =
                 HttpRequest
                     .newBuilder(target)
@@ -59,6 +58,29 @@ internal class RegistryHttp(
         const val OK = 200
         const val NOT_FOUND = 404
     }
+}
+
+private const val SEGMENT_SAFE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_:"
+private const val BYTE_MASK = 0xFF
+private const val HEX = "0123456789ABCDEF"
+private const val NIBBLE = 4
+
+/** The looked-up value is one path segment: all but unreserved characters and `:` is percent-encoded (CWE-22). */
+internal fun lookupUri(
+    base: URI,
+    value: String,
+): URI {
+    val segment = StringBuilder()
+    for (byte in value.toByteArray(Charsets.UTF_8)) {
+        val code = byte.toInt() and BYTE_MASK
+        if (code < BYTE_MASK && code.toChar() in SEGMENT_SAFE) {
+            segment.append(code.toChar())
+        } else {
+            segment.append('%').append(HEX[code shr NIBBLE]).append(HEX[code and (BYTE_MASK shr NIBBLE)])
+        }
+    }
+    val prefix = URI(base.scheme, base.authority, base.path.trimEnd('/') + "/lookup/", null, null)
+    return URI.create(prefix.toASCIIString() + segment)
 }
 
 private val log = LoggerFactory.getLogger("com.dynokore.gst.masterdata.adapters.registry")
