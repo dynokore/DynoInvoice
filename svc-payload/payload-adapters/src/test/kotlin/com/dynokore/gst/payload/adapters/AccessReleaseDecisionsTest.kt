@@ -1,5 +1,9 @@
 package com.dynokore.gst.payload.adapters
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.payload.adapters.clients.AccessReleaseDecisions
 import com.dynokore.gst.payload.application.override.ReleaseDecisions
 import com.dynokore.gst.payload.application.override.ReleaseRequest
@@ -9,13 +13,16 @@ import com.dynokore.platform.serviceruntime.resilience.CircuitBreakerProperties
 import com.dynokore.platform.serviceruntime.resilience.EdgeProperties
 import com.dynokore.platform.serviceruntime.resilience.ResilienceProperties
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
+import com.dynokore.platform.serviceruntime.resilience.RetryProperties
 import com.dynokore.platform.serviceruntime.resilience.resilience4j.Resilience4jResilienceRegistry
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -171,7 +178,19 @@ class AccessReleaseDecisionsTest {
         },
     )
 
-    private val denied = ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
+    private val releasing = """{"decision":"ALLOW","soleOperator":false,"outcome":"RELEASED"}"""
+
+    // compared with the literals so that a renamed constant fails
+    private val notOverridable = ReleaseOutcome.Denied("NOT_OVERRIDABLE")
+    private val unavailable = ReleaseOutcome.Denied("ACCESS_DECISION_UNAVAILABLE")
+
+    /** The breaker window of the counting tests: N = 3 calls (the production policy is not changed). */
+    private val n = 3
+
+    private val smallWindow =
+        CircuitBreakerProperties(slidingWindowSize = n, waitDurationInOpenState = Duration.ofMinutes(5))
+
+    private fun timingOut() = AccessStub.Reply(200, releasing, delayMillis = 1500)
 
     @Test
     fun `ALLOW with outcome RELEASED is Released`() {
@@ -194,68 +213,137 @@ class AccessReleaseDecisionsTest {
     }
 
     @Test
-    fun `a 500 is Denied`() {
-        decide(AccessStub.Reply(500, """{"decision":"ALLOW","soleOperator":false,"outcome":"RELEASED"}""")) shouldBe denied
+    fun `the decision ALLOW with a trailing space is Denied NOT_OVERRIDABLE`() {
+        decide(answer("ALLOW ", "RELEASED")) shouldBe notOverridable
     }
 
     @Test
-    fun `a 400 is Denied`() {
-        decide(AccessStub.Reply(400, """{"decision":"ALLOW","soleOperator":false,"outcome":"RELEASED"}""")) shouldBe denied
+    fun `the lower case outcome released is Denied NOT_OVERRIDABLE`() {
+        decide(answer("ALLOW", "released")) shouldBe notOverridable
     }
 
     @Test
-    fun `an unreadable body is Denied`() {
-        decide(AccessStub.Reply(200, "<html>not json")) shouldBe denied
+    fun `ALLOW without an outcome is Denied NOT_OVERRIDABLE`() {
+        decide(answer("ALLOW")) shouldBe notOverridable
     }
 
     @Test
-    fun `an empty 200 body is Denied`() {
-        decide(AccessStub.Reply(200)) shouldBe denied
+    fun `a 500 is Denied ACCESS_DECISION_UNAVAILABLE`() {
+        decide(AccessStub.Reply(500, releasing)) shouldBe unavailable
     }
 
     @Test
-    fun `the decision ALLOW with a trailing space is Denied`() {
-        decide(answer("ALLOW ", "RELEASED")) shouldBe denied
+    fun `a 503 is Denied ACCESS_DECISION_UNAVAILABLE`() {
+        decide(AccessStub.Reply(503, releasing)) shouldBe unavailable
     }
 
     @Test
-    fun `the lower case outcome released is Denied`() {
-        decide(answer("ALLOW", "released")) shouldBe denied
+    fun `a 400 is Denied ACCESS_DECISION_UNAVAILABLE`() {
+        decide(AccessStub.Reply(400, releasing)) shouldBe unavailable
     }
 
     @Test
-    fun `ALLOW without an outcome is Denied`() {
-        decide(answer("ALLOW")) shouldBe denied
+    fun `a body that is not JSON is Denied ACCESS_DECISION_UNAVAILABLE`() {
+        decide(AccessStub.Reply(200, "{")) shouldBe unavailable
     }
 
     @Test
-    fun `a timeout is Denied`() {
-        decide(
-            answer("ALLOW", "RELEASED").let { AccessStub.Reply(200, it.body, delayMillis = 1500) },
-            registry(timeout = Duration.ofMillis(300)),
-        ) shouldBe denied
+    fun `an empty 200 body is Denied ACCESS_DECISION_UNAVAILABLE`() {
+        decide(AccessStub.Reply(200)) shouldBe unavailable
     }
 
     @Test
-    fun `a refused connection is Denied`() {
+    fun `a timeout is Denied ACCESS_DECISION_UNAVAILABLE`() {
+        decide(timingOut(), registry(timeout = Duration.ofMillis(300))) shouldBe unavailable
+    }
+
+    @Test
+    fun `a refused connection is Denied ACCESS_DECISION_UNAVAILABLE`() {
         val closed = ServerSocket(0).use { it.localPort }
         runner("http://127.0.0.1:$closed", registry()).run { context ->
-            context.getBean(ReleaseDecisions::class.java).decide(request) shouldBe denied
+            context.getBean(ReleaseDecisions::class.java).decide(request) shouldBe unavailable
         }
     }
 
     @Test
-    fun `an open breaker is Denied without a request to access-svc`() {
+    fun `an open breaker is Denied ACCESS_DECISION_UNAVAILABLE without a request to access-svc`() {
         stub.reply = AccessStub.Reply(500)
-        val breaker = CircuitBreakerProperties(slidingWindowSize = 2, waitDurationInOpenState = Duration.ofMinutes(5))
-        withClient(registry(breaker = breaker)) { client ->
-            repeat(2) { client.decide(request) shouldBe denied }
+        withClient(registry(breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
             val before = stub.seen.size
             // a body that would release: the open breaker must still deny and never reach the stub
             stub.reply = answer("ALLOW", "RELEASED")
-            client.decide(request) shouldBe denied
+            client.decide(request) shouldBe unavailable
             stub.seen.size shouldBe before
         }
+    }
+
+    @Test
+    fun `N calls answered 400 leave the breaker closed`() {
+        stub.reply = AccessStub.Reply(400, releasing)
+        withClient(registry(breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
+            stub.reply = answer("ALLOW", "RELEASED")
+            client.decide(request) shouldBe ReleaseOutcome.Released
+            stub.seen.size shouldBe n + 1
+        }
+    }
+
+    @Test
+    fun `N calls answered 500 open the breaker`() {
+        stub.reply = AccessStub.Reply(500)
+        withClient(registry(breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
+            val before = stub.seen.size
+            stub.reply = answer("ALLOW", "RELEASED")
+            client.decide(request) shouldBe unavailable
+            stub.seen.size shouldBe before
+        }
+    }
+
+    @Test
+    fun `N calls that time out open the breaker`() {
+        stub.reply = timingOut()
+        withClient(registry(timeout = Duration.ofMillis(200), breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
+            val before = stub.seen.size
+            stub.reply = answer("ALLOW", "RELEASED")
+            client.decide(request) shouldBe unavailable
+            stub.seen.size shouldBe before
+        }
+    }
+
+    @Test
+    fun `one call answered 400 reaches the stub once even when the edge retries`() {
+        stub.reply = AccessStub.Reply(400, releasing)
+        val retry =
+            RetryProperties(maxAttempts = 2, initialBackoff = Duration.ofMillis(10), maxBackoff = Duration.ofMillis(20))
+        val withRetry =
+            Resilience4jResilienceRegistry(
+                ResilienceProperties(edges = mapOf(EDGE to EdgeProperties(retry = retry))),
+                clock,
+            )
+        withClient(withRetry) { it.decide(request) } shouldBe unavailable
+        stub.seen.size shouldBe 1
+    }
+
+    @Test
+    fun `a 400 writes one WARN line with the status and the operation and not the body`() {
+        val logger = LoggerFactory.getLogger(AccessReleaseDecisions::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>().also { it.start() }
+        logger.addAppender(appender)
+        try {
+            stub.reply = AccessStub.Reply(400, """{"secret":"STUB-BODY-MARKER"}""")
+            withClient { it.decide(request) } shouldBe unavailable
+        } finally {
+            logger.detachAppender(appender)
+        }
+        val warns = appender.list.filter { it.level == Level.WARN }
+        warns.size shouldBe 1
+        val line = warns.single().formattedMessage
+        line.contains("400") shouldBe true
+        line.contains("decideOverrideRelease") shouldBe true
+        line shouldNotContain "STUB-BODY-MARKER"
     }
 
     @Test
@@ -279,37 +367,56 @@ class AccessReleaseDecisionsTest {
     }
 
     @Test
-    fun `INV-AC-17186 a failure, a timeout, an open breaker or an unreadable answer is a denial and only an exact ALLOW with RELEASED releases`() {
+    fun `INV-AC-17186 every failure denies and only an exact ALLOW with RELEASED releases`() {
         val cases =
             listOf(
                 answer("ALLOW", "RELEASED") to ReleaseOutcome.Released,
                 answer("ALLOW", "AWAITS_SECOND_APPROVER") to ReleaseOutcome.AwaitsSecond,
                 answer("DENY", reasonCode = "NOT_OVERRIDABLE") to ReleaseOutcome.Denied("NOT_OVERRIDABLE"),
-                AccessStub.Reply(500) to denied,
-                AccessStub.Reply(400) to denied,
-                AccessStub.Reply(200, "{not json") to denied,
-                answer("ALLOW ", "RELEASED") to denied,
-                answer("ALLOW", "released") to denied,
+                answer("ALLOW ", "RELEASED") to notOverridable,
+                answer("ALLOW", "released") to notOverridable,
+                AccessStub.Reply(500) to unavailable,
+                AccessStub.Reply(503) to unavailable,
+                AccessStub.Reply(400) to unavailable,
+                AccessStub.Reply(200, "{") to unavailable,
+                AccessStub.Reply(200) to unavailable,
             )
         for ((reply, expected) in cases) {
             stub.seen.clear()
             decide(reply) shouldBe expected
             // the request carries documentRef, documentVersion and documentTotalSgd together
-            val names = stub.seen.first().query.map { it.first }
+            val names =
+                stub.seen
+                    .first()
+                    .query
+                    .map { it.first }
             names shouldContain "documentRef"
             names shouldContain "documentVersion"
             names shouldContain "documentTotalSgd"
         }
-        decide(
-            AccessStub.Reply(200, answer("ALLOW", "RELEASED").body, delayMillis = 1500),
-            registry(timeout = Duration.ofMillis(300)),
-        ) shouldBe denied
-        stub.reply = AccessStub.Reply(500)
-        val breaker = CircuitBreakerProperties(slidingWindowSize = 2, waitDurationInOpenState = Duration.ofMinutes(5))
-        withClient(registry(breaker = breaker)) { client ->
-            repeat(2) { client.decide(request) shouldBe denied }
+        decide(timingOut(), registry(timeout = Duration.ofMillis(300))) shouldBe unavailable
+        val closed = ServerSocket(0).use { it.localPort }
+        runner("http://127.0.0.1:$closed", registry()).run { context ->
+            context.getBean(ReleaseDecisions::class.java).decide(request) shouldBe unavailable
+        }
+        // N 400 answers: the breaker stays closed, the next call releases and the stub counted N + 1 requests
+        stub.seen.clear()
+        stub.reply = AccessStub.Reply(400, releasing)
+        withClient(registry(breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
             stub.reply = answer("ALLOW", "RELEASED")
-            client.decide(request) shouldBe denied
+            client.decide(request) shouldBe ReleaseOutcome.Released
+            stub.seen.size shouldBe n + 1
+        }
+        // N 500 answers: the breaker is open, the next call is denied and does not reach the stub
+        stub.seen.clear()
+        stub.reply = AccessStub.Reply(500)
+        withClient(registry(breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
+            val before = stub.seen.size
+            stub.reply = answer("ALLOW", "RELEASED")
+            client.decide(request) shouldBe unavailable
+            stub.seen.size shouldBe before
         }
     }
 
