@@ -40,8 +40,9 @@ import java.util.UUID
  * `payload-application`. The acting user is the `sub` of the verified end-user principal, never a request field. Every
  * refusal is the API-20 envelope: the SRT cases of service-runtime, and PAY-017 for a code that is not an OVERRIDABLE
  * code of the version (INV-AC-1584). The controller is the transaction boundary (ARC-21): each use case runs in one
- * `TransactionRunner.inTransaction`, so the stored row and the audit entry commit together or not at all. A refused release (403 SRT-004) carries the extension member `reasonCode` only
- * when the use case reports a reason; the 403 of a missing permission carries none (INV-Q-17227, INV-Q-17229).
+ * `TransactionRunner.inTransaction`, so the stored row and the audit entry commit together or not at all. A refused
+ * release (403 SRT-004) carries the extension member `reasonCode` only when the use case reports a reason; the 403 of
+ * a missing permission carries none (INV-Q-17227, INV-Q-17229).
  */
 @RestController
 open class ValidationOverrideController(
@@ -257,7 +258,7 @@ internal object OverrideHttp {
 
     private const val PAY_017 = "PAY-017"
 
-    /** The four values of the extension member `reasonCode`, compared by string equality (INV-Q-17227, INV-Q-17335 A). */
+    /** The four values of the member `reasonCode`, compared by string equality (INV-Q-17227, INV-Q-17335 A). */
     private val REASON_CODES =
         setOf(
             ReleaseOutcome.NOT_OVERRIDABLE,
