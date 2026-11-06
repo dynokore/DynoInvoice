@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.11.0
+  version: 1.12.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -876,6 +876,10 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->control-plane-svc
       x-timeout: 2000
+      x-operation:
+        role: commercial.admin
+        permission: tenant-provisioning-request.view
+        scope: installation
       x-requirements:
       - FR-AC.1
       - INV-REQ-1204
@@ -1401,6 +1405,10 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->control-plane-svc
       x-timeout: 2000
+      x-operation:
+        role: commercial.admin
+        permission: licence.view
+        scope: installation
       x-requirements:
       - FR-AC.1
       x-error-codes: []

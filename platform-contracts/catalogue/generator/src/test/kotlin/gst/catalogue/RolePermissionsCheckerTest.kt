@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(36, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(38, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -1671,6 +1671,62 @@ class RolePermissionsCheckerTest {
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }
+    }
+
+    private val lv = "licence.view"
+    private val tv = "tenant-provisioning-request.view"
+    private val cr = listOf(lv, tv)
+
+    @Test
+    fun `INV-T-16273 the two keys are READ with their pinned rows and exactly the commercial admin SAAS cell`() {
+        assertEquals(
+            mapOf(lv to "View a licence", tv to "View a tenant provisioning request"),
+            RolePermissionsChecker.commercialReadPairs,
+        )
+        RolePermissionsChecker.commercialReadPairs.forEach { (key, label) ->
+            assertTrue(label in RolePermissionsChecker.addedRows)
+            assertEquals(label, permission(real, key).row)
+            assertEquals(PermissionKind.READ, permission(real, key).kind)
+            assertEquals(setOf(CellRow("commercial.admin", saasF, RoleAllowance.PERMITTED)), permission(real, key).cells.toSet())
+            assertEquals(1, permission(real, key).cells.size)
+        }
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-T-16273 probe release manager as an extra holder is reported`() {
+        cr.forEach { assertReported(cellAdd(it, "release.manager", saasF), "role release.manager key $it form SAAS", "extra") }
+    }
+
+    @Test
+    fun `INV-T-16273 probe the commercial admin SAAS cell removed is reported`() {
+        cr.forEach { assertReported(cellRemove(it, "commercial.admin", saasF), "role commercial.admin key $it form SAAS", "missing") }
+    }
+
+    @Test
+    fun `INV-T-16273 probe the kind WRITE instead of READ is reported`() {
+        cr.forEach { assertReported(withKind(it, PermissionKind.WRITE), "key $it") }
+    }
+
+    @Test
+    fun `INV-T-16273 probe a renamed key is reported`() {
+        listOf(lv to "licence.views", tv to "tenant-provisioning-requests.view").forEach { (key, renamed) ->
+            assertReported(withPermission(key) { it.copy(key = renamed) }, "key $renamed")
+            assertReported(withPermission(key) { it.copy(key = renamed) }, "key $key: missing")
+        }
+    }
+
+    @Test
+    fun `INV-T-16273 the label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.commercialReadPairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
+    }
+
+    @Test
+    fun `INV-T-16273 probe licence manage listed for the label of licence view is reported`() {
+        assertReported(withPermission("licence.manage") { it.copy(row = "View a licence") }, "key licence.manage")
     }
 
     private val gv = "gap-report.view"

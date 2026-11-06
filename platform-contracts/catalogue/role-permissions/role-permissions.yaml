@@ -459,6 +459,16 @@ permissions:
     row: "Reissue the first administrator invitation"
     cells:
       - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: licence.view
+    kind: READ
+    row: "View a licence"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: tenant-provisioning-request.view
+    kind: READ
+    row: "View a tenant provisioning request"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
   - key: break-glass.unlock
     kind: WRITE
     row: "Unlock break-glass access"

@@ -482,6 +482,23 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `INV-T-16273 the two commercial read keys are READ held by commercial admin in SAAS only`() {
+        listOf("licence.view", "tenant-provisioning-request.view").forEach { key ->
+            assertEquals(PermissionKind.READ, RolePermissions.kind(key))
+            val saasHolders =
+                RolePermissions.cells(saas).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            assertEquals(mapOf("commercial.admin" to y), saasHolders, key)
+            val privateHolders =
+                RolePermissions
+                    .cells(privateForm)
+                    .mapNotNull { (role, perms) -> perms[key]?.let { role to it } }
+                    .toMap()
+            assertEquals(emptyMap<String, Any>(), privateHolders, key)
+        }
+        assertNull(RolePermissions.kind("licence.views"))
+    }
+
+    @Test
     fun `INV-AC-16537 held-document release is tax approver only`() {
         assertEquals(y, cell(saas, "tax.approver", "held-document.release"))
         // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
