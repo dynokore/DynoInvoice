@@ -75,3 +75,11 @@ fun interface ConfirmerRoles {
 fun interface IdentityTripleCorrectedPublisher {
     fun publish(change: PendingChange)
 }
+
+/**
+ * Publishes `IdentityTripleChanged` for a confirmed identity triple change (INV-REQ-1135, INV-Q-16401 A). It appends in
+ * the transaction the caller holds, so a failure rolls the confirmation back.
+ */
+fun interface IdentityTripleChangedPublisher {
+    fun publish(change: PendingChange)
+}
