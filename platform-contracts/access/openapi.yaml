@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: access API
-  version: 1.22.0
+  version: 1.23.0
   description: 'Contract-first source of truth for access (API-01, STK-44), replacing the INV-T-2849 scaffold
     (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): who may do what, on whose authority.
     `authorise`, `authenticatePrincipal`, `getVerificationKeys`, `getRevocationList`, `resolveLandingScreen` and `getSoleOperatorAcknowledgement` are queries, not FR-AC.1 operations (no persistent state change),
@@ -58,7 +58,7 @@ paths:
       - FR-AC.1
       - FR-P.1
       - FR-Z.14
-      x-error-codes: []
+      x-error-codes: [SRT-013]
       parameters:
       - name: principalRef
         in: query

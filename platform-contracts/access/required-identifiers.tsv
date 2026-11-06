@@ -167,3 +167,4 @@ SignatoryActionRequest.kind.WITHDRAW	schema_enum_value	openapi.yaml	INV-REQ-900
 SignatoryActionRequest.packVersion	schema_property	openapi.yaml	INV-REQ-900
 SignatoryActionRequest.queryText	schema_property	openapi.yaml	INV-REQ-900
 SignatoryActionResponse.evidenceRef	schema_property	openapi.yaml	INV-REQ-900
+authorise.SRT-013	operation_error_code	openapi.yaml	INV-REQ-1199

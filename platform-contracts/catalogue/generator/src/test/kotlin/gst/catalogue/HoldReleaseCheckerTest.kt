@@ -26,6 +26,7 @@ class HoldReleaseCheckerTest {
     )
 
     private val ing017 = row("ING-017", Severity.HOLD, Disposition.MANUAL)
+    private val ing024 = row("ING-024", Severity.HOLD, Disposition.MANUAL)
 
     private fun auto(raw: String) = row("PAY-013", Severity.HOLD, Disposition.AUTO_RELEASE, raw)
 
@@ -33,43 +34,43 @@ class HoldReleaseCheckerTest {
 
     @Test
     fun `AUTO_RELEASE on an event passes`() {
-        assertTrue(HoldReleaseChecker.check(listOf(auto("AUTO_RELEASE on acceptance"), ing017)).passed)
+        assertTrue(HoldReleaseChecker.check(listOf(auto("AUTO_RELEASE on acceptance"), ing017, ing024)).passed)
     }
 
     @Test
     fun `AUTO_RELEASE when an event passes`() {
-        val rows = listOf(auto("AUTO_RELEASE when the election is recorded"), ing017)
+        val rows = listOf(auto("AUTO_RELEASE when the election is recorded"), ing017, ing024)
         assertTrue(HoldReleaseChecker.check(rows).passed)
     }
 
     @Test
     fun `ING-017 with MANUAL passes`() {
-        val result = HoldReleaseChecker.check(listOf(ing017))
+        val result = HoldReleaseChecker.check(listOf(ing017, ing024))
         assertTrue(result.passed)
-        assertEquals(1, result.checked.size)
+        assertEquals(2, result.checked.size)
     }
 
     @Test
     fun `the bare AUTO_RELEASE is a violation naming the code and the raw string`() {
-        val v = violationsOf(auto("AUTO_RELEASE"), ing017)
+        val v = violationsOf(auto("AUTO_RELEASE"), ing017, ing024)
         assertEquals(1, v.size)
         assertTrue("PAY-013" in v[0] && "'AUTO_RELEASE'" in v[0])
     }
 
     @Test
     fun `AUTO_RELEASE on with nothing after it is a violation`() {
-        assertEquals(1, violationsOf(auto("AUTO_RELEASE on"), ing017).size)
+        assertEquals(1, violationsOf(auto("AUTO_RELEASE on"), ing017, ing024).size)
     }
 
     @Test
     fun `look-alikes of on and when are violations`() {
-        assertEquals(1, violationsOf(auto("AUTO_RELEASE onwards"), ing017).size)
-        assertEquals(1, violationsOf(auto("AUTO_RELEASE when "), ing017).size)
+        assertEquals(1, violationsOf(auto("AUTO_RELEASE onwards"), ing017, ing024).size)
+        assertEquals(1, violationsOf(auto("AUTO_RELEASE when "), ing017, ing024).size)
     }
 
     @Test
     fun `a HOLD row ING-018 with MANUAL is a violation`() {
-        val v = violationsOf(row("ING-018", Severity.HOLD, Disposition.MANUAL), ing017)
+        val v = violationsOf(row("ING-018", Severity.HOLD, Disposition.MANUAL), ing017, ing024)
         assertEquals(1, v.size)
         assertTrue("ING-018" in v[0])
     }
@@ -86,9 +87,43 @@ class HoldReleaseCheckerTest {
 
     @Test
     fun `ING-017 absent is a violation`() {
-        val v = violationsOf(auto("AUTO_RELEASE on x"))
+        val v = violationsOf(auto("AUTO_RELEASE on x"), ing024)
         assertEquals(1, v.size)
         assertTrue("ING-017" in v[0])
+    }
+
+    @Test
+    fun `ING-024 with MANUAL passes`() {
+        assertTrue(HoldReleaseChecker.check(listOf(ing017, ing024)).passed)
+    }
+
+    @Test
+    fun `ING-024 with TERMINAL is a violation`() {
+        val v = violationsOf(ing017, row("ING-024", Severity.HOLD, Disposition.TERMINAL))
+        assertTrue(v.isNotEmpty() && v.all { "ING-024" in it })
+    }
+
+    @Test
+    fun `ING-024 with severity BLOCK is a violation`() {
+        val v = violationsOf(ing017, row("ING-024", Severity.BLOCK, Disposition.MANUAL))
+        assertEquals(1, v.size)
+        assertTrue("ING-024" in v[0])
+    }
+
+    @Test
+    fun `ING-024 absent is a violation naming ING-024`() {
+        val v = violationsOf(auto("AUTO_RELEASE on x"), ing017)
+        assertEquals(1, v.size)
+        assertTrue("ING-024" in v[0])
+    }
+
+    @Test
+    fun `a HOLD row with MANUAL under a look-alike of ING-024 is a violation naming that code`() {
+        listOf("ING-0240", "ING-124", "SUB-024").forEach { code ->
+            val v = violationsOf(ing017, ing024, row(code, Severity.HOLD, Disposition.MANUAL))
+            assertEquals(1, v.size, code)
+            assertTrue(code in v[0], code)
+        }
     }
 
     @Test
@@ -103,6 +138,7 @@ class HoldReleaseCheckerTest {
                 row("PAY-050", Severity.WARN, Disposition.AUTO_RELEASE),
                 row("PAY-051", Severity.BLOCK, Disposition.AUTO_RELEASE),
                 ing017,
+                ing024,
             )
         assertTrue(HoldReleaseChecker.check(rows).passed)
     }

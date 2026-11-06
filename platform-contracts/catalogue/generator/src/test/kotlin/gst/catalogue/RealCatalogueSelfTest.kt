@@ -49,8 +49,10 @@ class RealCatalogueSelfTest {
             assertTrue(row.severity == Severity.HOLD, "$code should be HOLD")
             assertTrue(row.disposition == Disposition.AUTO_RELEASE, "$code should be AUTO_RELEASE")
         }
-        val manual = byCode.getValue("ING-017")
-        assertTrue(manual.severity == Severity.HOLD && manual.disposition == Disposition.MANUAL)
+        listOf("ING-017", "ING-024").forEach { code ->
+            val manual = byCode.getValue(code)
+            assertTrue(manual.severity == Severity.HOLD && manual.disposition == Disposition.MANUAL, "$code should be HOLD and MANUAL")
+        }
     }
 
     @Test
