@@ -231,9 +231,9 @@ class ComplianceMetricsQueryTest {
     private fun machine(): Principal =
         // a machine principal exists only from a verified token (service-runtime); the test builds the same shape
         Principal::class.java.declaredConstructors
-            .single { it.parameterCount == 4 && !it.isSynthetic }
+            .single { it.parameterCount == 6 && !it.isSynthetic }
             .apply { isAccessible = true }
-            .newInstance("machine", PrincipalKind.MACHINE, null, MachineEntityCoverage.None) as Principal
+            .newInstance("machine", PrincipalKind.MACHINE, null, MachineEntityCoverage.None, null, null) as Principal
 
     @Test
     fun `INV-AC-12835 with no entity filter a TENANT grant gives Allowed and rows receives a null entityRef`() {
