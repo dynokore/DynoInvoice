@@ -9,8 +9,6 @@ import com.dynokore.gst.access.application.authorise.StructureReadiness
 import com.dynokore.gst.access.application.consent.AgentScope
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.consent.ScopeItemRequirements
-import com.dynokore.gst.access.application.elevation.ElevationAsk
-import com.dynokore.gst.access.application.elevation.ElevationRecord
 import com.dynokore.gst.access.application.elevation.Elevations
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
@@ -18,6 +16,8 @@ import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.domain.consent.Consent
 import com.dynokore.gst.access.domain.consent.ConsentRef
+import com.dynokore.gst.access.domain.elevation.ElevationAsk
+import com.dynokore.gst.access.domain.elevation.ElevationRecord
 import com.dynokore.gst.access.domain.grant.Decision
 import com.dynokore.gst.access.domain.grant.EntityMembership
 import com.dynokore.gst.access.domain.grant.EntityRef
@@ -78,7 +78,8 @@ class AuthoriseGateTest {
 
     private val grants =
         object : GrantRepository {
-            override fun findByIdentity(identity: IdentityRef): List<Grant> = if (identity == principal) listOf(grant) else emptyList()
+            override fun findByIdentity(identity: IdentityRef): List<Grant> =
+                if (identity == principal) listOf(grant) else emptyList()
 
             override fun find(ref: GrantRef): Grant? = error("not used")
 
@@ -219,7 +220,9 @@ class AuthoriseGateTest {
         assertFalse((AuthoriseOutcome.NotReady as Any) is Decision.Deny)
         assertEquals(
             setOf("Decided", "NotReady"),
-            AuthoriseOutcome::class.sealedSubclasses.map { it.simpleName }.toSet(),
+            AuthoriseOutcome::class.java.permittedSubclasses
+                .map { it.simpleName }
+                .toSet(),
         )
         val covered =
             when (AuthoriseOutcome.NotReady as AuthoriseOutcome) {
