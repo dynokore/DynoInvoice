@@ -79,9 +79,9 @@ class RecordedTrainEvidence(
         )
     }
 
-    /** The re-run against the released version, when any environment record holds one. */
-    private fun releasedCertification(byEnvironment: Map<ReferenceEnvironment, GateRunRecord>): Certification? =
-        byEnvironment.values
-            .takeIf { records -> records.any { it.baseline != null } }
-            ?.let { Certification(byEnvironment.mapNotNull { (env, rec) -> rec.baseline?.let { env to it } }.toMap()) }
+    /** Known only when every environment record holds a baseline; absent evidence is unknown (INV-Q-17100 B). */
+    private fun releasedCertification(byEnvironment: Map<ReferenceEnvironment, GateRunRecord>): Certification? {
+        val baselines = byEnvironment.mapNotNull { (env, rec) -> rec.baseline?.let { env to it } }.toMap()
+        return if (baselines.size == ReferenceEnvironment.entries.size) Certification(baselines) else null
+    }
 }

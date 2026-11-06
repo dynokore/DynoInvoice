@@ -157,6 +157,36 @@ class RecordedTrainEvidenceTest {
         source.forTrain(version)!!.scenarios.baselineFindings shouldBe setOf("B-1", "B-2")
     }
 
+    private fun withCertificationBaselines(
+        saasBaseline: GateOutcome?,
+        privateBaseline: GateOutcome?,
+    ) {
+        runs.rows += all().filter { it.gate != Gate.CERTIFICATION }
+        runs.rows += record(Gate.CERTIFICATION, saas).copy(baseline = saasBaseline)
+        runs.rows += record(Gate.CERTIFICATION, private).copy(baseline = privateBaseline)
+    }
+
+    @Test
+    fun `a baseline on the SAAS certification record only leaves releasedCertification unknown`() {
+        withCertificationBaselines(GateOutcome.PASSED, null)
+        val evidence = source.forTrain(version)!!
+        evidence.releasedCertification.shouldBeNull()
+        evidence.certification.results shouldBe mapOf(saas to GateOutcome.PASSED, private to GateOutcome.PASSED)
+    }
+
+    @Test
+    fun `a baseline on the PRIVATE_MINIMAL certification record only leaves releasedCertification unknown`() {
+        withCertificationBaselines(null, GateOutcome.FAILED)
+        source.forTrain(version)!!.releasedCertification.shouldBeNull()
+    }
+
+    @Test
+    fun `both certification baselines build releasedCertification with those two results`() {
+        withCertificationBaselines(GateOutcome.PASSED, GateOutcome.FAILED)
+        source.forTrain(version)!!.releasedCertification!!.results shouldBe
+            mapOf(saas to GateOutcome.PASSED, private to GateOutcome.FAILED)
+    }
+
     @Test
     fun `the certification result of an environment is its record's candidate result`() {
         runs.rows += all().filter { it.gate != Gate.CERTIFICATION }
