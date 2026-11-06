@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -65,6 +65,8 @@ tags:
     description: Workspace operations console-bff orchestrates (INV-NOTE-7 §7, SCR-21.2).
   - name: support
     description: Support operations console-bff orchestrates (INV-NOTE-7 §7, SCR-28.2).
+  - name: configuration
+    description: Configuration promotion console-bff orchestrates (INV-NOTE-7 §7, SCR-21.4).
   - name: deferrals
     description: Shared deferral of a document or group, held in console-bff's exception read model (INV-REQ-960, SCR-01.5).
 paths:
@@ -450,6 +452,60 @@ paths:
                     generatedAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /bff/configuration-promotions:
+    post:
+      operationId: promoteConfiguration
+      summary: Promote an exported configuration bundle into production for one domain
+      description: >-
+        People, through console-bff only (INV-NOTE-7 §7 row
+        promoteConfiguration, SCR-21.4). Each service imports its own domain
+        after that domain's approval; the promotion is compensated by
+        promoting the previous version. The approval of the domain's own
+        approver is a precondition, a business rule on top of the permission
+        check.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000); the promotion is accepted and
+        completes asynchronously.
+      tags: [configuration]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-957, INV-REQ-2588]
+      x-operation:
+        role: tenant.admin
+        scope: domain
+        precondition: "A bundle was exported from a workspace; the approver of the domain has approved (INV-NOTE-7 §7 row promoteConfiguration)."
+        reversibility: COMPENSABLE
+        repeatKey: "(bundleId, domain) — a repeat returns the recorded promotion unchanged."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromoteConfigurationRequest'
+            examples:
+              default:
+                value:
+                  bundleId: "bundle-2026-01"
+                  domain: "policy"
+      responses:
+        '202':
+          description: The configuration promotion was accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationPromotion'
+              examples:
+                default:
+                  value:
+                    bundleId: "bundle-2026-01"
+                    domain: "policy"
+                    status: "PENDING"
+        default:
+          $ref: '#/components/responses/Error'
   /bff/entities/{entityRef}/deferrals:
     post:
       operationId: deferDocument
@@ -730,6 +786,30 @@ components:
           type: string
           format: date-time
       required: [caseId, field, correctedValue, correctedAt]
+    PromoteConfigurationRequest:
+      type: object
+      properties:
+        bundleId:
+          type: string
+          maxLength: 64
+        domain:
+          type: string
+          maxLength: 64
+      required: [bundleId, domain]
+    ConfigurationPromotion:
+      type: object
+      properties:
+        bundleId:
+          type: string
+          maxLength: 64
+        domain:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum: [PENDING, APPLIED]
+          x-extensible-enum: true
+      required: [bundleId, domain, status]
     DeferralTarget:
       type: object
       properties:

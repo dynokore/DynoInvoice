@@ -19,7 +19,7 @@ applyOperatingProfile	recordAppliedOperatingProfile	tenancy	-
 copyAnonymisedSample	copyAnonymisedSample	console-bff	-
 correctPersonalData	correctPersonalData	console-bff	-
 exportSupportBundle	exportSupportBundle	console-bff	-
-promoteConfiguration	UNCONTRACTED	console-bff	-
+promoteConfiguration	promoteConfiguration	console-bff	-
 authorRegulatoryPack	authorRegulatoryPack	control-plane	-
 issueLicence	issueLicence	control-plane	-
 managePlan	managePlan	control-plane	-
