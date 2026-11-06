@@ -54,6 +54,9 @@ import java.util.UUID
 class FirstAdministratorCodeLeakIT {
     private companion object {
         const val CODE = "CODE-b7e1c3a9-distinctive-0f42"
+        const val DEFAULT_BODY =
+            "{\"grantRef\":\"GRT-1\",\"status\":\"PENDING\",\"invitationRef\":\"INVN-9\"," +
+                "\"invitationCode\":\"$CODE\"}"
     }
 
     private val dsl: DSLContext = PostgresDb.dsl()
@@ -68,10 +71,7 @@ class FirstAdministratorCodeLeakIT {
                 exchange.requestBody.readAllBytes()
                 Thread.sleep(delayMillis)
                 val body =
-                    (
-                        answerBody
-                            ?: ("""{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-9",""" + """"invitationCode":"$CODE"}""")
-                    ).toByteArray()
+                    (answerBody ?: DEFAULT_BODY).toByteArray()
                 exchange.sendResponseHeaders(status, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }
             }
@@ -106,7 +106,9 @@ class FirstAdministratorCodeLeakIT {
     private fun delivery(timeout: Duration = Duration.ofSeconds(2)) =
         InvitationDelivery(
             // the signed invitation is the one place that carries the code (INV-AC-8224); it is not logged or stored
-            { contract, tenant, issued, _, _ -> "signed:$contract:$tenant:${issued.invitationRef}:${issued.invitationCode.value}" },
+            { contract, tenant, issued, _, _ ->
+                "signed:$contract:$tenant:${issued.invitationRef}:${issued.invitationCode.value}"
+            },
             { _, _, _, _ -> },
             access(timeout),
             clock,

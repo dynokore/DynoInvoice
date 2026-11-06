@@ -20,6 +20,12 @@ import java.util.UUID
 
 /** The request that the access contract stub receives from control-plane-svc (INV-AC-8224, INV-AC-8281). */
 class HttpFirstAdministratorAccessTest {
+    private companion object {
+        const val DEFAULT_BODY =
+            "{\"grantRef\":\"GRT-1\",\"status\":\"PENDING\",\"invitationRef\":\"INVN-1\"," +
+                "\"invitationCode\":\"code-1\"}"
+    }
+
     private class Seen(
         val method: String,
         val path: String,
@@ -47,10 +53,7 @@ class HttpFirstAdministratorAccessTest {
                     )
                 Thread.sleep(delayMillis)
                 val answer =
-                    (
-                        answerBody
-                            ?: ("""{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-1",""" + """"invitationCode":"code-1"}""")
-                    ).toByteArray()
+                    (answerBody ?: DEFAULT_BODY).toByteArray()
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(status, answer.size.toLong())
                 exchange.responseBody.use { it.write(answer) }

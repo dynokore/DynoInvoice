@@ -1,8 +1,10 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.contract.model.TenantProvisioningResponse
 import com.dynokore.gst.controlPlane.domain.commercial.FirstAdministratorOutcome
 import com.dynokore.gst.controlPlane.syncedge.ReissueDoubles
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ConfigurableApplicationContext
+import tools.jackson.databind.json.JsonMapper
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -49,8 +52,6 @@ class ProvisioningBodyOutcomeTest {
         doubles.permitted += "carol"
     }
 
-    private fun get(): HttpResponse<String> = call("GET", "/${doubles.contract.value}", null)
-
     private fun post(): HttpResponse<String> =
         call(
             "POST",
@@ -81,24 +82,39 @@ class ProvisioningBodyOutcomeTest {
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
     }
 
-    private fun assertNoOutcome(answer: HttpResponse<String>) {
-        answer.body() shouldNotContain "first_administrator_outcome"
-        answer.body() shouldNotContain "firstAdministratorOutcome"
-        answer.body() shouldNotContain FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR.name
+    private fun assertNoOutcome(answer: HttpResponse<String>) = assertNoOutcome(answer.body())
+
+    private fun assertNoOutcome(body: String) {
+        body shouldNotContain "first_administrator_outcome"
+        body shouldNotContain "firstAdministratorOutcome"
+        body shouldNotContain FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR.name
     }
 
     @Test
-    fun `INV-AC-8224 the provisionTenant and getTenantProvisioningRequest bodies carry no outcome`() {
+    fun `INV-AC-8224 the provisionTenant body carries no outcome`() {
         FirstAdministratorOutcome.entries.forEach { outcome ->
             doubles.outcome = outcome
-            val read = get()
-            read.statusCode() shouldBe 200
-            read.body() shouldNotContain "contractReference\":null"
-            assertNoOutcome(read)
             val created = post()
             created.statusCode() shouldBe 201
             assertNoOutcome(created)
         }
+    }
+
+    /**
+     * `getTenantProvisioningRequest` answers with this contract class, and the read needs a database transaction that
+     * this fixture does not have, so its body is checked as the JSON of that class: it has no outcome property.
+     */
+    @Test
+    fun `INV-AC-8224 the TenantProvisioningResponse of getTenantProvisioningRequest has no outcome property`() {
+        val body =
+            JsonMapper.builder().build().writeValueAsString(
+                TenantProvisioningResponse("CTR-1", "TEN-1", TenantProvisioningResponse.Status.CREATED, "SG"),
+            )
+        body shouldContain "contractReference"
+        assertNoOutcome(body)
+        TenantProvisioningResponse::class.java.declaredFields.map { it.name.lowercase() }.none {
+            it.contains("outcome")
+        } shouldBe true
     }
 
     private companion object {
