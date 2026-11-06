@@ -31,7 +31,8 @@
     },
     "sealedPasscode": {
       "type": "string",
-      "description": "A sealed passcode to include (FR-AG.70), absent when this message carries a link reference instead."
+      "description": "A sealed passcode to include (FR-AG.70, INV-REQ-2762), absent when this message carries a link reference instead. Form: v1.<keyId>.<ciphertext>. The passcode is sealed with RSAES-OAEP (RFC 8017) using SHA-256 and MGF1-SHA-256 under the RSA public delivery key of notification-svc, which is at least 3072 bits. The OAEP label is the UTF-8 bytes of the one recipient address of the message. v1 is the form version. The key id is the first 8 bytes of the SHA-256 of the DER SubjectPublicKeyInfo of that key, as 16 lower-case hex digits. The ciphertext is base64url without padding (512 characters for a 3072-bit key, 683 for 4096). A message carries exactly one recipient when it carries sealedPasscode.",
+      "pattern": "^v1\\.[0-9a-f]{16}\\.(?:[A-Za-z0-9_-]{512}|[A-Za-z0-9_-]{683})$"
     }
   },
   "required": [
