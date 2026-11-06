@@ -8,13 +8,15 @@ import com.dynokore.platform.productruntime.Fixtures.TENANT
 import com.dynokore.platform.productruntime.Fixtures.envelope
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
-import com.dynokore.platform.serviceruntime.replica.AuthorityKey
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.ConsentKey
 import com.dynokore.platform.serviceruntime.replica.ConsentState
+import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.Lookup
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
+import com.dynokore.platform.serviceruntime.replica.RoleGrantKey
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -148,22 +150,23 @@ class FeedHandlersTest {
     }
 
     private val grants =
-        """{"changeKind":"GRANT","principalRef":"P-1","authorityVersion":7,
-        |"grantRecord":{"entityRef":"E-001","grants":[{"action":"document.read","scopeLevel":"ENTITY",
-        |"scopeRef":"E-001","validFrom":"2026-10-01T00:00:00Z","periodFrom":"2026-07-01","periodTo":"2026-09-30"}]}}
+        """{"changeKind":"ROLE_GRANT","principalRef":"P-1","authorityVersion":7,
+        |"roleGrantRecord":{"grantRef":"GRT-1","role":"external.auditor","state":"ACTIVE","scopeLevel":"ENTITY_PERIOD",
+        |"scopeRef":"E-001","validFrom":"2026-10-01T00:00:00Z","periodFrom":"2026-07-01","periodTo":"2026-09-30"}}
         """.trimMargin()
 
     @Test
-    fun `AuthorityChanged feeds the grant set, the consent coverage and the principal record`() {
-        val replica = AuthorityReplica(CLOCK)
+    fun `AuthorityChanged feeds the role grant, the consent coverage and the principal record`() {
+        val replica = AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })
         val handler = AuthorityFeedHandler(replica)
         val grantEvent = handler.decode(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, grants))
         grantEvent.authorityVersion shouldBe 7
-        val record = grantEvent.record.shouldBeInstanceOf<AuthorityRecord.GrantRecord>()
-        record.grants.single().scopeLevel shouldBe ScopeLevel.ENTITY
-        record.grants.single().periodTo shouldBe LocalDate.parse("2026-09-30")
+        val record = grantEvent.record.shouldBeInstanceOf<AuthorityRecord.RoleGrantRecord>()
+        record.state shouldBe RoleGrantState.ACTIVE
+        record.grant.scope shouldBe GrantScope.ENTITY_PERIOD
+        record.grant.periodTo shouldBe LocalDate.parse("2026-09-30")
         handler.handle(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, grants))
-        replica.grants.peek(AuthorityKey(TENANT, "P-1", "E-001")).shouldBeInstanceOf<Any>()
+        replica.roleGrants.peek(RoleGrantKey(TENANT, "P-1", "GRT-1")) shouldBe record.grant
 
         val consent =
             """{"changeKind":"CONSENT","principalRef":"agent-1","authorityVersion":8,
@@ -190,7 +193,7 @@ class FeedHandlersTest {
 
     @Test
     fun `an AuthorityChanged without a record passes no record, one with two records is a ContractViolation`() {
-        val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK))
+        val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() }))
         val bare = """{"changeKind":"REVOCATION","principalRef":"P-1","authorityVersion":3}"""
         handler.decode(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, bare)).record.shouldBeNull()
         val two =
@@ -204,7 +207,7 @@ class FeedHandlersTest {
 
     @Test
     fun `INV-AC-9359 the old access type is a ContractViolation, the platform type is decoded`() {
-        val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK))
+        val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() }))
         val bare = """{"changeKind":"REVOCATION","principalRef":"P-1","authorityVersion":3}"""
         assertThrows<ContractViolation> {
             handler.decode(envelope("com.dynokore.gst.access.AuthorityChanged.v1", bare))

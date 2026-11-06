@@ -29,6 +29,7 @@ import com.dynokore.platform.serviceruntime.composition.ReplicaColdStartWiring
 import com.dynokore.platform.serviceruntime.rebuild.ReplicaColdStartSync
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.Lookup
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.serviceruntime.resilience.Deadline
@@ -130,7 +131,7 @@ class StructureStartUpIT {
                     "profileSubscription",
                     ConsumerSubscription::class.java,
                     { ConsumerSubscription(CONSUMER, PROFILE_TOPIC, SCHEMA) },
-                ).withBean(AuthorityReplica::class.java, { AuthorityReplica(clock) })
+                ).withBean(AuthorityReplica::class.java, { AuthorityReplica(clock, OperationRoleMap { emptyMap() }) })
                 .withBean(StructureReplica::class.java, { structure })
                 .withBean(PolicyReplica::class.java, { PolicyReplica(clock) })
                 .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })

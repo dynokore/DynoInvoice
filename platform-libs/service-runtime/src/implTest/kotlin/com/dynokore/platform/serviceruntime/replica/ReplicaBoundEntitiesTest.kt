@@ -20,7 +20,8 @@ import javax.sql.DataSource
 
 /**
  * INV-T-7520 (INV-REQ-866, INV-AC-1912): the entity set the transaction binds comes from the authority replica
- * (TENANT and GROUP grants arrive expanded to one entity), and is empty when the replica gives no entity.
+ * (INV-Q-8972 A: ENTITY grants by their entity, GROUP and TENANT grants by the structure replica), and is empty when
+ * the replica gives no entity.
  */
 class ReplicaBoundEntitiesTest {
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
@@ -28,39 +29,59 @@ class ReplicaBoundEntitiesTest {
     private val e2 = UUID.fromString("22222222-2222-2222-2222-222222222222")
     private val now = Instant.parse("2026-10-20T00:00:00Z")
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
-    private val replica = AuthorityReplica(clock)
+    private val structure = StructureReplica(clock)
+    private val replica = AuthorityReplica(clock, OperationRoleMap { emptyMap() }, structure = structure)
     private val source = ReplicaBoundEntities(replica)
 
     private fun grant(
         v: Long,
-        entity: String,
-        level: ScopeLevel,
+        ref: String,
+        scope: GrantScope,
         principal: String = "p1",
     ) = replica.accept(
         AuthorityChanged(
             tenant,
             principal,
             v,
-            AuthorityRecord.GrantRecord(entity, listOf(Grant("read", level, entity, now.minusSeconds(60)))),
+            AuthorityRecord.RoleGrantRecord(
+                "g$v",
+                RoleGrantState.ACTIVE,
+                RoleGrant("reader", scope, ref, now.minusSeconds(60)),
+            ),
+        ),
+    )
+
+    private fun node(
+        ref: String,
+        kind: StructureNodeKind,
+        parent: String? = null,
+    ) = structure.replica.apply(
+        ReplicaChange.Upsert(
+            StructureKey(tenant, ref),
+            StructureNode(kind, parent, false, ref, null, emptyList(), 1),
+            1,
         ),
     )
 
     @Test
     fun `grants on E1 and E2 give the set E1 and E2 as a set`() {
-        grant(1, "$e1", ScopeLevel.ENTITY)
-        grant(2, "$e2", ScopeLevel.GROUP)
+        node("$e2", StructureNodeKind.ENTITY, parent = "grp")
+        node("grp", StructureNodeKind.GROUP)
+        grant(1, "$e1", GrantScope.ENTITY)
+        grant(2, "grp", GrantScope.GROUP)
         source.entitiesOf(tenant, "p1") shouldBe setOf(e1, e2)
     }
 
     @Test
-    fun `a TENANT grant expanded to one entity gives that entity only`() {
-        grant(1, "$e1", ScopeLevel.TENANT)
+    fun `a TENANT grant gives the entities of the tenant in the structure replica`() {
+        node("$e1", StructureNodeKind.ENTITY)
+        grant(1, tenant.toString(), GrantScope.TENANT)
         source.entitiesOf(tenant, "p1") shouldBe setOf(e1)
     }
 
     @Test
     fun `a principal with no grant gives the empty set`() {
-        grant(1, "$e1", ScopeLevel.ENTITY)
+        grant(1, "$e1", GrantScope.ENTITY)
         source.entitiesOf(tenant, "p2") shouldBe emptySet()
     }
 
@@ -71,13 +92,13 @@ class ReplicaBoundEntitiesTest {
 
     @Test
     fun `a grant of scope level UNKNOWN gives the empty set`() {
-        grant(1, "$e1", ScopeLevel.UNKNOWN)
+        grant(1, "$e1", GrantScope.UNKNOWN)
         source.entitiesOf(tenant, "p1") shouldBe emptySet()
     }
 
     @Test
     fun `a look-alike principal id, a prefix of the real one, gives the empty set`() {
-        grant(1, "$e1", ScopeLevel.ENTITY, principal = "p1")
+        grant(1, "$e1", GrantScope.ENTITY, principal = "p1")
         source.entitiesOf(tenant, "p") shouldBe emptySet()
         source.entitiesOf(tenant, "p1x") shouldBe emptySet()
         source.entitiesOf(tenant, "P1") shouldBe emptySet()
@@ -85,15 +106,15 @@ class ReplicaBoundEntitiesTest {
 
     @Test
     fun `the same principal under another tenant gives the empty set`() {
-        grant(1, "$e1", ScopeLevel.ENTITY)
+        grant(1, "$e1", GrantScope.ENTITY)
         source.entitiesOf(TenantId(UUID.randomUUID()), "p1") shouldBe emptySet()
     }
 
     @Test
     fun `an entity reference that is not a canonical UUID is left out`() {
-        grant(1, "$e1", ScopeLevel.ENTITY)
-        grant(2, "not-a-uuid", ScopeLevel.ENTITY)
-        grant(3, "ABCDEFAB-ABCD-ABCD-ABCD-ABCDEFABCDEF", ScopeLevel.ENTITY)
+        grant(1, "$e1", GrantScope.ENTITY)
+        grant(2, "not-a-uuid", GrantScope.ENTITY)
+        grant(3, "ABCDEFAB-ABCD-ABCD-ABCD-ABCDEFABCDEF", GrantScope.ENTITY)
         source.entitiesOf(tenant, "p1") shouldBe setOf(e1)
     }
 
@@ -106,8 +127,8 @@ class ReplicaBoundEntitiesTest {
         every { connection.prepareStatement(any<String>()) } returns statement
         val pool = mockk<DataSource>()
         every { pool.connection } returns connection
-        grant(1, "$e2", ScopeLevel.ENTITY)
-        grant(2, "$e1", ScopeLevel.ENTITY)
+        grant(1, "$e2", GrantScope.ENTITY)
+        grant(2, "$e1", GrantScope.ENTITY)
         var signature = ""
         val base =
             ApplicationContextRunner()

@@ -17,6 +17,7 @@ internal class RoleAnswerUnavailable(
  * window and not voided by a principal record of a higher version. [index] maps (tenant, role) to the keys that
  * carry it, so a holders query examines those keys only.
  */
+@Suppress("TooManyFunctions") // role answers, holders and decision candidates share one store (INV-Q-8972 A)
 internal class RoleBook(
     private val clock: Clock,
     private val lagBound: Duration,
@@ -93,6 +94,87 @@ internal class RoleBook(
             .mapTo(mutableSetOf()) { it.value.role }
     }
 
+    /** A role grant that covers a request by scope and validity; [voided] when a principal record voids it. */
+    internal class Candidate(
+        val grant: RoleGrant,
+        val voided: Boolean,
+    )
+
+    /**
+     * The grants of [principalId] that cover a request at [level] by scope and validity window, the voided ones
+     * marked. It is the ENTITY row of [rolesAt] at the entity levels, except that a CONSENT grant is returned whether
+     * or not the consent is live (the replica reads the consent per call) and an ENTITY_PERIOD grant is returned when
+     * its span encloses [period] on [entityRef] (a null period matches none). Reads no lag; the caller checks it.
+     */
+    fun candidates(
+        tenant: TenantId,
+        principalId: String,
+        level: ScopeLevel,
+        entityRef: String?,
+        period: DateSpan?,
+        deadline: Deadline,
+    ): List<Candidate> {
+        val owner = if (level == ScopeLevel.INSTALLATION) TenantId.PLATFORM else tenant
+        val voidBelow = voidBelow(owner, principalId)
+        val now = clock.instant()
+        val counts = counter(tenant, level, entityRef, deadline, liveConsentOnly = false)
+        val entityLevel = level.entityScoped
+        return grants.store
+            .heldEntries(owner to principalId) { true }
+            .values
+            .filter {
+                it.value.isValidAt(now) &&
+                    (counts(it.value) || coversPeriod(it.value, entityLevel, entityRef, period))
+            }.map { Candidate(it.value, it.version < voidBelow) }
+    }
+
+    private fun coversPeriod(
+        grant: RoleGrant,
+        entityLevel: Boolean,
+        entityRef: String?,
+        period: DateSpan?,
+    ): Boolean {
+        val from = grant.periodFrom
+        val to = grant.periodTo
+        return entityLevel && grant.scope == GrantScope.ENTITY_PERIOD && entityRef != null &&
+            grant.scopeRef == entityRef &&
+            period != null && from != null && to != null && !to.isBefore(from) && DateSpan(from, to).encloses(period)
+    }
+
+    /** The entities [principalId] holds a valid role grant on in [tenant]; see [AuthorityReplica.heldEntities]. */
+    fun heldEntities(
+        tenant: TenantId,
+        principalId: String,
+    ): Set<String> {
+        val voidBelow = voidBelow(tenant, principalId)
+        val now = clock.instant()
+        val tenantRef = tenant.toString()
+        val live =
+            grants.store
+                .heldEntries(tenant to principalId) { true }
+                .values
+                .filter { it.version >= voidBelow && it.value.isValidAt(now) }
+                .map { it.value }
+        val held = mutableSetOf<String>()
+        live.filter { it.scopeRef != null }.forEach { grant ->
+            val ref = checkNotNull(grant.scopeRef)
+            val direct = grant.scope == GrantScope.ENTITY || grant.scope == GrantScope.ENTITY_PERIOD
+            val consented =
+                grant.scope == GrantScope.CONSENT && consents.peek(ConsentKey(tenant, ref))?.isLiveAt(now) == true
+            if (direct || consented) held += ref
+        }
+        val replica = structure
+        if (replica != null) {
+            val groupRefs = live.filter { it.scope == GrantScope.GROUP }.mapNotNullTo(mutableSetOf()) { it.scopeRef }
+            if (live.any { it.scope == GrantScope.TENANT && it.scopeRef == tenantRef }) {
+                held += replica.entitiesOf(tenant).keys
+            } else if (groupRefs.isNotEmpty()) {
+                held += replica.entitiesIn(tenant, groupRefs, MAX_STEPS)
+            }
+        }
+        return held
+    }
+
     /** The principals holding [role] at TENANT or INSTALLATION scope; any other level holds none. */
     fun holdersAt(
         tenant: TenantId,
@@ -146,6 +228,7 @@ internal class RoleBook(
         level: ScopeLevel,
         entityRef: String?,
         deadline: Deadline,
+        liveConsentOnly: Boolean = true,
     ): (RoleGrant) -> Boolean {
         val tenantRef = tenant.toString()
         return when (level) {
@@ -158,10 +241,15 @@ internal class RoleBook(
             }
 
             else -> {
-                entityCounter(tenant, level, entityRef, deadline)
+                entityCounter(tenant, level, entityRef, deadline, liveConsentOnly)
             }
         }
     }
+
+    private fun consentLive(
+        tenant: TenantId,
+        entityRef: String?,
+    ): Boolean = entityRef != null && consents.peek(ConsentKey(tenant, entityRef))?.isLiveAt(clock.instant()) == true
 
     /** The entity-scoped levels: a grant counts when its scope covers [entityRef] (the ENTITY row of the matrix). */
     private fun entityCounter(
@@ -169,12 +257,11 @@ internal class RoleBook(
         level: ScopeLevel,
         entityRef: String?,
         deadline: Deadline,
+        liveConsentOnly: Boolean,
     ): (RoleGrant) -> Boolean {
         val tenantRef = tenant.toString()
         val groups by lazy { entityRef?.let { groupAncestors(tenant, it, deadline) }.orEmpty() }
-        val consentLive by lazy {
-            entityRef != null && consents.peek(ConsentKey(tenant, entityRef))?.isLiveAt(clock.instant()) == true
-        }
+        val consentCounts by lazy { !liveConsentOnly || consentLive(tenant, entityRef) }
         val clientEntity = level == ScopeLevel.CLIENT_ENTITY
         return { grant ->
             entityRef != null &&
@@ -182,7 +269,7 @@ internal class RoleBook(
                     GrantScope.TENANT -> grant.scopeRef == tenantRef
                     GrantScope.GROUP -> grant.scopeRef != null && grant.scopeRef in groups
                     GrantScope.ENTITY -> grant.scopeRef == entityRef
-                    GrantScope.CONSENT -> consentLive
+                    GrantScope.CONSENT -> consentCounts
                     GrantScope.CLIENT_ENTITY -> clientEntity && grant.scopeRef == entityRef
                     else -> false
                 }

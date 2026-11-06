@@ -16,6 +16,7 @@ import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.rebuild.ReplicaColdStartSync
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlErrors
@@ -269,10 +270,10 @@ class StructureReplicaWiringTest {
                     "reconciliation",
                 )
             })
-            .withBean(AuthorityReplica::class.java, { AuthorityReplica(CLOCK) })
+            .withBean(AuthorityReplica::class.java, { AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() }) })
             .withBean(com.dynokore.platform.productruntime.feed.AuthorityFeedHandler::class.java, {
                 com.dynokore.platform.productruntime.feed
-                    .AuthorityFeedHandler(AuthorityReplica(CLOCK))
+                    .AuthorityFeedHandler(AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() }))
             })
             .withConfiguration(AutoConfigurations.of(AuthorityReplicaWiring::class.java))
             .run { context ->

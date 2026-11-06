@@ -17,10 +17,12 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.ConsentScopeItem
 import com.dynokore.platform.serviceruntime.replica.ConsentState
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 
 /**
@@ -32,7 +34,7 @@ import java.time.Clock
 @ExtendWith(PactConsumerTestExt::class)
 @PactTestFor(providerName = Contracts.ACCESS_SVC, providerType = ProviderType.ASYNCH, pactVersion = PactSpecVersion.V4)
 class AccessEventsPactTest {
-    private val handler = AuthorityFeedHandler(AuthorityReplica(Clock.systemUTC()))
+    private val handler = AuthorityFeedHandler(AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }))
 
     private fun read(message: V4Interaction.AsynchronousMessage): AuthorityChanged {
         val envelope = Contracts.envelopes.read(Contracts.text(message))
@@ -102,9 +104,17 @@ class AccessEventsPactTest {
         val event = read(message)
         event.principalId shouldBe "P-1"
         event.authorityVersion shouldBe 4L
-        val record = event.record.shouldBeInstanceOf<AuthorityRecord.GrantRecord>()
+        val record = event.record.shouldBeInstanceOf<AuthorityRecord.LegacyGrant>()
         record.entityRef shouldBe "E-001"
-        record.grants.single().action shouldBe "approve"
+        // LegacyGrant carries no action (INV-Q-8972 A); the wire value is checked on the message payload
+        ObjectMapper()
+            .readTree(Contracts.text(message))
+            .path("data")
+            .path("grantRecord")
+            .path("grants")
+            .path(0)
+            .path("action")
+            .asString() shouldBe "approve"
     }
 
     @Test

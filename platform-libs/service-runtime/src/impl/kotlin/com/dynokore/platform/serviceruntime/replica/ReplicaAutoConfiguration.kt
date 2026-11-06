@@ -75,6 +75,7 @@ class ReplicaAutoConfiguration {
     @ConditionalOnMissingBean
     fun authorityReplica(
         clock: Clock,
+        operationRoles: OperationRoleMap,
         properties: ReplicaProperties,
         registry: ResilienceRegistry,
         fallback: ObjectProvider<AuthorityFallback>,
@@ -94,6 +95,7 @@ class ReplicaAutoConfiguration {
         }
         return AuthorityReplica(
             clock,
+            operationRoles,
             properties.authorityLagBound,
             fallback.ifAvailable
                 ?.guardedBy(registry.forEdge(ACCESS_EDGE))

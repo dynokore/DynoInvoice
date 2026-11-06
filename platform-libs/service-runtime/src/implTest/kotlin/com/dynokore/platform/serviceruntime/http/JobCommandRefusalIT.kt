@@ -33,6 +33,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE
 import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE_NAME
 import com.dynokore.platform.serviceruntime.testing.PG_NAMESPACE_OID
@@ -126,7 +127,7 @@ class JobCommandRefusalIT : JobCommandHttpBase() {
         var answer: (AuthorizationRequest) -> FallbackResult<AuthorityVerdict> =
             { FallbackResult.Found(AuthorityVerdict(it.entityRef == "E-001")) }
         val cold =
-            AuthorityReplica(Clock.systemUTC(), fallback = { request, _ ->
+            AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }, fallback = { request, _ ->
                 asked += request
                 answer(request)
             })

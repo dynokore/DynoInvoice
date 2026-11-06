@@ -6,6 +6,15 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [11.0.0] - 2026-11-06
+### Changed
+- BREAKING (INV-T-9233, INV-Q-8972 A, INV-REQ-864, INV-REQ-1201, INV-REQ-1214): `AuthorityReplica` decides from role grants and the generated permission matrix. `AuthorityReplica` takes a required `OperationRoleMap` (new `fun interface`, with `CellAllowance`) as its second constructor parameter, no default; the `authorityReplica` bean takes the single `OperationRoleMap` bean and the start fails naming the type when there is none. `decide` grants when the principal holds a valid, unvoided role grant covering the request whose role is a key of `rolesFor(request.action)` (any one is enough); `AuthorizationRequest` gains `level` (default ENTITY: INSTALLATION reads grants under `TenantId.PLATFORM`, TENANT and GROUP the TENANT-scope grants); `decideTenant` and `heldEntities` read the role grants too (GROUP and TENANT grants by the structure replica; `StructureReplica.entitiesOf(tenant)` added). `AuthorityDecision` keeps `allowed`, `source` and `reason` (INV-Q-10647).
+- The public constructor of `AuthorityReplica` now also takes an optional `structure`.
+### Added
+- `AuthorityRecord.LegacyGrant`: a per-action `grantRecord` written before INV-T-9234 only advances the lag head and changes no store.
+### Removed
+- `Grant`, `GrantState`, `AuthorityKey`, `AuthorityRecord.GrantRecord`, `AuthorityReplica.grants` and the replica package's `ScopeLevel`.
+
 ## [10.36.1] - 2026-11-06
 ### Changed
 - Metadata-only change (INV-T-17086, G-DVS): depends on `outbox-and-queue 6.17.0`, whose version steps; no production code change.

@@ -15,6 +15,7 @@ class RoleGrantReplicaTest {
     private val replica =
         AuthorityReplica(
             clock,
+            TEST_ROLES,
             AuthorityReplica.DEFAULT_LAG_BOUND,
             null,
             DegradedAllowTable.EMPTY,
@@ -241,7 +242,7 @@ class RoleGrantReplicaTest {
         feed.heartbeat(version + 10)
         clock.advance(Duration.ofSeconds(5))
         shouldThrow<RoleAnswerUnavailable> { roles(Level.TENANT) }
-        val cold = AuthorityReplica(clock)
+        val cold = AuthorityReplica(clock, TEST_ROLES)
         shouldThrow<RoleAnswerUnavailable> { cold.rolesAt(TENANT_A, "p1", Level.TENANT, null, null, deadline(clock)) }
     }
 
@@ -281,7 +282,7 @@ class RoleGrantReplicaTest {
 
     @Test
     fun `holders over a million grants examine only the indexed keys and stay flat`() {
-        val big = AuthorityReplica(clock)
+        val big = AuthorityReplica(clock, TEST_ROLES)
         val bigFeed = FakeFeed(big)
         val t = grant(GrantScope.TENANT, TENANT_A.toString(), SECURITY)
 

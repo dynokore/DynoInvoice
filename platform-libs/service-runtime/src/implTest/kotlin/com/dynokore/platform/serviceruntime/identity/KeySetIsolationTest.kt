@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
 import com.nimbusds.jose.JWSAlgorithm
@@ -24,7 +25,7 @@ class KeySetIsolationTest {
     private val operatorPair = rsa()
     private val machinePair = rsa()
     private val now = Instant.now()
-    private val replica = AuthorityReplica(Clock.systemUTC())
+    private val replica = AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() })
     private val resolver =
         JwtEndUserPrincipalResolver(
             NimbusJwtDecoder.withPublicKey(operatorPair.public as RSAPublicKey).build(),

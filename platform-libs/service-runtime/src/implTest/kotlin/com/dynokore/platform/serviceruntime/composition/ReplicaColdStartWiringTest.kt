@@ -16,6 +16,7 @@ import com.dynokore.platform.serviceruntime.rebuild.RebuildErrorCode
 import com.dynokore.platform.serviceruntime.rebuild.RebuildOutcome
 import com.dynokore.platform.serviceruntime.rebuild.ReplicaColdStartSync
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.SqlErrors
@@ -78,7 +79,10 @@ class ReplicaColdStartWiringTest {
             .withBean(OutboxWriter::class.java, { mockk<OutboxWriter>() })
             .withBean(AuditWriter::class.java, { mockk<AuditWriter>() })
             .withBean(EventLogHead::class.java, { mockk<EventLogHead>() })
-            .withBean(AuthorityReplica::class.java, { AuthorityReplica(Clock.systemUTC()) })
+            .withBean(
+                AuthorityReplica::class.java,
+                { AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }) },
+            )
 
     private val base =
         withoutSubscription.withBean(
@@ -115,8 +119,10 @@ class ReplicaColdStartWiringTest {
             .withBean(OutboxWriter::class.java, { mockk<OutboxWriter>() })
             .withBean(AuditWriter::class.java, { mockk<AuditWriter>() })
             .withBean(EventLogReader::class.java, { mockk<EventLogReader>() })
-            .withBean(AuthorityReplica::class.java, { AuthorityReplica(Clock.systemUTC()) })
-            .withBean("subscription", ConsumerSubscription::class.java, { subscription() })
+            .withBean(
+                AuthorityReplica::class.java,
+                { AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }) },
+            ).withBean("subscription", ConsumerSubscription::class.java, { subscription() })
             .run { context ->
                 context.startupFailure shouldBe null
                 context.count(EventLogHead::class.java) shouldBe 0
@@ -164,7 +170,16 @@ class ReplicaColdStartWiringTest {
 
     @Test
     fun `a service's own sync keeps the field and no second sync is defined`() {
-        val own = ReplicaColdStartSync(mockk<ConsumerRebuildRuntime>(), AuthorityReplica(Clock.systemUTC()))
+        val own =
+            ReplicaColdStartSync(
+                mockk<ConsumerRebuildRuntime>(),
+                AuthorityReplica(
+                    Clock.systemUTC(),
+                    OperationRoleMap {
+                        emptyMap()
+                    },
+                ),
+            )
         base.withBean("ownSync", ReplicaColdStartSync::class.java, { own }).run { context ->
             context.startupFailure shouldBe null
             context.count(ReplicaColdStartSync::class.java) shouldBe 1
@@ -228,8 +243,10 @@ class ReplicaColdStartWiringTest {
         .withBean(OutboxWriter::class.java, { mockk<OutboxWriter>() })
         .withBean(AuditWriter::class.java, { mockk<AuditWriter>() })
         .withBean(EventLogHead::class.java, { mockk<EventLogHead>() })
-        .withBean(AuthorityReplica::class.java, { AuthorityReplica(Clock.systemUTC()) })
-        .let { r ->
+        .withBean(
+            AuthorityReplica::class.java,
+            { AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }) },
+        ).let { r ->
             if (withReplica) r.withBean(StructureReplica::class.java, { StructureReplica(Clock.systemUTC()) }) else r
         }.let { r ->
             subscribed.fold(r) { acc, t ->
@@ -288,8 +305,10 @@ class ReplicaColdStartWiringTest {
         ApplicationContextRunner()
             .withUserConfiguration(ReplicaColdStartWiring::class.java)
             .withBean(ConsumerRebuildRuntime::class.java, { mockk<ConsumerRebuildRuntime>() })
-            .withBean(AuthorityReplica::class.java, { AuthorityReplica(Clock.systemUTC()) })
-            .withBean(EventCatalogue::class.java, { EventCatalogue(listOf(entry(orgTopic, "tenancy-svc"))) })
+            .withBean(
+                AuthorityReplica::class.java,
+                { AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }) },
+            ).withBean(EventCatalogue::class.java, { EventCatalogue(listOf(entry(orgTopic, "tenancy-svc"))) })
             .withBean("sub", ConsumerSubscription::class.java, { ConsumerSubscription("svc", orgTopic, "svc") })
             .withPropertyValues("$requireSetting=true", "$topicsSetting=$orgTopic")
             .run { it.startupFailure.toString() shouldContain requireSetting }

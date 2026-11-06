@@ -11,9 +11,11 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.ConsentScopeItem
 import com.dynokore.platform.serviceruntime.replica.ConsentState
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantId
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
@@ -49,7 +51,13 @@ class JwtEndUserPrincipalResolverTest {
     private val issuer = "https://id.test/realms/inv"
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
     private val keys: KeyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
-    private val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
+    private val replica =
+        AuthorityReplica(
+            Clock.systemUTC(),
+            OperationRoleMap {
+                emptyMap()
+            },
+        ).also { it.onSnapshotComplete(0) }
     private val decoder =
         NimbusJwtDecoder.withPublicKey(keys.public as RSAPublicKey).build().apply {
             setJwtValidator(
@@ -57,7 +65,7 @@ class JwtEndUserPrincipalResolverTest {
             )
         }
     private val resolver = JwtEndUserPrincipalResolver(decoder, replica)
-    private val grant = Grant("approve", ScopeLevel.ENTITY, "e1", Instant.now().minusSeconds(60))
+    private val grant = RoleGrant("approver", GrantScope.ENTITY, "e1", Instant.now().minusSeconds(60))
 
     private fun token(
         tenantClaim: String? = tenant.toString(),
@@ -109,8 +117,9 @@ class JwtEndUserPrincipalResolverTest {
     private fun grantOn(
         v: Long,
         entity: String,
-        grants: List<Grant> = listOf(grant),
-    ) = publish(v, AuthorityRecord.GrantRecord(entity, grants))
+        held: RoleGrant = grant,
+        state: RoleGrantState = RoleGrantState.ACTIVE,
+    ) = publish(v, AuthorityRecord.RoleGrantRecord("g-$entity", state, held.copy(scopeRef = entity)))
 
     @Test
     fun `actor from sub, tenant from tenant_id, entity set from the replica's grants`() {
@@ -131,7 +140,7 @@ class JwtEndUserPrincipalResolverTest {
         grantOn(1, "e1")
         grantOn(2, "e2")
         resolver.resolve(token())?.entities shouldBe setOf(EntityRef("e1"), EntityRef("e2"))
-        grantOn(3, "e2", emptyList())
+        grantOn(3, "e2", state = RoleGrantState.REMOVED)
         resolver.resolve(token())?.entities shouldBe setOf(EntityRef("e1"))
         publish(4, AuthorityRecord.PrincipalRecord(PrincipalState.REVOKED))
         resolver.resolve(token())?.entities shouldBe emptySet()
@@ -141,9 +150,9 @@ class JwtEndUserPrincipalResolverTest {
 
     @Test
     fun `expired, unknown-scope and consent grants without a live consent are not held`() {
-        grantOn(1, "e1", listOf(grant.copy(validUntil = Instant.now().minusSeconds(1))))
-        grantOn(2, "e2", listOf(grant.copy(scopeLevel = ScopeLevel.UNKNOWN)))
-        grantOn(3, "e3", listOf(grant.copy(scopeLevel = ScopeLevel.CONSENT)))
+        grantOn(1, "e1", grant.copy(validUntil = Instant.now().minusSeconds(1)))
+        grantOn(2, "e2", grant.copy(scope = GrantScope.UNKNOWN))
+        grantOn(3, "e3", grant.copy(scope = GrantScope.CONSENT))
         resolver.resolve(token())?.entities shouldBe emptySet()
         val live = setOf(ConsentScopeItem.SUBMIT_INVOICE_DATA)
         publish(4, AuthorityRecord.ConsentRecord("e3", ConsentState.LIVE, live, Instant.now().minusSeconds(60)))
@@ -152,7 +161,8 @@ class JwtEndUserPrincipalResolverTest {
 
     @Test
     fun `with no authority version received the entity set is not current, never an empty set to refuse on`() {
-        val cold = JwtEndUserPrincipalResolver(decoder, AuthorityReplica(Clock.systemUTC()))
+        val cold =
+            JwtEndUserPrincipalResolver(decoder, AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }))
         cold.resolve(token()) shouldBe EndUserPrincipal("p1", tenant, emptySet(), entitySetCurrent = false)
         grantOn(1, "e1")
         resolver.resolve(token())?.entitySetCurrent shouldBe true

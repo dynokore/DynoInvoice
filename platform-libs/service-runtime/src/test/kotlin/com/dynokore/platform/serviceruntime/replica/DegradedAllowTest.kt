@@ -19,7 +19,10 @@ class DegradedAllowTest {
     private fun replica(
         marked: DegradedAllowTable = table,
         entityOfTenant: (TenantId, String) -> Boolean = { _, _ -> false },
-    ) = AuthorityReplica(clock, degradedAllow = marked, entityOfTenant = entityOfTenant, observer = { seen += it })
+    ) = AuthorityReplica(clock, TEST_ROLES, degradedAllow = marked, entityOfTenant = entityOfTenant, observer = {
+        seen +=
+            it
+    })
 
     private fun key(
         template: String = "/v1/transactions",
@@ -88,7 +91,7 @@ class DegradedAllowTest {
     @Test
     fun `an empty table denies every machine case`() {
         ask(replica = replica(DegradedAllowTable.EMPTY)) shouldBe denied
-        ask(replica = AuthorityReplica(clock)) shouldBe denied
+        ask(replica = AuthorityReplica(clock, TEST_ROLES)) shouldBe denied
     }
 
     @Test

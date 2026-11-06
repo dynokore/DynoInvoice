@@ -65,3 +65,23 @@ class FakeFeed<E>(
 
     fun drop() = sink.onDisconnected()
 }
+
+/**
+ * A fixture operation-to-roles map (INV-Q-8972 A): `approve` is held by `approver` (PERMITTED) and `reviewer`
+ * (WITHIN_SCOPE), `delete` by `admin`; every other key is unknown and lists nothing. The role names are test data.
+ */
+val TEST_ROLES =
+    OperationRoleMap { key ->
+        when (key) {
+            "approve" -> mapOf("approver" to CellAllowance.PERMITTED, "reviewer" to CellAllowance.WITHIN_SCOPE)
+            "delete" -> mapOf("admin" to CellAllowance.PERMITTED)
+            else -> emptyMap()
+        }
+    }
+
+/** An ACTIVE role grant record of grant [ref] for [grant]. */
+fun roleGrantRecord(
+    ref: String,
+    grant: RoleGrant,
+    state: RoleGrantState = RoleGrantState.ACTIVE,
+) = AuthorityRecord.RoleGrantRecord(ref, state, grant)

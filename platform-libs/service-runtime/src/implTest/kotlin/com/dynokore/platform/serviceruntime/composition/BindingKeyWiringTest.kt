@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.binding.FakeSecretStore
 import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.binding.SecretStoreBindingKeySource
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -168,6 +169,7 @@ class BindingKeyWiringTest {
             ).withBean(MeterRegistry::class.java, {
                 SimpleMeterRegistry()
             })
+            .withBean(OperationRoleMap::class.java, { OperationRoleMap { emptyMap() } })
             .withPropertyValues("service-runtime.workload-identity.audience=canonical-svc")
 
     @Test

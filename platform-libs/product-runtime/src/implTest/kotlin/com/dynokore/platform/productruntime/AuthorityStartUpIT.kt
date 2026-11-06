@@ -34,6 +34,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.DecisionSource
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.Lag
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
@@ -113,7 +114,7 @@ class AuthorityStartUpIT {
                 OutboxPostgresFixture.serviceInitSql(SCHEMA) + OutboxPostgresFixture.eventLogInitSql(CATALOGUE),
             )
         val access = StubAccess()
-        val replica = AuthorityReplica(clock, fallback = access)
+        val replica = AuthorityReplica(clock, OperationRoleMap { emptyMap() }, fallback = access)
         private val tenants = TenantContextImpl()
         private val runner = TransactionRunnerImpl(fixture.runtimePool(), tenants, null, SigningFixture.keys())
         private val scope = TenantScope(tenants, runner, runner, OutboxPostgresFixture.WORKLOAD)

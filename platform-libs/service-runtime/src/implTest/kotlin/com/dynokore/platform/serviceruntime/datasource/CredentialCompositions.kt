@@ -7,6 +7,7 @@ import com.dynokore.platform.serviceruntime.composition.DefaultServiceSchema
 import com.dynokore.platform.serviceruntime.composition.StandInProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.composition.platform
 import com.dynokore.platform.serviceruntime.composition.sorted
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.zaxxer.hikari.HikariDataSource
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -119,6 +120,8 @@ fun isPoolClosed(pool: DataSource): Boolean = (pool as HikariDataSource).isClose
  */
 fun ApplicationContextRunner.withBindingKey(): ApplicationContextRunner =
     withBean(InstallationBindingKey::class.java, { InstallationBindingKey(SigningFixture.keys()) })
+        // the operation-to-roles map product-runtime binds (INV-Q-8972 A); the authority replica bean needs one
+        .withBean(OperationRoleMap::class.java, { OperationRoleMap { emptyMap() } })
 
 /** The same key for a context started by `SpringApplicationBuilder`: `builder.initializers(bindingKeyInitializer)`. */
 val bindingKeyInitializer: ApplicationContextInitializer<ConfigurableApplicationContext> =

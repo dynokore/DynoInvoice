@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-11-06
+### Added
+- `GstOperationRoleMap` and the `operationRoleMap` bean (INV-T-9233, INV-Q-8972 A): service-runtime's `OperationRoleMap` over the generated `OperationRoles` of the gst-catalogue, for the deployment form `gst.form`.
+### Changed
+- `AuthorityFeedHandler` decodes `roleGrantRecord` to `AuthorityRecord.RoleGrantRecord` and a legacy `grantRecord` to `AuthorityRecord.LegacyGrant`; the `authority-events` type is generated from `service-runtime/schemas/authority-changed-payload.schema.json` (was `access/`). Compiles against `service-runtime 11.0.0`.
+
 ## [2.12.0] - 2026-11-06
 ### Added
 - `PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED` (`gst.platform.authority-head-observed.v1`, type `com.dynokore.gst.platform.AuthorityHeadObserved.v1`), in `ALL` (INV-Q-17070 B, INV-REQ-1226, INV-AC-17082, INV-T-17086).

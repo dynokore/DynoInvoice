@@ -16,11 +16,21 @@ class TenantDecisionTest {
     private val clock = MutableClock()
     private val access =
         FakeFallback<AuthorizationRequest, AuthorityVerdict> { FallbackResult.Found(AuthorityVerdict(true)) }
-    private val replica = AuthorityReplica(clock, fallback = access)
-    private val feed = FakeFeed(replica)
     private val key = "privacy-request.handle"
+
+    // the fixture lists one role for the key, and another role for a second key (a role the action does not list)
+    private val roles =
+        OperationRoleMap {
+            when (it) {
+                key -> mapOf("officer" to CellAllowance.PERMITTED)
+                "privacy-request.close" -> mapOf("closer" to CellAllowance.PERMITTED)
+                else -> emptyMap()
+            }
+        }
+    private val replica = AuthorityReplica(clock, roles, fallback = access)
+    private val feed = FakeFeed(replica)
     private val from = clock.instant().minusSeconds(60)
-    private val tenantGrant = Grant(key, ScopeLevel.TENANT, "a", from)
+    private val tenantGrant = RoleGrant("officer", GrantScope.TENANT, TENANT_A.toString(), from)
     private val granted = AuthorityDecision(true, DecisionSource.LOCAL, DecisionReason.GRANTED)
     private val noGrant = AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.NO_GRANT)
     private val unavailable = AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
@@ -43,9 +53,10 @@ class TenantDecisionTest {
 
     private fun give(
         v: Long,
-        vararg grants: Grant,
-        entity: String = "e1",
-    ) = feed.publish(AuthorityChanged(TENANT_A, "p1", v, AuthorityRecord.GrantRecord(entity, grants.toList())))
+        grant: RoleGrant,
+        ref: String = "g1",
+        state: RoleGrantState = RoleGrantState.ACTIVE,
+    ) = feed.publish(AuthorityChanged(TENANT_A, "p1", v, roleGrantRecord(ref, grant, state)))
 
     @Test
     fun `INV-AC-11706 a TENANT grant of the key gives GRANTED local`() {
@@ -62,9 +73,12 @@ class TenantDecisionTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = ScopeLevel::class, names = ["GROUP", "ENTITY", "ENTITY_PERIOD", "CONSENT", "UNKNOWN"])
-    fun `INV-AC-11706 a grant at another scope level gives NO_GRANT`(level: ScopeLevel) {
-        give(1, tenantGrant.copy(scopeLevel = level))
+    @EnumSource(
+        value = GrantScope::class,
+        names = ["GROUP", "ENTITY", "ENTITY_PERIOD", "CONSENT", "CLIENT_ENTITY", "INSTALLATION", "UNKNOWN"],
+    )
+    fun `INV-AC-11706 a grant at another scope level gives NO_GRANT`(level: GrantScope) {
+        give(1, tenantGrant.copy(scope = level))
         feed.publish(
             AuthorityChanged(
                 TENANT_A,
@@ -83,7 +97,7 @@ class TenantDecisionTest {
 
     @Test
     fun `INV-AC-11706 a wire scope level TENANTS gives NO_GRANT`() {
-        give(1, tenantGrant.copy(scopeLevel = ScopeLevel.of("TENANTS")))
+        give(1, tenantGrant.copy(scope = GrantScope.of("TENANTS")))
         ask() shouldBe noGrant
     }
 
@@ -94,8 +108,8 @@ class TenantDecisionTest {
     }
 
     @Test
-    fun `INV-AC-11706 a TENANT grant of another action gives NO_GRANT`() {
-        give(1, tenantGrant.copy(action = "privacy-request.close"))
+    fun `INV-AC-11706 a TENANT grant of a role the action does not list gives NO_GRANT`() {
+        give(1, tenantGrant.copy(role = "closer"))
         ask() shouldBe noGrant
     }
 
@@ -118,16 +132,16 @@ class TenantDecisionTest {
 
     @Test
     fun `INV-AC-11706 a voided record does not hide a live TENANT grant in a newer record`() {
-        give(1, tenantGrant, entity = "e1")
+        give(1, tenantGrant, ref = "g1")
         feed.publish(AuthorityChanged(TENANT_A, "p1", 2, AuthorityRecord.PrincipalRecord(PrincipalState.REVOKED)))
-        give(3, tenantGrant, entity = "e2")
+        give(3, tenantGrant, ref = "g2")
         ask() shouldBe granted
     }
 
     @Test
-    fun `INV-AC-11706 a record replaced by one with no grants gives NO_GRANT`() {
+    fun `INV-AC-11706 a grant removed by a REMOVED record gives NO_GRANT`() {
         give(1, tenantGrant)
-        give(2)
+        give(2, tenantGrant, state = RoleGrantState.REMOVED)
         ask() shouldBe noGrant
     }
 
@@ -153,7 +167,7 @@ class TenantDecisionTest {
     @ParameterizedTest
     @EnumSource(PrincipalKind::class)
     fun `INV-AC-11706 no version received yet gives AUTHORITY_UNAVAILABLE and no fallback call`(kind: PrincipalKind) {
-        val cold = AuthorityReplica(clock, fallback = access)
+        val cold = AuthorityReplica(clock, roles, fallback = access)
         cold.decideTenant(TENANT_A, principal(kind), key) shouldBe unavailable
         access.calls shouldBe 0
     }
@@ -181,7 +195,6 @@ class TenantDecisionTest {
                 "decideTenant",
                 "getBreakGlassSessions",
                 "getConsents",
-                "getGrants",
                 "getKeySets",
                 "getLagBound",
                 "getMachineAccessKeys",

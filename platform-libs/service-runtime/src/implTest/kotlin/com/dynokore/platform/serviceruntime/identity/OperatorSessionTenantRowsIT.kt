@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.identity
 
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
@@ -76,7 +77,11 @@ class OperatorSessionTenantRowsIT {
 
     private fun operatorPrincipal(): EndUserPrincipal {
         val keys = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
-        val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
+        val replica =
+            AuthorityReplica(
+                Clock.systemUTC(),
+                OperationRoleMap { emptyMap() },
+            ).also { it.onSnapshotComplete(0) }
         val now = Instant.now()
         val key =
             OperatorSessionKey(

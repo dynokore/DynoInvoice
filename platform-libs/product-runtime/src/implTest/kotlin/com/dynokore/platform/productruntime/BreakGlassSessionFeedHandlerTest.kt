@@ -9,6 +9,7 @@ import com.dynokore.platform.productruntime.Fixtures.envelope
 import com.dynokore.platform.productruntime.feed.BreakGlassSessionFeedHandler
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.BreakGlassStatus
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -17,7 +18,7 @@ import org.junit.jupiter.api.assertThrows
 
 /** INV-T-9311: BreakGlassSessionChanged feeds the break-glass session replica (INV-Q-9119 A). */
 class BreakGlassSessionFeedHandlerTest {
-    private val replica = AuthorityReplica(CLOCK)
+    private val replica = AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })
     private val handler = BreakGlassSessionFeedHandler(replica)
     private val type = PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.eventType
 

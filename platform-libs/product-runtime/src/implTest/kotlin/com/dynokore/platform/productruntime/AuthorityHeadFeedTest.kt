@@ -7,6 +7,7 @@ import com.dynokore.platform.productruntime.Fixtures.envelope
 import com.dynokore.platform.productruntime.feed.AuthorityHeadFeed
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.Lag
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.assertThrows
 
 /** INV-T-9059: AuthorityHeadObserved feeds the replica head from the generated payload type (INV-Q-13597 A). */
 class AuthorityHeadFeedTest {
-    private val replica = AuthorityReplica(CLOCK)
+    private val replica = AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })
     private val feed = AuthorityHeadFeed(replica)
     private val head = PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.eventType
 

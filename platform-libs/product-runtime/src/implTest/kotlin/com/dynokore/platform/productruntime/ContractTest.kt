@@ -2,8 +2,7 @@ package com.dynokore.platform.productruntime
 
 import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayload
 import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadConsentRecord
-import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadGrantRecord
-import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadGrantRecordGrantsInner
+import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadRoleGrantRecord
 import com.dynokore.gst.productRuntimePolicyEvents.adapters.events.model.PolicyChangedPayload
 import com.dynokore.gst.productRuntimeProfileEvents.adapters.events.model.EntityProfileChangedPayload
 import com.dynokore.gst.productRuntimeProfileEvents.adapters.events.model.EntityProfileChangedPayloadChangedAttributesInner
@@ -24,6 +23,7 @@ import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.events.PlatformEventTypes
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import io.kotest.matchers.collections.shouldContainAll
@@ -171,8 +171,8 @@ class ContractTest {
     fun `AuthorityChanged built from its generated types meets the schema and feeds the replica`() {
         val grant = grantPayload()
         val consent = consentPayload()
-        val schema = schema("access", "authority-changed-payload.schema.json")
-        val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK))
+        val schema = schema("service-runtime", "authority-changed-payload.schema.json")
+        val handler = AuthorityFeedHandler(AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() }))
         listOf(grant, consent).forEach { payload ->
             val json = tree(payload)
             conforms(json, schema)
@@ -186,20 +186,17 @@ class ContractTest {
 
     private fun grantPayload() =
         AuthorityChangedPayload(
-            changeKind = AuthorityChangedPayload.ChangeKind.GRANT,
+            changeKind = AuthorityChangedPayload.ChangeKind.ROLE_GRANT,
             principalRef = "P-1",
             authorityVersion = 4,
-            grantRecord =
-                AuthorityChangedPayloadGrantRecord(
-                    "E-001",
-                    listOf(
-                        AuthorityChangedPayloadGrantRecordGrantsInner(
-                            action = "document.read",
-                            scopeLevel = AuthorityChangedPayloadGrantRecordGrantsInner.ScopeLevel.ENTITY,
-                            scopeRef = "E-001",
-                            validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
-                        ),
-                    ),
+            roleGrantRecord =
+                AuthorityChangedPayloadRoleGrantRecord(
+                    grantRef = "GRT-1",
+                    role = "tenant.admin",
+                    state = AuthorityChangedPayloadRoleGrantRecord.State.ACTIVE,
+                    scopeLevel = AuthorityChangedPayloadRoleGrantRecord.ScopeLevel.ENTITY,
+                    validFrom = OffsetDateTime.parse("2026-10-01T00:00:00Z"),
+                    scopeRef = "E-001",
                 ),
         )
 

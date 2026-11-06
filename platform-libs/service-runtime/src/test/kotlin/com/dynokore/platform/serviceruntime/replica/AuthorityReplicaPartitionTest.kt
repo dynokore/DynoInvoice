@@ -8,9 +8,9 @@ import java.util.UUID
 /** INV-AC-9052, INV-Q-9049 A: the entity set and the stateless tombstone touch one (tenant, principal) only. */
 class AuthorityReplicaPartitionTest {
     private val clock = MutableClock()
-    private val replica = AuthorityReplica(clock)
+    private val replica = AuthorityReplica(clock, TEST_ROLES)
     private val feed = FakeFeed(replica)
-    private val valid = Grant("approve", ScopeLevel.ENTITY, "x", clock.instant().minusSeconds(60))
+    private val valid = RoleGrant("approver", GrantScope.ENTITY, "x", clock.instant().minusSeconds(60))
     private val expired = valid.copy(validUntil = clock.instant().minusSeconds(1))
 
     private fun tenant(n: Int) = TenantId(UUID(0, n.toLong() + 1000))
@@ -26,18 +26,11 @@ class AuthorityReplicaPartitionTest {
         for (t in 0 until tenants) {
             val tenant = tenant(t)
             for (i in 0 until perTenant) {
-                val key =
-                    AuthorityKey(
-                        tenant,
-                        principals[i / entities.size % principals.size],
-                        entities[
-                            i %
-                                entities.size,
-                        ],
-                    )
-                replica.grants.apply(
-                    ReplicaChange.Upsert(key, GrantState(listOf(valid), version), version++),
+                val key = RoleGrantKey(tenant, principals[i / entities.size % principals.size], "g$i")
+                replica.roleGrants.apply(
+                    ReplicaChange.Upsert(key, valid.copy(scopeRef = entities[i % entities.size]), version),
                 )
+                version++
             }
         }
     }
@@ -49,9 +42,9 @@ class AuthorityReplicaPartitionTest {
         expiredCount: Int,
     ) {
         for (i in 0 until count) {
-            val grants = listOf(if (i < expiredCount) expired else valid)
-            val key = AuthorityKey(tenant, principal, "t$i")
-            replica.grants.apply(ReplicaChange.Upsert(key, GrantState(grants, 5_000_000L + i), 5_000_000L + i))
+            val grant = (if (i < expiredCount) expired else valid).copy(scopeRef = "t$i")
+            val key = RoleGrantKey(tenant, principal, "t$i")
+            replica.roleGrants.apply(ReplicaChange.Upsert(key, grant, 5_000_000L + i))
         }
     }
 
@@ -62,29 +55,26 @@ class AuthorityReplicaPartitionTest {
         target(tenant, "alice", 50, 5)
         target(tenant, "alice2", 3, 0)
         target(tenant(8), "alice", 4, 0)
-        val before = replica.grants.heldWhere { true }
+        val before = replica.roleGrants.heldWhere { true }
 
-        var visits = replica.grants.visitCount
+        var visits = replica.roleGrants.visitCount
         replica.heldEntities(tenant, "alice") shouldBe (5 until 50).map { "t$it" }.toSet()
-        replica.grants.visitCount - visits shouldBe 50
+        replica.roleGrants.visitCount - visits shouldBe 50
 
-        visits = replica.grants.visitCount
+        visits = replica.roleGrants.visitCount
         feed.publish(AuthorityChanged(tenant, "alice", 6_000_000L, null))
-        replica.grants.visitCount - visits shouldBe 50
+        // the role book reads the principal's partition once for the tombstone entries and once to tombstone: 2 x 50
+        replica.roleGrants.visitCount - visits shouldBe 100
 
-        val after = replica.grants.heldWhere { true }
+        val after = replica.roleGrants.heldWhere { true }
         after.size shouldBe before.size - 50
         after shouldBe before.filterKeys { !(it.tenant == tenant && it.principalId == "alice") }
         replica.heldEntities(tenant, "alice") shouldBe emptySet()
         replica.heldEntities(tenant, "alice2").size shouldBe 3
         replica.heldEntities(tenant(8), "alice").size shouldBe 4
         // versions are kept: an older redelivery stays out
-        replica.grants.apply(
-            ReplicaChange.Upsert(
-                AuthorityKey(tenant, "alice", "t10"),
-                GrantState(listOf(valid), 5_000_010L),
-                5_000_010L,
-            ),
+        replica.roleGrants.apply(
+            ReplicaChange.Upsert(RoleGrantKey(tenant, "alice", "t10"), valid.copy(scopeRef = "t10"), 5_000_010L),
         )
         replica.heldEntities(tenant, "alice") shouldBe emptySet()
     }

@@ -19,6 +19,7 @@ import com.dynokore.platform.outboxandqueue.ReplayScope
 import com.dynokore.platform.outboxandqueue.ReplayTopic
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.serviceruntime.testing.TestDatabase
 import com.dynokore.platform.tenancyjooq.TableClass
@@ -118,7 +119,7 @@ class ReplicaColdStartSyncIT {
     @ValueSource(strings = ["postgres:17", "postgres:18"])
     fun `a measured lag, or a service that does not subscribe to the topic, writes nothing`(image: String) {
         Harness(image).use { h ->
-            val measured = AuthorityReplica(Clock.systemUTC())
+            val measured = AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() })
             measured.tracker.onSnapshotComplete(1)
             measured.tracker.observeHead(1)
             assertNull(h.coldStart(replica = measured).sync())
@@ -270,7 +271,13 @@ class ReplicaColdStartSyncIT {
         image: String,
     ) {
         Harness(image).use { h ->
-            val measured = AuthorityReplica(Clock.systemUTC()).also { it.tracker.onSnapshotComplete(1) }
+            val measured =
+                AuthorityReplica(
+                    Clock.systemUTC(),
+                    OperationRoleMap {
+                        emptyMap()
+                    },
+                ).also { it.tracker.onSnapshotComplete(1) }
             val sync = h.coldStart(replica = measured, require = true)
             // INV-Q-13786 A: one FULL_SYNC per (consumer, producer); it moves both topics under one replay id
             val done = sync.syncStructure().single() as RebuildOutcome.Done
@@ -411,7 +418,7 @@ class ReplicaColdStartSyncIT {
         )
 
         fun coldStart(
-            replica: AuthorityReplica = AuthorityReplica(Clock.systemUTC()),
+            replica: AuthorityReplica = AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() }),
             subscribed: Boolean = true,
             clears: List<ReadModelClear>? = null,
             interval: Duration = ReplicaColdStartSync.DEFAULT_RECHECK_INTERVAL,

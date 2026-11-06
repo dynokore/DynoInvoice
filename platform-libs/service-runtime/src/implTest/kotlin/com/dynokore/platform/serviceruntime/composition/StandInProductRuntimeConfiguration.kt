@@ -4,7 +4,9 @@ import com.dynokore.platform.configresolver.DelegationProbe
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.configresolver.VariationPointDefinition
 import com.dynokore.platform.configresolver.VariationPointKey
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import org.springframework.boot.autoconfigure.AutoConfiguration
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import java.util.concurrent.CopyOnWriteArrayList
@@ -24,6 +26,11 @@ import java.util.concurrent.CopyOnWriteArrayList
 class StandInProductRuntimeConfiguration {
     @Bean
     fun gstVariationPointCatalogue(): RecordingCatalogue = RecordingCatalogue()
+
+    /** The operation-to-roles map product-runtime binds to the generated matrix (INV-Q-8972 A); here it lists nothing. */
+    @Bean
+    @ConditionalOnMissingBean
+    fun operationRoleMap(): OperationRoleMap = OperationRoleMap { emptyMap() }
 
     @Bean
     @ConditionalOnProperty(name = [DELEGATION_PROBE], matchIfMissing = true)

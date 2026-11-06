@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
 import com.dynokore.platform.serviceruntime.replica.OperationKey
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
@@ -64,7 +65,7 @@ class MachineTokenFilterTest {
     private val machineKeys = rsa()
     private val operatorKeys = rsa()
     private val now = Instant.now()
-    private val replica = AuthorityReplica(Clock.systemUTC())
+    private val replica = AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() })
     private val resolverCalls = AtomicInteger()
     private val handled = AtomicInteger()
     private val seen = mutableListOf<Principal?>()

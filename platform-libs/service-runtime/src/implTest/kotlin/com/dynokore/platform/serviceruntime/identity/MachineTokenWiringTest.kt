@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.Lag
 import com.dynokore.platform.serviceruntime.replica.Lookup
 import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.StructureChange
@@ -48,7 +49,7 @@ class MachineTokenWiringTest {
             .withClassLoader(URLClassLoader(arrayOf(dir.toUri().toURL()), javaClass.classLoader))
             .withBean(Clock::class.java, { clock })
             .withBean(StructureReplica::class.java, { structure })
-            .withBean(AuthorityReplica::class.java, { AuthorityReplica(clock) })
+            .withBean(AuthorityReplica::class.java, { AuthorityReplica(clock, OperationRoleMap { emptyMap() }) })
             .withBean(BreakGlassSessionView::class.java, { BreakGlassSessionView { _, _, _ -> null } })
             .withBean(TenantContextImpl::class.java, { TenantContextImpl() })
             .withConfiguration(AutoConfigurations.of(EndUserIdentityAutoConfiguration::class.java))

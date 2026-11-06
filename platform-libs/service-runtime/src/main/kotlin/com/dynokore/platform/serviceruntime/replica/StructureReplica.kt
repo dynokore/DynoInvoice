@@ -151,6 +151,7 @@ class StructureReplica(
             lagBound = null,
             fallback = fallback,
             versionOf = StructureNode::structureVersion,
+            partitionOf = { it.tenant },
         )
 
     fun node(
@@ -158,6 +159,54 @@ class StructureReplica(
         nodeRef: String,
         deadline: Deadline,
     ): Lookup<StructureNode> = replica.get(StructureKey(tenant, nodeRef), deadline)
+
+    /**
+     * The entities of [tenant] held now (nodes of kind ENTITY that are not `retired`), by ref, read from the tenant's
+     * partition only, so other tenants' nodes are not visited (the replica's visit counter counts the tenant's nodes).
+     * No fallback call: a node not held is absent.
+     */
+    fun entitiesOf(tenant: TenantId): Map<String, StructureNode> =
+        replica
+            .heldIn(tenant)
+            .entries
+            .filter { it.value.kind == StructureNodeKind.ENTITY && !it.value.retired }
+            .associate { it.key.nodeRef to it.value }
+
+    /**
+     * The entities of [tenant] (as [entitiesOf]) that sit under one of [groups], following `parentRef` at most
+     * [maxSteps] steps; a longer chain or a loop gives no group for that entity.
+     */
+    internal fun entitiesIn(
+        tenant: TenantId,
+        groups: Set<String>,
+        maxSteps: Int,
+    ): Set<String> {
+        val nodes = replica.heldIn(tenant).entries.associate { it.key.nodeRef to it.value }
+        return nodes
+            .filterValues { it.kind == StructureNodeKind.ENTITY && !it.retired }
+            .keys
+            .filterTo(mutableSetOf()) { ref -> underGroup(nodes, ref, groups, maxSteps) }
+    }
+
+    private fun underGroup(
+        nodes: Map<String, StructureNode>,
+        entity: String,
+        groups: Set<String>,
+        maxSteps: Int,
+    ): Boolean {
+        val seen = mutableSetOf(entity)
+        var parent = nodes[entity]?.parentRef
+        var steps = 0
+        var found = false
+        while (!found && parent != null && steps < maxSteps) {
+            if (!seen.add(parent)) break
+            val node = nodes[parent]
+            found = node?.kind == StructureNodeKind.GROUP && parent in groups
+            parent = node?.parentRef
+            steps++
+        }
+        return found
+    }
 
     override fun accept(event: StructureEvent) {
         val node = event.node

@@ -4,6 +4,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionChanged
 import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.ReplicaAutoConfiguration
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContextImpl
@@ -88,7 +89,7 @@ class BreakGlassWiringTest {
                     ReplicaAutoConfiguration::class.java,
                     EndUserIdentityAutoConfiguration::class.java,
                 ),
-            ).withBean(AuthorityReplica::class.java, { AuthorityReplica(clock) })
+            ).withBean(AuthorityReplica::class.java, { AuthorityReplica(clock, OperationRoleMap { emptyMap() }) })
             .run { context ->
                 context.startupFailure shouldBe null
                 val authority = context.getBean(AuthorityReplica::class.java)
@@ -115,7 +116,7 @@ class BreakGlassWiringTest {
                     ReplicaAutoConfiguration::class.java,
                     EndUserIdentityAutoConfiguration::class.java,
                 ),
-            ).withBean(AuthorityReplica::class.java, { AuthorityReplica(clock) })
+            ).withBean(AuthorityReplica::class.java, { AuthorityReplica(clock, OperationRoleMap { emptyMap() }) })
             .withBean(BreakGlassSessionView::class.java, { own })
             .run { context ->
                 context.startupFailure shouldBe null
@@ -131,7 +132,7 @@ class BreakGlassWiringTest {
     ) {
         runner(dir)
             .withConfiguration(AutoConfigurations.of(EndUserIdentityAutoConfiguration::class.java))
-            .withBean(AuthorityReplica::class.java, { AuthorityReplica(clock) })
+            .withBean(AuthorityReplica::class.java, { AuthorityReplica(clock, OperationRoleMap { emptyMap() }) })
             .run { context -> context.startupFailure.shouldNotBeNull() }
     }
 }

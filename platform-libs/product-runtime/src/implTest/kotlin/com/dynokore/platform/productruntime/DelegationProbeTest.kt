@@ -11,6 +11,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.ConsentScopeItem
 import com.dynokore.platform.serviceruntime.replica.ConsentState
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -26,7 +27,7 @@ class DelegationProbeTest {
         from: String,
         until: String?,
     ): AuthorityReplica =
-        AuthorityReplica(CLOCK).apply {
+        AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() }).apply {
             val consent =
                 AuthorityRecord.ConsentRecord(
                     "E-001",
@@ -71,13 +72,13 @@ class DelegationProbeTest {
     @Test
     fun `a client-entity scope answers delegated`() {
         val client = SettingTarget(TENANT, ScopeRef(ScopeLevel.CLIENT_ENTITY, "C-1"), "E-001")
-        probe(AuthorityReplica(CLOCK)).isDelegated(client, day) shouldBe true
+        probe(AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })).isDelegated(client, day) shouldBe true
     }
 
     @Test
     fun `an unavailable replica answers delegated`() {
         // No snapshot yet: the lag is unknown, so the replica cannot say.
-        probe(AuthorityReplica(CLOCK)).isDelegated(entity, day) shouldBe true
+        probe(AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })).isDelegated(entity, day) shouldBe true
     }
 
     @Test

@@ -11,16 +11,19 @@ import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.configresolver.VpStatus
 import com.dynokore.platform.productruntime.Fixtures.CLOCK
 import com.dynokore.platform.productruntime.Fixtures.TENANT
+import com.dynokore.platform.productruntime.catalogue.GstOperationRoleMap
 import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.productruntime.feed.BreakGlassSessionFeedHandler
 import com.dynokore.platform.productruntime.feed.PolicyFeed
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.binding.InstallationBindingKey
 import com.dynokore.platform.serviceruntime.events.PlatformEventTypes
 import com.dynokore.platform.serviceruntime.replica.AuthorityFallback
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.StructureFallback
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -43,6 +46,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -51,16 +55,37 @@ import org.springframework.web.client.RestClient
 import java.time.LocalDate
 import java.util.UUID
 
+@EnableConfigurationProperties(GstProperties::class)
+private class GstPropertiesConfig
+
 /** INV-T-2876: ProductRuntimeConfiguration (TPL-18) wires the bindings, and config-resolver over them under TPL-18. */
 class WiringTest {
-    private val runner =
+    private val runner = runnerFor("SAAS")
+
+    private fun runnerFor(form: String) =
         ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(ProductRuntimeConfiguration::class.java))
             .withBean(StructureReplica::class.java, { StructureReplica(CLOCK) })
-            .withBean(AuthorityReplica::class.java, { AuthorityReplica(CLOCK) })
+            .withBean(AuthorityReplica::class.java, { AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() }) })
             .withBean(PolicyReplica::class.java, { PolicyReplica(CLOCK) })
+            .withUserConfiguration(GstPropertiesConfig::class.java)
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
-            .withPropertyValues("gst.service=submission-svc")
+            .withPropertyValues("gst.service=submission-svc", "gst.form=$form")
+
+    @Test
+    fun `the operationRoleMap bean answers from the generated matrix of the gst form`() {
+        runner.run { context ->
+            val saas = context.getBean(OperationRoleMap::class.java)
+            saas.shouldBeInstanceOf<GstOperationRoleMap>()
+            saas.rolesFor("retention.delete.request").containsKey("deployment.operator") shouldBe false
+        }
+        runnerFor("PRIVATE").run { context ->
+            context
+                .getBean(OperationRoleMap::class.java)
+                .rolesFor("retention.delete.request")
+                .containsKey("deployment.operator") shouldBe true
+        }
+    }
 
     @Test
     fun `wires the catalogue, the delegation probe and the feeds, and the fallbacks once their URLs are set`() {

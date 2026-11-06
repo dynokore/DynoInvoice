@@ -17,7 +17,9 @@ class RoleGrantTombstoneTtlTest {
     private fun replica(
         ttl: Duration? = this.ttl,
         retention: Duration? = this.retention,
-    ) = AuthorityReplica(clock, tombstoneTtl = ttl, eventLogRetention = retention).also { it.onSnapshotComplete(0) }
+    ) = AuthorityReplica(clock, TEST_ROLES, tombstoneTtl = ttl, eventLogRetention = retention).also {
+        it.onSnapshotComplete(0)
+    }
 
     private fun AuthorityReplica.feed(
         ref: String,
@@ -56,7 +58,7 @@ class RoleGrantTombstoneTtlTest {
 
     @Test
     fun `with neither set no tombstone is evicted`() {
-        val replica = AuthorityReplica(clock)
+        val replica = AuthorityReplica(clock, TEST_ROLES)
         replica.feed("g1", 1)
         replica.feed("g1", 2, RoleGrantState.REMOVED)
         clock.advance(Duration.ofDays(100000))

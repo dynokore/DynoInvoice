@@ -20,6 +20,7 @@ import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.rebuild.ReplicaColdStartSync
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.Lag
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.CurrentConnection
@@ -84,7 +85,7 @@ class AuthorityReplicaWiringTest {
 
     @BeforeEach
     fun freshReplica() {
-        replica = AuthorityReplica(CLOCK)
+        replica = AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })
     }
 
     private fun runner(
@@ -145,7 +146,7 @@ class AuthorityReplicaWiringTest {
             "gst.access.authority-changed.v1",
             "gst.platform.authority-changed.v2",
         ).forEach { topic ->
-            runner(topic, authorityReplica = AuthorityReplica(CLOCK)).run { context ->
+            runner(topic, authorityReplica = AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })).run { context ->
                 context.startupFailure shouldBe null
                 installed.forEach { context.getBeansOfType(it).size shouldBe 0 }
                 // expectHeartbeats is never called: the one allowed call is still open
@@ -167,7 +168,7 @@ class AuthorityReplicaWiringTest {
                 Triple(UUID.randomUUID(), listOf(authority), false),
             )
         cases.forEach { (replayId, topics, snapshot) ->
-            val fresh = AuthorityReplica(CLOCK)
+            val fresh = AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })
             runner(authority, authorityReplica = fresh).run { context ->
                 fresh.tracker.onApplied(7)
                 val listener = context.getBean(ReplayCompletionListener::class.java)

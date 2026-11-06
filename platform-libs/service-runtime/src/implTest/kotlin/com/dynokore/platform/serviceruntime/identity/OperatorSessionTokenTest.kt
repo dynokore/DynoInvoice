@@ -10,10 +10,12 @@ import com.dynokore.platform.serviceruntime.datasource.withBindingKey
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantId
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
@@ -52,7 +54,13 @@ class OperatorSessionTokenTest {
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
     private val idp: KeyPair = rsa()
     private val operatorKey: KeyPair = rsa()
-    private val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
+    private val replica =
+        AuthorityReplica(
+            Clock.systemUTC(),
+            OperationRoleMap {
+                emptyMap()
+            },
+        ).also { it.onSnapshotComplete(0) }
     private val decoder =
         NimbusJwtDecoder.withPublicKey(idp.public as RSAPublicKey).build().apply {
             setJwtValidator(
@@ -73,7 +81,11 @@ class OperatorSessionTokenTest {
                 tenant,
                 "op-1",
                 1,
-                AuthorityRecord.GrantRecord("e1", listOf(Grant("read", ScopeLevel.ENTITY, "e1", now.minusSeconds(60)))),
+                AuthorityRecord.RoleGrantRecord(
+                    "g1",
+                    RoleGrantState.ACTIVE,
+                    RoleGrant("reader", GrantScope.ENTITY, "e1", now.minusSeconds(60)),
+                ),
             ),
         )
         resolver.resolve(session()) shouldBe
@@ -246,7 +258,15 @@ class OperatorSessionTokenTest {
     @Test
     fun `with no valid key held every act token is refused`() {
         val cold =
-            JwtEndUserPrincipalResolver(decoder, AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) })
+            JwtEndUserPrincipalResolver(
+                decoder,
+                AuthorityReplica(
+                    Clock.systemUTC(),
+                    OperationRoleMap {
+                        emptyMap()
+                    },
+                ).also { it.onSnapshotComplete(0) },
+            )
         cold.resolve(session()) shouldBe null
         replica.operatorSessionKeys.accept(
             OperatorSessionKeysChanged(listOf(keyOf(operatorKey, KID).copy(validUntil = now.minusSeconds(1)))),
