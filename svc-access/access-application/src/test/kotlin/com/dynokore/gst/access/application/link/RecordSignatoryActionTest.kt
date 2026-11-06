@@ -2,6 +2,7 @@ package com.dynokore.gst.access.application.link
 
 import com.dynokore.gst.access.domain.consent.ConsentRef
 import com.dynokore.gst.access.domain.consent.ConsentStatus
+import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.link.LinkRef
 import com.dynokore.gst.access.domain.link.LinkStatus
 import com.dynokore.gst.access.domain.link.SignedLink
@@ -106,7 +107,8 @@ class RecordSignatoryActionTest {
         val out = kit.record.handle(cmd(link, Kind.WITHDRAW))
         assertEquals(SignatoryActionOutcome.ConsentNotLive, out)
         assertEquals(ConsentStatus.LIVE, kit.consents.getValue("C-B").status)
-        assertTrue(kit.reads.none { it == "consent:C-B" || it == "client:E-B" })
+        // the only read is through the link's own client entity A; nothing of client B or of C-B is touched
+        assertEquals(listOf("client:E-A"), kit.reads.toList())
         assertTrue(kit.withdrawals.isEmpty())
     }
 
@@ -152,11 +154,50 @@ class RecordSignatoryActionTest {
         assertTrue(kit.evidence.isEmpty() && kit.withdrawals.isEmpty())
     }
 
-    @Test
-    fun `an event-issued link holds no client scope and is forbidden`() {
-        val event = kit.command(consent = null, client = null, envelopeEntity = kit.envelope, eventId = "e3")
+    private fun eventLink(entity: EntityRef): SignedLink {
+        val event = kit.command(consent = null, client = null, envelopeEntity = entity, eventId = "e-${entity.value}")
         val (link, passcode) = kit.issued(event)
         kit.verify.handle(link.ref, passcode)
-        assertEquals(SignatoryActionOutcome.Forbidden, kit.record.handle(cmd(link, Kind.ACKNOWLEDGE)))
+        return kit.stored.getValue(link.ref.value)
+    }
+
+    @Test
+    fun `ACKNOWLEDGE and QUERY on a valid event-issued link are recorded against the envelope entity`() {
+        val link = eventLink(kit.envelope)
+        assertEquals(kit.envelope, link.boundEntity)
+        assertTrue(kit.record.handle(cmd(link, Kind.ACKNOWLEDGE)) is SignatoryActionOutcome.Recorded)
+        assertTrue(kit.record.handle(cmd(link, Kind.QUERY)) is SignatoryActionOutcome.Recorded)
+        assertEquals(2, kit.evidence.size)
+        assertTrue(kit.evidence.all { it.client == kit.envelope && it.actor == "link:${link.ref.value}" })
+        assertEquals(listOf(listOf("2026.3", "E-ENV", "link:${link.ref.value}")), kit.acks)
+        assertTrue(kit.audits.all { it.scope == "entity:E-ENV" })
+    }
+
+    @Test
+    fun `an event-issued link whose alert entity has no membership is forbidden and stores nothing`() {
+        val link = eventLink(kit.orphan)
+        for (kind in Kind.values()) {
+            assertEquals(SignatoryActionOutcome.Forbidden, kit.record.handle(cmd(link, kind)))
+        }
+        assertTrue(kit.evidence.isEmpty() && kit.acks.isEmpty() && kit.withdrawals.isEmpty())
+    }
+
+    @Test
+    fun `WITHDRAW gives the same result when the link names no consent, another client's, or a dead one`() {
+        kit.consents["C-A"] =
+            kit.consents.getValue("C-A").copy(status = ConsentStatus.WITHDRAWN, handoverStatementRef = "H")
+        val noConsent = eventLink(kit.envelope)
+        val foreign = verifiedWith(kit.command(consent = ConsentRef("C-B")))
+        val dead = verifiedWith(kit.command(consent = ConsentRef("C-A")))
+        val results = listOf(noConsent, foreign, dead).map { kit.record.handle(cmd(it, Kind.WITHDRAW)) }
+        assertEquals(listOf(SignatoryActionOutcome.ConsentNotLive), results.distinct())
+        assertTrue(kit.evidence.isEmpty() && kit.withdrawals.isEmpty())
+        assertEquals(ConsentStatus.LIVE, kit.consents.getValue("C-B").status)
+    }
+
+    private fun verifiedWith(command: IssueLinkCommand): SignedLink {
+        val (link, passcode) = kit.issued(command)
+        kit.verify.handle(link.ref, passcode)
+        return kit.stored.getValue(link.ref.value)
     }
 }

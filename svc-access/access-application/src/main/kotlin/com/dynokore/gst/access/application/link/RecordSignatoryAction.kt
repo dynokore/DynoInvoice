@@ -50,8 +50,8 @@ interface SignatoryActions {
 /**
  * The scoped key decision for the principal `link:<linkRef>` (rulings INV-Q-17199 A, INV-Q-9222 A): access-svc answers
  * from its own link store. While the link's row is verified, not expired, not invalidated and not revoked, the
- * principal holds the role client.signatory at the scope of the link's client entity, and the catalogue's matrix
- * decides the key for exactly that entity. No code here compares a role name (INV-Q-10027).
+ * principal holds the role client.signatory at the scope of the link's bound entity (its client entity, otherwise
+ * the envelope entity of its origin event), and the catalogue's matrix decides the key for exactly that entity. No code here compares a role name (INV-Q-10027).
  */
 class LinkPermissions(
     private val matrix: PermissionMatrix,
@@ -62,12 +62,12 @@ class LinkPermissions(
         permission: Permission,
         now: Instant,
     ): Boolean {
-        val client = link.client
-        val membership = client?.let { directory.membership(it) }
+        val bound = link.boundEntity
+        val membership = directory.membership(bound)
         val cell = matrix.allowance(LINK_PRINCIPAL_ROLE, permission)
-        return client != null && membership != null && link.sessionOpen(now) &&
+        return membership != null && link.sessionOpen(now) &&
             cell in setOf(Allowance.PERMITTED, Allowance.WITHIN_SCOPE) &&
-            Scope.Entity(client).covers(Target(client), membership)
+            Scope.Entity(bound).covers(Target(bound), membership)
     }
 
     companion object {
@@ -101,7 +101,7 @@ sealed interface SignatoryActionOutcome {
     /** The link was invalidated or revoked (ACC-004). */
     data object Invalidated : SignatoryActionOutcome
 
-    /** The scoped key is not allowed to the link at its client entity. */
+    /** The scoped key is not allowed to the link at its bound entity, or no membership exists for it. */
     data object Forbidden : SignatoryActionOutcome
 
     /** The consent of the link is not live. */
@@ -144,7 +144,7 @@ class RecordSignatoryActionUseCase(
                     LinkPermissions.MAPPING_EFFECT_ACKNOWLEDGE
                 }
             if (!permissions.allows(link, key, now)) return@inTransaction SignatoryActionOutcome.Forbidden
-            val client = requireNotNull(link.client)
+            val client = link.boundEntity
             val pack = command.packVersion.orEmpty()
             actions.find(link.ref, command.kind, pack)?.let {
                 return@inTransaction SignatoryActionOutcome.Recorded(it, repeated = true)
@@ -199,8 +199,10 @@ class RecordSignatoryActionUseCase(
         link: SignedLink,
         client: EntityRef,
     ): Boolean {
-        // read through the link's own client entity, so a consent of another client is never read
-        val live = consents.findLiveForClient(client)?.takeIf { it.ref == link.consent }
+        // a link that names no consent is answered like one whose consent is not live, with no read at all
+        val named = link.consent ?: return false
+        // read through the link's own bound entity, so a consent of another client entity is never read
+        val live = consents.findLiveForClient(client)?.takeIf { it.ref == named }
         val consent = live?.let { consents.lock(it.ref) }?.takeIf { it.status == ConsentStatus.LIVE }
         return consent != null &&
             withdrawal.perform(tenant, VerifySignatoryLinkUseCase.actorOf(link.ref), consent) is

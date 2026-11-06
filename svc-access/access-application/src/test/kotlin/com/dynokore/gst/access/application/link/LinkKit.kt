@@ -59,6 +59,9 @@ class LinkKit(
     val clientA = EntityRef("E-A")
     val clientB = EntityRef("E-B")
     val envelope = EntityRef("E-ENV")
+
+    /** An entity the directory holds no membership for. */
+    val orphan = EntityRef("E-ORPHAN")
     val systemActor = "system:access-svc"
 
     val tx =
@@ -244,7 +247,7 @@ class LinkKit(
     val directory =
         object : EntityDirectory {
             override fun membership(entity: EntityRef) =
-                if (entity in setOf(clientA, clientB)) EntityMembership(tenant, null) else null
+                if (entity in setOf(clientA, clientB, envelope)) EntityMembership(tenant, null) else null
 
             override fun entitiesCoveredBy(scope: Scope) = emptySet<EntityRef>()
         }

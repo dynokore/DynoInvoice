@@ -69,6 +69,12 @@ data class SignedLink(
         require(wrongEntries in 0..MAX_WRONG_ENTRIES) { "wrong entries are 0 to $MAX_WRONG_ENTRIES" }
     }
 
+    /**
+     * The entity the actions of the link are authorised against: its client entity when one is stored, otherwise its
+     * alert entity, the envelope entity of the origin event (ruling INV-Q-17526). Set at issue, never changes.
+     */
+    val boundEntity: EntityRef get() = client ?: alertEntity
+
     /** Whether the link is still usable at all: not invalidated, not revoked (expiry is looked at separately). */
     val usable: Boolean get() = status == LinkStatus.ACTIVE
 
