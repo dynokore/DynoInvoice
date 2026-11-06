@@ -15,7 +15,10 @@ import org.springframework.context.annotation.Configuration
 class EventConfiguration {
     @Bean
     fun eventCatalogue(): EventCatalogue =
-        EventCatalogue(SubmissionEvents.entries + SubmissionEvents.consumed + SubmissionEvents.platformEntries)
+        EventCatalogue(
+            SubmissionEvents.entries + SubmissionEvents.consumed + SubmissionEvents.platformEntries +
+                SubmissionEvents.breakGlassEntry,
+        )
 }
 
 object SubmissionEvents {
@@ -65,6 +68,17 @@ object SubmissionEvents {
                 setOf("payload-svc"),
                 contentTopic = true,
                 retainedWhileResolvable = false,
+            ),
+        )
+
+    /** `BreakGlassSessionChanged` (INV-Q-9119 A): a platform event of every service; submission-svc only reads it. */
+    val breakGlassEntry: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.eventType,
+                checkNotNull(PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.topic),
+                setOf(CatalogueEntry.EVERY_SERVICE),
+                contentTopic = false,
             ),
         )
 }

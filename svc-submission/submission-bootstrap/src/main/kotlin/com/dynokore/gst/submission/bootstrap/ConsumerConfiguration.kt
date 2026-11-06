@@ -17,6 +17,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 import java.time.Clock
 
 /**
@@ -45,8 +46,11 @@ class ConsumerConfiguration {
     /**
      * The service declares its own consumer: product-runtime also supplies `EventHandler` beans, so the default
      * single-consumer wiring of `OutboxAndQueueWiring` (one `EventHandler` by type) would be ambiguous and backs off.
+     * It is primary for the replay wiring, which takes one `JdbcInboxConsumer`: the service has a second consumer, of
+     * `BreakGlassSessionChanged` ([BreakGlassFeed]).
      */
     @Bean
+    @Primary
     @Suppress("LongParameterList")
     fun payloadReadyConsumer(
         subscription: ConsumerSubscription,

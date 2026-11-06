@@ -319,11 +319,11 @@ class PayloadReadyDbTest {
     }
 
     @Test
-    fun `the service declares one JdbcInboxConsumer for the PayloadReady topic`(
+    fun `the service declares one JdbcInboxConsumer for the PayloadReady topic and one for BreakGlassSessionChanged`(
         @TempDir dir: Path,
     ) = run(dir) {
         val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
-        consumers.size shouldBe 1
+        consumers.keys shouldBe setOf("payloadReadyConsumer", "breakGlassSessionConsumer")
     }
 
     private companion object {
