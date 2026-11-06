@@ -227,6 +227,34 @@ class GatesTest {
     }
 
     @Test
+    fun `the PeriodRecordsChanged channel row is required, exact and not done without its payload test`() {
+        val (spec, async, table) = ruled()
+        val row = "PeriodRecordsChanged\tchannel\tINV-T-16564\tpending\n"
+        Assignments.channels["PeriodRecordsChanged"] shouldBe "INV-T-16564"
+
+        fun run(
+            t: String,
+            classes: Set<String> = emptySet(),
+        ) = OperationsGate
+            .check(spec, async, t, OperationsGate.Code(emptySet(), emptySet(), classes))
+            .map { it.subject to it.message }
+        (row in table) shouldBe true
+        run(table).shouldBeEmpty()
+        run(table.replace(row, "")).single() shouldBe
+            ("PeriodRecordsChanged" to "the contract holds this channel but the table does not list it")
+        run(table.replace(row, row.replace("PeriodRecordsChanged", "PeriodRecordChanged")))
+            .map { it.first }
+            .toSet() shouldBe setOf("PeriodRecordsChanged", "PeriodRecordChanged")
+        val done = table.replace(row, row.replace("pending", "done"))
+        run(done).single() shouldBe
+            (
+                "PeriodRecordsChanged" to
+                    "task INV-T-16564 is done but no test class PeriodRecordsChangedPayloadSchemaTest exists"
+            )
+        run(done, setOf("PeriodRecordsChangedPayloadSchemaTest")).shouldBeEmpty()
+    }
+
+    @Test
     fun `a stub inside a comment or a string is not a 501 stub`() {
         val dir =
             kotlin.io.path
