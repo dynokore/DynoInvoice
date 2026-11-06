@@ -46,7 +46,7 @@ fun insertPendingStep(
         .execute()
 }
 
-/** The table `accreditation_step_pending` through jOOQ (TPL-11): the relay reads, claims and updates; the step deletes. */
+/** The table `accreditation_step_pending` through jOOQ (TPL-11): the relay reads and claims; the step deletes. */
 class AccreditationStepQueueJooq(
     private val dsl: DSLContext,
     private val policy: StepRetryPolicy,

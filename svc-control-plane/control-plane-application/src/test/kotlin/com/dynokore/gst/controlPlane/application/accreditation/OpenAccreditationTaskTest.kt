@@ -430,9 +430,20 @@ class OpenAccreditationTaskTest {
                 transactions,
                 at,
                 object : StepReporting {
-                    override fun failed(target: ReleaseTarget, failure: Exception) = Unit
-                    override fun bookkeepingFailed(target: ReleaseTarget, failure: Exception) = Unit
-                    override fun exhausted(target: ReleaseTarget, error: String) = Unit
+                    override fun failed(
+                        target: ReleaseTarget,
+                        failure: Exception,
+                    ) = Unit
+
+                    override fun bookkeepingFailed(
+                        target: ReleaseTarget,
+                        failure: Exception,
+                    ) = Unit
+
+                    override fun exhausted(
+                        target: ReleaseTarget,
+                        error: String,
+                    ) = Unit
                 },
                 { "$it-${++counter}" },
             )
@@ -493,9 +504,20 @@ class OpenAccreditationTaskTest {
                     transactions,
                     tick,
                     object : StepReporting {
-                        override fun failed(target: ReleaseTarget, failure: Exception) = Unit
-                        override fun bookkeepingFailed(target: ReleaseTarget, failure: Exception) = Unit
-                        override fun exhausted(target: ReleaseTarget, error: String) {
+                        override fun failed(
+                            target: ReleaseTarget,
+                            failure: Exception,
+                        ) = Unit
+
+                        override fun bookkeepingFailed(
+                            target: ReleaseTarget,
+                            failure: Exception,
+                        ) = Unit
+
+                        override fun exhausted(
+                            target: ReleaseTarget,
+                            error: String,
+                        ) {
                             exhausted += target
                         }
                     },

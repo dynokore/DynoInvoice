@@ -85,7 +85,7 @@ interface PackReleaseRecords {
         record: ReleaseRecord,
     )
 
-    /** Stores [record] and, in the same transaction, the pending accreditation [step] of the signing (INV-Q-17708 A). */
+    /** Stores [record] and, in the same transaction, the pending accreditation [step] (INV-Q-17708 A). */
     fun save(
         ref: PackRef,
         record: ReleaseRecord,

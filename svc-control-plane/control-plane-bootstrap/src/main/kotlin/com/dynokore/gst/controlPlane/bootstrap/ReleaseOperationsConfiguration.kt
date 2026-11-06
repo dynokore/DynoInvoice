@@ -7,6 +7,7 @@ import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
 import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.StepRetryPolicy
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
 import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
@@ -17,7 +18,6 @@ import com.dynokore.gst.controlPlane.application.release.RecordedTrainEvidence
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SupportWindowRepository
 import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
-import com.dynokore.gst.controlPlane.application.accreditation.StepRetryPolicy
 import com.dynokore.gst.controlPlane.application.release.TrainRepository
 import org.jooq.DSLContext
 import org.springframework.context.annotation.Bean

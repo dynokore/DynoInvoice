@@ -81,6 +81,16 @@ class OpenAccreditationTask(
     ): AccreditationCheck? = attempt(target) { ended(target, open(target, assessmentRequested, request)) }
 
     /**
+     * One relay run: the targets of the rows PENDING and due now, oldest first, at most [batchSize], then [retry] for
+     * each. Returns how many rows the batch held.
+     */
+    fun relay(batchSize: Int): Int {
+        val due = transactions.inTransaction { ports.queue.due(clock.instant(), batchSize) }
+        due.forEach(::retry)
+        return due.size
+    }
+
+    /**
      * One attempt of the relay for a pending row of [target]: it claims the row (skipping one another run holds or
      * that is not due), runs the step with the stored request and ends the work. A failure rolls the attempt back.
      */
@@ -93,7 +103,8 @@ class OpenAccreditationTask(
     }
 
     /**
-     * Runs [body] in a transaction of its own; [body] ends the work through [ended]. On a failure the transaction rolls back, the row stays, and a second small transaction
+     * Runs [body] in a transaction of its own; [body] ends the work through [ended]. On a failure the transaction
+     * rolls back, the row stays, and a second small transaction
      * records the attempt; a failure of that bookkeeping is reported and changes nothing (the row stays due).
      */
     @Suppress("TooGenericExceptionCaught") // any failure of this step is reported and leaves the release untouched

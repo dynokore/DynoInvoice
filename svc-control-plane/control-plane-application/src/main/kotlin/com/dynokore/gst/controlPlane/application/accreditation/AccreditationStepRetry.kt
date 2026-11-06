@@ -32,7 +32,7 @@ data class StepRetryPolicy(
     }
 }
 
-/** The pending step stored with the release record, in the release transaction (the dual write of the outbox pattern). */
+/** The pending step stored with the release record, in the release transaction (outbox dual write). */
 data class PendingStep(
     val target: ReleaseTarget,
     val assessmentRequested: Boolean,

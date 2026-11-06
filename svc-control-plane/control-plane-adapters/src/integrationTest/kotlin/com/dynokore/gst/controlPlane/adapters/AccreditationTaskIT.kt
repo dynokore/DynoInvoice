@@ -7,25 +7,23 @@ import com.dynokore.gst.controlPlane.adapters.http.ProblemException
 import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
 import com.dynokore.gst.controlPlane.adapters.http.TaskCursor
 import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationRecordsJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationStepQueueJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationTaskRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.ReleaseAccreditationLinksJooq
-import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationStepQueueJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.insertPendingStep
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationAlerts
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationPermission
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationStepPorts
-import com.dynokore.gst.controlPlane.application.accreditation.PendingStep
-import com.dynokore.gst.controlPlane.adapters.persistence.insertPendingStep
-import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
-import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
-import com.dynokore.gst.controlPlane.application.accreditation.StepReporting
-import com.dynokore.gst.controlPlane.application.accreditation.StepRetryPolicy
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskQueries
 import com.dynokore.gst.controlPlane.application.accreditation.ConcludeAccreditationTask
 import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditationTask
+import com.dynokore.gst.controlPlane.application.accreditation.PendingStep
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.ReleaseTarget
+import com.dynokore.gst.controlPlane.application.accreditation.StepReporting
+import com.dynokore.gst.controlPlane.application.accreditation.StepRetryPolicy
 import com.dynokore.gst.controlPlane.application.accreditation.TaskCursorKey
 import com.dynokore.gst.controlPlane.application.accreditation.TaskRead
 import com.dynokore.gst.controlPlane.application.audit.AuditEntryPurger
@@ -55,6 +53,8 @@ import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import com.dynokore.gst.controlPlane.domain.release.Observation
 import com.dynokore.gst.controlPlane.domain.release.ReferenceEnvironment
 import com.dynokore.gst.controlPlane.domain.release.RegenerationObservation
+import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
+import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
 import com.dynokore.gst.controlPlane.domain.release.TrainEvidence
 import com.dynokore.gst.controlPlane.domain.release.TrainKind
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
@@ -199,8 +199,10 @@ class AccreditationTaskIT {
             tx.execute("set local role controlplane_sys")
             BindingKeyMigration.writeKeys(tx, "controlplane", BINDING_KEY)
         }
-        admin("truncate controlplane.accreditation_task, controlplane.accreditation_record, controlplane.outbox, " +
-                "controlplane.accreditation_step_pending")
+        admin(
+            "truncate controlplane.accreditation_task, controlplane.accreditation_record, controlplane.outbox, " +
+                "controlplane.accreditation_step_pending",
+        )
     }
 
     private fun admin(sql: String) {
@@ -365,7 +367,8 @@ class AccreditationTaskIT {
             val extraColumns = if (tail.isEmpty()) "" else ", concluded_at, conclusion"
             val extraValues = if (tail.isEmpty()) "" else ", $tail"
             return "insert into controlplane.accreditation_task(task_ref, status, reason, opened_at, alert_ref, " +
-                "release_ref$extraColumns) values ('$ref', '$status', '$reason', now(), 'A-$ref', '$version'$extraValues)"
+                "release_ref$extraColumns) values ('$ref', '$status', '$reason', now(), 'A-$ref', " +
+                "'$version'$extraValues)"
         }
         admin(insert("T-${UUID.randomUUID()}"))
         shouldThrow<Exception> { admin(insert("T-${UUID.randomUUID()}")) } // same (release_ref, reason)
@@ -730,7 +733,12 @@ class AccreditationTaskIT {
                 AccreditationCheck(true, null, null),
             )
         val step =
-            PendingStep(ReleaseTarget(ReleaseTarget.Kind.TRAIN, version), true, RequestContext("c", "d"), clock.instant())
+            PendingStep(
+                ReleaseTarget(ReleaseTarget.Kind.TRAIN, version),
+                true,
+                RequestContext("c", "d"),
+                clock.instant(),
+            )
         shouldThrow<IllegalStateException> {
             tenants.bindPlatform("rita") {
                 transactions.inTransaction {
@@ -764,7 +772,10 @@ class AccreditationTaskIT {
         taskRows(ref.value).single()[1] shouldBe "OPEN"
         outboxRows().size shouldBe 1
         pendingRows(ref.value) shouldBe emptyList()
-        flow.records.find(ref)!!.accreditation?.taskRef shouldBe taskRows(ref.value).single()[0]
+        flow.records
+            .find(ref)!!
+            .accreditation
+            ?.taskRef shouldBe taskRows(ref.value).single()[0]
     }
 
     @Test

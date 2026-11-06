@@ -11,7 +11,6 @@ import com.dynokore.gst.controlPlane.application.accreditation.AccreditationAler
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationStepPorts
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationStepQueue
-import com.dynokore.gst.controlPlane.application.accreditation.StepReporting
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskQueries
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskRepository
 import com.dynokore.gst.controlPlane.application.accreditation.ConcludeAccreditationTask
@@ -19,6 +18,7 @@ import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditationTask
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.ReleaseAccreditationLinks
+import com.dynokore.gst.controlPlane.application.accreditation.StepReporting
 import com.dynokore.gst.controlPlane.application.audit.AuditEntryPurger
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeAuthority
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeFloorSource

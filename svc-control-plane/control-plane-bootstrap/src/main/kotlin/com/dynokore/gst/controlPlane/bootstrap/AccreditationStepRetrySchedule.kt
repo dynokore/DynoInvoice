@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.SchedulingConfigurer
 import org.springframework.scheduling.config.CronTask
 import org.springframework.scheduling.config.ScheduledTaskRegistrar
 
-/** Fires the job `accreditation-step-retry` through the [JobRuntime] on the cron of `gst.jobs.accreditation-step-retry.cron`. */
+/** Fires the job `accreditation-step-retry` through the [JobRuntime] on the cron of its property. */
 class AccreditationStepRetrySchedule(
     private val runtime: JobRuntime,
     private val cron: String,

@@ -8,7 +8,7 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** The job `accreditation-step-retry` and its configuration (INV-Q-17708 A): composition, cron, fail-closed settings. */
+/** The job `accreditation-step-retry` and its configuration (INV-Q-17708 A): wiring, cron, fail-closed settings. */
 class AccreditationStepRetryTest {
     private fun crons(
         mount: Path,
@@ -68,13 +68,14 @@ class AccreditationStepRetryTest {
     @Test
     fun `the retry classes hold no cron expression, delay or attempt limit as a literal`() {
         val root = Path.of(System.getProperty("user.dir")).parent
+        val base = "src/main/kotlin/com/dynokore/gst/controlPlane"
         val files =
             listOf(
-                "control-plane-bootstrap/src/main/kotlin/com/dynokore/gst/controlPlane/bootstrap/AccreditationStepRetryJob.kt",
-                "control-plane-bootstrap/src/main/kotlin/com/dynokore/gst/controlPlane/bootstrap/AccreditationStepRetrySchedule.kt",
-                "control-plane-adapters/src/main/kotlin/com/dynokore/gst/controlPlane/adapters/persistence/AccreditationStepQueueJooq.kt",
-                "control-plane-application/src/main/kotlin/com/dynokore/gst/controlPlane/application/accreditation/AccreditationStepRetry.kt",
-                "control-plane-application/src/main/kotlin/com/dynokore/gst/controlPlane/application/accreditation/OpenAccreditationTask.kt",
+                "control-plane-bootstrap/$base/bootstrap/AccreditationStepRetryJob.kt",
+                "control-plane-bootstrap/$base/bootstrap/AccreditationStepRetrySchedule.kt",
+                "control-plane-adapters/$base/adapters/persistence/AccreditationStepQueueJooq.kt",
+                "control-plane-application/$base/application/accreditation/AccreditationStepRetry.kt",
+                "control-plane-application/$base/application/accreditation/OpenAccreditationTask.kt",
             )
         val forbidden =
             listOf(
