@@ -9,7 +9,9 @@ management:
     exposure.include: health,prometheus,diagnostics
     path-mapping.prometheus: metrics
   endpoint.health:
-    validate-group-membership: false # TEMPORARY (INV-Q-17448 C ruling round 2): ready.include names db, which INV-T-14458 adds; INV-T-14458 removes this line
+    # TEMPORARY (ruling INV-Q-17470): this slice has no db contributor, so Spring Boot would refuse to start with `db` in
+    # ready.include. The line is temporary and is removed in INV-T-14458, which adds the datasource and the db component.
+    validate-group-membership: false
     status.order: DOWN,OUT_OF_SERVICE,DEGRADED,UP,UNKNOWN
     status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
     group:
