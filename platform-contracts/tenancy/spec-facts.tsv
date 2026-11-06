@@ -27,3 +27,5 @@ openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-cha
 openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1elections/post/responses/409/$ref	equals	"#/components/responses/Error"	INV-REQ-505
 openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1rate-source-elections/post/responses/409/$ref	equals	"#/components/responses/Error"	INV-REQ-505
 openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-change~1{changeRef}~1withdraw	absent	-	INV-REQ-505
+schemas/certification-status-changed-payload.schema.json	/properties/status/x-extensible-enum	equals	true	INV-REQ-1135
+schemas/certification-status-changed-payload.schema.json	/properties/trigger/x-extensible-enum	equals	true	INV-REQ-1135

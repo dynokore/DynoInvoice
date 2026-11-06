@@ -1,0 +1,5 @@
+{
+  "entityRef": "E-001",
+  "status": "STALE",
+  "trigger": "NEW_TRAIN"
+}
