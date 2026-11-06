@@ -8,6 +8,7 @@ internal object HttpStatusCodes {
     const val NOT_FOUND = 404
     const val METHOD_NOT_ALLOWED = 405
     const val CONFLICT = 409
+    const val PAYLOAD_TOO_LARGE = 413
     const val UNPROCESSABLE = 422
     const val TOO_MANY_REQUESTS = 429
     const val INTERNAL_ERROR = 500

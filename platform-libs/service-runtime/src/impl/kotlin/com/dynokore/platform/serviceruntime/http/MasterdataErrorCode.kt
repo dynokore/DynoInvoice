@@ -1,7 +1,7 @@
 package com.dynokore.platform.serviceruntime.http
 
 /**
- * The masterdata refusals MDM-005 and MDM-007 with its catalogue code (platform-contracts `catalogue/errors/error-codes.yaml`;
+ * The masterdata refusals MDM-005, MDM-007 and MDM-009 with its catalogue code (platform-contracts `catalogue/errors/error-codes.yaml`;
  * coordinator ruling INV-Q-7886 A), mapped in one place beside [PolicyErrorCode] and [TenancyErrorCode] (ARC-19, CS-14)
  * so that a service renders it with [Problems.renderMasterdata] and writes no code of its own. The title is the
  * row's `condition`, the owner the row's `owner`; the status is the one the operation declares for the code (422 for MDM-005
@@ -27,6 +27,19 @@ enum class MasterdataErrorCode(
         "Counterparty GSTN conflicts with the IRAS register",
         Owner.FINANCE,
         "WARN",
+    ),
+
+    /**
+     * A counterparty import names a dry run that is unknown, not SUCCEEDED or for another file hash (HTTP 422, nothing
+     * recorded; coordinator ruling INV-Q-17287 A, INV-REQ-830 b2, catalogue row MDM-009).
+     */
+    IMPORT_DRY_RUN_REFUSED(
+        "MDM-009",
+        HttpStatusCodes.UNPROCESSABLE,
+        "Counterparty import names a dry run that is unknown, not SUCCEEDED or for another fileHash " +
+            "(HTTP 422, nothing recorded; INV-Q-3749, INV-REQ-830 b2)",
+        Owner.FINANCE,
+        "BLOCK",
     ),
     ;
 

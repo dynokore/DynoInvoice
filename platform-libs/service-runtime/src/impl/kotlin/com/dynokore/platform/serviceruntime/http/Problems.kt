@@ -5,8 +5,8 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * The closed service-runtime cases (ARC-19) with their SRT catalogue codes (owner ruling INV-Q-3720, INV-REQ-827
- * b3; the catalogue rows of INV-T-3742, gst-catalogue 1.12.0, SRT-011 in 1.13.0 and SRT-012 in 1.15.0): owner
- * Platform, severity BLOCK, disposition TERMINAL for all thirteen (SRT-007 and SRT-008 by coordinator ruling
+ * b3; the catalogue rows of INV-T-3742, gst-catalogue 1.12.0, SRT-011 in 1.13.0 and SRT-012 in 1.15.0, SRT-014 by coordinator ruling INV-Q-17287 A): owner
+ * Platform, severity BLOCK, disposition TERMINAL for all fourteen (SRT-007 and SRT-008 by coordinator ruling
  * INV-Q-3754, SRT-012 by coordinator ruling INV-Q-4059), each at its single HTTP status (API-21).
  */
 enum class ClosedErrorCode(
@@ -50,6 +50,17 @@ enum class ClosedErrorCode(
      * The case carries no Retry-After: [Problems.render] refuses one for every code except 429.
      */
     SERVICE_NOT_READY("SRT-013", HttpStatusCodes.UNAVAILABLE, "Service not ready", "TERMINAL"),
+
+    /**
+     * The request body exceeds the size limit (HTTP 413; coordinator ruling INV-Q-17287 option A, catalogue row
+     * SRT-014). The case carries no Retry-After: [Problems.render] refuses one for every code except 429.
+     */
+    REQUEST_TOO_LARGE(
+        "SRT-014",
+        HttpStatusCodes.PAYLOAD_TOO_LARGE,
+        "Request over a size or count limit of its operation",
+        "TERMINAL",
+    ),
     ;
 
     /** Every SRT code is remediated by the platform (error-codes.yaml `owner`). */

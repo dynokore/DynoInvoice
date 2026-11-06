@@ -44,6 +44,7 @@ class ProblemsTest {
                 "SRT-011" to 503,
                 "SRT-012" to 429,
                 "SRT-013" to 503,
+                "SRT-014" to 413,
             )
         ClosedErrorCode.entries.forEach { code ->
             val row = catalogue.getValue(code.code)
@@ -91,6 +92,34 @@ class ProblemsTest {
         body.get("severity").asString() shouldBe "BLOCK"
         body.get("disposition").asString() shouldBe "TERMINAL"
         body.has("detail") shouldBe false
+        Problems.render(code, "corr-1").headers["Retry-After"] shouldBe null
+        shouldThrow<IllegalArgumentException> { Problems.render(code, "corr-1", null, 5) }
+    }
+
+    @Test
+    fun `INV-AC-17299 REQUEST_TOO_LARGE is SRT-014 at 413, equals its row, has detail, no Retry-After`() {
+        val row = catalogue.getValue("SRT-014")
+        val code = ClosedErrorCode.REQUEST_TOO_LARGE
+        code.code shouldBe "SRT-014"
+        code.httpStatus shouldBe 413
+        code.title shouldBe "Request over a size or count limit of its operation"
+        (row["condition"] as String).startsWith(code.title) shouldBe true
+        (row["condition"] as String).contains("HTTP 413") shouldBe true
+        code.disposition shouldBe "TERMINAL"
+        code.disposition shouldBe row["disposition"]
+        code.remediationOwner shouldBe "Platform"
+        code.remediationOwner shouldBe row["owner"]
+        row["severity"] shouldBe "BLOCK"
+        val closed = Problems.closed(code, "corr-1", "what went wrong")
+        closed.status shouldBe 413
+        val body = mapper.readTree(closed.body)
+        contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+        body.get("code").asString() shouldBe "SRT-014"
+        body.get("type").asString() shouldBe "https://errors.invoice.internal/SRT-014"
+        body.get("severity").asString() shouldBe "BLOCK"
+        body.get("disposition").asString() shouldBe "TERMINAL"
+        body.get("remediationOwner").asString() shouldBe "Platform"
+        body.get("detail").asString() shouldBe "what went wrong"
         Problems.render(code, "corr-1").headers["Retry-After"] shouldBe null
         shouldThrow<IllegalArgumentException> { Problems.render(code, "corr-1", null, 5) }
     }

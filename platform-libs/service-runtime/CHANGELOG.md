@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [12.2.0] - 2026-11-07
+### Added
+- `ClosedErrorCode.REQUEST_TOO_LARGE` (SRT-014, HTTP 413, "Request over a size or count limit of its operation", TERMINAL, owner Platform; INV-T-17300, coordinator ruling INV-Q-17287 A, INV-AC-17299): no Retry-After; the status is the new constant `HttpStatusCodes.PAYLOAD_TOO_LARGE`.
+- `MasterdataErrorCode.IMPORT_DRY_RUN_REFUSED` (MDM-009, HTTP 422, owner Finance, severity BLOCK; INV-T-17300, INV-Q-17287 A, INV-REQ-830).
+- The vendored error catalogue snapshot of the tests is re-taken at platform-contracts 176d110c (SRT-014, MDM-010).
+
 ## [12.1.0] - 2026-11-06
 ### Added
 - `io.micrometer:micrometer-tracing-bridge-otel` and `io.opentelemetry:opentelemetry-exporter-otlp` on the impl runtime classpath (INV-T-17627, INV-Q-17607 A, INV-AC-17624); versions from the Spring Boot BOM. Dependency only: no span is emitted yet.

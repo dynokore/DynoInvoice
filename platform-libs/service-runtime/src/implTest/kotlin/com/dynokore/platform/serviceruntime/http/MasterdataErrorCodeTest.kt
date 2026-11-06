@@ -8,7 +8,7 @@ import org.yaml.snakeyaml.Yaml
 import tools.jackson.databind.ObjectMapper
 
 /**
- * MDM-005 and MDM-007 against the pinned catalogue snapshot (`src/implTest/resources/contracts/catalogue/errors/
+ * MDM-005, MDM-007 and MDM-009 against the pinned catalogue snapshot (`src/implTest/resources/contracts/catalogue/errors/
  * error-codes.yaml`; INV-AC-16982): the snapshot holds exactly one row for each, the enum has exactly those two
  * entries, and each entry's code, title (the row's condition in full), owner and severity equal its row's
  * (coordinator rulings INV-Q-7886 A and INV-Q-16979 A). The status is the 422 that `resolveCounterparty` declares for
@@ -39,22 +39,24 @@ class MasterdataErrorCodeTest {
                     it["owner"].toString(),
                 )
             }
-        }.filter { it.code == "MDM-005" || it.code == "MDM-007" }
+        }.filter { it.code == "MDM-005" || it.code == "MDM-007" || it.code == "MDM-009" }
 
     private val declaredStatus =
         mapOf(
             MasterdataErrorCode.IDENTITY_TRIPLE_NOT_CONFIGURED to 422,
             MasterdataErrorCode.COUNTERPARTY_GSTN_CONFLICT to 409,
+            MasterdataErrorCode.IMPORT_DRY_RUN_REFUSED to 422,
         )
 
     private fun rowOf(entry: MasterdataErrorCode): Row = rows.single { it.code == entry.code }
 
     @Test
-    fun `the snapshot holds exactly one row for each of MDM-005 and MDM-007 and the enum exactly two entries`() {
-        rows.size shouldBe 2
+    fun `the snapshot holds one row each of MDM-005, MDM-007 and MDM-009 and the enum three entries`() {
+        rows.size shouldBe 3
         rows.count { it.code == "MDM-005" } shouldBe 1
         rows.count { it.code == "MDM-007" } shouldBe 1
-        MasterdataErrorCode.entries.size shouldBe 2
+        rows.count { it.code == "MDM-009" } shouldBe 1
+        MasterdataErrorCode.entries.size shouldBe 3
         MasterdataErrorCode.entries.toSet() shouldBe declaredStatus.keys
         MasterdataErrorCode.Owner.entries.size shouldBe 2
     }
@@ -96,5 +98,28 @@ class MasterdataErrorCodeTest {
             body.get("detail").asString() shouldBe "what went wrong"
             mapper.readTree(Problems.renderMasterdata(code, "c").body).has("detail") shouldBe false
         }
+    }
+
+    @Test
+    fun `INV-AC-17299 IMPORT_DRY_RUN_REFUSED is MDM-009 at 422 equal to its row and renders a valid envelope`() {
+        val entry = MasterdataErrorCode.IMPORT_DRY_RUN_REFUSED
+        val row = rows.single { it.code == "MDM-009" }
+        entry.code shouldBe "MDM-009"
+        entry.httpStatus shouldBe 422
+        entry.title shouldBe row.condition
+        entry.owner shouldBe MasterdataErrorCode.Owner.FINANCE
+        entry.owner.text shouldBe row.owner
+        entry.severity shouldBe "BLOCK"
+        entry.severity shouldBe row.severity
+        row.disposition shouldBe "MANUAL"
+        MasterdataErrorCode.entries.map { it.code }.toSet() shouldBe setOf("MDM-005", "MDM-007", "MDM-009")
+        val response = Problems.renderMasterdata(entry, "corr-9", "dry run unknown")
+        response.status shouldBe 422
+        val body = mapper.readTree(response.body)
+        contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+        body.get("type").asString() shouldBe "https://errors.invoice.internal/MDM-009"
+        body.get("disposition").asString() shouldBe "MANUAL"
+        body.get("remediationOwner").asString() shouldBe "Finance"
+        body.get("severity").asString() shouldBe "BLOCK"
     }
 }
