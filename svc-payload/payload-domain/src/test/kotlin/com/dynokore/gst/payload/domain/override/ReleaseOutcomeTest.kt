@@ -54,6 +54,7 @@ class ReleaseOutcomeTest {
 
     @Test
     fun `an unknown outcome is denied`() {
-        ReleaseOutcome.from("ALLOW", "SOMETHING_NEW", null) shouldBe ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
+        ReleaseOutcome.from("ALLOW", "SOMETHING_NEW", null) shouldBe
+            ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
     }
 }

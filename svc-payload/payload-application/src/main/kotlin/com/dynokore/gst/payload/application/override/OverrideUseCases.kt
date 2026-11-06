@@ -34,7 +34,7 @@ sealed interface OverrideResult {
     /** 422 PAY-017: the code is not an OVERRIDABLE code that the version carries. */
     data object NotOverridable : OverrideResult
 
-    /** 403 SRT-004: the decision of `decideOverrideRelease` is not a release (INV-Q-17227); a refused call writes none. */
+    /** 403 SRT-004: the decision of `decideOverrideRelease` is not a release (INV-Q-17227); writes nothing. */
     data class Refused(
         val reasonCode: String,
     ) : OverrideResult
