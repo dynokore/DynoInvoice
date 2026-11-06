@@ -15,6 +15,8 @@ include:
       - 'ci/publish.gitlab-ci.yml' # image publish
   # The keel-report job reads the JUnit XML of unit-test from the main pipeline and reports the INV-AC numbers in the
   # testcase names to Keel (the same wiring as platform-libs).
+  # Keel accepts reports only from push, merge-request, schedule and web pipelines; a pipeline created through the API
+  # cannot report (its CI token exchange is refused), so re-run main from the web UI or by a merge, never by the API.
   - project: 'keel/tooling'
     ref: main
     file: 'keel-report-junit.yml'
