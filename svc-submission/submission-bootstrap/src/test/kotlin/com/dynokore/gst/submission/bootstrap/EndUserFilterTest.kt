@@ -26,6 +26,16 @@ import java.nio.file.Path
 class EndUserFilterTest {
     private val loader = javaClass.classLoader
 
+    /** M: the lines of `META-INF/gst/machine-principal-operations.tsv` of submission-contract, read when the test runs. */
+    private val machineOperations: Set<String> =
+        loader
+            .getResources("META-INF/gst/machine-principal-operations.tsv")
+            .toList()
+            .flatMap { it.readText().lines() }
+            .filter { it.isNotBlank() }
+            .map { it.split('\t').let { fields -> "${fields[0]} ${fields[1]}" } }
+            .toSet()
+
     private fun serve(
         dir: Path,
         services: List<String>,
@@ -100,7 +110,12 @@ class EndUserFilterTest {
         val answer = call(mapOf(CallerChecks.AUTH to CallerChecks.END_USER))
         val seen = Doubles.reached.drop(before)
         val bound = seen.singleOrNull()
-        if (bound == null || bound.tenant != TestIdentity.TENANT_A || bound.actor != TestIdentity.ACTOR) {
+        if (operation.label in machineOperations) {
+            // INV-Q-17156 A: a machine-principal operation takes machine tokens only, so the end-user token is refused
+            if (answer.statusCode() != 401 || "SRT-003" !in answer.body() || seen.isNotEmpty()) {
+                found += "${operation.label} (user-a, machine class): ${answer.statusCode()} reached $seen"
+            }
+        } else if (bound == null || bound.tenant != TestIdentity.TENANT_A || bound.actor != TestIdentity.ACTOR) {
             found += "${operation.label} (user-a): ${answer.statusCode()} reached $seen"
         }
         return found
@@ -118,6 +133,7 @@ class EndUserFilterTest {
                 .distinct()
                 .sorted()
         val problems = mutableListOf<String>()
+        machineOperations.containsAll(REQUIRED_MACHINE_OPERATIONS) shouldBe true
         SubmissionDb.superuser().use { connection ->
             serve(dir, services, loader) { context ->
                 val checks = CallerChecks(context, connection, services, emptyList())
@@ -146,5 +162,20 @@ class EndUserFilterTest {
 
     private companion object {
         const val BODY_SHOWN = 120
+
+        /** The ten machine-principal operations at the pinned bundle (INV-Q-17156 A); a larger M is allowed. */
+        val REQUIRED_MACHINE_OPERATIONS =
+            setOf(
+                "GET /v1/compliance-metrics",
+                "POST /v1/entities/{entityRef}/periods/{periodRef}/drain",
+                "POST /v1/entities/{entityRef}/periods/{periodRef}/filing",
+                "GET /v1/entities/{entityRef}/periods/{periodRef}/readiness",
+                "GET /v1/entities/{entityRef}/periods/{periodRef}/readiness/checks",
+                "GET /v1/entities/{entityRef}/periods/{periodRef}/submissions",
+                "GET /v1/entities/{entityRef}/periods/{periodRef}/submissions/export",
+                "GET /v1/entities/{entityRef}/periods/{periodRef}/submissions/reconciliation",
+                "GET /v1/entities/{entityRef}/periods/{periodRef}/submissions/summary",
+                "GET /v1/transactions/{docUuid}",
+            )
     }
 }

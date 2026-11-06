@@ -48,21 +48,21 @@ object BreakGlassDoubles {
         log += LogRecord(offsets.incrementAndGet(), raw)
     }
 
-    /** True while the ordinary authorisation double denies P1 on `getReadiness` (case f). */
-    @Volatile var denyReadiness = false
+    /** True while the ordinary authorisation double denies P1 on `replaySubmissions` (cases c and f). */
+    @Volatile var denyReplay = false
 
     fun reset(at: Instant) {
         reports.clear()
         log.clear()
         Doubles.reset()
         now.set(at)
-        denyReadiness = false
+        denyReplay = false
     }
 }
 
 /**
  * Doubles for INV-AC-9344: end-user tokens of P1 in tenant T and of P1 in tenant T2, the stub
- * [BreakGlassActionReporter], a test clock, a stand-in for the ordinary authorisation of `getReadiness` that denies P1
+ * [BreakGlassActionReporter], a test clock, a stand-in for the ordinary authorisation of `replaySubmissions` that denies P1
  * on request (the controllers are stubs, so the service has no ordinary decision of its own yet) and an interceptor
  * that records each request that reaches a handler (the use case double). Outside the scanned packages.
  */
@@ -130,8 +130,8 @@ class BreakGlassTestBeans(
                     response: HttpServletResponse,
                     handler: Any,
                 ): Boolean {
-                    val readiness = request.method == "GET" && request.requestURI.endsWith("/readiness")
-                    if (BreakGlassDoubles.denyReadiness && readiness) {
+                    val replay = request.method == "POST" && request.requestURI.endsWith("/replay")
+                    if (BreakGlassDoubles.denyReplay && replay) {
                         response.status = DENIED
                         response.writer.write(ORDINARY_DENIAL)
                         return false
