@@ -70,7 +70,7 @@ class ProblemsTest {
     }
 
     @Test
-    fun `SERVICE_NOT_READY is SRT-013 at 503, matches its row, renders without detail and without Retry-After`() {
+    fun `INV-AC-17139 SERVICE_NOT_READY is SRT-013 at 503, matches its row, renders without detail or Retry-After`() {
         val row = catalogue.getValue("SRT-013")
         val code = ClosedErrorCode.SERVICE_NOT_READY
         code.code shouldBe "SRT-013"
