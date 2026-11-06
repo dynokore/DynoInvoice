@@ -454,6 +454,11 @@ permissions:
     row: "Manage plans, entitlements, licences"
     cells:
       - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: tenant-invitation.reissue
+    kind: WRITE
+    row: "Reissue the first administrator invitation"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
   - key: break-glass.unlock
     kind: WRITE
     row: "Unlock break-glass access"

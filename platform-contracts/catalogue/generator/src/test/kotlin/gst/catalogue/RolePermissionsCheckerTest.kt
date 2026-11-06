@@ -1624,6 +1624,55 @@ class RolePermissionsCheckerTest {
         }
     }
 
+    private val ti = "tenant-invitation.reissue"
+    private val tiRow = "Reissue the first administrator invitation"
+
+    @Test
+    fun `INV-T-16220 the key is WRITE with its pinned row and exactly the commercial admin SAAS cell`() {
+        assertEquals(mapOf(ti to tiRow), RolePermissionsChecker.invitationReissuePairs)
+        assertTrue(tiRow in RolePermissionsChecker.addedRows)
+        assertEquals(tiRow, permission(real, ti).row)
+        assertEquals(PermissionKind.WRITE, permission(real, ti).kind)
+        assertEquals(setOf(CellRow("commercial.admin", saasF, RoleAllowance.PERMITTED)), permission(real, ti).cells.toSet())
+        assertEquals(1, permission(real, ti).cells.size)
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-T-16220 probe release manager as an extra holder is reported`() {
+        assertReported(cellAdd(ti, "release.manager", saasF), "role release.manager key $ti form SAAS", "extra")
+    }
+
+    @Test
+    fun `INV-T-16220 probe the commercial admin SAAS cell removed is reported`() {
+        assertReported(cellRemove(ti, "commercial.admin", saasF), "role commercial.admin key $ti form SAAS", "missing")
+    }
+
+    @Test
+    fun `INV-T-16220 probe the kind READ instead of WRITE is reported`() {
+        assertReported(withKind(ti, PermissionKind.READ), "key $ti")
+    }
+
+    @Test
+    fun `INV-T-16220 probe a renamed key is reported`() {
+        assertReported(withPermission(ti) { it.copy(key = "tenant-invitation.reissued") }, "key tenant-invitation.reissued")
+        assertReported(withPermission(ti) { it.copy(key = "tenant-invitation.reissued") }, "key $ti: missing")
+    }
+
+    @Test
+    fun `INV-T-16220 probe a second new key is reported`() {
+        val second = permission(real, ti).copy(key = "tenant-invitation.revoke")
+        assertReported(real.copy(permissions = real.permissions + second), "key tenant-invitation.revoke")
+    }
+
+    @Test
+    fun `INV-T-16220 the label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.invitationReissuePairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
+    }
+
     private val gv = "gap-report.view"
     private val ge = "gap-report.export"
     private val ci = "counterparty-import.run"

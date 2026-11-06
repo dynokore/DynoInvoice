@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A), INV-T-16220 appends one (INV-Q-16217 A).
      */
     val addedRows: List<String> =
         listOf(
@@ -125,6 +125,7 @@ object RolePermissionsChecker {
             "View the accreditation record and its currency",
             "List the re-accreditation assessment tasks",
             "View a re-accreditation assessment task",
+            "Reissue the first administrator invitation",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -196,6 +197,10 @@ object RolePermissionsChecker {
             "accreditation-task.list" to "List the re-accreditation assessment tasks",
             "accreditation-task.view" to "View a re-accreditation assessment task",
         )
+
+    /** The (key, row) pair of the first administrator invitation reissue key (INV-T-16220, INV-Q-16217 A), compared by equality. */
+    val invitationReissuePairs: Map<String, String> =
+        mapOf("tenant-invitation.reissue" to "Reissue the first administrator invitation")
 
     /** The (key, row) pair of the exception queue read key (INV-T-16573, INV-Q-15877 A), compared by equality. */
     val exceptionViewPairs: Map<String, String> =
@@ -414,6 +419,7 @@ object RolePermissionsChecker {
             "exception.defer" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(withinScope, both, "agent.operator")),
             "elevation.request" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.support")),
             "diagnostic.invite" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
+            "tenant-invitation.reissue" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "commercial.admin")),
             "break-glass.reseal" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
             "operator-session.open" to
                 Required(
@@ -624,6 +630,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in exceptionViewPairs && (it.row in exceptionViewPairs.values || it.key.startsWith("exception.view")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${exceptionViewPairs.keys.joinToString()}, which alone carry the exception queue row (INV-T-16573)."
+        }
+        invitationReissuePairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${invitationReissuePairs.keys.joinToString()}, INV-T-16220)."
+        }
+        table.permissions.filter { it.key !in invitationReissuePairs && (it.row in invitationReissuePairs.values || it.key.startsWith("tenant-invitation.")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${invitationReissuePairs.keys.joinToString()}, which alone carry the first administrator invitation reissue row (INV-T-16220)."
         }
         resealPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
