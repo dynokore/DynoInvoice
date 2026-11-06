@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.application.installation
 
+import com.dynokore.gst.tenancy.application.certification.ReleaseTrainChanged
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.security.MessageDigest
@@ -135,6 +136,7 @@ class RecordInstallationAction(
     private val metrics: InstallationActionMetrics,
     private val clock: () -> Instant,
     private val actor: String,
+    private val releaseTrain: ReleaseTrainChanged = ReleaseTrainChanged { },
 ) {
     fun handle(step: InstallationStep): InstallationOutcome =
         platform.bindPlatform(actor) { tx.inTransaction { record(step) } }
@@ -149,7 +151,10 @@ class RecordInstallationAction(
         val auditEntryId = audit.record(step, priorStateJson(prior))
         val recordedAt = clock()
         steps.append(step, fingerprint, auditEntryId, recordedAt)
+        val trainBefore = facts.find(RELEASE_TRAIN_KEY)?.value
         step.facts.forEach { (key, value) -> facts.putIfNotOlder(InstallationFact(key, value, step.occurredAt)) }
+        val trainAfter = facts.find(RELEASE_TRAIN_KEY)?.value
+        if (trainBefore != null && trainAfter != trainBefore) releaseTrain.changed()
         return InstallationOutcome.Recorded(InstallationAck(step.runId, step.step, auditEntryId, recordedAt))
     }
 
@@ -184,5 +189,6 @@ class RecordInstallationAction(
 
     private companion object {
         const val CONTROL_LIMIT = 0x20
+        const val RELEASE_TRAIN_KEY = "releaseTrain"
     }
 }
