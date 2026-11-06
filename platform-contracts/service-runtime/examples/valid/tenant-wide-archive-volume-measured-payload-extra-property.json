@@ -1,0 +1,6 @@
+{
+  "tenantRef": "1f0e9a52-3c4b-4d7e-8a61-5b2c9d0e7f34",
+  "bytes": 123456,
+  "measuredAt": "2026-11-02T01:30:00Z",
+  "note": "extra property is allowed"
+}

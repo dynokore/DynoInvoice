@@ -51,3 +51,6 @@ schemas/installation-status-changed-payload.schema.json	status	NONE
 schemas/installation-status-changed-payload.schema.json	cause	NONE
 schemas/installation-status-changed-payload.schema.json	entityRef	NONE
 schemas/installation-status-changed-payload.schema.json	installationRef	NONE
+schemas/tenant-wide-archive-volume-measured-payload.schema.json	tenantRef	NONE
+schemas/tenant-wide-archive-volume-measured-payload.schema.json	bytes	NONE
+schemas/tenant-wide-archive-volume-measured-payload.schema.json	measuredAt	NONE

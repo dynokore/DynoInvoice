@@ -118,3 +118,6 @@ status	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-
 cause	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
 entityRef	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
 installationRef	property	schemas/installation-status-changed-payload.schema.json	INV-REQ-1226
+tenantRef	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	INV-REQ-878
+bytes	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	INV-REQ-878
+measuredAt	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	INV-REQ-878

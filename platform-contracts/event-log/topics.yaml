@@ -507,6 +507,15 @@ topics:
       - evidence-svc
     subscribers:
       - notification-svc
+  - topic: gst.platform.tenant-wide-archive-volume-measured.v1
+    event_type: com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - evidence-svc
+    subscribers:
+      - tenancy-svc
   - topic: gst.platform.tenant-wide-evidence-integrity-failed.v1
     event_type: com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1
     content_topic: false
@@ -1162,6 +1171,7 @@ replay_topics:
     event_types:
       - com.dynokore.gst.evidence.ArchiveVolumeMeasured.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
+      - com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1
     content_topic: false
     record_topic: false
     retained_while_resolvable: false

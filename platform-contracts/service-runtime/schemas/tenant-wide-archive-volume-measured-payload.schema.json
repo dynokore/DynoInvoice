@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/tenant-wide-archive-volume-measured-payload.schema.json",
+  "title": "TenantWideArchiveVolumeMeasuredPayload",
+  "description": "Payload of the TenantWideArchiveVolumeMeasured platform event (class: platform; INV-REQ-878, INV-Q-14069 option A). evidence-svc emits it with the audit bytes of the tenant-wide entity of a tenant; it carries no entityRef. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "tenantRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The tenant whose tenant-wide audit bytes were measured."
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The retained archive volume of the tenant-wide audit bytes, in bytes."
+    },
+    "measuredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant of the measurement; tenancy-svc keeps the latest per tenant."
+    }
+  },
+  "required": [
+    "tenantRef",
+    "bytes",
+    "measuredAt"
+  ],
+  "additionalProperties": true
+}
