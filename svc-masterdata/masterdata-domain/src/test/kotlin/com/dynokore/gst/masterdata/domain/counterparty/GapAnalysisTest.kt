@@ -63,7 +63,11 @@ class GapAnalysisTest {
             rows(
                 party("P-1", IdentifierScheme.UEN to "201954321B", address = PostalAddress(" ", null, "048616")),
                 party("P-2", IdentifierScheme.UEN to "201954322B", address = null),
-                party("P-3", IdentifierScheme.UEN to "201954323B", address = PostalAddress("1 Road", "Unit 2", "048616")),
+                party(
+                    "P-3",
+                    IdentifierScheme.UEN to "201954323B",
+                    address = PostalAddress("1 Road", "Unit 2", "048616"),
+                ),
             )
         assertEquals(listOf("P-1", "P-2"), found.map { it.first })
         assertTrue(found.all { it.second == GapClass.ADDRESS_INCOMPLETE })

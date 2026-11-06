@@ -48,7 +48,7 @@ fun CounterpartyContent.gstnOrNull(): String? =
  *  1. UEN_ABSENT: the counterparty holds no UEN and no `NA` classification (the MDM-002 finding of resolution);
  *  2. UEN_INVALID: it holds a UEN that [uenFormatValid] refuses;
  *  4. ADDRESS_INCOMPLETE: address line 1 or the postal code is missing;
- *  5. DUPLICATE_UEN: another counterparty holds the same UEN (compared trimmed and upper-cased); every member is listed.
+ *  5. DUPLICATE_UEN: another counterparty holds the same UEN (trimmed, upper-cased); every member is listed.
  * Rows are ordered by party reference, then class, so two runs over equal data answer equal rows.
  */
 fun gapRows(
