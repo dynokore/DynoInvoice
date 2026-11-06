@@ -77,6 +77,7 @@ TYPE_3	enum_value	openapi.yaml	INV-REQ-1364
 listAccreditationTasks	operation	openapi.yaml	INV-REQ-1365
 getAccreditationTask	operation	openapi.yaml	INV-REQ-1365
 concludeAccreditationTask	operation	openapi.yaml	INV-REQ-1365
+concludeAccreditationTask.CPL-007	operation_error_code	openapi.yaml	INV-REQ-1365
 status	property	openapi.yaml	INV-REQ-1365
 reason	property	openapi.yaml	INV-REQ-1365
 openedAt	property	openapi.yaml	INV-REQ-1365
