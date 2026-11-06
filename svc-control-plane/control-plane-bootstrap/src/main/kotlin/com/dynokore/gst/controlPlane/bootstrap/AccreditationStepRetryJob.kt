@@ -15,7 +15,8 @@ import java.time.Duration
  * The relay of the durable retry (INV-Q-17708 A): a PLATFORM-scoped job of control-plane-svc, registered on the
  * service's [JobRuntime] like [PackStageJob]. Each run reads the rows of `accreditation_step_pending` that are PENDING
  * and due, oldest first, in a batch (`OpenAccreditationTask.relay`), and runs the step for each; the step claims its
- * row with `for update skip locked` and is idempotent, so an overlapping run (the first attempt or another replica) opens one task and raises one event.
+ * row with `for update skip locked` and is idempotent, so an overlapping run (the first attempt or another replica)
+ * opens one task and raises one event.
  * The cron comes from `gst.jobs.accreditation-step-retry.cron` and is fired by [AccreditationStepRetrySchedule]; the
  * job runs no scheduler of its own. It runs under `platform.bindPlatform`.
  */
