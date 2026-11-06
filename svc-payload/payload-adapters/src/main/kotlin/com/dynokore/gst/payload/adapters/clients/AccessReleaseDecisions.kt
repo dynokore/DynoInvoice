@@ -75,15 +75,12 @@ class AccessReleaseDecisions(
                 transport.get(config).body
             } catch (failure: RestClientResponseException) {
                 // a 4xx is our request refused, not an outage of the edge: it is a denial and does not trip the breaker
-                if (!failure.statusCode.is4xxClientError) throw failure
-                null
+                if (failure.statusCode.is4xxClientError) return denied()
+                throw failure
             }
-        val tree = raw?.takeIf { it.isNotBlank() }?.let { mapper.readTree(it) }
-        return if (tree == null || !tree.isObject) {
-            denied()
-        } else {
-            ReleaseOutcome.from(text(tree, "decision"), text(tree, "outcome"), text(tree, "reasonCode"))
-        }
+        val tree = raw?.takeIf { it.isNotBlank() }?.let { mapper.readTree(it) } ?: return denied()
+        if (!tree.isObject) return denied()
+        return ReleaseOutcome.from(text(tree, "decision"), text(tree, "outcome"), text(tree, "reasonCode"))
     }
 
     /** The member as the exact string it holds; absent, null or not a string is nothing. */

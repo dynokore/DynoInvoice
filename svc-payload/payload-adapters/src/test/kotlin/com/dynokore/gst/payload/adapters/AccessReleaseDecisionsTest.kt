@@ -171,8 +171,6 @@ class AccessReleaseDecisionsTest {
         },
     )
 
-    private val releasing = """{"decision":"ALLOW","soleOperator":false,"outcome":"RELEASED"}"""
-
     private val denied = ReleaseOutcome.Denied(ReleaseOutcome.NOT_OVERRIDABLE)
 
     @Test
@@ -197,12 +195,12 @@ class AccessReleaseDecisionsTest {
 
     @Test
     fun `a 500 is Denied`() {
-        decide(AccessStub.Reply(500, releasing)) shouldBe denied
+        decide(AccessStub.Reply(500, """{"decision":"ALLOW","soleOperator":false,"outcome":"RELEASED"}""")) shouldBe denied
     }
 
     @Test
     fun `a 400 is Denied`() {
-        decide(AccessStub.Reply(400, releasing)) shouldBe denied
+        decide(AccessStub.Reply(400, """{"decision":"ALLOW","soleOperator":false,"outcome":"RELEASED"}""")) shouldBe denied
     }
 
     @Test
@@ -281,7 +279,7 @@ class AccessReleaseDecisionsTest {
     }
 
     @Test
-    fun `INV-AC-17186 every failure denies and only an exact ALLOW with RELEASED releases`() {
+    fun `INV-AC-17186 a failure, a timeout, an open breaker or an unreadable answer is a denial and only an exact ALLOW with RELEASED releases`() {
         val cases =
             listOf(
                 answer("ALLOW", "RELEASED") to ReleaseOutcome.Released,
