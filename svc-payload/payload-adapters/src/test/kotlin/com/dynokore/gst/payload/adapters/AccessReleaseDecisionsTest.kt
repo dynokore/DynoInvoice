@@ -402,13 +402,7 @@ class AccessReleaseDecisionsTest {
             stub.seen.clear()
             decide(reply) shouldBe expected
             // the request carries documentRef, documentVersion and documentTotalSgd together
-            val names =
-                stub.seen
-                    .first()
-                    .query
-                    .map { it.first }
-            names shouldContain "documentRef"
-            names shouldContain "documentVersion"
+            assertRequestCarriesDocumentFacts()
             names shouldContain "documentTotalSgd"
         }
         decide(timingOut(), registry(timeout = Duration.ofMillis(300))) shouldBe unavailable
