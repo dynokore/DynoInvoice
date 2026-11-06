@@ -39,7 +39,7 @@ class LinkSessionIssuerTest {
     ) = SignedLink(
         ref = ref,
         purpose = "signatory",
-        client = EntityRef("E-A"),
+        client = null,
         consent = null,
         alertEntity = EntityRef("E-A"),
         subject = null,
@@ -50,8 +50,8 @@ class LinkSessionIssuerTest {
         wrongEntries = 0,
         verifiedAt = now,
         invalidatedAt = null,
-        source = LinkSource.CALL,
-        sourceEventId = null,
+        source = LinkSource.EVENT,
+        sourceEventId = "ev-1",
         version = 1,
     )
 

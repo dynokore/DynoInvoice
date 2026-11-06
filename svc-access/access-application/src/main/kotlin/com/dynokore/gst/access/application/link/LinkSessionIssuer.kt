@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.application.link
 
 import com.dynokore.gst.access.domain.link.SignedLink
+import com.dynokore.platform.tenancykernel.TenantId
 import java.security.SecureRandom
 import java.time.Duration
 import java.time.Instant
@@ -48,9 +49,18 @@ class LinkSessionIssuer(
         outcome: VerifyLinkOutcome,
         now: Instant,
     ): LinkSession? {
-        if (outcome !is VerifyLinkOutcome.Verified || outcome.ref != link.ref) return null
-        if (!link.usable || !now.isBefore(link.expiresAt)) return null
-        val tenant = tenants.tenantOf(link.ref) ?: return null
+        val eligible =
+            outcome is VerifyLinkOutcome.Verified && outcome.ref == link.ref && link.usable &&
+                now.isBefore(link.expiresAt)
+        val tenant = if (eligible) tenants.tenantOf(link.ref) else null
+        return tenant?.let { mint(link, it, now) }
+    }
+
+    private fun mint(
+        link: SignedLink,
+        tenant: TenantId,
+        now: Instant,
+    ): LinkSession {
         val ceiling = now.plus(MAX_LIFETIME)
         val exp = if (link.expiresAt.isBefore(ceiling)) link.expiresAt else ceiling
         val claims =
