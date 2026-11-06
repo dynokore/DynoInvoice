@@ -12,8 +12,9 @@ class StoredDocumentVersions(
     override fun find(
         docUuid: UUID,
         version: Int,
-    ): DocumentVersionFacts? =
-        reader.find(docUuid, version)?.let { facts ->
-            facts.totalSgd?.let { DocumentVersionFacts(facts.entityRef, it) }
-        }
+    ): DocumentVersionFacts? {
+        val facts = reader.find(docUuid, version) ?: return null
+        val total = facts.totalSgd ?: return null
+        return DocumentVersionFacts(facts.entityRef, total)
+    }
 }
