@@ -185,8 +185,7 @@ class FirstAdministratorCodeLeakIT {
     private fun rowsHolding(
         code: String,
         vararg selects: String,
-    ): List<String> =
-        selects.flatMap { sql -> dsl.fetch(sql).map { it.formatJSON() } }.filter { it.contains(code) }
+    ): List<String> = selects.flatMap { sql -> dsl.fetch(sql).map { it.formatJSON() } }.filter { it.contains(code) }
 
     private val storedRows =
         arrayOf(
@@ -213,8 +212,11 @@ class FirstAdministratorCodeLeakIT {
         delayMillis = 800
         provision("CTR-leak-slow", Duration.ofMillis(100))
         dsl.fetchCount(
-            org.jooq.impl.DSL.table("controlplane.tenant_provisioning_request"),
-            org.jooq.impl.DSL.field("contract_reference").like("CTR-leak-%"),
+            org.jooq.impl.DSL
+                .table("controlplane.tenant_provisioning_request"),
+            org.jooq.impl.DSL
+                .field("contract_reference")
+                .like("CTR-leak-%"),
         ) shouldBe 7
         appender.list.shouldNotBeEmpty()
         logLinesHolding(CODE).shouldBeEmpty()
@@ -235,8 +237,11 @@ class FirstAdministratorCodeLeakIT {
         delayMillis = 800
         reissue("CTR-reissue-leak", Duration.ofMillis(100))
         dsl.fetchCount(
-            org.jooq.impl.DSL.table("controlplane.first_invitation_reissue"),
-            org.jooq.impl.DSL.field("contract_reference").eq("CTR-reissue-leak"),
+            org.jooq.impl.DSL
+                .table("controlplane.first_invitation_reissue"),
+            org.jooq.impl.DSL
+                .field("contract_reference")
+                .eq("CTR-reissue-leak"),
         ) shouldBe 7
         appender.list.shouldNotBeEmpty()
         logLinesHolding(CODE).shouldBeEmpty()
