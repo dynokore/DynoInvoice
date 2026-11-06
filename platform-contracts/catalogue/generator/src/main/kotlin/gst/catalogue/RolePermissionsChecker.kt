@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389).
      */
     val addedRows: List<String> =
         listOf(
@@ -121,6 +121,7 @@ object RolePermissionsChecker {
             "Gap report and progress",
             "Export the gap report for round-trip remediation",
             "Import counterparties: dry run, then apply",
+            "Record a sandbox certification result",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -172,6 +173,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the period extension record key (INV-T-16683, INV-Q-16671 A), compared by equality. */
     val periodExtensionPairs: Map<String, String> =
         mapOf("period-extension.record" to "Record an IRAS-granted filing extension")
+
+    /** The (key, row) pair of the sandbox certification record key (INV-T-16406, INV-Q-16389), compared by equality. */
+    val sandboxCertificationPairs: Map<String, String> =
+        mapOf("sandbox-certification.record" to "Record a sandbox certification result")
 
     /** The (key, row) pairs of the gap report and counterparty import keys (INV-T-17222, INV-Q-17215 A; text of record INV-NOTE-7 SCR-19.2, SCR-19.4, SCR-19.3), compared by equality. */
     val gapReportPairs: Map<String, String> =
@@ -411,6 +416,7 @@ object RolePermissionsChecker {
                     PermissionKind.WRITE,
                     cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver"),
                 ),
+            "sandbox-certification.record" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
             "gap-report.view" to
                 Required(
                     PermissionKind.READ,
@@ -576,6 +582,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in periodExtensionPairs && (it.row in periodExtensionPairs.values || it.key.startsWith("period-extension")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${periodExtensionPairs.keys.joinToString()}, which alone carry the period extension record row (INV-T-16683)."
+        }
+        sandboxCertificationPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${sandboxCertificationPairs.keys.joinToString()}, INV-T-17503)."
+        }
+        table.permissions.filter { it.key !in sandboxCertificationPairs && (it.row in sandboxCertificationPairs.values || it.key.startsWith("sandbox-certification")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${sandboxCertificationPairs.keys.joinToString()}, which alone carry the sandbox certification record row (INV-T-17503)."
         }
         gapReportPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
