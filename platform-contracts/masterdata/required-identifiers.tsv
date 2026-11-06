@@ -128,6 +128,7 @@ entityRef	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1
 constitution	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1135
 effectiveFrom	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1135
 changeRef	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1135
+# IdentityTripleChanged and the channel masterdataIdentityTripleChanged have no row kind in spectral/check-required-identifiers.py; event-log-topics-drift-check and the model-pin check prove them (INV-T-16427, INV-Q-17647).
 getNetworkRegistration	operation	openapi.yaml	INV-REQ-320
 confirmNetworkRegistration	operation	openapi.yaml	INV-REQ-320
 listRegisterSuggestions	operation	openapi.yaml	INV-REQ-1290
