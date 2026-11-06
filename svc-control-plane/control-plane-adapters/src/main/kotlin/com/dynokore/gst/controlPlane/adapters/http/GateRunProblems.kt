@@ -8,7 +8,8 @@ import tools.jackson.databind.json.JsonMapper
  * The refusals of recordGateRun that the catalogue names (INV-Q-14041 A): CPL-004 (409, the train is already
  * published), CPL-005 (409, the key holds a record that is not a repeat) and CPL-006 (422, the record breaks a gate
  * rule), and of concludeAccreditationTask: CPL-007 (409, the task is concluded with another conclusion;
- * INV-Q-15428 A, INV-Q-15478 A). Each is the API-20 envelope with `errors[]` naming the code, the field and a message; the shape of CPL-003.
+ * INV-Q-15428 A, INV-Q-15478 A). Each is the API-20 envelope with `errors[]` naming the code, the field and a
+ * message; the shape of CPL-003.
  * Platform-libs has no CPL enum, so the codes are held here.
  */
 internal object GateRunProblems {

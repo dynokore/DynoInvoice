@@ -25,10 +25,10 @@ import com.dynokore.gst.controlPlane.application.release.SetSupportWindowCommand
 import com.dynokore.gst.controlPlane.contract.api.ReleasesApi
 import com.dynokore.gst.controlPlane.contract.model.AccreditationRecord
 import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
-import com.dynokore.gst.controlPlane.contract.model.GateRunRequest
-import com.dynokore.gst.controlPlane.contract.model.GateRunResponse
 import com.dynokore.gst.controlPlane.contract.model.AccreditationTaskPage
 import com.dynokore.gst.controlPlane.contract.model.ConcludeAccreditationTaskRequest
+import com.dynokore.gst.controlPlane.contract.model.GateRunRequest
+import com.dynokore.gst.controlPlane.contract.model.GateRunResponse
 import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesResponse
@@ -82,7 +82,7 @@ import java.util.UUID
  */
 @RestController
 // One method per operation of the generated ReleasesApi (TPL-08); one constructor-injected collaborator per parameter.
-@Suppress("TooManyFunctions", "LongParameterList")
+@Suppress("TooManyFunctions", "LongParameterList", "LargeClass")
 class ReleasesController(
     private val principals: EndUserPrincipalResolver,
     private val platform: PlatformTenantBinding,

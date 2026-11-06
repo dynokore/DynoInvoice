@@ -26,12 +26,15 @@ import com.dynokore.gst.controlPlane.application.audit.AuditPurgeAuthority
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeFloorSource
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntries
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
+import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
 import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
+import com.dynokore.gst.controlPlane.application.release.RecordGateRun
 import com.dynokore.gst.controlPlane.application.release.ReleasePermission
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SupportWindowRepository
+import com.dynokore.gst.controlPlane.application.release.TrainRepository
 import com.dynokore.gst.controlPlane.contract.model.AccreditationTask
 import com.dynokore.gst.controlPlane.contract.model.ConcludeAccreditationTaskRequest
 import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
@@ -405,6 +408,7 @@ class AccreditationTaskIT {
                 unused<AuditEntryPurger>(),
                 clock,
             ),
+            RecordGateRun(unused<GateRunRepository>(), unused<TrainRepository>(), grants, clock),
             AccreditationTaskQueries(taskRepository, grants, transactions),
             ConcludeAccreditationTask(taskRepository, grants, clock),
             defaultStep,
@@ -578,7 +582,10 @@ class AccreditationTaskIT {
         held += AccreditationPermission.TASK_LIST
         seedTasks(120)
         val cursor = controller().listAccreditationTasks(null, null, 50).body!!.nextCursor!!
-        controller().listAccreditationTasks(null, cursor, 50).body!!.items.size shouldBe 50
+        controller()
+            .listAccreditationTasks(null, cursor, 50)
+            .body!!
+            .items.size shouldBe 50
         keyFile = ByteArray(32) { 9 }
         refusal(HTTP_BAD_REQUEST) { controller().listAccreditationTasks(null, cursor, 50) }
     }

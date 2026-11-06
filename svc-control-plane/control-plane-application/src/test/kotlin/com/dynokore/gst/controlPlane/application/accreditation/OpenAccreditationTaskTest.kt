@@ -351,7 +351,8 @@ class OpenAccreditationTaskTest {
 
     @Test
     fun `list needs accreditation-task list, get needs accreditation-task view, the record key opens neither`() {
-        store["TASK-X"] = AccreditationTask("TASK-X", TaskStatus.OPEN, TaskReason.REASSESSMENT_NEEDED, clock.instant(), "A", "R")
+        store["TASK-X"] =
+            AccreditationTask("TASK-X", TaskStatus.OPEN, TaskReason.REASSESSMENT_NEEDED, clock.instant(), "A", "R")
         permissions += "carl" to AccreditationPermission.RECORD
         queries.list("carl", null, null, 10) shouldBe TaskRead.Denied
         queries.get("carl", "TASK-X") shouldBe TaskRead.Denied

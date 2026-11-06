@@ -117,6 +117,8 @@ class OpenAccreditationTask(
                         request,
                     )
                 }
-        return AccreditationCheck(assessmentRequested, task.alertRef, task.taskRef).also { ports.links.link(target, it) }
+        return AccreditationCheck(assessmentRequested, task.alertRef, task.taskRef).also {
+            ports.links.link(target, it)
+        }
     }
 }

@@ -196,7 +196,6 @@ class GateRunPersistenceIT {
             },
             { _, key -> key == ReleasePermission.PUBLISH },
             RecordedTrainEvidence(repository),
-            { error("no accreditation task") },
             clock,
         )
 
