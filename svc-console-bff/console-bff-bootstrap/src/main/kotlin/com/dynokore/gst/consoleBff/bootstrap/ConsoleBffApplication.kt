@@ -8,9 +8,9 @@ import org.springframework.context.annotation.Import
 
 /**
  * TPL-18: the composition root. All wiring lives in this module so `application` stays free of framework annotations
- * (ARC-03). There is no DataSource bean here or anywhere in the service (owner ruling INV-Q-4196): the one pool is
- * Spring Boot's `dataSource` from `spring.datasource.*` (application.yaml), the `console_runtime` login. This slice
- * registers no console request filter and no controller (the limits and the session belong to later tasks).
+ * (ARC-03). This slice has no database (INV-Q-17448 C: the datasource, the jOOQ schema and the migrations arrive with
+ * INV-T-14458) and registers no console request filter and no controller (the limits and the session belong to later
+ * tasks).
  */
 @SpringBootApplication(
     // classes, not package names: platform-build's raw-SQL placement gate keeps no String attribute of this annotation

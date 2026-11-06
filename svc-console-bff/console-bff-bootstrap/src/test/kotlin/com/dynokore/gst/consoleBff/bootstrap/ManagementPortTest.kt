@@ -1,6 +1,5 @@
 package com.dynokore.gst.consoleBff.bootstrap
 
-import com.dynokore.gst.consoleBff.adapters.ConsoleDb
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -15,7 +14,7 @@ import java.net.http.HttpResponse
 import java.nio.file.Path
 
 /**
- * API-33 and TPL-16 (P109): the running service, over the Testcontainers database, serves health, readiness and
+ * API-33 and TPL-16 (P109): the running service, serves health, readiness and
  * metrics on the management port and nothing of them on the application port. The application port is ephemeral; the
  * management port is the one application.yaml sets (8081), asserted here, so a yaml that equals the two fails.
  */
@@ -29,7 +28,6 @@ class ManagementPortTest {
     fun `INV-AC-14435 health readiness and metrics are served on the management port only`(
         @TempDir dir: Path,
     ) {
-        ConsoleContext.secrets(dir)
         val app =
             SpringApplicationBuilder(ConsoleBffApplication::class.java)
                 .web(WebApplicationType.SERVLET)
@@ -37,7 +35,6 @@ class ManagementPortTest {
                     *ConsoleContext.overrides(
                         dir,
                         "server.port=0",
-                        "spring.datasource.url=${ConsoleDb.jdbcUrl}",
                     ),
                 ).run()
         app.use { context ->
