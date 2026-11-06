@@ -26,7 +26,7 @@ import java.nio.file.Path
 class EndUserFilterTest {
     private val loader = javaClass.classLoader
 
-    /** M: the lines of `META-INF/gst/machine-principal-operations.tsv` of submission-contract, read when the test runs. */
+    /** M: the lines of `META-INF/gst/machine-principal-operations.tsv`, read when the test runs. */
     private val machineOperations: Set<String> =
         loader
             .getResources("META-INF/gst/machine-principal-operations.tsv")
@@ -85,6 +85,37 @@ class EndUserFilterTest {
         ).map { "${operation.label}: $it" }
     }
 
+    private fun userAProblems(
+        checks: CallerChecks,
+        operation: Operation,
+        services: List<String>,
+    ): List<String> {
+        val before = Doubles.reached.size
+        val answer =
+            checks.send(operation, withWorkload(operation, services, mapOf(CallerChecks.AUTH to CallerChecks.END_USER)))
+        val seen = Doubles.reached.drop(before)
+        val bound = seen.singleOrNull()
+        val label = operation.label
+        return when {
+            // INV-Q-17156 A: a machine-principal operation takes machine tokens only, so the end-user token is refused
+            label in machineOperations -> {
+                listOfNotNull(
+                    "$label (user-a, machine class): ${answer.statusCode()} reached $seen".takeIf {
+                        answer.statusCode() != 401 || "SRT-003" !in answer.body() || seen.isNotEmpty()
+                    },
+                )
+            }
+
+            bound == null || bound.tenant != TestIdentity.TENANT_A || bound.actor != TestIdentity.ACTOR -> {
+                listOf("$label (user-a): ${answer.statusCode()} reached $seen")
+            }
+
+            else -> {
+                emptyList()
+            }
+        }
+    }
+
     private fun filteredProblems(
         checks: CallerChecks,
         operation: Operation,
@@ -106,18 +137,7 @@ class EndUserFilterTest {
         }
         refused("no token", emptyMap())
         refused("refused token", mapOf(CallerChecks.AUTH to "Bearer refused"))
-        val before = Doubles.reached.size
-        val answer = call(mapOf(CallerChecks.AUTH to CallerChecks.END_USER))
-        val seen = Doubles.reached.drop(before)
-        val bound = seen.singleOrNull()
-        if (operation.label in machineOperations) {
-            // INV-Q-17156 A: a machine-principal operation takes machine tokens only, so the end-user token is refused
-            if (answer.statusCode() != 401 || "SRT-003" !in answer.body() || seen.isNotEmpty()) {
-                found += "${operation.label} (user-a, machine class): ${answer.statusCode()} reached $seen"
-            }
-        } else if (bound == null || bound.tenant != TestIdentity.TENANT_A || bound.actor != TestIdentity.ACTOR) {
-            found += "${operation.label} (user-a): ${answer.statusCode()} reached $seen"
-        }
+        found += userAProblems(checks, operation, services)
         return found
     }
 

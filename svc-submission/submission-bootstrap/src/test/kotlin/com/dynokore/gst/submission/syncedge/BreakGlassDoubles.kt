@@ -62,9 +62,9 @@ object BreakGlassDoubles {
 
 /**
  * Doubles for INV-AC-9344: end-user tokens of P1 in tenant T and of P1 in tenant T2, the stub
- * [BreakGlassActionReporter], a test clock, a stand-in for the ordinary authorisation of `replaySubmissions` that denies P1
- * on request (the controllers are stubs, so the service has no ordinary decision of its own yet) and an interceptor
- * that records each request that reaches a handler (the use case double). Outside the scanned packages.
+ * [BreakGlassActionReporter], a test clock, a stand-in for the ordinary authorisation of `replaySubmissions` that
+ * denies P1 on request (the controllers are stubs, so the service has no ordinary decision of its own yet) and an
+ * interceptor that records each request that reaches a handler (the use case double). Outside the scanned packages.
  */
 @Configuration(proxyBeanMethods = false)
 class BreakGlassTestBeans(

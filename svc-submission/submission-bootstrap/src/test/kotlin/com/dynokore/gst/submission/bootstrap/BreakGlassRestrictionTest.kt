@@ -20,17 +20,13 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.BreakGlassAction
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
 import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
+import com.dynokore.platform.tenancykernel.TenantId
 import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-import java.util.Base64
-import java.util.Date
-import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -44,9 +40,13 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
+import java.security.KeyPair
+import java.security.KeyPairGenerator
 import java.time.Duration
 import java.time.Instant
+import java.util.Base64
 import java.util.Collections
+import java.util.Date
 import java.util.Enumeration
 import java.util.UUID
 
@@ -105,7 +105,12 @@ class BreakGlassRestrictionTest {
             .filter { "${it[0]} ${it[1]}" in machineScopes }
             .associate { "${it[0]} ${it[1]}" to it[2] }
 
-    private val machinePair: KeyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(KEY_BITS) }.generateKeyPair()
+    private val machinePair: KeyPair =
+        KeyPairGenerator
+            .getInstance(
+                "RSA",
+            ).apply { initialize(KEY_BITS) }
+            .generateKeyPair()
 
     private fun machineToken(
         scope: String,
@@ -127,7 +132,12 @@ class BreakGlassRestrictionTest {
                 .issueTime(Date.from(issuedAt))
                 .expirationTime(Date.from(issuedAt.plus(expiresIn)))
                 .build()
-        val header = JWSHeader.Builder(JWSAlgorithm.RS256).keyID("mk").type(JOSEObjectType("at+jwt")).build()
+        val header =
+            JWSHeader
+                .Builder(JWSAlgorithm.RS256)
+                .keyID("mk")
+                .type(JOSEObjectType("at+jwt"))
+                .build()
         return SignedJWT(header, claims).also { it.sign(RSASSASigner(pair.private)) }.serialize()
     }
 
@@ -416,7 +426,16 @@ class BreakGlassRestrictionTest {
             val summary = "GET /v1/entities/{entityRef}/periods/{periodRef}/readiness"
             val expired = machineToken("filing-workflow", issuedAt = BreakGlassTestBeans.BEFORE_E.minusSeconds(3600))
             refusedUnauthenticated(call(context, op(summary), expired)) shouldBe true
-            val forged = machineToken("filing-workflow", pair = KeyPairGenerator.getInstance("RSA").apply { initialize(KEY_BITS) }.generateKeyPair())
+            val forged =
+                machineToken(
+                    "filing-workflow",
+                    pair =
+                        KeyPairGenerator
+                            .getInstance("RSA")
+                            .apply {
+                                initialize(KEY_BITS)
+                            }.generateKeyPair(),
+                )
             refusedUnauthenticated(call(context, op(summary), forged)) shouldBe true
             Doubles.reached.size shouldBe reached
             BreakGlassDoubles.reports.size shouldBe 0

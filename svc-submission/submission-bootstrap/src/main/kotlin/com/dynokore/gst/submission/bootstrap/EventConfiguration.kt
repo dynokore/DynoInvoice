@@ -79,6 +79,8 @@ object SubmissionEvents {
                 checkNotNull(PlatformEventCatalogue.BREAK_GLASS_SESSION_CHANGED.topic),
                 setOf(CatalogueEntry.EVERY_SERVICE),
                 contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
             ),
         )
 }
