@@ -427,15 +427,20 @@ class RolePermissionsTest {
             mapOf(
                 "gap-report.view" to (PermissionKind.READ to setOf("tax.operator", "tax.approver")),
                 "gap-report.export" to (PermissionKind.READ to setOf("tax.operator")),
-                "counterparty-import.run" to (PermissionKind.WRITE to setOf("tax.operator", "implementation.consultant")),
+                "counterparty-import.run" to
+                    (PermissionKind.WRITE to setOf("tax.operator", "implementation.consultant")),
             )
         expected.forEach { (key, kindAndRoles) ->
             assertEquals(kindAndRoles.first, RolePermissions.kind(key), key)
             val actual =
-                both.flatMap { form ->
-                    RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { Triple(role, form, it) } }
-                }.toSet()
-            assertEquals(kindAndRoles.second.flatMap { r -> both.map { Triple(r, it, y) } }.toSet(), actual, key)
+                both
+                    .flatMap { form ->
+                        RolePermissions.cells(form).mapNotNull { (role, perms) ->
+                            perms[key]?.let { Triple(role, form, it) }
+                        }
+                    }.toSet()
+            val roles = kindAndRoles.second
+            assertEquals(roles.flatMap { r -> both.map { Triple(r, it, y) } }.toSet(), actual, key)
         }
         assertNull(RolePermissions.kind("gap-report.views"))
         assertNull(RolePermissions.kind("counterparty-import.runs"))
