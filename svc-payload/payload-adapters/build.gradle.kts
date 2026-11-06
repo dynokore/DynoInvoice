@@ -51,6 +51,7 @@ dependencies {
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)
+    implementation(libs.gstCatalogue)
     implementation(libs.jooq)
     implementation(libs.flyway.core)
     implementation(libs.flyway.databasePostgresql)
