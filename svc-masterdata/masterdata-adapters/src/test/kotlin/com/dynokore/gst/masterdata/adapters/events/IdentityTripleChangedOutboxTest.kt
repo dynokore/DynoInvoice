@@ -16,7 +16,9 @@ import tools.jackson.databind.json.JsonMapper
 import java.lang.reflect.Proxy
 import java.time.LocalDate
 
-/** INV-T-16429 (INV-REQ-1135, INV-Q-16401 A): the `IdentityTripleChanged` mapping and its schema in the pinned bundle. */
+/**
+ * INV-T-16429 (INV-REQ-1135, INV-Q-16401 A): the `IdentityTripleChanged` mapping and its schema in the pinned bundle.
+ */
 class IdentityTripleChangedOutboxTest {
     private val mapper = JsonMapper.builder().build()
     private val schema =
