@@ -9,15 +9,18 @@ import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
+import com.dynokore.platform.outboxandqueue.JdbcReplayDelivery
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
+import com.dynokore.platform.outboxandqueue.ReplayDelivery
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Primary
 import java.time.Clock
 
 /**
@@ -46,11 +49,10 @@ class ConsumerConfiguration {
     /**
      * The service declares its own consumer: product-runtime also supplies `EventHandler` beans, so the default
      * single-consumer wiring of `OutboxAndQueueWiring` (one `EventHandler` by type) would be ambiguous and backs off.
-     * It is primary for the replay wiring, which takes one `JdbcInboxConsumer`: the service has a second consumer, of
-     * `BreakGlassSessionChanged` ([BreakGlassFeed]).
+     * The service has a second consumer, of `BreakGlassSessionChanged` ([BreakGlassFeed]), so the replay delivery is
+     * declared below with a qualifier.
      */
     @Bean
-    @Primary
     @Suppress("LongParameterList")
     fun payloadReadyConsumer(
         subscription: ConsumerSubscription,
@@ -71,6 +73,14 @@ class ConsumerConfiguration {
             rebuildRequired,
             clock,
         )
+
+    /** The replay delivery of the library, built with the parameters of `OutboxAndQueueWiring.replayDelivery`. */
+    @Bean
+    fun submissionReplayDelivery(
+        queue: WorkQueue,
+        scope: TenantScope,
+        @Qualifier("payloadReadyConsumer") inbox: JdbcInboxConsumer,
+    ): ReplayDelivery = JdbcReplayDelivery(queue, scope, inbox)
 
     @Bean
     fun rebuildRequiredSink(): RebuildRequiredSink =

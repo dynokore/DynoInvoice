@@ -22,6 +22,7 @@ import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.PollResult
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
+import com.dynokore.platform.outboxandqueue.ReplayDelivery
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -34,6 +35,7 @@ import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import org.springframework.context.ConfigurableApplicationContext
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.time.Instant
@@ -324,6 +326,9 @@ class PayloadReadyDbTest {
     ) = run(dir) {
         val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
         consumers.keys shouldBe setOf("payloadReadyConsumer", "breakGlassSessionConsumer")
+        val factory = (context as ConfigurableApplicationContext).beanFactory
+        consumers.keys.filter { factory.getBeanDefinition(it).isPrimary } shouldBe emptyList()
+        context.getBeansOfType(ReplayDelivery::class.java).keys shouldBe setOf("submissionReplayDelivery")
     }
 
     private companion object {
