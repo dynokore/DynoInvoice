@@ -267,8 +267,8 @@ class AcceptanceCriteriaTest {
         run { _, env ->
             env.entity(tenantA, "CLIENT-A")
             env.entity(tenantA, "CLIENT-B")
-            env.consent.grant(EntityRef("CLIENT-A"), agent = "IDN-AGENT")
-            env.consent.grant(EntityRef("CLIENT-B"), agent = "IDN-AGENT")
+            env.consent.grant(EntityRef("CLIENT-A"), agent = tenantA.toString())
+            env.consent.grant(EntityRef("CLIENT-B"), agent = tenantA.toString())
             val now = env.clock.instant()
             env.inTenant(tenantA) {
                 env.tx.inTransaction {
@@ -292,7 +292,7 @@ class AcceptanceCriteriaTest {
     fun `INV-AC-2187 an agent action right after the client withdraws consent is denied at the next check`() =
         run { _, env ->
             env.entity(tenantA, "CLIENT-W")
-            env.consent.grant(EntityRef("CLIENT-W"), agent = "IDN-AGENT2")
+            env.consent.grant(EntityRef("CLIENT-W"), agent = tenantA.toString())
             val now = env.clock.instant()
             env.inTenant(tenantA) {
                 env.tx.inTransaction {

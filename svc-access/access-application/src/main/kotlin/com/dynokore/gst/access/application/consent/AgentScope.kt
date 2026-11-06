@@ -3,7 +3,6 @@ package com.dynokore.gst.access.application.consent
 import com.dynokore.gst.access.domain.consent.AgentConsentPolicy
 import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.EntityRef
-import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.role.Permission
 import java.time.LocalDate
@@ -27,18 +26,20 @@ class AgentScope(
     private val consents: ConsentRepository,
     private val requirements: ScopeItemRequirements,
 ) {
+    /**
+     * The operator check: the consent's agent is compared with the agent tenant of the operator's grant, by string
+     * equality (INV-Q-9320 A: the tenant of the grant equals the `agentRef` of the consent). The identity of the
+     * operator is not compared.
+     */
     fun permits(
-        agent: IdentityRef,
+        operatorTenant: TenantRef,
         client: EntityRef,
         permission: Permission,
         on: LocalDate,
-    ): Boolean {
-        val item = requirements.itemFor(permission) ?: return false
-        return AgentConsentPolicy.permits(consents.findLiveForClient(client), agent, client, item, on)
-    }
+    ): Boolean = permitsClient(operatorTenant, client, permission, on)
 
     /**
-     * As [permits] for a non-operator consent-derived grant: the consent's agent is compared with the holder's agent
+     * The check of a consent-derived grant: the consent's agent is compared with the holder's agent
      * tenant, by string equality (INV-Q-9320 A: the tenant of the grant holder equals the `agentRef` of the consent).
      */
     fun permitsClient(

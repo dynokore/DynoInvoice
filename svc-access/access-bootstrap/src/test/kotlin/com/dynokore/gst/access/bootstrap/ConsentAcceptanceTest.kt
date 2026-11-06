@@ -97,7 +97,7 @@ class ConsentAcceptanceTest {
                         UUID.randomUUID(),
                         GrantConsentRequest(
                             clientRef = client,
-                            agentRef = agent,
+                            agentRef = tenant.toString(),
                             validFrom = LocalDate.of(2026, 1, 1),
                             authorisingPersonEmail = "director@client.example",
                             scope = scope,
@@ -448,7 +448,7 @@ class ConsentAcceptanceTest {
                         UUID.randomUUID(),
                         GrantConsentRequest(
                             "CLI-A",
-                            agent,
+                            env.tenant.toString(),
                             LocalDate.of(2026, 1, 1),
                             "director@client.example",
                             submitInvoiceData = true,

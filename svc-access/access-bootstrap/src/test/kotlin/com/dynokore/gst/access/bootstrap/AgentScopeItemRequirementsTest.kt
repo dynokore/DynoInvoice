@@ -57,7 +57,7 @@ class AgentScopeItemRequirementsTest {
          */
         fun client(
             items: Set<ScopeItem>,
-            consentAgent: String = agent,
+            consentAgent: String = tenant.toString(),
         ): String {
             val client = "CLI-${next++}"
             context
@@ -202,13 +202,18 @@ class AgentScopeItemRequirementsTest {
         }
 
     @Test
-    fun `INV-Q-9320 the approver is decided by consent, item and agent tenant, the operator by the consent agent`() =
+    fun `INV-Q-9320 the approver is decided by consent, item and agent tenant, the operator by the agent tenant`() =
         run { env ->
             val ofOther = env.client(all, consentAgent = "user:other-agent")
             assertThat(env.decide(approver, ofOther, "mapping-pack.approve")).isEqualTo(Decision.DENY)
             val ofTenant = env.approverClient(all)
             assertThat(env.decide(approver, ofTenant, "mapping-pack.approve")).isEqualTo(Decision.ALLOW)
             assertThat(env.decide(agent, ofOther, "submission.replay")).isEqualTo(Decision.DENY)
+            // INV-AC-17814: the operator is honoured on the grant's tenant text, never on its identity text
+            val ofIdentity = env.client(all, consentAgent = agent)
+            assertThat(env.decide(agent, ofIdentity, "submission.replay")).isEqualTo(Decision.DENY)
+            assertThat(env.decide(agent, env.client(all, consentAgent = env.tenant.toString()), "submission.replay"))
+                .isEqualTo(Decision.ALLOW)
             val withoutConsent = "CLI-NONE"
             assertThat(env.decide(approver, withoutConsent, "mapping-pack.approve")).isEqualTo(Decision.DENY)
         }

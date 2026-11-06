@@ -101,7 +101,10 @@ class Authorise(
         return grants.findByIdentity(principal).filter {
             when {
                 it.role == Role.AGENT_OPERATOR -> {
-                    agentScope.permits(principal, target.entity, permission, today)
+                    // the grant's own tenant (GrantHeader.tenant) must equal the target's membership tenant before
+                    // any consent is read; the principal's identity is not compared with the consent
+                    it.tenant == membership.tenant &&
+                        agentScope.permits(it.tenant, target.entity, permission, today)
                 }
 
                 it.scope is Scope.ConsentDerived -> {
