@@ -164,7 +164,7 @@ class ValidationOverrideControllerTest {
     private val findings = Findings()
     private val store = Store()
     private val audit = Audit()
-    private val authority = Authority(setOf("A1", "A2", "A3"))
+    private var authority = Authority(setOf("A1", "A2", "A3"))
     private var decisions = Decisions()
     private var caller: String? = "A1"
 

@@ -88,8 +88,14 @@ open class ValidationOverrideController(
         cursor: String?,
     ): ResponseEntity<ValidationOverrideList> {
         val principal = principalOrNull() ?: return OverrideHttp.problem(ClosedErrorCode.UNAUTHENTICATED)
-        val after = cursor?.let(OverrideHttp::decodeCursor)
-        if (cursor != null && after == null) return OverrideHttp.problem(ClosedErrorCode.CONTRACT_VIOLATION)
+        val after =
+            if (cursor ==
+                null
+            ) {
+                null
+            } else {
+                (decodeCursor(cursor) ?: return problem(ClosedErrorCode.CONTRACT_VIOLATION))
+            }
         // One more than the page tells whether a next page exists.
         return when (val result = read.execute(principal.actor, docUuid, version, after, limit + 1)) {
             is OverrideResult.Listed -> ResponseEntity.ok(OverrideHttp.page(result.entries, limit))
