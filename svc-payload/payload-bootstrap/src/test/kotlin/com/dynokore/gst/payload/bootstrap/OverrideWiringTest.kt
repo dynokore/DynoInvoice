@@ -240,10 +240,11 @@ class OverrideWiringTest {
             withService(replica, stub) { service ->
                 val doc = UUID.randomUUID()
                 service.seed(doc)
+                val before = overrides()
                 service.override("u-lag", doc).status shouldBe 403
-                overrides() shouldBe 0
+                overrides() shouldBe before
                 service.override("u-fb", doc).status shouldBe 201
-                overrides() shouldBe 1
+                overrides() shouldBe before + 1
             }
         }
     }
@@ -261,7 +262,7 @@ class OverrideWiringTest {
                 answer.body shouldContain "SRT-004"
                 answer.body shouldContain "\"reasonCode\":\"ACCESS_DECISION_UNAVAILABLE\""
                 answer.body shouldNotContain "NOT_OVERRIDABLE"
-                overrides() shouldBe 0
+                overrides() shouldBe before
             }
         }
     }
@@ -350,6 +351,7 @@ class OverrideWiringTest {
             withService(replica, stub) { service ->
                 val doc = UUID.randomUUID()
                 service.seed(doc)
+                val before = overrides()
                 val stored =
                     service.guarded { dsl ->
                         JooqOverrideStore(dsl) { tenant.value }.insert(newOverride(doc))
