@@ -257,6 +257,7 @@ class OverrideWiringTest {
             withService(localReplica("u-local" to "validation.override"), stub) { service ->
                 val doc = UUID.randomUUID()
                 service.seed(doc)
+                val before = overrides()
                 val answer = service.override("u-local", doc)
                 answer.status shouldBe 403
                 answer.body shouldContain "SRT-004"
@@ -351,7 +352,6 @@ class OverrideWiringTest {
             withService(replica, stub) { service ->
                 val doc = UUID.randomUUID()
                 service.seed(doc)
-                val before = overrides()
                 val stored =
                     service.guarded { dsl ->
                         JooqOverrideStore(dsl) { tenant.value }.insert(newOverride(doc))
