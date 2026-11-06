@@ -51,7 +51,7 @@ open class ValidationOverrideController(
         version: Int,
         overrideValidationRequest: OverrideValidationRequest,
     ): ResponseEntity<ValidationOverride> {
-        val principal = principalOrNull() ?: return problem(ClosedErrorCode.UNAUTHENTICATED)
+        val principal = principalOrNull() ?: return OverrideHttp.problem(ClosedErrorCode.UNAUTHENTICATED)
         return when (
             val result =
                 request.execute(
@@ -64,7 +64,7 @@ open class ValidationOverrideController(
         ) {
             is OverrideResult.Released -> created(result.entry)
             is OverrideResult.AwaitsSecond -> accepted(result.entry)
-            else -> refusal(result, docUuid)
+            else -> OverrideHttp.refusal(result, docUuid)
         }
     }
 
@@ -73,32 +73,27 @@ open class ValidationOverrideController(
         version: Int,
         code: String,
     ): ResponseEntity<ValidationOverride> {
-        val principal = principalOrNull() ?: return problem(ClosedErrorCode.UNAUTHENTICATED)
+        val principal = principalOrNull() ?: return OverrideHttp.problem(ClosedErrorCode.UNAUTHENTICATED)
         return when (val result = approve.execute(principal.actor, docUuid, version, code)) {
             is OverrideResult.Released -> created(result.entry)
-            else -> refusal(result, docUuid)
+            else -> OverrideHttp.refusal(result, docUuid)
         }
     }
 
+    @Suppress("ReturnCount")
     override fun getValidationOverrides(
         docUuid: UUID,
         version: Int,
         limit: Int,
         cursor: String?,
     ): ResponseEntity<ValidationOverrideList> {
-        val principal = principalOrNull() ?: return problem(ClosedErrorCode.UNAUTHENTICATED)
-        val after =
-            if (cursor ==
-                null
-            ) {
-                null
-            } else {
-                (decodeCursor(cursor) ?: return problem(ClosedErrorCode.CONTRACT_VIOLATION))
-            }
+        val principal = principalOrNull() ?: return OverrideHttp.problem(ClosedErrorCode.UNAUTHENTICATED)
+        val after = cursor?.let(OverrideHttp::decodeCursor)
+        if (cursor != null && after == null) return OverrideHttp.problem(ClosedErrorCode.CONTRACT_VIOLATION)
         // One more than the page tells whether a next page exists.
         return when (val result = read.execute(principal.actor, docUuid, version, after, limit + 1)) {
-            is OverrideResult.Listed -> ResponseEntity.ok(page(result.entries, limit))
-            else -> refusal(result, docUuid)
+            is OverrideResult.Listed -> ResponseEntity.ok(OverrideHttp.page(result.entries, limit))
+            else -> OverrideHttp.refusal(result, docUuid)
         }
     }
 
@@ -113,7 +108,7 @@ open class ValidationOverrideController(
                 entry.code,
                 entry.reason,
                 checkNotNull(entry.releasedBy) { "a released override names its releasing approver" },
-                utc(checkNotNull(entry.releasedAt) { "a released override has a release time" }),
+                OverrideHttp.utc(checkNotNull(entry.releasedAt) { "a released override has a release time" }),
             ),
         )
 
@@ -127,12 +122,15 @@ open class ValidationOverrideController(
                 entry.code,
                 entry.reason,
                 entry.requestedBy,
-                utc(entry.requestedAt),
+                OverrideHttp.utc(entry.requestedAt),
                 PendingValidationOverride.Status.PENDING,
             ),
         ) as ResponseEntity<ValidationOverride>
+}
 
-    private fun page(
+/** The mapping of results to pages and API-20 envelopes, so that the controller keeps to its three operations. */
+internal object OverrideHttp {
+    fun page(
         entries: List<StoredOverride>,
         limit: Int,
     ): ValidationOverrideList {
@@ -153,7 +151,7 @@ open class ValidationOverrideController(
         )
 
     /** Every non-success result is one envelope; a result that cannot reach this adapter fails closed as 403. */
-    private fun <T : Any> refusal(
+    fun <T : Any> refusal(
         result: OverrideResult,
         docUuid: UUID,
     ): ResponseEntity<T> =
@@ -186,7 +184,7 @@ open class ValidationOverrideController(
     private fun reasonCodeOf(code: String): String = if (code in REASON_CODES) code else ReleaseOutcome.NOT_OVERRIDABLE
 
     @Suppress("UNCHECKED_CAST")
-    private fun <T : Any> problem(
+    fun <T : Any> problem(
         code: ClosedErrorCode,
         reasonCode: String? = null,
     ): ResponseEntity<T> {
@@ -205,7 +203,7 @@ open class ValidationOverrideController(
 
     /** 422 PAY-017 (catalogue: BLOCK, MANUAL, Tax operations); the code is not in service-runtime's closed set. */
     @Suppress("UNCHECKED_CAST")
-    private fun <T : Any> notOverridable(docUuid: UUID): ResponseEntity<T> {
+    fun <T : Any> notOverridable(docUuid: UUID): ResponseEntity<T> {
         val body =
             MAPPER
                 .createObjectNode()
@@ -232,7 +230,7 @@ open class ValidationOverrideController(
     private fun correlationId(): String =
         CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
 
-    private fun utc(at: Instant): OffsetDateTime = at.atOffset(ZoneOffset.UTC)
+    fun utc(at: Instant): OffsetDateTime = at.atOffset(ZoneOffset.UTC)
 
     private fun encodeCursor(
         at: Instant,
@@ -240,7 +238,7 @@ open class ValidationOverrideController(
     ): String = Base64.getUrlEncoder().withoutPadding().encodeToString("$at|$code".toByteArray(StandardCharsets.UTF_8))
 
     /** The position of a cursor, or nothing when it is not one this operation issued. */
-    private fun decodeCursor(cursor: String): Pair<Instant, String>? =
+    fun decodeCursor(cursor: String): Pair<Instant, String>? =
         runCatching {
             val text = String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8)
             val at = Instant.parse(text.substringBefore('|'))
@@ -248,9 +246,7 @@ open class ValidationOverrideController(
             if (code.isEmpty()) null else at to code
         }.getOrNull()
 
-    private companion object {
-        const val PAY_017 = "PAY-017"
-        val REASON_CODES = setOf(ReleaseOutcome.NOT_OVERRIDABLE, "SAME_PERSON_TWICE", "NO_SOLE_OPERATOR_ACK")
-        val MAPPER: JsonMapper = JsonMapper.builder().build()
-    }
+    private const val PAY_017 = "PAY-017"
+    private val REASON_CODES = setOf(ReleaseOutcome.NOT_OVERRIDABLE, "SAME_PERSON_TWICE", "NO_SOLE_OPERATOR_ACK")
+    private val MAPPER: JsonMapper = JsonMapper.builder().build()
 }

@@ -60,7 +60,11 @@ private class Findings : BlockingFindings {
         docUuid: UUID,
         version: Int,
         code: String,
-    ) = if (Triple(docUuid, version, code) in overridable) FindingDisposition.OVERRIDABLE else FindingDisposition.REFUSED
+    ) = if (Triple(docUuid, version, code) in overridable) {
+        FindingDisposition.OVERRIDABLE
+    } else {
+        FindingDisposition.REFUSED
+    }
 }
 
 /** access-svc's decision: a threshold of SGD 1000.00, the first approver alone below or at it. */
@@ -113,8 +117,11 @@ private class Store : OverrideStore {
         val key = Triple(docUuid, version, code)
         val row = rows[key]?.takeIf { it.status == OverrideStatus.PENDING } ?: return null
         return row
-            .copy(status = OverrideStatus.RELEASED, releasedBy = releasedBy, releasedAt = Instant.EPOCH.plusSeconds(tick++))
-            .also { rows[key] = it }
+            .copy(
+                status = OverrideStatus.RELEASED,
+                releasedBy = releasedBy,
+                releasedAt = Instant.EPOCH.plusSeconds(tick++),
+            ).also { rows[key] = it }
     }
 
     override fun entries(
@@ -125,8 +132,10 @@ private class Store : OverrideStore {
     ) = rows.values
         .filter { it.docUuid == docUuid && it.version == version }
         .sortedWith(compareBy({ it.requestedAt }, { it.code }))
-        .filter { after == null || compareValuesBy(it.requestedAt to it.code, after, { p -> p.first }, { p -> p.second }) > 0 }
-        .take(limit)
+        .filter {
+            after == null ||
+                compareValuesBy(it.requestedAt to it.code, after, { p -> p.first }, { p -> p.second }) > 0
+        }.take(limit)
 }
 
 private class Audit : AuditTrail {
@@ -162,7 +171,8 @@ class ValidationOverrideControllerTest {
     private fun sut(): ValidationOverrideController {
         val http =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
-                if (method.name == "getAttribute" && args?.get(0) == EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) {
+                val key = args?.firstOrNull()
+                if (method.name == "getAttribute" && key == EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) {
                     caller?.let { EndUserPrincipal(it, null, emptySet()) }
                 } else {
                     null
@@ -244,7 +254,7 @@ class ValidationOverrideControllerTest {
     }
 
     @Test
-    fun `INV-AC-11512 a decision that awaits a second approver is 202 with a PENDING row and the document stays blocked`() {
+    fun `INV-AC-11512 an awaited second approver is 202 with a PENDING row and the document stays blocked`() {
         blocked(d1, total = "1000.01")
         decisions = Decisions(thresholdSgd = BigDecimal("1000.00"))
         val waiting = override("A1", d1)
@@ -316,7 +326,7 @@ class ValidationOverrideControllerTest {
     }
 
     @Test
-    fun `INV-AC-9561 at the service boundary D1 is released, D2 waits, the same person twice is refused, A2 releases`() {
+    fun `INV-AC-9561 at the boundary D1 is released, D2 waits, the same person twice is refused, A2 releases`() {
         blocked(d1, total = "1000.00")
         blocked(d2, total = "1000.01")
         decisions = Decisions(thresholdSgd = BigDecimal("1000.00"))
@@ -349,7 +359,7 @@ class ValidationOverrideControllerTest {
     }
 
     @Test
-    fun `approve is 403 for a caller without the permission, without reasonCode, and for a DENY or another approver awaited`() {
+    fun `approve is 403 without the permission (no reasonCode), and for a DENY or another approver awaited`() {
         blocked(d1, total = "1000.01")
         decisions = Decisions(thresholdSgd = BigDecimal("1000.00"))
         override("A1", d1).statusCode.value() shouldBe 202
@@ -364,7 +374,7 @@ class ValidationOverrideControllerTest {
     }
 
     @Test
-    fun `getValidationOverrides lists one version, pages by cursor, and refuses a bad caller, a bad cursor and an unknown version`() {
+    fun `getValidationOverrides lists one version, pages by cursor, refuses bad caller, cursor and version`() {
         blocked(d1)
         findings.overridable += Triple(d1, 1, "PAY-012")
         override("A1", d1).statusCode.value() shouldBe 201
