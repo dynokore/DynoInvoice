@@ -134,6 +134,48 @@ class ProvisioningPersistenceIT {
     }
 
     @Test
+    fun `INV-AC-8224 the outcome is one of the two values and the plural look-alike is rejected by the CHECK`() {
+        val saved = record()
+        provisionings.save(saved, "carol")
+        listOf("TENANT_ALREADY_HAS_ADMINISTRATORS", "invited", "INVITED ", "", "REFUSED").forEach { value ->
+            shouldThrow<Exception> {
+                dsl.execute(
+                    "update controlplane.tenant_provisioning_request set first_administrator_outcome = ? " +
+                        "where contract_reference = ?",
+                    value,
+                    saved.provisioning.contractReference.value,
+                )
+            }
+        }
+        provisionings
+            .findByContract(saved.provisioning.contractReference)
+            ?.provisioning
+            ?.firstAdministratorOutcome shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-8224 the outcome is written once, a second markInvited or markRefused changes nothing`() {
+        val invited = record()
+        provisionings.save(invited, "carol")
+        val ref = invited.provisioning.contractReference
+        provisionings.markInvited(ref, "INVN-1")
+        provisionings.markRefused(ref)
+        provisionings.markInvited(ref, "INVN-2")
+        val afterInvited = checkNotNull(provisionings.findByContract(ref)).provisioning
+        afterInvited.invitationRef shouldBe "INVN-1"
+        afterInvited.firstAdministratorOutcome shouldBe FirstAdministratorOutcome.INVITED
+
+        val refused = record()
+        provisionings.save(refused, "carol")
+        val other = refused.provisioning.contractReference
+        provisionings.markRefused(other)
+        provisionings.markInvited(other, "INVN-3")
+        val afterRefused = checkNotNull(provisionings.findByContract(other)).provisioning
+        afterRefused.invitationRef shouldBe null
+        afterRefused.firstAdministratorOutcome shouldBe FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR
+    }
+
+    @Test
     fun `INV-AC-8281 a reissue attempt keeps its expiry per key and holds no code column`() {
         val attempts = ReissueAttemptRepositoryJooq(dsl, Clock.systemUTC())
         val key = UUID.randomUUID()

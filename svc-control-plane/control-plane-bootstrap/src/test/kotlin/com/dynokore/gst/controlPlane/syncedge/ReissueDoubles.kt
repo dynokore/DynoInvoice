@@ -7,12 +7,16 @@ import com.dynokore.gst.controlPlane.application.commercial.InvitationDelivery
 import com.dynokore.gst.controlPlane.application.commercial.ProvisionFirstAdministratorCall
 import com.dynokore.gst.controlPlane.application.commercial.ProvisioningRecord
 import com.dynokore.gst.controlPlane.application.commercial.ProvisioningRepository
+import com.dynokore.gst.controlPlane.application.commercial.RegionList
 import com.dynokore.gst.controlPlane.application.commercial.ReissueAttempt
 import com.dynokore.gst.controlPlane.application.commercial.ReissueAttemptRepository
 import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdministratorCall
 import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdministratorInvitation
+import com.dynokore.gst.controlPlane.application.pack.OperatorRole
+import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
+import com.dynokore.gst.controlPlane.domain.commercial.FirstAdministratorOutcome
 import com.dynokore.gst.controlPlane.domain.commercial.PlanRef
 import com.dynokore.gst.controlPlane.domain.commercial.ProvisioningStatus
 import com.dynokore.gst.controlPlane.domain.commercial.RegionKey
@@ -45,6 +49,7 @@ class ReissueDoubles {
     var status = ProvisioningStatus.CREATED
     var answer: FirstAdministratorAnswer =
         FirstAdministratorAnswer.Issued("INVN-NEW", InvitationCode("code-secret-new"))
+    var outcome: FirstAdministratorOutcome? = null
     val permitted = LinkedHashSet<String>()
     val accessCalls = ArrayList<ReissueFirstAdministratorCall>()
     val messages = ArrayList<String>()
@@ -97,6 +102,7 @@ class ReissueDoubles {
                             status,
                             "INVN-OLD",
                             Instant.parse("2026-11-01T08:00:00Z"),
+                            outcome,
                         ),
                         UUID.randomUUID(),
                         "fp",
@@ -121,6 +127,20 @@ class ReissueDoubles {
             ) = error("not used")
 
             override fun markRefused(contractReference: CommercialRef) = error("not used")
+        }
+
+    /** The commercial.admin role of the provisioning reads and writes: held by the actors in [permitted]. */
+    @Bean
+    @Primary
+    fun doubleRoles() = OperatorRoles { actor, role -> actor in permitted && role == OperatorRole.COMMERCIAL_ADMIN }
+
+    @Bean
+    @Primary
+    fun doubleRegions() =
+        object : RegionList {
+            override fun contains(key: RegionKey) = key.value == "SG"
+
+            override fun statement(key: RegionKey) = null
         }
 
     @Bean

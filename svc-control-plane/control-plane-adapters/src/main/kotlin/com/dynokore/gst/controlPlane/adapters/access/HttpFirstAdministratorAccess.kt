@@ -8,6 +8,7 @@ import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdminist
 import com.dynokore.platform.serviceruntime.identity.WorkloadToken
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenSource
 import org.slf4j.LoggerFactory
+import tools.jackson.core.JacksonException
 import tools.jackson.databind.json.JsonMapper
 import java.io.IOException
 import java.net.URI
@@ -92,7 +93,13 @@ class HttpFirstAdministratorAccess(
         }
 
     private fun issuedOf(body: String): FirstAdministratorAnswer {
-        val tree = json.readTree(body)
+        // A 2xx the access contract does not define (not JSON, no ref or code) is Failed, not Unavailable (INV-Q-16204 A).
+        val tree =
+            try {
+                json.readTree(body)
+            } catch (_: JacksonException) {
+                return FirstAdministratorAnswer.Failed
+            }
         val ref = tree.path("invitationRef").asString("")
         val code = tree.path("invitationCode").asString("")
         return if (ref.isEmpty() || code.isEmpty()) {

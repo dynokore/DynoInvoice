@@ -32,6 +32,7 @@ class HttpFirstAdministratorAccessTest {
     private val seen = ArrayList<Seen>()
     private var status = 201
     private var delayMillis = 0L
+    private var answerBody: String? = null
     private val server: HttpServer =
         HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0).apply {
             createContext("/") { exchange ->
@@ -46,8 +47,10 @@ class HttpFirstAdministratorAccessTest {
                     )
                 Thread.sleep(delayMillis)
                 val answer =
-                    """{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-1","invitationCode":"code-1"}"""
-                        .toByteArray()
+                    (
+                        answerBody
+                            ?: """{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-1","invitationCode":"code-1"}"""
+                    ).toByteArray()
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(status, answer.size.toLong())
                 exchange.responseBody.use { it.write(answer) }
@@ -123,5 +126,18 @@ class HttpFirstAdministratorAccessTest {
             HttpFirstAdministratorAccess(URI.create("http://127.0.0.1:1"), WorkloadTokenSource { WorkloadToken("t") })
         dead.provision(ProvisionFirstAdministratorCall(CommercialRef("TEN-1"), "a@b.example", expiry, key)) shouldBe
             FirstAdministratorAnswer.Unavailable
+    }
+
+    @Test
+    fun `INV-AC-8281 a 2xx answer that is not json or has no ref and code is failed, not unavailable`() {
+        listOf(200, 201).forEach { code ->
+            status = code
+            listOf("not json", "{}", "", """{"invitationRef":"INVN-1"}""", """{"invitationCode":"c"}""").forEach {
+                answerBody = it
+                provision() shouldBe FirstAdministratorAnswer.Failed
+                access().reissue(ReissueFirstAdministratorCall(CommercialRef("TEN-1"), expiry, key)) shouldBe
+                    FirstAdministratorAnswer.Failed
+            }
+        }
     }
 }

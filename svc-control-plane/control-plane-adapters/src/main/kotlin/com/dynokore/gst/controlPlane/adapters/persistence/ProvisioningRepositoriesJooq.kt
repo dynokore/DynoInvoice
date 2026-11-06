@@ -97,7 +97,7 @@ class ProvisioningRepositoryJooq(
             .set(TENANT_PROVISIONING_REQUEST.STATUS, ProvisioningStatus.CREATED.name)
             .set(TENANT_PROVISIONING_REQUEST.INVITATION_REF, invitationRef)
             .set(TENANT_PROVISIONING_REQUEST.FIRST_ADMINISTRATOR_OUTCOME, FirstAdministratorOutcome.INVITED.name)
-            .where(TENANT_PROVISIONING_REQUEST.CONTRACT_REFERENCE.eq(contractReference.value))
+            .where(onceFor(contractReference))
             .execute()
     }
 
@@ -108,9 +108,15 @@ class ProvisioningRepositoryJooq(
             .set(
                 TENANT_PROVISIONING_REQUEST.FIRST_ADMINISTRATOR_OUTCOME,
                 FirstAdministratorOutcome.TENANT_ALREADY_HAS_ADMINISTRATOR.name,
-            ).where(TENANT_PROVISIONING_REQUEST.CONTRACT_REFERENCE.eq(contractReference.value))
+            ).where(onceFor(contractReference))
             .execute()
     }
+
+    /** The outcome is written once: a second write finds the column set and changes nothing. */
+    private fun onceFor(contractReference: CommercialRef) =
+        TENANT_PROVISIONING_REQUEST.CONTRACT_REFERENCE
+            .eq(contractReference.value)
+            .and(TENANT_PROVISIONING_REQUEST.FIRST_ADMINISTRATOR_OUTCOME.isNull)
 
     private fun recordOf(row: org.jooq.Record): ProvisioningRecord {
         val r = row.into(TENANT_PROVISIONING_REQUEST)
