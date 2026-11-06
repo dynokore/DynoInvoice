@@ -51,7 +51,8 @@ interface SignatoryActions {
  * The scoped key decision for the principal `link:<linkRef>` (rulings INV-Q-17199 A, INV-Q-9222 A): access-svc answers
  * from its own link store. While the link's row is verified, not expired, not invalidated and not revoked, the
  * principal holds the role client.signatory at the scope of the link's bound entity (its client entity, otherwise
- * the envelope entity of its origin event), and the catalogue's matrix decides the key for exactly that entity. No code here compares a role name (INV-Q-10027).
+ * the envelope entity of its origin event), and the catalogue's matrix decides the key for exactly that entity.
+ * No code here compares a role name (INV-Q-10027).
  */
 class LinkPermissions(
     private val matrix: PermissionMatrix,
