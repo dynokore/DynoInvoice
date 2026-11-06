@@ -1,0 +1,3 @@
+file	pointer	relation	value	requirement
+openapi.yaml	/paths/~1internal~1v1~1control-plane~1licences~1{licenceRef}/get/x-operation	equals	{"role":"commercial.admin","permission":"licence.view","scope":"installation"}	INV-REQ-906
+openapi.yaml	/paths/~1internal~1v1~1control-plane~1tenant-provisioning-requests~1{contractReference}/get/x-operation	equals	{"role":"commercial.admin","permission":"tenant-provisioning-request.view","scope":"installation"}	INV-REQ-906
