@@ -4,11 +4,11 @@ import com.dynokore.gst.tenancy.adapters.certification.ConsumedCertificationEven
 import com.dynokore.gst.tenancy.adapters.events.CertificationStatusChangedOutbox
 import com.dynokore.gst.tenancy.adapters.events.PublishedChannels
 import com.dynokore.gst.tenancy.adapters.events.TenancyEventCatalogue
-import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
 import com.dynokore.gst.tenancy.application.installation.InstallationStep
 import com.dynokore.gst.tenancy.application.installation.RecordInstallationAction
-import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
+import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
 import com.dynokore.gst.tenancy.domain.CertificationOutcome
+import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.PollResult
 import org.assertj.core.api.Assertions.assertThat
@@ -21,8 +21,6 @@ private typealias CertOutcome = CertificationOutcome
 private const val PACK_CONSUMER = "certificationRulePackActivatedConsumer"
 private const val TRIPLE_CONSUMER = "certificationIdentityTripleChangedConsumer"
 private val APPLIED_ONE = PollResult(1, 0, 0, 0, 0)
-private const val CALENDAR_PACK =
-    "{\"packIdentifier\":\"CAL-SG\",\"version\":\"1.0\",\"effectiveFrom\":\"2026-11-01\",\"packType\":\"CALENDAR\"}"
 
 /**
  * certifySandbox at the boundary of the service (INV-T-16409): the controller, the store and the wired event consumers
@@ -52,16 +50,8 @@ class CertifySandboxTest {
                 assertThat(passed.entityRef).isEqualTo(entity.entityRef)
                 assertThat(passed.outcome).isEqualTo(CertificationOutcome.PASSED)
                 assertThat(passed.failedScenarios).isNull()
-                val scenarios = listOf("SC-1", "SC-2")
                 val failed =
-                    (
-                        e.certify(
-                            entity,
-                            CertOutcome.FAILED,
-                            scenarios,
-                            suite = "2026.2",
-                        ) as CertifyOutcome.Recorded
-                    ).record
+                    (e.certify(entity, CertOutcome.FAILED, listOf("SC-1", "SC-2"), suite = "2026.2") as CertifyOutcome.Recorded).record
                 assertThat(failed.failedScenarios).containsExactly("SC-1", "SC-2")
                 val rows = e.rows(entity).map { e.payload(it) }
                 assertThat(rows).hasSize(2)
@@ -110,10 +100,9 @@ class CertifySandboxTest {
         run { e, env ->
             env.withEntity { _, entity ->
                 e.actAs(CERTIFIER, entity, RECORD_KEY)
-                val invalid = CertifyOutcome.Invalid::class.java
-                assertThat(e.certify(entity, CertOutcome.FAILED, null)).isInstanceOf(invalid)
-                assertThat(e.certify(entity, CertOutcome.FAILED, emptyList())).isInstanceOf(invalid)
-                assertThat(e.certify(entity, CertOutcome.PASSED, listOf("SC-1"))).isInstanceOf(invalid)
+                assertThat(e.certify(entity, CertOutcome.FAILED, null)).isInstanceOf(CertifyOutcome.Invalid::class.java)
+                assertThat(e.certify(entity, CertOutcome.FAILED, emptyList())).isInstanceOf(CertifyOutcome.Invalid::class.java)
+                assertThat(e.certify(entity, CertOutcome.PASSED, listOf("SC-1"))).isInstanceOf(CertifyOutcome.Invalid::class.java)
                 assertThat(e.rows(entity)).isEmpty()
             }
         }
@@ -170,7 +159,7 @@ class CertifySandboxTest {
                 e.passed(entity)
                 e.rulePackActivated(
                     tenant,
-                    data = CALENDAR_PACK,
+                    data = "{\"packIdentifier\":\"CAL-SG\",\"version\":\"1.0\",\"effectiveFrom\":\"2026-11-01\",\"packType\":\"CALENDAR\"}",
                 )
                 e.poll(PACK_CONSUMER)
                 assertThat(e.state(entity)).isEqualTo("STALE" to "NEW_PACK")
@@ -242,36 +231,15 @@ class CertifySandboxTest {
                 e.passed(entity)
                 val recorder = env.context.getBean(RecordInstallationAction::class.java)
                 val run = UUID.randomUUID()
-                val t0 = Instant.now() // the fact table is shared by the tests: times only grow
-
+                val t0 = Instant.parse("2026-11-01T00:00:00Z")
                 fun step(
                     n: Int,
                     train: String,
                     at: Instant,
-                ) = InstallationStep(
-                    run,
-                    n,
-                    "UPGRADE",
-                    "s$n",
-                    "SUCCEEDED",
-                    at,
-                    "r",
-                    "op",
-                    null,
-                    null,
-                    null,
-                    mapOf("releaseTrain" to train),
-                )
+                ) = InstallationStep(run, n, "UPGRADE", "s$n", "SUCCEEDED", at, "r", "op", null, null, null, mapOf("releaseTrain" to train))
                 recorder.handle(step(1, "2026.1", t0))
                 assertThat(e.state(entity)).isEqualTo("CURRENT" to null)
-                val before = e.markRequestedIds()
                 recorder.handle(step(2, "2026.2", t0.plusSeconds(60)))
-                // the mark runs on delivery of the event written in the transaction of the fact (INV-Q-18156)
-                assertThat(e.state(entity)).isEqualTo("CURRENT" to null)
-                val written = e.markRequestedIds() - before.toSet()
-                assertThat(written).hasSize(1)
-                e.deliverMarkRequested(written.single())
-                assertThat(e.poll(MARK_CONSUMER)).isEqualTo(APPLIED_ONE)
                 assertThat(e.state(entity)).isEqualTo("STALE" to "NEW_TRAIN")
                 val event = e.payload(e.stored(entity).single())
                 assertThat(event["trigger"].asString()).isEqualTo("NEW_TRAIN")
@@ -340,24 +308,17 @@ class CertifySandboxTest {
         }
     }
 
-    // ---- the wiring -------------------------------------------------------------------------------------------
+    // ---- the wiring --------------------------------------------------------------------------------------------------
 
     @Test
-    fun `the subscriptions this task adds equal the rule-pack, identity-triple and mark-requested topics`() {
+    fun `the subscriptions this task adds equal the rule-pack-activated and identity-triple-changed topics`() {
         run { e, env ->
             assertThat(ConsumedCertificationEvents.TOPICS)
-                .isEqualTo(
-                    setOf(
-                        "gst.rules.rule-pack-activated.v1",
-                        "gst.masterdata.identity-triple-changed.v1",
-                        "gst.tenancy.certification-mark-requested.v1",
-                    ),
-                )
+                .isEqualTo(setOf("gst.rules.rule-pack-activated.v1", "gst.masterdata.identity-triple-changed.v1"))
             val catalogue = TenancyEventCatalogue.load()
-            val topics = catalogue.entries().filter { it.eventType == TRIPLE_TYPE }.map { it.topic }
-            assertThat(topics).containsExactly(TRIPLE_TOPIC)
+            assertThat(catalogue.entries().filter { it.eventType == TRIPLE_TYPE }.map { it.topic }).containsExactly(TRIPLE_TOPIC)
             val consumers = env.context.getBeansOfType(InboxConsumer::class.java).keys
-            assertThat(consumers).contains(PACK_CONSUMER, TRIPLE_CONSUMER, MARK_CONSUMER)
+            assertThat(consumers).contains(PACK_CONSUMER, TRIPLE_CONSUMER)
             assertThat(e.poll(PACK_CONSUMER)).isNotNull
         }
     }

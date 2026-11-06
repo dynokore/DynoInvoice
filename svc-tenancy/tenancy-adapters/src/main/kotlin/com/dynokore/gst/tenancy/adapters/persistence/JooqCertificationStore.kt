@@ -88,9 +88,7 @@ class JooqCertificationStore(
                     ENTITY.TENANT_ID
                         .eq(SANDBOX_CERTIFICATION.TENANT_ID)
                         .and(ENTITY.ID.eq(SANDBOX_CERTIFICATION.ENTITY_ID)),
-                ).where(
-                    ENTITY.REF.eq(entityRef).and(SANDBOX_CERTIFICATION.OUTCOME.eq(CertificationOutcome.PASSED.name)),
-                ),
+                ).where(ENTITY.REF.eq(entityRef).and(SANDBOX_CERTIFICATION.OUTCOME.eq(CertificationOutcome.PASSED.name))),
         )
 
     override fun status(entityRef: String): CertificationStatus? {
@@ -125,12 +123,7 @@ class JooqCertificationStore(
     }
 
     private fun entityId(entityRef: String): UUID? =
-        dsl
-            .select(ENTITY.ID)
-            .from(ENTITY)
-            .where(ENTITY.REF.eq(entityRef))
-            .fetchOne()
-            ?.get(ENTITY.ID)
+        dsl.select(ENTITY.ID).from(ENTITY).where(ENTITY.REF.eq(entityRef)).fetchOne()?.get(ENTITY.ID)
 }
 
 /**

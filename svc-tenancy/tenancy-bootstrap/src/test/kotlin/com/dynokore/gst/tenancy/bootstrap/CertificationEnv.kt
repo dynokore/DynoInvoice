@@ -2,8 +2,8 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
 import com.dynokore.gst.tenancy.application.certification.CertifySandbox
-import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.domain.CertificationOutcome
+import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -16,7 +16,6 @@ import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
-import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
@@ -30,9 +29,6 @@ internal const val PACK_TOPIC = "gst.rules.rule-pack-activated.v1"
 internal const val PACK_TYPE = "com.dynokore.gst.rules.RulePackActivated.v1"
 internal const val TRIPLE_TOPIC = "gst.masterdata.identity-triple-changed.v1"
 internal const val TRIPLE_TYPE = "com.dynokore.gst.masterdata.IdentityTripleChanged.v1"
-internal const val MARK_TOPIC = "gst.tenancy.certification-mark-requested.v1"
-internal const val MARK_TYPE = "com.dynokore.gst.tenancy.CertificationMarkRequested.v1"
-internal const val MARK_CONSUMER = "certificationMarkRequestedConsumer"
 internal const val CERTIFIER = "identity:USR-C1"
 internal const val CONFIG_ONLY = "identity:USR-C2"
 
@@ -51,12 +47,7 @@ internal class TopicLog : EventLogReader {
         topic: String,
         afterOffset: Long,
         limit: Int,
-    ): List<LogRecord> =
-        records
-            .filter {
-                it.first == topic && it.second.offset > afterOffset
-            }.map { it.second }
-            .take(limit)
+    ): List<LogRecord> = records.filter { it.first == topic && it.second.offset > afterOffset }.map { it.second }.take(limit)
 
     private companion object {
         // the offset rows of the consumers are platform-scoped and the database is shared by the tests
@@ -127,9 +118,7 @@ internal class CertificationEnv(
                         "where e.ref = ? order by r.recorded_at, r.id",
                 ).use { st ->
                     st.setString(1, entity.entityRef)
-                    st.executeQuery().use { rs ->
-                        generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
-                    }
+                    st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
                 }
         }
 
@@ -137,14 +126,11 @@ internal class CertificationEnv(
     fun stored(entity: EntityResponse): List<String> =
         BoundaryFixture.asSuperuser { c ->
             c
-                .prepareStatement(
-                    "select data::text from tenancy.outbox where topic = ? and data::text like ? order by 1",
-                ).use { st ->
+                .prepareStatement("select data::text from tenancy.outbox where topic = ? and data::text like ? order by 1")
+                .use { st ->
                     st.setString(1, STATUS_TOPIC)
                     st.setString(2, "%\"${entity.entityRef}\"%")
-                    st.executeQuery().use { rs ->
-                        generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
-                    }
+                    st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
                 }
         }
 
@@ -158,7 +144,7 @@ internal class CertificationEnv(
             }
         }
 
-    fun payload(text: String): JsonNode = mapper.readTree(text)
+    fun payload(text: String) = mapper.readTree(text)
 
     private fun envelope(
         type: String,
@@ -212,49 +198,6 @@ internal class CertificationEnv(
                     "\"changeRef\":\"CHG-${UUID.randomUUID().toString().take(8)}\"}",
             ),
         )
-
-    /** The ids of the stored CertificationMarkRequested rows (committed), oldest first. */
-    fun markRequestedIds(): List<String> =
-        BoundaryFixture.asSuperuser { c ->
-            c.prepareStatement("select id from tenancy.outbox where topic = ? order by seq").use { st ->
-                st.setString(1, MARK_TOPIC)
-                st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
-            }
-        }
-
-    /** Delivers the stored event of [id] to the log under [topic] (the consumer's topic, or a look-alike). */
-    fun deliverMarkRequested(
-        id: String,
-        topic: String = MARK_TOPIC,
-    ): Envelope {
-        val data =
-            BoundaryFixture.asSuperuser { c ->
-                c.prepareStatement("select data::text from tenancy.outbox where id = ?").use { st ->
-                    st.setString(1, id)
-                    st.executeQuery().use { rs ->
-                        check(rs.next())
-                        rs.getString(1)
-                    }
-                }
-            }
-        val event = Envelope(
-            EventId(id),
-            "/gst/tenancy-svc",
-            MARK_TYPE,
-            "installation",
-            Instant.now(),
-            TenantId.PLATFORM,
-            EntityRef.PLATFORM,
-            null,
-            null,
-            null,
-            "test-0",
-            CorrelationId("corr-$id"),
-            CausationId("cause-$id"),
-            data,
-        )
-        return publishToLog(topic, event)
-    }
 
     /** Polls the wired consumer bean once; the result counts what it applied, ignored, repeated. */
     fun poll(consumerBean: String) = context.getBean(consumerBean, InboxConsumer::class.java).pollOnce()

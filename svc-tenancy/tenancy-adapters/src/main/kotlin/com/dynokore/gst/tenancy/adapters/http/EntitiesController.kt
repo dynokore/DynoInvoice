@@ -1,8 +1,5 @@
 package com.dynokore.gst.tenancy.adapters.http
 
-import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
-import com.dynokore.gst.tenancy.application.certification.CertifySandbox
-import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionOutcome
 import com.dynokore.gst.tenancy.application.election.ElectionRecord
@@ -24,8 +21,6 @@ import com.dynokore.gst.tenancy.application.structure.StructureQueries
 import com.dynokore.gst.tenancy.contract.api.EntitiesApi
 import com.dynokore.gst.tenancy.contract.model.AssessPhaseRequest
 import com.dynokore.gst.tenancy.contract.model.BusinessUnitResponse
-import com.dynokore.gst.tenancy.contract.model.CertificationResponse
-import com.dynokore.gst.tenancy.contract.model.CertifySandboxRequest
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.ElectionChangeApproved
@@ -48,7 +43,6 @@ import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
-import com.dynokore.gst.tenancy.domain.CertificationOutcome
 import com.dynokore.gst.tenancy.domain.CodeRefusal
 import com.dynokore.gst.tenancy.domain.ElectionKeys
 import com.dynokore.gst.tenancy.domain.ElectionKind
@@ -83,8 +77,6 @@ open class EntitiesController(
     private val tenants: TenantContext,
     private val electionCommands: ElectionCommands,
     private val electionQueries: ElectionStatusQueries,
-    private val certifySandbox: CertifySandbox,
-    private val caller: CallerSource,
 ) : EntitiesApi {
     override fun createGroup(
         idempotencyKey: UUID,
@@ -387,46 +379,6 @@ open class EntitiesController(
 
             is ElectionOutcome.Done, is ElectionOutcome.Pending, is ElectionOutcome.Approved -> {
                 error("outcome ${outcome::class.simpleName} is not a refusal")
-            }
-        }
-
-    /** certifySandbox (INV-Q-16389 permission, INV-Q-16403 failedScenarios rule). */
-    override fun certifySandbox(
-        entityRef: String,
-        idempotencyKey: UUID,
-        certifySandboxRequest: CertifySandboxRequest,
-    ): ResponseEntity<CertificationResponse> =
-        when (
-            val outcome =
-                certifySandbox.handle(
-                    caller.actor(),
-                    entityRef,
-                    CertificationOutcome.valueOf(certifySandboxRequest.outcome.name),
-                    certifySandboxRequest.suiteVersion,
-                    certifySandboxRequest.failedScenarios,
-                )
-        ) {
-            is CertifyOutcome.Recorded -> {
-                ResponseEntity.status(HttpStatus.CREATED).body(
-                    CertificationResponse(
-                        outcome.record.entityRef,
-                        CertificationResponse.Outcome.valueOf(outcome.record.outcome.name),
-                        outcome.record.recordedAt.atOffset(ZoneOffset.UTC),
-                        failedScenarios = outcome.record.failedScenarios,
-                    ),
-                )
-            }
-
-            CertifyOutcome.Forbidden -> {
-                forbidden("sandbox-certification.record is required")
-            }
-
-            CertifyOutcome.NotFound -> {
-                notFound()
-            }
-
-            is CertifyOutcome.Invalid -> {
-                invalid(outcome.reason)
             }
         }
 
