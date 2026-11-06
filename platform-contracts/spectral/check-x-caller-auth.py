@@ -40,6 +40,7 @@ NOT_END_USER = {
     },
     "access/openapi.yaml": {
         "verifySignatoryLink": "signed-link",  # signed link of the signatory
+        "recordSignatoryAction": "signed-link",  # verified session of the signed link
         "getVerificationKeys": "service-job",  # workload verification keys
         "getRevocationList": "service-job",  # workload revocation list
         "provisionInstallationFirstAdministrator": "service-job",  # installer, workload only

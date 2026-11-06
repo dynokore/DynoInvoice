@@ -157,3 +157,13 @@ requestConsultantGrant	operation	openapi.yaml	INV-REQ-908
 decideConsultantGrant	operation	openapi.yaml	INV-REQ-908
 goLiveDate	property	openapi.yaml	INV-REQ-908
 periodDays	property	openapi.yaml	INV-REQ-2465
+# INV-T-17033. INV-Q-17030, INV-REQ-899 and INV-REQ-900: the backticked names 429 and Retry-After are answers of the gateway (INV-AC-2686), grantConsent and withdrawConsent are operations that exist, and access-svc and console-bff are services, so they are not rows.
+consentRef	property	openapi.yaml	INV-REQ-899
+recordSignatoryAction	operation	openapi.yaml	INV-REQ-900
+SignatoryActionRequest.kind	schema_property	openapi.yaml	INV-REQ-900
+SignatoryActionRequest.kind.ACKNOWLEDGE	schema_enum_value	openapi.yaml	INV-REQ-900
+SignatoryActionRequest.kind.QUERY	schema_enum_value	openapi.yaml	INV-REQ-900
+SignatoryActionRequest.kind.WITHDRAW	schema_enum_value	openapi.yaml	INV-REQ-900
+SignatoryActionRequest.packVersion	schema_property	openapi.yaml	INV-REQ-900
+SignatoryActionRequest.queryText	schema_property	openapi.yaml	INV-REQ-900
+SignatoryActionResponse.evidenceRef	schema_property	openapi.yaml	INV-REQ-900

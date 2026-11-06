@@ -39,3 +39,5 @@
 ../openapi.yaml#/components/schemas/ConsultantGrantRequest consultant-grant-request-body-*.json
 ../openapi.yaml#/components/schemas/ConsultantGrantDecisionRequest consultant-grant-decision-request-*.json
 ../openapi.yaml#/components/schemas/ConsultantGrantRequestResponse consultant-grant-request-response-*.json
+../openapi.yaml#/components/schemas/SignatoryActionRequest signatory-action-request-*.json
+../openapi.yaml#/components/schemas/SignatoryActionResponse signatory-action-response-*.json
