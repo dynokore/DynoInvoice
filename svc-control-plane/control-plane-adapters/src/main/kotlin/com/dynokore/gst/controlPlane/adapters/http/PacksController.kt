@@ -1,6 +1,8 @@
 package com.dynokore.gst.controlPlane.adapters.http
 
 import com.dynokore.gst.controlPlane.adapters.bundle.CanonicalJson
+import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditationTask
+import com.dynokore.gst.controlPlane.application.accreditation.ReleaseTarget
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPack
 import com.dynokore.gst.controlPlane.application.pack.AuthorRegulatoryPackCommand
 import com.dynokore.gst.controlPlane.application.pack.GetPack
@@ -57,6 +59,7 @@ class PacksController(
     private val publish: PublishPack,
     private val get: GetPack,
     private val records: PackReleaseRecords,
+    private val accreditationStep: OpenAccreditationTask,
 ) : PacksApi {
     override fun authorRegulatoryPack(
         idempotencyKey: UUID,
@@ -99,6 +102,7 @@ class PacksController(
                     signPackRequest.signingKeyRef,
                     signPackRequest.minEngineVersion?.let(::MinEngineVersion),
                     signPackRequest.exposureReducing ?: false,
+                    signPackRequest.needsReAccreditationAssessment ?: true,
                     RequestContext(caller.correlationId, idempotencyKey.toString()),
                 )
             }
@@ -106,6 +110,16 @@ class PacksController(
             platform.bindPlatform(
                 caller.principal.actor,
             ) { runner.run(sign, caller.principal.actor, command) }
+        // The signature and its release record have committed; the task step has a transaction of its own (INV-T-7323).
+        if (outcome is OperationOutcome.Performed || outcome is OperationOutcome.Repeated) {
+            platform.bindPlatform(caller.principal.actor) {
+                accreditationStep.afterRelease(
+                    ReleaseTarget(ReleaseTarget.Kind.PACK, packRef),
+                    command.needsReAccreditationAssessment,
+                    command.request,
+                )
+            }
+        }
         return ResponseEntity.ok(answer(outcome, caller.correlationId, caller.principal.actor))
     }
 

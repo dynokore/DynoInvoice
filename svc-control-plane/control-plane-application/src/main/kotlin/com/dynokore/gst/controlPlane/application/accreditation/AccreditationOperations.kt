@@ -29,6 +29,9 @@ object AccreditationPermission {
      * INV-Q-10111 (A); until then the read asks the record key.
      */
     const val READ = RECORD
+
+    /** concludeAccreditationTask (INV-Q-10127 A): decided per request, never by a role name. */
+    const val CONCLUDE = "accreditation.conclude"
 }
 
 /** The append-only accreditation records: the service never updates or deletes a row. */

@@ -4,11 +4,9 @@ import com.dynokore.gst.controlPlane.adapters.access.AuthoriseClient
 import com.dynokore.gst.controlPlane.adapters.access.AuthoriseOperatorPermissions
 import com.dynokore.gst.controlPlane.adapters.access.AuthoriseOperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
-import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
-import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.GoldenDocument
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenSource
 import org.springframework.beans.factory.ObjectProvider
@@ -74,14 +72,6 @@ class OperatorRolesConfiguration {
                 document: GoldenDocument,
             ): String? = null
         }
-
-    /**
-     * The accreditation tasks belong to INV-T-7323. Until they are bound, a train that needs an assessment is released
-     * with the check recorded and no alert or task reference: accreditation never holds a release back.
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    fun accreditationTasks(): AccreditationTasks = AccreditationTasks { AccreditationCheck(true, null, null) }
 
     private companion object {
         const val ACCESS_BASE_URL = "controlplane.access.base-url"

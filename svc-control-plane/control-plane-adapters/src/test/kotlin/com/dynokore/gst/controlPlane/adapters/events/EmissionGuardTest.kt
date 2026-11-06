@@ -26,4 +26,16 @@ class EmissionGuardTest {
         shouldThrow<EmissionNotPermitted> { guard.require("com.dynokore.gst.platform.AuditEntryRecorded.v2") }
         shouldThrow<EmissionNotPermitted> { guard.require("com.dynokore.gst.platform.auditentryrecorded.v1") }
     }
+
+    @Test
+    fun `AccreditationAlertRaised v1 is permitted for control-plane, v2 and the old control-plane type are refused`() {
+        guard.require("com.dynokore.gst.platform.AccreditationAlertRaised.v1").eventType shouldBe
+            "com.dynokore.gst.platform.AccreditationAlertRaised.v1"
+        shouldThrow<EmissionNotPermitted> { guard.require("com.dynokore.gst.platform.AccreditationAlertRaised.v2") }
+        shouldThrow<EmissionNotPermitted> {
+            guard.require(
+                "com.dynokore.gst.control-plane.AccreditationAlertRaised.v1",
+            )
+        }
+    }
 }

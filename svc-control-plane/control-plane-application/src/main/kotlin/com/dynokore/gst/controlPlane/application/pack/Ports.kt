@@ -97,6 +97,8 @@ data class Refusal(
         const val GATE_RUN_INVALID = "GATE_RUN_INVALID"
         const val GATE_RUN_TRAIN_PUBLISHED = "GATE_RUN_TRAIN_PUBLISHED"
         const val GATE_RUN_DIFFERENT = "GATE_RUN_DIFFERENT"
+        const val TASK_NOT_FOUND = "TASK_NOT_FOUND"
+        const val TASK_ALREADY_CONCLUDED = "TASK_ALREADY_CONCLUDED"
 
         fun parse(encoded: String): Refusal = Refusal(encoded.substringBefore(' '), encoded.substringAfter(' ', ""))
     }

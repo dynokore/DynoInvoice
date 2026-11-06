@@ -30,8 +30,7 @@ class ReleasePermissionTest {
         }
     private val clock = Clock.fixed(Instant.parse("2026-10-12T08:45:00Z"), ZoneOffset.UTC)
 
-    private fun publishWith(permissions: OperatorPermissions) =
-        PublishTrain(trains, permissions, { null }, { error("the accreditation port is not asked") }, clock)
+    private fun publishWith(permissions: OperatorPermissions) = PublishTrain(trains, permissions, { null }, clock)
 
     private val publishCommand =
         PublishTrainCommand(ActorId("rita"), TrainVersion("2026.10.0"), TrainKind.TRAIN, false, false, request)

@@ -139,6 +139,7 @@ class PackReleaseRecordsJooq(
                 checkNotNull(row.exposureReducing),
                 ActorId(checkNotNull(row.classifiedBy)),
                 checkNotNull(row.recordedAt).toInstant(),
+                AccreditationCheck(checkNotNull(row.needsReaccreditation), row.alertRef, row.taskRef),
             )
         }
 
@@ -154,6 +155,9 @@ class PackReleaseRecordsJooq(
             .set(PACK_RELEASE_RECORD.RUNS, runs)
             .set(PACK_RELEASE_RECORD.CLASSIFIED_BY, record.classifiedBy.value)
             .set(PACK_RELEASE_RECORD.RECORDED_AT, record.recordedAt.atOffset(ZoneOffset.UTC))
+            .set(PACK_RELEASE_RECORD.NEEDS_REACCREDITATION, record.accreditation?.assessmentNeeded ?: false)
+            .set(PACK_RELEASE_RECORD.ALERT_REF, record.accreditation?.alertRef)
+            .set(PACK_RELEASE_RECORD.TASK_REF, record.accreditation?.taskRef)
             .onConflict(PACK_RELEASE_RECORD.PACK_REF)
             .doUpdate()
             .set(PACK_RELEASE_RECORD.RUNS, runs)

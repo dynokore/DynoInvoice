@@ -66,14 +66,6 @@ interface SupportWindowRepository {
     fun save(window: SupportWindow)
 }
 
-/**
- * Opens the re-accreditation assessment of a train: raises the alert and the tracked task (INV-REQ-1365). It is never a
- * release gate: a release is not held back by the result or by the absence of a task.
- */
-fun interface AccreditationTasks {
-    fun open(train: TrainVersion): AccreditationCheck
-}
-
 /** The release record of a pack version (INV-AC-2674): gate runs, classification, the role that classified. */
 interface PackReleaseRecords {
     fun find(ref: PackRef): ReleaseRecord?

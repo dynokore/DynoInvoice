@@ -173,7 +173,7 @@ class PackReleaseFlow(
         engine: String? = "2026.10.0",
     ): String? {
         val command =
-            SignPackCommand(ActorId("bob"), ref, signing.keyRef, engine?.let(::MinEngineVersion), false, request)
+            SignPackCommand(ActorId("bob"), ref, signing.keyRef, engine?.let(::MinEngineVersion), false, true, request)
         val state = sign.load(command)
         return sign.unmetPrecondition(command, state) ?: run {
             sign.perform(command, state)

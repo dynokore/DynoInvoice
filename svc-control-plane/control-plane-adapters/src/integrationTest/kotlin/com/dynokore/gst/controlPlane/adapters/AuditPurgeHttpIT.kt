@@ -6,15 +6,22 @@ import com.dynokore.gst.controlPlane.adapters.audit.AuditPurgeStoreJooq
 import com.dynokore.gst.controlPlane.adapters.audit.UndeterminedRetentionFloorSource
 import com.dynokore.gst.controlPlane.adapters.http.ProblemException
 import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
+import com.dynokore.gst.controlPlane.adapters.http.TaskCursor
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationAlerts
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationStepPorts
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskQueries
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskRepository
+import com.dynokore.gst.controlPlane.application.accreditation.ConcludeAccreditationTask
 import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditationTask
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.ReleaseAccreditationLinks
 import com.dynokore.gst.controlPlane.application.audit.AuditEntryPurger
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeAuthority
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeFloorSource
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntries
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
-import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
@@ -35,6 +42,7 @@ import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.BindingKeySource
 import com.dynokore.platform.tenancykernel.TenantAwareDataSource
 import com.dynokore.platform.tenancykernel.TenantContextImpl
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import com.sun.net.httpserver.HttpServer
 import io.kotest.assertions.throwables.shouldThrow
@@ -159,6 +167,7 @@ class AuditPurgeHttpIT {
             ),
         )
 
+    @Suppress("LongMethod") // one constructor call that lists every collaborator of the controller
     private fun controller(
         floors: AuditPurgeFloorSource,
         timeout: Duration = Duration.ofSeconds(2),
@@ -186,7 +195,6 @@ class AuditPurgeHttpIT {
                 unused<TrainRepository>(),
                 noPermission,
                 unused<TrainEvidenceSource>(),
-                unused<AccreditationTasks>(),
                 clock,
             ),
             SetSupportWindow(unused<SupportWindowRepository>(), noPermission),
@@ -194,6 +202,20 @@ class AuditPurgeHttpIT {
             GetAccreditation(unused<AccreditationRecords>(), noPermission, clock),
             useCase,
             RecordGateRun(unused<GateRunRepository>(), unused<TrainRepository>(), noPermission, clock),
+            AccreditationTaskQueries(unused<AccreditationTaskRepository>(), noPermission, runner),
+            ConcludeAccreditationTask(unused<AccreditationTaskRepository>(), noPermission, clock),
+            OpenAccreditationTask(
+                AccreditationStepPorts(
+                    unused<AccreditationTaskRepository>(),
+                    unused<ReleaseAccreditationLinks>(),
+                    unused<AccreditationAlerts>(),
+                    unused<AccreditationRecords>(),
+                ),
+                unused<TransactionRunner>(),
+                clock,
+                { _, _ -> },
+            ),
+            TaskCursor(ByteArray(32)),
         )
     }
 

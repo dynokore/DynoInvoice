@@ -1,8 +1,15 @@
 package com.dynokore.gst.controlPlane.adapters.http
 
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskQueries
+import com.dynokore.gst.controlPlane.application.accreditation.ConcludeAccreditationTask
+import com.dynokore.gst.controlPlane.application.accreditation.ConcludeAccreditationTaskCommand
 import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
+import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditationTask
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditationCommand
+import com.dynokore.gst.controlPlane.application.accreditation.ReleaseTarget
+import com.dynokore.gst.controlPlane.application.accreditation.TaskCursorKey
+import com.dynokore.gst.controlPlane.application.accreditation.TaskRead
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntries
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntriesCommand
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditOutcome
@@ -20,6 +27,8 @@ import com.dynokore.gst.controlPlane.contract.model.AccreditationRecord
 import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
 import com.dynokore.gst.controlPlane.contract.model.GateRunRequest
 import com.dynokore.gst.controlPlane.contract.model.GateRunResponse
+import com.dynokore.gst.controlPlane.contract.model.AccreditationTaskPage
+import com.dynokore.gst.controlPlane.contract.model.ConcludeAccreditationTaskRequest
 import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesResponse
@@ -33,6 +42,7 @@ import com.dynokore.gst.controlPlane.contract.model.SetSupportWindowRequest
 import com.dynokore.gst.controlPlane.contract.model.SupportWindowResponse
 import com.dynokore.gst.controlPlane.domain.accreditation.SandboxAcknowledgement
 import com.dynokore.gst.controlPlane.domain.accreditation.SubmissionType
+import com.dynokore.gst.controlPlane.domain.accreditation.TaskStatus
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
@@ -64,8 +74,9 @@ import java.util.UUID
 /**
  * publishTrain, setSupportWindow and recordGateRun (TPL-08). The caller is the verified token's `sub`, never a request
  * field (API-24); a train is platform data, so the command runs in a transaction bound to the platform tenant. The
- * accreditation task operations of the same contract tag are not overridden here: the generated interface answers
- * 501. recordAccreditation and getAccreditation are (INV-T-7322).
+ * accreditation operations of the same contract tag are recordAccreditation and getAccreditation (INV-T-7322) and
+ * the task operations listAccreditationTasks, getAccreditationTask and concludeAccreditationTask (INV-T-7323). After
+ * publishTrain commits, the task step runs in a transaction of its own and never delays or undoes the release.
  * purgeAuditEntries (INV-T-3099) also sits on the `releases` tag; it runs the audited purge of the operator's local
  * audit entries and maps the outcomes of the use case: SRT-004, CPL-001 and CPL-002, no other.
  */
@@ -82,6 +93,10 @@ class ReleasesController(
     private val getAccreditation: GetAccreditation,
     private val purgeAuditEntries: PurgeAuditEntries,
     private val recordGateRun: RecordGateRun,
+    private val taskQueries: AccreditationTaskQueries,
+    private val concludeTask: ConcludeAccreditationTask,
+    private val accreditationStep: OpenAccreditationTask,
+    private val cursors: TaskCursor,
 ) : ReleasesApi {
     override fun recordAccreditation(
         idempotencyKey: UUID,
@@ -167,15 +182,145 @@ class ReleasesController(
                 )
             }
         val outcome = platform.bindPlatform(caller.actor) { runner.run(publishTrain, caller.actor, command) }
-        val train =
+        val released =
             when (outcome) {
                 is OperationOutcome.Performed -> outcome.result
                 is OperationOutcome.Repeated -> outcome.result
                 OperationOutcome.NotPermitted -> problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
                 is OperationOutcome.PreconditionUnmet -> refuse(Refusal.parse(outcome.code), caller.correlationId)
             }
+        // The release has committed. The task step has a transaction of its own and logs its failure (INV-REQ-2657 b5).
+        val check =
+            platform.bindPlatform(caller.actor) {
+                accreditationStep.afterRelease(
+                    ReleaseTarget(ReleaseTarget.Kind.TRAIN, released.version.value),
+                    command.needsReAccreditationAssessment,
+                    command.request,
+                )
+            }
+        val train = if (check == null) released else released.copy(accreditation = check)
         return ResponseEntity.status(HttpStatus.CREATED).body(responseOf(train))
     }
+
+    override fun listAccreditationTasks(
+        status: String?,
+        cursor: String?,
+        limit: Int,
+    ): ResponseEntity<AccreditationTaskPage> {
+        val caller = caller()
+        val filter =
+            status?.let { name -> TaskStatus.entries.firstOrNull { it.name == name } }
+                ?: if (status ==
+                    null
+                ) {
+                    null
+                } else {
+                    problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "status")
+                }
+        if (limit !in 1..AccreditationTaskQueries.MAX_LIMIT) {
+            problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "limit is 1 to 500")
+        }
+        val after =
+            cursor?.let { cursors.decode(it, caller.actor, status) }
+                ?: if (cursor ==
+                    null
+                ) {
+                    null
+                } else {
+                    problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "cursor")
+                }
+        val read = platform.bindPlatform(caller.actor) { taskQueries.list(caller.actor, filter, after, limit) }
+        val page =
+            when (read) {
+                is TaskRead.Found -> read.value
+                TaskRead.Denied, TaskRead.Missing -> problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+            }
+        return ResponseEntity.ok(
+            AccreditationTaskPage(
+                page.items.map(::taskOf),
+                page.items.lastOrNull()?.takeIf { page.more }?.let {
+                    cursors.encode(TaskCursorKey(it.openedAt, it.taskRef), caller.actor, status)
+                },
+            ),
+        )
+    }
+
+    override fun getAccreditationTask(
+        taskRef: String,
+    ): ResponseEntity<com.dynokore.gst.controlPlane.contract.model.AccreditationTask> {
+        val caller = caller()
+        val read = platform.bindPlatform(caller.actor) { taskQueries.get(caller.actor, taskRef) }
+        return when (read) {
+            is TaskRead.Found -> ResponseEntity.ok(taskOf(read.value))
+            TaskRead.Denied -> problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+            TaskRead.Missing -> problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)
+        }
+    }
+
+    override fun concludeAccreditationTask(
+        taskRef: String,
+        idempotencyKey: UUID,
+        concludeAccreditationTaskRequest: ConcludeAccreditationTaskRequest,
+    ): ResponseEntity<com.dynokore.gst.controlPlane.contract.model.AccreditationTask> {
+        val caller = caller()
+        val command =
+            commandOf(caller.correlationId) {
+                ConcludeAccreditationTaskCommand(
+                    ActorId(caller.actor),
+                    taskRef,
+                    concludeAccreditationTaskRequest.conclusion,
+                    RequestContext(caller.correlationId, idempotencyKey.toString()),
+                )
+            }
+        val outcome = platform.bindPlatform(caller.actor) { runner.run(concludeTask, caller.actor, command) }
+        val task =
+            when (outcome) {
+                is OperationOutcome.Performed -> outcome.result
+                is OperationOutcome.Repeated -> outcome.result
+                OperationOutcome.NotPermitted -> problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+                is OperationOutcome.PreconditionUnmet -> refuseTask(Refusal.parse(outcome.code), caller.correlationId)
+            }
+        return ResponseEntity.ok(taskOf(task))
+    }
+
+    private fun refuseTask(
+        refusal: Refusal,
+        correlationId: String,
+    ): Nothing =
+        when (refusal.code) {
+            Refusal.TASK_NOT_FOUND -> {
+                problem(ClosedErrorCode.NOT_FOUND, correlationId)
+            }
+
+            // GAP (MR): the contract names 409 and no catalogue code; SRT-008 is the closest closed 409
+            Refusal.TASK_ALREADY_CONCLUDED -> {
+                problem(
+                    ClosedErrorCode.STALE_AGGREGATE,
+                    correlationId,
+                    "already concluded",
+                )
+            }
+
+            else -> {
+                error("no response is declared for the refusal ${refusal.code}")
+            }
+        }
+
+    private fun taskOf(task: com.dynokore.gst.controlPlane.domain.accreditation.AccreditationTask) =
+        com.dynokore.gst.controlPlane.contract.model.AccreditationTask(
+            taskRef = task.taskRef,
+            status =
+                com.dynokore.gst.controlPlane.contract.model.AccreditationTask.Status
+                    .valueOf(task.status.name),
+            reason =
+                com.dynokore.gst.controlPlane.contract.model.AccreditationTask.Reason
+                    .valueOf(task.reason.name),
+            openedAt = task.openedAt.atOffset(ZoneOffset.UTC),
+            alertRef = task.alertRef,
+            releaseRef = task.releaseRef,
+            concludedAt = task.concludedAt?.atOffset(ZoneOffset.UTC),
+            conclusion = task.conclusion,
+        )
 
     override fun setSupportWindow(
         idempotencyKey: UUID,
@@ -457,7 +602,7 @@ internal fun gateResultOf(
     exposureReducing = record.exposureReducing,
     classifiedBy = record.classifiedBy.value,
     accreditationCheck =
-        train?.accreditation?.let {
+        (train?.accreditation ?: record.accreditation)?.let {
             ReleaseGateResultAccreditationCheck(it.assessmentNeeded, it.alertRef, it.taskRef)
         },
     recordedAt = record.recordedAt.atOffset(ZoneOffset.UTC),

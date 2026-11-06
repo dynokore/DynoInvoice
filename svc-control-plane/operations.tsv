@@ -20,8 +20,8 @@ operation	changeTenantSchedule	INV-T-8143	pending
 operation	cancelTenantSchedule	INV-T-8143	pending
 operation	recordAccreditation	INV-T-7322	done
 operation	getAccreditation	INV-T-7322	done
-operation	listAccreditationTasks	INV-T-7323	pending
-operation	getAccreditationTask	INV-T-7323	pending
-operation	concludeAccreditationTask	INV-T-7323	pending
+operation	listAccreditationTasks	INV-T-7323	done
+operation	getAccreditationTask	INV-T-7323	done
+operation	concludeAccreditationTask	INV-T-7323	done
 channel	control-planeExampleHappened	INV-T-4984	done
 operation	purgeAuditEntries	INV-T-3099	done

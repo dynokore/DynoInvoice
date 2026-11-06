@@ -2,6 +2,7 @@ package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
 import com.dynokore.gst.controlPlane.adapters.stage.PackStage
+import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditationTask
 import com.dynokore.gst.controlPlane.application.commercial.GetLicence
 import com.dynokore.gst.controlPlane.application.commercial.GetTenantProvisioningRequest
 import com.dynokore.gst.controlPlane.application.commercial.IssueLicence
@@ -14,13 +15,11 @@ import com.dynokore.gst.controlPlane.application.pack.PublishPack
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.pack.SignPack
-import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.PublishTrain
 import com.dynokore.gst.controlPlane.application.release.PublishTrainCommand
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
-import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.TrainKind
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
@@ -79,7 +78,7 @@ class CompositionTest {
     }
 
     @Test
-    fun `publishTrain with no gate run recorded is refused and the accreditation task is unbound`(
+    fun `publishTrain with no gate run recorded is refused and the accreditation task step is bound`(
         @TempDir mount: Path,
     ) {
         // the production evidence binding reads the recorded gate runs: none are recorded
@@ -100,8 +99,7 @@ class CompositionTest {
                     )
                 val refusal = Refusal.parse(checkNotNull(publish.unmetPrecondition(command, null)))
                 refusal.code shouldBe Refusal.NO_GATE_EVIDENCE
-                context.getBean(AccreditationTasks::class.java).open(TrainVersion("2026.10.0")) shouldBe
-                    AccreditationCheck(true, null, null)
+                context.getBean(OpenAccreditationTask::class.java).shouldNotBeNull()
             }
     }
 

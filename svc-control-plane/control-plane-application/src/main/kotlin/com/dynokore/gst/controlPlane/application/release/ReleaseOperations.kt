@@ -65,14 +65,14 @@ data class PublishTrainCommand(
  * gates run first (INV-REQ-2657): a train not certified in both reference environments is refused (INV-AC-1943), and
  * so is one with a failed gate, except that an exposure-reducing train is held back only by a failure it
  * introduced. Accreditation currency, an external rule change and an open question are no gate; the
- * re-accreditation assessment is opened as a tracked task with an alert (INV-REQ-1365). The train is distributed by
+ * re-accreditation assessment is opened as a tracked task with an alert (INV-REQ-1365) after the release commits,
+ * by OpenAccreditationTask. The train is distributed by
  * platform-release, never over the pack feed.
  */
 class PublishTrain(
     private val trains: TrainRepository,
     private val permissions: OperatorPermissions,
     private val evidence: TrainEvidenceSource,
-    private val accreditation: AccreditationTasks,
     private val clock: Clock,
 ) : DeclaredOperation<PublishTrainCommand, ReleaseTrain?, ReleaseTrain> {
     override val operationId = "publishTrain"
@@ -109,12 +109,8 @@ class PublishTrain(
     ): ReleaseTrain {
         val verdict = checkNotNull(verdict(command)) { "publishTrain performed without gate evidence" }
         check(verdict.releasable) { "publishTrain performed on a train the gates hold back" }
-        val check =
-            if (command.needsReAccreditationAssessment) {
-                accreditation.open(command.version)
-            } else {
-                AccreditationCheck(false, null, null)
-            }
+        // The task and the alert are opened by OpenAccreditationTask after this record is committed (INV-T-7323).
+        val check = AccreditationCheck(command.needsReAccreditationAssessment, null, null)
         val train =
             ReleaseTrain(
                 command.version,

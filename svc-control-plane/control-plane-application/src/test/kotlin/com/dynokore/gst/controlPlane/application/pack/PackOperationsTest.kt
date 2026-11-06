@@ -106,6 +106,7 @@ class PackOperationsTest {
                 keyRef,
                 engine?.let(::MinEngineVersion),
                 exposureReducing,
+                true,
                 request,
             )
         val state = sign.load(cmd)

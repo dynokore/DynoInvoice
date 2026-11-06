@@ -7,7 +7,6 @@ import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
 import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.RecordAccreditation
-import com.dynokore.gst.controlPlane.application.release.AccreditationTasks
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
 import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
@@ -57,9 +56,8 @@ class ReleaseOperationsConfiguration {
         trains: TrainRepository,
         permissions: OperatorPermissions,
         evidence: TrainEvidenceSource,
-        accreditation: AccreditationTasks,
         clock: Clock,
-    ) = PublishTrain(trains, permissions, evidence, accreditation, clock)
+    ) = PublishTrain(trains, permissions, evidence, clock)
 
     @Bean
     fun setSupportWindow(

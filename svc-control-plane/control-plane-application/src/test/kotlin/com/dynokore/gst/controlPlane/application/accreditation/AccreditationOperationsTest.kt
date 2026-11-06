@@ -11,7 +11,6 @@ import com.dynokore.gst.controlPlane.domain.accreditation.Currency
 import com.dynokore.gst.controlPlane.domain.accreditation.SandboxAcknowledgement
 import com.dynokore.gst.controlPlane.domain.accreditation.SubmissionType
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
-import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.Certification
 import com.dynokore.gst.controlPlane.domain.release.DocumentId
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
@@ -107,7 +106,6 @@ class AccreditationOperationsTest {
             },
             publishPermissions,
             { certified },
-            { AccreditationCheck(true, "ALERT", "TASK") },
             clock,
         )
 

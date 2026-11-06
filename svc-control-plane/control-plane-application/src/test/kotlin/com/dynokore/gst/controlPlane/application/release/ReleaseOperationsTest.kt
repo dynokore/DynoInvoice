@@ -28,7 +28,6 @@ class ReleaseOperationsTest {
     private val trains = LinkedHashMap<TrainVersion, ReleaseTrain>()
     private val windows = LinkedHashMap<String, SupportWindow>()
     private val evidence = HashMap<TrainVersion, TrainEvidence>()
-    private val opened = ArrayList<TrainVersion>()
     private val permissions =
         OperatorPermissions { actor, key -> key == ReleasePermission.PUBLISH && actor in setOf("rita", "sam") }
     private val trainRepository =
@@ -47,12 +46,7 @@ class ReleaseOperationsTest {
                 windows[window.windowVersion] = window
             }
         }
-    private val tasks =
-        AccreditationTasks { version ->
-            opened += version
-            AccreditationCheck(true, "ALERT-$version", "TASK-$version")
-        }
-    private val publish = PublishTrain(trainRepository, permissions, { evidence[it] }, tasks, clock)
+    private val publish = PublishTrain(trainRepository, permissions, { evidence[it] }, clock)
     private val setWindow = SetSupportWindow(windowRepository, permissions)
 
     private val bothCertified =
@@ -176,7 +170,7 @@ class ReleaseOperationsTest {
     }
 
     @Test
-    fun `INV-AC-2659 a train passing every internal gate is released with an alert and task, a failing copy is not`() {
+    fun `INV-AC-2659 a train passing every gate is released with the flag recorded, a failing copy is not`() {
         // the re-accreditation assessment is pending, an external rule changed and an open question is unanswered: none
         // of them is an input of the gates, which are the closed set below
         Gate.entries.map { it.name }.toSet() shouldBe
@@ -184,8 +178,7 @@ class ReleaseOperationsTest {
         evidence[TrainVersion("2026.10.0")] = evidenceOf()
         publishAs("rita", "2026.10.0") shouldBe null
         val train = trains.getValue(TrainVersion("2026.10.0"))
-        train.accreditation shouldBe AccreditationCheck(true, "ALERT-2026.10.0", "TASK-2026.10.0")
-        opened shouldBe listOf(TrainVersion("2026.10.0"))
+        train.accreditation shouldBe AccreditationCheck(true, null, null) // the task follows the commit
 
         val changed = corpus + (DocumentId("D2") to "SR")
         evidence[TrainVersion("2026.10.1")] = evidenceOf(regeneration = RegenerationObservation(corpus, changed))
@@ -194,7 +187,6 @@ class ReleaseOperationsTest {
         refusal.detail.startsWith("2026.10.1 REGENERATION ") shouldBe true
         refusal.detail.contains(";") shouldBe false // no other gate names a reason
         trains.containsKey(TrainVersion("2026.10.1")) shouldBe false
-        opened.size shouldBe 1
     }
 
     @Test
@@ -248,11 +240,10 @@ class ReleaseOperationsTest {
     }
 
     @Test
-    fun `publishTrain repeated returns the original train and opens no second task`() {
+    fun `publishTrain repeated returns the original train`() {
         evidence[TrainVersion("2026.10.0")] = evidenceOf()
         publishAs("rita", "2026.10.0") shouldBe null
         publishAs("rita", "2026.10.0") shouldBe null
-        opened.size shouldBe 1
     }
 
     @Test

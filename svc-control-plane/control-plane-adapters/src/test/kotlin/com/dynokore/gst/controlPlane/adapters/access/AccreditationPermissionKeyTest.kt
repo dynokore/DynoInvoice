@@ -172,7 +172,6 @@ class AccreditationPermissionKeyTest {
                     },
                 permissions = permissions(),
                 evidence = { null },
-                accreditation = { error("not asked") },
                 clock = Clock.systemUTC(),
             )
         val command =

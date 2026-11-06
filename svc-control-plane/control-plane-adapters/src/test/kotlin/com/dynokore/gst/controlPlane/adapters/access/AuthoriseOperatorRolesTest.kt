@@ -211,7 +211,7 @@ class AuthoriseOperatorRolesTest {
         val sign = SignPack(unused(), roles(), unused(), unused(), unused(), Clock.systemUTC())
 
         fun command(actor: String) =
-            SignPackCommand(ActorId(actor), PackRef("PACK-1"), "KEY", null, false, RequestContext("c", "k"))
+            SignPackCommand(ActorId(actor), PackRef("PACK-1"), "KEY", null, false, true, RequestContext("c", "k"))
         sign.permits("pat", command("pat")) shouldBe true
         sign.permits("ann", command("ann")) shouldBe false
     }

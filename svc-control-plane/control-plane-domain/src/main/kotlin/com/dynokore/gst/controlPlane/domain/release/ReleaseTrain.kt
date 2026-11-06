@@ -140,6 +140,8 @@ data class ReleaseRecord(
     val exposureReducing: Boolean,
     val classifiedBy: ActorId,
     val recordedAt: Instant,
+    /** The accreditation check of a pack version's record (a train carries its own on [ReleaseTrain]). */
+    val accreditation: AccreditationCheck? = null,
 )
 
 /** A published train or patch train (INV-REQ-909 b2). */

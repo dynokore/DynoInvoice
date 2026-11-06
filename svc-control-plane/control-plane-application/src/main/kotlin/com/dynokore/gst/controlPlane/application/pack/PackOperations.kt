@@ -14,6 +14,7 @@ import com.dynokore.gst.controlPlane.domain.pack.PublicationGate
 import com.dynokore.gst.controlPlane.domain.pack.PublicationRefusal
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.pack.SignOutcome
+import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.ConformanceRun
 import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
@@ -130,6 +131,7 @@ data class SignPackCommand(
     val signingKeyRef: String,
     val minEngineVersion: MinEngineVersion?,
     val exposureReducing: Boolean,
+    val needsReAccreditationAssessment: Boolean,
     val request: RequestContext,
 )
 
@@ -250,7 +252,14 @@ class SignPack(
             checkNotNull(corpusVerdict(state, command.exposureReducing)) { "signPack performed without a corpus" }
         records.save(
             signed.ref,
-            ReleaseRecord(verdict.runs, command.exposureReducing, command.actor, clock.instant()),
+            ReleaseRecord(
+                verdict.runs,
+                command.exposureReducing,
+                command.actor,
+                clock.instant(),
+                // the task and the alert are opened after this record commits (INV-T-7323)
+                AccreditationCheck(command.needsReAccreditationAssessment, null, null),
+            ),
         )
         return signed
     }
