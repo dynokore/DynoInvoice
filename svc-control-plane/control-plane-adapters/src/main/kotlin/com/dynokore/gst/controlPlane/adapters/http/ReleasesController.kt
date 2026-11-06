@@ -213,27 +213,7 @@ class ReleasesController(
             problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
         }
         val key = cursors.key() // before any query and before a cursor is parsed (INV-Q-15432 A)
-        val filter =
-            status?.let { name -> TaskStatus.entries.firstOrNull { it.name == name } }
-                ?: if (status ==
-                    null
-                ) {
-                    null
-                } else {
-                    problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "status")
-                }
-        if (limit !in 1..AccreditationTaskQueries.MAX_LIMIT) {
-            problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "limit is 1 to 500")
-        }
-        val after =
-            cursor?.let { cursors.decode(key, it, caller.actor, status) }
-                ?: if (cursor ==
-                    null
-                ) {
-                    null
-                } else {
-                    problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "cursor")
-                }
+        val (filter, after) = listInput(caller, key, status, cursor, limit)
         val read = platform.bindPlatform(caller.actor) { taskQueries.list(caller.actor, filter, after, limit) }
         val page =
             when (read) {
@@ -248,6 +228,33 @@ class ReleasesController(
                 },
             ),
         )
+    }
+
+    private fun listInput(
+        caller: Caller,
+        key: ByteArray,
+        status: String?,
+        cursor: String?,
+        limit: Int,
+    ): Pair<TaskStatus?, TaskCursorKey?> {
+        val filter =
+            status?.let { name -> TaskStatus.entries.firstOrNull { it.name == name } }
+                ?: if (status == null) {
+                    null
+                } else {
+                    problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "status")
+                }
+        if (limit !in 1..AccreditationTaskQueries.MAX_LIMIT) {
+            problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "limit is 1 to 500")
+        }
+        val after =
+            cursor?.let { cursors.decode(key, it, caller.actor, status) }
+                ?: if (cursor == null) {
+                    null
+                } else {
+                    problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "cursor")
+                }
+        return filter to after
     }
 
     override fun getAccreditationTask(
