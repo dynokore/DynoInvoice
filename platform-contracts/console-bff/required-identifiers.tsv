@@ -6,3 +6,5 @@ exportSupportBundle	operation	openapi.yaml	INV-REQ-2588
 # INV-T-13826. Shared deferral operations (INV-REQ-960, INV-Q-13802 A).
 deferDocument	operation	openapi.yaml	INV-REQ-960
 undeferDocument	operation	openapi.yaml	INV-REQ-960
+# INV-T-7370. Operation promoteConfiguration (INV-REQ-2588, INV-Q-17461).
+promoteConfiguration	operation	openapi.yaml	INV-REQ-2588
