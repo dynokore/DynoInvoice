@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import io
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -292,6 +293,186 @@ class TestCheck(Case):
         code, out = self.run_check()
         self.assertEqual(code, 1)
         self.assertIn("topic gst.x.plain.v1: subscribers: not a list of strings", out)
+
+
+def _git(repo, *args):
+    return subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+class TestPinned(Case):
+    """INV-T-16628: pinned mode on small git repositories built with git init."""
+
+    def setUp(self):
+        super().setUp()
+        self.docs = self.root / "docs"
+        self.docs.mkdir()
+        _git(self.docs, "init", "-q", "-b", "main")
+
+    def commit(self, events, services=SERVICES, msg="c"):
+        m = self.docs / "model" / "architecture"
+        m.mkdir(parents=True, exist_ok=True)
+        (m / "events.yaml").write_text(yaml.safe_dump({"events": events}))
+        (m / "services.yaml").write_text(yaml.safe_dump({"services": [{"id": x} for x in services]}))
+        _git(self.docs, "add", "-A")
+        _git(self.docs, "commit", "-q", "-m", msg)
+        return _git(self.docs, "rev-parse", "HEAD")
+
+    def set_origin_main(self):
+        _git(self.docs, "update-ref", "refs/remotes/origin/main", "main")
+
+    def run_pin(self, pin, pin_name="model-pin.txt", topics=None):
+        topics = self.topics if topics is None else topics
+        (self.root / "event-log" / "topics.yaml").write_text(yaml.safe_dump({"topics": topics}))
+        pf = self.root / "event-log" / pin_name
+        if pin is not None:
+            pf.write_bytes(pin if isinstance(pin, bytes) else pin.encode())
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = chk.main(["x", "--pin", str(self.root / "event-log" / "model-pin.txt"),
+                             "--docs-repo", str(self.docs), str(self.root)])
+        return code, out.getvalue().splitlines()
+
+    def test_well_formed_pin_exits_0(self):
+        sha = self.commit(self.events)
+        self.set_origin_main()
+        code, out = self.run_pin(sha + "\n")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out[0], f"model pin: {sha} (invoice-docs main {sha[:7]})")
+
+    def test_malformed_pins(self):
+        sha = self.commit(self.events)
+        self.set_origin_main()
+        bad = {"empty": "", "blank": "\n", "uppercase": sha.upper() + "\n", "39": sha[:39] + "\n",
+               "41": sha + "a\n", "7": sha[:7] + "\n", "branch": "main\n", "two lines": sha + "\n" + sha + "\n",
+               "trailing space": sha + " \n", "no newline": sha, "crlf": sha + "\r\n"}
+        for name, text in bad.items():
+            with self.subTest(name):
+                self.assertEqual(self.run_pin(text), (1, ["model-pin: event-log/model-pin.txt is malformed"]))
+
+    def test_pin_file_missing_and_lookalike(self):
+        sha = self.commit(self.events)
+        self.set_origin_main()
+        want = (1, ["model-pin: event-log/model-pin.txt is missing"])
+        self.assertEqual(self.run_pin(None), want)
+        self.assertEqual(self.run_pin(sha + "\n", pin_name="model-pin.txt.bak"), want)
+
+    def test_commit_not_in_clone(self):
+        self.commit(self.events)
+        self.set_origin_main()
+        sha = "1" * 40
+        self.assertEqual(self.run_pin(sha + "\n"),
+                         (1, [f"model-pin: commit {sha} cannot be read in the invoice-docs clone"]))
+
+    def test_commit_not_ancestor_of_origin_main(self):
+        self.commit(self.events)
+        _git(self.docs, "checkout", "-q", "-b", "side")
+        side = self.commit(self.events + [{"id": "Side", "producers": [], "consumers": []}])
+        _git(self.docs, "checkout", "-q", "main")
+        self.set_origin_main()
+        self.assertEqual(self.run_pin(side + "\n"),
+                         (1, [f"model-pin: commit {side} is not an ancestor of invoice-docs main"]))
+
+    def test_pin_before_event_the_topics_list(self):
+        a = self.commit(self.events)
+        self.commit(self.events + [{"id": "Later", "producers": ["a-svc"], "consumers": ["b-svc"]}])
+        self.set_origin_main()
+        topics = self.topics + [_topic("gst.x.later.v1", "Later", ["a-svc"], ["b-svc"])]
+        code, out = self.run_pin(a + "\n", topics=topics)
+        self.assertEqual(code, 1)
+        self.assertIn("topic gst.x.later.v1: event type Later has no event in events.yaml", out)
+
+    def test_pin_at_model_event_without_topic(self):
+        self.commit(self.events)
+        b = self.commit(self.events + [{"id": "Later", "producers": ["a-svc"], "consumers": ["b-svc"]}])
+        self.set_origin_main()
+        code, out = self.run_pin(b + "\n")
+        self.assertEqual(code, 1)
+        self.assertIn("Later: no topic carries the event type", out)
+
+    def test_lookalike_event_type(self):
+        sha = self.commit(self.events + [{"id": "IdentityTripleChanged", "producers": ["a-svc"], "consumers": []}])
+        self.set_origin_main()
+        topics = self.topics + [_topic("gst.x.itc.v1", "IdentityTripleChange", ["a-svc"], [])]
+        code, out = self.run_pin(sha + "\n", topics=topics)
+        self.assertEqual(code, 1)
+        self.assertIn("topic gst.x.itc.v1: event type IdentityTripleChange has no event in events.yaml", out)
+
+    def test_pinned_run_ignores_the_working_tree_head(self):
+        a = self.commit(self.events)
+        self.commit(self.events + [{"id": "Later", "producers": ["a-svc"], "consumers": ["b-svc"]}])
+        self.set_origin_main()
+        self.assertEqual(self.run_pin(a + "\n")[0], 0)
+
+
+class _Loader(yaml.SafeLoader):
+    pass
+
+
+_Loader.add_multi_constructor("!", lambda loader, suffix, node: loader.construct_sequence(node, deep=True))
+CI_FILE = _HERE.parent / ".gitlab-ci.yml"
+HEAD_JOB, PIN_JOB = "model-subscribers-head-check", "invoice-docs-checks"
+UNPINNED = "python3 event-log/check-model-subscribers.py /tmp/invoice-docs/model/architecture ."
+
+
+def ci_wiring_problems(doc) -> list[str]:
+    """Returns what is wrong with the model-subscribers wiring of a parsed .gitlab-ci.yml (empty when right)."""
+    p = []
+    head, pin = doc.get(HEAD_JOB), doc.get(PIN_JOB)
+    if not isinstance(head, dict) or not isinstance(pin, dict):
+        return [f"job {HEAD_JOB} or {PIN_JOB} is missing"]
+    if head.get("rules") != [{"if": '$CI_PIPELINE_SOURCE == "schedule"'}]:
+        p.append("head job rules are not exactly the schedule rule")
+    for k in ("image", "stage", "needs", "extends"):
+        if head.get(k) != pin.get(k):
+            p.append(f"head job {k} differs from {PIN_JOB}")
+    hs = [x for x in head.get("script", []) if isinstance(x, str)]
+    if not any(UNPINNED in x for x in hs):
+        p.append("head job does not run the unpinned invocation")
+    if any("--pin" in x for x in hs):
+        p.append("head job uses --pin")
+    ps = [x for x in pin.get("script", []) if isinstance(x, str)]
+    mine = [x for x in ps if "model-subscribers-check" in x]
+    want = ("gst_check model-subscribers-check python3 event-log/check-model-subscribers.py "
+            "--pin event-log/model-pin.txt --docs-repo /tmp/invoice-docs .")
+    if mine != [want]:
+        p.append("invoice-docs-checks does not hold exactly the pinned model-subscribers-check line")
+    if any(UNPINNED in x for x in ps):
+        p.append("invoice-docs-checks holds an unpinned invocation")
+    if "gst_skip" in str(head.get("extends")) or ".gst-skip-verified" in str(head.get("extends")):
+        p.append("head job extends .gst-skip-verified")
+    return p
+
+
+class TestCiWiring(unittest.TestCase):
+    def load(self):
+        return yaml.load(CI_FILE.read_text(encoding="utf-8"), Loader=_Loader)
+
+    def test_ci_file_is_wired(self):
+        self.assertEqual(ci_wiring_problems(self.load()), [])
+
+    def test_changed_rule_fails(self):
+        doc = self.load()
+        doc[HEAD_JOB]["rules"] = [{"if": '$CI_PIPELINE_SOURCE != "schedule"'}]
+        self.assertTrue(ci_wiring_problems(doc))
+
+    def test_extra_rule_entry_fails(self):
+        doc = self.load()
+        doc[HEAD_JOB]["rules"].append({"when": "on_success"})
+        self.assertTrue(ci_wiring_problems(doc))
+
+    def test_lookalike_job_name_fails(self):
+        doc = self.load()
+        doc[HEAD_JOB + "2"] = doc.pop(HEAD_JOB)
+        self.assertTrue(ci_wiring_problems(doc))
+
+    def test_pin_in_head_job_or_unpinned_in_pin_job_fails(self):
+        doc = self.load()
+        doc[HEAD_JOB]["script"].append("x --pin y")
+        self.assertTrue(ci_wiring_problems(doc))
+        doc = self.load()
+        doc[PIN_JOB]["script"].append("gst_check model-subscribers-check " + UNPINNED)
+        self.assertTrue(ci_wiring_problems(doc))
 
 
 if __name__ == "__main__":

@@ -45,27 +45,37 @@ diffs it.
   `x-invoice-content: true`, and a replay topic whose types make both true,
   fail the generator. The purge itself is outside this contract.
 
-## Model check (INV-T-13621, INV-Q-9000 A)
+## Model check (INV-T-13621, INV-Q-9000 A; INV-T-16628, INV-Q-16624 D)
 
-`check-model-subscribers.py <model-architecture-dir> <contracts-root>` (job
-`invoice-docs-checks`, run on merge requests and on main) compares invoice-docs
-`events.yaml` and `services.yaml` with `topics.yaml`: every consumer and
-producer of a model event must be a subscriber or producer of its topic, and
-every event with `feeds_runtime_replicas: true` must be subscribed by every
-service except `console-web` and its producers. Order of work: the check
-accepts a contract that is ahead of the model and rejects a model that is
-ahead of the contract, so for a new consumer or producer the contract task
-merges first and the model task second.
+`check-model-subscribers.py <model-architecture-dir> <contracts-root>` compares
+invoice-docs `events.yaml` and `services.yaml` with `topics.yaml`: every
+consumer and producer of a model event must be a subscriber or producer of its
+topic, every event with `feeds_runtime_replicas: true` must be subscribed by
+every service except `console-web` and its producers, every topic's event type
+has an event, and every event has a topic. The rules are strict.
 
-`SUPERSEDED_TOPICS` (INV-Q-16626 A) names an old topic that a deprecation window
-keeps beside its replacement, as a dict from old topic to replacement. Its value
-is exactly `{"gst.tenancy.installation-status-changed.v1":
-"gst.platform.installation-status-changed.v1"}`. Rule 1 leaves the old topic out
-and applies the consumer, producer and replica-feed rules to the replacement; rule 4
-still applies to the old topic. The constant is exact and shrink-only: an entry
-is deleted in the same change that removes its old topic from `topics.yaml`, and
-an entry whose old topic or replacement is missing prints
-`superseded topic <old> is stale`.
+**Pinned mode.** The job `invoice-docs-checks` runs
+`check-model-subscribers.py --pin event-log/model-pin.txt --docs-repo <invoice-docs clone> <contracts-root>`.
+It reads the two model files at the pinned commit with
+`git show <pin>:model/architecture/<file>` and applies the same rules. The pin
+must be an ancestor of `origin/main` of the clone. A missing or malformed pin
+file, an unreadable commit and a commit that is not an ancestor each fail with
+one `model-pin:` line. Every pinned run prints
+`model pin: <sha> (invoice-docs main <short sha>)`.
+
+**Pin file.** `event-log/model-pin.txt` is exactly one line: 40 lowercase
+hexadecimal characters and a newline, no comment, no whitespace. A merge
+request that adds the topic of a new event type moves the pin to the
+invoice-docs main commit that holds the model change.
+
+**Head run.** The job `model-subscribers-head-check` runs only on the pipeline
+schedule. It runs the unpinned invocation against the head of invoice-docs main
+with no added exemption. It is red while a model change is ahead of its
+contract; that is expected and tells the contract task to start.
+
+**Order of work.** For a new event type: the model task first, the contract
+task second (the contract task moves the pin). For a new consumer or producer
+of an existing event: the contract task first, the model task second.
 
 ## Consumed-event producers (INV-T-14082, INV-Q-14079 A)
 

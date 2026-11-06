@@ -220,6 +220,28 @@ contract-rules:
     - gst_check route-scopes-generator-tests python3 -m unittest discover -s route-scopes -p 'test_*.py' -v
     - gst_checks_done
 
+model-subscribers-head-check:
+  # INV-T-16628 (INV-Q-16624 D): scheduled verification of the other side of the pin. The unchanged check (all four
+  # rules, no added exemption) runs against the head of invoice-docs main. Red while a model change is ahead of
+  # its contract is expected. Runs only on the pipeline schedule.
+  extends: .inv-check-group
+  stage: verify
+  needs: []
+  image: "$CI_TOOLS_IMAGE"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  before_script:
+  script:
+    - !reference [.gst-checks, script]
+    - >
+      git clone -q --depth 1
+      "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
+      /tmp/invoice-docs
+    - >
+      echo "gst-ci: invoice-docs main $(git -C /tmp/invoice-docs rev-parse HEAD)"
+    - gst_check model-subscribers-head-check python3 event-log/check-model-subscribers.py /tmp/invoice-docs/model/architecture .
+    - gst_checks_done
+
 invoice-docs-checks:
   # The checks that read invoice-docs, from one fetch (cloned with gitlab-ci-token:$CI_JOB_TOKEN; invoice-docs is
   # not anonymously readable). They run in full on main too: invoice-docs main moves on its own.
@@ -229,10 +251,10 @@ invoice-docs-checks:
   # - x-timeout-check (INV-T-3431, INV-Q-3429 A, INV-REQ-1232 b4, INV-REQ-1204): every operation's x-timeout is a
   #   figure of its edge's INV-NOTE-3 section 36.6 row (sync-edges.yaml resilience_policy on main). Public operations,
   #   edges without a row and rows without a figure are listed as unchecked.
-  # - model-subscribers-check (INV-T-13621, INV-Q-9000 A, INV-AC-13637): every consumer and producer of invoice-docs
-  #   model/architecture/events.yaml is a subscriber or producer of its topic in event-log/topics.yaml, the replica
-  #   feeds (feeds_runtime_replicas true) are subscribed by every service but their producers, and the exemptions
-  #   must not be stale.
+  # - model-subscribers-check (INV-T-13621, INV-Q-9000 A, INV-AC-13637; INV-T-16628, INV-Q-16624 D): the same rules,
+  #   read at the invoice-docs commit named in event-log/model-pin.txt (pinned mode; the clone keeps the full commit
+  #   graph without file content, the pin must be an ancestor of invoice-docs main). The head of main is verified by
+  #   the scheduled job model-subscribers-head-check.
   # - lifecycle-states-drift-check (INV-T-2859 T15): submission/schemas/lifecycle-states.schema.json is regenerated
   #   from invoice-docs main model/architecture/lifecycle-states.yaml and must equal the committed file.
   # - catalogue-drift-check (INV-T-2851 T7): the data of the vendored catalogue/errors/error-codes.yaml (from
@@ -247,7 +269,7 @@ invoice-docs-checks:
   script:
     - !reference [.gst-checks, script]
     - >
-      git clone -q --depth 1
+      git clone -q --filter=blob:none
       "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/invoice/invoice-docs.git"
       /tmp/invoice-docs
     - >
@@ -263,7 +285,7 @@ invoice-docs-checks:
     - gst_check machine-route-keys-check python3 spectral/check-machine-route-keys.py .
     - gst_check caller-auth-inv-ac-8259 python3 spectral/check-x-caller-auth.py .
     - gst_check x-timeout-check python3 spectral/check-timeouts.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
-    - gst_check model-subscribers-check python3 event-log/check-model-subscribers.py /tmp/invoice-docs/model/architecture .
+    - gst_check model-subscribers-check python3 event-log/check-model-subscribers.py --pin event-log/model-pin.txt --docs-repo /tmp/invoice-docs .
     - >
       gst_check lifecycle-states-drift-check python3 submission/schemas/generate-lifecycle-states.py
       /tmp/invoice-docs/model/architecture/lifecycle-states.yaml

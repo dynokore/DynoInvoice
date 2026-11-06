@@ -2,6 +2,12 @@
 """event-log/check-model-subscribers.py — INV-T-13621 (INV-Q-9000 A, INV-AC-13637)
 
 Usage: python3 event-log/check-model-subscribers.py <model-architecture-dir> <contracts-root>
+       python3 event-log/check-model-subscribers.py --pin event-log/model-pin.txt --docs-repo <invoice-docs clone> <contracts-root>
+
+Pinned mode (INV-T-16628, INV-Q-16624 D): events.yaml and services.yaml are read
+by `git show <pin>:model/architecture/<file>` at the commit named in the pin
+file, which must be an ancestor of origin/main of the clone; the rules are the
+same. The scheduled job runs the first form against the head of invoice-docs main.
 
 Compares the architecture model (events.yaml, services.yaml of invoice-docs)
 with event-log/topics.yaml: every consumer of a model event is a subscriber of
@@ -16,7 +22,10 @@ is ahead of the contract is rejected.
 """
 from __future__ import annotations
 
+import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -185,7 +194,54 @@ def check(model_dir: Path, root: Path) -> tuple[list[str], list[str]]:
     return f, sorted(feeds)
 
 
+PIN_RE = re.compile(r"^[0-9a-f]{40}\n$")
+PIN_FILES = ("events.yaml", "services.yaml")
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=False)
+
+
+def run_pinned(pin_file: Path, docs_repo: Path, root: Path) -> int:
+    """Pinned mode: fail closed with one finding line, exit 1; otherwise the unchanged rules."""
+    shown = "event-log/model-pin.txt"
+    try:
+        raw = pin_file.read_bytes().decode("utf-8")
+    except FileNotFoundError:
+        print(f"model-pin: {shown} is missing")
+        return 1
+    except (OSError, UnicodeError):
+        print(f"model-pin: {shown} is malformed")
+        return 1
+    if not PIN_RE.fullmatch(raw):
+        print(f"model-pin: {shown} is malformed")
+        return 1
+    sha = raw[:40]
+    if _git(docs_repo, "cat-file", "-e", f"{sha}^{{commit}}").returncode != 0:
+        print(f"model-pin: commit {sha} cannot be read in the invoice-docs clone")
+        return 1
+    if _git(docs_repo, "merge-base", "--is-ancestor", sha, "origin/main").returncode != 0:
+        print(f"model-pin: commit {sha} is not an ancestor of invoice-docs main")
+        return 1
+    head = _git(docs_repo, "rev-parse", "--short", "origin/main").stdout.decode().strip()
+    print(f"model pin: {sha} (invoice-docs main {head})")
+    with tempfile.TemporaryDirectory() as tmp:
+        for name in PIN_FILES:
+            r = _git(docs_repo, "show", f"{sha}:model/architecture/{name}")
+            if r.returncode != 0:
+                print(f"model-pin: {name} cannot be read at commit {sha}")
+                return 1
+            (Path(tmp) / name).write_bytes(r.stdout)
+        findings, feeds = check(Path(tmp), root)
+    print(f"replica feeds: {', '.join(feeds)}")
+    for line in findings:
+        print(line)
+    return 1 if findings else 0
+
+
 def main(argv: list[str]) -> int:
+    if len(argv) == 6 and argv[1] == "--pin" and argv[3] == "--docs-repo":
+        return run_pinned(Path(argv[2]), Path(argv[4]), Path(argv[5]))
     if len(argv) != 3:
         print("usage: check-model-subscribers.py <model-architecture-dir> <contracts-root>")
         return 2
