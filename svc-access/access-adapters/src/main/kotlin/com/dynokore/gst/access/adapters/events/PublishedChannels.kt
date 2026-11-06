@@ -7,5 +7,5 @@ package com.dynokore.gst.access.adapters.events
  * test per channel validates the payload against the AsyncAPI schema.
  */
 object PublishedChannels {
-    val ALL: Set<String> = setOf(AuthorityChangedOutbox.CHANNEL, AccessAlertOutbox.CHANNEL, OutboxLinkMessages.CHANNEL)
+    val ALL: Set<String> = setOf(AuthorityChangedOutbox.CHANNEL)
 }

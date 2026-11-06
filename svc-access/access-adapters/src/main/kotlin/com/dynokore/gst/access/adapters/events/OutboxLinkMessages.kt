@@ -11,8 +11,7 @@ import tools.jackson.databind.ObjectMapper
 /**
  * TPL-05: appends `MessageRequested` through outbox-and-queue, in the transaction the caller holds (CS-17), so a
  * rolled-back transaction publishes nothing. The payload is the `message-requested-payload` schema of
- * platform-contracts (`template`, `recipients`, `channel`, and `linkReference` or `sealedPasscode`). A message
- * concerns an entity, as
+ * platform-contracts (`template`, `recipients`, `channel`, and `linkReference` or `sealedPasscode`). A message concerns an entity, as
  * the outbox refuses a domain event under the tenant-wide entity (FR-K.3): the caller names it with [filedUnder], and a
  * request outside that scope is refused.
  */

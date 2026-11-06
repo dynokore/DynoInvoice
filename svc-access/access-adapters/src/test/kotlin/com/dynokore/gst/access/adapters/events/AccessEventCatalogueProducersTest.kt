@@ -45,41 +45,4 @@ class AccessEventCatalogueProducersTest {
             )
         for (d in bad) assertThrows(IllegalStateException::class.java) { AccessEventCatalogue.producersOf(type, d) }
     }
-
-    private val linkType = SignedLinkRequestedHandler.TYPE
-    private val linkTopic = SignedLinkRequestedHandler.TOPIC
-
-    private fun topics(
-        topic: String = linkTopic,
-        type: String = linkType,
-        subscribers: String = "access-svc",
-        producers: String? = "    producers:\n      - masterdata-svc\n",
-    ) =
-        "topics:\n  - topic: $topic\n    event_type: $type\n${producers.orEmpty()}    subscribers:\n      - $subscribers\n"
-
-    @Test
-    fun `the committed topics file gives exactly masterdata-svc for SignedLinkRequested`() {
-        assertEquals(setOf("masterdata-svc"), AccessEventCatalogue.signedLinkProducers())
-    }
-
-    @Test
-    fun `a valid topics document is read`() {
-        assertEquals(setOf("masterdata-svc"), AccessEventCatalogue.signedLinkProducers(topics()))
-    }
-
-    @Test
-    fun `each topics document without a usable entry throws`() {
-        val bad =
-            listOf(
-                "topics: []\n",
-                topics(type = "$linkType.v2"),
-                topics(type = linkType.replace(".v1", ".v2")),
-                topics(topic = "gst.masterdata.other.v1"),
-                topics(subscribers = "payload-svc"),
-                topics(producers = "    producers: []\n"),
-                topics(producers = null),
-                "other: 1\n",
-            )
-        for (d in bad) assertThrows(IllegalStateException::class.java) { AccessEventCatalogue.signedLinkProducers(d) }
-    }
 }

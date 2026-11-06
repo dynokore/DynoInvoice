@@ -52,7 +52,9 @@ class StrictSignatoryActionBody(
     }
 
     private companion object {
-        /** The properties of `SignatoryActionRequest` in the contract; a test sends each, and one more. */
-        val ALLOWED: Set<String> = setOf("kind", "packVersion", "queryText")
+        val ALLOWED: Set<String> =
+            SignatoryActionRequest::class.java.declaredFields
+                .map { it.name }
+                .toSet()
     }
 }

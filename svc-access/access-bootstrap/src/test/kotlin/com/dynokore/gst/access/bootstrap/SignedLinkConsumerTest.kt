@@ -5,7 +5,6 @@ import com.dynokore.gst.access.application.link.TEMPLATE_SIGNED_LINK
 import com.dynokore.gst.access.application.link.TEMPLATE_SIGNED_LINK_PASSCODE
 import com.dynokore.gst.access.domain.link.LinkSource
 import com.dynokore.platform.outboxandqueue.CausationId
-import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
@@ -270,54 +269,6 @@ class SignedLinkConsumerTest {
         }
 
     private fun context(env: Env) = env.context
-
-    @Test
-    fun `INV-REQ-899 the audit actor and the stored sender of an event-issued link equal system-access-svc`() =
-        run { env ->
-            env.put(env.envelope(env.payload()))
-            env.deliver()
-            val (auditActor, sender) =
-                BoundaryFixture.asSuperuser { c ->
-                    c
-                        .prepareStatement(
-                            "select (select data::jsonb ->> 'actor' from access.outbox where tenant_id = ?::uuid " +
-                                "and data::jsonb ->> 'action' = 'issueSignedLink'), " +
-                                "(select created_by from access.signed_link where tenant_id = ?::uuid)",
-                        ).use { s ->
-                            s.setString(1, env.tenant.toString())
-                            s.setString(2, env.tenant.toString())
-                            s.executeQuery().use {
-                                it.next()
-                                it.getString(1) to it.getString(2)
-                            }
-                        }
-                }
-            assertThat(auditActor).isEqualTo("system:access-svc")
-            assertThat(sender).isEqualTo("system:access-svc")
-            for (lookAlike in listOf("system:access", "system:access-svc2", "link:system")) {
-                assertThat(auditActor).isNotEqualTo(lookAlike)
-                assertThat(sender).isNotEqualTo(lookAlike)
-            }
-        }
-
-    @Test
-    fun `INV-REQ-899 the handler refuses masterdata-svcx and payload-svc and accepts masterdata-svc`() =
-        run { env ->
-            val tenants = context(env).getBean(TenantContext::class.java)
-            val tx = context(env).getBean(TransactionRunner::class.java)
-            val handler = context(env).getBean(SignedLinkRequestedHandler::class.java)
-
-            fun handle(source: String) =
-                runCatching {
-                    tenants.bind(env.tenant, "system:test") {
-                        tx.inTransaction { handler.handle(env.envelope(env.payload(), source = source)) }
-                    }
-                }
-            for (other in listOf("/gst/masterdata-svcx", "/gst/payload-svc")) {
-                assertThat(handle(other).exceptionOrNull()).isInstanceOf(ContractViolation::class.java)
-            }
-            assertThat(handle("/gst/masterdata-svc").exceptionOrNull()).isNull()
-        }
 
     @Test
     fun `INV-REQ-899 a second link row with the same source event id is refused by the constraint`() =

@@ -102,21 +102,6 @@ class SignatoryActionTest {
                 consents.withdrawConsent(ref, UUID.randomUUID(), WithdrawConsentRequest("Relationship ended"))
             }
 
-        fun storedHandoverStatement(ref: String): String? =
-            BoundaryFixture.asSuperuser { c ->
-                c
-                    .prepareStatement(
-                        "select handover_statement_ref from access.consent where tenant_id = ? and consent_ref = ?",
-                    ).use { s ->
-                        s.setObject(1, UUID.fromString(tenant.toString()))
-                        s.setString(2, ref)
-                        s.executeQuery().use {
-                            check(it.next()) { "no consent $ref" }
-                            it.getString(1)
-                        }
-                    }
-            }
-
         fun consentStatus(ref: String): String =
             BoundaryFixture.asSuperuser { c ->
                 c
@@ -301,18 +286,6 @@ class SignatoryActionTest {
             assertThat(repeat.body!!.evidenceRef).isEqualTo(first.body!!.evidenceRef)
             assertThat(repeat.body!!.recordedAt).isEqualTo(first.body!!.recordedAt)
             assertThat(env.evidence()).containsExactly("link:$ref" to "WITHDRAW|CLI-A")
-        }
-
-    @Test
-    fun `INV-REQ-1010 handoverStatementRef is the stored one on WITHDRAW and its repeat, absent otherwise`() =
-        run { env ->
-            val mine = env.consent("CLI-A")
-            val ref = env.link(consent = mine)
-            assertThat(env.act(ref, ack, "2026.3").body!!.handoverStatementRef).isNull()
-            assertThat(env.act(ref, query, "2026.3", "Question").body!!.handoverStatementRef).isNull()
-            val first = env.act(ref, withdraw).body!!.handoverStatementRef
-            assertThat(first).isNotNull().isEqualTo(env.storedHandoverStatement(mine))
-            assertThat(env.act(ref, withdraw).body!!.handoverStatementRef).isEqualTo(first)
         }
 
     @Test

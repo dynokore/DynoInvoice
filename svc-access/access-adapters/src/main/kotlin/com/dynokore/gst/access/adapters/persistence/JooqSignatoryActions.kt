@@ -68,49 +68,23 @@ class JooqSignatoryActions(
 }
 
 /**
- * The reference of the evidence record of an action (`evidenceRef` of the contract): `EVD-` and the name-based UUID
- * (version 5, RFC 9562 section 5.5: SHA-1 under the fixed [NAMESPACE]) of (tenant, link, kind, pack version), the
- * repeat key of the contract. It is the primary key of the row, so a repeat returns the original reference and no
- * second record exists for the same key. 40 characters, within the contract limit of 64.
+ * The reference of the evidence record of an action (`evidenceRef` of the contract): `EVD-` and the name-based UUID of
+ * (tenant, link, kind, pack version), the repeat key of the contract. It is the primary key of the row, so a repeat
+ * returns the original reference and no second record exists for the same key.
  */
 object SignatoryEvidenceRefs {
-    /** The one fixed namespace of the evidence references of access-svc. */
-    val NAMESPACE: java.util.UUID = java.util.UUID.fromString("5b0f3d2e-7a41-5c8e-9d36-1f4a7c2e8b90")
-
     fun idOf(
         tenant: TenantId,
         action: SignatoryAction,
-    ): java.util.UUID {
-        val name =
+    ): java.util.UUID =
+        java.util.UUID.nameUUIDFromBytes(
             listOf(tenant.toString(), action.linkRef.value, action.kind.name, action.packVersion)
                 .joinToString("\u0000")
-                .toByteArray(Charsets.UTF_8)
-        val sha = java.security.MessageDigest.getInstance("SHA-1")
-        sha.update(
-            java.nio.ByteBuffer
-                .allocate(
-                    UUID_BYTES,
-                ).putLong(NAMESPACE.mostSignificantBits)
-                .putLong(NAMESPACE.leastSignificantBits)
-                .array(),
+                .toByteArray(Charsets.UTF_8),
         )
-        val hash = sha.digest(name)
-        hash[VERSION_BYTE] = ((hash[VERSION_BYTE].toInt() and LOW_NIBBLE) or VERSION_5).toByte()
-        hash[VARIANT_BYTE] = ((hash[VARIANT_BYTE].toInt() and VARIANT_MASK) or VARIANT_RFC).toByte()
-        val buffer = java.nio.ByteBuffer.wrap(hash, 0, UUID_BYTES)
-        return java.util.UUID(buffer.long, buffer.long)
-    }
 
     fun refOf(
         tenant: TenantId,
         action: SignatoryAction,
     ): String = "EVD-${idOf(tenant, action)}"
-
-    private const val UUID_BYTES = 16
-    private const val VERSION_BYTE = 6
-    private const val VARIANT_BYTE = 8
-    private const val LOW_NIBBLE = 0x0f
-    private const val VERSION_5 = 0x50
-    private const val VARIANT_MASK = 0x3f
-    private const val VARIANT_RFC = 0x80
 }
