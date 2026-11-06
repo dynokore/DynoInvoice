@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [12.1.0] - 2026-11-06
+### Added
+- `io.micrometer:micrometer-tracing-bridge-otel` and `io.opentelemetry:opentelemetry-exporter-otlp` on the impl runtime classpath (INV-T-17627, INV-Q-17607 A, INV-AC-17624); versions from the Spring Boot BOM. Dependency only: no span is emitted yet.
+
 ## [12.0.0] - 2026-11-06
 ### Changed
 - BREAKING (INV-T-10128, INV-Q-10027, INV-Q-10107 C): `PolicyRoleResolver` and `rolesOf` are removed; the services that must move first are svc-masterdata (INV-T-8118) and every service whose tests name the type. `setPolicy` and `acknowledgeControlRelaxation` are decided by permission: `PolicyCommandServlet` uses the service's `SetterPermission` bean when there is one (access-svc, the authority, consults no replica) and otherwise binds `AuthorityReplica.decide(AuthorizationRequest(tenant, principal, entityRef, action = the permission key, level))` per request, allowed only for source LOCAL or FALLBACK; DEGRADED, a denial, an exception and no replica are 403 SRT-004 with nothing stored (SRT-004 is the refusal of the servlet's replica decision); POL-004 is the refusal of a `SetterPermission` that answers false, throws or is unbound, whoever supplies it. `ReplicaSetterPermission` takes the principal kind as a constructor parameter (`principalKindOf`) and sends the call's `entityRef` at the entity-scoped levels (fail closed when absent) and the empty string elsewhere. The `policyWriter` bean composes the `SetterPermission` bean, or the new `RequestBoundSetterPermission`, into `JdbcPolicyWriter`. Depends on `config-resolver 6.0.0`.

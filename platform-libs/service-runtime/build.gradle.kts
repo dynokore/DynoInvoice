@@ -185,6 +185,13 @@ dependencies {
         add(config, libs.jakarta.servletApi)
         add(config, libs.springSecurity.oauth2Jose)
     }
+    // INV-T-17627 (INV-Q-17607 A): the Micrometer tracing OpenTelemetry bridge and the OTLP trace exporter, runtime only
+    // in the impl half and its tests; versions from the Spring Boot BOM. No code uses them yet.
+    listOf("implRuntimeOnly", "implTestRuntimeOnly").forEach { config ->
+        add(config, platform(libs.springBoot.dependencies))
+        add(config, libs.micrometer.tracingBridgeOtel)
+        add(config, libs.opentelemetry.exporterOtlp)
+    }
     add("implTestImplementation", libs.springBoot.test)
     // INV-T-4125 (API-33, INV-Q-4103 A): a running service on its application and management ports. Tomcat at the
     // patched version platform-libs-bom pins (libs.versions.toml tomcatEmbed), Prometheus for /metrics.

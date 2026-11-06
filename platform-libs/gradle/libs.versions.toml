@@ -108,6 +108,10 @@ platformContracts-serviceRuntimeBundle = { module = "platform-contracts-bundle:p
 jackson-moduleKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 springBoot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot" }
 springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+# INV-T-17627 (INV-Q-17607 A): the Micrometer tracing OpenTelemetry bridge and the OTLP trace exporter on the
+# service-runtime impl runtime classpath (dependency only; no span is emitted yet). Versions managed by the Spring Boot BOM.
+micrometer-tracingBridgeOtel = { module = "io.micrometer:micrometer-tracing-bridge-otel" }
+opentelemetry-exporterOtlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp" }
 # STK-23 (service-runtime, INV-T-2872 / T28): the generated ARC-08 client's own
 # `RestClient`/`ClientHttpRequestInterceptor` — client-side only, never
 # `spring-webmvc` or a servlet container (this module ships no web starter,
