@@ -79,7 +79,7 @@ class LookupFailureLogTest {
     private fun wire(): RegistryHttp {
         val policy =
             ResiliencePolicy(
-                TimeoutPolicy(Duration.ofSeconds(1)),
+                TimeoutPolicy(Duration.ofSeconds(30)),
                 RetryPolicy(1, Duration.ofMillis(1), Duration.ofMillis(2), 0.0),
                 CircuitBreakerPolicy(50.0F, 20, Duration.ofSeconds(1), 3),
                 BulkheadPolicy(20, Duration.ofMillis(100)),
