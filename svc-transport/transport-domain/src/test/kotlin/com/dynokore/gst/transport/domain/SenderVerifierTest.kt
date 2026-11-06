@@ -43,12 +43,16 @@ class SenderVerifierTest {
         key: ByteArray = secret,
     ) = verifier.verify(b, ts, sig, key)
 
-    private fun accepted(ts: String) = check(ts, signed(ts)) shouldBe SenderVerdict.Accepted
+    private fun accepted(ts: String) {
+        check(ts, signed(ts)) shouldBe SenderVerdict.Accepted
+    }
 
     private fun refused(
         v: SenderVerdict,
         reason: SenderRefusal,
-    ) = v shouldBe SenderVerdict.Refused(reason)
+    ) {
+        v shouldBe SenderVerdict.Refused(reason)
+    }
 
     @Test
     fun `299 seconds old is accepted`() = accepted(ageSeconds(299))
