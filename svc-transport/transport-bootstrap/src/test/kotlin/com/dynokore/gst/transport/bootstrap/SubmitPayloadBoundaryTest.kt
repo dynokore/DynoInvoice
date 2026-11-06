@@ -201,7 +201,9 @@ class SubmitPayloadBoundaryTest {
         val rejected = h.submitPayload(tenant, "E-001", doc())
         ApSimulator.control("/faults/clear", "{}")
         ApSimulator.control("/faults/latency", """{"delayMs":3000}""")
+        val handledBefore = ApSimulator.callCount()
         val timedOut = h.submitPayload(tenant, "E-001", doc())
+        ApSimulator.awaitCalls(handledBefore + 1)
         accepted.shouldBeInstanceOf<TransportOutcome.Accepted>()
         rejected.shouldBeInstanceOf<TransportOutcome.Rejected>().reasons.forEach {
             it.code.startsWith("AP-") shouldBe false
@@ -229,7 +231,9 @@ class SubmitPayloadBoundaryTest {
             listOf("SUB-003")
         ApSimulator.control("/faults/clear", "{}")
         ApSimulator.control("/faults/latency", """{"delayMs":3000}""")
+        val handledBefore = ApSimulator.callCount()
         h.submitPayload(tenant, "E-001", doc()) shouldBe TransportOutcome.TransientFailure
+        ApSimulator.awaitCalls(handledBefore + 1)
     }
 
     @Test

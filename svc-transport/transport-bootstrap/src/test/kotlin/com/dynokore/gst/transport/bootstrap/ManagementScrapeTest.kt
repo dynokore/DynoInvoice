@@ -9,6 +9,7 @@ import com.dynokore.gst.transport.domain.TransportOutcome
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.WebApplicationType
@@ -42,11 +43,12 @@ class ManagementScrapeTest {
             .web(WebApplicationType.SERVLET)
             .properties(*TransportContext.propertyValues(dir, TransportDb.jdbcUrl).toTypedArray())
             .properties(
-                "server.port=0",
-                "management.server.port=0",
                 "transport.ap.adapters[0].id=$adapter",
                 "transport.ap.adapters[0].path=primary",
-            ).run()
+            )
+            // command-line arguments outrank the `management.server.port: 8081` of application.yaml;
+            // `.properties(...)` sets default properties, the lowest precedence, so it would not
+            .run("--server.port=0", "--management.server.port=0")
     }
 
     private fun ConfigurableApplicationContext.record(
@@ -73,7 +75,9 @@ class ManagementScrapeTest {
         try {
             val accepted = TransportOutcome.Accepted("a")
             app.record(adapter, listOf(accepted, TransportOutcome.TransientFailure, accepted, accepted))
-            val text = scrape("http://localhost:${app.environment.getProperty("local.management.port")}/metrics")
+            val port = checkNotNull(app.environment.getProperty("local.management.port")).toInt()
+            port shouldNotBe MANAGEMENT_PORT_IN_YAML
+            val text = scrape("http://localhost:$port/metrics")
             val line = text.lines().first { it.startsWith("transport_ap_failure_rate") && it.contains("\"$adapter\"") }
             line.substringAfterLast(' ').toDouble() shouldBe 0.25
         } finally {
@@ -83,5 +87,6 @@ class ManagementScrapeTest {
 
     private companion object {
         const val UNIQUE = 12
+        const val MANAGEMENT_PORT_IN_YAML = 8081
     }
 }
