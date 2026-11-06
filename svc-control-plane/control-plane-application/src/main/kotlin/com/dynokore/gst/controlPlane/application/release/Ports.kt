@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.application.release
 
+import com.dynokore.gst.controlPlane.application.accreditation.PendingStep
 import com.dynokore.gst.controlPlane.domain.pack.PackRef
 import com.dynokore.gst.controlPlane.domain.pack.RegulatoryPack
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
@@ -58,6 +59,15 @@ interface TrainRepository {
     fun find(version: TrainVersion): ReleaseTrain?
 
     fun save(train: ReleaseTrain)
+
+    /**
+     * Stores [train] and, in the same call and therefore the same transaction, the pending accreditation [step] of
+     * its release (INV-Q-17708 A). The default stores the record alone, for a repository with no retry queue.
+     */
+    fun save(
+        train: ReleaseTrain,
+        step: PendingStep,
+    ) = save(train)
 }
 
 interface SupportWindowRepository {
@@ -74,6 +84,13 @@ interface PackReleaseRecords {
         ref: PackRef,
         record: ReleaseRecord,
     )
+
+    /** Stores [record] and, in the same transaction, the pending accreditation [step] of the signing (INV-Q-17708 A). */
+    fun save(
+        ref: PackRef,
+        record: ReleaseRecord,
+        step: PendingStep,
+    ) = save(ref, record)
 }
 
 /**

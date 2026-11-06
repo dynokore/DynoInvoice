@@ -121,7 +121,7 @@ class PackReleaseFlow(
     val reader = PackFeedReader(dsl, index)
     private val staging = StagingEvidenceReaderJooq(dsl)
     private val author = AuthorRegulatoryPack(packs, roles)
-    val records = PackReleaseRecordsJooq(dsl)
+    val records = PackReleaseRecordsJooq(dsl, java.time.Duration.ofMinutes(1))
     val pipeline = TestPipeline()
     val sandbox = SimulatorSandbox()
     val stage = PackStage(dsl, packs, bundles.hasher(), pipeline, sandbox)

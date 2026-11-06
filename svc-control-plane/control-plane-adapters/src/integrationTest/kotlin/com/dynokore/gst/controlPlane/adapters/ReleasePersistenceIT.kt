@@ -47,7 +47,7 @@ class ReleasePersistenceIT {
                 ),
                 AccreditationCheck(true, "ALERT-1", "TASK-1"),
             )
-        val repository = TrainRepositoryJooq(dsl)
+        val repository = TrainRepositoryJooq(dsl, java.time.Duration.ofMinutes(1))
         repository.save(train)
         repository.find(version) shouldBe train
         repository.save(train.copy(kind = TrainKind.TRAIN)) // a published train is final: the repeat changes nothing

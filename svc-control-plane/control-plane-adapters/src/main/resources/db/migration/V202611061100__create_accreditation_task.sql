@@ -30,3 +30,27 @@ ALTER TABLE controlplane.pack_release_record
     ADD COLUMN task_ref  text CHECK (length(task_ref) BETWEEN 1 AND 128);
 
 GRANT UPDATE (needs_reaccreditation, alert_ref, task_ref) ON controlplane.release_train TO controlplane_runtime;
+
+-- The durable retry of the accreditation step (INV-Q-17708 A, the transactional outbox pattern): the row is written
+-- by the repository save that stores the release record, in the release transaction, and deleted by the step in the
+-- transaction that ends its work. PLATFORM data (no tenant column). A row that reaches the maximum attempts is kept as
+-- EXHAUSTED; the code never deletes it.
+CREATE TABLE controlplane.accreditation_step_pending (
+    release_kind         text        NOT NULL CHECK (release_kind IN ('TRAIN', 'PACK')),
+    release_ref          text        NOT NULL CHECK (length(release_ref) BETWEEN 1 AND 128),
+    assessment_requested boolean     NOT NULL,
+    correlation_id       text        NOT NULL,
+    causation_id         text        NOT NULL,
+    status               text        NOT NULL CHECK (status IN ('PENDING', 'EXHAUSTED')),
+    attempts             integer     NOT NULL CHECK (attempts >= 0),
+    next_attempt_at      timestamptz NOT NULL,
+    last_error           text,
+    created_at           timestamptz NOT NULL,
+    PRIMARY KEY (release_kind, release_ref)
+);
+COMMENT ON TABLE controlplane.accreditation_step_pending IS 'platform-scoped: no tenant data';
+CREATE INDEX accreditation_step_pending_due ON controlplane.accreditation_step_pending (next_attempt_at, created_at)
+    WHERE status = 'PENDING';
+
+GRANT SELECT, INSERT, DELETE ON controlplane.accreditation_step_pending TO controlplane_runtime;
+GRANT UPDATE (status, attempts, next_attempt_at, last_error) ON controlplane.accreditation_step_pending TO controlplane_runtime;

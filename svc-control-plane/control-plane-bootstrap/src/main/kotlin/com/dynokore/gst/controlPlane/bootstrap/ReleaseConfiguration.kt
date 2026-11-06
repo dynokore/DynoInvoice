@@ -20,6 +20,7 @@ import com.dynokore.gst.controlPlane.application.pack.PackRepository
 import com.dynokore.gst.controlPlane.application.pack.PackSigningKeys
 import com.dynokore.gst.controlPlane.application.pack.PublishPack
 import com.dynokore.gst.controlPlane.application.pack.StagingEvidenceReader
+import com.dynokore.gst.controlPlane.application.accreditation.StepRetryPolicy
 import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
 import com.dynokore.platform.crypto.DetachedSigner
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
@@ -83,5 +84,8 @@ class ReleaseConfiguration {
     ) = PublishPack(packs, roles, ports.staging, ports.hasher, ports.releaser, records, clock)
 
     @Bean
-    fun packReleaseRecords(dsl: DSLContext): PackReleaseRecords = PackReleaseRecordsJooq(dsl)
+    fun packReleaseRecords(
+        dsl: DSLContext,
+        policy: StepRetryPolicy,
+    ): PackReleaseRecords = PackReleaseRecordsJooq(dsl, policy.firstDelay)
 }

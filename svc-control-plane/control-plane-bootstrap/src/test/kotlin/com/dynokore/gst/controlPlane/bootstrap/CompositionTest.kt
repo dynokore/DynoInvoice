@@ -151,7 +151,7 @@ class CompositionTest {
                 .getBean(JobRuntime::class.java)
                 .registered()
                 .map { it.name }
-                .toSet() shouldBe setOf("idempotency-key-purge", "pack-stage")
+                .toSet() shouldBe setOf("idempotency-key-purge", "pack-stage", "accreditation-step-retry")
         }
     }
 }

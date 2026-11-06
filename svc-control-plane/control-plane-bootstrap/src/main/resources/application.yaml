@@ -41,6 +41,7 @@ inv.tenancy.platform-scoped-tables:                 # INV-ADR-3968 item 4a: the 
   - controlplane.accreditation_record
   - controlplane.gate_run
   - controlplane.accreditation_task
+  - controlplane.accreditation_step_pending
 control-plane:
   tenancy:
     create-timeout: PT1.5S                          # createTenant is bounded inside console-bff's 2 s (INV-REQ-1203, INV-REQ-1204 b7)
@@ -61,5 +62,13 @@ management:
 logging.structured.format.console: ecs              # STK-35
 gst:
   service: control-plane-svc
+  jobs.accreditation-step-retry.cron: "0 * * * * *"  # AccreditationStepRetryJob (INV-Q-17708): every minute, six-field cron (TPL-09)
+  jobs.accreditation-step-retry.tolerance: PT10M    # how late a run may start before the job runtime reports it missed
+  accreditation-step:                               # the durable retry of the release accreditation step (INV-Q-17708 A)
+    first-delay: PT1M                               # release time plus this = the first due time of the relay
+    first-backoff: PT1M                             # the wait after the first failed attempt; doubles per failure
+    backoff-cap: PT1H
+    max-attempts: 10                                # the row is EXHAUSTED at this many failed attempts
+    batch-size: 50
   jobs.pack-stage.cron: "0 */10 * * * *"            # PackStageJob (INV-Q-8725): every ten minutes, six-field cron (TPL-09)
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

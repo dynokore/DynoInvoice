@@ -1,5 +1,7 @@
 package com.dynokore.gst.controlPlane.application.pack
 
+import com.dynokore.gst.controlPlane.application.accreditation.PendingStep
+import com.dynokore.gst.controlPlane.application.accreditation.ReleaseTarget
 import com.dynokore.gst.controlPlane.application.release.ConformanceCorpus
 import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
 import com.dynokore.gst.controlPlane.application.release.describe
@@ -259,6 +261,12 @@ class SignPack(
                 clock.instant(),
                 // the task and the alert are opened after this record commits (INV-T-7323)
                 AccreditationCheck(command.needsReAccreditationAssessment, null, null),
+            ),
+            PendingStep(
+                ReleaseTarget(ReleaseTarget.Kind.PACK, signed.ref.value),
+                command.needsReAccreditationAssessment,
+                command.request,
+                clock.instant(),
             ),
         )
         return signed

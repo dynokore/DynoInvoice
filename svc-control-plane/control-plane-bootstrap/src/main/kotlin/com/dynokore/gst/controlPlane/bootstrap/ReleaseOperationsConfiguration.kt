@@ -17,6 +17,7 @@ import com.dynokore.gst.controlPlane.application.release.RecordedTrainEvidence
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SupportWindowRepository
 import com.dynokore.gst.controlPlane.application.release.TrainEvidenceSource
+import com.dynokore.gst.controlPlane.application.accreditation.StepRetryPolicy
 import com.dynokore.gst.controlPlane.application.release.TrainRepository
 import org.jooq.DSLContext
 import org.springframework.context.annotation.Bean
@@ -27,7 +28,10 @@ import java.time.Clock
 @Configuration(proxyBeanMethods = false)
 class ReleaseOperationsConfiguration {
     @Bean
-    fun trainRepository(dsl: DSLContext): TrainRepository = TrainRepositoryJooq(dsl)
+    fun trainRepository(
+        dsl: DSLContext,
+        policy: StepRetryPolicy,
+    ): TrainRepository = TrainRepositoryJooq(dsl, policy.firstDelay)
 
     @Bean
     fun gateRunRepository(dsl: DSLContext): GateRunRepository = GateRunRepositoryJooq(dsl)

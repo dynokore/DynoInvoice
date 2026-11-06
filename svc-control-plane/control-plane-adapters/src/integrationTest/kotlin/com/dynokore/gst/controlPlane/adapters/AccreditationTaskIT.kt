@@ -9,10 +9,17 @@ import com.dynokore.gst.controlPlane.adapters.http.TaskCursor
 import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationRecordsJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationTaskRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.ReleaseAccreditationLinksJooq
+import com.dynokore.gst.controlPlane.adapters.persistence.AccreditationStepQueueJooq
 import com.dynokore.gst.controlPlane.adapters.persistence.TrainRepositoryJooq
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationAlerts
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationPermission
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationStepPorts
+import com.dynokore.gst.controlPlane.application.accreditation.PendingStep
+import com.dynokore.gst.controlPlane.adapters.persistence.insertPendingStep
+import com.dynokore.gst.controlPlane.domain.release.ReleaseRecord
+import com.dynokore.gst.controlPlane.domain.release.ReleaseTrain
+import com.dynokore.gst.controlPlane.application.accreditation.StepReporting
+import com.dynokore.gst.controlPlane.application.accreditation.StepRetryPolicy
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskQueries
 import com.dynokore.gst.controlPlane.application.accreditation.ConcludeAccreditationTask
 import com.dynokore.gst.controlPlane.application.accreditation.GetAccreditation
@@ -88,6 +95,7 @@ import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import java.lang.reflect.Proxy
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -133,7 +141,11 @@ class AccreditationTaskIT {
             dsl,
             LocalAuditWriter(dsl, "controlplane", ControlPlaneEventCatalogue.SERVICE, "control-plane-svc-1", clock),
         )
-    private val trains = TrainRepositoryJooq(dsl)
+    private val policy =
+        StepRetryPolicy(Duration.ofMinutes(1), Duration.ofMinutes(2), Duration.ofMinutes(8), 3, 10)
+    private val trains = TrainRepositoryJooq(dsl, policy.firstDelay)
+    private val queue = AccreditationStepQueueJooq(dsl, policy)
+    private val exhausted = ArrayList<ReleaseTarget>()
     private val taskRepository = AccreditationTaskRepositoryJooq(dsl)
     private val records = AccreditationRecordsJooq(dsl)
     private val corpus = mapOf(DocumentId("D1") to "SR")
@@ -149,13 +161,36 @@ class AccreditationTaskIT {
     private val publish = PublishTrain(trains, permissions, { certified }, clock)
     private val failures = ArrayList<Exception>()
 
-    private fun stepWith(alerts: AccreditationAlerts = AccreditationAlertsOutbox(outbox)) =
-        OpenAccreditationTask(
-            AccreditationStepPorts(taskRepository, ReleaseAccreditationLinksJooq(dsl), alerts, records),
-            transactions,
-            clock,
-            { _, failure -> failures += failure },
-        )
+    private fun stepWith(
+        at: Clock = clock,
+        alerts: AccreditationAlerts = AccreditationAlertsOutbox(outbox),
+    ) = OpenAccreditationTask(
+        AccreditationStepPorts(taskRepository, ReleaseAccreditationLinksJooq(dsl), alerts, records, queue),
+        transactions,
+        at,
+        object : StepReporting {
+            override fun failed(
+                target: ReleaseTarget,
+                failure: Exception,
+            ) {
+                failures += failure
+            }
+
+            override fun bookkeepingFailed(
+                target: ReleaseTarget,
+                failure: Exception,
+            ) {
+                failures += failure
+            }
+
+            override fun exhausted(
+                target: ReleaseTarget,
+                error: String,
+            ) {
+                exhausted += target
+            }
+        },
+    )
 
     @BeforeEach
     fun reset() {
@@ -164,7 +199,8 @@ class AccreditationTaskIT {
             tx.execute("set local role controlplane_sys")
             BindingKeyMigration.writeKeys(tx, "controlplane", BINDING_KEY)
         }
-        admin("truncate controlplane.accreditation_task, controlplane.accreditation_record, controlplane.outbox")
+        admin("truncate controlplane.accreditation_task, controlplane.accreditation_record, controlplane.outbox, " +
+                "controlplane.accreditation_step_pending")
     }
 
     private fun admin(sql: String) {
@@ -613,6 +649,159 @@ class AccreditationTaskIT {
         refusal(HTTP_BAD_REQUEST) { controller().listAccreditationTasks(null, cursor, 50) }
     }
 
+    private fun pendingRows(ref: String) =
+        rows(
+            "select release_kind, status, attempts, last_error, assessment_requested from " +
+                "controlplane.accreditation_step_pending where release_ref = '$ref'",
+        )
+
+    /** One relay run at [at]: the due rows, then the step for each, as the job does. */
+    private fun relay(
+        at: Instant,
+        step: OpenAccreditationTask = stepWith(at = Clock.fixed(at, ZoneOffset.UTC)),
+    ): Int =
+        tenants.bindPlatform("rita") {
+            val due = transactions.inTransaction { queue.due(at, policy.batchSize) }
+            due.forEach(step::retry)
+            due.size
+        }
+
+    @Test
+    fun `the release writes its pending row in the release transaction and a no-trigger step deletes it`() {
+        val version = "2026." + UUID.randomUUID().toString().take(6)
+        release(version, false)
+        pendingRows(version).single().let {
+            it[0] shouldBe "TRAIN"
+            it[1] shouldBe "PENDING"
+            it[2] shouldBe "0"
+            it[4] shouldBe "f"
+        }
+        afterRelease(version, false)
+        pendingRows(version) shouldBe emptyList()
+        taskRows(version) shouldBe emptyList()
+    }
+
+    @Test
+    fun `a failed step keeps one PENDING row with attempts 1 and one relay run then opens the task and ends the row`() {
+        val version = "2026." + UUID.randomUUID().toString().take(6)
+        release(version, true)
+        afterRelease(version, true, stepWith { _, _ -> error("forced") }) shouldBe null
+        trainOf(version).accreditation shouldBe AccreditationCheck(true, null, null)
+        taskRows(version) shouldBe emptyList()
+        outboxRows() shouldBe emptyList()
+        pendingRows(version).single().let {
+            it[1] shouldBe "PENDING"
+            it[2] shouldBe "1"
+            it[3] shouldBe "IllegalStateException"
+        }
+        // not due before the backoff
+        relay(clock.instant()) shouldBe 0
+        relay(clock.instant().plus(policy.backoff(1)))
+        val task = taskRows(version).single()
+        outboxRows().size shouldBe 1
+        trainOf(version).accreditation.taskRef shouldBe task[0]
+        pendingRows(version) shouldBe emptyList()
+        // two relay runs in a row leave one task and one outbox row
+        relay(clock.instant().plus(policy.backoffCap))
+        taskRows(version).size shouldBe 1
+        outboxRows().size shouldBe 1
+    }
+
+    @Test
+    fun `no inline attempt and one relay run opens the task, the request context kept in the row`() {
+        val version = "2026." + UUID.randomUUID().toString().take(6)
+        release(version, true)
+        relay(clock.instant().plus(policy.firstDelay)) shouldBe 1
+        taskRows(version).single()[1] shouldBe "OPEN"
+        rows("select correlation_id from controlplane.outbox where type like '%AccreditationAlertRaised%'")
+            .single()[0] shouldBe "corr-$version"
+        pendingRows(version) shouldBe emptyList()
+    }
+
+    @Test
+    fun `a release transaction forced to fail after the save leaves neither a release nor a pending row`() {
+        val version = "2026." + UUID.randomUUID().toString().take(6)
+        val train =
+            ReleaseTrain(
+                TrainVersion(version),
+                TrainKind.TRAIN,
+                false,
+                ReleaseRecord(emptyList(), false, ActorId("rita"), clock.instant()),
+                AccreditationCheck(true, null, null),
+            )
+        val step =
+            PendingStep(ReleaseTarget(ReleaseTarget.Kind.TRAIN, version), true, RequestContext("c", "d"), clock.instant())
+        shouldThrow<IllegalStateException> {
+            tenants.bindPlatform("rita") {
+                transactions.inTransaction {
+                    trains.save(train, step)
+                    error("forced")
+                }
+            }
+        }
+        pendingRows(version) shouldBe emptyList()
+        inPlatform { trains.find(TrainVersion(version)) } shouldBe null
+    }
+
+    @Test
+    fun `a signPack whose step fails keeps one PENDING PACK row and a relay run then opens the task`() {
+        val flow = PackReleaseFlow()
+        val ref = flow.author("2026.11." + UUID.randomUUID().toString().take(4))
+        flow.sign(ref) shouldBe null
+        pendingRows(ref.value).single().let {
+            it[0] shouldBe "PACK"
+            it[2] shouldBe "0"
+        }
+        val target = ReleaseTarget(ReleaseTarget.Kind.PACK, ref.value)
+        tenants.bindPlatform("rita") {
+            stepWith { _, _ -> error("forced") }.afterRelease(target, true, RequestContext("c", "d"))
+        }
+        taskRows(ref.value) shouldBe emptyList()
+        outboxRows() shouldBe emptyList()
+        pendingRows(ref.value).single()[2] shouldBe "1"
+        relay(clock.instant().plus(policy.backoff(1)))
+        withClue(failures.joinToString { it.toString() }) { taskRows(ref.value).size shouldBe 1 }
+        taskRows(ref.value).single()[1] shouldBe "OPEN"
+        outboxRows().size shouldBe 1
+        pendingRows(ref.value) shouldBe emptyList()
+        flow.records.find(ref)!!.accreditation?.taskRef shouldBe taskRows(ref.value).single()[0]
+    }
+
+    @Test
+    fun `at the maximum attempts the row is EXHAUSTED, kept, logged, and a further relay run reads it not`() {
+        val version = "2026." + UUID.randomUUID().toString().take(6)
+        release(version, true)
+        var at = clock.instant().plus(policy.firstDelay)
+        repeat(policy.maxAttempts) {
+            relay(at, stepWith(Clock.fixed(at, ZoneOffset.UTC)) { _, _ -> error("forced") })
+            at = at.plus(policy.backoffCap)
+        }
+        pendingRows(version).single().let {
+            it[1] shouldBe "EXHAUSTED"
+            it[2] shouldBe policy.maxAttempts.toString()
+        }
+        exhausted shouldBe listOf(ReleaseTarget(ReleaseTarget.Kind.TRAIN, version))
+        relay(at.plus(policy.backoffCap)) shouldBe 0
+        taskRows(version) shouldBe emptyList()
+    }
+
+    @Test
+    fun `a TRAIN row and a PACK row with the same reference do not collide`() {
+        val ref = "R-" + UUID.randomUUID().toString().take(6)
+        tenants.bindPlatform("rita") {
+            transactions.inTransaction {
+                ReleaseTarget.Kind.entries.forEach {
+                    insertPendingStep(
+                        dsl,
+                        PendingStep(ReleaseTarget(it, ref), true, RequestContext("c", "d"), clock.instant()),
+                        policy.firstDelay,
+                    )
+                }
+            }
+        }
+        pendingRows(ref).map { it[0] }.toSet() shouldBe setOf("TRAIN", "PACK")
+    }
+
     private companion object {
         const val HTTP_BAD_REQUEST = 400
         const val HTTP_FORBIDDEN = 403
@@ -620,7 +809,9 @@ class AccreditationTaskIT {
         val TABLES =
             listOf(
                 "release_train",
+                "pack_release_record",
                 "accreditation_task",
+                "accreditation_step_pending",
                 "accreditation_record",
                 "audit_entry",
                 "outbox",

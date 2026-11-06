@@ -10,6 +10,8 @@ import com.dynokore.gst.controlPlane.adapters.http.TaskCursor
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationAlerts
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationRecords
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationStepPorts
+import com.dynokore.gst.controlPlane.application.accreditation.AccreditationStepQueue
+import com.dynokore.gst.controlPlane.application.accreditation.StepReporting
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskQueries
 import com.dynokore.gst.controlPlane.application.accreditation.AccreditationTaskRepository
 import com.dynokore.gst.controlPlane.application.accreditation.ConcludeAccreditationTask
@@ -210,10 +212,11 @@ class AuditPurgeHttpIT {
                     unused<ReleaseAccreditationLinks>(),
                     unused<AccreditationAlerts>(),
                     unused<AccreditationRecords>(),
+                    unused<AccreditationStepQueue>(),
                 ),
                 unused<TransactionRunner>(),
                 clock,
-                { _, _ -> },
+                unused<StepReporting>(),
             ),
             TaskCursor { ByteArray(32) },
         )

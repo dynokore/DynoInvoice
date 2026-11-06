@@ -4,6 +4,7 @@ import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references.PACK_RELEASE_RECORD
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references.RELEASE_TRAIN
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.references.SUPPORT_WINDOW
+import com.dynokore.gst.controlPlane.application.accreditation.PendingStep
 import com.dynokore.gst.controlPlane.application.release.GateRunRepository
 import com.dynokore.gst.controlPlane.application.release.PackReleaseRecords
 import com.dynokore.gst.controlPlane.application.release.SupportWindowRepository
@@ -25,6 +26,7 @@ import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 import java.time.ZoneOffset
 import java.util.UUID
 import com.dynokore.gst.controlPlane.adapters.persistence.jooq.tables.records.GateRunRecord as GateRunRow
@@ -69,6 +71,7 @@ internal object RunsJson {
 /** Release trains in the `controlplane` schema through jOOQ (TPL-11). */
 class TrainRepositoryJooq(
     private val dsl: DSLContext,
+    private val firstDelay: Duration,
 ) : TrainRepository {
     override fun find(version: TrainVersion): ReleaseTrain? =
         dsl.selectFrom(RELEASE_TRAIN).where(RELEASE_TRAIN.TRAIN_VERSION.eq(version.value)).fetchOne()?.let { row ->
@@ -85,6 +88,14 @@ class TrainRepositoryJooq(
                 AccreditationCheck(checkNotNull(row.needsReaccreditation), row.alertRef, row.taskRef),
             )
         }
+
+    override fun save(
+        train: ReleaseTrain,
+        step: PendingStep,
+    ) {
+        save(train)
+        insertPendingStep(dsl, step, firstDelay)
+    }
 
     override fun save(train: ReleaseTrain) {
         dsl
@@ -131,6 +142,7 @@ class SupportWindowRepositoryJooq(
 /** The release record of a pack version: written at signing (corpus run), extended at publication (staging run). */
 class PackReleaseRecordsJooq(
     private val dsl: DSLContext,
+    private val firstDelay: Duration,
 ) : PackReleaseRecords {
     override fun find(ref: PackRef): ReleaseRecord? =
         dsl.selectFrom(PACK_RELEASE_RECORD).where(PACK_RELEASE_RECORD.PACK_REF.eq(ref.value)).fetchOne()?.let { row ->
@@ -142,6 +154,15 @@ class PackReleaseRecordsJooq(
                 AccreditationCheck(checkNotNull(row.needsReaccreditation), row.alertRef, row.taskRef),
             )
         }
+
+    override fun save(
+        ref: PackRef,
+        record: ReleaseRecord,
+        step: PendingStep,
+    ) {
+        save(ref, record)
+        insertPendingStep(dsl, step, firstDelay)
+    }
 
     override fun save(
         ref: PackRef,

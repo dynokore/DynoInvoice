@@ -1,5 +1,7 @@
 package com.dynokore.gst.controlPlane.application.release
 
+import com.dynokore.gst.controlPlane.application.accreditation.PendingStep
+import com.dynokore.gst.controlPlane.application.accreditation.ReleaseTarget
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
@@ -119,7 +121,15 @@ class PublishTrain(
                 ReleaseRecord(verdict.runs, command.exposureReducing, command.actor, clock.instant()),
                 check,
             )
-        trains.save(train)
+        trains.save(
+            train,
+            PendingStep(
+                ReleaseTarget(ReleaseTarget.Kind.TRAIN, command.version.value),
+                command.needsReAccreditationAssessment,
+                command.request,
+                clock.instant(),
+            ),
+        )
         return train
     }
 
