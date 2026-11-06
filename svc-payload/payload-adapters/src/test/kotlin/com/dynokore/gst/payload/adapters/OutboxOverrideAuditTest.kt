@@ -195,16 +195,18 @@ class OutboxOverrideAuditTest {
         PayloadDb.superuser().use { c ->
             c
                 .prepareStatement(
-                    "select data->>'action', data->>'actor', data->'priorState' from payload.outbox where tenant_id = ?",
+                    "select data->>'action', data->>'actor', data->'priorState' " +
+                        "from payload.outbox where tenant_id = ?",
                 ).use { p ->
                     p.setObject(1, tenant)
                     p.executeQuery().use { r ->
                         val rows = mutableMapOf<String, Pair<String, String?>>()
                         while (r.next()) rows[r.getString(1)] = r.getString(2) to r.getString(3)
-                        rows["requested"]!!.first shouldBe "U-1"
-                        rows["released"]!!.first shouldBe "U-2"
-                        rows["released"]!!.second!!.contains("\"firstApprover\"") shouldBe true
-                        rows["released"]!!.second!!.contains("U-1") shouldBe true
+                        rows.getValue("requested").first shouldBe "U-1"
+                        rows.getValue("released").first shouldBe "U-2"
+                        val prior = rows.getValue("released").second.orEmpty()
+                        prior.contains("\"firstApprover\"") shouldBe true
+                        prior.contains("U-1") shouldBe true
                     }
                 }
         }

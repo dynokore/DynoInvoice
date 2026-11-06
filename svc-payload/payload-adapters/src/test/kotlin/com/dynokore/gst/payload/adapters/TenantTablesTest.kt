@@ -12,61 +12,17 @@ import java.util.UUID
  * Flyway's own history table is not a table of the service.
  */
 class TenantTablesTest {
-    private class TableFacts(
-        rows: java.sql.ResultSet,
-    ) {
-        val name: String = rows.getString(1)
-        private val rowSecurity = rows.getBoolean(2)
-        private val forced = rows.getBoolean(3)
-        private val tenantNotNull = rows.getBoolean(4)
-        private val hasTenant = rows.getBoolean(5)
-        private val comment = rows.getString(6)
-        private val signedPolicy = rows.getBoolean(7)
-
-        fun finding(): String? =
-            when {
-                !hasTenant && comment == "platform-scoped: no tenant data" -> null
-                !hasTenant -> "$name: no tenant_id and not platform-scoped"
-                tenantNotNull && rowSecurity && forced && signedPolicy -> null
-                else -> "$name: tenant_id NOT NULL, ENABLE and FORCE ROW LEVEL SECURITY and a bound_tenant() policy"
-            }
-    }
-
-    private fun tables(): List<TableFacts> =
-        PayloadDb.superuser().use { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeQuery(INSPECT).use { rows ->
-                    generateSequence { if (rows.next()) TableFacts(rows) else null }.toList()
-                }
-            }
-        }
-
     @Test
     fun `every table has a non-null tenant column with forced row level security and the signed binding policy`() {
-        tables().mapNotNull { it.finding() }.shouldBeEmpty()
+        PayloadDb.superuser().use { TenantTableRule.findings(it) }.shouldBeEmpty()
     }
 
     @Test
     fun `the tables of the first migration exist`() {
         (
             setOf("capability", "work_queue", "lane_rate_window", "outbox") -
-                tables().map { it.name }.toSet()
+                PayloadDb.superuser().use { TenantTableRule.names(it) }.toSet()
         ).shouldBeEmpty()
-    }
-
-    private companion object {
-        const val INSPECT =
-            "select c.relname, c.relrowsecurity, c.relforcerowsecurity, " +
-                "exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' " +
-                "and a.attnotnull and not a.attisdropped), " +
-                "exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id'), " +
-                "coalesce(obj_description(c.oid, 'pg_class'), ''), " +
-                "exists (select 1 from pg_policy p where p.polrelid = c.oid " +
-                "and pg_get_expr(p.polqual, p.polrelid) like '%bound_tenant()%' " +
-                "and pg_get_expr(p.polwithcheck, p.polrelid) like '%bound_tenant()%') " +
-                "from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
-                "where n.nspname = 'payload' and c.relkind in ('r', 'p') " +
-                "and c.relname <> 'flyway_schema_history' order by 1"
     }
 
     private fun runtime(block: (java.sql.Connection) -> Unit) =
@@ -143,4 +99,51 @@ class TenantTablesTest {
         }
         shouldThrow<SQLException> { insertOutboxRow(tenant, signature = forged) }.sqlState shouldBe "42501"
     }
+}
+
+/** The CS-19 rule at the database, shared by the schema test and the probes of single migrations. */
+object TenantTableRule {
+    class TableFacts(
+        rows: java.sql.ResultSet,
+    ) {
+        val name: String = rows.getString(1)
+        private val rowSecurity = rows.getBoolean(2)
+        private val forced = rows.getBoolean(3)
+        private val tenantNotNull = rows.getBoolean(4)
+        private val hasTenant = rows.getBoolean(5)
+        private val comment = rows.getString(6)
+        private val signedPolicy = rows.getBoolean(7)
+
+        fun finding(): String? =
+            when {
+                !hasTenant && comment == "platform-scoped: no tenant data" -> null
+                !hasTenant -> "$name: no tenant_id and not platform-scoped"
+                tenantNotNull && rowSecurity && forced && signedPolicy -> null
+                else -> "$name: tenant_id NOT NULL, ENABLE and FORCE ROW LEVEL SECURITY and a bound_tenant() policy"
+            }
+    }
+
+    fun facts(connection: java.sql.Connection): List<TableFacts> =
+        connection.createStatement().use { statement ->
+            statement.executeQuery(INSPECT).use { rows ->
+                generateSequence { if (rows.next()) TableFacts(rows) else null }.toList()
+            }
+        }
+
+    fun findings(connection: java.sql.Connection): List<String> = facts(connection).mapNotNull { it.finding() }
+
+    fun names(connection: java.sql.Connection): List<String> = facts(connection).map { it.name }
+
+    const val INSPECT =
+        "select c.relname, c.relrowsecurity, c.relforcerowsecurity, " +
+            "exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' " +
+            "and a.attnotnull and not a.attisdropped), " +
+            "exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id'), " +
+            "coalesce(obj_description(c.oid, 'pg_class'), ''), " +
+            "exists (select 1 from pg_policy p where p.polrelid = c.oid " +
+            "and pg_get_expr(p.polqual, p.polrelid) like '%bound_tenant()%' " +
+            "and pg_get_expr(p.polwithcheck, p.polrelid) like '%bound_tenant()%') " +
+            "from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+            "where n.nspname = 'payload' and c.relkind in ('r', 'p') " +
+            "and c.relname <> 'flyway_schema_history' order by 1"
 }

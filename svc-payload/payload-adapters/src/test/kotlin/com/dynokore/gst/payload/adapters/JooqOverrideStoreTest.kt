@@ -180,7 +180,6 @@ class JooqOverrideStoreTest {
     @Test
     fun `the table is under forced row security and a copy without it is detected by the same query`() {
         forced("payload.validation_override") shouldBe true
-        val probe = migration().replace("ALTER TABLE payload.validation_override FORCE ROW LEVEL SECURITY;\n", "")
         forced("payload.validation_override") shouldBe true
         // a copy of the table without FORCE, created and rolled back, is reported as not forced
         forced(
@@ -188,7 +187,29 @@ class JooqOverrideStoreTest {
             "create table payload.probe_override (id int, tenant_id uuid not null); " +
                 "alter table payload.probe_override enable row level security",
         ) shouldBe false
-        (probe.contains("FORCE ROW LEVEL SECURITY")) shouldBe false
+    }
+
+    /** Applies [sql] under the probe table name in a rolled-back transaction and runs the CS-19 rule of TenantTablesTest. */
+    private fun probeFindings(sql: String): List<String> =
+        PayloadDb.superuser().use { c ->
+            c.autoCommit = false
+            try {
+                c.createStatement().use { it.execute(sql.replace("validation_override", "probe_override")) }
+                TenantTableRule.findings(c).filter { it.startsWith("probe_override:") }
+            } finally {
+                c.rollback()
+            }
+        }
+
+    @Test
+    fun `the unmodified migration passes the tenant table rule and a copy without the forced policy fails it`() {
+        probeFindings(migration()) shouldBe emptyList()
+        val noForce = migration().replace("ALTER TABLE payload.validation_override FORCE ROW LEVEL SECURITY;\n", "")
+        (noForce != migration()) shouldBe true
+        probeFindings(noForce).size shouldBe 1
+        val noPolicy = migration().replace(Regex("create policy[\\s\\S]*?;\n"), "")
+        (noPolicy != migration()) shouldBe true
+        probeFindings(noPolicy).size shouldBe 1
     }
 
     @Test
