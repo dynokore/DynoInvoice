@@ -245,7 +245,10 @@ class EntityScopeTest {
             val answer = inside.contentAsString
             assertThat(inside.status).describedAs(answer).isEqualTo(400)
             assertThat(inside.contentType).isEqualTo("application/problem+json")
-            val json = tools.jackson.databind.json.JsonMapper().readTree(answer)
+            val json =
+                tools.jackson.databind.json
+                    .JsonMapper()
+                    .readTree(answer)
             assertThat(json["code"].asString()).isEqualTo("SRT-001")
             assertThat(json["type"].asString()).isEqualTo("https://errors.invoice.internal/SRT-001")
             assertThat(json["status"].asInt()).isEqualTo(400)

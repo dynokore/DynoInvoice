@@ -6,19 +6,19 @@ import com.dynokore.platform.serviceruntime.http.MasterdataErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpHeaders
-import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.HttpMediaTypeNotAcceptableException
 import org.springframework.web.HttpMediaTypeNotSupportedException
 import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.ServletRequestBindingException
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.NoHandlerFoundException
 import org.springframework.web.servlet.resource.NoResourceFoundException
-import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.util.UUID
 
 /**
@@ -94,7 +94,11 @@ class ApiRefusalAdvice {
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
     fun wrongMethod(failure: HttpRequestMethodNotSupportedException): ResponseEntity<String> =
-        envelope(ClosedErrorCode.METHOD_NOT_ALLOWED, null, failure.supportedHttpMethods?.joinToString(", ") { it.name() })
+        envelope(
+            ClosedErrorCode.METHOD_NOT_ALLOWED,
+            null,
+            failure.supportedHttpMethods?.joinToString(", ") { it.name() },
+        )
 
     private fun envelope(
         code: ClosedErrorCode,
@@ -102,7 +106,11 @@ class ApiRefusalAdvice {
         allow: String? = null,
     ): ResponseEntity<String> {
         val problem =
-            Problems.render(code, CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(), detail)
+            Problems.render(
+                code,
+                CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
+                detail,
+            )
         val headers = HttpHeaders()
         problem.headers.forEach { (name, value) -> headers.add(name, value) }
         allow?.let { headers.add(HttpHeaders.ALLOW, it) }

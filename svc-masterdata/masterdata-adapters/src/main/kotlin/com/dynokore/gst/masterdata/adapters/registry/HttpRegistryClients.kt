@@ -2,9 +2,9 @@ package com.dynokore.gst.masterdata.adapters.registry
 
 import com.dynokore.gst.masterdata.application.registry.DirectoryClient
 import com.dynokore.gst.masterdata.application.registry.DirectoryReply
-import com.dynokore.gst.masterdata.application.registry.RegisterClient
 import com.dynokore.gst.masterdata.application.registry.MDM_008
 import com.dynokore.gst.masterdata.application.registry.REGISTER_UNAVAILABLE
+import com.dynokore.gst.masterdata.application.registry.RegisterClient
 import com.dynokore.gst.masterdata.application.registry.RegisterReply
 import com.dynokore.gst.masterdata.domain.registry.RegisterFact
 import com.dynokore.platform.adapterruntime.ResilientExecutor
