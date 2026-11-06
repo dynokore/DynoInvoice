@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/masterdata/schemas/identity-triple-changed-payload.schema.json",
+  "title": "IdentityTripleChangedPayload",
+  "description": "Payload of the IdentityTripleChanged event, published by masterdata-svc in the transaction of every confirmed identity triple change and consumed by tenancy-svc, which marks the stored certification stale (INV-REQ-1135, INV-AC-16047; ruling INV-Q-16401 option A). The payload carries no triple values. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The entity whose identity triple changed."
+    },
+    "constitution": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The constitution of the changed identity triple."
+    },
+    "effectiveFrom": {
+      "type": "string",
+      "format": "date",
+      "description": "The date from which the change is effective."
+    },
+    "changeRef": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "Reference of the confirmed identity triple change."
+    }
+  },
+  "required": [
+    "entityRef",
+    "constitution",
+    "effectiveFrom",
+    "changeRef"
+  ],
+  "additionalProperties": true
+}

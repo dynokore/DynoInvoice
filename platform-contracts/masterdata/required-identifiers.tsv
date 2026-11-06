@@ -124,6 +124,10 @@ constitution	property	schemas/identity-triple-corrected-payload.schema.json	INV-
 effectiveFrom	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
 changeRef	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
 accessPointEscalation	property	schemas/identity-triple-corrected-payload.schema.json	INV-REQ-1006
+entityRef	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1135
+constitution	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1135
+effectiveFrom	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1135
+changeRef	property	schemas/identity-triple-changed-payload.schema.json	INV-REQ-1135
 getNetworkRegistration	operation	openapi.yaml	INV-REQ-320
 confirmNetworkRegistration	operation	openapi.yaml	INV-REQ-320
 listRegisterSuggestions	operation	openapi.yaml	INV-REQ-1290
