@@ -101,13 +101,13 @@ rules:
     description: >-
       INV-REQ-1202, INV-AC-8259 (owner answer INV-Q-8201 A; INV-Q-11833 B) —
       every operation declares x-caller-auth, the token kind of its caller:
-      `end-user`, `signed-link` or `service-job`. One `schema` entry (type string,
+      `end-user`, `signed-link`, `service-job` or `signed-callback`. One `schema` entry (type string,
       enum) refuses an absent key and any other value; `defined` is not needed
       because `schema` fires on an absent field. `schema` is used instead of
       `enumeration`, which accepts an array whose elements are all allowed, so
       it could not refuse `[end-user]` (INV-Q-11934 B).
       Self-test: self-test-caller-auth-rule.sh.
-    message: "every operation declares x-caller-auth with one of end-user, signed-link or service-job; a value other than end-user is set only by a platform-contracts change that passes contract review (INV-REQ-1202, owner answer INV-Q-8201)"
+    message: "every operation declares x-caller-auth with one of end-user, signed-link, service-job or signed-callback; a value other than end-user is set only by a platform-contracts change that passes contract review (INV-REQ-1202, owner answer INV-Q-8201)"
     given: "$.paths[*][get,post,put,delete,patch]"
     severity: error
     formats: ["oas3_1"]
@@ -117,7 +117,7 @@ rules:
         functionOptions:
           schema:
             type: string
-            enum: ["end-user", "signed-link", "service-job"]
+            enum: ["end-user", "signed-link", "service-job", "signed-callback"]
 
   inv-api-02-x-error-codes:
     description: API-02 — every operation declares x-error-codes (every catalogue code it can return).

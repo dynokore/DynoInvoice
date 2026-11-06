@@ -2,14 +2,14 @@
 """spectral/check-x-caller-auth.py — INV-T-8261 (INV-AC-8259; INV-REQ-1202; INV-Q-8201 A, INV-Q-8532).
 
 Every operation of a listed document carries `x-caller-auth`, a string equal to exactly one of
-end-user, signed-link, service-job. The listed documents are the lines of
+end-user, signed-link, service-job, signed-callback. The listed documents are the lines of
 <root>/spectral/x-caller-auth-documents.txt, one `<directory>/openapi.yaml` path per line. A blank
 line, a comment line, a duplicate, whitespace or any other form fails. The operations whose value
 is not end-user are the table NOT_END_USER below (operationId -> value); an operation of a listed
 document must equal its table value, end-user when it is not in the table. Fails, naming file,
 method and path, when:
 
-  (a) an operation has no x-caller-auth, or the value is not a string equal to one of the three
+  (a) an operation has no x-caller-auth, or the value is not a string equal to one of the four
       values (case, spaces, empty string, list and other look-alikes fail);
   (b) the value of an operation differs from the table (end-user when absent from it), or an
       operationId is missing or repeated in the document;
@@ -29,7 +29,7 @@ import yaml
 
 METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 MARKER = "x-caller-auth"
-VALUES = ("end-user", "signed-link", "service-job")
+VALUES = ("end-user", "signed-link", "service-job", "signed-callback")
 LIST_LINE = re.compile(r"[a-z][a-z0-9-]*/openapi\.yaml")
 # Every operation whose value is not end-user (INV-AC-8259, INV-Q-8477), keyed by document path then operationId.
 NOT_END_USER = {
@@ -53,6 +53,9 @@ NOT_END_USER = {
     },
     "masterdata/openapi.yaml": {
         "submitCounterpartyDetails": "signed-link",  # counterparty signed link
+    },
+    "transport/openapi.yaml": {
+        "receiveApNotification": "signed-callback",  # AP callback, signature or mutual TLS (INV-Q-15630 B)
     },
 }
 

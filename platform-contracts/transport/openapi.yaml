@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -304,7 +304,10 @@ paths:
         stale or unverifiable callback is refused with no state change.
         Both headers are absent for the mutual-TLS alternative of API-27;
         they are optional in the schema because a required header is a
-        breaking change and the mutual-TLS form carries none.
+        breaking change and the mutual-TLS form carries none. The
+        `x-caller-auth` value is `signed-callback` (INV-Q-15630 B): the
+        sender is verified by the signature or mutual TLS of the request
+        and not by a bearer token (API-27).
 
 
         A notification of kind INBOUND_NETWORK_DOCUMENT is answered `503`
@@ -313,7 +316,7 @@ paths:
       tags: [notifications]
       x-principal: ap-callback
       x-degraded-allow: true
-      x-caller-auth: end-user
+      x-caller-auth: signed-callback
       x-timeout: 10000
       x-error-codes: [SRT-001, SRT-003, SRT-005, SUB-024]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§33.6"]
