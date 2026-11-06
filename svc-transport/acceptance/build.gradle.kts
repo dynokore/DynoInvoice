@@ -15,6 +15,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
+    testRuntimeOnly(libs.gstCatalogue)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.konsistRules)
 }

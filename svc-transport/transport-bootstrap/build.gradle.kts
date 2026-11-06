@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":transport-application"))
     implementation(project(":transport-domain"))
     implementation(libs.platform.serviceRuntime.impl)
+    implementation(libs.gstCatalogue)
     implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)
