@@ -39,6 +39,7 @@ class Tpl16ServiceCompositionTest {
                 setOf(
                     "com.dynokore.gst.platform.JobRunRecorded.v1",
                     "com.dynokore.gst.platform.JobRegistered.v1",
+                    "com.dynokore.gst.platform.BreakGlassSessionChanged.v1",
                 )
             val platform =
                 context
