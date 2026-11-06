@@ -128,7 +128,7 @@ components:
       summary: The entity's PAY-014 rendition finding opened or closed.
       description: >-
         Event RenditionFindingChanged (INV-Q-6323 option A, INV-REQ-648; class: domain). Emitted by:
-        payload-svc. Consumed by: submission-svc. Delivery: At-least-once; consumers order by `sequence`
+        payload-svc. Consumed by: submission-svc, tenancy-svc. Delivery: At-least-once; consumers order by `sequence`
         and ignore a lower value than the one already applied. Payload: entityRef, open (true while the
         entity's PAY-014 finding is open), code (PAY-014), sequence, changedAt.
       contentType: application/cloudevents+json
