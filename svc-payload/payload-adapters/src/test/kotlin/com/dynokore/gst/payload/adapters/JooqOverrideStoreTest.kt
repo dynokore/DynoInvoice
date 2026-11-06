@@ -37,7 +37,7 @@ class JooqOverrideStoreTest {
             c.autoCommit = false
             SignedBindings.bind(c, tenant)
             try {
-                block(JooqOverrideStore(DSL.using(c, SQLDialect.POSTGRES)))
+                block(JooqOverrideStore(DSL.using(c, SQLDialect.POSTGRES)) { tenant })
             } finally {
                 if (commit) c.commit() else c.rollback()
             }

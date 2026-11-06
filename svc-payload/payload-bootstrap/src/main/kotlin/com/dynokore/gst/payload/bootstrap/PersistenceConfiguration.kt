@@ -9,6 +9,7 @@ import com.dynokore.gst.payload.application.CapabilityService
 import com.dynokore.gst.payload.application.MdePackSource
 import com.dynokore.gst.payload.application.finding.FindingsReader
 import com.dynokore.gst.payload.application.finding.FindingsRecorder
+import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
 import org.jooq.Schema
 import org.springframework.context.annotation.Bean
@@ -28,7 +29,10 @@ class PersistenceConfiguration {
 
     /** One store typed by both finding ports (INV-AC-17037); the caller's transaction is the store's transaction. */
     @Bean
-    fun findingsStore(dsl: DSLContext): JooqFindingsStore = JooqFindingsStore(dsl)
+    fun findingsStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): JooqFindingsStore = JooqFindingsStore(dsl) { tenants.current().value }
 
     /**
      * The production source: no MDE pack is loaded yet, so `markSpecified(SERIALISATION)` stays refused. The task that

@@ -7,7 +7,6 @@ import com.dynokore.gst.payload.application.override.OverrideStore
 import com.dynokore.gst.payload.application.override.StoredOverride
 import com.dynokore.gst.payload.domain.override.OverrideStatus
 import org.jooq.DSLContext
-import org.jooq.Field
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.time.Instant
@@ -15,19 +14,18 @@ import java.util.UUID
 
 /**
  * The override store over `payload.validation_override`. It opens no transaction: the rows commit with the use case of
- * the caller. The tenant is the one `payload.bound_tenant()` returns; forced row security filters every statement.
+ * the caller. The tenant is the one bound to the request ([boundTenant]); forced row security filters every statement.
  */
 class JooqOverrideStore(
     private val dsl: DSLContext,
+    private val boundTenant: () -> UUID,
 ) : OverrideStore {
     private val table = ValidationOverride.VALIDATION_OVERRIDE
-
-    private val boundTenant: Field<UUID?> = DSL.function(DSL.name("payload", "bound_tenant"), SQLDataType.UUID)
 
     override fun insert(override: NewOverride): StoredOverride? =
         dsl
             .insertInto(table)
-            .set(table.TENANT_ID, boundTenant)
+            .set(table.TENANT_ID, boundTenant())
             .set(table.DOC_UUID, override.docUuid)
             .set(table.VERSION, override.version)
             .set(table.CODE, override.code)

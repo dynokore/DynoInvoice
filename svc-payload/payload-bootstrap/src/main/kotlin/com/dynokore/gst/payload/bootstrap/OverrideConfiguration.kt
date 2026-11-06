@@ -44,7 +44,10 @@ class OverrideConfiguration {
         StoredBlockingFindings(findingsStore, GstCodeCatalogue())
 
     @Bean
-    fun overrideStore(dsl: DSLContext): OverrideStore = JooqOverrideStore(dsl)
+    fun overrideStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): OverrideStore = JooqOverrideStore(dsl) { tenants.current().value }
 
     @Bean
     fun overrideAudit(

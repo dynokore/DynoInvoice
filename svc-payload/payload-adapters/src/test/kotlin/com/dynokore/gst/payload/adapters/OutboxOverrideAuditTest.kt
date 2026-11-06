@@ -111,7 +111,11 @@ class OutboxOverrideAuditTest {
                             Clock.systemUTC(),
                         ),
                     )
-                block(JooqOverrideStore(dsl), real, OutboxOverrideAudit(real, TenantFixture(tenant), versions))
+                block(
+                    JooqOverrideStore(dsl) { tenant },
+                    real,
+                    OutboxOverrideAudit(real, TenantFixture(tenant), versions),
+                )
             } finally {
                 c.commit()
             }
@@ -259,7 +263,7 @@ class OutboxOverrideAuditTest {
                         authority,
                         findings,
                         decisions(ReleaseOutcome.Released),
-                        JooqOverrideStore(DSL.using(c, SQLDialect.POSTGRES)),
+                        JooqOverrideStore(DSL.using(c, SQLDialect.POSTGRES)) { tenant },
                         audit,
                     ).execute("U-1", doc, 1, "PAY-011", "r")
                     c.commit()

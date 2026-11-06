@@ -5,23 +5,21 @@ import com.dynokore.gst.payload.application.finding.FindingsReader
 import com.dynokore.gst.payload.application.finding.FindingsRecorder
 import com.dynokore.gst.payload.domain.finding.StoredFinding
 import org.jooq.DSLContext
-import org.jooq.Field
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.util.UUID
 
 /**
  * The findings store over the generated `payload.validation_finding` table. It opens no transaction: the findings
- * commit or roll back with the validation of the caller. The tenant is the one `payload.bound_tenant()` returns; row
- * security filters every statement to it.
+ * commit or roll back with the validation of the caller. The tenant is the one bound to the request ([boundTenant]);
+ * row security filters every statement to it as a second line.
  */
 class JooqFindingsStore(
     private val dsl: DSLContext,
+    private val boundTenant: () -> UUID,
 ) : FindingsRecorder,
     FindingsReader {
     private val table = ValidationFinding.VALIDATION_FINDING
-
-    private val boundTenant: Field<UUID?> = DSL.function(DSL.name("payload", "bound_tenant"), SQLDataType.UUID)
 
     override fun replace(
         docUuid: UUID,
@@ -37,7 +35,7 @@ class JooqFindingsStore(
         for (finding in findings) {
             dsl
                 .insertInto(table)
-                .set(table.TENANT_ID, boundTenant)
+                .set(table.TENANT_ID, boundTenant())
                 .set(table.DOC_UUID, docUuid)
                 .set(table.VERSION, version)
                 .set(table.CODE, finding.code)
@@ -56,7 +54,7 @@ class JooqFindingsStore(
         docUuid: UUID,
         version: Int,
     ) {
-        val key = DSL.concat(boundTenant.cast(SQLDataType.VARCHAR), DSL.inline("|$docUuid|$version"))
+        val key = DSL.inline("${boundTenant()}|$docUuid|$version")
         dsl
             .select(
                 DSL.function(

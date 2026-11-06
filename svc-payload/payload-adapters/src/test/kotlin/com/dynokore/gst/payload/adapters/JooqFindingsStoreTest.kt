@@ -37,7 +37,7 @@ class JooqFindingsStoreTest {
             c.autoCommit = false
             bind(c, tenant, signature)
             try {
-                block(JooqFindingsStore(DSL.using(c, SQLDialect.POSTGRES)))
+                block(JooqFindingsStore(DSL.using(c, SQLDialect.POSTGRES)) { tenant })
             } finally {
                 if (commit) c.commit() else c.rollback()
             }
