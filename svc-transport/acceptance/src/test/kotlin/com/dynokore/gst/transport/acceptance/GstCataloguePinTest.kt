@@ -12,7 +12,7 @@ import java.io.File
  * `gradle/libs.versions.toml` in every lockfile, and the generated `ErrorCode` holds `SUB-024` and not `SUB-0240`.
  */
 class GstCataloguePinTest {
-    @Suppress("ktlint:standard:max-line-length")
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
     @Test
     fun `INV-AC-17672 the lockfiles hold one gst-catalogue entry at the pin and the generated ErrorCode holds SUB-024`() {
         val root = File(System.getProperty("gst.root.dir"))
@@ -108,7 +108,7 @@ class GstCataloguePinTest {
             return null
         }
 
-        /** The versions of the exact coordinate `com.dynokore.gst:gst-catalogue` (string equality on group and name). */
+        /** The versions of the exact coordinate `com.dynokore.gst:gst-catalogue` (equality on group and name). */
         private fun entries(lock: String): List<String> =
             lock.lines().mapNotNull { line ->
                 val coordinate = line.substringBefore('=', missingDelimiterValue = "").split(':')
