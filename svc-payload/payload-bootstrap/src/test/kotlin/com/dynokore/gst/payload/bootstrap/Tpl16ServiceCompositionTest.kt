@@ -40,7 +40,8 @@ class Tpl16ServiceCompositionTest {
             context.getBean(MdePackSource::class.java).shouldBeInstanceOf<AbsentMdePackSource>()
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:payload-svc"
-            catalogueTypes(context) shouldBe PayloadEvents.entries.map { it.eventType }.toSet()
+            catalogueTypes(context) shouldBe
+                PayloadEvents.entries.map { it.eventType }.toSet() + "com.dynokore.gst.platform.AuditEntryRecorded.v1"
         }
     }
 

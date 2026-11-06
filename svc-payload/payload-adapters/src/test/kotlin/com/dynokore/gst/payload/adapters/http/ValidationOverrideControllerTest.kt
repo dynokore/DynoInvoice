@@ -243,19 +243,39 @@ class ValidationOverrideControllerTest {
         body(this)["reasonCode"]?.asString() shouldBe reasonCode
     }
 
+    private fun nothingStored() {
+        store.rows shouldBe emptyMap()
+        audit.entries shouldBe emptyList()
+    }
+
     @Test
-    fun `INV-AC-11512 a PAY-011 block is released only with a reason and only by the permission holder`() {
+    fun `INV-AC-11512 a PAY-011 block is released with a reason by the permission holder`() {
         blocked(d1)
-        override("A1", d1, reason = "").problem(400, "SRT-001")
-        store.rows shouldBe emptyMap()
-        override("B9", d1).problem(403, "SRT-004")
-        store.rows shouldBe emptyMap()
-        override("A1", d1, code = "PAY-0017").problem(422, "PAY-017")
-        store.rows shouldBe emptyMap()
         val released = override("A1", d1)
         released.statusCode.value() shouldBe 201
         released.body!!.overriddenBy shouldBe "A1"
         audit.entries.map { it.first to it.second } shouldBe listOf("requested" to "A1", "released" to "A1")
+    }
+
+    @Test
+    fun `INV-AC-11512 an empty reason is 400 SRT-001 and stores nothing`() {
+        blocked(d1)
+        override("A1", d1, reason = "").problem(400, "SRT-001")
+        nothingStored()
+    }
+
+    @Test
+    fun `INV-AC-11512 a caller without the permission is 403 SRT-004 and stores nothing`() {
+        blocked(d1)
+        override("B9", d1).problem(403, "SRT-004")
+        nothingStored()
+    }
+
+    @Test
+    fun `INV-AC-11512 the look-alike code PAY-0017 is 422 PAY-017 and stores nothing`() {
+        blocked(d1)
+        override("A1", d1, code = "PAY-0017").problem(422, "PAY-017")
+        nothingStored()
     }
 
     @Test
@@ -275,26 +295,41 @@ class ValidationOverrideControllerTest {
         val response = override("B9", d1)
         response.problem(403, "SRT-004")
         body(response).has("reasonCode") shouldBe false
-        store.rows shouldBe emptyMap()
+        nothingStored()
     }
 
-    @Test
-    fun `a code the catalogue holds as MANUAL or TERMINAL, and its look-alikes, is 422 PAY-017`() {
+    private fun notOverridableCode(code: String) {
         blocked(d1)
-        for (code in listOf("PAY-001", "PAY-008", "PAY-0017", "pay-001")) {
-            override("A1", d1, code = code).problem(422, "PAY-017")
-        }
-        store.rows shouldBe emptyMap()
+        override("A1", d1, code = code).problem(422, "PAY-017")
+        nothingStored()
     }
 
     @Test
-    fun `a code the findings of that exact version do not carry is 422 PAY-017 and nothing is stored`() {
+    fun `the MANUAL code PAY-001 is 422 PAY-017`() = notOverridableCode("PAY-001")
+
+    @Test
+    fun `the TERMINAL code PAY-008 is 422 PAY-017`() = notOverridableCode("PAY-008")
+
+    @Test
+    fun `the look-alike code PAY-0017 is 422 PAY-017`() = notOverridableCode("PAY-0017")
+
+    @Test
+    fun `the look-alike code pay-001 in lower case is 422 PAY-017`() = notOverridableCode("pay-001")
+
+    @Test
+    fun `a code of another version of the document is 422 PAY-017 and nothing is stored`() {
         blocked(d1, version = 1)
         held(d1, version = 2)
         override("A1", d1, version = 2).problem(422, "PAY-017")
+        nothingStored()
+    }
+
+    @Test
+    fun `a version without that finding is 422 PAY-017 and nothing is stored`() {
+        blocked(d1, version = 1)
         held(d2)
         override("A1", d2).problem(422, "PAY-017")
-        store.rows shouldBe emptyMap()
+        nothingStored()
     }
 
     @Test
@@ -334,24 +369,33 @@ class ValidationOverrideControllerTest {
         override("A1", d1).problem(403, "SRT-004", "NOT_OVERRIDABLE")
     }
 
-    @Test
-    fun `a Refused result is 403 SRT-004 with reasonCode only for the known codes, else NOT_OVERRIDABLE`() {
+    private fun refusedAs(
+        answered: String,
+        sent: String,
+    ) {
         blocked(d1)
-        val expected =
-            mapOf(
-                "SAME_PERSON_TWICE" to "SAME_PERSON_TWICE",
-                "NO_SOLE_OPERATOR_ACK" to "NO_SOLE_OPERATOR_ACK",
-                "same_person_twice" to "NOT_OVERRIDABLE",
-                "SAME_PERSON_TWICE " to "NOT_OVERRIDABLE",
-                "SOMETHING_ELSE" to "NOT_OVERRIDABLE",
-            )
-        for ((answered, sent) in expected) {
-            decisions = Decisions({ ReleaseOutcome.Denied(answered) })
-            override("A1", d1).problem(403, "SRT-004", sent)
-        }
-        store.rows shouldBe emptyMap()
-        audit.entries shouldBe emptyList()
+        decisions = Decisions({ ReleaseOutcome.Denied(answered) })
+        override("A1", d1).problem(403, "SRT-004", sent)
+        nothingStored()
     }
+
+    @Test
+    fun `a Refused SAME_PERSON_TWICE carries that reasonCode`() = refusedAs("SAME_PERSON_TWICE", "SAME_PERSON_TWICE")
+
+    @Test
+    fun `a Refused NO_SOLE_OPERATOR_ACK carries that reasonCode`() =
+        refusedAs("NO_SOLE_OPERATOR_ACK", "NO_SOLE_OPERATOR_ACK")
+
+    @Test
+    fun `a Refused same_person_twice in lower case is NOT_OVERRIDABLE`() =
+        refusedAs("same_person_twice", "NOT_OVERRIDABLE")
+
+    @Test
+    fun `a Refused SAME_PERSON_TWICE with a trailing space is NOT_OVERRIDABLE`() =
+        refusedAs("SAME_PERSON_TWICE ", "NOT_OVERRIDABLE")
+
+    @Test
+    fun `a Refused unknown code is NOT_OVERRIDABLE`() = refusedAs("SOMETHING_ELSE", "NOT_OVERRIDABLE")
 
     @Test
     fun `INV-AC-9561 at the boundary D1 is released, D2 waits, the same person twice is refused, A2 releases`() {
@@ -377,28 +421,76 @@ class ValidationOverrideControllerTest {
     }
 
     @Test
-    fun `approve is 404 for no pending row, a released row, another tenant's row and an unknown version`() {
+    fun `approve is 404 when there is no pending row`() {
         blocked(d1)
         approve("A2", d1).problem(404, "SRT-005")
-        override("A1", d1).statusCode.value() shouldBe 201
-        approve("A2", d1).problem(404, "SRT-005")
-        approve("A2", d2).problem(404, "SRT-005")
-        approve("A2", d1, code = "pay-011").problem(404, "SRT-005")
+        nothingStored()
     }
 
     @Test
-    fun `approve is 403 without the permission (no reasonCode), and for a DENY or another approver awaited`() {
+    fun `approve is 404 for a released row and the audit is unchanged`() {
+        blocked(d1)
+        override("A1", d1).statusCode.value() shouldBe 201
+        val entries = audit.entries.toList()
+        approve("A2", d1).problem(404, "SRT-005")
+        audit.entries shouldBe entries
+    }
+
+    @Test
+    fun `approve is 404 for a document of another tenant`() {
+        blocked(d1)
+        approve("A2", d2).problem(404, "SRT-005")
+        nothingStored()
+    }
+
+    @Test
+    fun `approve is 404 for an unknown version`() {
+        blocked(d1)
+        approve("A2", d1, version = 2).problem(404, "SRT-005")
+        nothingStored()
+    }
+
+    @Test
+    fun `approve is 404 for the look-alike code pay-011 in lower case`() {
+        blocked(d1)
+        approve("A2", d1, code = "pay-011").problem(404, "SRT-005")
+        nothingStored()
+    }
+
+    private fun pending() {
         blocked(d1, total = "1000.01")
         decisions = Decisions(thresholdSgd = BigDecimal("1000.00"))
         override("A1", d1).statusCode.value() shouldBe 202
+    }
+
+    private fun stillPending() {
+        store.find(d1, 1, "PAY-011")!!.status shouldBe OverrideStatus.PENDING
+        audit.entries.map { it.first } shouldBe listOf("requested")
+    }
+
+    @Test
+    fun `approve is 403 without the permission and carries no reasonCode`() {
+        pending()
         val noPermission = approve("B9", d1)
         noPermission.problem(403, "SRT-004")
         body(noPermission).has("reasonCode") shouldBe false
+        stillPending()
+    }
+
+    @Test
+    fun `approve is 403 with the reasonCode of a DENY`() {
+        pending()
         decisions = Decisions({ ReleaseOutcome.Denied("NO_SOLE_OPERATOR_ACK") })
         approve("A2", d1).problem(403, "SRT-004", "NO_SOLE_OPERATOR_ACK")
+        stillPending()
+    }
+
+    @Test
+    fun `approve is 403 NOT_OVERRIDABLE when another approver is still awaited`() {
+        pending()
         decisions = Decisions({ ReleaseOutcome.AwaitsSecond })
         approve("A2", d1).problem(403, "SRT-004", "NOT_OVERRIDABLE")
-        store.find(d1, 1, "PAY-011")!!.status shouldBe OverrideStatus.PENDING
+        stillPending()
     }
 
     @Test

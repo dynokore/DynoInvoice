@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(PayloadEvents.entries)
+    fun eventCatalogue(): EventCatalogue = EventCatalogue(PayloadEvents.entries + PayloadEvents.platformEntries)
 }
 
 object PayloadEvents {
@@ -33,10 +33,15 @@ object PayloadEvents {
     const val AUDIT_TYPE = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
     const val AUDIT_TOPIC = "gst.platform.audit-entry-recorded.v1"
 
+    /** The three payload channels; the platform audit event is in [platformEntries]. */
     val entries: List<CatalogueEntry> =
         topicByType.map { (type, topic) ->
             CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
-        } +
+        }
+
+    /** The platform audit event, field by field as in platform-contracts event-log/topics.yaml. */
+    val platformEntries: List<CatalogueEntry> =
+        listOf(
             CatalogueEntry(
                 AUDIT_TYPE,
                 AUDIT_TOPIC,
@@ -44,5 +49,6 @@ object PayloadEvents {
                 contentTopic = false,
                 recordTopic = true,
                 retainedWhileResolvable = false,
-            )
+            ),
+        )
 }
