@@ -76,4 +76,18 @@ class SqlPlacementProbeTest {
                 clean - "console-bff-adapters" + ("console-bff-adapters-extra" to ""),
             ).single() shouldContain "console-bff-adapters: build/gst"
     }
+
+    @Test
+    fun `INV-AC-14437 a raw SQL string passed to DSL sql gives a finding naming the file and line`() {
+        val bad = "package a\n\nclass R {\n    fun f(c: Any) = DSL.sql(\"select 1\")\n}\n"
+        SqlPlacement.sourceFindings("R.kt", bad).single() shouldContain "R.kt:4:"
+        SqlPlacement.sourceFindings("R.kt", "x = DSL . sql(\"\"\"select 1\"\"\")").single() shouldContain "R.kt:1:"
+    }
+
+    @Test
+    fun `INV-AC-14437 source text without a raw DSL sql call gives no finding`() {
+        SqlPlacement.sourceFindings("R.kt", "package a\n\nclass R { fun f() = 1 }\n").shouldBeEmpty()
+        SqlPlacement.sourceFindings("R.kt", "// DSL.sql(\"select 1\")\n * DSL.sql(\"x\")").shouldBeEmpty()
+        SqlPlacement.sourceFindings("R.kt", "val q = MyDSL.sqlx(\"select 1\")").shouldBeEmpty()
+    }
 }

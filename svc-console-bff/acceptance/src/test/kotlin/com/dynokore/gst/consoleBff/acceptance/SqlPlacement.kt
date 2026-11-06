@@ -61,4 +61,26 @@ object SqlPlacement {
                 }
             }
         }
+
+    private val RAW_SQL = Regex("\\bDSL\\s*\\.\\s*sql\\s*\\(\\s*\"")
+
+    /**
+     * Source-text probe (ruling INV-Q-17576 A): a raw SQL string literal passed to `DSL.sql(...)` is a finding naming
+     * the file and the line; there is no exemption. Comment lines are not code and give no finding. [text] is the
+     * content of [file]; no jOOQ is needed on the classpath because the input is a string.
+     */
+    fun sourceFindings(
+        file: String,
+        text: String,
+    ): List<String> =
+        text.lines().mapIndexedNotNull { index, line ->
+            val code = line.trimStart()
+            if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) {
+                null
+            } else if (RAW_SQL.containsMatchIn(line)) {
+                "$file:${index + 1}: raw SQL string passed to DSL.sql(...)"
+            } else {
+                null
+            }
+        }
 }
