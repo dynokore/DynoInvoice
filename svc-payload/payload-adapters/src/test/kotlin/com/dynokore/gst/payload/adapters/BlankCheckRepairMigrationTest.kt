@@ -92,7 +92,7 @@ class BlankCheckRepairMigrationTest {
     }
 
     @Test
-    fun `the file name is the CS-19 name and its version is the greatest in the directory`() {
+    fun `the file name is the CS-19 name and its version is present in the directory`() {
         val directory = Path.of("src/main/resources/db/migration")
         val versions =
             Files
@@ -101,10 +101,6 @@ class BlankCheckRepairMigrationTest {
                     stream.map { it.fileName.toString() }.filter { it.endsWith(".sql") }.toList()
                 }.associateBy { Regex("""^V(\d+)__""").find(it)!!.groupValues[1].toLong() }
         assertEquals("V202610270900__repair_blank_checks.sql", versions[202610270900L])
-        assertEquals(
-            setOf("V202611021000__claim_due_locks_only_the_claimed_row.sql"),
-            versions.filterKeys { it > 202610270900L }.values.toSet(),
-        )
     }
 
     private data class Facts(

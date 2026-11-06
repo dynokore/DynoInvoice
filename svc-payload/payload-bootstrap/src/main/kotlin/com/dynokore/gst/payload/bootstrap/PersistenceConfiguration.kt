@@ -1,11 +1,14 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.persistence.JooqCapabilityRegistry
+import com.dynokore.gst.payload.adapters.persistence.JooqFindingsStore
 import com.dynokore.gst.payload.adapters.persistence.jooq.DefaultCatalog
 import com.dynokore.gst.payload.application.AbsentMdePackSource
 import com.dynokore.gst.payload.application.CapabilityRegistry
 import com.dynokore.gst.payload.application.CapabilityService
 import com.dynokore.gst.payload.application.MdePackSource
+import com.dynokore.gst.payload.application.finding.FindingsReader
+import com.dynokore.gst.payload.application.finding.FindingsRecorder
 import org.jooq.DSLContext
 import org.jooq.Schema
 import org.springframework.context.annotation.Bean
@@ -22,6 +25,10 @@ class PersistenceConfiguration {
 
     @Bean
     fun capabilityRegistry(dsl: DSLContext): CapabilityRegistry = JooqCapabilityRegistry(dsl)
+
+    /** One store typed by both finding ports (INV-AC-17037); the caller's transaction is the store's transaction. */
+    @Bean
+    fun findingsStore(dsl: DSLContext): JooqFindingsStore = JooqFindingsStore(dsl)
 
     /**
      * The production source: no MDE pack is loaded yet, so `markSpecified(SERIALISATION)` stays refused. The task that
