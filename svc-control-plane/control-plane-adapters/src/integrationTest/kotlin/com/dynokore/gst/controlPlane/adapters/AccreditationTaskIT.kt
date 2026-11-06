@@ -97,6 +97,7 @@ import java.util.UUID
  * The accreditation step of the release pipeline against the real tables and the real outbox, as the runtime login
  * (INV-AC-2340): the release commits first, the task step has a transaction of its own.
  */
+@Suppress("LargeClass") // one IT over the real tables for the step, the three operations and the rulings
 class AccreditationTaskIT {
     private val clock = Clock.fixed(Instant.parse("2026-10-19T08:00:00Z"), ZoneOffset.UTC)
     private val today = LocalDate.now(clock)
@@ -309,7 +310,8 @@ class AccreditationTaskIT {
         shouldThrow<Exception> {
             admin(
                 "insert into controlplane.accreditation_task(task_ref, status, reason, opened_at, alert_ref, " +
-                    "release_ref) values ('T-${UUID.randomUUID()}', 'OPEN', 'REASSESSMENT_NEEDED', now(), 'A-x', '$version')",
+                    "release_ref) values ('T-${UUID.randomUUID()}', 'OPEN', 'REASSESSMENT_NEEDED', now(), " +
+                    "'A-x', '$version')",
             )
         }
     }
@@ -522,17 +524,23 @@ class AccreditationTaskIT {
         }
         refusal(HTTP_BAD_REQUEST) { controller().listAccreditationTasks(null, cursors.first() + "x", 50) }
         refusal(HTTP_BAD_REQUEST) { controller().listAccreditationTasks("OPEN", cursors.first(), 50) } // another filter
+    }
+
+    @Test
+    fun `list and get need their own keys and the record key opens neither`() {
+        seedTasks(3)
+        asOperator()
         held.clear()
         refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
         held += AccreditationPermission.RECORD // the record key does not open the list or the get
         refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
-        refusal(HTTP_FORBIDDEN) { controller().getAccreditationTask("T-001") }
+        refusal(HTTP_FORBIDDEN) { controller().getAccreditationTask("K-001") }
         held.clear()
         held += AccreditationPermission.TASK_LIST // the list key does not open the get
-        refusal(HTTP_FORBIDDEN) { controller().getAccreditationTask("T-001") }
+        refusal(HTTP_FORBIDDEN) { controller().getAccreditationTask("K-001") }
         held.clear()
         held += AccreditationPermission.TASK_VIEW
-        controller().getAccreditationTask("T-001").body!!.taskRef shouldBe "T-001"
+        controller().getAccreditationTask("K-001").body!!.taskRef shouldBe "K-001"
         refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
     }
 
