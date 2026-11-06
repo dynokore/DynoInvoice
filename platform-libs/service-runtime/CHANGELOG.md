@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [11.1.0] - 2026-11-06
+### Added
+- `ClosedErrorCode.SERVICE_NOT_READY` (SRT-013, HTTP 503, "Service not ready", TERMINAL, owner Platform; INV-T-17142, coordinator ruling INV-Q-17134 option A, INV-REQ-827): no Retry-After; the vendored error catalogue snapshot of the tests is re-taken at platform-contracts f3927e60.
+- `TenancyErrorCode` gains `UNSUBMITTED_DOCUMENTS_REFUSED` (TNC-008), `CUSTODY_HOLDER_REFUSED` (TNC-009) and `OFFBOARDING_RECORD_EXISTS` (TNC-010), all HTTP 409, owner entity.admin (INV-Q-17510 A: forced by the re-vendoring).
+
 ## [11.0.0] - 2026-11-06
 ### Changed
 - BREAKING (INV-T-9233, INV-Q-8972 A, INV-REQ-864, INV-REQ-1201, INV-REQ-1214): `AuthorityReplica` decides from role grants and the generated permission matrix. `AuthorityReplica` takes a required `OperationRoleMap` (new `fun interface`, with `CellAllowance`) as its second constructor parameter, no default; the `authorityReplica` bean takes the single `OperationRoleMap` bean and the start fails naming the type when there is none. `decide` grants when the principal holds a valid, unvoided role grant covering the request whose role is a key of `rolesFor(request.action)` (any one is enough); `AuthorizationRequest` gains `level` (default ENTITY: INSTALLATION reads grants under `TenantId.PLATFORM`, TENANT and GROUP the TENANT-scope grants); `decideTenant` and `heldEntities` read the role grants too (GROUP and TENANT grants by the structure replica; `StructureReplica.entitiesOf(tenant)` added). `AuthorityDecision` keeps `allowed`, `source` and `reason` (INV-Q-10647).

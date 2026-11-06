@@ -1,5 +1,9 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 0c05e262b978bd07fb5f7d4e3e93053867417583 (2026-10-28), the merge of invoice-docs INV-T-11908 adding TNC-005 to TNC-007 (INV-T-11909, coordinator ruling INV-Q-11899 A);
+# pinned at commit 351be219b511369a30d7ccef87bbe7031d632c73 (2026-11-06), the merge of invoice-docs INV-T-17140 adding SRT-013 (INV-T-17141, coordinator ruling INV-Q-17134 A);
+# previously pinned at 6d20b5449f5612af8e4133518606e1d6ec582673 (2026-11-01), the merge of invoice-docs INV-T-15458 adding CPL-007 (INV-T-15459, coordinator rulings INV-Q-15428 A, INV-Q-15478 A);
+# previously pinned at 760e58d9f6a94d9d423d9bd8046314bf9305e007 (2026-10-31), the merge of invoice-docs INV-T-14043 adding CPL-004 to CPL-006 (INV-T-14044, coordinator ruling INV-Q-14041 A);
+# previously pinned at de167d5df41f41414e39eea3412ae1b2fecad86c (2026-10-29), the merge of invoice-docs INV-T-12599 adding EVD-001 (INV-T-12600, coordinator ruling INV-Q-12582 A);
+# previously pinned at 0c05e262b978bd07fb5f7d4e3e93053867417583 (2026-10-28), the merge of invoice-docs INV-T-11908 adding TNC-005 to TNC-007 (INV-T-11909, coordinator ruling INV-Q-11899 A);
 # previously pinned at b04d614dfb522d6935e00b203fb0f97d86c6105c (2026-10-27), the merge of invoice-docs INV-T-11268 adding ING-022 (INV-T-11269, coordinator ruling INV-Q-11264 A; this re-vendor also brings SUB-023 from INV-T-9686);
 # previously pinned at 5f36b7c72b9ef9ae68f9488e004999e8dc5586c5 (2026-10-23), the merge of invoice-docs INV-T-8917 adding TNC-004 (INV-T-8919, coordinator ruling INV-Q-8903 A);
 # previously pinned at 419a4ccccdd369dbfd5ada56c4f84e5da8aaa039 (2026-10-20), the merge of invoice-docs INV-T-7555 adding TNC-001 to TNC-003 (INV-T-7556, coordinator ruling INV-Q-7553 A);
@@ -16,7 +20,6 @@
 #
 # Original header, preserved from invoice-docs:
 # Hand-maintained since 26 Sep 2026 (see model/README.md): edit here in a merge request,
-# citing the Keel ADR behind any design change. Generated from the archived SDS until then.
 error_codes:
 - code: ING-001
   condition: Unknown sourceSystem
@@ -240,6 +243,13 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+- code: RUL-012
+  condition: 'Document cannot be classified: the classification table of the scope pack version effective for the transaction
+    date has no row for the document''s upstream function, upstream kind (`documentKind`) and sign of total; no document
+    type code is applied and the document is not submitted until the table is completed (INV-REQ-658, INV-Q-14802)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
 - code: PAY-001
   condition: Mandatory Data Element absent
   severity: BLOCK
@@ -455,6 +465,11 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+- code: SUB-024
+  condition: 'An Access Point notification of kind INBOUND_NETWORK_DOCUMENT is not accepted yet: inbound network documents are received in Wave 3; nothing is recorded and the Access Point retries (HTTP 503; INV-REQ-585, INV-Q-9676)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check
   severity: BLOCK
@@ -644,6 +659,12 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+- code: EVD-001
+  condition: 'Maximum evidence retention cannot be determined: a VP-43 setting of the data region cannot be read, so no figure
+    is given and none is partial; retryable (HTTP 503; INV-REQ-3767, INV-Q-3263, INV-Q-12582)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
 - code: SRT-001
   condition: 'Request does not match the contract: shape, type or a missing required field (ContractViolation, ARC-19; HTTP
     400; INV-Q-3720, INV-REQ-827 b3)'
@@ -709,6 +730,11 @@ error_codes:
 - code: SRT-012
   condition: 'Protective rate limit exceeded; retry after Retry-After (HTTP 429; FR-AG.39, API-30; INV-REQ-825 b6; owner ruling
     INV-Q-4048 A)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-013
+  condition: 'The service is not ready to decide: a snapshot it needs, such as the replicated organisation structure, is not complete yet; nothing is decided or changed; the caller retries later (HTTP 503; INV-REQ-1199, INV-Q-9081, INV-Q-17134)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
@@ -903,8 +929,63 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: security.officer
+- code: TNC-008
+  condition: 'Offboarding or deregistration refused: an in-scope document is unsubmitted and no unsubmittedOverride is recorded; nothing is recorded or changed (HTTP 409; INV-REQ-956 b1, INV-Q-16387)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: entity.admin
+- code: TNC-009
+  condition: 'Offboarding refused: the retention custody holder has a blank name or contact email; nothing is recorded (HTTP 409; INV-REQ-956 b2, INV-Q-16387)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: entity.admin
+- code: TNC-010
+  condition: 'Offboarding refused: a record for the same tenant, scope and entity is REQUESTED or COMPLETED; nothing is created (HTTP 409; INV-REQ-956, INV-Q-16387)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: entity.admin
 - code: ING-022
   condition: "Aggregate number cannot be built: the number would exceed 64 characters, or the entity or business unit has no registered short code of 1 to 10 characters A-Z 0-9 in the structure; nothing is stored (HTTP 422; INV-REQ-436, INV-REQ-850 b7, INV-Q-11264)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+- code: ING-023
+  condition: "Transaction cannot be recorded now: canonical-svc gave no answer within the edge policy (timeout, open circuit breaker, full bulkhead or no connection) or answered HTTP 503; nothing is recorded; retryable with the same sourceSystem, sourceKey and sourceRevision (HTTP 503; INV-REQ-1193, INV-Q-14086)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-004
+  condition: "Train already published: a gate result cannot be recorded for a release train that is already published; nothing is recorded (HTTP 409; INV-REQ-909, INV-REQ-2657, INV-Q-14041)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-005
+  condition: "Gate result conflicts with the recorded one: the key (trainVersion, gate, environment) already holds a record that differs from the one sent in its results, finding sets or evidence reference; the recorded one stays unchanged and nothing is added (HTTP 409; INV-REQ-2657, INV-Q-14041)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-006
+  condition: "Gate result not valid for its gate: the gate is not one of SCENARIOS, REGENERATION, SECURITY or CERTIFICATION, or the environment is missing for SCENARIOS or CERTIFICATION or present for REGENERATION or SECURITY, or a baseline result or baseline findings are sent with a PASSED candidate result; nothing is recorded (HTTP 422; INV-REQ-2657, INV-Q-14041)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-007
+  condition: "A re-accreditation assessment task is already CONCLUDED with another conclusion; the recorded conclusion is unchanged and the caller reads the task (HTTP 409; INV-REQ-1365, INV-Q-15428, INV-Q-15478)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: ING-024
+  condition: "Debit note held for review: the entity elected HOLD_FOR_REVIEW for the variation point VP-54, so the debit note waits in HELD until a person releases it; nothing is submitted meanwhile (INV-REQ-1315, INV-Q-16151)"
+  severity: HOLD
+  disposition: MANUAL
+  owner: Finance
+- code: CPL-008
+  condition: "The first administrator invitation cannot be reissued: the provisioning request does not read CREATED, or access-svc refused the reissue because the tenant's tenant.admin grant is not a PENDING one whose invitation has expired; nothing is sent (HTTP 409; INV-REQ-906, INV-Q-8232, INV-Q-16202)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-009
+  condition: "The first administrator invitation cannot be reissued now: access-svc gave no answer within the edge policy (timeout, open circuit breaker, full bulkhead or no connection) or answered HTTP 503; nothing is sent; retryable with the same Idempotency-Key (HTTP 503; INV-REQ-906, INV-Q-8232, INV-Q-16204)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform

@@ -40,8 +40,8 @@ class TenancyErrorCodeTest {
         }.filter { it.code.startsWith("TNC-") }
 
     @Test
-    fun `the codes equal the 7 TNC rows of the pinned catalogue snapshot, in order`() {
-        rows.size shouldBe 7
+    fun `the codes equal the 10 TNC rows of the pinned catalogue snapshot, in order`() {
+        rows.size shouldBe 10
         TenancyErrorCode.entries.map { it.code } shouldBe rows.map { it.code }
     }
 

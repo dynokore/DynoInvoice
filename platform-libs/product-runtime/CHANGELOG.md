@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-11-06
+### Changed
+- Metadata-only release (INV-T-17142, G-DVS): depends on `service-runtime 11.1.0`, whose published module metadata changed; no code change.
+
 ## [2.13.0] - 2026-11-06
 ### Added
 - `GstOperationRoleMap` and the `operationRoleMap` bean (INV-T-9233, INV-Q-8972 A): service-runtime's `OperationRoleMap` over the generated `OperationRoles` of the gst-catalogue, for the deployment form `gst.form`.

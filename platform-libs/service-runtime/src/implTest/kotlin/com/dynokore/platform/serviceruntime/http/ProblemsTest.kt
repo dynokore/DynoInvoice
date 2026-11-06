@@ -43,6 +43,7 @@ class ProblemsTest {
                 "SRT-010" to 500,
                 "SRT-011" to 503,
                 "SRT-012" to 429,
+                "SRT-013" to 503,
             )
         ClosedErrorCode.entries.forEach { code ->
             val row = catalogue.getValue(code.code)
@@ -66,6 +67,32 @@ class ProblemsTest {
         row["disposition"] shouldBe "TERMINAL"
         row["owner"] shouldBe "Platform"
         code.disposition shouldBe ClosedErrorCode.ISSUER_UNAVAILABLE.disposition
+    }
+
+    @Test
+    fun `SERVICE_NOT_READY is SRT-013 at 503, matches its row, renders without detail and without Retry-After`() {
+        val row = catalogue.getValue("SRT-013")
+        val code = ClosedErrorCode.SERVICE_NOT_READY
+        code.code shouldBe "SRT-013"
+        code.httpStatus shouldBe 503
+        code.title shouldBe "Service not ready"
+        code.disposition shouldBe "TERMINAL"
+        code.remediationOwner shouldBe "Platform"
+        row["severity"] shouldBe "BLOCK"
+        row["disposition"] shouldBe "TERMINAL"
+        row["owner"] shouldBe "Platform"
+        (row["condition"] as String).replace(Regex("\\s+"), " ").contains("HTTP 503") shouldBe true
+        val closed = Problems.closed(code, "corr-1", "what went wrong")
+        closed.status shouldBe 503
+        val body = mapper.readTree(closed.body)
+        contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+        body.get("code").asString() shouldBe "SRT-013"
+        body.get("type").asString() shouldBe "https://errors.invoice.internal/SRT-013"
+        body.get("severity").asString() shouldBe "BLOCK"
+        body.get("disposition").asString() shouldBe "TERMINAL"
+        body.has("detail") shouldBe false
+        Problems.render(code, "corr-1").headers["Retry-After"] shouldBe null
+        shouldThrow<IllegalArgumentException> { Problems.render(code, "corr-1", null, 5) }
     }
 
     @Test
