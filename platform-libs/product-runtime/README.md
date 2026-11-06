@@ -26,6 +26,11 @@ config-resolver takes its catalogue in either order from service-runtime 3.2.1, 
   (the `AuthorityHeadObserved` heartbeat; the tracker expects it within 1000 ms), the `authorityReplayIntake` of the
   replay topic of the pair (access-svc, this consumer) and the listener that sets the replica's snapshot when the
   service's own full sync completes (INV-Q-9047 A);
+- when `serviceruntime.replica.structure.require-snapshot` is exactly `true` and the context has the structure replica,
+  `ReplicaColdStartSync` and `StructureFeedHandler` (`StructureReplicaWiring`): the `structureReplayIntake` of the
+  replay topic of the pair (tenancy-svc, the consumer of the first value of
+  `serviceruntime.replica.structure.snapshot-topics`) and the listener that completes the structure replica's snapshot
+  only when the service's own replay moved every listed topic (INV-Q-17064 A, INV-Q-13786 A);
 - the tenancy-svc and access-svc fallbacks, once `product-runtime.fallback.tenancy-svc-url` and
   `product-runtime.fallback.access-svc-url` are set; without them a replica serves what it holds.
 

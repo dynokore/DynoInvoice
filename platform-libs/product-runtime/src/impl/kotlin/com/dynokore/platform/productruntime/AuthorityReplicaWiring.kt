@@ -13,6 +13,7 @@ import com.dynokore.platform.productruntime.feed.AuthorityHeadFeed
 import com.dynokore.platform.serviceruntime.rebuild.ReplicaColdStartSync
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancyjooq.TenancyJooq
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.context.annotation.Bean
@@ -70,7 +71,7 @@ class AuthorityReplicaWiring {
         scope: TenantScope,
         sink: RebuildRequiredSink,
         handler: AuthorityFeedHandler,
-        authorityReplayCompletionListener: ReplayCompletionListener,
+        @Qualifier("authorityReplayCompletionListener") authorityReplayCompletionListener: ReplayCompletionListener,
         clock: Clock,
     ): JdbcReplayIntake {
         val live = subscriptions.first { it.topic == OnAuthoritySubscription.AUTHORITY_TOPIC }

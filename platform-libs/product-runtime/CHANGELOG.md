@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-11-06
+### Added
+- `StructureReplicaWiring` (INV-T-9095, INV-Q-17064 A, INV-Q-17062 A, INV-Q-13691 A as amended by INV-Q-13786 A, INV-REQ-1199): auto-configuration after service-runtime's L1 composition with the beans `structureReplayIntake` (a `JdbcReplayIntake` of the replay topic of the pair `tenancy-svc` and the consumer of the subscription to the first value of `serviceruntime.replica.structure.snapshot-topics`) and `structureReplayCompletionListener`, which calls `StructureReplica.onSnapshotComplete` at the highest applied structure version only for a replay `ReplicaColdStartSync.isOwnReplay` whose topics hold every listed value. Both beans exist only when `serviceruntime.replica.structure.require-snapshot` is exactly `true` and the context has `StructureReplica`, `ReplicaColdStartSync` and `StructureFeedHandler`; subscriptions to the listed topics that differ in consumer or schema stop the start with a message naming the list setting. No production caller of `StructureReplica.onDisconnected()` is added.
+### Changed
+- `AuthorityReplicaWiring`: the intake parameter carries `@Qualifier("authorityReplayCompletionListener")`, so a context with both wirings picks each intake's own listener.
+
 ## [2.10.0] - 2026-11-06
 ### Added
 - `BreakGlassSessionFeedHandler` and `ReplicaKind.BREAK_GLASS_SESSION` (INV-T-9311, INV-Q-9119 A, INV-REQ-896): `ReplicaFeeds.ALL` gains `BreakGlassSessionChanged.v1` (no fallback), and an inbox `EventHandler` bean reads it with `PlatformEventReader.breakGlassSessionChanged` into `AuthorityReplica.breakGlassSessions`; an event that does not meet the contract is a `ContractViolation`.
