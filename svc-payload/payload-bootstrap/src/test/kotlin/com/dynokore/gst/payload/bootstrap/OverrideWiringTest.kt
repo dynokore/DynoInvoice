@@ -297,7 +297,12 @@ class OverrideWiringTest {
                     withService(
                         localReplica(),
                         stub,
-                        configure = { it.withBean(SecondValidationController::class.java, { SecondValidationController() }) },
+                        configure = {
+                            it.withBean(
+                                SecondValidationController::class.java,
+                                { SecondValidationController() },
+                            )
+                        },
                     ) { service ->
                         checkNotNull(service.context).getBeansOfType(ValidationApi::class.java).size
                     }
