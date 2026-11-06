@@ -49,7 +49,7 @@ class HttpFirstAdministratorAccessTest {
                 val answer =
                     (
                         answerBody
-                            ?: """{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-1","invitationCode":"code-1"}"""
+                            ?: ("""{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-1",""" + """"invitationCode":"code-1"}""")
                     ).toByteArray()
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(status, answer.size.toLong())

@@ -70,7 +70,7 @@ class FirstAdministratorCodeLeakIT {
                 val body =
                     (
                         answerBody
-                            ?: """{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-9","invitationCode":"$CODE"}"""
+                            ?: ("""{"grantRef":"GRT-1","status":"PENDING","invitationRef":"INVN-9",""" + """"invitationCode":"$CODE"}""")
                     ).toByteArray()
                 exchange.sendResponseHeaders(status, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }
@@ -83,7 +83,7 @@ class FirstAdministratorCodeLeakIT {
 
     @BeforeEach
     fun capture() {
-        root.level = Level.ALL
+        root.level = Level.TRACE
         appender.start()
         root.addAppender(appender)
     }

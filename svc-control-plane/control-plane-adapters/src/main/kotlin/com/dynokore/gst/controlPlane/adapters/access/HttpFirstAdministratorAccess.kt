@@ -93,7 +93,7 @@ class HttpFirstAdministratorAccess(
         }
 
     private fun issuedOf(body: String): FirstAdministratorAnswer {
-        // A 2xx the access contract does not define (not JSON, no ref or code) is Failed, not Unavailable (INV-Q-16204 A).
+        // A 2xx the access contract does not define (not JSON, no ref or code) is Failed (INV-Q-16204 A).
         val tree =
             try {
                 json.readTree(body)

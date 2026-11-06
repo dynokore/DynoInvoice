@@ -88,7 +88,7 @@ class ProvisioningBodyOutcomeTest {
     }
 
     @Test
-    fun `INV-AC-8224 the provisionTenant and getTenantProvisioningRequest bodies carry no first administrator outcome`() {
+    fun `INV-AC-8224 the provisionTenant and getTenantProvisioningRequest bodies carry no outcome`() {
         FirstAdministratorOutcome.entries.forEach { outcome ->
             doubles.outcome = outcome
             val read = get()
