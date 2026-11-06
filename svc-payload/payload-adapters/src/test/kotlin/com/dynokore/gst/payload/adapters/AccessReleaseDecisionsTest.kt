@@ -192,6 +192,40 @@ class AccessReleaseDecisionsTest {
 
     private fun timingOut() = AccessStub.Reply(200, releasing, delayMillis = 1500)
 
+    private fun assertBreakerClosedAfter400s() {
+        stub.seen.clear()
+        stub.reply = AccessStub.Reply(400, releasing)
+        withClient(registry(breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
+            stub.reply = answer("ALLOW", "RELEASED")
+            client.decide(request) shouldBe ReleaseOutcome.Released
+            stub.seen.size shouldBe n + 1
+        }
+    }
+
+    private fun assertBreakerOpenAfter500s() {
+        stub.seen.clear()
+        stub.reply = AccessStub.Reply(500)
+        withClient(registry(breaker = smallWindow)) { client ->
+            repeat(n) { client.decide(request) shouldBe unavailable }
+            val before = stub.seen.size
+            stub.reply = answer("ALLOW", "RELEASED")
+            client.decide(request) shouldBe unavailable
+            stub.seen.size shouldBe before
+        }
+    }
+
+    private fun assertRequestCarriesDocumentFacts() {
+        val names =
+            stub.seen
+                .first()
+                .query
+                .map { it.first }
+        names shouldContain "documentRef"
+        names shouldContain "documentVersion"
+        names shouldContain "documentTotalSgd"
+    }
+
     @Test
     fun `ALLOW with outcome RELEASED is Released`() {
         decide(answer("ALLOW", "RELEASED")) shouldBe ReleaseOutcome.Released
@@ -279,27 +313,10 @@ class AccessReleaseDecisionsTest {
     }
 
     @Test
-    fun `N calls answered 400 leave the breaker closed`() {
-        stub.reply = AccessStub.Reply(400, releasing)
-        withClient(registry(breaker = smallWindow)) { client ->
-            repeat(n) { client.decide(request) shouldBe unavailable }
-            stub.reply = answer("ALLOW", "RELEASED")
-            client.decide(request) shouldBe ReleaseOutcome.Released
-            stub.seen.size shouldBe n + 1
-        }
-    }
+    fun `N calls answered 400 leave the breaker closed`() = assertBreakerClosedAfter400s()
 
     @Test
-    fun `N calls answered 500 open the breaker`() {
-        stub.reply = AccessStub.Reply(500)
-        withClient(registry(breaker = smallWindow)) { client ->
-            repeat(n) { client.decide(request) shouldBe unavailable }
-            val before = stub.seen.size
-            stub.reply = answer("ALLOW", "RELEASED")
-            client.decide(request) shouldBe unavailable
-            stub.seen.size shouldBe before
-        }
-    }
+    fun `N calls answered 500 open the breaker`() = assertBreakerOpenAfter500s()
 
     @Test
     fun `N calls that time out open the breaker`() {
@@ -399,25 +416,8 @@ class AccessReleaseDecisionsTest {
         runner("http://127.0.0.1:$closed", registry()).run { context ->
             context.getBean(ReleaseDecisions::class.java).decide(request) shouldBe unavailable
         }
-        // N 400 answers: the breaker stays closed, the next call releases and the stub counted N + 1 requests
-        stub.seen.clear()
-        stub.reply = AccessStub.Reply(400, releasing)
-        withClient(registry(breaker = smallWindow)) { client ->
-            repeat(n) { client.decide(request) shouldBe unavailable }
-            stub.reply = answer("ALLOW", "RELEASED")
-            client.decide(request) shouldBe ReleaseOutcome.Released
-            stub.seen.size shouldBe n + 1
-        }
-        // N 500 answers: the breaker is open, the next call is denied and does not reach the stub
-        stub.seen.clear()
-        stub.reply = AccessStub.Reply(500)
-        withClient(registry(breaker = smallWindow)) { client ->
-            repeat(n) { client.decide(request) shouldBe unavailable }
-            val before = stub.seen.size
-            stub.reply = answer("ALLOW", "RELEASED")
-            client.decide(request) shouldBe unavailable
-            stub.seen.size shouldBe before
-        }
+        assertBreakerClosedAfter400s()
+        assertBreakerOpenAfter500s()
     }
 
     @Test

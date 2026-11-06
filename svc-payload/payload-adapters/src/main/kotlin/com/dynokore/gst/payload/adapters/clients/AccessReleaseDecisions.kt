@@ -54,7 +54,7 @@ class AccessReleaseDecisions(
                 ask(request)
             }
         } catch (_: Exception) {
-            // The surfaced 5xx (after the edge's retry) and any other failure: a denial, never an exception or a release
+            // The surfaced 5xx (after the edge's retry) and any other failure: a denial, never an exception
             unavailable()
         }
     }
