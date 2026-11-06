@@ -12,3 +12,6 @@ rules	POST	/internal/v1/rules/mapping-packs	entityRef
 rules	POST	/internal/v1/rules/mapping-packs/{packId}/entries	entityRef
 rules	POST	/internal/v1/rules/mapping-packs/{packId}/entries/{entryId}/source-class-acceptance	entityRef
 rules	POST	/internal/v1/rules/mapping-packs/{packId}/activation	entityRef
+masterdata	POST	/internal/v1/masterdata/gap-reports	entityRef
+masterdata	POST	/internal/v1/masterdata/counterparties/import	entityRef
+masterdata	POST	/internal/v1/masterdata/counterparties/bulk-resolution	entityRef

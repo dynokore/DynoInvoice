@@ -24,3 +24,4 @@
 ../openapi.yaml#/components/schemas/CounterpartyDryRunRequest dry-run-request-*.json
 ../openapi.yaml#/components/schemas/ImportCounterpartiesRequest import-counterparties-request-*.json
 ../openapi.yaml#/components/schemas/BulkResolveRequest bulk-resolve-request-*.json
+../openapi.yaml#/components/schemas/RunGapReportRequest run-gap-report-request-*.json

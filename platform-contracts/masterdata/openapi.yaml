@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -543,12 +543,21 @@ paths:
         distinct input (INV-REQ-949 b3). The display of the distinct inputs
         before applying belongs to the console-bff exception read model
         (INV-REQ-949 b4, INV-AC-348).
+
+        `entityRef` is the entity the caller acts for. It is optional in the
+        schema only to keep the change additive (API-03): the service refuses
+        a request without it, or with a blank one, with `400` SRT-001 and
+        changes nothing; an entity outside the principal's entity set is
+        refused with `403` and the code SRT-004 before the handler runs
+        (API-24). The report, the register lookup and the `MasterDataResolved`
+        envelope carry it.
       tags: [remediation]
       x-principal: filing-workflow
       x-caller-auth: end-user
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006]
+      x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006, SRT-014]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.3, FR-AC.14]
       x-operation:
         role: tax.operator
@@ -715,9 +724,18 @@ paths:
         (`/internal/v1/masterdata/imports/{importId}`, INV-REQ-833), and the
         `ImportRecord` body with state RUNNING. A repeat with the same
         Idempotency-Key replays the stored `202` (API-15).
+
+        `entityRef` is the entity the caller acts for. It is optional in the
+        schema only to keep the change additive (API-03): the service refuses
+        a request without it, or with a blank one, with `400` SRT-001 and
+        changes nothing; an entity outside the principal's entity set is
+        refused with `403` and the code SRT-004 before the handler runs
+        (API-24). The report, the register lookup and the `MasterDataResolved`
+        envelope carry it.
       tags: [import]
       x-principal: filing-workflow
       x-caller-auth: end-user
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-006, MDM-009]
@@ -944,7 +962,7 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: [MDM-002, MDM-003, MDM-004, MDM-006]
+      x-error-codes: [MDM-002, MDM-003, MDM-004, MDM-006, MDM-010, SRT-014]
       x-requirements: [INV-REQ-830, INV-REQ-833, INV-REQ-1232, "§35.10"]
       x-operation:
         role: tax.operator
@@ -1005,6 +1023,8 @@ paths:
               examples:
                 default:
                   value: { dryRunId: "CDR-12", state: "RUNNING", startedAt: "2026-03-20T03:10:00Z" }
+        '413':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/counterparties/import/dry-runs/{dryRunId}:
@@ -1123,9 +1143,18 @@ paths:
         at `getGapReport` and the `GapReportStatus` body with state RUNNING.
         A repeat with the same Idempotency-Key replays the stored response
         (API-15).
+
+        `entityRef` is the entity the caller acts for. It is optional in the
+        schema only to keep the change additive (API-03): the service refuses
+        a request without it, or with a blank one, with `400` SRT-001 and
+        changes nothing; an entity outside the principal's entity set is
+        refused with `403` and the code SRT-004 before the handler runs
+        (API-24). The report, the register lookup and the `MasterDataResolved`
+        envelope carry it.
       tags: [gap-report]
       x-principal: filing-workflow
       x-caller-auth: end-user
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-002, MDM-003, MDM-006, MDM-007]
@@ -1138,6 +1167,15 @@ paths:
         repeatKey: "Idempotency-Key — read-only on counterparty records; a repeat replays the stored result."
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunGapReportRequest'
+            examples:
+              default:
+                value: { entityRef: "E-001" }
       responses:
         '200':
           description: The gap report.
@@ -1694,6 +1732,23 @@ components:
                 x-extensible-enum: true
             required: [counterpartyRef, reason]
       required: [rows, notChecked]
+    RunGapReportRequest:
+      type: object
+      description: >-
+        Optional body of `runGapReport` (INV-Q-17285). It carries only the
+        entity the report is run for.
+      properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: >-
+            The entity the caller acts for. Optional in the schema only to keep
+            the change additive (API-03): the service refuses a request without
+            it, or with a blank one, with `400` SRT-001 and changes nothing; an
+            entity outside the principal's entity set is refused `403` SRT-004
+            before the handler (API-24). The report, the register lookup and
+            the `MasterDataResolved` envelope carry it.
     GapReportStatus:
       type: object
       description: Status resource of runGapReport (API-17); also the 202 body, with state RUNNING.
@@ -2019,6 +2074,17 @@ components:
     BulkResolveRequest:
       type: object
       properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: >-
+            The entity the caller acts for. Optional in the schema only to keep
+            the change additive (API-03): the service refuses a request without
+            it, or with a blank one, with `400` SRT-001 and changes nothing; an
+            entity outside the principal's entity set is refused `403` SRT-004
+            before the handler (API-24). The report, the register lookup and
+            the `MasterDataResolved` envelope carry it.
         errorCode: { type: string, pattern: '^[A-Z]{2,10}-[0-9]{3}$' }
         docUuids:
           type: array
@@ -2092,6 +2158,17 @@ components:
     ImportCounterpartiesRequest:
       type: object
       properties:
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: >-
+            The entity the caller acts for. Optional in the schema only to keep
+            the change additive (API-03): the service refuses a request without
+            it, or with a blank one, with `400` SRT-001 and changes nothing; an
+            entity outside the principal's entity set is refused `403` SRT-004
+            before the handler (API-24). The report, the register lookup and
+            the `MasterDataResolved` envelope carry it.
         fileHash: { type: string, maxLength: 128 }
         rowCount: { type: integer, minimum: 0 }
         dryRunId:
@@ -2165,8 +2242,8 @@ components:
         row: { type: integer, minimum: 1 }
         code:
           type: string
-          pattern: '^MDM-00[2346]$'
-          description: MDM-002 (UEN absent), MDM-003 (UEN format), MDM-004 (NA consistency, C-7) or MDM-006 (address incomplete).
+          pattern: '^MDM-0(0[2346]|10)$'
+          description: MDM-002 (UEN absent), MDM-003 (UEN format), MDM-004 (NA consistency, C-7), MDM-006 (address incomplete) or MDM-010 (import row names no counterparty).
         field: { type: string, maxLength: 200, description: A JSON Pointer or column name (FR-AG.41). }
         message: { type: string, maxLength: 500 }
       required: [row, code, message]

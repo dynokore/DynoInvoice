@@ -152,6 +152,9 @@ ImportCounterpartiesRequest.providedBy.MIGRATED	schema_enum_value	openapi.yaml	I
 ImportCounterpartiesRequest.providedBy.INTERNAL	schema_enum_value	openapi.yaml	INV-REQ-830
 Counterparty.importId	schema_property	openapi.yaml	INV-REQ-833
 BulkResolveRequest.documents	schema_property	openapi.yaml	INV-REQ-317
+RunGapReportRequest.entityRef	schema_property	openapi.yaml	INV-REQ-316
+ImportCounterpartiesRequest.entityRef	schema_property	openapi.yaml	INV-REQ-830
+BulkResolveRequest.entityRef	schema_property	openapi.yaml	INV-REQ-317
 BulkResolveDocument.docUuid	schema_property	openapi.yaml	INV-REQ-317
 BulkResolveDocument.counterpartyRef	schema_property	openapi.yaml	INV-REQ-317
 counterpartyRef	property	openapi.yaml	INV-REQ-316
