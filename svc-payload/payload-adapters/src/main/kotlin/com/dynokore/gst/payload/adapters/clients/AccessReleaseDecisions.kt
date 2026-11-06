@@ -12,7 +12,6 @@ import org.openapitools.client.infrastructure.RequestConfig
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.env.Environment
 import org.springframework.http.ResponseEntity
-import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientResponseException
 import tools.jackson.databind.JsonNode
@@ -25,8 +24,10 @@ import java.time.Duration
  * generated from the owner's contract (STK-46) and the policy of the sync edge. Fail closed ("Deny human action"): a
  * 4xx or 5xx answer, a timeout, an open breaker, a full bulkhead, no connection and an unreadable body are each
  * [ReleaseOutcome.Denied]; only an exact `ALLOW` with the outcome `RELEASED` is [ReleaseOutcome.Released].
+ *
+ * Not a scanned component: the bean and its property `payload.access-svc-url` are registered by the wiring slice
+ * (INV-T-10713), so no context without that property tries to build it.
  */
-@Component
 class AccessReleaseDecisions(
     @Qualifier("internalRestClientBuilder") builder: RestClient.Builder,
     registry: ResilienceRegistry,
