@@ -11,6 +11,7 @@ import com.dynokore.gst.controlPlane.domain.pack.ActorId
 import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
@@ -173,7 +174,10 @@ class OpenAccreditationTaskTest {
         released(flag = false)
         step.afterRelease(train, false, request)
         store.values.single().reason shouldBe TaskReason.ACCREDITATION_LAPSED
-        checks[train]?.assessmentNeeded shouldBe true
+        // the field is the request's declaration, not whether a task was opened (INV-Q-15454 A)
+        checks[train]?.assessmentNeeded shouldBe false
+        checks[train]?.taskRef shouldBe "TASK-1"
+        checks[train]?.alertRef shouldBe "ALERT-2"
     }
 
     @Test
@@ -320,7 +324,7 @@ class OpenAccreditationTaskTest {
                     "R-$ref",
                 )
         }
-        permissions += "rita" to AccreditationPermission.READ
+        permissions += "rita" to AccreditationPermission.TASK_LIST
         val seen = ArrayList<String>()
         var after: TaskCursorKey? = null
         val sizes = ArrayList<Int>()
@@ -343,5 +347,19 @@ class OpenAccreditationTaskTest {
         listOf(0, 501, -1).forEach { limit ->
             runCatching { queries.list("nobody", null, null, limit) }.isFailure shouldBe true
         }
+    }
+
+    @Test
+    fun `list needs accreditation-task list, get needs accreditation-task view, the record key opens neither`() {
+        store["TASK-X"] = AccreditationTask("TASK-X", TaskStatus.OPEN, TaskReason.REASSESSMENT_NEEDED, clock.instant(), "A", "R")
+        permissions += "carl" to AccreditationPermission.RECORD
+        queries.list("carl", null, null, 10) shouldBe TaskRead.Denied
+        queries.get("carl", "TASK-X") shouldBe TaskRead.Denied
+        permissions += "lena" to "accreditation-task.list"
+        queries.list("lena", null, null, 10).shouldBeInstanceOf<TaskRead.Found<*>>()
+        queries.get("lena", "TASK-X") shouldBe TaskRead.Denied
+        permissions += "vic" to "accreditation-task.view"
+        queries.get("vic", "TASK-X").shouldBeInstanceOf<TaskRead.Found<*>>()
+        queries.list("vic", null, null, 10) shouldBe TaskRead.Denied
     }
 }

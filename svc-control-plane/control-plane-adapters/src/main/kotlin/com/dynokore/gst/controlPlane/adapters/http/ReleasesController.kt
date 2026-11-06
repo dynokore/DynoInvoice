@@ -208,6 +208,7 @@ class ReleasesController(
         limit: Int,
     ): ResponseEntity<AccreditationTaskPage> {
         val caller = caller()
+        val key = cursors.key() // before any query and before a cursor is parsed (INV-Q-15432 A)
         val filter =
             status?.let { name -> TaskStatus.entries.firstOrNull { it.name == name } }
                 ?: if (status ==
@@ -221,7 +222,7 @@ class ReleasesController(
             problem(ClosedErrorCode.CONTRACT_VIOLATION, caller.correlationId, "limit is 1 to 500")
         }
         val after =
-            cursor?.let { cursors.decode(it, caller.actor, status) }
+            cursor?.let { cursors.decode(key, it, caller.actor, status) }
                 ?: if (cursor ==
                     null
                 ) {
@@ -239,7 +240,7 @@ class ReleasesController(
             AccreditationTaskPage(
                 page.items.map(::taskOf),
                 page.items.lastOrNull()?.takeIf { page.more }?.let {
-                    cursors.encode(TaskCursorKey(it.openedAt, it.taskRef), caller.actor, status)
+                    cursors.encode(key, TaskCursorKey(it.openedAt, it.taskRef), caller.actor, status)
                 },
             ),
         )
@@ -292,12 +293,15 @@ class ReleasesController(
                 problem(ClosedErrorCode.NOT_FOUND, correlationId)
             }
 
-            // GAP (MR): the contract names 409 and no catalogue code; SRT-008 is the closest closed 409
+            // CPL-007 (INV-Q-15428 A, INV-Q-15478 A): a different conclusion on a CONCLUDED task
             Refusal.TASK_ALREADY_CONCLUDED -> {
-                problem(
-                    ClosedErrorCode.STALE_AGGREGATE,
-                    correlationId,
-                    "already concluded",
+                throw ProblemException(
+                    GateRunProblems.render(
+                        GateRunProblems.CONCLUSION_DIFFERS,
+                        "/conclusion",
+                        "the task is already concluded with another conclusion",
+                        correlationId,
+                    ),
                 )
             }
 

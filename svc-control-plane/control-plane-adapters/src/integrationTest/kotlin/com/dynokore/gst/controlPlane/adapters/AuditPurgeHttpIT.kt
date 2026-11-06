@@ -215,7 +215,7 @@ class AuditPurgeHttpIT {
                 clock,
                 { _, _ -> },
             ),
-            TaskCursor(ByteArray(32)),
+            TaskCursor { ByteArray(32) },
         )
     }
 

@@ -83,7 +83,7 @@ class AccreditationTaskQueries(
         limit: Int,
     ): TaskRead<TaskPage> {
         require(limit in 1..MAX_LIMIT) { "limit is 1 to $MAX_LIMIT" }
-        if (!permissions.holds(actor, AccreditationPermission.READ)) return TaskRead.Denied
+        if (!permissions.holds(actor, AccreditationPermission.TASK_LIST)) return TaskRead.Denied
         val rows = transactions.inTransaction { tasks.page(status, after, limit + 1) }
         return TaskRead.Found(TaskPage(rows.take(limit), rows.size > limit))
     }
@@ -93,7 +93,7 @@ class AccreditationTaskQueries(
         taskRef: String,
     ): TaskRead<AccreditationTask> =
         when {
-            !permissions.holds(actor, AccreditationPermission.READ) -> TaskRead.Denied
+            !permissions.holds(actor, AccreditationPermission.TASK_VIEW) -> TaskRead.Denied
             else -> transactions.inTransaction { tasks.find(taskRef) }?.let { TaskRead.Found(it) } ?: TaskRead.Missing
         }
 

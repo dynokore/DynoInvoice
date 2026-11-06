@@ -24,11 +24,14 @@ object AccreditationPermission {
     /** recordAccreditation. */
     const val RECORD = "accreditation.record"
 
-    /**
-     * getAccreditation. The key of the read is named by the control-plane slice of the `x-operation` sweep of
-     * INV-Q-10111 (A); until then the read asks the record key.
-     */
+    /** getAccreditation: the record key (INV-T-7322). */
     const val READ = RECORD
+
+    /** listAccreditationTasks (INV-Q-15430 A). */
+    const val TASK_LIST = "accreditation-task.list"
+
+    /** getAccreditationTask (INV-Q-15430 A). */
+    const val TASK_VIEW = "accreditation-task.view"
 
     /** concludeAccreditationTask (INV-Q-10127 A): decided per request, never by a role name. */
     const val CONCLUDE = "accreditation.conclude"

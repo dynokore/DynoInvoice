@@ -2,6 +2,7 @@ package com.dynokore.gst.controlPlane.adapters
 
 import com.dynokore.gst.controlPlane.adapters.events.AccreditationAlertsOutbox
 import com.dynokore.gst.controlPlane.adapters.events.ControlPlaneEventCatalogue
+import com.dynokore.gst.controlPlane.adapters.http.ProblemAdvice
 import com.dynokore.gst.controlPlane.adapters.http.ProblemException
 import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
 import com.dynokore.gst.controlPlane.adapters.http.TaskCursor
@@ -65,7 +66,12 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
+import io.kotest.matchers.ints.shouldBeInRange
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import jakarta.servlet.http.HttpServletRequest
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
@@ -264,8 +270,13 @@ class AccreditationTaskIT {
         val version = "2026." + UUID.randomUUID().toString().take(6)
         release(version, false)
         afterRelease(version, false)
-        taskRows(version).single()[2] shouldBe "ACCREDITATION_LAPSED"
-        trainOf(version).accreditation.assessmentNeeded shouldBe true
+        val task = taskRows(version).single()
+        task[2] shouldBe "ACCREDITATION_LAPSED"
+        // the field holds the request's declaration, never whether a task was opened (INV-Q-15454 A)
+        val check = trainOf(version).accreditation
+        check.assessmentNeeded shouldBe false
+        check.taskRef shouldBe task[0]
+        check.alertRef shouldNotBe null
     }
 
     @Test
@@ -370,7 +381,8 @@ class AccreditationTaskIT {
     // --- the operations as the operator calls them: the controller over the real tables
     private val held = mutableSetOf<String>()
     private val grants = OperatorPermissions { actor, key -> actor == "rita" && (key in held) }
-    private val cursorKey = TaskCursor(ByteArray(32) { 5 })
+    private var keyFile: ByteArray? = ByteArray(32) { 5 }
+    private val cursorKey = TaskCursor { checkNotNull(keyFile) { "no cursor key file" } }
     private val publishAsRita = PublishTrain(trains, grants, { certified }, clock)
 
     private inline fun <reified T : Any> unused(): T =
@@ -459,13 +471,16 @@ class AccreditationTaskIT {
         refusal(HTTP_FORBIDDEN) { conclude("reviewed") } // no key held: nothing stored
         taskRows(version).single()[1] shouldBe "OPEN"
         held += AccreditationPermission.CONCLUDE
-        held += AccreditationPermission.READ
+        held += AccreditationPermission.TASK_VIEW
         val done = conclude("reviewed").body!!
         done.status shouldBe AccreditationTask.Status.CONCLUDED
         done.conclusion shouldBe "reviewed"
         done.concludedAt!!.toInstant() shouldBe clock.instant()
         conclude("reviewed").body shouldBe done
-        refusal(HTTP_CONFLICT) { conclude("another") }
+        val conflict = shouldThrow<ProblemException> { conclude("another") }.problem
+        conflict.status shouldBe HTTP_CONFLICT
+        conflict.body shouldContain "\"code\":\"CPL-007\""
+        conflict.body shouldNotContain "SRT-008"
         controller().getAccreditationTask(ref).body!!.conclusion shouldBe "reviewed"
     }
 
@@ -481,7 +496,7 @@ class AccreditationTaskIT {
             )
         }
         asOperator()
-        held += AccreditationPermission.READ
+        held += AccreditationPermission.TASK_LIST
         val seen = ArrayList<String>()
         val sizes = ArrayList<Int>()
         val cursors = ArrayList<String?>()
@@ -505,6 +520,67 @@ class AccreditationTaskIT {
         refusal(HTTP_BAD_REQUEST) { controller().listAccreditationTasks("OPEN", cursors.first(), 50) } // another filter
         held.clear()
         refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
+        held += AccreditationPermission.RECORD // the record key does not open the list or the get
+        refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
+        refusal(HTTP_FORBIDDEN) { controller().getAccreditationTask("T-001") }
+        held.clear()
+        held += AccreditationPermission.TASK_LIST // the list key does not open the get
+        refusal(HTTP_FORBIDDEN) { controller().getAccreditationTask("T-001") }
+        held.clear()
+        held += AccreditationPermission.TASK_VIEW
+        controller().getAccreditationTask("T-001").body!!.taskRef shouldBe "T-001"
+        refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
+    }
+
+    private fun seedTasks(count: Int) {
+        admin("truncate controlplane.accreditation_task")
+        repeat(count) {
+            val ref = "K-" + it.toString().padStart(3, '0')
+            admin(
+                "insert into controlplane.accreditation_task(task_ref, status, reason, opened_at, alert_ref, " +
+                    "release_ref) values ('$ref', 'OPEN', 'REASSESSMENT_NEEDED', now(), 'A-$ref', 'R-$ref')",
+            )
+        }
+    }
+
+    /** The list as the advice answers it: a status in 500..599 and a problem body with no items and no cursor. */
+    private fun serverError(cursor: String?) {
+        val failure = shouldThrow<IllegalStateException> { controller().listAccreditationTasks(null, cursor, 50) }
+        val answer = ProblemAdvice().unexpected(failure)
+        answer.statusCode.value() shouldBeInRange 500..599
+        answer.body.shouldNotBeNull() shouldNotContain "items"
+        answer.body.shouldNotBeNull() shouldNotContain "nextCursor"
+    }
+
+    @Test
+    fun `with no cursor key file the list answers 500 for a result of one page and for one of several`() {
+        asOperator()
+        held += AccreditationPermission.TASK_LIST
+        val keyed = ByteArray(32) { 5 }
+        seedTasks(3)
+        keyFile = null
+        try {
+            serverError(null) // one page
+            seedTasks(120)
+            serverError(null) // several pages
+            serverError("x.y") // with a cursor, parsed only after the key is read
+            keyFile = ByteArray(31) // a value shorter than 32 bytes is the same
+            serverError(null)
+        } finally {
+            keyFile = keyed
+        }
+        controller().listAccreditationTasks(null, null, 50).body!!.nextCursor shouldNotBe null
+    }
+
+    @Test
+    fun `a cursor signed with the old key file value gives 400 once the file holds another value`() {
+        asOperator()
+        held += AccreditationPermission.TASK_LIST
+        seedTasks(120)
+        val cursor = controller().listAccreditationTasks(null, null, 50).body!!.nextCursor!!
+        controller().listAccreditationTasks(null, cursor, 50).body!!.items.size shouldBe 50
+        keyFile = ByteArray(32) { 9 }
+        refusal(HTTP_BAD_REQUEST) { controller().listAccreditationTasks(null, cursor, 50) }
     }
 
     private companion object {

@@ -3,7 +3,6 @@ package com.dynokore.gst.controlPlane.application.release
 import com.dynokore.gst.controlPlane.application.pack.Refusal
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
-import com.dynokore.gst.controlPlane.domain.release.AccreditationCheck
 import com.dynokore.gst.controlPlane.domain.release.Gate
 import com.dynokore.gst.controlPlane.domain.release.GateOutcome
 import com.dynokore.gst.controlPlane.domain.release.GateRunRecord
@@ -82,7 +81,6 @@ class RecordedTrainEvidenceTest {
             },
             { _, key -> key == ReleasePermission.PUBLISH },
             source,
-            { AccreditationCheck(false, null, null) },
             clock,
         )
 

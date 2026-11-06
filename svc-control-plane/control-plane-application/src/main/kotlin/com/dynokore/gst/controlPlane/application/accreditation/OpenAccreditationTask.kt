@@ -97,12 +97,13 @@ class OpenAccreditationTask(
         val latest = ports.records.latest()
         val status = AccreditationStatus.of(latest, LocalDate.now(clock.withZone(ZoneOffset.UTC)))
         val reason = TaskReason.of(status.currency, assessmentRequested)
-        return reason?.let { openTask(target, it, latest?.currentUntil, request) } ?: stored
+        return reason?.let { openTask(target, it, assessmentRequested, latest?.currentUntil, request) } ?: stored
     }
 
     private fun openTask(
         target: ReleaseTarget,
         reason: TaskReason,
+        assessmentRequested: Boolean,
         currentUntil: LocalDate?,
         request: RequestContext,
     ): AccreditationCheck {
@@ -116,6 +117,6 @@ class OpenAccreditationTask(
                         request,
                     )
                 }
-        return AccreditationCheck(true, task.alertRef, task.taskRef).also { ports.links.link(target, it) }
+        return AccreditationCheck(assessmentRequested, task.alertRef, task.taskRef).also { ports.links.link(target, it) }
     }
 }

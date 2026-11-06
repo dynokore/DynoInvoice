@@ -14,12 +14,13 @@ import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditation
 import com.dynokore.gst.controlPlane.application.accreditation.ReleaseAccreditationLinks
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.binding.SecretRef
+import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import java.security.SecureRandom
 import java.time.Clock
 
 /** The re-accreditation tasks and the alert of the release pipeline (INV-REQ-1365, INV-T-7323). */
@@ -68,11 +69,16 @@ class AccreditationTaskConfiguration {
         clock: Clock,
     ) = ConcludeAccreditationTask(tasks, permissions, clock)
 
-    /** A key generated at start: a cursor does not outlive its process (see the MR gap on a shared cursor key). */
+    /**
+     * The cursor key is read through the SecretStore at every list call and never cached (INV-Q-15432 A, STK-29), so
+     * a cursor survives a restart and is the same on every replica; the deployment provisions the secret.
+     */
     @Bean
-    fun taskCursor() = TaskCursor(ByteArray(CURSOR_KEY_BYTES).also { SecureRandom().nextBytes(it) })
+    fun taskCursor(secrets: SecretStore) =
+        TaskCursor { secrets.read(SecretRef(CURSOR_KEY_REF)).reveal().toByteArray(Charsets.UTF_8) }
 
-    private companion object {
-        const val CURSOR_KEY_BYTES = 32
+    companion object {
+        /** The SecretStore ref of the HMAC-SHA256 key of the listAccreditationTasks cursor. */
+        const val CURSOR_KEY_REF = "controlplane/accreditation-task-cursor-key"
     }
 }
