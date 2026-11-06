@@ -3730,6 +3730,9 @@ components:
           failedScenarios:
             type: array
             minItems: 1
+            items:
+              type: string
+              maxLength: 128
       - required:
         - outcome
         properties:
@@ -3777,6 +3780,9 @@ components:
           failedScenarios:
             type: array
             minItems: 1
+            items:
+              type: string
+              maxLength: 128
       else:
         not:
           required:
