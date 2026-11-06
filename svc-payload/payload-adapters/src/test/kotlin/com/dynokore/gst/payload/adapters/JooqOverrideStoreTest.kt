@@ -189,7 +189,7 @@ class JooqOverrideStoreTest {
         ) shouldBe false
     }
 
-    /** Applies [sql] under the probe table name in a rolled-back transaction and runs the CS-19 rule of TenantTablesTest. */
+    /** Applies [sql] as `probe_override` in a rolled-back transaction, then runs the CS-19 rule of TenantTablesTest. */
     private fun probeFindings(sql: String): List<String> =
         PayloadDb.superuser().use { c ->
             c.autoCommit = false
