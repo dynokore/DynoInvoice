@@ -124,12 +124,15 @@ class JobRuntimeIT {
     }
 
     @Test
-    fun `INV-AC-2663 the runtime holds exactly the jobs idempotency-key-purge and pack-stage, pack-stage as ruled`(
+    fun `INV-AC-2663 the runtime holds exactly the jobs idempotency-key-purge, pack-stage and accreditation-step-retry`(
         @TempDir mount: Path,
     ) {
         withRuntime(mount) { runtime ->
             runtime.registered().map { it.name }.sorted() shouldContainExactly
-                listOf("idempotency-key-purge", "pack-stage")
+                listOf("accreditation-step-retry", "idempotency-key-purge", "pack-stage")
+            val retry = runtime.registered().single { it.name == AccreditationStepRetryJob.NAME }
+            retry.entityScope shouldBe JobEntityScope.PLATFORM
+            retry.schedule shouldBe JobSchedule("0 * * * * *")
             val stage = runtime.registered().single { it.name == PackStageJob.NAME }
             stage.ownerService shouldBe "control-plane-svc"
             stage.entityScope shouldBe JobEntityScope.PLATFORM
@@ -147,6 +150,17 @@ class JobRuntimeIT {
             runtime.fire(PackStageJob.NAME)
             runStatuses(PackStageJob.NAME) shouldContainExactly listOf("SUCCEEDED")
             outboxTypes(PackStageJob.NAME).count { it == PlatformEventCatalogue.JOB_RUN_RECORDED.eventType } shouldBe 1
+        }
+    }
+
+    @Test
+    fun `firing accreditation-step-retry with nothing pending stores one SUCCEEDED run`(
+        @TempDir mount: Path,
+    ) {
+        withRuntime(mount) { runtime ->
+            runtime.announce()
+            runtime.fire(AccreditationStepRetryJob.NAME)
+            runStatuses(AccreditationStepRetryJob.NAME) shouldContainExactly listOf("SUCCEEDED")
         }
     }
 }
