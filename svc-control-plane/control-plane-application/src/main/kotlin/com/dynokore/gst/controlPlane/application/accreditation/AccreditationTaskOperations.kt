@@ -75,6 +75,9 @@ class AccreditationTaskQueries(
     private val permissions: OperatorPermissions,
     private val transactions: TransactionRunner,
 ) {
+    /** True when [actor] may list; the caller checks this before it reads or validates any input (ASVS V4). */
+    fun mayList(actor: String): Boolean = permissions.holds(actor, AccreditationPermission.TASK_LIST)
+
     /** [limit] is 1 to [MAX_LIMIT]; the caller refuses anything else with 400. */
     fun list(
         actor: String,

@@ -208,6 +208,10 @@ class ReleasesController(
         limit: Int,
     ): ResponseEntity<AccreditationTaskPage> {
         val caller = caller()
+        // Access control first: a denial is 403 with no key read and no input parsed (ASVS V4).
+        if (!platform.bindPlatform(caller.actor) { taskQueries.mayList(caller.actor) }) {
+            problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
+        }
         val key = cursors.key() // before any query and before a cursor is parsed (INV-Q-15432 A)
         val filter =
             status?.let { name -> TaskStatus.entries.firstOrNull { it.name == name } }

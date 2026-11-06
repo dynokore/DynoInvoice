@@ -544,6 +544,21 @@ class AccreditationTaskIT {
         refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
     }
 
+    @Test
+    fun `a caller without the list key gets 403 before the key file, limit, status or cursor is read`() {
+        asOperator()
+        held.clear()
+        val keyed = keyFile
+        keyFile = null // an unreadable key would be a 500 if it were read first
+        try {
+            refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, null, 50) }
+            refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks("NOPE", "x.y", 0) }
+            refusal(HTTP_FORBIDDEN) { controller().listAccreditationTasks(null, "garbage", 501) }
+        } finally {
+            keyFile = keyed
+        }
+    }
+
     private fun seedTasks(count: Int) {
         admin("truncate controlplane.accreditation_task")
         repeat(count) {
