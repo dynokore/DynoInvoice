@@ -3,7 +3,6 @@ package com.dynokore.gst.payload.bootstrap
 import com.dynokore.gst.payload.adapters.PayloadDb
 import com.dynokore.gst.payload.adapters.http.ValidationOverrideController
 import com.dynokore.gst.payload.contract.api.ValidationApi
-import com.dynokore.gst.payloadprobe.SecondValidationController
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
@@ -23,6 +22,7 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
+import org.springframework.web.bind.annotation.RestController
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.time.Clock
@@ -38,6 +38,13 @@ open class ValidationOverrideControllerX : ValidationApi
  * answer through the controller, and a caller is served only for a replica decision LOCAL or FALLBACK.
  */
 class OverrideWiringTest {
+    /**
+     * The probe of INV-Q-17264 A: a second `@RestController` implementing `ValidationApi`. An inner class is not an
+     * independent class, so the component scan of the application never sees it; only the test that registers it does.
+     */
+    @RestController
+    open inner class SecondValidationController : ValidationApi
+
     private val tenant = EndUserDoubles.tenantA
     private val bff = "console-bff"
 
@@ -290,7 +297,7 @@ class OverrideWiringTest {
                     withService(
                         localReplica(),
                         stub,
-                        configure = { it.withBean(SecondValidationController::class.java) },
+                        configure = { it.withBean(SecondValidationController::class.java, { SecondValidationController() }) },
                     ) { service ->
                         checkNotNull(service.context).getBeansOfType(ValidationApi::class.java).size
                     }
