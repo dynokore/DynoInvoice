@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [10.36.1] - 2026-11-06
+### Changed
+- Metadata-only change (INV-T-17086, G-DVS): depends on `outbox-and-queue 6.17.0`, whose version steps; no production code change.
+
 ## [10.36.0] - 2026-11-06
 ### Added
 - `MasterdataErrorCode.COUNTERPARTY_GSTN_CONFLICT` (MDM-007, 409, owner Finance, severity WARN) and `MasterdataErrorCode.severity`; `Problems.renderMasterdata` writes the entry's severity (MDM-005 stays BLOCK; every other renderer keeps BLOCK) (INV-T-16975, INV-Q-16979 A, INV-AC-16982, INV-REQ-1290).

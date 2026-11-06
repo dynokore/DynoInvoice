@@ -214,7 +214,9 @@ class AuthorityStartUpIT {
             version: Long,
         ) = context
             .getBean(AuthorityHeadFeed::class.java)
-            .handle(envelope(ProductEventTypes.AUTHORITY_HEAD_OBSERVED, """{"authorityVersion":$version}"""))
+            .handle(
+                envelope(PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.eventType, """{"authorityVersion":$version}"""),
+            )
 
         fun read(): DecisionSource =
             replica

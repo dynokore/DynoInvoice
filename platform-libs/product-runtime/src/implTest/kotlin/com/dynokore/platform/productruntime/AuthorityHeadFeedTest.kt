@@ -17,15 +17,15 @@ import org.junit.jupiter.api.assertThrows
 class AuthorityHeadFeedTest {
     private val replica = AuthorityReplica(CLOCK)
     private val feed = AuthorityHeadFeed(replica)
-    private val head = ProductEventTypes.AUTHORITY_HEAD_OBSERVED
+    private val head = PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.eventType
 
     @Test
-    fun `the type is the access heartbeat type`() {
-        head shouldBe "com.dynokore.gst.access.AuthorityHeadObserved.v1"
+    fun `INV-AC-17082 the type is the platform heartbeat type`() {
+        head shouldBe "com.dynokore.gst.platform.AuthorityHeadObserved.v1"
     }
 
     @Test
-    fun `a heartbeat moves the head the tracker measures its lag against`() {
+    fun `INV-AC-17082 a heartbeat moves the head the tracker measures its lag against`() {
         replica.tracker.onSnapshotComplete(3)
         feed.handle(envelope(head, """{"authorityVersion":9,"observedAt":"2026-10-12T02:00:00Z"}""")) shouldBe
             HandleOutcome.APPLIED
@@ -35,7 +35,7 @@ class AuthorityHeadFeedTest {
     }
 
     @Test
-    fun `a payload without authorityVersion or with a value below 1 is a ContractViolation`() {
+    fun `INV-AC-17082 a payload without authorityVersion or with a value below 1 is a ContractViolation`() {
         listOf(
             """{}""",
             """{"observedAt":"2026-10-12T02:00:00Z"}""",
@@ -46,12 +46,13 @@ class AuthorityHeadFeedTest {
     }
 
     @Test
-    fun `an event of another type is a ContractViolation, an AuthorityChanged included`() {
+    fun `INV-AC-17082 an event of another type is a ContractViolation, an AuthorityChanged included`() {
         val grants = """{"authorityVersion":5,"principalRef":"P-1","changeKind":"GRANT"}"""
         listOf(
             PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
+            "com.dynokore.gst.access.AuthorityHeadObserved.v1",
             "com.dynokore.gst.access.AuthorityHeadObserved.v2",
-            "com.dynokore.gst.platform.AuthorityHeadObserved.v1",
+            "com.dynokore.gst.platform.AuthorityHeadObserve.v1",
         ).forEach { type ->
             assertThrows<ContractViolation>(type) { feed.handle(envelope(type, grants)) }
                 .message shouldContain "takes no"

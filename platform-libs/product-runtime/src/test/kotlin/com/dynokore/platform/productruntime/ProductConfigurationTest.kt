@@ -27,6 +27,7 @@ class ProductConfigurationTest {
             "BreakGlassSessionChanged",
             "BreakGlassActionReported",
             "TenantWideArchiveVolumeMeasured",
+            "AuthorityHeadObserved",
         )
 
     @Test
@@ -63,7 +64,7 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.topic shouldBe "gst.platform.break-glass-action-reported.v1"
         PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.eventType shouldBe
             "com.dynokore.gst.platform.BreakGlassActionReported.v1"
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED
     }
 
     @Test
@@ -81,7 +82,7 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED
+        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED
         PlatformEventCatalogue.AUTHORITY_CHANGED.topic shouldBe "gst.platform.authority-changed.v1"
         PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true
@@ -140,6 +141,17 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.OperatorSessionKeysChanged.v1") shouldBe true
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.access.OperatorSessionKeysChanged.v1") shouldBe false
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.OperatorSessionKeyChanged.v1") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-17082 the catalogue holds AuthorityHeadObserved with its topic and type (INV-Q-17070)`() {
+        PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.topic shouldBe "gst.platform.authority-head-observed.v1"
+        PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.eventType shouldBe
+            "com.dynokore.gst.platform.AuthorityHeadObserved.v1"
+        PlatformEventCatalogue.ALL.contains(PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED) shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityHeadObserved.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.access.AuthorityHeadObserved.v1") shouldBe false
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityHeadObserve.v1") shouldBe false
     }
 
     @Test

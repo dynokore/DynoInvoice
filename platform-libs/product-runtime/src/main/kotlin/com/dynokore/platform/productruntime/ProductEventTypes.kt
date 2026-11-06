@@ -11,6 +11,10 @@ object ProductEventTypes {
     )
     const val AUTHORITY_CHANGED = "com.dynokore.gst.access.AuthorityChanged.v1"
 
+    @Deprecated(
+        "nobody publishes the access type; use PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.eventType (INV-Q-17070)",
+        level = DeprecationLevel.ERROR,
+    )
     const val AUTHORITY_HEAD_OBSERVED = "com.dynokore.gst.access.AuthorityHeadObserved.v1"
 
     const val ORGANISATION_STRUCTURE_CHANGED_TOPIC = "gst.tenancy.organisation-structure-changed.v1"

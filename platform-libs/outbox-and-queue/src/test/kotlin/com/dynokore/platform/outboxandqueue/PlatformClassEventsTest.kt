@@ -34,6 +34,7 @@ class PlatformClassEventsTest {
             "BreakGlassSessionChanged",
             "BreakGlassActionReported",
             "TenantWideArchiveVolumeMeasured",
+            "AuthorityHeadObserved",
         )
     private val refused =
         listOf(
@@ -67,6 +68,8 @@ class PlatformClassEventsTest {
             "com.dynokore.gst.platform.tenantWideArchiveVolumeMeasured.v1",
             "com.dynokore.gst.platform.ArchiveVolumeMeasured.v1",
             "com.dynokore.gst.evidence.ArchiveVolumeMeasured.v1",
+            "com.dynokore.gst.access.AuthorityHeadObserved.v1",
+            "com.dynokore.gst.platform.AuthorityHeadObserve.v1",
         )
 
     private fun envelope(
@@ -305,6 +308,38 @@ class PlatformClassEventsTest {
         listOf(
             "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
             "com.dynokore.gst.platform.OperatorSessionKeyChanged.v1",
+        ).forEach {
+            assertThrows(
+                IllegalArgumentException::class.java,
+                { envelope(it, TenantId.PLATFORM, EntityRef.PLATFORM) },
+                it,
+            )
+        }
+    }
+
+    @Test
+    fun `INV-AC-17082 name set holds AuthorityHeadObserved and not the look-alike`() {
+        assertTrue(Envelope.isPlatformType("com.dynokore.gst.platform.AuthorityHeadObserved.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.AuthorityHeadObserve.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.authorityHeadObserved.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.AuthorityHeadObservedX.v1"))
+    }
+
+    @Test
+    fun `INV-AC-17082 AuthorityHeadObserved under the platform tenant is built and reads back platform pair`() {
+        val e = envelope("com.dynokore.gst.platform.AuthorityHeadObserved.v1", TenantId.PLATFORM, EntityRef.PLATFORM)
+        val text = json.write(e)
+        assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+        val back = json.read(text)
+        assertEquals(TenantId.PLATFORM, back.tenant)
+        assertEquals(EntityRef.PLATFORM, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-17082 AuthorityHeadObserved access type and look-alike are refused under platform tenant`() {
+        listOf(
+            "com.dynokore.gst.access.AuthorityHeadObserved.v1",
+            "com.dynokore.gst.platform.AuthorityHeadObserve.v1",
         ).forEach {
             assertThrows(
                 IllegalArgumentException::class.java,

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.17.0] - 2026-11-06
+### Added
+- `AuthorityHeadObserved` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds twenty platform events; `com.dynokore.gst.access.AuthorityHeadObserved.v1` stays a domain type refused under the platform tenant (INV-Q-17070 B, INV-REQ-1226, INV-AC-17082, INV-T-17086).
+
 ## [6.16.0] - 2026-11-05
 ### Added
 - `InstallationStatusChanged` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds nineteen platform events; `com.dynokore.gst.tenancy.InstallationStatusChanged.v1` stays a domain type refused under the platform tenant (INV-Q-14289 A, INV-REQ-1226, INV-AC-14296, INV-T-14300).

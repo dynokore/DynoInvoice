@@ -5,11 +5,11 @@ import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
-import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 
 /**
- * Feeds the `AuthorityHeadObserved` heartbeat of access-svc into the authority replica's lag tracker (INV-REQ-1201,
+ * Feeds the `AuthorityHeadObserved` heartbeat of access-svc (a platform event, INV-Q-17070) into the authority replica's lag tracker (INV-REQ-1201,
  * INV-Q-9047 A): the head it reports is the highest committed authority version, so a replica at that version has
  * applied every change. The payload is the generated access type (INV-Q-13597 A). A payload without a version, or with
  * one below 1, and an event of another type are a [ContractViolation] (ARC 4.2 step 5).
@@ -24,7 +24,7 @@ class AuthorityHeadFeed(
 
     /** The authority version [event] reports; throws [ContractViolation] when it does not meet the contract. */
     fun decode(event: Envelope): Long {
-        if (event.type != ProductEventTypes.AUTHORITY_HEAD_OBSERVED) {
+        if (event.type != PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.eventType) {
             throw ContractViolation("the authority head feed takes no ${event.type}")
         }
         val payload = ContractJson.read(event.dataJson, AuthorityHeadObservedPayload::class.java)
