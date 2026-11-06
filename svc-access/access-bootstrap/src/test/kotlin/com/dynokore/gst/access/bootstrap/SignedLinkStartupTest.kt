@@ -66,8 +66,10 @@ class SignedLinkStartupTest {
         request.addHeader("Idempotency-Key", UUID.randomUUID().toString())
         val today = LocalDate.now(ZoneId.of("Asia/Singapore"))
         request.setContent(
-            """{"scopeLevel":"INSTALLATION","selected":[{"option":"SMS_ONLY"}],"effectiveDate":"$today","reason":"sms"}"""
-                .toByteArray(),
+            (
+                """{"scopeLevel":"INSTALLATION","selected":[{"option":"SMS_ONLY"}],""" +
+                    """"effectiveDate":"$today","reason":"sms"}"""
+            ).toByteArray(),
         )
         val response = MockHttpServletResponse()
         val servlet =

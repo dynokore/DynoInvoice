@@ -62,7 +62,12 @@ class SignatoryActionTest {
                 context
                     .getBean(StructureReplica::class.java)
                     .accept(
-                        OrganisationStructureChanged(tenant, client, StructureChange.CREATED, BoundaryFixture.entityNode()),
+                        OrganisationStructureChanged(
+                            tenant,
+                            client,
+                            StructureChange.CREATED,
+                            BoundaryFixture.entityNode(),
+                        ),
                     )
                 Seeds.grant(
                     context,
@@ -99,14 +104,16 @@ class SignatoryActionTest {
 
         fun consentStatus(ref: String): String =
             BoundaryFixture.asSuperuser { c ->
-                c.prepareStatement("select status from access.consent where tenant_id = ? and consent_ref = ?").use { s ->
-                    s.setObject(1, UUID.fromString(tenant.toString()))
-                    s.setString(2, ref)
-                    s.executeQuery().use {
-                        check(it.next()) { "no consent $ref" }
-                        it.getString(1)
+                c
+                    .prepareStatement("select status from access.consent where tenant_id = ? and consent_ref = ?")
+                    .use { s ->
+                        s.setObject(1, UUID.fromString(tenant.toString()))
+                        s.setString(2, ref)
+                        s.executeQuery().use {
+                            check(it.next()) { "no consent $ref" }
+                            it.getString(1)
+                        }
                     }
-                }
             }
 
         fun link(
@@ -115,16 +122,23 @@ class SignatoryActionTest {
             verified: Boolean = true,
             status: String = "ACTIVE",
             expiresAt: Instant = Instant.now().plusSeconds(3600),
-            alertEntity: String = client ?: "CLI-A",
         ): String {
-            val ref = "LNK-" + UUID.randomUUID().toString().replace("-", "").take(22)
+            val alertEntity = client ?: "CLI-A"
+            val ref =
+                "LNK-" +
+                    UUID
+                        .randomUUID()
+                        .toString()
+                        .replace("-", "")
+                        .take(22)
             BoundaryFixture.asSuperuser { c ->
                 c
                     .prepareStatement(
                         "insert into access.signed_link (id, tenant_id, link_ref, purpose, client_ref, consent_ref, " +
                             "alert_entity, recipient_email, expires_at, passcode_digest, status, wrong_entries, " +
-                            "verified_at, invalidated_at, source, source_event_id, created_at, created_by, updated_at, " +
-                            "updated_by, version) values (?, ?, ?, 'CONFIRM_FILING', ?, ?, ?, 'signatory@client.example', " +
+                            "verified_at, invalidated_at, source, source_event_id, created_at, created_by, " +
+                            "updated_at, updated_by, version) values (?, ?, ?, 'CONFIRM_FILING', ?, ?, ?, " +
+                            "'signatory@client.example', " +
                             "?, ?, ?, 0, ?, ?, ?, ?, now(), 'test', now(), 'test', 0)",
                     ).use { s ->
                         s.setObject(1, UUID.randomUUID())
@@ -161,7 +175,9 @@ class SignatoryActionTest {
                             "order by recorded_at, id",
                     ).use { s ->
                         s.setObject(1, UUID.fromString(tenant.toString()))
-                        s.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1) to rs.getString(2)) } }
+                        s.executeQuery().use { rs ->
+                            buildList { while (rs.next()) add(rs.getString(1) to rs.getString(2)) }
+                        }
                     }
             }
 
@@ -218,7 +234,9 @@ class SignatoryActionTest {
         run { env ->
             listOf("INVALIDATED", "REVOKED").forEach { state ->
                 val ref = env.link(status = state)
-                assertThatThrownBy { env.act(ref, ack, "2026.3") }.describedAs(state).isInstanceOf(ApiLinkInvalidated::class.java)
+                assertThatThrownBy { env.act(ref, ack, "2026.3") }
+                    .describedAs(state)
+                    .isInstanceOf(ApiLinkInvalidated::class.java)
             }
             assertThat(env.evidence()).isEmpty()
         }
@@ -302,7 +320,7 @@ class SignatoryActionTest {
         }
 
     @Test
-    fun `INV-REQ-899 a link bound to an entity the structure does not know is 403 and a key outside the cells is denied`() =
+    fun `INV-REQ-899 an unknown bound entity is 403 and a key outside the client signatory cells is denied`() =
         run { env ->
             val ghost = env.link(client = "CLI-GHOST", consent = "CNS-GHOST")
             val failure = runCatching { env.act(ghost, ack, "2026.3") }.exceptionOrNull()
@@ -314,6 +332,7 @@ class SignatoryActionTest {
             val links = env.context.getBean(SignedLinks::class.java)
             val tx = env.context.getBean(TransactionRunner::class.java)
             val now = Instant.now()
+
             fun allows(key: Permission) =
                 env.tenants.bind(env.tenant, "link:$ref") {
                     tx.inTransaction { permissions.allows(checkNotNull(links.find(LinkRef(ref))), key, now) }
@@ -332,11 +351,15 @@ class SignatoryActionTest {
             env.act(ref, ack, "2026.4")
             env.act(ref, query, "2026.4", "Question")
             assertThat(env.evidence())
-                .containsExactly("link:$ref" to "ACKNOWLEDGE|CLI-A", "link:$ref" to "ACKNOWLEDGE|CLI-A", "link:$ref" to "QUERY|CLI-A")
+                .containsExactly(
+                    "link:$ref" to "ACKNOWLEDGE|CLI-A",
+                    "link:$ref" to "ACKNOWLEDGE|CLI-A",
+                    "link:$ref" to "QUERY|CLI-A",
+                )
         }
 
     @Test
-    fun `INV-AC-2686 sixty consecutive calls on one verified link are all served, none is 429 and none has Retry-After`() =
+    fun `INV-AC-2686 sixty calls on one verified link are all served, none is 429, none has Retry-After`() =
         run { env ->
             val ref = env.link()
             val mvc: MockMvc = MockMvcBuilders.webAppContextSetup(env.context).build()

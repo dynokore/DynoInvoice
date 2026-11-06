@@ -33,24 +33,36 @@ class PemSealingKeys private constructor(
             val pem =
                 try {
                     read()
-                } catch (e: Exception) {
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") e: Exception,
+                ) {
                     throw SealingKeyUnusable("the secret $SECRET_REF cannot be read", e)
                 }
             return PemSealingKeys(parse(pem))
         }
 
         fun parse(pem: String): SealingKey {
+            val key = publicKeyOf(derOf(pem))
+            if (key.modulus.bitLength() < SealingKey.MIN_BITS) {
+                throw SealingKeyUnusable("$SECRET_REF is shorter than ${SealingKey.MIN_BITS} bits")
+            }
+            return SealingKey(SealingKey.keyIdOf(key), key)
+        }
+
+        private fun derOf(pem: String): ByteArray {
             val text = pem.trim()
             if (!text.startsWith(BEGIN) || !text.endsWith(END)) {
                 throw SealingKeyUnusable("$SECRET_REF is not a PEM SubjectPublicKeyInfo")
             }
             val body = text.removePrefix(BEGIN).removeSuffix(END).filterNot { it.isWhitespace() }
-            val der =
-                try {
-                    Base64.getDecoder().decode(body)
-                } catch (e: IllegalArgumentException) {
-                    throw SealingKeyUnusable("$SECRET_REF is not base64", e)
-                }
+            return try {
+                Base64.getDecoder().decode(body)
+            } catch (e: IllegalArgumentException) {
+                throw SealingKeyUnusable("$SECRET_REF is not base64", e)
+            }
+        }
+
+        private fun publicKeyOf(der: ByteArray): RSAPublicKey {
             val key =
                 try {
                     // the RSA factory accepts RSA keys only: an EC or other key is refused here
@@ -58,11 +70,7 @@ class PemSealingKeys private constructor(
                 } catch (e: java.security.GeneralSecurityException) {
                     throw SealingKeyUnusable("$SECRET_REF is not an RSA public key", e)
                 }
-            if (key !is RSAPublicKey) throw SealingKeyUnusable("$SECRET_REF is not an RSA public key")
-            if (key.modulus.bitLength() < SealingKey.MIN_BITS) {
-                throw SealingKeyUnusable("$SECRET_REF is shorter than ${SealingKey.MIN_BITS} bits")
-            }
-            return SealingKey(SealingKey.keyIdOf(key), key)
+            return key as? RSAPublicKey ?: throw SealingKeyUnusable("$SECRET_REF is not an RSA public key")
         }
     }
 }

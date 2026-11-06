@@ -23,7 +23,8 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The consumer of `SignedLinkRequested` (INV-T-17453; INV-REQ-899, rulings INV-Q-17416 B, INV-Q-17205 A, INV-Q-17207 A):
+ * The consumer of `SignedLinkRequested` (INV-T-17453; INV-REQ-899, rulings INV-Q-17416 B, INV-Q-17205 A,
+ * INV-Q-17207 A):
  * the topic is delivered through the inbox consumer of the real context over a real PostgreSQL. The stored links and
  * the `MessageRequested` rows of the outbox are read back by a superuser.
  */
@@ -106,7 +107,8 @@ class SignedLinkConsumerTest {
                 c
                     .prepareStatement(
                         "select source, source_event_id, alert_entity, client_ref, consent_ref, purpose, " +
-                            "subject_reference, recipient_email, recipient_mobile, passcode_digest from access.signed_link " +
+                            "subject_reference, recipient_email, recipient_mobile, passcode_digest " +
+                            "from access.signed_link " +
                             "where tenant_id = ? order by created_at",
                     ).use { s ->
                         s.setObject(1, UUID.fromString(tenant.toString()))
@@ -167,7 +169,10 @@ class SignedLinkConsumerTest {
             .withInitializer { ctx ->
                 (ctx as org.springframework.context.support.GenericApplicationContext).apply {
                     registerBean(TopicFeed::class.java, java.util.function.Supplier { feed })
-                    registerBean(RebuildRequiredSink::class.java, java.util.function.Supplier { RebuildRequiredSink { } })
+                    registerBean(
+                        RebuildRequiredSink::class.java,
+                        java.util.function.Supplier { RebuildRequiredSink { } },
+                    )
                 }
             }.run { context ->
                 context.startupFailure?.let { throw it }
@@ -194,7 +199,9 @@ class SignedLinkConsumerTest {
             assertThat(link["mobile"]).isEqualTo("+6591234567")
             val messages = env.messages()
             assertThat(messages).hasSize(2)
-            val mapper = tools.jackson.databind.json.JsonMapper()
+            val mapper =
+                tools.jackson.databind.json
+                    .JsonMapper()
             val first = mapper.readTree(messages[0])
             assertThat(first.get("template").asString()).isEqualTo(TEMPLATE_SIGNED_LINK)
             assertThat(first.get("linkReference").asString()).startsWith("LNK-")
@@ -267,6 +274,7 @@ class SignedLinkConsumerTest {
     fun `INV-REQ-899 a second link row with the same source event id is refused by the constraint`() =
         run { env ->
             val id = "evt-" + UUID.randomUUID()
+
             fun insert(ref: String) =
                 BoundaryFixture.asSuperuser { c ->
                     c

@@ -30,7 +30,7 @@ object TestSecrets {
             "access.invitation.code-key-version=$INVITATION_KEY_VERSION",
         )
 
-    /** The delivery key pair of notification-svc, generated once for the run: RSA 3072 (the shortest the service takes). */
+    /** The delivery key pair of notification-svc, generated once for the run: RSA 3072, the shortest accepted. */
     val deliveryKeyPair: java.security.KeyPair by lazy { rsaKeyPair(3072) }
 
     fun rsaKeyPair(bits: Int): java.security.KeyPair =
