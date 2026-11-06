@@ -1,5 +1,6 @@
 package com.dynokore.gst.payload.adapters.http
 
+import com.dynokore.gst.payload.adapters.clients.AccessReleaseDecisions
 import com.dynokore.gst.payload.application.override.ApproveOverride
 import com.dynokore.gst.payload.application.override.OverrideResult
 import com.dynokore.gst.payload.application.override.ReadOverrides
@@ -18,7 +19,9 @@ import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -36,7 +39,8 @@ import java.util.UUID
  * The three override operations of the payload contract (INV-REQ-330, INV-REQ-500, INV-REQ-1293) over the use cases of
  * `payload-application`. The acting user is the `sub` of the verified end-user principal, never a request field. Every
  * refusal is the API-20 envelope: the SRT cases of service-runtime, and PAY-017 for a code that is not an OVERRIDABLE
- * code of the version (INV-AC-1584). A refused release (403 SRT-004) carries the extension member `reasonCode` only
+ * code of the version (INV-AC-1584). The controller is the transaction boundary (ARC-21): each use case runs in one
+ * `TransactionRunner.inTransaction`, so the stored row and the audit entry commit together or not at all. A refused release (403 SRT-004) carries the extension member `reasonCode` only
  * when the use case reports a reason; the 403 of a missing permission carries none (INV-Q-17227, INV-Q-17229).
  */
 @RestController
@@ -44,7 +48,8 @@ open class ValidationOverrideController(
     private val request: RequestOverride,
     private val approve: ApproveOverride,
     private val read: ReadOverrides,
-    private val http: HttpServletRequest,
+    private val transactions: TransactionRunner,
+    private val http: ObjectProvider<HttpServletRequest>,
 ) : ValidationApi {
     override fun overrideValidation(
         docUuid: UUID,
@@ -54,13 +59,15 @@ open class ValidationOverrideController(
         val principal = principalOrNull() ?: return OverrideHttp.problem(ClosedErrorCode.UNAUTHENTICATED)
         return when (
             val result =
-                request.execute(
-                    principal.actor,
-                    docUuid,
-                    version,
-                    overrideValidationRequest.code,
-                    overrideValidationRequest.reason,
-                )
+                transactions.inTransaction {
+                    request.execute(
+                        principal.actor,
+                        docUuid,
+                        version,
+                        overrideValidationRequest.code,
+                        overrideValidationRequest.reason,
+                    )
+                }
         ) {
             is OverrideResult.Released -> created(result.entry)
             is OverrideResult.AwaitsSecond -> accepted(result.entry)
@@ -74,7 +81,8 @@ open class ValidationOverrideController(
         code: String,
     ): ResponseEntity<ValidationOverride> {
         val principal = principalOrNull() ?: return OverrideHttp.problem(ClosedErrorCode.UNAUTHENTICATED)
-        return when (val result = approve.execute(principal.actor, docUuid, version, code)) {
+        val result = transactions.inTransaction { approve.execute(principal.actor, docUuid, version, code) }
+        return when (result) {
             is OverrideResult.Released -> created(result.entry)
             else -> OverrideHttp.refusal(result, docUuid)
         }
@@ -88,23 +96,18 @@ open class ValidationOverrideController(
         cursor: String?,
     ): ResponseEntity<ValidationOverrideList> {
         val principal = principalOrNull() ?: return OverrideHttp.problem(ClosedErrorCode.UNAUTHENTICATED)
-        val after =
-            if (cursor ==
-                null
-            ) {
-                null
-            } else {
-                (decodeCursor(cursor) ?: return problem(ClosedErrorCode.CONTRACT_VIOLATION))
-            }
+        val after = cursor?.let(OverrideHttp::decodeCursor)
+        if (cursor != null && after == null) return OverrideHttp.problem(ClosedErrorCode.CONTRACT_VIOLATION)
         // One more than the page tells whether a next page exists.
-        return when (val result = read.execute(principal.actor, docUuid, version, after, limit + 1)) {
+        val result = transactions.inTransaction { read.execute(principal.actor, docUuid, version, after, limit + 1) }
+        return when (result) {
             is OverrideResult.Listed -> ResponseEntity.ok(OverrideHttp.page(result.entries, limit))
             else -> OverrideHttp.refusal(result, docUuid)
         }
     }
 
     private fun principalOrNull(): EndUserPrincipal? =
-        http.getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
+        http.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
 
     private fun created(entry: StoredOverride): ResponseEntity<ValidationOverride> =
         ResponseEntity.status(HttpStatus.CREATED).body(
@@ -253,6 +256,14 @@ internal object OverrideHttp {
         }.getOrNull()
 
     private const val PAY_017 = "PAY-017"
-    private val REASON_CODES = setOf(ReleaseOutcome.NOT_OVERRIDABLE, "SAME_PERSON_TWICE", "NO_SOLE_OPERATOR_ACK")
+
+    /** The four values of the extension member `reasonCode`, compared by string equality (INV-Q-17227, INV-Q-17335 A). */
+    private val REASON_CODES =
+        setOf(
+            ReleaseOutcome.NOT_OVERRIDABLE,
+            "SAME_PERSON_TWICE",
+            "NO_SOLE_OPERATOR_ACK",
+            AccessReleaseDecisions.ACCESS_DECISION_UNAVAILABLE,
+        )
     private val MAPPER: JsonMapper = JsonMapper.builder().build()
 }

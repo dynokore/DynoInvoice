@@ -22,10 +22,12 @@ import com.dynokore.gst.payload.domain.override.OverrideStatus
 import com.dynokore.gst.payload.domain.override.ReleaseOutcome
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import jakarta.servlet.http.HttpServletRequest
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.support.StaticListableBeanFactory
 import org.springframework.http.ResponseEntity
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
@@ -164,7 +166,7 @@ class ValidationOverrideControllerTest {
     private val findings = Findings()
     private val store = Store()
     private val audit = Audit()
-    private var authority = Authority(setOf("A1", "A2", "A3"))
+    private val authority = Authority(setOf("A1", "A2", "A3"))
     private var decisions = Decisions()
     private var caller: String? = "A1"
 
@@ -182,7 +184,10 @@ class ValidationOverrideControllerTest {
             RequestOverride(versions, authority, findings, decisions, store, audit),
             ApproveOverride(versions, authority, decisions, store, audit),
             ReadOverrides(versions, authority, store),
-            http,
+            object : TransactionRunner {
+                override fun <T> inTransaction(block: () -> T): T = block()
+            },
+            StaticListableBeanFactory(mapOf("request" to http)).getBeanProvider(HttpServletRequest::class.java),
         )
     }
 
@@ -307,7 +312,30 @@ class ValidationOverrideControllerTest {
     }
 
     @Test
-    fun `a Refused result is 403 SRT-004 with reasonCode only for the three known codes, else NOT_OVERRIDABLE`() {
+    fun `Refused ACCESS_DECISION_UNAVAILABLE is 403 SRT-004 with that reasonCode and nothing is stored`() {
+        blocked(d1)
+        decisions = Decisions({ ReleaseOutcome.Denied("ACCESS_DECISION_UNAVAILABLE") })
+        override("A1", d1).problem(403, "SRT-004", "ACCESS_DECISION_UNAVAILABLE")
+        store.rows shouldBe emptyMap()
+        audit.entries shouldBe emptyList()
+    }
+
+    @Test
+    fun `the look-alike ACCESS_DECISION_UNAVAILABLE with a trailing space is NOT_OVERRIDABLE`() {
+        blocked(d1)
+        decisions = Decisions({ ReleaseOutcome.Denied("ACCESS_DECISION_UNAVAILABLE ") })
+        override("A1", d1).problem(403, "SRT-004", "NOT_OVERRIDABLE")
+    }
+
+    @Test
+    fun `the look-alike access_decision_unavailable in lower case is NOT_OVERRIDABLE`() {
+        blocked(d1)
+        decisions = Decisions({ ReleaseOutcome.Denied("access_decision_unavailable") })
+        override("A1", d1).problem(403, "SRT-004", "NOT_OVERRIDABLE")
+    }
+
+    @Test
+    fun `a Refused result is 403 SRT-004 with reasonCode only for the known codes, else NOT_OVERRIDABLE`() {
         blocked(d1)
         val expected =
             mapOf(
@@ -370,6 +398,16 @@ class ValidationOverrideControllerTest {
         approve("A2", d1).problem(403, "SRT-004", "NO_SOLE_OPERATOR_ACK")
         decisions = Decisions({ ReleaseOutcome.AwaitsSecond })
         approve("A2", d1).problem(403, "SRT-004", "NOT_OVERRIDABLE")
+        store.find(d1, 1, "PAY-011")!!.status shouldBe OverrideStatus.PENDING
+    }
+
+    @Test
+    fun `approve with Refused ACCESS_DECISION_UNAVAILABLE is 403 with that reasonCode, the row stays PENDING`() {
+        blocked(d1, total = "1000.01")
+        decisions = Decisions(thresholdSgd = BigDecimal("1000.00"))
+        override("A1", d1).statusCode.value() shouldBe 202
+        decisions = Decisions({ ReleaseOutcome.Denied("ACCESS_DECISION_UNAVAILABLE") })
+        approve("A2", d1).problem(403, "SRT-004", "ACCESS_DECISION_UNAVAILABLE")
         store.find(d1, 1, "PAY-011")!!.status shouldBe OverrideStatus.PENDING
     }
 

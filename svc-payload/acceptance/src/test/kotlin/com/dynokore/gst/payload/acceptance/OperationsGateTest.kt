@@ -3,10 +3,11 @@ package com.dynokore.gst.payload.acceptance
 import com.dynokore.gst.payload.adapters.http.PreIssuanceController
 import com.dynokore.gst.payload.adapters.http.QueriesController
 import com.dynokore.gst.payload.adapters.http.RenditionController
-import com.dynokore.gst.payload.adapters.http.ValidationController
+import com.dynokore.gst.payload.adapters.http.ValidationOverrideController
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -23,7 +24,7 @@ class OperationsGateTest {
         OperationsStubs.stubs(
             listOf(
                 PreIssuanceController::class.java,
-                ValidationController::class.java,
+                ValidationOverrideController::class.java,
                 RenditionController::class.java,
                 QueriesController::class.java,
             ),
@@ -47,8 +48,12 @@ class OperationsGateTest {
     }
 
     @Test
-    fun `every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi)
+    fun `every operation of the real contract is a stub except the three override operations`() {
+        val overridden = setOf("overrideValidation", "approveValidationOverride", "getValidationOverrides")
+        stubs shouldBe OperationsGate.contractOperations(openapi) - overridden
+        stubs shouldContain "validateIssuance"
+        stubs shouldContain "getPayload"
+        overridden.forEach { stubs shouldNotContain it }
     }
 
     @Test

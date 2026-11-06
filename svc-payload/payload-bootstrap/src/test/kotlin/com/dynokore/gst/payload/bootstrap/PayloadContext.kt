@@ -42,6 +42,8 @@ object PayloadContext {
             "service-runtime.idempotency.schema=payload",
             "service-runtime.datasource.credential=db/payload_runtime",
             "gst.bindings.secret-store.mount-root=$mountRoot",
+            // the base URL of access-svc (INV-T-17184): the bean of the override wiring refuses to start without it
+            "payload.access-svc-url=http://localhost:9",
         )
 
     private fun base(mountRoot: Path): ApplicationContextRunner =

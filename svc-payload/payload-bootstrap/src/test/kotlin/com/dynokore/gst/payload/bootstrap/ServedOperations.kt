@@ -12,6 +12,7 @@ import jakarta.servlet.Filter
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.boot.test.context.FilteredClassLoader
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.core.io.ClassPathResource
 import org.springframework.http.MediaType
@@ -181,7 +182,31 @@ class ServedService(
     val tenants: TenantContext,
     val handlers: List<MappedHandler>,
     val classLoader: ClassLoader,
+    val context: org.springframework.context.ApplicationContext? = null,
 ) {
+    /** One request with a body of the caller's choosing; the same filters as [call]. */
+    fun send(
+        method: String,
+        uri: String,
+        workload: String,
+        authorization: String,
+        body: String? = null,
+    ): Answer {
+        val request =
+            MockMvcRequestBuilders
+                .request(
+                    org.springframework.http.HttpMethod
+                        .valueOf(method),
+                    uri,
+                ).header("Idempotency-Key", UUID.randomUUID().toString())
+                .header("X-Workload-Token", workload)
+                .header("Authorization", authorization)
+                .contentType(MediaType.APPLICATION_JSON)
+                .apply { if (body != null) content(body) }
+        val response = mvc.perform(request).andReturn().response
+        return Answer(response.status, response.contentAsString)
+    }
+
     fun call(
         handler: MappedHandler,
         workload: String?,
@@ -268,6 +293,8 @@ class ServedService(
         fun run(
             workload: WorkloadDoubles,
             removed: List<String> = emptyList(),
+            resolver: EndUserPrincipalResolver = EndUserDoubles.resolver,
+            configure: (WebApplicationContextRunner) -> WebApplicationContextRunner = { it },
             block: (ServedService) -> Unit,
         ) {
             val mountRoot = Files.createTempDirectory("payload-served")
@@ -276,13 +303,14 @@ class ServedService(
             var runner =
                 PayloadContext
                     .web(mountRoot)
-                    .withBean(EndUserPrincipalResolver::class.java, { EndUserDoubles.resolver })
+                    .withBean(EndUserPrincipalResolver::class.java, { resolver })
                     .withBean(WorkloadTokenVerifier::class.java, { workload.verifier })
                     .withBean(ReachConfiguration::class.java, { ReachConfiguration(counter) })
                     .withPropertyValues(
                         "service-runtime.idempotency.schema=payload",
                         *workload.properties().toTypedArray(),
                     )
+            runner = configure(runner)
             if (removed.isNotEmpty()) {
                 val hidden = removed.map { ClassPathResource(it) }.toTypedArray()
                 runner = runner.withClassLoader(FilteredClassLoader(*hidden))
@@ -299,6 +327,7 @@ class ServedService(
                         tenantsHolder,
                         mappedHandlers(web),
                         checkNotNull(context.classLoader),
+                        context.sourceApplicationContext,
                     ),
                 )
             }
