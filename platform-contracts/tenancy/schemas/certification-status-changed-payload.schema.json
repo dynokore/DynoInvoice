@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/certification-status-changed-payload.schema.json",
+  "title": "CertificationStatusChangedPayload",
+  "description": "Payload of the CertificationStatusChanged event, published by tenancy-svc when the stored certification of a tenant turns STALE or CURRENT, and consumed by submission-svc, which carries the stale status into the readiness output as DEP-006 (INV-REQ-1135, INV-AC-16047; ruling INV-Q-16401 option A). One event per transition, never per repeat. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The entity whose certification changed status."
+    },
+    "status": {
+      "type": "string",
+      "description": "The certification status after the transition.",
+      "enum": [
+        "STALE",
+        "CURRENT"
+      ],
+      "x-extensible-enum": true
+    },
+    "changedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant of the transition."
+    },
+    "trigger": {
+      "type": "string",
+      "description": "The re-certification trigger that marked the certification stale. Present when status is STALE, absent when status is CURRENT.",
+      "enum": [
+        "NEW_TRAIN",
+        "NEW_PACK",
+        "ISSUANCE_MODE",
+        "IDENTITY_TRIPLE",
+        "SCHEME_HANDLER"
+      ],
+      "x-extensible-enum": true
+    }
+  },
+  "required": [
+    "entityRef",
+    "status",
+    "changedAt"
+  ],
+  "additionalProperties": true
+}

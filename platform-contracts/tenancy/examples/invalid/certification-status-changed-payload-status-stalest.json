@@ -1,0 +1,6 @@
+{
+  "entityRef": "E-001",
+  "status": "STALEST",
+  "changedAt": "2026-11-02T08:30:00Z",
+  "trigger": "NEW_TRAIN"
+}

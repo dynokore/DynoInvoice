@@ -200,3 +200,14 @@ offboardTenant.TNC-010	operation_error_code	openapi.yaml	INV-REQ-956
 # INV-T-16561 adds two rows (INV-REQ-435; INV-Q-16535 A): periodStart and periodEnd are the backticked names of INV-REQ-435 carried by the PeriodRecordsChanged payload schema. entityRef, version, periods and periodRef are not backticked in the published text of the requirements this task implements, so they add no row.
 periodStart	property	schemas/period-records-changed-payload.schema.json	INV-REQ-435
 periodEnd	property	schemas/period-records-changed-payload.schema.json	INV-REQ-435
+entityRef	property	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+status	property	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+changedAt	property	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+trigger	property	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+STALE	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+CURRENT	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+NEW_TRAIN	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+NEW_PACK	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+ISSUANCE_MODE	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+IDENTITY_TRIPLE	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+SCHEME_HANDLER	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135

@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: tenancy events
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Every event tenancy produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -70,6 +70,11 @@ channels:
     messages:
       PlanLimitExceeded:
         $ref: '#/components/messages/PlanLimitExceeded'
+  tenancyCertificationStatusChanged:
+    address: 'gst.tenancy.certification-status-changed.v1'
+    messages:
+      CertificationStatusChanged:
+        $ref: '#/components/messages/CertificationStatusChanged'
   tenancyExampleHappened:
     address: 'gst.tenancy.example-happened.v1'
     messages:
@@ -138,6 +143,13 @@ operations:
       $ref: '#/channels/tenancyPlanLimitExceeded'
     messages:
       - $ref: '#/channels/tenancyPlanLimitExceeded/messages/PlanLimitExceeded'
+  publishCertificationStatusChanged:
+    action: send
+    description: CertificationStatusChanged — published when the stored certification turns STALE or CURRENT (INV-REQ-1135).
+    channel:
+      $ref: '#/channels/tenancyCertificationStatusChanged'
+    messages:
+      - $ref: '#/channels/tenancyCertificationStatusChanged/messages/CertificationStatusChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -259,6 +271,18 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/plan-limit-exceeded-payload.schema.json'
+    CertificationStatusChanged:
+      name: com.dynokore.gst.tenancy.CertificationStatusChanged.v1
+      title: CertificationStatusChanged
+      summary: CertificationStatusChanged — the stored certification turned STALE or CURRENT (INV-REQ-1135).
+      description: >-
+        Domain event CertificationStatusChanged (INV-REQ-1135, INV-AC-16047; ruling INV-Q-16401 option A).
+        Emitted by: tenancy-svc. Consumed by: submission-svc. Delivery: At-least-once.
+        Payload: entityRef, status (STALE or CURRENT), changedAt, and trigger when status is STALE.
+        One event per transition, never per repeat.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/certification-status-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.tenancy.ExampleHappened.v1
       title: ExampleHappened
