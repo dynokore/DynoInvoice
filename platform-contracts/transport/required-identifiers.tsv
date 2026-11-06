@@ -57,3 +57,5 @@ reasons	property	schemas/acknowledgement-received-payload.schema.json	INV-Q-9672
 outcome	property	schemas/acknowledgement-received-payload.schema.json	INV-Q-9672
 ApNotificationReason.code	schema_property	openapi.yaml	INV-Q-9672
 ApNotificationReason.message	schema_property	openapi.yaml	INV-Q-9672
+# INV-T-15637. receiveApNotification answers 503 for a notification of kind INBOUND_NETWORK_DOCUMENT and declares SUB-024 (INV-Q-15628 A, INV-Q-9676 A).
+receiveApNotification.SUB-024	operation_error_code	openapi.yaml	INV-REQ-585
