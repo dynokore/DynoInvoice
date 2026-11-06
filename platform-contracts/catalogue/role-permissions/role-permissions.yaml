@@ -1236,3 +1236,25 @@ permissions:
     row: "Reseal a break-glass session"
     cells:
       - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: gap-report.view
+    kind: READ
+    row: "Gap report and progress"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: gap-report.export
+    kind: READ
+    row: "Export the gap report for round-trip remediation"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: counterparty-import.run
+    kind: WRITE
+    row: "Import counterparties: dry run, then apply"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: implementation.consultant, form: SAAS, allowance: PERMITTED}
+      - {role: implementation.consultant, form: PRIVATE, allowance: PERMITTED}

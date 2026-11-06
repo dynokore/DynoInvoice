@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(28, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(31, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -1553,6 +1553,82 @@ class RolePermissionsCheckerTest {
     @Test
     fun `INV-T-16683 the label removed from addedRows while its key stays fails naming the key`() {
         RolePermissionsChecker.periodExtensionPairs.forEach { (key, label) ->
+            val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
+            assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
+        }
+    }
+
+    private val gv = "gap-report.view"
+    private val ge = "gap-report.export"
+    private val ci = "counterparty-import.run"
+
+    @Test
+    fun `INV-T-17222 the three keys carry their pinned kind, row and exact cells`() {
+        assertEquals(
+            mapOf(
+                gv to "Gap report and progress",
+                ge to "Export the gap report for round-trip remediation",
+                ci to "Import counterparties: dry run, then apply",
+            ),
+            RolePermissionsChecker.gapReportPairs,
+        )
+        assertTrue(RolePermissionsChecker.gapReportPairs.values.all { it in RolePermissionsChecker.addedRows })
+        assertTrue(RolePermissionsChecker.gapReportPairs.values.none { it in RolePermissionsChecker.publishedRows })
+        fun cellsOf(vararg roles: String) =
+            roles.flatMap { r -> listOf(saasF, privF).map { CellRow(r, it, RoleAllowance.PERMITTED) } }.toSet()
+        assertEquals(PermissionKind.READ, permission(real, gv).kind)
+        assertEquals(cellsOf("tax.operator", "tax.approver"), permission(real, gv).cells.toSet())
+        assertEquals(4, permission(real, gv).cells.size)
+        assertEquals(PermissionKind.READ, permission(real, ge).kind)
+        assertEquals(cellsOf("tax.operator"), permission(real, ge).cells.toSet())
+        assertEquals(2, permission(real, ge).cells.size)
+        assertEquals(PermissionKind.WRITE, permission(real, ci).kind)
+        assertEquals(cellsOf("tax.operator", "implementation.consultant"), permission(real, ci).cells.toSet())
+        assertEquals(4, permission(real, ci).cells.size)
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-T-17222 probe an extra cell, a removed cell or a changed allowance is reported naming the key`() {
+        assertReported(cellAdd(ge, "tax.approver", saasF), "role tax.approver key $ge form SAAS", "extra")
+        assertReported(cellAdd(gv, "implementation.consultant", privF), "role implementation.consultant key $gv form PRIVATE", "extra")
+        assertReported(cellAdd(ci, "tenant.admin", saasF), "role tenant.admin key $ci form SAAS", "extra")
+        assertReported(cellRemove(gv, "tax.approver", privF), "role tax.approver key $gv form PRIVATE", "missing")
+        assertReported(
+            withPermission(gv) { p ->
+                p.copy(cells = p.cells.map { if (it.role == "tax.operator" && it.form == saasF) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it })
+            },
+            "role tax.operator key $gv form SAAS",
+        )
+    }
+
+    @Test
+    fun `INV-T-17222 probe a wrong kind is reported naming the key`() {
+        assertReported(withKind(ci, PermissionKind.READ), "key $ci")
+        assertReported(withKind(gv, PermissionKind.WRITE), "key $gv")
+    }
+
+    @Test
+    fun `INV-T-17222 probe a renamed key or an extra key under either prefix is reported`() {
+        assertReported(withPermission(gv) { it.copy(key = "gap-report.views") }, "key $gv: missing")
+        assertReported(withPermission(gv) { it.copy(key = "gap-report.views") }, "key gap-report.views")
+        assertReported(withPermission(ci) { it.copy(key = "counterparty-import.runs") }, "key counterparty-import.runs")
+        val fourth = permission(real, gv).copy(key = "gap-report.run", row = "Another new row")
+        assertReported(real.copy(permissions = real.permissions + fourth), "key gap-report.run")
+        val fifth = permission(real, ci).copy(key = "counterparty-import.undo", row = "Another new row")
+        assertReported(real.copy(permissions = real.permissions + fifth), "key counterparty-import.undo")
+    }
+
+    @Test
+    fun `INV-T-17222 probe a label under another key is reported naming the key`() {
+        assertReported(withPermission(ge) { it.copy(row = "Gap report and progress") }, "key $ge", "row 'Gap report and progress'")
+        val copy = permission(real, ci).copy(key = "import.other")
+        assertReported(real.copy(permissions = real.permissions + copy), "key import.other")
+    }
+
+    @Test
+    fun `INV-T-17222 the label removed from addedRows while its key stays fails naming the key`() {
+        RolePermissionsChecker.gapReportPairs.forEach { (key, label) ->
             val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - label)
             assertTrue(v.any { "key $key" in it && "row '$label'" in it }, "$v")
         }

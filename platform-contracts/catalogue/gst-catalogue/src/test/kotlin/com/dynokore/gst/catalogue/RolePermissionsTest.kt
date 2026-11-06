@@ -422,6 +422,26 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `INV-AC-17221 gap report and counterparty import keys carry exactly the INV-NOTE-7 cells`() {
+        val expected =
+            mapOf(
+                "gap-report.view" to (PermissionKind.READ to setOf("tax.operator", "tax.approver")),
+                "gap-report.export" to (PermissionKind.READ to setOf("tax.operator")),
+                "counterparty-import.run" to (PermissionKind.WRITE to setOf("tax.operator", "implementation.consultant")),
+            )
+        expected.forEach { (key, kindAndRoles) ->
+            assertEquals(kindAndRoles.first, RolePermissions.kind(key), key)
+            val actual =
+                both.flatMap { form ->
+                    RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { Triple(role, form, it) } }
+                }.toSet()
+            assertEquals(kindAndRoles.second.flatMap { r -> both.map { Triple(r, it, y) } }.toSet(), actual, key)
+        }
+        assertNull(RolePermissions.kind("gap-report.views"))
+        assertNull(RolePermissions.kind("counterparty-import.runs"))
+    }
+
+    @Test
     fun `INV-AC-16537 held-document release is tax approver only`() {
         assertEquals(y, cell(saas, "tax.approver", "held-document.release"))
         // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
