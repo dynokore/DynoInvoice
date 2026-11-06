@@ -20,11 +20,8 @@ sealed interface ReleaseOutcome {
     ) : ReleaseOutcome
 
     companion object {
-        /** The reason code of an answer that is not one of the published shapes. */
-        const val UNREADABLE = "UNREADABLE"
-
-        /** The reason code of a DENY that carries none. */
-        const val UNSPECIFIED = "UNSPECIFIED"
+        /** The reason code of every denial that carries none of its own (contract `reasonCode`, INV-Q-17115 R4). */
+        const val NOT_OVERRIDABLE = "NOT_OVERRIDABLE"
 
         private const val ALLOW = "ALLOW"
         private const val DENY = "DENY"
@@ -45,16 +42,16 @@ sealed interface ReleaseOutcome {
                     when (outcome) {
                         RELEASED -> Released
                         AWAITS_SECOND_APPROVER -> AwaitsSecond
-                        else -> Denied(UNREADABLE)
+                        else -> Denied(NOT_OVERRIDABLE)
                     }
                 }
 
                 DENY -> {
-                    Denied(reasonCode?.takeIf { it.isNotBlank() } ?: UNSPECIFIED)
+                    Denied(reasonCode?.takeIf { it.isNotBlank() } ?: NOT_OVERRIDABLE)
                 }
 
                 else -> {
-                    Denied(UNREADABLE)
+                    Denied(NOT_OVERRIDABLE)
                 }
             }
     }

@@ -179,10 +179,18 @@ class ApproveOverride(
         } else {
             when (decisions.decide(row.entityRef, REFUSAL_CODE, userId, listOf(row.requestedBy))) {
                 is ReleaseOutcome.Denied -> OverrideResult.Forbidden
-                ReleaseOutcome.AwaitsSecond -> OverrideResult.AwaitsSecond(OverrideEntry(row, row.status))
+                ReleaseOutcome.AwaitsSecond -> awaiting(userId, row)
                 ReleaseOutcome.Released -> release(userId, row)
             }
         }
+
+    private fun awaiting(
+        userId: String,
+        row: StoredOverride,
+    ): OverrideResult {
+        audit.approved(userId, row)
+        return OverrideResult.AwaitsSecond(OverrideEntry(row, row.status))
+    }
 
     private fun release(
         userId: String,

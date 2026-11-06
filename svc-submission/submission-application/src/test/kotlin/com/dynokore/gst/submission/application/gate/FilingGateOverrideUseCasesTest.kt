@@ -226,7 +226,34 @@ class FilingGateOverrideUseCasesTest {
     }
 
     @Test
-    fun `source scan finds no role name as a string literal in the production code`() {
+    fun `approve answered AwaitsSecond keeps the row PENDING and writes one approved entry`() {
+        val w = world()
+        w.ask().shouldBeInstanceOf<OverrideResult.AwaitsSecond>()
+        val decisions = FakeDecisions(ReleaseOutcome.AwaitsSecond)
+        val approve = ApproveOverride(w.authority, w.checks, decisions, w.store, w.audit)
+        approve.execute("A2", entity, period, "o1").shouldBeInstanceOf<OverrideResult.AwaitsSecond>()
+        w.store.row("o1").status shouldBe OverrideStatus.PENDING
+        w.audit.approved shouldContainExactly listOf("A2" to "o1")
+        w.audit.released.size shouldBe 0
+    }
+
+    @Test
+    fun `request by a non-holder is Forbidden even with an empty reason or check id`() {
+        val w = world()
+        w.ask(user = "nobody", reason = "") shouldBe OverrideResult.Forbidden
+        w.ask(user = "nobody", check = "") shouldBe OverrideResult.Forbidden
+        w.checks.known shouldBe setOf("c1")
+    }
+
+    @Test
+    fun `request with an empty check id by a holder is BadRequest with nothing stored`() {
+        val w = world()
+        w.ask(check = "") shouldBe OverrideResult.BadRequest
+        w.store.insertCalls shouldBe 0
+    }
+
+    @Test
+    fun `source scan finds no role name or invented reason code as a string literal in the production code`() {
         val roots =
             listOf("src/main", "../submission-domain/src/main").map(::File).filter { it.isDirectory }
         (roots.size) shouldBe 2
@@ -246,8 +273,8 @@ class FilingGateOverrideUseCasesTest {
     }
 
     @Test
-    fun `source scan fails a copy that adds a role name literal`() {
-        for (role in ROLES) {
+    fun `source scan fails a copy that adds a role name or invented reason code literal`() {
+        for (role in BANNED) {
             roleLiterals("val x = \"$role\"") shouldBe listOf(role)
             roleLiterals("check(role == \"$role\")") shouldBe listOf(role)
         }
@@ -257,9 +284,12 @@ class FilingGateOverrideUseCasesTest {
     private companion object {
         val ROLES = listOf("tax.approver", "tenant.admin", "agent.operator", "entity.admin")
 
+        /** Role names, and the reason codes that do not exist in the contract (INV-Q-17115 R4). */
+        val BANNED = ROLES + listOf("UNREADABLE", "UNSPECIFIED")
+
         fun roleLiterals(source: String): List<String> =
             Regex(
-                "\"(${ROLES.joinToString("|") { Regex.escape(it) }})\"",
+                "\"(${BANNED.joinToString("|") { Regex.escape(it) }})\"",
             ).findAll(source).map { it.groupValues[1] }.toList()
     }
 }

@@ -110,6 +110,12 @@ interface AuditTrail {
         override: StoredOverride,
     )
 
+    /** A first approval that awaits a second approver (INV-Q-17115 R1). */
+    fun approved(
+        userId: String,
+        override: StoredOverride,
+    )
+
     fun released(
         userId: String,
         override: StoredOverride,

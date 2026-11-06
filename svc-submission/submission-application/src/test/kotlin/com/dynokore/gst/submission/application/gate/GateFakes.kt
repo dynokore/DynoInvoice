@@ -125,14 +125,22 @@ class FakeStore(
 
 class FakeAudit : AuditTrail {
     val requested = CopyOnWriteArrayList<Pair<String, String>>()
+    val approved = CopyOnWriteArrayList<Pair<String, String>>()
     val released = CopyOnWriteArrayList<Pair<String, String>>()
-    val size get() = requested.size + released.size
+    val size get() = requested.size + approved.size + released.size
 
     override fun requested(
         userId: String,
         override: StoredOverride,
     ) {
         requested += userId to override.id
+    }
+
+    override fun approved(
+        userId: String,
+        override: StoredOverride,
+    ) {
+        approved += userId to override.id
     }
 
     override fun released(
