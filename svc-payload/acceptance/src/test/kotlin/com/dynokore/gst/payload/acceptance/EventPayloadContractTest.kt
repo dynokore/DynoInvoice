@@ -1,6 +1,7 @@
 package com.dynokore.gst.payload.acceptance
 
 import com.dynokore.gst.payload.bootstrap.PayloadEvents
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SchemaRegistryConfig
 import com.networknt.schema.SpecificationVersion
@@ -113,6 +114,14 @@ class EventPayloadContractTest {
             val name = map(map(map(asyncapi["components"])["messages"])[message])["name"]
             name shouldBe type
         }
+    }
+
+    @Test
+    fun `the catalogue holds the payload events and the platform audit event for every service`() {
+        PayloadEvents.entries.map { it.type } shouldBe PayloadEvents.topicByType.keys.toList() + PayloadEvents.AUDIT_TYPE
+        val audit = PayloadEvents.entries.single { it.type == PayloadEvents.AUDIT_TYPE }
+        audit.topic shouldBe PayloadEvents.AUDIT_TOPIC
+        audit.producers shouldBe setOf(CatalogueEntry.EVERY_SERVICE)
     }
 
     private companion object {
