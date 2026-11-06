@@ -64,6 +64,17 @@ class LookupGstRegister(
         return tx.inTransaction { reconcile(question, fact, outcome.recordKey) }
     }
 
+    /**
+     * The register's fact for [question] and nothing else (INV-REQ-316, MDM-007): the same cache and the same asking as
+     * [handle], so a gap report never has a second lookup path, but no suggestion is stored and no counterparty is
+     * written. Null when the register could not be reached (`REGISTER_UNAVAILABLE`); the lookup evidence of an asked
+     * lookup is kept as for any lookup.
+     */
+    fun check(question: RegisterQuestion): RegisterFact? {
+        val cached = tx.inTransaction { registry.served(question.entity, question.uen) }
+        return cached?.fact ?: registry.ask(question).fact
+    }
+
     private fun unavailable() = RegisterAnswer(REGISTER_UNAVAILABLE, null, Reconciliation.NoChange, null)
 
     private fun reconcile(
