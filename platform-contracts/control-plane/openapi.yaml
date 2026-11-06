@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.10.0
+  version: 1.11.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -931,7 +931,7 @@ paths:
 
         409 when access-svc refuses the reissue (the grant is not a PENDING expired one) or the
         provisioning request does not read CREATED. The 409 rule of provisionFirstAdministrator is
-        not changed.
+        not changed. The 409 carries CPL-008 and the 503 carries CPL-009.
       tags:
       - commercial
       x-principal: filing-workflow
@@ -940,7 +940,9 @@ paths:
       x-timeout: 2000
       x-requirements:
       - INV-REQ-906
-      x-error-codes: []
+      x-error-codes:
+      - CPL-008
+      - CPL-009
       x-operation:
         role: commercial.admin
         scope: platform
@@ -980,6 +982,8 @@ paths:
         "404":
           $ref: '#/components/responses/Error'
         "409":
+          $ref: '#/components/responses/Error'
+        "503":
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
