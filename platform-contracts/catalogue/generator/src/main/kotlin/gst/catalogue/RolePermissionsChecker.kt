@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A).
      */
     val addedRows: List<String> =
         listOf(
@@ -122,6 +122,9 @@ object RolePermissionsChecker {
             "Export the gap report for round-trip remediation",
             "Import counterparties: dry run, then apply",
             "Record a sandbox certification result",
+            "View the accreditation record and its currency",
+            "List the re-accreditation assessment tasks",
+            "View a re-accreditation assessment task",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -184,6 +187,14 @@ object RolePermissionsChecker {
             "gap-report.view" to "Gap report and progress",
             "gap-report.export" to "Export the gap report for round-trip remediation",
             "counterparty-import.run" to "Import counterparties: dry run, then apply",
+        )
+
+    /** The (key, row) pairs of the accreditation read keys (INV-T-15460, INV-Q-15430 A), compared by equality. */
+    val accreditationReadPairs: Map<String, String> =
+        mapOf(
+            "accreditation.view" to "View the accreditation record and its currency",
+            "accreditation-task.list" to "List the re-accreditation assessment tasks",
+            "accreditation-task.view" to "View a re-accreditation assessment task",
         )
 
     /** The (key, row) pair of the exception queue read key (INV-T-16573, INV-Q-15877 A), compared by equality. */
@@ -367,6 +378,9 @@ object RolePermissionsChecker {
             "submission.withdraw" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
             "accreditation.record" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "release.manager")),
             "accreditation.conclude" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "release.manager")),
+            "accreditation.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "release.manager")),
+            "accreditation-task.list" to Required(PermissionKind.READ, cells(permitted, saasForm, "release.manager")),
+            "accreditation-task.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "release.manager")),
             "tenant-schedule.approve" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "commercial.admin")),
             "vp-03.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "vp-07.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
@@ -596,6 +610,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in gapReportPairs && (it.row in gapReportPairs.values || it.key.startsWith("gap-report.") || it.key.startsWith("counterparty-import.")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${gapReportPairs.keys.joinToString()}, which alone carry the gap report and counterparty import rows (INV-T-17222)."
+        }
+        accreditationReadPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${accreditationReadPairs.keys.joinToString()}, INV-T-15460)."
+        }
+        table.permissions.filter { it.key !in accreditationReadPairs && (it.row in accreditationReadPairs.values || it.key == "accreditation.view" || it.key.startsWith("accreditation-task.")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${accreditationReadPairs.keys.joinToString()}, which alone carry the accreditation read rows (INV-T-15460)."
         }
         exceptionViewPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }

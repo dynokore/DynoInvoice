@@ -1053,6 +1053,21 @@ permissions:
     row: "Conclude an accreditation task"
     cells:
       - {role: release.manager, form: SAAS, allowance: PERMITTED}
+  - key: accreditation.view
+    kind: READ
+    row: "View the accreditation record and its currency"
+    cells:
+      - {role: release.manager, form: SAAS, allowance: PERMITTED}
+  - key: accreditation-task.list
+    kind: READ
+    row: "List the re-accreditation assessment tasks"
+    cells:
+      - {role: release.manager, form: SAAS, allowance: PERMITTED}
+  - key: accreditation-task.view
+    kind: READ
+    row: "View a re-accreditation assessment task"
+    cells:
+      - {role: release.manager, form: SAAS, allowance: PERMITTED}
   - key: tenant-schedule.approve
     kind: WRITE
     row: "Approve a tenant schedule"

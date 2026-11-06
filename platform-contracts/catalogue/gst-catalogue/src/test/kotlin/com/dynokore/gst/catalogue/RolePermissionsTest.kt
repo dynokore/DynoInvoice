@@ -447,6 +447,25 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `INV-T-15460 accreditation read keys are READ and held by release manager in SAAS only`() {
+        listOf("accreditation.view", "accreditation-task.list", "accreditation-task.view").forEach { key ->
+            assertEquals(PermissionKind.READ, RolePermissions.kind(key), key)
+            val saasHolders =
+                RolePermissions.cells(saas).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            assertEquals(mapOf("release.manager" to y), saasHolders, key)
+            val privateHolders =
+                RolePermissions
+                    .cells(privateForm)
+                    .mapNotNull { (role, perms) -> perms[key]?.let { role to it } }
+                    .toMap()
+            assertEquals(emptyMap<String, Any>(), privateHolders, key)
+        }
+        assertNull(RolePermissions.kind("accreditation-task.get"))
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("accreditation.record"))
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("accreditation.conclude"))
+    }
+
+    @Test
     fun `INV-AC-16537 held-document release is tax approver only`() {
         assertEquals(y, cell(saas, "tax.approver", "held-document.release"))
         // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
