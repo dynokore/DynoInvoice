@@ -82,12 +82,14 @@ class NotificationTranslatorTest {
     }
 
     @Test
-    fun `delivery status is ledger only`() =
+    fun `delivery status is ledger only`() {
         tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, 1)) shouldBe Translation.LedgerOnly("APN-3", DocRef(doc, 1))
+    }
 
     @Test
-    fun `an inbound network document is refused`() =
+    fun `an inbound network document is refused`() {
         tr(ApNotification("APN-4", "INBOUND_NETWORK_DOCUMENT")) shouldBe Translation.InboundNotSupported
+    }
 
     @Test
     fun `a missing or overlong notification id is invalid`() {
@@ -104,22 +106,26 @@ class NotificationTranslatorTest {
     }
 
     @Test
-    fun `a delivery status without docUuid is invalid`() =
+    fun `a delivery status without docUuid is invalid`() {
         tr(ApNotification("APN-3", "DELIVERY_STATUS", null, 1)) shouldBe
             Translation.Invalid("a DELIVERY_STATUS needs docUuid")
+    }
 
     @Test
-    fun `a delivery status without version is invalid`() =
+    fun `a delivery status without version is invalid`() {
         tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, null)) shouldBe
             Translation.Invalid("a DELIVERY_STATUS needs version of 1 or more")
+    }
 
     @Test
-    fun `a delivery status with version 0 is invalid`() =
+    fun `a delivery status with version 0 is invalid`() {
         tr(ApNotification("APN-3", "DELIVERY_STATUS", doc, 0)) shouldBe
             Translation.Invalid("a DELIVERY_STATUS needs version of 1 or more")
+    }
 
     @Test
-    fun `a delivery status with a blank notification id is invalid by the id rule`() =
+    fun `a delivery status with a blank notification id is invalid by the id rule`() {
         tr(ApNotification(" ", "DELIVERY_STATUS", doc, 1)) shouldBe
             Translation.Invalid("apNotificationId is 1 to 100 characters")
+    }
 }
