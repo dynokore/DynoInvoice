@@ -155,4 +155,5 @@ include(
     "console-bff-application",
     "console-bff-adapters",
     "console-bff-bootstrap",
+    "acceptance", // test-only (TPL-01): not one of the five architectural modules ARC-10 counts
 )

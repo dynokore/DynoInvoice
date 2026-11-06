@@ -2,7 +2,7 @@
 
 `console-bff` — The operator's view — one backend that reads widely and writes nothing it does not own
 
-**Status:** design only; no code yet. This repository follows the design in [invoice-docs](http://registry.example.internal/invoice/invoice-docs). Change the design there first, then the code here.
+**Status:** service skeleton (INV-T-14438): the five architectural modules, the contract gate, the acceptance-criterion key gate, SQL placement and the architecture test. No operation is implemented yet (every one answers 501). This repository follows the design in [invoice-docs](http://registry.example.internal/invoice/invoice-docs). Change the design there first, then the code here.
 
 | | |
 | --- | --- |
@@ -81,3 +81,14 @@ Shared L1, L2 and `product-runtime` modules come from `platform-libs` as publish
 ## Degradation
 
 Unavailable: the console is unavailable; ingestion, submission and every machine interface continue. A stale read model shows its staleness
+
+## Dependency locking and verification
+
+Refresh after a dependency change, with an empty Gradle user home (see platform-libs README, "Dependency locking and verification"):
+
+```sh
+gradle resolveAndLockAll check bootJar -x test -x acKeyCoverage --continue \
+  --write-locks --write-verification-metadata sha256,pgp --export-keys --no-configuration-cache
+```
+
+Never pass `--dependency-verification off`; CI fails a build that does.
