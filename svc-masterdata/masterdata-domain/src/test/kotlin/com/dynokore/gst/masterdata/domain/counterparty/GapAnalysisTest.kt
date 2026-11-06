@@ -41,7 +41,7 @@ class GapAnalysisTest {
                 party("P-INVALID", IdentifierScheme.UEN to "BAD-1"),
                 party("P-ADDRESS", IdentifierScheme.UEN to "201954321B", address = PostalAddress("1 Road", null, null)),
                 party("P-DUP1", IdentifierScheme.UEN to "200000001A"),
-                party("P-DUP2", IdentifierScheme.UEN to " 200000001a "),
+                party("P-DUP2", IdentifierScheme.UEN to "200000001a"),
                 party("P-CLEAN", IdentifierScheme.UEN to "200000002A"),
                 party("P-NA", IdentifierScheme.NONE to "NA", address = PostalAddress("NA", null, "NA")),
             )
@@ -88,5 +88,21 @@ class GapAnalysisTest {
         assertFalse(conflictsWithRegister("M1", true, "REGISTERED", "M1"))
         assertFalse(conflictsWithRegister(null, true, "REGISTERED", "M2"))
         assertFalse(conflictsWithRegister("M1", false, "NOT_FOUND", null))
+    }
+
+    @Test
+    fun `with the UEN rule a 7-digit UEN is listed once as invalid and a valid one, NA and none are not`() {
+        val found =
+            rows(
+                party("P-SHORT", IdentifierScheme.UEN to "5301234X"),
+                party("P-OK", IdentifierScheme.UEN to "53012345X"),
+                party("P-SPACE", IdentifierScheme.UEN to "53012345X "),
+                party("P-NA", IdentifierScheme.NONE to "NA", address = PostalAddress("NA", null, "NA")),
+                valid = UenFormat::accepts,
+            )
+        assertEquals(
+            listOf("P-SHORT" to GapClass.UEN_INVALID, "P-SPACE" to GapClass.UEN_INVALID),
+            found,
+        )
     }
 }

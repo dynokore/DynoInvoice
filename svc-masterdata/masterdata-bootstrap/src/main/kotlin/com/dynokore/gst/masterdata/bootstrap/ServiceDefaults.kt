@@ -4,6 +4,7 @@ import com.dynokore.gst.masterdata.adapters.events.IdentityTripleChangedOutbox
 import com.dynokore.gst.masterdata.adapters.events.IdentityTripleCorrectedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterDataResolvedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
+import com.dynokore.gst.masterdata.adapters.permission.ReplicaTenantPermission
 import com.dynokore.gst.masterdata.adapters.persistence.jooq.Masterdata
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
 import com.dynokore.gst.masterdata.application.identity.BackdatedCorrections
@@ -13,12 +14,14 @@ import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleChangedPublisher
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleCorrectedPublisher
 import com.dynokore.gst.masterdata.application.identity.TripleRepository
+import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerRole
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerSet
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.Schema
 import org.springframework.beans.factory.ObjectProvider
@@ -106,6 +109,14 @@ class ServiceDefaults {
                 }
             }
         }
+
+    /** The permission check of the tenant-scoped operations: the authority replica, fail closed (INV-Q-17215 A). */
+    @Bean
+    @ConditionalOnMissingBean(TenantPermission::class)
+    fun tenantPermission(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+    ): TenantPermission = ReplicaTenantPermission(replica.getIfAvailable(), tenants)
 
     private companion object {
         val PLANNED_CONFIRMERS =

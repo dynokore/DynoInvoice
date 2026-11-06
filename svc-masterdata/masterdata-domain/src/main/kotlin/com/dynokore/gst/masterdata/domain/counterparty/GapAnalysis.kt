@@ -29,8 +29,7 @@ fun CounterpartyContent.uenOrNull(): String? =
     identifiers
         .firstOrNull { it.scheme == IdentifierScheme.UEN }
         ?.value
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
+        ?.takeIf { it.isNotBlank() }
 
 /** The GSTN the counterparty holds, trimmed; null when none. */
 fun CounterpartyContent.gstnOrNull(): String? =
@@ -42,13 +41,13 @@ fun CounterpartyContent.gstnOrNull(): String? =
 
 /**
  * INV-REQ-316 classes 1, 2, 4 and 5, from the current versions only; class 3 needs the register and is made by the
- * caller. A pure function: it reads nothing and writes nothing (INV-AC-1609). [uenFormatValid] is the UEN checksum and
- * format check; this module fixes none itself.
+ * caller. A pure function: it reads nothing and writes nothing (INV-AC-1609). The UEN is judged as held, with no
+ * trimming, by [uenFormatValid] (production passes [UenFormat.accepts], INV-Q-17217 A).
  *
  *  1. UEN_ABSENT: the counterparty holds no UEN and no `NA` classification (the MDM-002 finding of resolution);
  *  2. UEN_INVALID: it holds a UEN that [uenFormatValid] refuses;
  *  4. ADDRESS_INCOMPLETE: address line 1 or the postal code is missing;
- *  5. DUPLICATE_UEN: another counterparty holds the same UEN (compared trimmed and upper-cased); every member is listed.
+ *  5. DUPLICATE_UEN: another counterparty holds the same UEN (upper-cased); every member is listed.
  * Rows are ordered by party reference, then class, so two runs over equal data answer equal rows.
  */
 fun gapRows(
@@ -60,7 +59,13 @@ fun gapRows(
         val content = version.content
         val party = version.partyRef
         if (content.findings().any { it.code == FindingCode.MDM_002 }) rows += GapRow(party, GapClass.UEN_ABSENT)
-        content.uenOrNull()?.let { uen -> if (!uenFormatValid(uen)) rows += GapRow(party, GapClass.UEN_INVALID) }
+        content.uenOrNull()?.let { uen ->
+            if (uen != NA &&
+                !uenFormatValid(uen)
+            ) {
+                rows += GapRow(party, GapClass.UEN_INVALID)
+            }
+        }
         val address = content.address
         if (address?.line1.isBlankOrNull() || address?.postalCode.isBlankOrNull()) {
             rows += GapRow(party, GapClass.ADDRESS_INCOMPLETE)
