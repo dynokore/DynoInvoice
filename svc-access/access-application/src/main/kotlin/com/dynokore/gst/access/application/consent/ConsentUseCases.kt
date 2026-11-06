@@ -139,6 +139,60 @@ class HandoverPorts(
 )
 
 /**
+ * The withdrawal itself, shared by `withdrawConsent` and the WITHDRAW action of a signed link: handover statement,
+ * the consent change, AuthorityChanged and the audit entry naming [actor] (a user ID or `link:<linkRef>`, never a
+ * role), all in the caller's transaction. The caller has decided the permission and holds the consent row lock.
+ */
+class ConsentWithdrawal(
+    private val consents: ConsentRepository,
+    private val handover: HandoverPorts,
+    private val effects: ConsentEffects,
+    private val clock: Clock,
+) {
+    fun perform(
+        tenant: TenantRef,
+        actor: String,
+        consent: Consent,
+    ): WithdrawConsentOutcome {
+        val statementRef = handover.statements.nextRef()
+        handover.statements.insert(
+            HandoverStatement(
+                ref = statementRef,
+                consentRef = consent.ref,
+                client = consent.client,
+                agent = consent.agent,
+                documents = documentsOf(consent),
+                producedAt = clock.instant(),
+            ),
+        )
+        val after = consent.withdrawn(statementRef)
+        consents.update(consent, after)
+        effects.publisher.publish(ConsentAuthorityRecord(tenant, after, consents.nextAuthorityVersion()))
+        effects.audit.record(
+            GrantAuditEntry(
+                actor = actor,
+                action = "withdrawConsent",
+                scope = "entity:${consent.client.value}",
+                reason = null,
+                priorStateJson = """{"status":"LIVE","consentRef":"${consent.ref.value}"}""",
+            ),
+        )
+        return WithdrawConsentOutcome.Withdrawn(after, repeated = false)
+    }
+
+    /** A port that throws never blocks the withdrawal: it is reported and the statement names the list unavailable. */
+    private fun documentsOf(consent: Consent): DocumentList =
+        try {
+            handover.documents.forClient(consent.client)
+        } catch (
+            @Suppress("TooGenericExceptionCaught") failure: Exception,
+        ) {
+            handover.onDocumentsFailed.failed(consent.ref, failure)
+            DocumentList.Unavailable
+        }
+}
+
+/**
  * `withdrawConsent` (INV-REQ-865, INV-REQ-955): withdraws the consent, which takes effect at the next authorisation
  * check, and produces the handover statement of the client's unsubmitted documents with their due dates and blocking
  * reasons. The consent row is locked first, so a repeat sees the first withdrawal and returns the same statement
@@ -148,10 +202,12 @@ class WithdrawConsentUseCase(
     private val tx: TransactionRunner,
     private val consents: ConsentRepository,
     private val signatory: Authorise,
-    private val handover: HandoverPorts,
-    private val effects: ConsentEffects,
-    private val clock: Clock,
+    handover: HandoverPorts,
+    effects: ConsentEffects,
+    clock: Clock,
 ) {
+    private val withdrawal = ConsentWithdrawal(consents, handover, effects, clock)
+
     fun handle(
         tenant: TenantRef,
         actor: IdentityRef,
@@ -173,51 +229,9 @@ class WithdrawConsentUseCase(
                 }
 
                 else -> {
-                    withdraw(tenant, actor, consent)
+                    withdrawal.perform(tenant, actor.value, consent)
                 }
             }
-        }
-
-    private fun withdraw(
-        tenant: TenantRef,
-        actor: IdentityRef,
-        consent: Consent,
-    ): WithdrawConsentOutcome {
-        val statementRef = handover.statements.nextRef()
-        handover.statements.insert(
-            HandoverStatement(
-                ref = statementRef,
-                consentRef = consent.ref,
-                client = consent.client,
-                agent = consent.agent,
-                documents = documentsOf(consent),
-                producedAt = clock.instant(),
-            ),
-        )
-        val after = consent.withdrawn(statementRef)
-        consents.update(consent, after)
-        effects.publisher.publish(ConsentAuthorityRecord(tenant, after, consents.nextAuthorityVersion()))
-        effects.audit.record(
-            GrantAuditEntry(
-                actor = actor.value,
-                action = "withdrawConsent",
-                scope = "entity:${consent.client.value}",
-                reason = null,
-                priorStateJson = """{"status":"LIVE","consentRef":"${consent.ref.value}"}""",
-            ),
-        )
-        return WithdrawConsentOutcome.Withdrawn(after, repeated = false)
-    }
-
-    /** A port that throws never blocks the withdrawal: it is reported and the statement names the list unavailable. */
-    private fun documentsOf(consent: Consent): DocumentList =
-        try {
-            handover.documents.forClient(consent.client)
-        } catch (
-            @Suppress("TooGenericExceptionCaught") failure: Exception,
-        ) {
-            handover.onDocumentsFailed.failed(consent.ref, failure)
-            DocumentList.Unavailable
         }
 
     private companion object {
