@@ -1300,3 +1300,9 @@ permissions:
     cells:
       - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
       - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: calendar-pack-delta.view
+    kind: READ
+    row: "Preview the due dates a staged calendar pack would move"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}

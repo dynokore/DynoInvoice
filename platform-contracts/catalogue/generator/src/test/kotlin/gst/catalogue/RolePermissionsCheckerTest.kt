@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(39, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(40, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -1777,6 +1777,64 @@ class RolePermissionsCheckerTest {
     fun `INV-AC-18096 the label removed from addedRows while its key stays fails naming the key`() {
         val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - qaRow)
         assertTrue(v.any { "key $qa" in it && "row '$qaRow'" in it }, "$v")
+    }
+
+    private val cpd = "calendar-pack-delta.view"
+    private val cpdRow = "Preview the due dates a staged calendar pack would move"
+
+    @Test
+    fun `INV-T-16826 the key is READ with its pinned row and exactly the two tax approver cells`() {
+        assertEquals(mapOf(cpd to cpdRow), RolePermissionsChecker.calendarPackDeltaPairs)
+        assertTrue(cpdRow in RolePermissionsChecker.addedRows)
+        assertEquals(cpdRow, permission(real, cpd).row)
+        assertEquals(PermissionKind.READ, permission(real, cpd).kind)
+        assertEquals(
+            setOf(CellRow("tax.approver", saasF, RoleAllowance.PERMITTED), CellRow("tax.approver", privF, RoleAllowance.PERMITTED)),
+            permission(real, cpd).cells.toSet(),
+        )
+        assertEquals(2, permission(real, cpd).cells.size)
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-T-16826 probe a renamed key is reported`() {
+        listOf("calendar-pack-deltas.view", "calendar-pack-delta.viewed", "Calendar-pack-delta.view").forEach { k ->
+            assertReported(withPermission(cpd) { it.copy(key = k) }, "key $cpd: missing")
+            assertReported(withPermission(cpd) { it.copy(key = k) }, "key $k")
+        }
+    }
+
+    @Test
+    fun `INV-T-16826 probe an extra cell for another role is reported`() {
+        assertReported(cellAdd(cpd, "entity.admin", saasF), "role entity.admin key $cpd form SAAS", "extra")
+        assertReported(cellAdd(cpd, "tenant.admin", privF), "role tenant.admin key $cpd form PRIVATE", "extra")
+        assertReported(cellAdd(cpd, "tax.operator", saasF), "role tax.operator key $cpd form SAAS", "extra")
+        assertReported(cellAdd(cpd, "regulatory.approver", privF), "role regulatory.approver key $cpd form PRIVATE", "extra")
+    }
+
+    @Test
+    fun `INV-T-16826 probe WITHIN_SCOPE, a missing cell and the kind WRITE are reported`() {
+        assertReported(
+            withPermission(cpd) { p ->
+                p.copy(cells = p.cells.map { if (it.form == saasF) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it })
+            },
+            "role tax.approver key $cpd form SAAS",
+        )
+        assertReported(cellRemove(cpd, "tax.approver", privF), "role tax.approver key $cpd form PRIVATE", "missing")
+        assertReported(cellRemove(cpd, "tax.approver", saasF), "role tax.approver key $cpd form SAAS", "missing")
+        assertReported(withKind(cpd, PermissionKind.WRITE), "key $cpd")
+    }
+
+    @Test
+    fun `INV-T-16826 probe a second new key is reported`() {
+        assertReported(real.copy(permissions = real.permissions + permission(real, cpd).copy(key = "calendar-pack-delta.export")), "key calendar-pack-delta.export")
+        assertReported(real.copy(permissions = real.permissions + permission(real, cpd).copy(key = "pack-delta.other", row = "Another new row")), "pack-delta.other")
+    }
+
+    @Test
+    fun `INV-T-16826 the label removed from addedRows while its key stays fails naming the key`() {
+        val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - cpdRow)
+        assertTrue(v.any { "key $cpd" in it && "row '$cpdRow'" in it }, "$v")
     }
 
     private val gv = "gap-report.view"

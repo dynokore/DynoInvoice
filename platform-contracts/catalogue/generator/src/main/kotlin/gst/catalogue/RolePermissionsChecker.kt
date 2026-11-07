@@ -129,6 +129,7 @@ object RolePermissionsChecker {
             "View a licence",
             "View a tenant provisioning request",
             "Record onboarding questionnaire answers",
+            "Preview the due dates a staged calendar pack would move",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -215,6 +216,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the onboarding questionnaire answer key (INV-T-18097, coordinator ruling option A; the label is own wording, Inference), compared by equality. */
     val questionnairePairs: Map<String, String> =
         mapOf("questionnaire.answer" to "Record onboarding questionnaire answers")
+
+    /** The (key, row) pair of the calendar pack delta read key (INV-T-16826, INV-Q-16810 C; key, label and holder are Inference), compared by equality. */
+    val calendarPackDeltaPairs: Map<String, String> =
+        mapOf("calendar-pack-delta.view" to "Preview the due dates a staged calendar pack would move")
 
     /** The (key, row) pair of the exception queue read key (INV-T-16573, INV-Q-15877 A), compared by equality. */
     val exceptionViewPairs: Map<String, String> =
@@ -437,6 +442,7 @@ object RolePermissionsChecker {
             "licence.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "tenant-provisioning-request.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "questionnaire.answer" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "calendar-pack-delta.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver")),
             "break-glass.reseal" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
             "operator-session.open" to
                 Required(
@@ -668,6 +674,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in questionnairePairs && (it.row in questionnairePairs.values || it.key.startsWith("questionnaire.")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${questionnairePairs.keys.joinToString()}, which alone carry the onboarding questionnaire answer row (INV-T-18097)."
+        }
+        calendarPackDeltaPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${calendarPackDeltaPairs.keys.joinToString()}, INV-T-16826)."
+        }
+        table.permissions.filter { it.key !in calendarPackDeltaPairs && (it.row in calendarPackDeltaPairs.values || it.key.startsWith("calendar-pack-delta")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${calendarPackDeltaPairs.keys.joinToString()}, which alone carry the calendar pack delta preview row (INV-T-16826)."
         }
         resealPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }

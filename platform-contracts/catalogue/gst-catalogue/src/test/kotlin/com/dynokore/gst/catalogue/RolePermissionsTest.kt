@@ -514,6 +514,26 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `calendar-pack-delta view is READ with two tax approver cells, others DENIED`() {
+        val key = "calendar-pack-delta.view"
+        assertEquals(PermissionKind.READ, RolePermissions.kind(key))
+        both.forEach { form ->
+            val actual =
+                RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            assertEquals(mapOf("tax.approver" to y), actual, "$key $form")
+        }
+    }
+
+    @Test
+    fun `INV-AC-16821 calendar-pack-delta view is tax approver only in both forms`() {
+        assertEquals(y, cell(saas, "tax.approver", "calendar-pack-delta.view"))
+        assertEquals(y, cell(privateForm, "tax.approver", "calendar-pack-delta.view"))
+        // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
+        assertNull(cell(saas, "tenant.admin", "calendar-pack-delta.view"))
+        assertNull(RolePermissions.kind("calendar-pack-deltas.view"))
+    }
+
+    @Test
     fun `INV-AC-16537 held-document release is tax approver only`() {
         assertEquals(y, cell(saas, "tax.approver", "held-document.release"))
         // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
