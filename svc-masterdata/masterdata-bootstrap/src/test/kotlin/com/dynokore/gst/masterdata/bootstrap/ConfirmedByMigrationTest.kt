@@ -75,7 +75,8 @@ class ConfirmedByMigrationTest {
         on(url) { c ->
             val change =
                 c.createStatement().executeQuery(
-                    "select confirmed_by, confirmed_role from masterdata.identity_triple_change where change_ref = 'OLD-1'",
+                    "select confirmed_by, confirmed_role from masterdata.identity_triple_change " +
+                        "where change_ref = 'OLD-1'",
                 )
             change.next()
             assertThat(change.getString(1) to change.getString(2)).isEqualTo("IDN-OLD" to "entity.admin")

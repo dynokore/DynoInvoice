@@ -124,7 +124,7 @@ class ConfirmerAuthority(
         entity: EntityRef,
     ) = permission.decide(subject, entity)
 
-    /** True only when the decision allows and comes from the local replica or the fallback (INV-Q-10025); fail closed. */
+    /** True only when the decision allows with source LOCAL or FALLBACK (INV-Q-10025); fail closed. */
     fun permits(
         subject: PersonRef,
         entity: EntityRef,

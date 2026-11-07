@@ -58,7 +58,6 @@ class ConfirmerPermissionTest {
             entity: String,
             tenant: TenantId = tenantA,
             validUntil: Instant? = null,
-            ref: String = "g-$person-$role-$entity",
         ): Long {
             val v = ++version
             replica.accept(
@@ -67,7 +66,7 @@ class ConfirmerPermissionTest {
                     person,
                     v,
                     AuthorityRecord.RoleGrantRecord(
-                        ref,
+                        "g-$person-$role-$entity",
                         RoleGrantState.ACTIVE,
                         RoleGrant(role, GrantScope.ENTITY, entity, Instant.now().minusSeconds(3600), validUntil),
                     ),
@@ -389,7 +388,7 @@ class ConfirmerPermissionTest {
     @Test
     fun `two different users holding tax approver confirm two changes and the rows hold the two user IDs`() {
         val f = Fixture()
-        val entity = "ENT-TWO"
+        val entity = "ENT-8118-TWO"
         f.grant("IDN-TA-1", "tax.approver", entity)
         f.grant("IDN-TA-2", "tax.approver", entity)
         run(f.replica) { env ->

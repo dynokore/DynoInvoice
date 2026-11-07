@@ -27,10 +27,13 @@ class ReplicaConfirmerPermissionTest {
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val asked = mutableListOf<String>()
     private val replica =
-        AuthorityReplica(clock) { key ->
-            asked += key
-            if (key == "entity-config.confirm") mapOf("tax.approver" to CellAllowance.PERMITTED) else emptyMap()
-        }.also { it.onSnapshotComplete(0) }
+        AuthorityReplica(
+            clock,
+            OperationRoleMap { key ->
+                asked += key
+                if (key == "entity-config.confirm") mapOf("tax.approver" to CellAllowance.PERMITTED) else emptyMap()
+            },
+        ).also { it.onSnapshotComplete(0) }
     private val tenants =
         object : TenantContext {
             override fun current() = tenant
