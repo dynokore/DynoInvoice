@@ -12,8 +12,8 @@ import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
-import com.dynokore.gst.tenancy.domain.SandboxCertificationPermissions
 import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
+import com.dynokore.gst.tenancy.domain.SandboxCertificationPermissions
 import com.dynokore.platform.configresolver.BackdatingFloor
 import com.dynokore.platform.configresolver.DelegationProbe
 import com.dynokore.platform.configresolver.PolicyChange
@@ -133,21 +133,6 @@ class TestPeople :
         return grantRef
     }
 
-    private val permissions = ConcurrentHashMap<Pair<String, String>, Set<String>>()
-
-    /**
-     * A permission held on one entity for a key the operation-role matrix of the catalogue does not list
-     * (`sandbox-certification.record`, catalogue gap reported in the MR): the test answers by the key, never by a role
-     * name.
-     */
-    fun grantPermission(
-        person: String,
-        entityRef: String,
-        permission: String,
-    ) {
-        permissions.merge(person to entityRef, setOf(permission)) { old, new -> old + new }
-    }
-
     /** Removes the role grant [grantRef] written by [grantRole]: a revoked role takes effect at the next request. */
     fun revokeRole(
         person: String,
@@ -222,16 +207,12 @@ class TestPeople :
                 roles.any { it in EXTENDING }
             }
 
-            ElectionPermissions.APPROVE -> {
+            ElectionPermissions.APPROVE, SandboxCertificationPermissions.RECORD -> {
                 approvals.holds(
                     person,
                     entityRef,
                     action,
                 )
-            }
-
-            SandboxCertificationPermissions.RECORD -> {
-                action in permissions[person to entityRef].orEmpty()
             }
 
             else -> {

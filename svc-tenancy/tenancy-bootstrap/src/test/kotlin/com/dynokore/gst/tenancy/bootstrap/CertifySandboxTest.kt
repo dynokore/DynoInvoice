@@ -242,7 +242,7 @@ class CertifySandboxTest {
                 e.passed(entity)
                 val recorder = env.context.getBean(RecordInstallationAction::class.java)
                 val run = UUID.randomUUID()
-                val t0 = Instant.now() // the fact table is shared by the tests: times only grow
+                val t0 = Instant.parse("2026-11-01T00:00:00Z")
 
                 fun step(
                     n: Int,
@@ -264,14 +264,7 @@ class CertifySandboxTest {
                 )
                 recorder.handle(step(1, "2026.1", t0))
                 assertThat(e.state(entity)).isEqualTo("CURRENT" to null)
-                val before = e.markRequestedIds()
                 recorder.handle(step(2, "2026.2", t0.plusSeconds(60)))
-                // the mark runs on delivery of the event written in the transaction of the fact (INV-Q-18156)
-                assertThat(e.state(entity)).isEqualTo("CURRENT" to null)
-                val written = e.markRequestedIds() - before.toSet()
-                assertThat(written).hasSize(1)
-                e.deliverMarkRequested(written.single())
-                assertThat(e.poll(MARK_CONSUMER)).isEqualTo(APPLIED_ONE)
                 assertThat(e.state(entity)).isEqualTo("STALE" to "NEW_TRAIN")
                 val event = e.payload(e.stored(entity).single())
                 assertThat(event["trigger"].asString()).isEqualTo("NEW_TRAIN")
@@ -343,21 +336,15 @@ class CertifySandboxTest {
     // ---- the wiring -------------------------------------------------------------------------------------------
 
     @Test
-    fun `the subscriptions this task adds equal the rule-pack, identity-triple and mark-requested topics`() {
+    fun `the subscriptions this task adds equal the rule-pack-activated and identity-triple-changed topics`() {
         run { e, env ->
             assertThat(ConsumedCertificationEvents.TOPICS)
-                .isEqualTo(
-                    setOf(
-                        "gst.rules.rule-pack-activated.v1",
-                        "gst.masterdata.identity-triple-changed.v1",
-                        "gst.platform.certification-mark-requested.v1",
-                    ),
-                )
+                .isEqualTo(setOf("gst.rules.rule-pack-activated.v1", "gst.masterdata.identity-triple-changed.v1"))
             val catalogue = TenancyEventCatalogue.load()
             val topics = catalogue.entries().filter { it.eventType == TRIPLE_TYPE }.map { it.topic }
             assertThat(topics).containsExactly(TRIPLE_TOPIC)
             val consumers = env.context.getBeansOfType(InboxConsumer::class.java).keys
-            assertThat(consumers).contains(PACK_CONSUMER, TRIPLE_CONSUMER, MARK_CONSUMER)
+            assertThat(consumers).contains(PACK_CONSUMER, TRIPLE_CONSUMER)
             assertThat(e.poll(PACK_CONSUMER)).isNotNull
         }
     }

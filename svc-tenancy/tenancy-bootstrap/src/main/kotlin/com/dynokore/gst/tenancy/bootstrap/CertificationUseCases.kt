@@ -1,7 +1,5 @@
 package com.dynokore.gst.tenancy.bootstrap
 
-import com.dynokore.gst.tenancy.adapters.certification.CertificationMarkRequestedHandler
-import com.dynokore.gst.tenancy.adapters.certification.CertificationMarkRequestedOutbox
 import com.dynokore.gst.tenancy.adapters.certification.ConsumedCertificationEvents
 import com.dynokore.gst.tenancy.adapters.certification.IdentityTripleChangedHandler
 import com.dynokore.gst.tenancy.adapters.certification.RulePackActivatedCertificationHandler
@@ -15,7 +13,6 @@ import com.dynokore.gst.tenancy.application.certification.CertifiedEntityDirecto
 import com.dynokore.gst.tenancy.application.certification.CertifySandbox
 import com.dynokore.gst.tenancy.application.certification.MarkAllStaleForNewTrain
 import com.dynokore.gst.tenancy.application.certification.MarkCertificationStale
-import com.dynokore.gst.tenancy.application.certification.ReleaseTrainChanged
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -105,27 +102,6 @@ class CertificationUseCases {
             ConsumedCertificationEvents.RULE_PACK_ACTIVATED_CONSUMER,
             ConsumedCertificationEvents.RULE_PACK_ACTIVATED_TOPIC,
             RulePackActivatedCertificationHandler(directory, tenants, tx, mark, mapper, ACTOR),
-        )
-
-    /** The transactional outbox half of the NEW_TRAIN mark: the hook of the `releaseTrain` fact writer. */
-    @Bean
-    fun certificationMarkRequested(
-        outbox: OutboxWriter,
-        mapper: ObjectMapper,
-    ): ReleaseTrainChanged = CertificationMarkRequestedOutbox(outbox, mapper)
-
-    /** The idempotent consumer half: marks per tenant on delivery, retried by the inbox. */
-    @Bean
-    fun certificationMarkRequestedConsumer(
-        markAll: MarkAllStaleForNewTrain,
-        tx: TransactionRunner,
-        mapper: ObjectMapper,
-        deps: ConsumerDependencies,
-    ): InboxConsumer =
-        deps.consumer(
-            ConsumedCertificationEvents.MARK_REQUESTED_CONSUMER,
-            ConsumedCertificationEvents.MARK_REQUESTED_TOPIC,
-            CertificationMarkRequestedHandler(markAll, tx, mapper),
         )
 
     @Bean

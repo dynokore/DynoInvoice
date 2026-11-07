@@ -1,7 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.http
 
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
-import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElectionRow
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElectionStore
@@ -123,8 +122,6 @@ class ExemptPurchaseRouteTest {
             tenants,
             commands,
             unused(),
-            unused(),
-            CallerSource { "user-1" },
         )
 
     private fun request(

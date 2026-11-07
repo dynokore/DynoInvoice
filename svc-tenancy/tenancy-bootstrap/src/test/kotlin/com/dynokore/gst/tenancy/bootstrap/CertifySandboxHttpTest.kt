@@ -13,8 +13,8 @@ import org.springframework.http.HttpStatus
 import tools.jackson.databind.json.JsonMapper
 import java.util.UUID
 
-private typealias CertReq = CertifySandboxRequest
-private typealias CertOut = CertifySandboxRequest.Outcome
+private typealias Req = CertifySandboxRequest
+private typealias Out = CertifySandboxRequest.Outcome
 
 /**
  * certifySandbox through the controller of the service (INV-T-16409): the status and the stored rows at the boundary.
@@ -36,7 +36,7 @@ class CertifySandboxHttpTest {
     private fun post(
         env: ProfileEnv,
         entity: EntityResponse,
-        request: CertReq,
+        request: Req,
     ): Int =
         try {
             env.api
@@ -48,7 +48,7 @@ class CertifySandboxHttpTest {
         }
 
     private fun refused(
-        request: CertReq,
+        request: Req,
         recorder: String = CERTIFIER,
         keys: Array<String> = arrayOf(RECORD_KEY),
     ) = run { e, env ->
@@ -71,7 +71,7 @@ class CertifySandboxHttpTest {
                     env.api.certifySandbox(
                         entity.entityRef,
                         UUID.randomUUID(),
-                        CertReq(CertOut.FAILED, "2026.2", scenarios),
+                        Req(Out.FAILED, "2026.2", scenarios),
                     )
                 assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
                 val body: CertificationResponse = response.body!!
@@ -92,7 +92,7 @@ class CertifySandboxHttpTest {
         run { e, env ->
             env.withEntity { _, entity ->
                 e.actAs(CONFIG_ONLY, entity, "entity-config.manage")
-                assertThat(post(env, entity, CertReq(CertOut.PASSED, "2026.1"))).isEqualTo(HttpStatus.FORBIDDEN.value())
+                assertThat(post(env, entity, Req(Out.PASSED, "2026.1"))).isEqualTo(HttpStatus.FORBIDDEN.value())
                 assertThat(e.rows(entity)).isEmpty()
             }
         }
@@ -103,31 +103,31 @@ class CertifySandboxHttpTest {
         run { e, env ->
             env.withEntity { _, entity ->
                 e.actAs(CERTIFIER, entity, RECORD_KEY)
-                assertThat(post(env, entity, CertReq(CertOut.PASSED, "2026.1"))).isEqualTo(HttpStatus.CREATED.value())
+                assertThat(post(env, entity, Req(Out.PASSED, "2026.1"))).isEqualTo(HttpStatus.CREATED.value())
                 assertThat(e.rows(entity)).hasSize(1)
             }
         }
     }
 
     @Test
-    fun `probe http FAILED with failedScenarios absent is 400 and no row`() = refused(CertReq(CertOut.FAILED, "2026.1"))
+    fun `probe http FAILED with failedScenarios absent is 400 and no row`() = refused(Req(Out.FAILED, "2026.1"))
 
     @Test
     fun `probe http FAILED with failedScenarios empty is 400 and no row`() =
-        refused(CertReq(CertOut.FAILED, "2026.1", emptyList()))
+        refused(Req(Out.FAILED, "2026.1", emptyList()))
 
     @Test
     fun `probe http PASSED with one failedScenarios item is 400 and no row`() =
-        refused(CertReq(CertOut.PASSED, "2026.1", listOf("SC-1")))
+        refused(Req(Out.PASSED, "2026.1", listOf("SC-1")))
 
     @Test
     fun `probe http PASSED with failedScenarios empty is 400 and no row`() =
-        refused(CertReq(CertOut.PASSED, "2026.1", emptyList()))
+        refused(Req(Out.PASSED, "2026.1", emptyList()))
 
     @Test
     fun `probe http suiteVersion absent is refused by the request reader and no row is stored`() {
         val mapper = JsonMapper.builder().build()
-        assertThatThrownBy { mapper.readValue("{\"outcome\":\"PASSED\"}", CertReq::class.java) }
+        assertThatThrownBy { mapper.readValue("{\"outcome\":\"PASSED\"}", Req::class.java) }
             .isInstanceOf(Exception::class.java)
         run { e, env ->
             env.withEntity { _, entity ->
@@ -139,7 +139,7 @@ class CertifySandboxHttpTest {
     @Test
     fun `probe http outcome of the look-alike value passed is refused by the request reader and no row is stored`() {
         val mapper = JsonMapper.builder().build()
-        assertThatThrownBy { mapper.readValue("{\"outcome\":\"passed\",\"suiteVersion\":\"1\"}", CertReq::class.java) }
+        assertThatThrownBy { mapper.readValue("{\"outcome\":\"passed\",\"suiteVersion\":\"1\"}", Req::class.java) }
             .isInstanceOf(Exception::class.java)
         run { e, env ->
             env.withEntity { _, entity ->
