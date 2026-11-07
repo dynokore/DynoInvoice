@@ -35,7 +35,8 @@ import org.springframework.web.context.request.ServletRequestAttributes
 import java.lang.reflect.Proxy
 import java.time.Instant
 
-/** INV-AC-17761: the two reads decide by the operation's own READ key through [OperatorPermissions], never a role. */
+/** INV-AC-17761 (the test names carry the criterion key and the exact case text): the two reads decide by the operation's own READ key through [OperatorPermissions], never a role. */
+@Suppress("MaxLineLength", "ktlint:standard:max-line-length")
 class CommercialControllerPermissionTest {
     private val actor = "op-1"
     private val licenceKey = CommercialPermission.LICENCE_VIEW
@@ -43,9 +44,9 @@ class CommercialControllerPermissionTest {
     private val asked = mutableListOf<Pair<String, String>>()
     private var licenceLookups = 0
     private var provisioningLookups = 0
-    private var bearer: String? = "Bearer ok"
 
-    private val licence = Licence(CommercialRef("LIC-1"), CommercialRef("INST-1"), "2026", Instant.EPOCH, byteArrayOf(1))
+    private val licence =
+        Licence(CommercialRef("LIC-1"), CommercialRef("INST-1"), "2026", Instant.EPOCH, byteArrayOf(1))
     private val provisioning =
         TenantProvisioning(
             CommercialRef("CON-1"),
@@ -70,30 +71,41 @@ class CommercialControllerPermissionTest {
     private inline fun <reified T : Any> stub(): T =
         Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, _, _ -> null } as T
 
+    private fun licences() =
+        object : LicenceRepository by stub() {
+            override fun findByRef(licenceRef: CommercialRef): Licence? {
+                licenceLookups++
+                return licence.takeIf { it.licenceRef == licenceRef }
+            }
+        }
+
+    private fun provisionings() =
+        object : ProvisioningRepository by stub() {
+            override fun findByContract(contractReference: CommercialRef): ProvisioningRecord? {
+                provisioningLookups++
+                return ProvisioningRecord(provisioning, java.util.UUID.randomUUID(), "f")
+                    .takeIf { provisioning.contractReference == contractReference }
+            }
+        }
+
     private fun controller(held: Set<String>): CommercialController {
-        val licences =
-            object : LicenceRepository by stub() {
-                override fun findByRef(licenceRef: CommercialRef): Licence? {
-                    licenceLookups++
-                    return licence.takeIf { it.licenceRef == licenceRef }
-                }
-            }
-        val provisionings =
-            object : ProvisioningRepository by stub() {
-                override fun findByContract(contractReference: CommercialRef): ProvisioningRecord? {
-                    provisioningLookups++
-                    return ProvisioningRecord(provisioning, java.util.UUID.randomUUID(), "f")
-                        .takeIf { provisioning.contractReference == contractReference }
-                }
-            }
         val permissions =
             OperatorPermissions { who, key ->
                 asked += who to key
                 key in held
             }
-        val delivery = InvitationDelivery(stub(), stub(), stub(), java.time.Clock.systemUTC(), java.time.Duration.ofDays(1))
+        val delivery =
+            InvitationDelivery(stub(), stub(), stub(), java.time.Clock.systemUTC(), java.time.Duration.ofDays(1))
         return CommercialController(
-            EndUserPrincipalResolver { header -> if (header == "Bearer ok") EndUserPrincipal(actor, null, emptySet()) else null },
+            EndUserPrincipalResolver { header ->
+                if (header ==
+                    "Bearer ok"
+                ) {
+                    EndUserPrincipal(actor, null, emptySet())
+                } else {
+                    null
+                }
+            },
             object : PlatformTenantBinding {
                 override fun <T> bindPlatform(
                     actor: String,
@@ -108,14 +120,20 @@ class CommercialControllerPermissionTest {
             ManagePlan(stub(), stub<OperatorRoles>()),
             RecordQualification(stub(), stub<OperatorRoles>()),
             ProvisionTenant(stub(), stub(), stub(), delivery, stub<OperatorRoles>()) { CommercialRef("x") },
-            GetTenantProvisioningRequest(provisionings),
-            IssueLicence(stub(), stub(), stub(), stub<OperatorRoles>(), java.time.Clock.systemUTC()) { CommercialRef("x") },
-            GetLicence(licences),
+            GetTenantProvisioningRequest(provisionings()),
+            IssueLicence(
+                stub(),
+                stub(),
+                stub(),
+                stub<OperatorRoles>(),
+                java.time.Clock.systemUTC(),
+            ) { CommercialRef("x") },
+            GetLicence(licences()),
             ReissueFirstAdministratorInvitation(stub(), stub(), delivery, permissions),
         )
     }
 
-    private fun request(authorization: String? = bearer) {
+    private fun request(authorization: String? = "Bearer ok") {
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
                 if (method.name == "getHeader" && args?.get(0) == "Authorization") authorization else null
@@ -131,13 +149,19 @@ class CommercialControllerPermissionTest {
             "${e.problem.status} " + CODES.entries.single { "\"code\":\"${it.key}\"" in e.problem.body }.value
         }
 
-    private fun licenceCall(held: Set<String>, ref: String = "LIC-1"): String {
+    private fun licenceCall(
+        held: Set<String>,
+        ref: String = "LIC-1",
+    ): String {
         request()
         val c = controller(held)
         return statusOf { c.getLicence(ref) }
     }
 
-    private fun provisioningCall(held: Set<String>, ref: String = "CON-1"): String {
+    private fun provisioningCall(
+        held: Set<String>,
+        ref: String = "CON-1",
+    ): String {
         request()
         val c = controller(held)
         return statusOf { c.getTenantProvisioningRequest(ref) }
