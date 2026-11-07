@@ -10,6 +10,7 @@ import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.gst.tenancy.domain.ElectionKeys
 import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
+import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.IssuanceMode
 import com.dynokore.gst.tenancy.domain.StatusTimeline
@@ -410,6 +411,7 @@ class ElectionCommands(
                 basis,
                 effectiveFrom,
                 actor,
+                MANAGERS,
                 reason,
             )
             null
@@ -487,4 +489,9 @@ class ElectionCommands(
         elections
             .history(entityRef, kind)
             .map { ProfileEntry(attribute, it.value, it.effectiveFrom) }
+
+    private companion object {
+        /** What the writer's setting-role check is shown for a caller proven to hold `entity-config.manage`. */
+        val MANAGERS: Set<String> = setOf(ElectionRoles.ENTITY_ADMIN)
+    }
 }

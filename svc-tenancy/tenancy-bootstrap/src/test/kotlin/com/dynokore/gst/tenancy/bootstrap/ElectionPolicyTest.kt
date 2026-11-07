@@ -1,7 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.election.ElectionPolicyWriterGuard
-import com.dynokore.gst.tenancy.adapters.election.ElectionSetterPermission
 import com.dynokore.gst.tenancy.adapters.election.ElectionWriteMarker
 import com.dynokore.gst.tenancy.application.election.ElectionPolicyStore
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
@@ -17,7 +16,6 @@ import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SetPolicyCommand
-import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.Strictness
 import com.dynokore.platform.configresolver.UnknownVariationPoint
 import com.dynokore.platform.configresolver.VariationPointCatalogue
@@ -230,7 +228,7 @@ class ElectionPolicyTest {
         option: String,
         scope: PolicyScope,
     ) = env.inTx {
-        env.writer.asRole(env.tenants, TestOperationRoles.holders(definition.setPermission).first()).setPolicy(
+        env.writer.setPolicy(
             SetPolicyCommand(
                 definition.key,
                 scope,
@@ -238,7 +236,7 @@ class ElectionPolicyTest {
                 listOf(SelectedOption(option)),
                 TODAY,
                 "catalogue row test",
-                Actor("user:test"),
+                Actor("user:test", definition.setBy),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),
@@ -335,85 +333,6 @@ class ElectionPolicyTest {
                 }
                 assertThat(checked).isGreaterThanOrEqualTo(12)
                 assertThat(DeploymentForm.entries).isNotEmpty()
-            }
-        }
-    }
-}
-
-/** The setter permission of an election write and the writer's POL-004 refusal around it (INV-Q-10027). */
-class ElectionSetterPermissionTest {
-    private val vp22 = VariationPointKey("VP-22")
-    private val permission = ElectionSetterPermission(vp22)
-
-    private fun holds(
-        key: String,
-        level: ScopeLevel = ScopeLevel.ENTITY,
-    ) = permission.holds(Actor("user:x"), TenantId(UUID.randomUUID()), level, null, "ENT-1", key)
-
-    @Test
-    fun `election setter permission is true for the setting key of the key at ENTITY level`() {
-        assertThat(holds("vp-22.set")).isTrue()
-        assertThat(holds(SetterPermission.settingKey(vp22))).isTrue()
-    }
-
-    @Test
-    fun `election setter permission is false for every other key and for look-alikes`() {
-        listOf("vp-23.set", "vp-220.set", "vp-22.set ", "VP-22.set", "vp-22.acknowledge", "vp-52.set", "").forEach {
-            assertThat(holds(it)).describedAs("key '$it'").isFalse()
-        }
-    }
-
-    @Test
-    fun `election setter permission is false at TENANT and at INSTALLATION level`() {
-        assertThat(holds("vp-22.set", ScopeLevel.TENANT)).isFalse()
-        assertThat(holds("vp-22.set", ScopeLevel.INSTALLATION)).isFalse()
-    }
-
-    private fun vp76(
-        tenant: TenantId,
-        entityRef: String,
-        groupRef: String,
-    ) = SetPolicyCommand(
-        VariationPointKey("VP-76"),
-        PolicyScope.entity(tenant, entityRef, group = groupRef),
-        ScopeLevel.ENTITY,
-        listOf(SelectedOption("PER_LINE")),
-        TODAY,
-        "setter permission test",
-        Actor("user:test"),
-        CorrelationId("corr-${UUID.randomUUID()}"),
-        CausationId("cause-${UUID.randomUUID()}"),
-    )
-
-    private fun refusalOf(block: () -> Unit): PolicyRefusal? =
-        try {
-            block()
-            null
-        } catch (refused: PolicyRefused) {
-            refused.refusal
-        }
-
-    @Test
-    fun `election setter permission - a non-election key is POL-004 unbound or without a role`() {
-        BoundaryFixture.runner().run { context ->
-            context.startupFailure?.let { throw it }
-            val env = ProfileEnv(context)
-            env.withGroup(1) { tenant, group, entities ->
-                val command = vp76(tenant, entities.single().entityRef, group.groupRef)
-                // nothing bound: refused with POL-004
-                assertThat(
-                    refusalOf { env.inTx { env.writer.setPolicy(command) } },
-                ).isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
-                // the helper bound, the person holding no role: refused with POL-004
-                assertThat(
-                    refusalOf { env.inTx { env.writer.asRoles(env.tenants, emptySet()).setPolicy(command) } },
-                ).isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
-                // a role that is not a holder of vp-76.set: refused
-                assertThat(
-                    refusalOf { env.inTx { env.writer.asRole(env.tenants, "entity.admin").setPolicy(command) } },
-                ).isEqualTo(PolicyRefusal.ROLE_NOT_ALLOWED)
-                // the holder role: accepted
-                env.inTx { env.writer.asRole(env.tenants, "tax.approver").setPolicy(command) }
             }
         }
     }

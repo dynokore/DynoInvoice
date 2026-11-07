@@ -48,7 +48,7 @@ class OverSubmissionElectionTest {
         option: String,
         roles: Set<String>,
     ) = env.inTx {
-        env.writer.asRoles(env.tenants, roles).setPolicy(
+        env.writer.setPolicy(
             SetPolicyCommand(
                 vp21,
                 PolicyScope.entity(env.tenants.current(), entity.entityRef),
@@ -56,7 +56,7 @@ class OverSubmissionElectionTest {
                 listOf(SelectedOption(option)),
                 TODAY,
                 "over-submission test",
-                Actor("user:test"),
+                Actor("user:test", roles),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),

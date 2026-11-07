@@ -12,20 +12,13 @@ import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
-import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
 import com.dynokore.platform.configresolver.BackdatingFloor
 import com.dynokore.platform.configresolver.DelegationProbe
-import com.dynokore.platform.configresolver.PolicyChange
-import com.dynokore.platform.configresolver.PolicyWriter
-import com.dynokore.platform.configresolver.RelaxationStatus
-import com.dynokore.platform.configresolver.SetPolicyCommand
-import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.StagedOutboxRow
-import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -85,7 +78,7 @@ class TestPeople :
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
     private val clock = Clock.systemUTC()
-    internal val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
+    private val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
     private val version = AtomicLong()
     private val approvals =
         ReplicaActionAuthority(
@@ -113,16 +106,13 @@ class TestPeople :
         entityRef: String,
         role: String,
         validUntil: java.time.Instant? = null,
-        tenant: TenantId = TENANT,
-        scope: GrantScope = GrantScope.ENTITY,
     ): String {
         val grantRef = "GR-${UUID.randomUUID()}"
         feed(
             person,
             grantRef,
             RoleGrantState.ACTIVE,
-            RoleGrant(role, scope, entityRef, clock.instant().minusSeconds(60), validUntil),
-            tenant,
+            RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60), validUntil),
         )
         return grantRef
     }
@@ -147,11 +137,10 @@ class TestPeople :
         grantRef: String,
         state: RoleGrantState,
         grant: RoleGrant,
-        tenant: TenantId = TENANT,
     ) {
         replica.accept(
             AuthorityChanged(
-                tenant,
+                TENANT,
                 person,
                 version.incrementAndGet(),
                 AuthorityRecord.RoleGrantRecord(grantRef, state, grant),

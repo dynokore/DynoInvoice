@@ -53,7 +53,7 @@ class SchemeElectionTest {
         on: LocalDate,
         key: VariationPointKey = vp53,
     ) = env.inTx {
-        env.writer.asRole(env.tenants, "entity.admin").setPolicy(
+        env.writer.setPolicy(
             SetPolicyCommand(
                 key,
                 PolicyScope.entity(env.tenants.current(), entity.entityRef),
@@ -61,7 +61,7 @@ class SchemeElectionTest {
                 keys.map { SelectedOption(it) },
                 on,
                 "scheme test",
-                Actor("user:test"),
+                Actor("user:test", setOf("entity.admin")),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),
@@ -252,7 +252,7 @@ class SchemeElectionTest {
         entity: EntityResponse,
         planned: VariationPointDefinition,
     ) = env.inTx {
-        env.writer.asRole(env.tenants, TestOperationRoles.holders(planned.setPermission).first()).setPolicy(
+        env.writer.setPolicy(
             SetPolicyCommand(
                 planned.key,
                 PolicyScope.entity(env.tenants.current(), entity.entityRef),
@@ -260,7 +260,7 @@ class SchemeElectionTest {
                 listOf(SelectedOption(planned.options.first().key)),
                 TODAY,
                 "planned row test",
-                Actor("user:test"),
+                Actor("user:test", planned.setBy),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),

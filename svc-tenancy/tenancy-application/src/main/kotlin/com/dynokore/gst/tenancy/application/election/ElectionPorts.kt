@@ -133,7 +133,7 @@ interface ElectionPolicyStore {
     ): List<ElectionRecord>
 
     /**
-     * Stores the election with the caller as actor; the store decides by permission, never by a role (INV-Q-10027).
+     * Stores the election with the caller as actor and [roles] as the roles the caller is proven to hold.
      *
      * @throws ElectionWriteRefused when the store refuses the value; nothing is stored.
      */
@@ -146,6 +146,7 @@ interface ElectionPolicyStore {
         basis: String?,
         effectiveFrom: LocalDate,
         actor: String,
+        roles: Set<String>,
         reason: String,
     )
 }

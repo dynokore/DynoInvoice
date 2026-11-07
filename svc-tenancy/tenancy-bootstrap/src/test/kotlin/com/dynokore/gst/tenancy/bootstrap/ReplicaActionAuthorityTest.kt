@@ -21,8 +21,7 @@ import java.util.UUID
 
 /**
  * The production binding of the permission check (ruling INV-Q-10025) over a real [AuthorityReplica]: true only for a
- * valid role grant of a role the catalogue lists for the permission key, on that entity, for that person, within the
- * lag bound.
+ * valid role grant of a role the catalogue lists for the permission key, on that entity, for that person, within the lag bound.
  */
 class ReplicaActionAuthorityTest {
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000a1"))

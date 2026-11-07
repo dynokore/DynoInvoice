@@ -138,29 +138,6 @@ class SampleCopyTest {
 
         fun setting(tenant: TenantId) = env.inTenant(tenant) { env.inTx { policy.isOn() } }
 
-        /** tenant.admin acknowledges the relaxation of VP-44 (INV-Q-10140 C), as the catalogue row asks. */
-        private fun acknowledged(
-            key: VariationPointKey,
-            scope: PolicyScope,
-            on: List<SelectedOption>,
-        ) = env.writer
-            .asRole(env.tenants, "tenant.admin")
-            .acknowledgeControlRelaxation(
-                AcknowledgeRelaxationCommand(
-                    key,
-                    scope,
-                    PolicyLevel.TENANT,
-                    on,
-                    TODAY,
-                    Actor("user:ta"),
-                    "tenant.admin",
-                    CorrelationId("corr-${UUID.randomUUID()}"),
-                    CausationId("cause-${UUID.randomUUID()}"),
-                    null,
-                    "accepted risk",
-                ),
-            ).relaxation
-
         /** VP-44 ON through the real writer: tenant.admin acknowledges, then security.officer sets it. */
         fun switchOn(tenant: TenantId) {
             val key = VariationPointKey("VP-44")
@@ -168,8 +145,24 @@ class SampleCopyTest {
             val on = listOf(SelectedOption("ON", null))
             env.inTenant(tenant) {
                 env.inTx {
-                    val relaxation = acknowledged(key, scope, on)
-                    env.writer.asRole(env.tenants, "security.officer").setPolicy(
+                    val relaxation =
+                        env.writer
+                            .acknowledgeControlRelaxation(
+                                AcknowledgeRelaxationCommand(
+                                    key,
+                                    scope,
+                                    PolicyLevel.TENANT,
+                                    on,
+                                    TODAY,
+                                    Actor("user:ta", setOf("tenant.admin")),
+                                    "tenant.admin",
+                                    CorrelationId("corr-${UUID.randomUUID()}"),
+                                    CausationId("cause-${UUID.randomUUID()}"),
+                                    null,
+                                    "accepted risk",
+                                ),
+                            ).relaxation
+                    env.writer.setPolicy(
                         SetPolicyCommand(
                             key,
                             scope,
@@ -177,7 +170,7 @@ class SampleCopyTest {
                             on,
                             TODAY,
                             "dry runs",
-                            Actor("user:officer"),
+                            Actor("user:officer", setOf("security.officer")),
                             CorrelationId("corr-${UUID.randomUUID()}"),
                             CausationId("cause-${UUID.randomUUID()}"),
                             relaxation = relaxation,
@@ -340,7 +333,7 @@ class SampleCopyTest {
                 runCatching {
                     s.env.inTenant(tenant) {
                         s.env.inTx {
-                            s.env.writer.asRole(s.env.tenants, "security.officer").setPolicy(
+                            s.env.writer.setPolicy(
                                 SetPolicyCommand(
                                     VariationPointKey("VP-44"),
                                     PolicyScope.tenant(tenant),
@@ -348,7 +341,7 @@ class SampleCopyTest {
                                     listOf(SelectedOption("ON", null)),
                                     TODAY,
                                     "dry runs",
-                                    Actor("user:officer"),
+                                    Actor("user:officer", setOf("security.officer")),
                                     CorrelationId("corr-${UUID.randomUUID()}"),
                                     CausationId("cause-${UUID.randomUUID()}"),
                                 ),
