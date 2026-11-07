@@ -290,7 +290,7 @@ class GrantManagerCheckTest {
                 env.context.beanDefinitionNames
                     .mapNotNull { env.context.getType(it) }
                     .flatMap { type -> generateSequence(type) { it.superclass }.flatMap { listOf(it) + it.interfaces } }
-            assertThat(types.map { it.simpleName }).noneMatch { it.endsWith("Policy" + "RoleResolver") }
+            assertThat(types.map { it.simpleName }).noneMatch { it.endsWith("PolicyRoleResolver") }
             assertThat(env.refused(id("IDN-NOBODY"))).isTrue()
         }
 
