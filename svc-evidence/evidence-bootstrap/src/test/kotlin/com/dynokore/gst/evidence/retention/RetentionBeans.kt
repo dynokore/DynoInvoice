@@ -1,68 +1,78 @@
 package com.dynokore.gst.evidence.retention
 
-import com.dynokore.platform.outboxandqueue.EntityRef
-import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
-import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
-import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
-import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
-import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
-import com.dynokore.platform.serviceruntime.replica.GrantScope
-import com.dynokore.platform.serviceruntime.replica.RoleGrant
-import com.dynokore.platform.serviceruntime.replica.RoleGrantState
-import com.dynokore.platform.tenancykernel.TenantId
-import org.springframework.beans.factory.ObjectProvider
+import com.nimbusds.jose.JWSAlgorithm
+import com.nimbusds.jose.JWSHeader
+import com.nimbusds.jose.crypto.RSASSASigner
+import com.nimbusds.jose.jwk.JWKSet
+import com.nimbusds.jose.jwk.RSAKey
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator
+import com.nimbusds.jwt.JWTClaimsSet
+import com.nimbusds.jwt.SignedJWT
+import com.sun.net.httpserver.HttpServer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicLong
+import java.util.Date
+import java.util.UUID
 
 /**
- * The end-user token a test sends (`Bearer <tenant>/<actor>`, entities [ENTITIES] granted), which the identity provider
- * signs in production. The permission is not stood in for any more (INV-T-12601): resolving a token seeds the actor's
- * TENANT-scope `tenant.admin` grant into the production `AuthorityReplica`, so `setPolicy` is decided by
- * `AuthorityReplica.decide` for `vp-43.set` as it is in production. It sits outside the packages the application scans,
- * so only a test puts it in a context. The signed-token path is proved by `ProductionIdentityTest`.
+ * The identity provider of the retention tests (INV-T-12601): a test key whose key set a loopback server serves at
+ * [jwkSetUri] for the whole test JVM. The production `EndUserPrincipalResolver` of `IdentityConfiguration` verifies the
+ * tokens [token] signs; no resolver of the test stands in for it. The issuer and the audience are the installation
+ * values the Gradle test task sets as system properties.
  */
-@Configuration(proxyBeanMethods = false)
-class RetentionBeans {
-    private val version = AtomicLong()
-
-    @Bean
-    @Primary
-    fun retentionEndUserResolver(authority: ObjectProvider<AuthorityReplica>): EndUserPrincipalResolver =
-        EndUserPrincipalResolver { authorization ->
-            authorization?.removePrefix("Bearer ")?.split('/')?.takeIf { it.size == 2 }?.let { (tenant, actor) ->
-                val tenantId = TenantId.of(tenant)
-                seed(authority.getObject(), tenantId, actor)
-                EndUserPrincipal(actor, tenantId, ENTITIES.map { EntityRef(it) }.toSet())
+object TestIdentity {
+    private const val KEY_ID = "k1"
+    private val key: RSAKey = RSAKeyGenerator(2048).keyID(KEY_ID).generate()
+    private val server: HttpServer =
+        HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0).apply {
+            val body = JWKSet(key.toPublicJWK()).toString().toByteArray()
+            createContext("/jwks") { exchange ->
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
             }
+            executor = null
+            start()
         }
 
-    private fun seed(
-        replica: AuthorityReplica,
-        tenant: TenantId,
-        actor: String,
-    ) {
-        val at = version.incrementAndGet()
-        val grant = RoleGrant("tenant.admin", GrantScope.TENANT, tenant.toString(), Instant.EPOCH)
-        replica.accept(
-            AuthorityChanged(
-                tenant,
-                actor,
-                at,
-                AuthorityRecord.RoleGrantRecord("grant-$actor", RoleGrantState.ACTIVE, grant),
-            ),
-        )
-        replica.onSnapshotComplete(at)
-    }
+    /** Where the test serves its key set; the value of `evidence.identity-provider.jwk-set-uri`. */
+    val jwkSetUri: String = "http://127.0.0.1:${server.address.port}/jwks"
 
-    companion object {
-        val ENTITIES = listOf("ENT-A", "ENT-B")
+    private fun installation(name: String): String = checkNotNull(System.getProperty(name)) { "$name is not set" }
+
+    /** A token of [subject] in [tenant], signed by the test key, for the issuer and audience of the installation. */
+    fun token(
+        subject: String,
+        tenant: UUID,
+    ): String {
+        val claims =
+            JWTClaimsSet
+                .Builder()
+                .subject(subject)
+                .issuer(installation("evidence.identity-provider.issuer-uri"))
+                .audience(installation("service-runtime.end-user-identity.audience"))
+                .claim("tenant_id", tenant.toString())
+                .issueTime(Date.from(Instant.now().minusSeconds(10)))
+                .expirationTime(Date.from(Instant.now().plusSeconds(300)))
+                .build()
+        val jwt = SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID(KEY_ID).build(), claims)
+        jwt.sign(RSASSASigner(key))
+        return jwt.serialize()
     }
 }
+
+/**
+ * Marks a test whose actor holds the TENANT-scope `tenant.admin` grant, seeded into the production `AuthorityReplica`
+ * by [RetentionService]; `setPolicy` is decided by `AuthorityReplica.decide` for `vp-43.set` as in production.
+ */
+@Configuration(proxyBeanMethods = false)
+class RetentionBeans
 
 /** Only the workload tokens: no end-user resolver of the test, so the production one is built. */
 @Configuration(proxyBeanMethods = false)
@@ -81,15 +91,6 @@ class WorkloadTokensOnly {
         }
 }
 
-/** The end-user token is bound; the grant of the actor is not seeded, so the permission decision refuses. */
+/** A signed token of an actor with no grant: the permission decision refuses (403 SRT-004). */
 @Configuration(proxyBeanMethods = false)
-class EndUserTokensOnly {
-    @Bean
-    @Primary
-    fun retentionEndUserResolver(): EndUserPrincipalResolver =
-        EndUserPrincipalResolver { authorization ->
-            authorization?.removePrefix("Bearer ")?.split('/')?.takeIf { it.size == 2 }?.let { (tenant, actor) ->
-                EndUserPrincipal(actor, TenantId.of(tenant), RetentionBeans.ENTITIES.map { EntityRef(it) }.toSet())
-            }
-        }
-}
+class EndUserTokensOnly

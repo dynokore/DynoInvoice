@@ -1,5 +1,6 @@
 package com.dynokore.gst.evidence.bootstrap
 
+import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.domain.retention.RetentionTier
 import com.dynokore.gst.evidence.retention.RetentionService
 import com.dynokore.gst.evidence.retention.WorkloadTokensOnly
@@ -231,8 +232,23 @@ class ProductionIdentityTest {
             setPolicy(s, tenant, token("p1", tenant)).first shouldBe 200
             s.stored(tenant) shouldBe 1
             tiers(s, tenant) shouldBe listOf(7, 5, 5)
+
+            // the audit entry of the accepted call carries the acting user id: the sub of the token (INV-Q-10647)
+            auditActors(tenant) shouldBe listOf("p1")
         }
     }
+
+    /** The `actor` of every `AuditEntryRecorded` row of [tenant] in `evidence.outbox`, oldest first. */
+    private fun auditActors(tenant: TenantId): List<String> =
+        EvidenceDb.superuser().use { connection ->
+            connection.createStatement().use { statement ->
+                statement
+                    .executeQuery(
+                        "select data->>'actor' from evidence.outbox where tenant_id = '${tenant.value}' " +
+                            "and type = 'com.dynokore.gst.platform.AuditEntryRecorded.v1' order by seq",
+                    ).use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+            }
+        }
 
     private fun startupFailure(
         dir: Path,

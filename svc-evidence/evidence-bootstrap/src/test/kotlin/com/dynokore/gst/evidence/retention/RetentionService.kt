@@ -5,6 +5,17 @@ import com.dynokore.gst.evidence.application.retention.EffectiveRetention
 import com.dynokore.gst.evidence.bootstrap.EvidenceContext
 import com.dynokore.gst.evidence.domain.retention.RetentionTier
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
+import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
+import com.dynokore.platform.serviceruntime.replica.StructureChange
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.context.ConfigurableApplicationContext
@@ -15,9 +26,11 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /** One answer of the running service: its status and JSON body. */
 class Answer(
@@ -33,15 +46,29 @@ class Answer(
     }
 }
 
+/** Which end-user credential the client of a test sends with `setPolicy`. */
+enum class Actor {
+    /** A signed JWT of an actor holding the TENANT-scope `tenant.admin` grant, seeded into the replica. */
+    GRANTED,
+
+    /** A signed JWT of an actor with no grant. */
+    UNGRANTED,
+
+    /** No end-user credential. */
+    NONE,
+}
+
 /**
  * The service as TPL-18 composes it, in an embedded servlet container over the Testcontainers database, called over
  * HTTP: `setPolicy` of service-runtime and the published `getMaxEvidenceRetention`. The tests of INV-T-6540 use it.
  */
 class RetentionService(
     private val context: ConfigurableApplicationContext,
+    private val actor: Actor = Actor.GRANTED,
 ) : AutoCloseable {
     private val mapper = ObjectMapper()
     private val client = HttpClient.newHttpClient()
+    private val structured = mutableSetOf<TenantId>()
     private val port = context.environment.getProperty("local.server.port")
     private val scope = context.getBean(TenantScope::class.java)
     private val runner = context.getBean(TransactionRunner::class.java)
@@ -136,7 +163,7 @@ class RetentionService(
         val request =
             HttpRequest
                 .newBuilder(URI.create("http://localhost:$port/internal/v1/policies/VP-43$suffix"))
-                .header("Authorization", "Bearer ${tenant.value}/admin-1")
+                .apply { endUserToken(tenant)?.let { header("Authorization", "Bearer $it") } }
                 .apply { caller?.let { header("X-Workload-Token", "token-$it") } }
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .header("Content-Type", "application/json")
@@ -145,12 +172,30 @@ class RetentionService(
         return answer(client.send(request, HttpResponse.BodyHandlers.ofString()))
     }
 
+    /** The signed JWT of [ACTOR] for [tenant]; a granted actor's grant is seeded into the production replica. */
+    private fun endUserToken(tenant: TenantId): String? {
+        if (actor == Actor.NONE) return null
+        if (actor == Actor.GRANTED) {
+            val replica = context.getBean(AuthorityReplica::class.java)
+            val at = versions.incrementAndGet()
+            val grant = RoleGrant("tenant.admin", GrantScope.TENANT, tenant.toString(), Instant.EPOCH)
+            val record = AuthorityRecord.RoleGrantRecord("grant-$ACTOR", RoleGrantState.ACTIVE, grant)
+            replica.accept(AuthorityChanged(tenant, ACTOR, at, record))
+            replica.onSnapshotComplete(at)
+            if (structured.add(tenant)) {
+                val structure = context.getBean(StructureReplica::class.java)
+                ENTITIES.forEach { structure.accept(OrganisationStructureChanged(tenant, it, StructureChange.CREATED, entityNode())) }
+            }
+        }
+        return TestIdentity.token(ACTOR, tenant.value)
+    }
+
     /** GET of the published operation, with the workload token `token-<caller>` (see RetentionBeans). */
     fun getMax(caller: String?): Answer {
         val request =
             HttpRequest
                 .newBuilder(URI.create("http://localhost:$port/internal/v1/evidence/retention/maximum"))
-                .header("Authorization", "Bearer ${UUID.randomUUID()}/ignored")
+                .header("Authorization", "Bearer ${TestIdentity.token("ignored", UUID.randomUUID())}")
                 .apply { caller?.let { header("X-Workload-Token", "token-$it") } }
                 .GET()
                 .build()
@@ -232,18 +277,41 @@ class RetentionService(
     override fun close() = context.close()
 
     companion object {
+        private const val ACTOR = "admin-1"
+        private val ENTITIES = listOf("ENT-A", "ENT-B")
+
+        private fun entityNode() =
+            StructureNode(
+                StructureNodeKind.ENTITY,
+                null,
+                retired = false,
+                name = "entity",
+                code = null,
+                profile = emptyList(),
+                structureVersion = 1,
+            )
+
+        private val versions = AtomicLong()
+
         fun today(): LocalDate = LocalDate.now(ZoneId.of("Asia/Singapore"))
 
         /** The service for one test; the callers `control-plane-svc`, `access-svc`, `console-bff` have tokens. */
         fun start(
             dir: Path,
             beans: List<Class<*>> = listOf(WorkloadTokensOnly::class.java, RetentionBeans::class.java),
-        ): RetentionService =
-            RetentionService(
+        ): RetentionService {
+            val actor =
+                when {
+                    RetentionBeans::class.java in beans -> Actor.GRANTED
+                    EndUserTokensOnly::class.java in beans -> Actor.UNGRANTED
+                    else -> Actor.NONE
+                }
+            return RetentionService(
                 EvidenceContext.startServlet(
                     dir,
                     beans,
                     arrayOf(
+                        "evidence.identity-provider.jwk-set-uri=${TestIdentity.jwkSetUri}",
                         "service-runtime.workload-identity.callers[0].service=control-plane-svc",
                         "service-runtime.workload-identity.callers[0].subject=sa-control-plane-svc",
                         "service-runtime.workload-identity.callers[1].service=access-svc",
@@ -253,6 +321,8 @@ class RetentionService(
                     ),
                     RetentionService::class.java.classLoader,
                 ),
+                actor,
             )
+        }
     }
 }
