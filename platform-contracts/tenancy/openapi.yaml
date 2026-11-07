@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.31.0
+  version: 1.32.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1738,6 +1738,7 @@ paths:
       summary: Record a regulatory election with its effective date (SDS §7, SCR-16.5)
       description: >-
         Record a regulatory election with its effective date (SCR-16.5). The election is one of INVOICE_DATE, POSTING_DATE, CLAIMABLE_PORTION, ENTIRE_INVOICE; any other value is 400 SRT-001.
+        The key EXEMPT_PURCHASE_CODES (INV-REQ-369) records the election to exclude purchases coded with the named tax codes: taxCodes and basis are both required for this key and both absent for each of the other four keys, enforced by tenancy-svc with 400 SRT-001. It is effective from effectiveFrom, is recorded by a caller holding the permission this operation already requires, and is published through EntityProfileChanged node.profile as two entries from effectiveFrom: the attribute exemptPurchaseCodes, whose value is the codes in ascending code-unit order joined by a comma with no space, and the attribute exemptPurchaseBasis, whose value is basis.
         A CHANGE of an election already recorded is refused 409 while a PENDING change exists for the same entity and variation point (INV-Q-10117 (A)); a pending change never expires and ends only by approval, withdrawal (withdrawElectionChange) or decline (declineElectionChange) (INV-Q-10115 (A)).
         Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
@@ -4346,10 +4347,24 @@ components:
         election:
           type: string
           maxLength: 64
-          description: The election key, one of INVOICE_DATE, POSTING_DATE, CLAIMABLE_PORTION, ENTIRE_INVOICE. Any other value is 400 SRT-001.
+          description: The election key, one of INVOICE_DATE, POSTING_DATE, CLAIMABLE_PORTION, ENTIRE_INVOICE or EXEMPT_PURCHASE_CODES. Any other value is 400 SRT-001. For EXEMPT_PURCHASE_CODES taxCodes and basis are both required; for each of the other four keys both are absent; tenancy-svc enforces this with 400 SRT-001.
         effectiveFrom:
           type: string
           format: date
+        taxCodes:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          description: The tax codes, internal codes or IRAS codes (such as TX-N33) whose purchases the election excludes. Required for EXEMPT_PURCHASE_CODES and absent for every other key, else 400 SRT-001.
+          items:
+            type: string
+            pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$'
+        basis:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: The basis of certainty that the purchases relate to exempt supplies. Required for EXEMPT_PURCHASE_CODES and absent for every other key, else 400 SRT-001.
     ElectionResponse:
       type: object
       required:
@@ -4366,6 +4381,20 @@ components:
         effectiveFrom:
           type: string
           format: date
+        taxCodes:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          description: The tax codes, internal codes or IRAS codes (such as TX-N33) whose purchases the election excludes. Required for EXEMPT_PURCHASE_CODES and absent for every other key, else 400 SRT-001.
+          items:
+            type: string
+            pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$'
+        basis:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: The basis of certainty that the purchases relate to exempt supplies. Required for EXEMPT_PURCHASE_CODES and absent for every other key, else 400 SRT-001.
     PendingElectionChange:
       type: object
       required:

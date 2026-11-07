@@ -211,3 +211,6 @@ NEW_PACK	enum_value	schemas/certification-status-changed-payload.schema.json	INV
 ISSUANCE_MODE	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
 IDENTITY_TRIPLE	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
 SCHEME_HANDLER	enum_value	schemas/certification-status-changed-payload.schema.json	INV-REQ-1135
+# INV-T-18121 adds two rows (INV-REQ-369), bound to the schema: ElectionRequest.taxCodes and ElectionRequest.basis.
+ElectionRequest.taxCodes	schema_property	openapi.yaml	INV-REQ-369
+ElectionRequest.basis	schema_property	openapi.yaml	INV-REQ-369

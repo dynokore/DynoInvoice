@@ -1,0 +1,6 @@
+{
+  "election": "EXEMPT_PURCHASE_CODES",
+  "effectiveFrom": "2026-10-01",
+  "taxCodes": ["TX-N33", "TX-ESS"],
+  "basis": "Legal and underwriting fees relate to the non-Regulation 33 exempt supplies the business consistently makes."
+}
