@@ -42,3 +42,5 @@
 ../openapi.yaml#/components/schemas/SignatoryActionRequest signatory-action-request-*.json
 ../openapi.yaml#/components/schemas/SignatoryActionResponse signatory-action-response-*.json
 ../schemas/message-requested-payload.schema.json message-requested-*.json
+../schemas/signed-link-issued-payload.schema.json signed-link-issued-*.json
+../schemas/signed-link-invalidated-payload.schema.json signed-link-invalidated-*.json

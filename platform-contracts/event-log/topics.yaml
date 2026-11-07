@@ -107,6 +107,24 @@ topics:
       - submission-svc
       - tenancy-svc
       - transport-svc
+  - topic: gst.access.signed-link-invalidated.v1
+    event_type: com.dynokore.gst.access.SignedLinkInvalidated.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - access-svc
+    subscribers:
+      - masterdata-svc
+  - topic: gst.access.signed-link-issued.v1
+    event_type: com.dynokore.gst.access.SignedLinkIssued.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - access-svc
+    subscribers:
+      - masterdata-svc
   - topic: gst.aggregation.aggregate-ready.v1
     event_type: com.dynokore.gst.aggregation.AggregateReady.v1
     content_topic: true
@@ -901,6 +919,8 @@ replay_topics:
     event_types:
       - com.dynokore.gst.access.AuthorityHeadObserved.v1
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
+      - com.dynokore.gst.access.SignedLinkInvalidated.v1
+      - com.dynokore.gst.access.SignedLinkIssued.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1

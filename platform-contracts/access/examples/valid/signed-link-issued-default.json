@@ -1,0 +1,7 @@
+{
+  "linkRef": "LNK-AbCdEfGhIjKlMnOpQrStUv",
+  "subjectReference": "REQ-77",
+  "purpose": "COUNTERPARTY_REQUEST",
+  "tenant": "T-001",
+  "expiry": "2026-12-01T00:00:00Z"
+}

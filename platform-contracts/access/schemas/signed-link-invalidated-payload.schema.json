@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/signed-link-invalidated-payload.schema.json",
+  "title": "SignedLinkInvalidatedPayload",
+  "description": "Payload of the SignedLinkInvalidated event: a signed link stopped being usable before its expiry (INV-REQ-901, FR-AF.23, INV-AC-18216). Within a major version this schema is additive-only (API-41, FR-K.4). It carries no passcode, token, e-mail address or mobile number (OWASP ASVS V3).",
+  "type": "object",
+  "properties": {
+    "linkRef": {
+      "type": "string",
+      "pattern": "^LNK-[A-Za-z0-9_-]{22}$",
+      "description": "The link reference (form of INV-T-17803)."
+    },
+    "subjectReference": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The requestId of masterdata the link was issued for."
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "ATTEMPTS_EXHAUSTED",
+        "REVOKED"
+      ],
+      "x-extensible-enum": true,
+      "description": "Why the link was invalidated. Extensible: a consumer treats an unknown value as invalidated (API-41)."
+    },
+    "invalidatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the link was invalidated."
+    }
+  },
+  "required": [
+    "linkRef",
+    "subjectReference",
+    "reason",
+    "invalidatedAt"
+  ],
+  "additionalProperties": true
+}

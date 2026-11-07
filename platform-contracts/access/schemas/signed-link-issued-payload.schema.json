@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/signed-link-issued-payload.schema.json",
+  "title": "SignedLinkIssuedPayload",
+  "description": "Payload of the SignedLinkIssued event: access-svc issued the signed link for a SignedLinkRequested (INV-REQ-901, FR-AF.23, INV-AC-18216). Within a major version this schema is additive-only (API-41, FR-K.4). It carries no passcode, token, e-mail address or mobile number (OWASP ASVS V3).",
+  "type": "object",
+  "properties": {
+    "linkRef": {
+      "type": "string",
+      "pattern": "^LNK-[A-Za-z0-9_-]{22}$",
+      "description": "The link reference (form of INV-T-17803); never the link itself."
+    },
+    "subjectReference": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "The requestId of masterdata the link was issued for."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "The purpose the link is single-purpose for."
+    },
+    "tenant": {
+      "type": "string",
+      "description": "The tenant of the link."
+    },
+    "expiry": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the link expires."
+    }
+  },
+  "required": [
+    "linkRef",
+    "subjectReference",
+    "purpose",
+    "tenant",
+    "expiry"
+  ],
+  "additionalProperties": true
+}

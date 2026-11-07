@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -57,6 +57,16 @@ channels:
     messages:
       MessageRequested:
         $ref: '#/components/messages/MessageRequested'
+  accessSignedLinkIssued:
+    address: 'gst.access.signed-link-issued.v1'
+    messages:
+      SignedLinkIssued:
+        $ref: '#/components/messages/SignedLinkIssued'
+  accessSignedLinkInvalidated:
+    address: 'gst.access.signed-link-invalidated.v1'
+    messages:
+      SignedLinkInvalidated:
+        $ref: '#/components/messages/SignedLinkInvalidated'
   accessExampleHappened:
     address: 'gst.access.example-happened.v1'
     messages:
@@ -102,6 +112,20 @@ operations:
       $ref: '#/channels/accessMessageRequested'
     messages:
       - $ref: '#/channels/accessMessageRequested/messages/MessageRequested'
+  publishSignedLinkIssued:
+    action: send
+    description: SignedLinkIssued — access-svc issued the signed link for a SignedLinkRequested (INV-REQ-901, FR-AF.23).
+    channel:
+      $ref: '#/channels/accessSignedLinkIssued'
+    messages:
+      - $ref: '#/channels/accessSignedLinkIssued/messages/SignedLinkIssued'
+  publishSignedLinkInvalidated:
+    action: send
+    description: SignedLinkInvalidated — a signed link stopped being usable before its expiry (INV-REQ-901, FR-AF.23).
+    channel:
+      $ref: '#/channels/accessSignedLinkInvalidated'
+    messages:
+      - $ref: '#/channels/accessSignedLinkInvalidated/messages/SignedLinkInvalidated'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -229,6 +253,24 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/message-requested-payload.schema.json'
+    SignedLinkIssued:
+      name: com.dynokore.gst.access.SignedLinkIssued.v1
+      title: SignedLinkIssued
+      summary: SignedLinkIssued — access-svc issued the signed link (INV-REQ-901).
+      description: >-
+        Domain event SignedLinkIssued (INV-REQ-901, FR-AF.23, INV-AC-18216). Emitted by: access-svc. Consumed by: masterdata-svc. Delivery: At-least-once. Access-svc publishes it through the transactional outbox, in the transaction that stores the link; masterdata-svc binds the linkRef to the request named by subjectReference. Payload: linkRef, subjectReference, purpose, tenant, expiry. It carries no passcode, token, e-mail address or mobile number.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/signed-link-issued-payload.schema.json'
+    SignedLinkInvalidated:
+      name: com.dynokore.gst.access.SignedLinkInvalidated.v1
+      title: SignedLinkInvalidated
+      summary: SignedLinkInvalidated — a signed link stopped being usable (INV-REQ-901).
+      description: >-
+        Domain event SignedLinkInvalidated (INV-REQ-901, FR-AF.23, INV-AC-18216). Emitted by: access-svc. Consumed by: masterdata-svc. Delivery: At-least-once. Payload: linkRef, subjectReference, reason (ATTEMPTS_EXHAUSTED or REVOKED, extensible), invalidatedAt. It carries no passcode, token, e-mail address or mobile number.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/signed-link-invalidated-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.access.ExampleHappened.v1
       title: ExampleHappened

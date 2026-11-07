@@ -170,3 +170,15 @@ SignatoryActionResponse.evidenceRef	schema_property	openapi.yaml	INV-REQ-900
 authorise.SRT-013	operation_error_code	openapi.yaml	INV-REQ-1199
 SignatoryLinkVerifyResponse.sessionToken	schema_property	openapi.yaml	INV-REQ-899
 SignatoryLinkVerifyResponse.sessionExpiresAt	schema_property	openapi.yaml	INV-REQ-899
+# INV-T-18217. INV-AC-18216: the property and enum names of the two new event payloads under INV-REQ-901. The message names SignedLinkIssued and SignedLinkInvalidated and the operation keys publishSignedLinkIssued and publishSignedLinkInvalidated are not rows: INV-T-18374 adds the kinds and the rows.
+linkRef	property	schemas/signed-link-issued-payload.schema.json	INV-REQ-901
+subjectReference	property	schemas/signed-link-issued-payload.schema.json	INV-REQ-901
+purpose	property	schemas/signed-link-issued-payload.schema.json	INV-REQ-901
+tenant	property	schemas/signed-link-issued-payload.schema.json	INV-REQ-901
+expiry	property	schemas/signed-link-issued-payload.schema.json	INV-REQ-901
+linkRef	property	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
+subjectReference	property	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
+reason	property	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
+invalidatedAt	property	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
+ATTEMPTS_EXHAUSTED	enum_value	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
+REVOKED	enum_value	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
