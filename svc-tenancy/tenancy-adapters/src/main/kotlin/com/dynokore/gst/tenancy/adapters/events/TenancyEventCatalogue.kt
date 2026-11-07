@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.events
 
+import com.dynokore.gst.tenancy.adapters.certification.ConsumedCertificationEvents
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -50,7 +51,9 @@ object TenancyEventCatalogue {
                     )
                 }
         val consumedDomain = consumedDomainEvents()
-        val known = ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE
+        val known =
+            ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
+                ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
@@ -67,7 +70,10 @@ object TenancyEventCatalogue {
         return EventCatalogue(own + consumed + consumedDomain + elections + platform)
     }
 
-    /** The events of other domains tenancy-svc consumes: ShortCodeUsed and PeriodFilingStatusChanged. */
+    /**
+     * The events of other domains tenancy-svc consumes: ShortCodeUsed, PeriodFilingStatusChanged and
+     * IdentityTripleChanged, and the internal CertificationMarkRequested.
+     */
     private fun consumedDomainEvents() =
         listOf(
             CatalogueEntry(SHORT_CODE_USED_TYPE, SHORT_CODE_USED_TOPIC, setOf("aggregation-svc"), contentTopic = false),
@@ -75,6 +81,20 @@ object TenancyEventCatalogue {
                 PERIOD_FILING_STATUS_TYPE,
                 PERIOD_FILING_STATUS_TOPIC,
                 setOf("submission-svc"),
+                contentTopic = false,
+            ),
+            CatalogueEntry(
+                ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED,
+                ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED_TOPIC,
+                setOf("masterdata-svc"),
+                contentTopic = false,
+            ),
+            // internal event of the atomic NEW_TRAIN mark (INV-Q-18156): produced and consumed by tenancy-svc, not a
+            // channel of the tenancy contract
+            CatalogueEntry(
+                ConsumedCertificationEvents.MARK_REQUESTED,
+                ConsumedCertificationEvents.MARK_REQUESTED_TOPIC,
+                setOf(SERVICE),
                 contentTopic = false,
             ),
         )

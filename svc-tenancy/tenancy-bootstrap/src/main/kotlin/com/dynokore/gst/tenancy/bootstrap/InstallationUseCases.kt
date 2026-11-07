@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.adapters.http.InstallerCallFilter
 import com.dynokore.gst.tenancy.adapters.persistence.InstallationActionRow
 import com.dynokore.gst.tenancy.adapters.persistence.JooqInstallationStepStore
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.INSTALLATION_ACTION
+import com.dynokore.gst.tenancy.application.certification.ReleaseTrainChanged
 import com.dynokore.gst.tenancy.application.installation.InstallationActionMetrics
 import com.dynokore.gst.tenancy.application.installation.InstallationAudit
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
@@ -65,6 +66,7 @@ class InstallationUseCases {
         audit: InstallationAudit,
         metrics: InstallationActionMetrics,
         clock: ObjectProvider<Clock>,
+        markRequested: ReleaseTrainChanged,
     ): RecordInstallationAction =
         RecordInstallationAction(
             tenants as PlatformTenantBinding,
@@ -75,6 +77,8 @@ class InstallationUseCases {
             metrics,
             { clock.getIfAvailable(Clock::systemUTC).instant() },
             "tenancy-svc",
+            // appends CertificationMarkRequested in this transaction; the marks run on delivery (INV-Q-18156)
+            markRequested,
         )
 
     /** The one workload subject allowed to call recordInstallationAction; blank refuses every caller (INV-Q-3826 A). */
