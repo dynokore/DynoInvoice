@@ -59,9 +59,9 @@ class PolicySettingDecisionWiringTest {
             context.getBeansOfType(AuthorityReplica::class.java).size shouldBe 1
             context.getBeansOfType(AuthorityReplica::class.java).keys shouldBe setOf("authorityReplica")
             context.getBeansOfType(PolicyWriter::class.java).keys shouldBe setOf("policyWriter")
+            // by name: the type left the platform surface (INV-T-10128); a bean counts by any type in its hierarchy
             context.beanDefinitionNames
-                .map { context.getType(it)?.name.orEmpty() }
-                .filter { it.endsWith("PolicyRoleResolver") }
+                .filter { name -> context.getType(name)?.let(::typeNames)?.any { it.endsWith(".PolicyRoleResolver") } == true }
                 .shouldBeEmpty()
         }
     }
@@ -78,4 +78,10 @@ class PolicySettingDecisionWiringTest {
                 }.toList()
         hits.shouldBeEmpty()
     }
+
+    private fun typeNames(type: Class<*>): Set<String> =
+        generateSequence(listOf(type)) { level -> level.flatMap { listOfNotNull(it.superclass) + it.interfaces }.ifEmpty { null } }
+            .flatten()
+            .map { it.name }
+            .toSet()
 }
