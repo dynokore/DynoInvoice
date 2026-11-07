@@ -53,7 +53,33 @@ data class AccessTokenClaims(
     val tokenId: String,
     /** The environment of the principal's tenant; absent when the principal has no tenant or it is not known. */
     val environment: TenantEnvironment? = null,
+    /**
+     * The kebab-case machine principal type (`principal_type` claim, INV-REQ-584): one of the six names of
+     * [PrincipalTypeClaim]. [IssueAccessTokenUseCase] never leaves it null for a machine principal.
+     */
+    val principalType: String? = null,
 )
+
+/** A stored principal type is none of the six: no claims are built (fail closed, ASVS V4.1 deny by default). */
+class UnknownPrincipalType(
+    val stored: String,
+) : RuntimeException("the stored principal type is not one of the six machine types")
+
+/** The map from a stored principal type name to the claim value; exact match, no case folding, no trimming. */
+object PrincipalTypeClaim {
+    private val byStored: Map<String, String> =
+        mapOf(
+            "INGEST" to "ingest",
+            "FILING_WORKFLOW" to "filing-workflow",
+            "AP_CALLBACK" to "ap-callback",
+            "REPORTING" to "reporting",
+            "MONITORING" to "monitoring",
+            "CERTIFICATION" to "certification",
+        )
+
+    /** @throws UnknownPrincipalType when [stored] (null included) is not exactly one of the six stored names. */
+    fun of(stored: String?): String = byStored[stored] ?: throw UnknownPrincipalType(stored.orEmpty())
+}
 
 /** The signing key cannot be used now: unreadable, malformed, or past its signing interval. Fails closed. */
 class SigningKeyUnavailable(
@@ -133,6 +159,7 @@ class IssueAccessTokenUseCase(
         if (!now.isBefore(published.validFrom.plus(settings.keyRotationInterval))) {
             throw SigningKeyUnavailable("the signing key ${session.kid} is past its signing interval")
         }
+        val principalType = PrincipalTypeClaim.of(principal.type.name)
         val tokenId = newTokenId()
         val claims =
             AccessTokenClaims(
@@ -147,6 +174,7 @@ class IssueAccessTokenUseCase(
                 expiresAt = now.plus(settings.lifetime),
                 tokenId = tokenId,
                 environment = environment,
+                principalType = principalType,
             )
         return IssuedToken(session.sign(claims), settings.lifetime.seconds.toInt(), session.kid, tokenId)
     }
