@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.catalogue.RoleAllowance
 import com.dynokore.gst.catalogue.RolePermissions
 import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
@@ -11,18 +12,28 @@ import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
+import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
 import com.dynokore.platform.configresolver.BackdatingFloor
 import com.dynokore.platform.configresolver.DelegationProbe
+import com.dynokore.platform.configresolver.PolicyChange
+import com.dynokore.platform.configresolver.PolicyWriter
+import com.dynokore.platform.configresolver.RelaxationStatus
+import com.dynokore.platform.configresolver.SetPolicyCommand
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.StagedOutboxRow
+import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
-import com.dynokore.platform.serviceruntime.replica.Grant
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.CellAllowance
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.springframework.beans.factory.config.BeanPostProcessor
@@ -65,7 +76,7 @@ class CapturingOutboxWriter(
  * service, here a table). One bean answers the caller and authority ports of the elections: the permissions follow
  * the roles as the
  * RolePermissions cells do (CONFIRM is read from the generated cells); APPROVE is
- * answered by a real replica holding permission grants only.
+ * answered by a real replica holding role grants.
  */
 class TestPeople :
     CallerSource,
@@ -74,7 +85,7 @@ class TestPeople :
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
     private val clock = Clock.systemUTC()
-    private val replica = AuthorityReplica(clock).also { it.onSnapshotComplete(0) }
+    private val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
     private val version = AtomicLong()
     private val approvals =
         ReplicaActionAuthority(
@@ -93,22 +104,53 @@ class TestPeople :
             clock,
         )
 
-    /** A permission grant on one entity, held in a real [AuthorityReplica] (permissions are not derived from roles). */
-    fun grantPermission(
+    /**
+     * A role grant of [role] on one entity, fed to a real [AuthorityReplica] through its own ingest of the role-grant
+     * record (INV-NOTE-10639): the replica decides from the roles the generated matrix lists for the permission key.
+     */
+    fun grantRole(
         person: String,
         entityRef: String,
-        permission: String,
+        role: String,
+        validUntil: java.time.Instant? = null,
+    ): String {
+        val grantRef = "GR-${UUID.randomUUID()}"
+        feed(
+            person,
+            grantRef,
+            RoleGrantState.ACTIVE,
+            RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60), validUntil),
+        )
+        return grantRef
+    }
+
+    /** Removes the role grant [grantRef] written by [grantRole]: a revoked role takes effect at the next request. */
+    fun revokeRole(
+        person: String,
+        entityRef: String,
+        role: String,
+        grantRef: String,
     ) {
-        val now = clock.instant()
+        feed(
+            person,
+            grantRef,
+            RoleGrantState.REMOVED,
+            RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60)),
+        )
+    }
+
+    private fun feed(
+        person: String,
+        grantRef: String,
+        state: RoleGrantState,
+        grant: RoleGrant,
+    ) {
         replica.accept(
             AuthorityChanged(
                 TENANT,
                 person,
                 version.incrementAndGet(),
-                AuthorityRecord.GrantRecord(
-                    entityRef,
-                    listOf(Grant(permission, ScopeLevel.ENTITY, entityRef, now.minusSeconds(60), null)),
-                ),
+                AuthorityRecord.RoleGrantRecord(grantRef, state, grant),
             ),
         )
         replica.observeHead(version.get())
@@ -236,4 +278,40 @@ class BoundaryTestConfiguration {
                     bean
                 }
         }
+}
+
+/** The operation-role matrix of the replicas of the tests: read from the generated catalogue, never written by hand. */
+object TestOperationRoles {
+    val form: DeploymentForm = DeploymentForm.SAAS
+
+    val map: OperationRoleMap =
+        OperationRoleMap { key ->
+            OperationRoles.rolesFor(form, key).mapValues { CellAllowance.valueOf(it.value.name) }
+        }
+
+    /** The roles the catalogue lists for [key], as a set. */
+    fun holders(key: String): Set<String> = map.rolesFor(key).keys
+
+    /** The one role that holds [key]; the call fails when the catalogue lists none or several. */
+    fun soleHolder(key: String): String = holders(key).single()
+}
+
+/**
+ * The writer as a caller holding [role]: the setter permission of the call is true when the generated matrix lists
+ * [role] for the permission key the writer asks about (INV-Q-10027); the key and the roles are never written by hand.
+ */
+fun PolicyWriter.asRole(role: String): PolicyWriter = asRoles(setOf(role))
+
+/** As [asRole] for a caller holding any of [roles]; the empty set holds nothing. */
+fun PolicyWriter.asRoles(roles: Set<String>): PolicyWriter {
+    val delegate = this
+    val permission =
+        SetterPermission { _, _, _, _, _, key -> roles.any { it in TestOperationRoles.holders(key) } }
+    return object : PolicyWriter by delegate {
+        override fun setPolicy(command: SetPolicyCommand): PolicyChange =
+            RequestBoundSetterPermission.bind(permission) { delegate.setPolicy(command) }
+
+        override fun acknowledgeControlRelaxation(command: AcknowledgeRelaxationCommand): RelaxationStatus =
+            RequestBoundSetterPermission.bind(permission) { delegate.acknowledgeControlRelaxation(command) }
+    }
 }

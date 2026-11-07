@@ -8,6 +8,7 @@ import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
+import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyRefusal
@@ -19,7 +20,57 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import java.time.Instant
 import java.time.LocalDate
+
+private fun run(block: (ElectionEnv, ProfileEnv) -> Unit) {
+    BoundaryFixture.runner().run { context ->
+        context.startupFailure?.let { throw it }
+        val env = ProfileEnv(context)
+        block(ElectionEnv(env), env)
+    }
+}
+
+private val daily = RateSourceElectionRequest.Basis.DAILY
+private val monthly = RateSourceElectionRequest.Basis.MONTHLY_AVERAGE
+private val later: LocalDate = TODAY.plusDays(30)
+
+private fun versions(
+    env: ProfileEnv,
+    tenant: TenantId,
+    entity: EntityResponse,
+    vp: String,
+): Int {
+    val history = env.context.getBean(PolicyHistory::class.java)
+    val target = PolicyScope.entity(tenant, entity.entityRef).target(ScopeLevel.ENTITY)
+    return env.inTx { history.versions(VariationPointKey(vp), target).size }
+}
+
+private fun ready(
+    e: ElectionEnv,
+    tenant: TenantId,
+    entity: EntityResponse,
+) {
+    e.usualPeople(entity)
+    e.staged(tenant, "SCOPE-SG", "1.0", sources = TWO_SOURCES)
+    e.activated(tenant, "SCOPE-SG", "1.0", TODAY.minusDays(30))
+    e.facts.set(entity.entityRef, "claimsInputTaxOnPostingBasis", FactAnswer.TRUE)
+}
+
+/** The counts a pending change must leave as they were: versions, audit entries, other events, election reads. */
+private fun snapshot(
+    e: ElectionEnv,
+    env: ProfileEnv,
+    tenant: TenantId,
+    entity: EntityResponse,
+): List<Any> =
+    listOf("VP-22", "VP-23", "VP-24").map { versions(env, tenant, entity, it) } +
+        listOf("VP-22", "VP-23", "VP-24").map { e.auditEntries(entity, it) } +
+        e.otherEvents(entity) +
+        ElectionKind.entries.map { e.history(entity, it) } +
+        e.status(entity, later).elections +
+        e.status(entity).elections +
+        env.captured.envelopes.count { !it.type.contains("AuditEntryRecorded") }
 
 /**
  * The two-step approval of an election change (INV-REQ-370, INV-REQ-422, INV-REQ-505, INV-REQ-1284; owner answer
@@ -27,61 +78,12 @@ import java.time.LocalDate
  * then it takes effect. Through the real context over PostgreSQL with forced row-level security.
  */
 class ElectionChangeTest {
-    private fun run(block: (ElectionEnv, ProfileEnv) -> Unit) {
-        BoundaryFixture.runner().run { context ->
-            context.startupFailure?.let { throw it }
-            val env = ProfileEnv(context)
-            block(ElectionEnv(env), env)
-        }
-    }
-
-    private val daily = RateSourceElectionRequest.Basis.DAILY
-    private val monthly = RateSourceElectionRequest.Basis.MONTHLY_AVERAGE
-    private val later = TODAY.plusDays(30)
-
     /** The election read of the rate source on [on]. */
     private fun rate(
         e: ElectionEnv,
         entity: EntityResponse,
         on: LocalDate,
     ) = e.status(entity, on).elections.single { it.kind == ElectionKind.EXCHANGE_RATE_SOURCE }
-
-    private fun versions(
-        env: ProfileEnv,
-        tenant: TenantId,
-        entity: EntityResponse,
-        vp: String,
-    ): Int {
-        val history = env.context.getBean(PolicyHistory::class.java)
-        val target = PolicyScope.entity(tenant, entity.entityRef).target(ScopeLevel.ENTITY)
-        return env.inTx { history.versions(VariationPointKey(vp), target).size }
-    }
-
-    private fun ready(
-        e: ElectionEnv,
-        tenant: TenantId,
-        entity: EntityResponse,
-    ) {
-        e.usualPeople(entity)
-        e.staged(tenant, "SCOPE-SG", "1.0", sources = TWO_SOURCES)
-        e.activated(tenant, "SCOPE-SG", "1.0", TODAY.minusDays(30))
-        e.facts.set(entity.entityRef, "claimsInputTaxOnPostingBasis", FactAnswer.TRUE)
-    }
-
-    /** The counts a pending change must leave as they were: versions, audit entries, other events, election reads. */
-    private fun snapshot(
-        e: ElectionEnv,
-        env: ProfileEnv,
-        tenant: TenantId,
-        entity: EntityResponse,
-    ): List<Any> =
-        listOf("VP-22", "VP-23", "VP-24").map { versions(env, tenant, entity, it) } +
-            listOf("VP-22", "VP-23", "VP-24").map { e.auditEntries(entity, it) } +
-            e.otherEvents(entity) +
-            ElectionKind.entries.map { e.history(entity, it) } +
-            e.status(entity, later).elections +
-            e.status(entity).elections +
-            env.captured.envelopes.count { !it.type.contains("AuditEntryRecorded") }
 
     private fun submitsPendingAndChangesNothing(
         kind: ElectionKind,
@@ -206,8 +208,8 @@ class ElectionChangeTest {
                 e.people.grant("identity:USR-011", entity.entityRef, "tax.approver")
                 e.rate(entity, "MAS", daily)
                 val change = e.pending { e.rate(entity, "BNM", monthly, later) }
-                // the requester holds the permission as well and still may not approve own change
-                e.people.grantPermission(ADMIN, entity.entityRef, ElectionPermissions.APPROVE)
+                // the requester holds the role that holds the permission as well and still may not approve own change
+                e.people.grantRole(ADMIN, entity.entityRef, ElectionRoles.TAX_APPROVER)
                 refusedKeepsPending(e, entity, change.changeRef, ADMIN, 403)
                 refusedKeepsPending(e, entity, change.changeRef, OTHER_ADMIN, 403)
                 refusedKeepsPending(e, entity, change.changeRef, ENTITY_ADMIN_ONLY, 403)
@@ -215,8 +217,8 @@ class ElectionChangeTest {
                 refusedKeepsPending(e, entity, change.changeRef, NOBODY, 403)
                 // the role tax.approver alone is no permission
                 refusedKeepsPending(e, entity, change.changeRef, "identity:USR-011", 403)
-                // a permission grant on another entity only
-                e.people.grantPermission("identity:USR-012", "ENT-OTHER", ElectionPermissions.APPROVE)
+                // a role grant on another entity only
+                e.people.grantRole("identity:USR-012", "ENT-OTHER", ElectionRoles.TAX_APPROVER)
                 refusedKeepsPending(e, entity, change.changeRef, "identity:USR-012", 403)
             }
         }
@@ -406,3 +408,99 @@ class ElectionChangeTest {
         }
     }
 }
+
+/**
+ * The role grants behind `election-change.approve` (INV-NOTE-10639 points (3) and (4), INV-AC-9515): each probe feeds
+ * the real [com.dynokore.platform.serviceruntime.replica.AuthorityReplica] a role-grant record and approves a PENDING
+ * change through the real context; the matrix is read from the generated catalogue.
+ */
+internal class ElectionChangeRoleGrantTest {
+    /** Pending rate change of an entity with one election, and the state a refusal must leave as it was. */
+    private fun roleProbe(
+        who: String,
+        grants: (ElectionEnv, EntityResponse) -> Unit,
+        expected: Int,
+    ) {
+        run { e, env ->
+            env.withEntity { tenant, entity ->
+                ready(e, tenant, entity)
+                e.rate(entity, "MAS", daily)
+                val change = e.pending { e.rate(entity, "BNM", monthly, later) }
+                grants(e, entity)
+                val before = snapshot(e, env, tenant, entity)
+                e.people.caller = who
+                if (expected == 200) {
+                    assertThat(e.approve(entity, change.changeRef).statusCode).isEqualTo(HttpStatus.OK)
+                    assertThat(e.changeStates(entity)).containsExactly("APPROVED")
+                    assertThat(e.history(entity, ElectionKind.EXCHANGE_RATE_SOURCE)).hasSize(2)
+                } else {
+                    assertThat(e.refusal { e.approve(entity, change.changeRef) }).isEqualTo(expected to "SRT-004")
+                    assertThat(e.changeStates(entity)).containsExactly("PENDING")
+                    assertThat(snapshot(e, env, tenant, entity)).isEqualTo(before)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-9515 the catalogue lists tax approver alone for election-change approve`() {
+        assertThat(TestOperationRoles.holders(ElectionPermissions.APPROVE)).isEqualTo(setOf("tax.approver"))
+        assertThat(TestOperationRoles.holders(ElectionPermissions.MANAGE)).isEqualTo(setOf("entity.admin"))
+        assertThat(TestOperationRoles.holders(ElectionPermissions.CONFIRM))
+            .isEqualTo(setOf("entity.admin", "tenant.admin", "tax.approver"))
+    }
+
+    @Test
+    fun `INV-AC-9515 a role grant of tax approver on the entity lets another person approve a pending change, 200`() =
+        roleProbe(ROLE_HOLDER, { e, entity -> e.people.grantRole(ROLE_HOLDER, entity.entityRef, "tax.approver") }, 200)
+
+    @Test
+    fun `INV-AC-9515 a role grant of tax approver on another entity is refused 403 and the change stays pending`() =
+        roleProbe(ROLE_HOLDER, { e, _ -> e.people.grantRole(ROLE_HOLDER, "ENT-OTHER", "tax.approver") }, 403)
+
+    @Test
+    fun `INV-AC-9515 a role grant of entity admin, and of tenant admin, is refused 403 for approve`() {
+        listOf("entity.admin", "tenant.admin").forEach { role ->
+            assertThat(TestOperationRoles.holders(ElectionPermissions.CONFIRM)).contains(role)
+            assertThat(TestOperationRoles.holders(ElectionPermissions.APPROVE)).doesNotContain(role)
+            roleProbe(ROLE_HOLDER, { e, entity -> e.people.grantRole(ROLE_HOLDER, entity.entityRef, role) }, 403)
+        }
+    }
+
+    @Test
+    fun `INV-AC-9515 a role grant of tax approver with an expired validity window is refused 403`() =
+        roleProbe(
+            ROLE_HOLDER,
+            { e, entity ->
+                e.people.grantRole(ROLE_HOLDER, entity.entityRef, "tax.approver", Instant.now().minusSeconds(1))
+            },
+            403,
+        )
+
+    @Test
+    fun `INV-AC-9515 a role grant revoked after the first approval refuses the next approval of another change`() {
+        run { e, env ->
+            env.withEntity { tenant, entity ->
+                ready(e, tenant, entity)
+                e.elect(entity, "INVOICE_DATE")
+                e.elect(entity, "CLAIMABLE_PORTION")
+                val first = e.pending { e.elect(entity, "POSTING_DATE", later) }
+                val second = e.pending { e.elect(entity, "ENTIRE_INVOICE", later) }
+                val ref = e.people.grantRole(ROLE_HOLDER, entity.entityRef, "tax.approver")
+                e.people.caller = ROLE_HOLDER
+                assertThat(e.approve(entity, first.changeRef).statusCode).isEqualTo(HttpStatus.OK)
+                e.people.revokeRole(ROLE_HOLDER, entity.entityRef, "tax.approver", ref)
+                val before = snapshot(e, env, tenant, entity)
+                assertThat(e.refusal { e.approve(entity, second.changeRef) }).isEqualTo(403 to "SRT-004")
+                assertThat(e.changeStates(entity).sorted()).containsExactly("APPROVED", "PENDING")
+                assertThat(snapshot(e, env, tenant, entity)).isEqualTo(before)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-9515 the requester holding the role tax approver is refused 403 and the change stays pending`() =
+        roleProbe(ADMIN, { e, entity -> e.people.grantRole(ADMIN, entity.entityRef, "tax.approver") }, 403)
+}
+
+private const val ROLE_HOLDER = "identity:USR-020"

@@ -228,7 +228,7 @@ class ElectionPolicyTest {
         option: String,
         scope: PolicyScope,
     ) = env.inTx {
-        env.writer.setPolicy(
+        env.writer.asRole(TestOperationRoles.holders(definition.setPermission).first()).setPolicy(
             SetPolicyCommand(
                 definition.key,
                 scope,
@@ -236,7 +236,7 @@ class ElectionPolicyTest {
                 listOf(SelectedOption(option)),
                 TODAY,
                 "catalogue row test",
-                Actor("user:test", definition.setBy),
+                Actor("user:test"),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),

@@ -163,7 +163,7 @@ internal class ProfileEnv(
             } else {
                 PolicyScope.entity(tenant, entity.entityRef, group = group.groupRef)
             }
-        writer.setPolicy(
+        writer.asRole(role).setPolicy(
             SetPolicyCommand(
                 VariationPointKey(key),
                 scope,
@@ -171,7 +171,7 @@ internal class ProfileEnv(
                 listOf(SelectedOption(option, valueJson)),
                 effectiveFrom,
                 "test",
-                Actor("user:test", setOf(role)),
+                Actor("user:test"),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             ),

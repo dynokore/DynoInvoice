@@ -5,9 +5,10 @@ import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
@@ -20,14 +21,15 @@ import java.util.UUID
 
 /**
  * The production binding of the permission check (ruling INV-Q-10025) over a real [AuthorityReplica]: true only for a
- * valid grant whose action equals the permission key, on that entity, for that person, within the lag bound.
+ * valid role grant of a role the catalogue lists for the permission key, on that entity, for that person, within the
+ * lag bound.
  */
 class ReplicaActionAuthorityTest {
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000a1"))
     private val otherTenant = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000b2"))
     private val now = Instant.parse("2026-10-25T10:00:00Z")
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
-    private val replica = AuthorityReplica(clock).also { it.onSnapshotComplete(0) }
+    private val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
     private val tenants =
         object : TenantContext {
             override fun current() = tenant
@@ -46,7 +48,7 @@ class ReplicaActionAuthorityTest {
     private fun grant(
         person: String,
         entity: String,
-        action: String,
+        role: String,
         validUntil: Instant? = null,
         on: TenantId = tenant,
     ) {
@@ -55,9 +57,10 @@ class ReplicaActionAuthorityTest {
                 on,
                 person,
                 ++version,
-                AuthorityRecord.GrantRecord(
-                    entity,
-                    listOf(Grant(action, ScopeLevel.ENTITY, entity, now.minusSeconds(60), validUntil)),
+                AuthorityRecord.RoleGrantRecord(
+                    "GR-$version",
+                    RoleGrantState.ACTIVE,
+                    RoleGrant(role, GrantScope.ENTITY, entity, now.minusSeconds(60), validUntil),
                 ),
             ),
         )
@@ -66,22 +69,28 @@ class ReplicaActionAuthorityTest {
 
     @Test
     fun `a holder of the permission is accepted`() {
-        grant("identity:USR-004", "E1", ElectionPermissions.CONFIRM)
+        grant("identity:USR-004", "E1", TAX_APPROVER)
         assertThat(authority.holds("identity:USR-004", "E1", ElectionPermissions.CONFIRM)).isTrue()
     }
 
+    // Old case: a manage grant did not hold confirm. In the owner's model no role holds manage without confirm
+    // (entity.admin holds both), so the outcome turned; the separation of the two keys is kept by tax.approver.
     @Test
     fun `a person holding only entity-config manage does not hold confirm`() {
-        grant("identity:USR-004", "E1", ElectionPermissions.MANAGE)
-        assertThat(authority.holds("identity:USR-004", "E1", ElectionPermissions.CONFIRM)).isFalse()
-        assertThat(authority.holds("identity:USR-004", "E1", ElectionPermissions.MANAGE)).isTrue()
+        assertThat(TestOperationRoles.holders(ElectionPermissions.MANAGE)).isEqualTo(setOf(ENTITY_ADMIN))
+        grant("identity:USR-004", "E1", TAX_APPROVER)
+        assertThat(authority.holds("identity:USR-004", "E1", ElectionPermissions.CONFIRM)).isTrue()
+        assertThat(authority.holds("identity:USR-004", "E1", ElectionPermissions.MANAGE)).isFalse()
+        grant("identity:USR-005", "E1", ENTITY_ADMIN)
+        assertThat(authority.holds("identity:USR-005", "E1", ElectionPermissions.MANAGE)).isTrue()
+        assertThat(authority.holds("identity:USR-005", "E1", ElectionPermissions.CONFIRM)).isTrue()
     }
 
     @Test
     fun `an expired grant, a revoked person, the old role-name guess and look-alikes are refused`() {
-        grant("identity:USR-001", "E1", ElectionPermissions.CONFIRM, validUntil = now.minusSeconds(1))
+        grant("identity:USR-001", "E1", TAX_APPROVER, validUntil = now.minusSeconds(1))
         assertThat(authority.holds("identity:USR-001", "E1", ElectionPermissions.CONFIRM)).isFalse()
-        grant("identity:USR-002", "E1", ElectionPermissions.CONFIRM)
+        grant("identity:USR-002", "E1", TAX_APPROVER)
         replica.accept(
             AuthorityChanged(
                 tenant,
@@ -92,10 +101,16 @@ class ReplicaActionAuthorityTest {
         )
         replica.observeHead(version)
         assertThat(authority.holds("identity:USR-002", "E1", ElectionPermissions.CONFIRM)).isFalse()
-        grant("identity:USR-003", "E1", "entity.admin")
-        assertThat(authority.holds("identity:USR-003", "E1", ElectionPermissions.CONFIRM)).isFalse()
-        assertThat(authority.holds("identity:USR-003", "E1", ElectionPermissions.MANAGE)).isFalse()
-        grant("identity:USR-004", "E1", ElectionPermissions.CONFIRM)
+        // a role whose text equals a permission key holds neither key
+        grant("identity:USR-003", "E1", ElectionPermissions.CONFIRM)
+        grant("identity:USR-006", "E1", ElectionPermissions.MANAGE)
+        listOf("identity:USR-003", "identity:USR-006").forEach {
+            assertThat(authority.holds(it, "E1", ElectionPermissions.CONFIRM)).describedAs(it).isFalse()
+            assertThat(authority.holds(it, "E1", ElectionPermissions.MANAGE)).describedAs(it).isFalse()
+        }
+        grant("identity:USR-007", "E1", "$TAX_APPROVER ")
+        assertThat(authority.holds("identity:USR-007", "E1", ElectionPermissions.CONFIRM)).isFalse()
+        grant("identity:USR-004", "E1", TAX_APPROVER)
         assertThat(authority.holds("identity:USR-004", "E1", "${ElectionPermissions.CONFIRM} ")).isFalse()
         assertThat(authority.holds("identity:USR-004 ", "E1", ElectionPermissions.CONFIRM)).isFalse()
         assertThat(authority.holds("identity:UNKNOWN", "E1", ElectionPermissions.CONFIRM)).isFalse()
@@ -104,22 +119,26 @@ class ReplicaActionAuthorityTest {
     }
 
     @Test
-    fun `election-change approve is held only by its own grant and refused for every look-alike`() {
+    fun `INV-AC-9515 election-change approve is held only by its own role grant and refused for every look-alike`() {
         val approve = ElectionPermissions.APPROVE
-        grant("identity:USR-009", "E1", approve)
+        assertThat(TestOperationRoles.holders(approve)).isEqualTo(setOf(TAX_APPROVER))
+        grant("identity:USR-009", "E1", TAX_APPROVER)
         assertThat(authority.holds("identity:USR-009", "E1", approve)).isTrue()
         assertThat(authority.holds("identity:USR-009", "E1", "$approve ")).isFalse()
         assertThat(authority.holds("identity:USR-009 ", "E1", approve)).isFalse()
         assertThat(authority.holds("identity:USR-009", "E2", approve)).isFalse()
-        grant("identity:USR-010", "E1", ElectionPermissions.CONFIRM)
-        grant("identity:USR-011", "E1", ElectionPermissions.MANAGE)
-        grant("identity:USR-012", "E1", "tax.approver")
-        listOf("identity:USR-010", "identity:USR-011", "identity:USR-012").forEach {
+        // the roles that hold confirm or manage but not approve
+        grant("identity:USR-010", "E1", ENTITY_ADMIN)
+        grant("identity:USR-011", "E1", "tenant.admin")
+        // a role whose text is the permission key, and the key text with a trailing space
+        grant("identity:USR-012", "E1", approve)
+        grant("identity:USR-015", "E1", "$TAX_APPROVER ")
+        listOf("identity:USR-010", "identity:USR-011", "identity:USR-012", "identity:USR-015").forEach {
             assertThat(authority.holds(it, "E1", approve)).describedAs(it).isFalse()
         }
-        grant("identity:USR-013", "E1", approve, validUntil = now.minusSeconds(1))
+        grant("identity:USR-013", "E1", TAX_APPROVER, validUntil = now.minusSeconds(1))
         assertThat(authority.holds("identity:USR-013", "E1", approve)).isFalse()
-        grant("identity:USR-014", "E1", approve)
+        grant("identity:USR-014", "E1", TAX_APPROVER)
         replica.accept(
             AuthorityChanged(
                 tenant,
@@ -135,25 +154,29 @@ class ReplicaActionAuthorityTest {
 
     @Test
     fun `a grant of another tenant is not read`() {
-        grant("identity:USR-004", "E1", ElectionPermissions.CONFIRM, on = otherTenant)
+        grant("identity:USR-004", "E1", TAX_APPROVER, on = otherTenant)
         assertThat(authority.holds("identity:USR-004", "E1", ElectionPermissions.CONFIRM)).isFalse()
     }
 
     @Test
     fun `no replica bound and a lag beyond the bound refuse the person`() {
         assertThat(ReplicaActionAuthority(null, tenants, clock).holds("p", "E1", ElectionPermissions.CONFIRM)).isFalse()
-        grant("identity:USR-004", "E1", ElectionPermissions.CONFIRM)
+        grant("identity:USR-004", "E1", TAX_APPROVER)
         // the source head runs ahead of what the replica applied for longer than the bound: no fallback in tenancy-svc
         val late = MutableClock(now)
-        val lagging = AuthorityReplica(late, lagBound = Duration.ofSeconds(1)).also { it.onSnapshotComplete(0) }
+        val lagging =
+            AuthorityReplica(late, TestOperationRoles.map, lagBound = Duration.ofSeconds(1)).also {
+                it.onSnapshotComplete(0)
+            }
         lagging.accept(
             AuthorityChanged(
                 tenant,
                 "identity:USR-004",
                 1,
-                AuthorityRecord.GrantRecord(
-                    "E1",
-                    listOf(Grant(ElectionPermissions.CONFIRM, ScopeLevel.ENTITY, "E1", now.minusSeconds(60))),
+                AuthorityRecord.RoleGrantRecord(
+                    "GR-1",
+                    RoleGrantState.ACTIVE,
+                    RoleGrant(TAX_APPROVER, GrantScope.ENTITY, "E1", now.minusSeconds(60)),
                 ),
             ),
         )
@@ -162,6 +185,11 @@ class ReplicaActionAuthorityTest {
         assertThat(
             ReplicaActionAuthority(lagging, tenants, late).holds("identity:USR-004", "E1", ElectionPermissions.CONFIRM),
         ).isFalse()
+    }
+
+    private companion object {
+        const val TAX_APPROVER = "tax.approver"
+        const val ENTITY_ADMIN = "entity.admin"
     }
 
     private class MutableClock(

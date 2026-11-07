@@ -18,9 +18,11 @@ import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SetPolicyCommand
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
+import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
 import com.dynokore.platform.tenancykernel.TenantContext
 import tools.jackson.databind.ObjectMapper
 import java.time.LocalDate
@@ -119,7 +121,6 @@ class ConfigElectionPolicyStore(
         basis: String?,
         effectiveFrom: LocalDate,
         actor: String,
-        roles: Set<String>,
         reason: String,
     ) {
         val key = VariationPointKey(kind.variationPoint)
@@ -140,12 +141,21 @@ class ConfigElectionPolicyStore(
                 listOf(selected),
                 effectiveFrom,
                 reason,
-                Actor(actor, roles),
+                Actor(actor),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
             )
         try {
-            ElectionWriteMarker.allowing(key) { writer.setPolicy(command) }
+            // The election command has already decided the caller's permission (entity-config.manage or the approval
+            // by election-change.approve) through ActionAuthority; the writer asks only for this one row's setting
+            // key on this one entity, and every other key or entity is refused (INV-Q-10027, fail closed).
+            val proven =
+                SetterPermission { _, _, _, _, ofEntity, permissionKey ->
+                    permissionKey == SetterPermission.settingKey(key) && ofEntity == entityRef
+                }
+            RequestBoundSetterPermission.bind(proven) {
+                ElectionWriteMarker.allowing(key) { writer.setPolicy(command) }
+            }
         } catch (refused: PolicyRefused) {
             throw ElectionWriteRefused(
                 refused.refusal == PolicyRefusal.ROLE_NOT_ALLOWED,

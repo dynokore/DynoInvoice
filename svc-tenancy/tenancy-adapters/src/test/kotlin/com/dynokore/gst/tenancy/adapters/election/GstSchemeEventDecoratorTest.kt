@@ -68,7 +68,7 @@ class GstSchemeEventDecoratorTest {
             listOf(SelectedOption("OPTION")),
             LocalDate.of(2026, 11, 2),
             "test",
-            Actor("user:test", setOf("entity.admin")),
+            Actor("user:test"),
             CorrelationId("corr-1"),
             CausationId("cause-1"),
         )

@@ -20,6 +20,7 @@ import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
+import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -66,7 +67,7 @@ internal class ElectionEnv(
         people.grant(ADMIN, entity.entityRef, "entity.admin")
         people.grant(OTHER_ADMIN, entity.entityRef, "tenant.admin")
         people.grant(APPROVER, entity.entityRef, "tax.approver")
-        people.grantPermission(APPROVER, entity.entityRef, ElectionPermissions.APPROVE)
+        people.grantRole(APPROVER, entity.entityRef, ElectionRoles.TAX_APPROVER)
         people.grant(ENTITY_ADMIN_ONLY, entity.entityRef, "entity.admin")
     }
 

@@ -39,7 +39,9 @@ import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -51,7 +53,6 @@ import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 import com.dynokore.platform.configresolver.ScopeLevel as PolicyLevel
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel as GrantLevel
 
 /**
  * The anonymised production sample copy (INV-REQ-1130, INV-REQ-1305; VP-44) through the operations
@@ -72,36 +73,39 @@ class SampleCopyTest {
         }
     }
 
-    /** Tenant-scope permission grants held in a real replica; the caller is whoever [caller] names. */
+    /** Tenant-scope role grants held in a real replica; the caller is whoever [caller] names. */
     private class People : CallerSource {
         @Volatile
         var caller: String = "USR-NONE"
-        val replica = AuthorityReplica(Clock.systemUTC()).also { it.onSnapshotComplete(0) }
+        val replica = AuthorityReplica(Clock.systemUTC(), TestOperationRoles.map).also { it.onSnapshotComplete(0) }
         private val version = AtomicLong()
 
         override fun actor(): String = caller
 
+        /** A grant of the first role the generated matrix lists for [permission]. */
         fun grant(
             tenant: TenantId,
             person: String,
             permission: String,
-            level: GrantLevel = GrantLevel.TENANT,
+            level: GrantScope = GrantScope.TENANT,
+        ) = grantRole(tenant, person, TestOperationRoles.holders(permission).sorted().first(), level)
+
+        fun grantRole(
+            tenant: TenantId,
+            person: String,
+            role: String,
+            level: GrantScope = GrantScope.TENANT,
         ) {
+            val ref = tenant.value.toString()
             replica.accept(
                 AuthorityChanged(
                     tenant,
                     person,
                     version.incrementAndGet(),
-                    AuthorityRecord.GrantRecord(
-                        tenant.value.toString(),
-                        listOf(
-                            Grant(
-                                permission,
-                                level,
-                                tenant.value.toString(),
-                                Clock.systemUTC().instant().minusSeconds(60),
-                            ),
-                        ),
+                    AuthorityRecord.RoleGrantRecord(
+                        "GR-${version.get()}",
+                        RoleGrantState.ACTIVE,
+                        RoleGrant(role, level, ref, Clock.systemUTC().instant().minusSeconds(60)),
                     ),
                 ),
             )
@@ -134,6 +138,29 @@ class SampleCopyTest {
 
         fun setting(tenant: TenantId) = env.inTenant(tenant) { env.inTx { policy.isOn() } }
 
+        /** tenant.admin acknowledges the relaxation of VP-44 (INV-Q-10140 C), as the catalogue row asks. */
+        private fun acknowledged(
+            key: VariationPointKey,
+            scope: PolicyScope,
+            on: List<SelectedOption>,
+        ) = env.writer
+            .asRole("tenant.admin")
+            .acknowledgeControlRelaxation(
+                AcknowledgeRelaxationCommand(
+                    key,
+                    scope,
+                    PolicyLevel.TENANT,
+                    on,
+                    TODAY,
+                    Actor("user:ta"),
+                    "tenant.admin",
+                    CorrelationId("corr-${UUID.randomUUID()}"),
+                    CausationId("cause-${UUID.randomUUID()}"),
+                    null,
+                    "accepted risk",
+                ),
+            ).relaxation
+
         /** VP-44 ON through the real writer: tenant.admin acknowledges, then security.officer sets it. */
         fun switchOn(tenant: TenantId) {
             val key = VariationPointKey("VP-44")
@@ -141,24 +168,8 @@ class SampleCopyTest {
             val on = listOf(SelectedOption("ON", null))
             env.inTenant(tenant) {
                 env.inTx {
-                    val relaxation =
-                        env.writer
-                            .acknowledgeControlRelaxation(
-                                AcknowledgeRelaxationCommand(
-                                    key,
-                                    scope,
-                                    PolicyLevel.TENANT,
-                                    on,
-                                    TODAY,
-                                    Actor("user:ta", setOf("tenant.admin")),
-                                    "tenant.admin",
-                                    CorrelationId("corr-${UUID.randomUUID()}"),
-                                    CausationId("cause-${UUID.randomUUID()}"),
-                                    null,
-                                    "accepted risk",
-                                ),
-                            ).relaxation
-                    env.writer.setPolicy(
+                    val relaxation = acknowledged(key, scope, on)
+                    env.writer.asRole("security.officer").setPolicy(
                         SetPolicyCommand(
                             key,
                             scope,
@@ -166,7 +177,7 @@ class SampleCopyTest {
                             on,
                             TODAY,
                             "dry runs",
-                            Actor("user:officer", setOf("security.officer")),
+                            Actor("user:officer"),
                             CorrelationId("corr-${UUID.randomUUID()}"),
                             CausationId("cause-${UUID.randomUUID()}"),
                             relaxation = relaxation,
@@ -329,7 +340,7 @@ class SampleCopyTest {
                 runCatching {
                     s.env.inTenant(tenant) {
                         s.env.inTx {
-                            s.env.writer.setPolicy(
+                            s.env.writer.asRole("security.officer").setPolicy(
                                 SetPolicyCommand(
                                     VariationPointKey("VP-44"),
                                     PolicyScope.tenant(tenant),
@@ -337,7 +348,7 @@ class SampleCopyTest {
                                     listOf(SelectedOption("ON", null)),
                                     TODAY,
                                     "dry runs",
-                                    Actor("user:officer", setOf("security.officer")),
+                                    Actor("user:officer"),
                                     CorrelationId("corr-${UUID.randomUUID()}"),
                                     CausationId("cause-${UUID.randomUUID()}"),
                                 ),
@@ -389,9 +400,18 @@ class SampleCopyTest {
         run { s ->
             val (tenant, workspace) = s.newTenant()
             s.switchOn(tenant)
-            s.people.grant(tenant, "USR-ROLE", "security.officer")
-            s.people.grant(tenant, "USR-ENT", "sample-copy.approve", GrantLevel.ENTITY)
-            s.people.grant(tenant, "USR-LOOK", "sample-copy.approve.all")
+            val request = "sample-copy.request"
+            val approve = "sample-copy.approve"
+            val unlisted = "tax.approver"
+            assertThat(
+                TestOperationRoles.holders(request) + TestOperationRoles.holders(approve),
+            ).doesNotContain(unlisted)
+            // a role the matrix does not list for the key
+            s.people.grantRole(tenant, "USR-ROLE", unlisted)
+            // a holder role at entity scope: the tenant decision reads tenant-scope grants only
+            s.people.grant(tenant, "USR-ENT", approve, GrantScope.ENTITY)
+            // a role whose text equals the key text
+            s.people.grantRole(tenant, "USR-LOOK", approve)
             listOf("USR-ROLE", "USR-ENT", "USR-LOOK", "USR-UNKNOWN").forEach { person ->
                 s.forbidden { s.approve(tenant, person) }
                 s.forbidden { s.request(tenant, workspace, person) }

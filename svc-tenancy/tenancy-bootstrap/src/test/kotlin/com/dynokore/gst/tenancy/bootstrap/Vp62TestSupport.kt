@@ -121,14 +121,14 @@ internal open class Vp62TestSupport {
         role: String,
         relaxation: RelaxationId? = null,
     ) = period.env.inTx {
-        period.env.writer.acknowledgeControlRelaxation(
+        period.env.writer.asRole(role).acknowledgeControlRelaxation(
             AcknowledgeRelaxationCommand(
                 vp62,
                 scope,
                 level,
                 move,
                 day("2026-09-01"),
-                Actor(person, setOf(role)),
+                Actor(person),
                 role,
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
@@ -144,7 +144,7 @@ internal open class Vp62TestSupport {
         effective: LocalDate = day("2026-09-01"),
         option: List<SelectedOption> = move,
     ) = period.env.inTx {
-        period.env.writer.setPolicy(
+        period.env.writer.asRole("tax.approver").setPolicy(
             SetPolicyCommand(
                 vp62,
                 scope,
@@ -152,7 +152,7 @@ internal open class Vp62TestSupport {
                 option,
                 effective,
                 "test",
-                Actor("user:setter", setOf("tax.approver")),
+                Actor("user:setter"),
                 CorrelationId("corr-${UUID.randomUUID()}"),
                 CausationId("cause-${UUID.randomUUID()}"),
                 relaxation = relaxation,
