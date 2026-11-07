@@ -184,7 +184,11 @@ class RetentionService(
             replica.onSnapshotComplete(at)
             if (structured.add(tenant)) {
                 val structure = context.getBean(StructureReplica::class.java)
-                ENTITIES.forEach { structure.accept(OrganisationStructureChanged(tenant, it, StructureChange.CREATED, entityNode())) }
+                ENTITIES.forEach {
+                    structure.accept(
+                        OrganisationStructureChanged(tenant, it, StructureChange.CREATED, entityNode()),
+                    )
+                }
             }
         }
         return TestIdentity.token(ACTOR, tenant.value)
