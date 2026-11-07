@@ -2,8 +2,8 @@ package com.dynokore.gst.ingestion.acceptance
 
 import com.dynokore.gst.ingestion.domain.recording.RecordingMapping
 import com.dynokore.gst.ingestion.domain.recording.RecordingOutcome
-import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test

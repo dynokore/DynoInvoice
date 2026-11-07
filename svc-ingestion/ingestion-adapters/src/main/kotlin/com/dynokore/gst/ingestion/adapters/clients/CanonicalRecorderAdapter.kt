@@ -77,7 +77,7 @@ class CanonicalRecorderAdapter(
         }
     }
 
-    /** The edge gave no answer (ARC-19: an expected failure is a value, INV-REQ-1193): timeout, open breaker, full bulkhead or no connection. */
+    /** The edge gave no answer (ARC-19, INV-REQ-1193): timeout, open breaker, full bulkhead or no connection. */
     private fun unavailable(reason: String): CanonicalAnswer = CanonicalAnswer.Unavailable("$EDGE: $reason")
 
     private fun send(tree: JsonNode): CanonicalAnswer =
