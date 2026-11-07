@@ -42,6 +42,8 @@ object ServletFixture {
                 "control-plane.signing.alias=pack-signing",
                 "control-plane.signing.pin-secret=signing/pin",
                 "control-plane.signing.certificate-secret=signing/certificate",
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://telemetry-export.invalid:4318",
                 "server.port=0",
                 *properties,
             ).run()

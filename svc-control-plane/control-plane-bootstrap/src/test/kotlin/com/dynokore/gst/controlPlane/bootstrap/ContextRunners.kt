@@ -12,13 +12,20 @@ import java.nio.file.Path
 fun controlPlaneRunner(
     mount: Path,
     vararg extra: String,
+): ApplicationContextRunner = controlPlaneRunnerFor(mount, EndUserPrincipalResolver { null }, *extra)
+
+/** [controlPlaneRunner] with the end-user resolver the deployment's IdentityProvider binding would build. */
+fun controlPlaneRunnerFor(
+    mount: Path,
+    principals: EndUserPrincipalResolver,
+    vararg extra: String,
 ): ApplicationContextRunner {
     val secrets = mount.resolve("tenancy").also { Files.createDirectories(it) }
     Files.writeString(secrets.resolve("binding-key-current"), "test-installation-binding-key")
     return ApplicationContextRunner()
         .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
         // the deployment's IdentityProvider binding builds the real resolver; the composition needs only the port
-        .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
+        .withBean(EndUserPrincipalResolver::class.java, { principals })
         // application.yaml is the service's own configuration (platform-scoped tables, management port)
         .withInitializer(ConfigDataApplicationContextInitializer())
         .withUserConfiguration(ControlPlaneApplication::class.java)
@@ -37,6 +44,8 @@ fun controlPlaneRunner(
             "control-plane.signing.alias=pack-signing",
             "control-plane.signing.pin-secret=signing/pin",
             "control-plane.signing.certificate-secret=signing/certificate",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://telemetry-export.invalid:4318",
             *extra,
         )
 }
