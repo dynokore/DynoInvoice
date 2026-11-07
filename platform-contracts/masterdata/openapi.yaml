@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -454,6 +454,16 @@ paths:
               examples:
                 default:
                   value: { partyRef: "CTP-118", resolvedIdentifiers: [{ scheme: "UEN", value: "201954321B" }], providedBy: "COUNTERPARTY" }
+        '401':
+          description: >-
+            One answer covers: no token, a token that fails verification, an
+            unknown, expired or invalidated link, a link of another tenant and
+            a link bound to another requestId (SRT-003). The answer never says
+            which of these applies.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/counterparties/{counterpartyRef}/history:
@@ -625,7 +635,7 @@ paths:
           schema: { type: string, maxLength: 40 }
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -643,6 +653,27 @@ paths:
               examples:
                 default:
                   value: { requestId: "REQ-77", counterpartyRef: "CTP-118", status: "SENT" }
+        '400':
+          description: >-
+            SRT-001 - the body is missing or does not match the contract (for
+            example no contactEmail); SRT-002 - the Idempotency-Key is missing
+            or malformed. Nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
+        '409':
+          description: >-
+            The request method of the tenant (VP-30) does not offer a signed
+            link (CSV_ONLY or OFF); nothing is recorded and no
+            SignedLinkRequested is published. A repeat while a link is live
+            returns the open request as today (201), and a repeat after the
+            link is expired or invalidated publishes a new SignedLinkRequested
+            for the same requestId.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../service-runtime/schemas/error-envelope.schema.json
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/counterparty-requests/{requestId}/submission:
@@ -657,6 +688,14 @@ paths:
         `providedBy = COUNTERPARTY` and the evidence reference (FR-1.5,
         FR-AF.24) and flow through `MasterDataResolved`, which auto-releases
         held documents.
+
+
+        The bearer credential is the link-session token that
+        `verifySignatoryLink` returns on a verified link, verified by the
+        shared verifier like any end-user token (INV-REQ-901, INV-AC-18216).
+        The linkRef is the `sub` of the token (`link:` followed by the
+        linkRef), never a request field; `requestId` is the only identifier in
+        the path and the link must be bound to it.
       tags: [counterparty-requests]
       x-principal: filing-workflow
       x-caller-auth: signed-link
