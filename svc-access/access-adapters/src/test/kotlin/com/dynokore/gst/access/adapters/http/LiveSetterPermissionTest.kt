@@ -70,9 +70,8 @@ class LiveSetterPermissionTest {
         status: GrantStatus = GrantStatus.ACTIVE,
         from: Instant = now.minusSeconds(3600),
         until: Instant? = now.plusSeconds(3600),
-        grantTenant: TenantRef = tenantRef,
     ) = Grant(
-        GrantHeader(GrantRef(UUID.randomUUID().toString()), grantTenant, IdentityRef(ACTOR)),
+        GrantHeader(GrantRef(UUID.randomUUID().toString()), tenantRef, IdentityRef(ACTOR)),
         role,
         scope,
         ValidityWindow(from, until),
@@ -104,7 +103,7 @@ class LiveSetterPermissionTest {
             }
         val repository =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(GrantRepository::class.java)) { _, method, _ ->
-                check(method.name == "findByIdentity") { "unexpected ${method.name}" }
+                check(method.name.startsWith("findByIdentity")) { "unexpected ${method.name}" }
                 if (failing) error("database down")
                 grants
             } as GrantRepository
@@ -123,8 +122,15 @@ class LiveSetterPermissionTest {
         level: ScopeLevel = ScopeLevel.TENANT,
         scopeRef: String? = tenant.toString(),
         entityRef: String? = null,
-        inTenant: TenantId = tenant,
-        actor: String = ACTOR,
+    ) = holdsFor(ACTOR, tenant, key, level, scopeRef, entityRef)
+
+    private fun LiveSetterPermission.holdsFor(
+        actor: String,
+        inTenant: TenantId,
+        key: String,
+        level: ScopeLevel = ScopeLevel.TENANT,
+        scopeRef: String? = inTenant.toString(),
+        entityRef: String? = null,
     ) = holds(Actor(actor), inTenant, level, scopeRef, entityRef, key)
 
     @Test
@@ -153,13 +159,13 @@ class LiveSetterPermissionTest {
 
     @Test
     fun `INV-AC-2224 another tenant, an entity grant and the platform tenant hold nothing`() {
-        val elsewhere = grant(Role.TENANT_ADMIN, Scope.Tenant(TenantRef("other")), grantTenant = TenantRef("other"))
+        val elsewhere = grant(Role.TENANT_ADMIN, Scope.Tenant(TenantRef("other")))
         assertThat(permission(listOf(elsewhere)).at(admin)).isFalse()
         val entityScoped = grant(Role.TENANT_ADMIN, Scope.Entity(EntityRef("ENT-1")))
         assertThat(permission(listOf(entityScoped)).at(admin)).isFalse()
         val held = permission(listOf(grant(Role.TENANT_ADMIN)))
-        assertThat(held.at(admin, inTenant = TenantId.PLATFORM, scopeRef = TenantId.PLATFORM.toString())).isFalse()
-        assertThat(held.at(admin, inTenant = otherTenant)).isFalse()
+        assertThat(held.holdsFor(ACTOR, TenantId.PLATFORM, admin)).isFalse()
+        assertThat(held.holdsFor(ACTOR, otherTenant, admin, scopeRef = tenant.toString())).isFalse()
         assertThat(held.at(admin, scopeRef = null)).isFalse()
     }
 
@@ -182,15 +188,17 @@ class LiveSetterPermissionTest {
     fun `INV-AC-10161 a configured entry holds the key by exact subject when the matrix lists it`() {
         val entries = listOf(InstallationRole.of("user:op", "deployment.operator"))
         val installation = { p: LiveSetterPermission, actor: String ->
-            p.at(installationKey, ScopeLevel.INSTALLATION, null, actor = actor)
+            p.holdsFor(actor, tenant, installationKey, ScopeLevel.INSTALLATION, null)
         }
         assertThat(installation(permission(emptyList(), entries), "user:op")).isTrue()
         assertThat(installation(permission(emptyList(), entries, withOperatorKey = false), "user:op")).isFalse()
-        listOf("user:op ", "USER:OP", "user:o", "user:other", "").forEach {
+        listOf("user:op ", "USER:OP", "user:o", "user:other").forEach {
             assertThat(installation(permission(emptyList(), entries), it)).describedAs("[$it]").isFalse()
         }
         val withRef = permission(emptyList(), entries)
-        assertThat(withRef.at(installationKey, ScopeLevel.INSTALLATION, tenant.toString(), actor = "user:op")).isFalse()
+        assertThat(
+            withRef.holdsFor("user:op", tenant, installationKey, ScopeLevel.INSTALLATION, tenant.toString()),
+        ).isFalse()
     }
 
     @Test

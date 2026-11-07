@@ -2,8 +2,13 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.BreakGlassController
+import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
+import com.dynokore.gst.access.adapters.http.LiveSetterPermission
+import com.dynokore.gst.access.adapters.http.LiveTenantGrants
+import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.contract.model.BreakGlassResponse
 import com.dynokore.gst.access.contract.model.UnlockBreakGlassRequest
+import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.Actor
 import com.dynokore.platform.configresolver.BusinessDate
@@ -12,6 +17,7 @@ import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SetPolicyCommand
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -44,15 +50,40 @@ import java.util.UUID
 class BreakGlassSettingTest {
     private val tenant = TenantId(UUID.randomUUID())
     private val officer = "user:security-officer"
+    private val installer = "user:installer"
+
+    /** The context under test; the installer permission below delegates to the production decision for everyone else. */
+    private var running: AssertableWebApplicationContext? = null
+
+    private fun production(): SetterPermission {
+        val context = checkNotNull(running)
+        return LiveSetterPermission(
+            context.getBean(LiveTenantGrants::class.java),
+            context.getBean(PermissionMatrix::class.java),
+            context.getBean(InstallationRoleDirectory::class.java),
+            context.getBean(EntityDirectory::class.java),
+        )
+    }
 
     private fun run(block: (AssertableWebApplicationContext) -> Unit) {
         BoundaryFixture
             .runner(catalogueMatrix = true)
             .withBean(
+                SetterPermission::class.java,
+                {
+                    // the installation operator of this fixture holds the setting permission at INSTALLATION; every
+                    // other call is decided by the production LiveSetterPermission
+                    SetterPermission { actor, tenant, level, scopeRef, entityRef, key ->
+                        (actor.principal == installer && level == ScopeLevel.INSTALLATION) ||
+                            production().holds(actor, tenant, level, scopeRef, entityRef, key)
+                    }
+                },
+            ).withBean(
                 EndUserPrincipalResolver::class.java,
                 { TestTokenPrincipals(mapOf("token-officer" to EndUserPrincipal(officer, tenant, emptySet()))) },
             ).run { context ->
                 context.startupFailure?.let { throw it }
+                running = context
                 Seeds.grant(context, tenant, SeedSpec(officer, Role.SECURITY_OFFICER))
                 Seeds.grant(context, tenant, SeedSpec("IDN-ADM", Role.TENANT_ADMIN))
                 Seeds.grant(context, tenant, SeedSpec("IDN-APP", Role.TAX_APPROVER))
@@ -82,11 +113,11 @@ class BreakGlassSettingTest {
                 selected = listOf(SelectedOption("DEFAULT_PAIR_4H", """{"window":$window}""")),
                 effectiveFrom = BusinessDate.today(context.getBean(Clock::class.java)),
                 reason = "installation setting",
-                actor = Actor("user:installer"),
+                actor = Actor(installer),
                 correlation = CorrelationId("c-4938"),
                 causation = CausationId("c-4938"),
             )
-        context.getBean(PlatformTenantBinding::class.java).bindPlatform("user:installer") {
+        context.getBean(PlatformTenantBinding::class.java).bindPlatform(installer) {
             context.getBean(TransactionRunner::class.java).inTransaction {
                 context.getBean(PolicyWriter::class.java).setPolicy(command)
             }

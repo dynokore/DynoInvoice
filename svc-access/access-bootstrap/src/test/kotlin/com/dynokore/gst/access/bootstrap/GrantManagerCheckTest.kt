@@ -111,8 +111,11 @@ class GrantManagerCheckTest {
         fun refused(actor: String) = refusals(actor).all { it }
     }
 
-    private fun run(block: (Env) -> Unit) {
-        BoundaryFixture.runner().run { context ->
+    private fun run(
+        catalogue: Boolean = false,
+        block: (Env) -> Unit,
+    ) {
+        BoundaryFixture.runner(catalogueMatrix = catalogue).run { context ->
             context.startupFailure?.let { throw it }
             block(Env(context))
         }
@@ -286,7 +289,7 @@ class GrantManagerCheckTest {
 
     @Test
     fun `setter permission - tenant admin holds the tenant admin key and not the security officer key`() =
-        run { env ->
+        run(catalogue = true) { env ->
             env.seed(id("IDN-ADMIN"), Role.TENANT_ADMIN)
             assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString())).isTrue()
             assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString(), "vp-44.set")).isFalse()

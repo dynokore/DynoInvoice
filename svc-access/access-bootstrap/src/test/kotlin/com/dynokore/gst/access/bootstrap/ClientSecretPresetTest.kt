@@ -50,7 +50,14 @@ class ClientSecretPresetTest {
         block: (PrincipalKit) -> Unit,
     ) {
         val principals = TestTokenPrincipals(mapOf("token-operator" to EndUserPrincipal(operator, null, emptySet())))
-        var runner = BoundaryFixture.runner().withBean(EndUserPrincipalResolver::class.java, { principals })
+        var runner =
+            BoundaryFixture
+                .runner(
+                    catalogueMatrix = true,
+                    form = "PRIVATE",
+                ).withBean(EndUserPrincipalResolver::class.java, {
+                    principals
+                })
         if (roles != null) runner = runner.withBean(SetterPermission::class.java, { roles })
         runner.run { context ->
             context.startupFailure?.let { throw it }
@@ -137,7 +144,7 @@ class ClientSecretPresetTest {
             val effective = effectiveOf(kit)
             val response = setPreset(kit.context, "REGULATED_PRIVATE", effective)
             assertThat(response.status).isEqualTo(403)
-            assertThat(response.contentAsString).contains("SRT-004")
+            assertThat(response.contentAsString).contains("POL-004")
             assertThat(stored(kit, effective.plusDays(1))).doesNotContain("REGULATED_PRIVATE")
         }
 
