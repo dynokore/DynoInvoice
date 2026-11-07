@@ -49,7 +49,7 @@ class JobRuntimeCompositionTest {
     private val actors = listOf("release.manager", "platform.engineer", "svc:evidence-svc", "")
 
     @Test
-    fun `the context holds one JobRuntime with exactly the verification and archive-volume jobs registered`(
+    fun `the context holds one JobRuntime with exactly the three registered jobs`(
         @TempDir dir: Path,
     ) {
         EvidenceContext.offline(dir).run { context ->
@@ -60,7 +60,7 @@ class JobRuntimeCompositionTest {
                 .registered()
                 .map { it.name }
                 .sorted() shouldBe
-                listOf("archive-volume-measurement", "evidence-chain-verification")
+                listOf("archive-volume-measurement", "evidence-chain-verification", "idempotency-key-purge")
         }
     }
 
@@ -169,7 +169,7 @@ class JobRuntimeCompositionTest {
     ) {
         EvidenceContext.offline(dir).run { context ->
             val tasks = context.getBean(ScheduledAnnotationBeanPostProcessor::class.java).scheduledTasks
-            tasks.size shouldBe 2
+            tasks.size shouldBe 3
             tasks.none { it.task is FixedRateTask } shouldBe true
             val cron =
                 tasks

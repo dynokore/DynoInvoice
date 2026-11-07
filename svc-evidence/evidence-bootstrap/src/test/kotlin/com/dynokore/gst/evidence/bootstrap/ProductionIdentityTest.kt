@@ -78,6 +78,8 @@ class ProductionIdentityTest {
     @AfterAll
     fun stopKeyServer() = jwks.stop(0)
 
+    // one defaulted parameter per claim or key a case varies
+    @Suppress("LongParameterList")
     private fun token(
         sub: String?,
         tenant: TenantId,
@@ -130,7 +132,15 @@ class ProductionIdentityTest {
         try {
             return block()
         } finally {
-            saved.forEach { (name, old) -> if (old == null) System.clearProperty(name) else System.setProperty(name, old) }
+            saved.forEach { (name, old) ->
+                if (old ==
+                    null
+                ) {
+                    System.clearProperty(name)
+                } else {
+                    System.setProperty(name, old)
+                }
+            }
         }
     }
 
@@ -211,7 +221,8 @@ class ProductionIdentityTest {
                 )
             for ((case, expected) in refused) {
                 val (status, code) = setPolicy(s, tenant, expected.first)
-                "$case: $status $code" shouldBe "$case: ${expected.second} ${if (expected.second == 401) "SRT-003" else "SRT-004"}"
+                "$case: $status $code" shouldBe
+                    "$case: ${expected.second} ${if (expected.second == 401) "SRT-003" else "SRT-004"}"
                 s.stored(tenant) shouldBe 0
                 tiers(s, tenant) shouldBe before
             }
@@ -234,8 +245,8 @@ class ProductionIdentityTest {
             .withInitializer { it.environment.propertySources.remove("systemProperties") }
             .withPropertyValues(*properties)
             .run { failure = it.startupFailure }
-        val chain = generateSequence(failure) { it.cause }.mapNotNull { it.message }.toList()
-        return chain.joinToString(" | ").also { check(failure != null) { "the context started" } }
+        val thrown = checkNotNull(failure) { "the context started" }
+        return generateSequence(thrown) { it.cause }.mapNotNull { it.message }.joinToString(" | ")
     }
 
     @Test
@@ -248,7 +259,11 @@ class ProductionIdentityTest {
             "evidence.identity-provider.issuer-uri"
         startupFailure(dir, audience, "evidence.identity-provider.issuer-uri=   ") shouldContain
             "evidence.identity-provider.issuer-uri"
-        startupFailure(dir, audience, "evidence.identity-providers.issuer-uri=https://issuer.invalid/realms/test") shouldContain
+        startupFailure(
+            dir,
+            audience,
+            "evidence.identity-providers.issuer-uri=https://issuer.invalid/realms/test",
+        ) shouldContain
             "evidence.identity-provider.issuer-uri"
     }
 

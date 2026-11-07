@@ -49,7 +49,12 @@ class RetentionBeans {
         val at = version.incrementAndGet()
         val grant = RoleGrant("tenant.admin", GrantScope.TENANT, tenant.toString(), Instant.EPOCH)
         replica.accept(
-            AuthorityChanged(tenant, actor, at, AuthorityRecord.RoleGrantRecord("grant-$actor", RoleGrantState.ACTIVE, grant)),
+            AuthorityChanged(
+                tenant,
+                actor,
+                at,
+                AuthorityRecord.RoleGrantRecord("grant-$actor", RoleGrantState.ACTIVE, grant),
+            ),
         )
         replica.onSnapshotComplete(at)
     }
