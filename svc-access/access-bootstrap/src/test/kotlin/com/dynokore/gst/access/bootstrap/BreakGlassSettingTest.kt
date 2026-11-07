@@ -52,7 +52,7 @@ class BreakGlassSettingTest {
     private val officer = "user:security-officer"
     private val installer = "user:installer"
 
-    /** The context under test; the installer permission below delegates to the production decision for everyone else. */
+    /** The context under test; the installer permission below defers to production for everyone else. */
     private var running: AssertableWebApplicationContext? = null
 
     private fun production(): SetterPermission {
