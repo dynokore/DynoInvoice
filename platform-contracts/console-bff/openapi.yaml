@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -156,6 +156,68 @@ paths:
                         raisedAt: "2026-04-01T01:00:00Z"
                         remediationOwner: "Finance"
                         disposition: "MANUAL"
+                        docVersion: 1
+                        documentNumber: "INV-2026-0042"
+                        counterpartyName: "Acme Pte Ltd"
+                        transactionDate: "2026-03-15"
+                        dueDate: "2026-11-21"
+                        taxableAmount: "100.00"
+                        severity: "BLOCK"
+                        inputKey: "internalTaxCode=SR-STD"
+        default:
+          $ref: '#/components/responses/Error'
+  /bff/exceptions/{exceptionId}/decision-trace:
+    get:
+      operationId: getExceptionDecisionTrace
+      summary: Open the decision trace behind one exception row
+      description: >-
+        From any queue row the user opens the decision trace: which rule
+        fired, from which pack version, on which inputs (INV-REQ-942
+        behavior 1). It changes no state. console-bff resolves the
+        exception's document UUID and version from its read model and reads
+        the trace from evidence-svc `getDecisionTrace`, which stays the
+        system of record (INV-ADR-282); no copy is kept (INV-REQ-1182
+        behavior 2). The response is the entry of the evidence trace whose
+        `code` equals the exception's `code`. The caller is decided per
+        request by the permission key `doc.view.content` through
+        `AuthorityReplica.decide`, never by a role name (INV-Q-10027).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s for an operation making at most one downstream
+        call (x-timeout 3000).
+      tags: [exceptions]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: [SRT-004, SRT-005]
+      x-requirements: [INV-REQ-942]
+      parameters:
+        - name: exceptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The decision trace entry of the exception.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionDecisionTrace'
+              examples:
+                default:
+                  value:
+                    exceptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    code: "RUL-001"
+                    ruleId: "R-114"
+                    packVersions:
+                      - packIdentifier: "mapping"
+                        version: "2026.3"
+                    inputs:
+                      - name: "internalTaxCode"
+                        value: "SR-STD"
         default:
           $ref: '#/components/responses/Error'
   /bff/exceptions/{id}/override:
@@ -682,7 +744,71 @@ components:
           type: string
           format: uuid
           description: Present while the exception is deferred (INV-REQ-960); a deferral never makes the exception resolved.
+        docVersion:
+          type: integer
+          minimum: 1
+        documentNumber:
+          type: string
+          maxLength: 100
+        counterpartyName:
+          type: string
+          maxLength: 200
+        transactionDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+          description: The due date the group sorts by (INV-REQ-940 behavior 3).
+        taxableAmount:
+          $ref: '#/components/schemas/Money'
+        severity:
+          type: string
+          enum: [BLOCK, HOLD, WARN]
+          x-extensible-enum: true
+        inputKey:
+          type: string
+          maxLength: 200
+          description: Items with the same value are one input (INV-REQ-940 behavior 2).
       required: [exceptionId, entityRef, code, state, raisedAt, remediationOwner, disposition]
+    Money:
+      type: string
+      format: decimal
+      pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+      description: A decimal amount as a string, never a float (API-12).
+    ExceptionDecisionTrace:
+      type: object
+      properties:
+        exceptionId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        ruleId:
+          type: string
+        packVersions:
+          type: array
+          items:
+            type: object
+            properties:
+              packIdentifier:
+                type: string
+              version:
+                type: string
+            required: [packIdentifier, version]
+        inputs:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: string
+              businessTermId:
+                type: string
+            required: [name, value]
+      required: [exceptionId, code, ruleId, packVersions, inputs]
     ExceptionPage:
       type: object
       properties:

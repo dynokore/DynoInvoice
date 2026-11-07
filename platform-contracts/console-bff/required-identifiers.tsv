@@ -8,3 +8,8 @@ deferDocument	operation	openapi.yaml	INV-REQ-960
 undeferDocument	operation	openapi.yaml	INV-REQ-960
 # INV-T-7370. Operation promoteConfiguration (INV-REQ-2588, INV-Q-17461).
 promoteConfiguration	operation	openapi.yaml	INV-REQ-2588
+# INV-T-14242. Exception grouping columns and decision trace (INV-REQ-940, INV-REQ-942, INV-Q-14211, INV-Q-14214).
+getExceptionDecisionTrace	operation	openapi.yaml	INV-REQ-942
+Exception.taxableAmount	schema_property	openapi.yaml	INV-REQ-940
+Exception.dueDate	schema_property	openapi.yaml	INV-REQ-940
+Exception.inputKey	schema_property	openapi.yaml	INV-REQ-940
