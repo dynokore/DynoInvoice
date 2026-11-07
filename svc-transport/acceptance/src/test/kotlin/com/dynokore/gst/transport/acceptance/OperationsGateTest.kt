@@ -296,7 +296,7 @@ class OperationsGateTest {
     }
 
     @Test
-    fun `INV-AC-18428 the state function returns null for a state 3 done text with a leading space before INV-T-4982`() {
+    fun `INV-AC-18428 the state function returns null for state 3 with a leading space before INV-T-4982`() {
         stateOf("INV-T-4981\nINV-T-12486\n INV-T-4982\n", state3.stubSet, state3.cell).shouldBeNull()
     }
 
