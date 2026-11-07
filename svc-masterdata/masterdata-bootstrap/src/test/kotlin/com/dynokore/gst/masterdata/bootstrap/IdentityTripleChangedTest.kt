@@ -201,7 +201,7 @@ class IdentityTripleChangedTest {
     fun `INV-AC-16047 a back-dated confirmation appends one Changed and one Corrected`() =
         run { env ->
             val entity = unique("ENT-BACK")
-            env.configured(entity, LocalDate.of(2026, 1, 1))
+            env.configured(entity, env.today.minusDays(100))
             assertThat(env.changed(entity)).hasSize(1)
             val from = env.today.minusDays(30)
             val change = env.proposed(entity, from, 2)
