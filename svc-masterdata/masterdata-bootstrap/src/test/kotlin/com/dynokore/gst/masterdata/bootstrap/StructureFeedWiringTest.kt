@@ -37,7 +37,7 @@ import java.util.logging.LogRecord
 class StructureFeedWiringTest {
     private val l1 = "com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration"
 
-    @Configuration(proxyBeanMethods = false)
+    // plain (lite) bean holders: not @Configuration, so the application's component scan never picks them up
     class UserConfiguration {
         @Bean fun apply(): ApplyStructureNode = mock(ApplyStructureNode::class.java)
 
@@ -48,7 +48,6 @@ class StructureFeedWiringTest {
         @Bean fun clock(): Clock = Clock.systemUTC()
     }
 
-    @Configuration(proxyBeanMethods = false)
     class EventLogBeans {
         @Bean fun reader(): EventLogReader = mock(EventLogReader::class.java)
 
@@ -64,8 +63,7 @@ class StructureFeedWiringTest {
         }
     }
 
-    @Configuration(proxyBeanMethods = false)
-    class OwnSink {
+    class ProductSinkBeans {
         @Bean fun ownSink(): RebuildRequiredSink = RebuildRequiredSink { }
     }
 
@@ -116,7 +114,7 @@ class StructureFeedWiringTest {
 
     @Test
     fun `INV-AC-16991 a sink of the product is the only sink`() {
-        runner.withUserConfiguration(EventLogBeans::class.java, OwnSink::class.java).run { ctx ->
+        runner.withUserConfiguration(EventLogBeans::class.java, ProductSinkBeans::class.java).run { ctx ->
             val sinks = ctx.getBeansOfType(RebuildRequiredSink::class.java)
             assertThat(sinks.keys).containsExactly("ownSink")
             assertThat(ctx.getBeansOfType(JdbcInboxConsumer::class.java)).hasSize(2)
