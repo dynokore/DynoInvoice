@@ -54,6 +54,17 @@ topic, every event with `feeds_runtime_replicas: true` must be subscribed by
 every service except `console-web` and its producers, every topic's event type
 has an event, and every event has a topic. The rules are strict.
 
+**Address rule (INV-T-17778).** Every `topics.yaml` entry with a string `topic`
+and a string `event_type` is checked in both modes, including the entries of
+`EXEMPT_TOPICS` and `SUPERSEDED_TOPICS`; the rule has no exemption. The event
+type must match `^com\.dynokore\.gst\.([a-z][a-z0-9]*)\.([A-Z][A-Za-z0-9]*)\.v([0-9]+)$`,
+otherwise the finding is `topic <topic>: event type <event_type> is malformed`.
+The expected address is `gst.<group 1>.<kebab>.v<group 3>`, where `<kebab>` is
+group 2 with `-` inserted before every upper-case letter except the first,
+lower-cased. The topic must equal it as a whole string (no strip, no case
+folding, no prefix test), otherwise the finding is
+`topic <topic>: address differs from the address derived from event type <event_type> (expected <expected>)`.
+
 **Pinned mode.** The job `invoice-docs-checks` runs
 `check-model-subscribers.py --pin event-log/model-pin.txt --docs-repo <invoice-docs clone> <contracts-root>`.
 It reads the two model files at the pinned commit with

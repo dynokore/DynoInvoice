@@ -40,6 +40,8 @@ EXEMPT_TYPES: frozenset[str] = frozenset()
 SUPERSEDED_TOPICS = {
     "gst.tenancy.installation-status-changed.v1": "gst.platform.installation-status-changed.v1",
 }
+# Address rule (INV-T-17778): the topic address is derived from the event type; no exemption.
+EVENT_TYPE_RE = re.compile(r"^com\.dynokore\.gst\.([a-z][a-z0-9]*)\.([A-Z][A-Za-z0-9]*)\.v([0-9]+)$")
 NON_EVENT_SERVICES = frozenset({"console-web"})
 EVERY_SERVICE = "every service"
 PRODUCER_ALIASES = frozenset({
@@ -118,6 +120,14 @@ def check(model_dir: Path, root: Path) -> tuple[list[str], list[str]]:
         if name in tinfo:
             f.append(f"topic {name}: duplicate topic in topics.yaml")
             continue
+        m = EVENT_TYPE_RE.fullmatch(etype)
+        if m is None:
+            f.append(f"topic {name}: event type {etype} is malformed")
+        else:
+            kebab = re.sub(r"(?<!^)(?=[A-Z])", "-", m.group(2)).lower()
+            expected = f"gst.{m.group(1)}.{kebab}.v{m.group(3)}"
+            if name != expected:
+                f.append(f"topic {name}: address differs from the address derived from event type {etype} (expected {expected})")
         prod = _str_list(t.get("producers"), f"topic {name}: producers", f)
         subs = _str_list(t.get("subscribers"), f"topic {name}: subscribers", f)
         tinfo[name] = {"type": etype.split(".")[-2], "producers": prod, "subscribers": subs}

@@ -31,7 +31,7 @@ NEW = "gst.platform.installation-status-changed.v1"
 
 
 def _topic(name, etype, producers, subscribers):
-    return {"topic": name, "event_type": f"com.example.{etype}.v1", "producers": producers, "subscribers": subscribers}
+    return {"topic": name, "event_type": f"com.dynokore.gst.{name.split('.')[1]}.{etype}.v1", "producers": producers, "subscribers": subscribers}
 
 
 def base():
@@ -40,17 +40,17 @@ def base():
     tp = []
     for n in ("FeedA", "FeedB", "FeedC"):
         ev.append({"id": n, "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": True})
-        tp.append(_topic(f"gst.x.{n.lower()}.v1", n, ["a-svc"], ["b-svc", "c-svc"]))
+        tp.append(_topic(f"gst.x.feed-{n[-1].lower()}.v1", n, ["a-svc"], ["b-svc", "c-svc"]))
     ev.append({"id": "Plain", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
     tp.append(_topic("gst.x.plain.v1", "Plain", ["a-svc"], ["b-svc"]))
     ev.append({"id": "Every", "producers": ["every service with scheduled jobs"], "consumers": ["c-svc"]})
     tp.append(_topic("gst.x.every.v1", "Every", ["every service"], ["c-svc"]))
     for n in chk.MODEL_ONLY:
         ev.append({"id": n, "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
-    tp.append(_topic("gst.access.authority-changed.v1", "FeedA", ["a-svc"], []))
-    ev.append({"id": "Swap", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
-    tp.append(_topic(OLD, "Swap", ["a-svc"], ["b-svc"]))
-    tp.append(_topic(NEW, "Swap", ["a-svc"], ["b-svc"]))
+    tp.append(_topic("gst.access.authority-changed.v1", "AuthorityChanged", ["a-svc"], []))
+    ev.append({"id": "InstallationStatusChanged", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+    tp.append(_topic(OLD, "InstallationStatusChanged", ["a-svc"], ["b-svc"]))
+    tp.append(_topic(NEW, "InstallationStatusChanged", ["a-svc"], ["b-svc"]))
     return ev, tp
 
 
@@ -99,21 +99,21 @@ class TestCheck(Case):
         self.assertEqual((code, out[1:]), (0, []))
 
     def test_feed_subscriber_removed(self):
-        self.topic("gst.x.feeda.v1")["subscribers"] = ["c-svc"]
+        self.topic("gst.x.feed-a.v1")["subscribers"] = ["c-svc"]
         code, out = self.run_check()
         self.assertEqual(code, 1)
-        self.assertIn("FeedA: subscribers of gst.x.feeda.v1 differ from the derived list: missing [b-svc], extra []", out)
-        self.assertIn("FeedA: consumer b-svc is not a subscriber of gst.x.feeda.v1", out)
+        self.assertIn("FeedA: subscribers of gst.x.feed-a.v1 differ from the derived list: missing [b-svc], extra []", out)
+        self.assertIn("FeedA: consumer b-svc is not a subscriber of gst.x.feed-a.v1", out)
 
     def test_non_event_service_added(self):
-        self.topic("gst.x.feeda.v1")["subscribers"].append("console-web")
+        self.topic("gst.x.feed-a.v1")["subscribers"].append("console-web")
         _, out = self.run_check()
-        self.assertIn("FeedA: subscribers of gst.x.feeda.v1 differ from the derived list: missing [], extra [console-web]", out)
+        self.assertIn("FeedA: subscribers of gst.x.feed-a.v1 differ from the derived list: missing [], extra [console-web]", out)
 
     def test_look_alike_subscriber(self):
-        self.topic("gst.x.feeda.v1")["subscribers"] = ["b-svc", "c"]
+        self.topic("gst.x.feed-a.v1")["subscribers"] = ["b-svc", "c"]
         _, out = self.run_check()
-        self.assertIn("FeedA: subscribers of gst.x.feeda.v1 differ from the derived list: missing [c-svc], extra [c]", out)
+        self.assertIn("FeedA: subscribers of gst.x.feed-a.v1 differ from the derived list: missing [c-svc], extra [c]", out)
 
     def test_case_variant_is_not_equal(self):
         self.topic("gst.x.plain.v1")["subscribers"] = ["B-svc"]
@@ -190,17 +190,17 @@ class TestCheck(Case):
     def test_superseded_replacement_removed_is_stale(self):
         self.topics = [t for t in self.topics if t["topic"] != NEW]
         _, out = self.run_check()
-        self.assertEqual(out[1:], ["Swap: no topic carries the event type", f"superseded topic {OLD} is stale"])
+        self.assertEqual(out[1:], ["InstallationStatusChanged: no topic carries the event type", f"superseded topic {OLD} is stale"])
 
     def test_superseded_rules_apply_to_the_replacement(self):
         self.topic(NEW)["subscribers"] = ["c-svc"]
         _, out = self.run_check()
-        self.assertIn(f"Swap: consumer b-svc is not a subscriber of {NEW}", out)
+        self.assertIn(f"InstallationStatusChanged: consumer b-svc is not a subscriber of {NEW}", out)
 
     def test_superseded_old_topic_still_needs_an_event(self):
-        self.events = [e for e in self.events if e["id"] != "Swap"]
+        self.events = [e for e in self.events if e["id"] != "InstallationStatusChanged"]
         _, out = self.run_check()
-        self.assertIn(f"topic {OLD}: event type Swap has no event in events.yaml", out)
+        self.assertIn(f"topic {OLD}: event type InstallationStatusChanged has no event in events.yaml", out)
 
     def test_superseded_lookalike_keys_still_fail_rule_1(self):
         for bad in (OLD.replace(".v1", ".v2"), OLD.upper(), OLD + " ", NEW):
@@ -211,17 +211,17 @@ class TestCheck(Case):
                 self.topics.append(_topic(NEW, "Plain2", ["a-svc"], ["b-svc"]))
                 self.events = [e for e in self.events if e["id"] != "Plain2"]
                 self.events.append({"id": "Plain2", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
-                self.topics.append(_topic("gst.q.swap-a.v1", "Swap", ["a-svc"], ["b-svc"]))
-                self.topics.append(_topic(bad, "Swap", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic("gst.q.swap-a.v1", "InstallationStatusChanged", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic(bad, "InstallationStatusChanged", ["a-svc"], ["b-svc"]))
                 _, out = self.run_check()
-                self.assertTrue([ln for ln in out if ln.startswith("Swap: more than one topic carries the event type")], out)
+                self.assertTrue([ln for ln in out if ln.startswith("InstallationStatusChanged: more than one topic carries the event type")], out)
 
     def test_model_only_with_topic_or_missing_is_stale(self):
-        self.topics.append(_topic("gst.x.replayrequested.v1", "ReplayRequested", ["a-svc"], []))
+        self.topics.append(_topic("gst.x.replay-requested.v1", "ReplayRequested", ["a-svc"], []))
         _, out = self.run_check()
         self.assertIn("exemption ReplayRequested is stale", out)
         self.events = [e for e in self.events if e["id"] != "ReplayCompleted"]
-        self.topics = [t for t in self.topics if "replayrequested" not in t["topic"]]
+        self.topics = [t for t in self.topics if "replay-requested" not in t["topic"]]
         _, out = self.run_check()
         self.assertEqual(out[1:], ["exemption ReplayCompleted is stale"])
 
@@ -229,7 +229,7 @@ class TestCheck(Case):
         self.event("FeedA")["feeds_runtime_replicas"] = False
         _, out = self.run_check()
         self.assertIn(
-            "FeedA: feeds_runtime_replicas is not true but the subscribers of gst.x.feeda.v1 cover every service", out)
+            "FeedA: feeds_runtime_replicas is not true but the subscribers of gst.x.feed-a.v1 cover every service", out)
 
     def test_new_flag_is_enforced_without_script_edit(self):
         self.event("Plain")["feeds_runtime_replicas"] = True
@@ -244,8 +244,8 @@ class TestCheck(Case):
 
     def test_producer_excluded_only_by_equality(self):
         self.event("FeedA")["producers"] = ["every service owning a variation point"]
-        self.topic("gst.x.feeda.v1")["producers"] = ["every service"]
-        self.topic("gst.x.feeda.v1")["subscribers"] = ["b-svc", "c-svc", "a-svc"]
+        self.topic("gst.x.feed-a.v1")["producers"] = ["every service"]
+        self.topic("gst.x.feed-a.v1")["subscribers"] = ["b-svc", "c-svc", "a-svc"]
         _, out = self.run_check()
         self.assertEqual(out[1:], [])
 
@@ -393,10 +393,10 @@ class TestPinned(Case):
     def test_lookalike_event_type(self):
         sha = self.commit(self.events + [{"id": "IdentityTripleChanged", "producers": ["a-svc"], "consumers": []}])
         self.set_origin_main()
-        topics = self.topics + [_topic("gst.x.itc.v1", "IdentityTripleChange", ["a-svc"], [])]
+        topics = self.topics + [_topic("gst.x.identity-triple-change.v1", "IdentityTripleChange", ["a-svc"], [])]
         code, out = self.run_pin(sha + "\n", topics=topics)
         self.assertEqual(code, 1)
-        self.assertIn("topic gst.x.itc.v1: event type IdentityTripleChange has no event in events.yaml", out)
+        self.assertIn("topic gst.x.identity-triple-change.v1: event type IdentityTripleChange has no event in events.yaml", out)
 
     def test_pinned_run_ignores_the_working_tree_head(self):
         a = self.commit(self.events)
@@ -473,6 +473,109 @@ class TestCiWiring(unittest.TestCase):
         doc = self.load()
         doc[PIN_JOB]["script"].append("gst_check model-subscribers-check " + UNPINNED)
         self.assertTrue(ci_wiring_problems(doc))
+
+
+TWAVM = "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
+TWAVM_ADDR = "gst.platform.tenant-wide-archive-volume-measured.v1"
+TWAVM_LINE = (
+    "topic {t}: address differs from the address derived from event type " + TWAVM + " (expected " + TWAVM_ADDR + ")"
+)
+
+
+class TestAddressRule(unittest.TestCase):
+    """INV-T-17778 / INV-AC-17777: the topic address equals the address derived from its event type."""
+
+    def run_topics(self, entries, extra_events=()):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "model").mkdir()
+            (root / "event-log").mkdir()
+            (root / "model" / "events.yaml").write_text(yaml.safe_dump({"events": [
+                {"id": "TenantWideArchiveVolumeMeasured", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False},
+                {"id": "PolicyChanged", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False},
+            ] + [{"id": e, "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False} for e in extra_events]}))
+            (root / "model" / "services.yaml").write_text(yaml.safe_dump({"services": [{"id": "a-svc"}, {"id": "b-svc"}, {"id": "c-svc"}]}))
+            topics = [{"topic": n, "event_type": e, "producers": ["a-svc"], "subscribers": ["b-svc"]} for n, e in entries]
+            (root / "event-log" / "topics.yaml").write_text(yaml.safe_dump({"topics": topics}))
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = chk.main(["x", str(root / "model"), str(root)])
+            return code, out.getvalue().splitlines()
+
+    def single(self, addr):
+        code, out = self.run_topics([(addr, TWAVM)])
+        return code, [l for l in out if "address differs" in l or "is malformed" in l]
+
+    def test_INV_AC_17777_1_all_addresses_equal_exits_0(self):
+        pairs = [
+            (TWAVM_ADDR, TWAVM),
+            ("gst.platform.policy-changed.v1", "com.dynokore.gst.platform.PolicyChanged.v1"),
+            ("gst.access.authority-changed.v1", "com.dynokore.gst.access.AuthorityChanged.v1"),
+            (OLD, "com.dynokore.gst.tenancy.InstallationStatusChanged.v1"),
+            (NEW, "com.dynokore.gst.platform.InstallationStatusChanged.v1"),
+        ]
+        code, out = self.run_topics(pairs, extra_events=sorted(chk.MODEL_ONLY) + ["InstallationStatusChanged"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual([l for l in out if "address differs" in l or "is malformed" in l], [])
+
+    def _differs(self, addr):
+        code, lines = self.single(addr)
+        self.assertEqual(code, 1)
+        self.assertEqual(lines, [TWAVM_LINE.format(t=addr)])
+
+    def test_INV_AC_17777_2_other_domain(self):
+        self._differs("gst.evidence.tenant-wide-archive-volume-measured.v1")
+
+    def test_INV_AC_17777_3_other_version(self):
+        self._differs("gst.platform.tenant-wide-archive-volume-measured.v2")
+
+    def test_INV_AC_17777_4_upper_case_letter(self):
+        self._differs("gst.platform.Tenant-wide-archive-volume-measured.v1")
+
+    def test_INV_AC_17777_5_trailing_space(self):
+        self._differs(TWAVM_ADDR + " ")
+
+    def test_INV_AC_17777_6_no_version(self):
+        self._differs("gst.platform.tenant-wide-archive-volume-measured")
+
+    def test_INV_AC_17777_7_prefix_of_name(self):
+        self._differs("gst.platform.tenant-wide-archive-volume.v1")
+
+    def test_INV_AC_17777_8_swapped_pair(self):
+        pol = "com.dynokore.gst.platform.PolicyChanged.v1"
+        code, out = self.run_topics([("gst.platform.policy-changed.v1", TWAVM), (TWAVM_ADDR, pol)])
+        self.assertEqual(code, 1)
+        self.assertEqual(len([l for l in out if "address differs" in l]), 2)
+
+    def test_INV_AC_17777_9_event_type_without_version(self):
+        et = "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured"
+        code, out = self.run_topics([(TWAVM_ADDR, et)])
+        self.assertEqual(code, 1)
+        self.assertIn(f"topic {TWAVM_ADDR}: event type {et} is malformed", out)
+
+    def test_INV_AC_17777_10_other_root(self):
+        et = "com.example.gst.platform.TenantWideArchiveVolumeMeasured.v1"
+        code, out = self.run_topics([(TWAVM_ADDR, et)])
+        self.assertEqual(code, 1)
+        self.assertIn(f"topic {TWAVM_ADDR}: event type {et} is malformed", out)
+
+    def test_INV_AC_17777_11_exempt_topic_is_checked(self):
+        et = "com.dynokore.gst.access.AuthorityChanged.v1"
+        code, out = self.run_topics([("gst.platform.authority-changed.v1", et)])
+        self.assertEqual(code, 1)
+        self.assertIn(
+            f"topic gst.platform.authority-changed.v1: address differs from the address derived from event type {et}"
+            " (expected gst.access.authority-changed.v1)", out)
+
+    def test_INV_AC_17777_12_address_correct_for_another_type(self):
+        code, lines = self.single("gst.platform.policy-changed.v1")
+        self.assertEqual(code, 1)
+        self.assertEqual(lines, [TWAVM_LINE.format(t="gst.platform.policy-changed.v1")])
+
+    def test_INV_AC_17777_trailing_newline_event_type_is_malformed(self):
+        code, lines = self.run_topics([(TWAVM_ADDR, TWAVM + "\n")])
+        self.assertEqual(code, 1)
+        self.assertTrue(any("is malformed" in l for l in lines))
 
 
 if __name__ == "__main__":
