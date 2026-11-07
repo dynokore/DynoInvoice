@@ -19,17 +19,11 @@ class BulkResolveTest {
         uen: String = "UEN-BULK",
     ): String {
         val ids = docUuids.joinToString(",") { "\"$it\"" }
-        val items =
-            documents?.joinToString(
-                ",",
-            ) { "{\"docUuid\":\"${it.first}\",\"counterpartyRef\":\"${it.second}\"}" }
-        return "{" + (
-            entity?.let {
-                "\"entityRef\":\"$it\","
-            } ?: ""
-        ) + "\"errorCode\":\"MDM-001\",\"docUuids\":[$ids]," +
-            "\"resolvedIdentifiers\":[{\"scheme\":\"UEN\",\"value\":\"$uen\"}],\"evidenceRef\":\"EVD-9\"" +
-            (items?.let { ",\"documents\":[$it]" } ?: "") + "}"
+        val items = documents?.joinToString(",") { """{"docUuid":"${it.first}","counterpartyRef":"${it.second}"}""" }
+        val entityPart = entity?.let { """"entityRef":"$it",""" }.orEmpty()
+        val documentsPart = items?.let { ""","documents":[$it]""" }.orEmpty()
+        return "{" + entityPart + """"errorCode":"MDM-001","docUuids":[$ids],""" +
+            """"resolvedIdentifiers":[{"scheme":"UEN","value":"$uen"}],"evidenceRef":"EVD-9"""" + documentsPart + "}"
     }
 
     private fun CounterpartyEnv.bulk(
