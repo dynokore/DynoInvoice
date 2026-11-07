@@ -130,7 +130,8 @@
       "canonicalSource": "directionFamilySubmissionType.profileId",
       "dataType": "IDENTIFIER",
       "documentTypeCodes": [
-        "380"
+        "380",
+        "381"
       ],
       "submissionTypes": [
         "TYPE_1A",
@@ -149,34 +150,12 @@
       ]
     },
     {
-      "businessTermId": "IBT-023",
-      "canonicalSource": "directionFamilySubmissionType.profileId",
-      "dataType": "IDENTIFIER",
-      "documentTypeCodes": [
-        "381"
-      ],
-      "submissionTypes": [
-        "TYPE_1A",
-        "TYPE_1B",
-        "TYPE_2",
-        "TYPE_3"
-      ],
-      "irasStatus": "MANDATORY",
-      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-508 and INV-Q-7180 A; the paths are the EN 16931 UBL syntax bindings",
-      "specifications": [
-        {
-          "specificationVersion": "PINT-SG-1.0",
-          "pintCardinality": "EXACTLY_ONE",
-          "syntaxPath": "/CreditNote/cbc:ProfileID"
-        }
-      ]
-    },
-    {
       "businessTermId": "IBT-024",
       "canonicalSource": "directionFamilySubmissionType.customizationId",
       "dataType": "IDENTIFIER",
       "documentTypeCodes": [
-        "380"
+        "380",
+        "381"
       ],
       "submissionTypes": [
         "TYPE_1A",
@@ -191,29 +170,6 @@
           "specificationVersion": "PINT-SG-1.0",
           "pintCardinality": "EXACTLY_ONE",
           "syntaxPath": "/Invoice/cbc:CustomizationID"
-        }
-      ]
-    },
-    {
-      "businessTermId": "IBT-024",
-      "canonicalSource": "directionFamilySubmissionType.customizationId",
-      "dataType": "IDENTIFIER",
-      "documentTypeCodes": [
-        "381"
-      ],
-      "submissionTypes": [
-        "TYPE_1A",
-        "TYPE_1B",
-        "TYPE_2",
-        "TYPE_3"
-      ],
-      "irasStatus": "MANDATORY",
-      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-508 and INV-Q-7180 A; the paths are the EN 16931 UBL syntax bindings",
-      "specifications": [
-        {
-          "specificationVersion": "PINT-SG-1.0",
-          "pintCardinality": "EXACTLY_ONE",
-          "syntaxPath": "/CreditNote/cbc:CustomizationID"
         }
       ]
     }

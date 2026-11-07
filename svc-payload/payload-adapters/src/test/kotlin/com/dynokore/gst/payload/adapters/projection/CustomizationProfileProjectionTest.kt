@@ -146,17 +146,20 @@ class CustomizationProfileProjectionTest {
     }
 
     @Test
-    fun `ConformanceGate rule c fails on a CreditNote path in an IBT-024 row of code 380`() {
-        val rows = applying("380") + row("IBT-024").copy(syntaxPath = "/CreditNote/cbc:CustomizationID")
+    fun `ConformanceGate rule c fails on a CreditNote path in the IBT-024 row of 380 and 381`() {
+        val rows = applying("380").filter { it.businessTermId != "IBT-024" } +
+                row("IBT-024").copy(syntaxPath = "/CreditNote/cbc:CustomizationID")
         gate(built380(), "380", rows).any { it.startsWith("(c)") } shouldBe true
     }
 
     @Test
-    fun `the fixture rows of IBT-023 and IBT-024 select exactly their own root`() {
+    fun `the fixture holds one row each of IBT-023 and IBT-024 for 380 and 381 with the Invoice path`() {
         for ((id, leaf) in listOf("IBT-023" to "ProfileID", "IBT-024" to "CustomizationID")) {
-            applying("380").filter { it.businessTermId == id }.map { it.syntaxPath } shouldBe listOf("/Invoice/cbc:$leaf")
-            applying("381").filter { it.businessTermId == id }.map { it.syntaxPath } shouldBe
-                listOf("/CreditNote/cbc:$leaf")
+            for (code in listOf("380", "381")) {
+                val rows = applying(code).filter { it.businessTermId == id }
+                rows.map { it.syntaxPath } shouldBe listOf("/Invoice/cbc:$leaf")
+                rows.map { it.documentTypeCodes } shouldBe listOf(listOf("380", "381"))
+            }
         }
     }
 }
