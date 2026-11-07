@@ -40,16 +40,24 @@ open class NotificationsController(
         body: ApNotification,
         result: ReceiveResult,
     ): ResponseEntity<ApNotificationResult> {
-        val refusal =
+        val refusal: RuntimeException? =
             when (result) {
-                is ReceiveResult.Processed -> null
+                is ReceiveResult.Processed -> {
+                    null
+                }
 
-                is ReceiveResult.Invalid -> ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, result.reason)
+                is ReceiveResult.Invalid -> {
+                    ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, result.reason)
+                }
 
-                ReceiveResult.OwnerNotFound -> ApiRefusal(ClosedErrorCode.NOT_FOUND)
+                ReceiveResult.OwnerNotFound -> {
+                    ApiRefusal(ClosedErrorCode.NOT_FOUND)
+                }
 
-                // INV-Q-9676 A answers 503 with the API-20 envelope; no catalogue code is fixed for it (gap, MR)
-                ReceiveResult.InboundNotSupported -> error("INBOUND_NETWORK_DOCUMENT: the 503 code is not ruled")
+                // INV-Q-9676 A, INV-Q-15628 A: 503 with the catalogue code SUB-024, nothing recorded
+                ReceiveResult.InboundNotSupported -> {
+                    CatalogueRefusal(HTTP_UNAVAILABLE, INBOUND_NOT_ACCEPTED, INBOUND_NOT_ACCEPTED_TITLE)
+                }
             }
         if (refusal != null) throw refusal
         val recorded = (result as ReceiveResult.Processed).recorded
@@ -65,4 +73,10 @@ open class NotificationsController(
             acknowledgementId = body.acknowledgementId,
             reasons = body.reasons?.map { NotificationReason(it.code, it.message) },
         )
+
+    companion object {
+        const val INBOUND_NOT_ACCEPTED = "SUB-024"
+        private const val INBOUND_NOT_ACCEPTED_TITLE = "Inbound network documents are not accepted yet"
+        private const val HTTP_UNAVAILABLE = 503
+    }
 }

@@ -5,6 +5,7 @@ import com.dynokore.gst.transport.adapters.persistence.jooq.tables.Outbox
 import com.dynokore.gst.transport.adapters.persistence.jooq.tables.SubmissionAttempt.Companion.SUBMISSION_ATTEMPT
 import com.dynokore.gst.transport.domain.AdapterId
 import com.dynokore.platform.serviceruntime.binding.SecretStore
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadToken
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -34,6 +35,13 @@ import java.util.concurrent.CopyOnWriteArrayList
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/** Every call of the `EndUserPrincipalResolver` of the running context (the bean is wrapped, the test's resolver). */
+internal object ResolverCalls {
+    val count =
+        java.util.concurrent.atomic
+            .AtomicInteger()
+}
+
 /** The secret refs read through the `SecretStore` of the running context (the bean is wrapped, the store is real). */
 internal object SecretReads {
     val refs = CopyOnWriteArrayList<String>()
@@ -58,6 +66,11 @@ internal class RecordingSecretsConfig {
                             throw e.targetException
                         }
                     }
+                } else if (bean is EndUserPrincipalResolver) {
+                    EndUserPrincipalResolver { header ->
+                        ResolverCalls.count.incrementAndGet()
+                        bean.resolve(header)
+                    }
                 } else {
                     bean
                 }
@@ -69,26 +82,27 @@ internal class RecordingSecretsConfig {
  * a real database, real HTTP, the real `SecretStore` over a mounted directory. The pure rules are asserted in the
  * domain and application tests and are not repeated.
  */
-class ApCallbackBoundaryTest {
+open class ApCallbackSupport {
     @BeforeEach
     fun reset() {
         SecretReads.refs.clear()
+        ResolverCalls.count.set(0)
     }
 
-    private val http = HttpClient.newHttpClient()
+    protected val http = HttpClient.newHttpClient()
 
-    private class Running(
+    internal class Running(
         val harness: Harness,
         val port: Int,
         val mount: Path,
     )
 
-    private class Answer(
+    internal class Answer(
         val status: Int,
         val body: String,
     )
 
-    private fun run(
+    internal fun run(
         dir: Path,
         block: (Running) -> Unit,
     ) {
@@ -102,7 +116,6 @@ class ApCallbackBoundaryTest {
                     "transport.ap.adapters[0].path=primary",
                     "transport.ap.adapters[1].id=${secondary.value}",
                     "transport.ap.adapters[1].path=secondary",
-                    "management.server.port=0",
                 )
         val context: ConfigurableApplicationContext =
             SpringApplicationBuilder(
@@ -111,7 +124,7 @@ class ApCallbackBoundaryTest {
                 RecordingSecretsConfig::class.java,
             ).web(WebApplicationType.SERVLET)
                 .properties(*properties.toTypedArray())
-                .run("--server.port=0")
+                .run("--server.port=0", "--management.server.port=0")
         try {
             val port = checkNotNull((context as WebServerApplicationContext).webServer).port
             block(Running(Harness(context, primary, secondary), port, dir))
@@ -120,7 +133,7 @@ class ApCallbackBoundaryTest {
         }
     }
 
-    private fun Running.secret(
+    internal fun Running.secret(
         adapter: String,
         value: String? = SECRET,
     ) {
@@ -133,7 +146,7 @@ class ApCallbackBoundaryTest {
         }
     }
 
-    private fun sign(
+    internal fun sign(
         timestamp: String,
         body: String,
         secret: String = SECRET,
@@ -143,9 +156,9 @@ class ApCallbackBoundaryTest {
         return "sha256=" + HexFormat.of().formatHex(mac.doFinal("$timestamp.$body".toByteArray()))
     }
 
-    private fun now() = (System.currentTimeMillis() / MILLIS).toString()
+    internal fun now() = (System.currentTimeMillis() / MILLIS).toString()
 
-    private fun Running.post(
+    internal fun Running.post(
         adapter: String,
         body: String,
         timestamp: String? = now(),
@@ -156,9 +169,6 @@ class ApCallbackBoundaryTest {
                 .newBuilder(URI.create("http://localhost:$port/v1/ap/$adapter/notifications"))
                 .header("Content-Type", "application/json")
                 .header(WorkloadToken.HEADER_NAME, "W-submission")
-                // GAP (see the MR): the contract marks the operation `x-caller-auth: end-user`, so the runtime
-                // asks for a token a signed AP callback does not carry; a tenant-less principal reaches the filter
-                .header("Authorization", TestPrincipals.register(null))
                 .POST(HttpRequest.BodyPublishers.ofString(body))
         timestamp?.let { request.header("X-AP-Timestamp", it) }
         signature?.let { request.header("X-AP-Signature", it) }
@@ -166,7 +176,7 @@ class ApCallbackBoundaryTest {
         return Answer(response.statusCode(), response.body())
     }
 
-    private fun Running.attempt(
+    internal fun Running.attempt(
         tenant: UUID,
         doc: UUID,
         version: Int = 1,
@@ -183,12 +193,12 @@ class ApCallbackBoundaryTest {
             .execute()
     }
 
-    private fun Running.ledger(tenant: UUID) =
+    internal fun Running.ledger(tenant: UUID) =
         harness.asTenant(tenant) { harness.dsl.fetchCount(AP_NOTIFICATION_LEDGER) }
 
-    private fun Running.outbox(tenant: UUID) = harness.asTenant(tenant) { harness.dsl.fetchCount(Outbox.OUTBOX) }
+    internal fun Running.outbox(tenant: UUID) = harness.asTenant(tenant) { harness.dsl.fetchCount(Outbox.OUTBOX) }
 
-    private fun Running.events(tenant: UUID): List<String> =
+    internal fun Running.events(tenant: UUID): List<String> =
         harness.asTenant(tenant) {
             harness.dsl
                 .select(Outbox.OUTBOX.DATA)
@@ -197,27 +207,38 @@ class ApCallbackBoundaryTest {
                 .map { it.value1()!!.data() }
         }
 
-    private fun ack(
+    internal fun ack(
         id: String,
         doc: UUID,
         version: Int = 1,
     ) =
         """{"apNotificationId":"$id","kind":"ACKNOWLEDGEMENT","docUuid":"$doc","version":$version,"acknowledgementId":"A-$id"}"""
 
-    private fun rejection(
+    internal fun rejection(
         id: String,
         doc: UUID,
         kind: String = "REJECTION",
     ) = """{"apNotificationId":"$id","kind":"$kind","docUuid":"$doc","version":1,""" +
         """"reasons":[{"code":"R1","message":"first"},{"code":"R2","message":"second"}]}"""
 
-    private fun Running.refused(answer: Answer) {
+    internal fun Running.refused(answer: Answer) {
         answer.status shouldBe 401
         answer.body shouldContain "SRT-003"
     }
 
-    private fun nid() = "n-${UUID.randomUUID()}"
+    internal fun nid() = "n-${UUID.randomUUID()}"
 
+    internal companion object {
+        const val SECRET = "callback-secret-0123456789"
+        const val MILLIS = 1000L
+        const val STALE_SECONDS = 301L
+        const val HEX = 64
+        const val UNIQUE = 12
+    }
+}
+
+/** The probes of the sender check and of the ledger at the service boundary. */
+class ApCallbackBoundaryTest : ApCallbackSupport() {
     @Test
     fun `INV-AC-624 no timestamp header gives 401 SRT-003 and zero rows`(
         @TempDir dir: Path,
@@ -488,13 +509,5 @@ class ApCallbackBoundaryTest {
         val unknown = """{"apNotificationId":"${nid()}","kind":"DELIVERY_STATUS","docUuid":"$other","version":1}"""
         r.post(r.harness.primary.value, unknown).status shouldBe 404
         r.ledger(tenant) shouldBe 1
-    }
-
-    private companion object {
-        const val SECRET = "callback-secret-0123456789"
-        const val MILLIS = 1000L
-        const val STALE_SECONDS = 301L
-        const val HEX = 64
-        const val UNIQUE = 12
     }
 }
