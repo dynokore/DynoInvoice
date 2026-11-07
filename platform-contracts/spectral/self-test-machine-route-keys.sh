@@ -12,7 +12,7 @@ FILES="route-scopes/machine-routes.tsv route-scopes/machine-route-keys.tsv acces
 PORT_ROUTE='get\t/v1/portfolio\treporting\t-\n'
 PORT_KEY='get\t/v1/portfolio\tperiod-readiness.view\t-\tperson\n'
 
-fresh() { for f in $FILES; do mkdir -p "$TMP/$1/$(dirname "$f")"; cp "$f" "$TMP/$1/$f"; done; }
+fresh() { for f in $FILES */openapi.yaml; do mkdir -p "$TMP/$1/$(dirname "$f")"; cp "$f" "$TMP/$1/$f"; done; }
 mutate() { # name, file, python statements on t (the file text)
   python3 -I - "$TMP/$1/$2" "$3" <<'PY'
 import sys
@@ -41,6 +41,7 @@ P=access/schemas/machine-principal-permissions.tsv
 
 fresh clean
 out=$(python3 spectral/check-machine-route-keys.py "$TMP/clean" 2>&1); rc=$?
+out=$(printf '%s\n' "$out" | sed '$d')  # drop the final x-operation-unswept line (INV-T-18352 case 'unswept-line' checks it)
 case "$out" in "machine-route-keys-check: "*" routes keyed") [ $rc -eq 0 ] && echo "gst-ci: INV-AC-13563 clean tree passed as expected ($out)" || { echo "gst-ci: FAIL — clean tree exit $rc"; failed=1; };;
   *) echo "gst-ci: FAIL — INV-AC-13563 clean tree: exit $rc, '$out'"; failed=1;; esac
 
@@ -48,8 +49,8 @@ case "$out" in "machine-route-keys-check: "*" routes keyed") [ $rc -eq 0 ] && ec
 fresh portfolio-in-both
 mutate portfolio-in-both $R "t += '$PORT_ROUTE'"
 mutate portfolio-in-both $K "t += '$PORT_KEY'"
-out=$(python3 spectral/check-machine-route-keys.py "$TMP/portfolio-in-both" 2>&1); rc=$?
-if [ $rc -eq 0 ] && [ "$out" = "machine-route-keys-check: 22 routes keyed" ]; then echo "gst-ci: INV-AC-13563 both tables with get /v1/portfolio passed as expected ($out)"; else echo "gst-ci: FAIL — both tables with portfolio: exit $rc $out"; failed=1; fi
+# INV-T-18352: no openapi operation carries x-principal for get /v1/portfolio on main, so the (e) comparison now names it
+expect portfolio-in-both "get /v1/portfolio: (e) no operation with this method and path carries x-principal"
 probe route-without-key "get /v1/portfolio: (a) route has no row" $R "t += '$PORT_ROUTE'"
 probe key-without-route "get /v1/portfolio: (a) key row has no route" $K "t += '$PORT_KEY'"
 probe key-removed "post /v1/aggregates: (a) route has no row" $K "t = t.replace('post\t/v1/aggregates\t', 'post\t/v1/aggregates-x\t', 1)"
@@ -103,6 +104,61 @@ expect other-directory "machine-route-keys.tsv: unreadable"
 # header / width
 probe header-changed "machine-route-keys.tsv: the header line must be method" $K "t = t.replace('decided_by', 'decider', 1)"
 probe row-width "machine-route-keys.tsv: line 2 has 4 fields, expected 5" $K "t = t.replace('machine.certification.ingest\tmachine\n', 'machine.certification.ingest\n', 1)"
+
+# ---- INV-T-18352 (INV-AC-16920, INV-AC-18350): x-operation and operationId of the keyed operations in */openapi.yaml
+opmut() { # name, openapi dir, path template, python statements on b (the text of that path item); the item must exist
+  python3 -I - "$TMP/$1/$2/openapi.yaml" "$3" "$4" <<'PY'
+import re, sys
+path, route, code = sys.argv[1], sys.argv[2], sys.argv[3]
+t = open(path).read()
+m = re.search(r"^  " + re.escape(route) + r":\n(.*?)(?=^  /|^\S|\Z)", t, re.S | re.M)
+assert m, "path item not found"
+b = m.group(0)
+before = b
+exec(code)
+assert b != before, "probe changed nothing"
+open(path, "w").write(t[:m.start()] + b + t[m.end():])
+PY
+}
+oprobe() { # name, expected fragment, openapi dir, path template, python code on b
+  fresh "$1"
+  if ! opmut "$1" "$3" "$4" "$5"; then echo "gst-ci: FAIL — INV-AC-18350 probe '$1' could not be built"; failed=1; return; fi
+  expect "$1" "$2"
+}
+PRE=/v1/pre-issuance-checks
+fresh unswept-line
+out=$(python3 spectral/check-machine-route-keys.py "$TMP/unswept-line" 2>&1); rc=$?
+if [ $rc -eq 0 ] && [ "$(printf '%s\n' "$out" | tail -n 1)" = "x-operation-unswept: evidence, reconciliation, submission" ]; then echo "gst-ci: INV-AC-18350 clean tree prints the unswept line as expected (checkPreIssuance pair of ingestion and payload passes)"; else echo "gst-ci: FAIL — INV-AC-18350 clean tree: exit $rc, $out"; failed=1; fi
+PERM='machine.ingestion.channels.write'
+oprobe xop-permission-one-char "post $PRE: (e) x-operation permission 'machine.ingestion.channels.writf' differs" ingestion $PRE "b = b.replace('permission: $PERM', 'permission: machine.ingestion.channels.writf', 1)"
+oprobe xop-permission-trailing-space "post $PRE: (e) x-operation permission 'machine.ingestion.channels.write ' differs" ingestion $PRE "b = b.replace('permission: $PERM', 'permission: \"$PERM \"', 1)"
+oprobe xop-permission-no-prefix "post $PRE: (e) x-operation permission 'ingestion.channels.write' differs" ingestion $PRE "b = b.replace('permission: $PERM', 'permission: ingestion.channels.write', 1)"
+oprobe xop-permission-other-type "post $PRE: (e) x-operation permission 'period-readiness.view' differs" ingestion $PRE "b = b.replace('permission: $PERM', 'permission: period-readiness.view', 1)"
+oprobe xop-also-missing "post $PRE: (e) x-operation permission-also None differs" ingestion $PRE "b = b.replace('        permission-also: machine.certification.ingest\n', '', 1)"
+probe xop-also-where-dash "post $PRE: (e) x-operation permission-also 'machine.certification.ingest' where the key table has '-'" $K "t = t.replace('post\t$PRE\tmachine.ingestion.channels.write\tmachine.certification.ingest', 'post\t$PRE\tmachine.ingestion.channels.write\t-', 1)"
+oprobe xop-principal-also-removed "post $PRE: (e) permission-also is present but x-principal-also is absent" ingestion $PRE "b = b.replace('      x-principal-also: certification\n', '', 1)"
+oprobe xop-kind-caller "post $PRE: (e) x-operation kind 'CALLER' is not 'PERMISSION'" ingestion $PRE "b = b.replace('kind: PERMISSION', 'kind: CALLER', 1)"
+oprobe xop-kind-lower "post $PRE: (e) x-operation kind 'permission' is not 'PERMISSION'" ingestion $PRE "b = b.replace('kind: PERMISSION', 'kind: permission', 1)"
+oprobe xop-kind-missing "post $PRE: (e) x-operation kind None is not 'PERMISSION'" ingestion $PRE "b = b.replace('        kind: PERMISSION\n', '', 1)"
+oprobe xop-missing "post $PRE: (e) ingestion/openapi.yaml is swept but the operation has no x-operation" ingestion $PRE "import re; b = re.sub(r'      x-operation:\n(        .*\n)+', '', b, count=1)"
+oprobe xop-unswept-permission "post /v1/certification-reports: (e) evidence/openapi.yaml is not swept (no kind) but its x-operation carries permission" evidence /v1/certification-reports "b = b.replace('      x-operation:\n', '      x-operation:\n        permission: machine.certification.report.record\n', 1)"
+oprobe xop-unswept-permission-also "post /v1/certification-reports: (e) evidence/openapi.yaml is not swept (no kind) but its x-operation carries permission-also" evidence /v1/certification-reports "b = b.replace('      x-operation:\n', '      x-operation:\n        permission-also: machine.certification.ingest\n', 1)"
+fresh second-file
+mkdir -p "$TMP/second-file/ingestion2"
+printf 'openapi: 3.1.0\npaths:\n  %s:\n    post:\n      operationId: otherCheck\n      x-principal: ingest\n' "$PRE" > "$TMP/second-file/ingestion2/openapi.yaml"
+expect second-file "post $PRE: (e) 2 operations carry x-principal: ingestion/openapi.yaml, ingestion2/openapi.yaml"
+oprobe keyed-op-removed "post $PRE: (e) no operation with this method and path carries x-principal" ingestion $PRE "b = ''"
+fresh oid-shared
+python3 -I - "$TMP/oid-shared/ingestion/openapi.yaml" <<'PY'
+import sys
+p = sys.argv[1]
+t = open(p).read()
+n = t.replace("operationId: checkPreIssuance", "operationId: getExceptions", 1)
+assert n != t
+open(p, "w").write(n)
+PY
+expect oid-shared "(f) operationId 'getExceptions' is shared by keyed routes get /v1/exceptions (console-bff/openapi.yaml), post $PRE (ingestion/openapi.yaml)"
+oprobe oid-missing "post $PRE: (f) operationId None is not a string" ingestion $PRE "b = b.replace('      operationId: checkPreIssuance\n', '', 1)"
 
 [ "$failed" -eq 0 ] && echo "gst-ci: INV-AC-13563 check-machine-route-keys.py self-test passed."
 exit $failed
