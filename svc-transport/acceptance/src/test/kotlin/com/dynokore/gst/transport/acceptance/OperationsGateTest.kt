@@ -316,7 +316,7 @@ class OperationsGateTest {
     }
 
     @Test
-    fun `INV-AC-18428 the state function returns null for the state 3 done text with a stub set differing in submitPayload`() {
+    fun `INV-AC-18428 the state function returns null for the state 3 done text with submitPayload added to its stub set`() {
         // the exact state 3 set already lacks submitPayload (live since INV-T-4981): adding it is a look-alike
         stateOf(state3.done, state3.stubSet + "submitPayload", state3.cell).shouldBeNull()
         // and a set lacking any other operation is a look-alike too
