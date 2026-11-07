@@ -9,9 +9,11 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.validation.FieldError
 import org.springframework.web.HttpMediaTypeNotAcceptableException
 import org.springframework.web.HttpMediaTypeNotSupportedException
 import org.springframework.web.HttpRequestMethodNotSupportedException
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.ServletRequestBindingException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -83,11 +85,33 @@ class ApiRefusalAdvice {
         HttpMessageNotReadableException::class,
         MethodArgumentTypeMismatchException::class,
         ServletRequestBindingException::class,
-        HandlerMethodValidationException::class,
         HttpMediaTypeNotSupportedException::class,
         HttpMediaTypeNotAcceptableException::class,
     )
     fun malformed(): ResponseEntity<String> = envelope(ClosedErrorCode.CONTRACT_VIOLATION, MALFORMED_DETAIL)
+
+    /**
+     * A body that fails bean validation (SRT-001), except an array over its published cap (SRT-014, 413, API-49): the
+     * refusal is a 413 only when every violation is a `Size` violation of a list in [CAPPED_LISTS] holding more than
+     * [BULK_CAP] items; anything else, or any further violation, stays 400. Nothing of the request is echoed.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun notValid(failure: MethodArgumentNotValidException): ResponseEntity<String> = validation(failure.fieldErrors)
+
+    @ExceptionHandler(HandlerMethodValidationException::class)
+    fun notValidMethod(failure: HandlerMethodValidationException): ResponseEntity<String> =
+        validation(failure.beanResults.flatMap { it.fieldErrors })
+
+    private fun validation(errors: List<FieldError>): ResponseEntity<String> =
+        if (errors.isNotEmpty() && errors.all { oversizedList(it) }) {
+            envelope(ClosedErrorCode.REQUEST_TOO_LARGE, null)
+        } else {
+            envelope(ClosedErrorCode.CONTRACT_VIOLATION, MALFORMED_DETAIL)
+        }
+
+    private fun oversizedList(error: FieldError): Boolean =
+        error.code == "Size" && error.field in CAPPED_LISTS &&
+            ((error.rejectedValue as? Collection<*>)?.size ?: 0) > BULK_CAP
 
     @ExceptionHandler(NoResourceFoundException::class, NoHandlerFoundException::class)
     fun unknownPath(): ResponseEntity<String> = envelope(ClosedErrorCode.NOT_FOUND, null)
@@ -118,6 +142,8 @@ class ApiRefusalAdvice {
     }
 
     private companion object {
+        const val BULK_CAP = 5000
+        val CAPPED_LISTS = setOf("docUuids", "documents", "rows")
         const val MALFORMED_DETAIL = "The request does not match the published contract."
     }
 }

@@ -1,6 +1,8 @@
 package com.dynokore.gst.masterdata.bootstrap
 
 import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
+import com.dynokore.gst.masterdata.application.permission.MasterdataPermissions
+import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -56,7 +58,23 @@ fun interface TestRoleResolver {
     ): Set<String>
 }
 
-/** The roles of the test subjects, answered through the [ConfirmerRoles] port (service-runtime 12.0.0 removed PolicyRoleResolver). */
+/** The permission keys of the test subjects: the operator holds all four, any other person none. */
+object TestPermissions {
+    private val all =
+        setOf(
+            MasterdataPermissions.GAP_REPORT_VIEW,
+            MasterdataPermissions.GAP_REPORT_EXPORT,
+            MasterdataPermissions.COUNTERPARTY_IMPORT_RUN,
+            MasterdataPermissions.MASTERDATA_EXCEPTION_RESOLVE,
+        )
+
+    fun keysOf(person: String): Set<String> = if (person == OPERATOR) all else emptySet()
+}
+
+/**
+ * The roles of the test subjects, answered through the [ConfirmerRoles] port (service-runtime 12.0.0 removed
+ * PolicyRoleResolver).
+ */
 object TestRoles {
     val roles: ConcurrentHashMap<String, Set<String>> =
         ConcurrentHashMap(
@@ -240,7 +258,13 @@ object BoundaryFixture {
                 } else {
                     it
                 }
-            }.withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
+            }.withBean(TenantPermission::class.java, {
+                TenantPermission { person, key ->
+                    key in
+                        TestPermissions.keysOf(person)
+                }
+            })
+            .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(BoundaryTestConfiguration::class.java, MasterdataApplication::class.java)
             .withPropertyValues(
