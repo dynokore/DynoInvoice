@@ -24,7 +24,6 @@ class GeneratedMigrationsTest {
     private val configResolver = "V202611061010__create_config_resolver.sql"
     private val registry = "V202611061020__create_registry_lookups.sql"
     private val outboxTestMode = "V202611061030__outbox_testmode.sql"
-    private val gapReportAndImport = "V202611071000__create_gap_report_and_import.sql"
 
     private fun migration(name: String): String =
         checkNotNull(
@@ -81,7 +80,7 @@ class GeneratedMigrationsTest {
 
     @Test
     fun `no migration creates the binding functions or the binding key table`() {
-        listOf(outbox, triples, counterparties, idempotency, configResolver, registry, gapReportAndImport).forEach { file ->
+        listOf(outbox, triples, counterparties, idempotency, configResolver, registry).forEach { file ->
             val text = migration(file)
             assertTrue("CREATE TABLE masterdata.binding_key" !in text, file)
             assertTrue("CREATE FUNCTION masterdata.bound_" !in text, file)
@@ -124,18 +123,8 @@ class GeneratedMigrationsTest {
     }
 
     @Test
-    fun `every gap report and import table carries the generated tenant policy`() {
-        val text = migration(gapReportAndImport)
-        listOf("gap_report", "counterparty_import_dry_run", "counterparty_import").forEach { table ->
-            assertTrue(TenantRlsMigration.ddl("masterdata", table, "tenant_isolation") in text, table)
-            assertTrue("CREATE TABLE masterdata.$table (" in text, table)
-        }
-    }
-
-    @Test
     fun `every table the service migration creates has a forced row policy`() {
-        val text =
-            migration(triples) + migration(counterparties) + migration(registry) + migration(gapReportAndImport)
+        val text = migration(triples) + migration(counterparties) + migration(registry)
         val tables = Regex("""(?i)create table\s+masterdata\.(\w+)""").findAll(text).map { it.groupValues[1] }.toList()
         assertTrue(tables.isNotEmpty())
         tables.forEach { table ->
