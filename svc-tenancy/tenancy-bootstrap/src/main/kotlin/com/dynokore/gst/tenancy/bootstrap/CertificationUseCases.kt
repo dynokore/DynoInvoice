@@ -49,7 +49,8 @@ class CertificationUseCases {
         dsl: DSLContext,
         tenants: TenantContext,
         tx: TransactionRunner,
-    ): CertifiedEntityDirectory = JooqCertifiedEntityDirectory(dsl, tenants, tenants as PlatformTenantBinding, tx, ACTOR)
+    ): CertifiedEntityDirectory =
+        JooqCertifiedEntityDirectory(dsl, tenants, tenants as PlatformTenantBinding, tx, ACTOR)
 
     @Bean
     fun certificationStatusPublisher(

@@ -51,7 +51,8 @@ object TenancyEventCatalogue {
                     )
                 }
         val consumedDomain = consumedDomainEvents()
-        val known = ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
+        val known =
+            ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
@@ -69,7 +70,10 @@ object TenancyEventCatalogue {
         return EventCatalogue(own + consumed + consumedDomain + elections + platform)
     }
 
-    /** The events of other domains tenancy-svc consumes: ShortCodeUsed, PeriodFilingStatusChanged, IdentityTripleChanged. */
+    /**
+     * The events of other domains tenancy-svc consumes: ShortCodeUsed, PeriodFilingStatusChanged and
+     * IdentityTripleChanged.
+     */
     private fun consumedDomainEvents() =
         listOf(
             CatalogueEntry(SHORT_CODE_USED_TYPE, SHORT_CODE_USED_TOPIC, setOf("aggregation-svc"), contentTopic = false),

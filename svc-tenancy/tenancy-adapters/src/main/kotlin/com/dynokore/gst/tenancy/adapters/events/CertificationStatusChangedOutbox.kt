@@ -41,7 +41,11 @@ class CertificationStatusChangedOutbox(
         root.put("entityRef", entityRef)
         root.put("status", status.name)
         root.put("changedAt", clock().toString())
-        if (status == CertificationStatus.STALE) root.put("trigger", checkNotNull(trigger) { "STALE needs a trigger" }.name)
+        if (status ==
+            CertificationStatus.STALE
+        ) {
+            root.put("trigger", checkNotNull(trigger) { "STALE needs a trigger" }.name)
+        }
         return root
     }
 

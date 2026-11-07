@@ -2,8 +2,8 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
 import com.dynokore.gst.tenancy.application.certification.CertifySandbox
-import com.dynokore.gst.tenancy.domain.CertificationOutcome
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
+import com.dynokore.gst.tenancy.domain.CertificationOutcome
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -47,7 +47,12 @@ internal class TopicLog : EventLogReader {
         topic: String,
         afterOffset: Long,
         limit: Int,
-    ): List<LogRecord> = records.filter { it.first == topic && it.second.offset > afterOffset }.map { it.second }.take(limit)
+    ): List<LogRecord> =
+        records
+            .filter {
+                it.first == topic && it.second.offset > afterOffset
+            }.map { it.second }
+            .take(limit)
 
     private companion object {
         // the offset rows of the consumers are platform-scoped and the database is shared by the tests
@@ -118,7 +123,9 @@ internal class CertificationEnv(
                         "where e.ref = ? order by r.recorded_at, r.id",
                 ).use { st ->
                     st.setString(1, entity.entityRef)
-                    st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
+                    st.executeQuery().use { rs ->
+                        generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
+                    }
                 }
         }
 
@@ -126,11 +133,14 @@ internal class CertificationEnv(
     fun stored(entity: EntityResponse): List<String> =
         BoundaryFixture.asSuperuser { c ->
             c
-                .prepareStatement("select data::text from tenancy.outbox where topic = ? and data::text like ? order by 1")
-                .use { st ->
+                .prepareStatement(
+                    "select data::text from tenancy.outbox where topic = ? and data::text like ? order by 1",
+                ).use { st ->
                     st.setString(1, STATUS_TOPIC)
                     st.setString(2, "%\"${entity.entityRef}\"%")
-                    st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
+                    st.executeQuery().use { rs ->
+                        generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
+                    }
                 }
         }
 

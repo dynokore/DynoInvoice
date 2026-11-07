@@ -9,11 +9,11 @@ import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
-import com.dynokore.gst.tenancy.domain.SandboxCertificationPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
 import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
+import com.dynokore.gst.tenancy.domain.SandboxCertificationPermissions
 import com.dynokore.platform.configresolver.BackdatingFloor
 import com.dynokore.platform.configresolver.DelegationProbe
 import com.dynokore.platform.configresolver.PolicyChange
@@ -187,13 +187,37 @@ class TestPeople :
         asked += action
         val roles = granted[person to entityRef].orEmpty()
         return when (action) {
-            ElectionPermissions.MANAGE -> ElectionRoles.ENTITY_ADMIN in roles
-            ElectionPermissions.CONFIRM -> roles.any { it in CONFIRMING }
-            PeriodPermissions.FILING_FREQUENCY_CHANGE -> ElectionRoles.ENTITY_ADMIN in roles
-            PeriodPermissions.PERIOD_CONFIRM -> roles.any { it in PERIOD_CONFIRMING }
-            PeriodPermissions.EXTENSION_RECORD -> roles.any { it in EXTENDING }
-            ElectionPermissions.APPROVE, SandboxCertificationPermissions.RECORD -> approvals.holds(person, entityRef, action)
-            else -> false
+            ElectionPermissions.MANAGE -> {
+                ElectionRoles.ENTITY_ADMIN in roles
+            }
+
+            ElectionPermissions.CONFIRM -> {
+                roles.any { it in CONFIRMING }
+            }
+
+            PeriodPermissions.FILING_FREQUENCY_CHANGE -> {
+                ElectionRoles.ENTITY_ADMIN in roles
+            }
+
+            PeriodPermissions.PERIOD_CONFIRM -> {
+                roles.any { it in PERIOD_CONFIRMING }
+            }
+
+            PeriodPermissions.EXTENSION_RECORD -> {
+                roles.any { it in EXTENDING }
+            }
+
+            ElectionPermissions.APPROVE, SandboxCertificationPermissions.RECORD -> {
+                approvals.holds(
+                    person,
+                    entityRef,
+                    action,
+                )
+            }
+
+            else -> {
+                false
+            }
         }
     }
 

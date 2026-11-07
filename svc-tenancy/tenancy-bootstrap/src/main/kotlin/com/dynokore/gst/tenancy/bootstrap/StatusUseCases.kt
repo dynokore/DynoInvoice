@@ -1,15 +1,15 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.certification.IssuanceModeCertificationMark
 import com.dynokore.gst.tenancy.adapters.election.ElectionValueConstraints
 import com.dynokore.gst.tenancy.adapters.events.EntityProfileChangedOutbox
 import com.dynokore.gst.tenancy.adapters.persistence.JooqPhaseAssessmentStore
 import com.dynokore.gst.tenancy.adapters.policy.ImplementationDateConstraints
 import com.dynokore.gst.tenancy.adapters.policy.PolicyGroupElectionReader
 import com.dynokore.gst.tenancy.adapters.policy.PolicyImplementationBasisReader
+import com.dynokore.gst.tenancy.application.certification.MarkCertificationStale
 import com.dynokore.gst.tenancy.application.status.AssessPhaseCommands
 import com.dynokore.gst.tenancy.application.status.EntityLifecycleGuard
-import com.dynokore.gst.tenancy.adapters.certification.IssuanceModeCertificationMark
-import com.dynokore.gst.tenancy.application.certification.MarkCertificationStale
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusCommands
 import com.dynokore.gst.tenancy.application.status.EntityStatusQueries
