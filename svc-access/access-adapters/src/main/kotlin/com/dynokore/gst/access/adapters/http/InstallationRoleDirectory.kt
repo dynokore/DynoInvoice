@@ -14,5 +14,5 @@ class InstallationRoleDirectory(
         entries.groupBy { it.subject }.mapValues { (_, rows) -> rows.map { it.role }.toSet() }
 
     /** The roles configured for exactly [actor]; empty for any other subject. */
-    fun rolesOf(actor: String): Set<Role> = bySubject[actor].orEmpty()
+    fun rolesHeldBy(actor: String): Set<Role> = bySubject[actor].orEmpty()
 }

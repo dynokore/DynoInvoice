@@ -284,6 +284,13 @@ class GrantManagerCheckTest {
             val bound = env.context.getBean(GrantManagerCheck::class.java)
             assertThat(bound).isNotSameAs(GrantManagerCheck.DENY_ALL).isInstanceOf(LiveGrantManagerCheck::class.java)
             assertThat(env.context.getBean(SetterPermission::class.java)).isInstanceOf(LiveSetterPermission::class.java)
+            // exactly one bean decides the setting permission, and no bean answers with role names
+            assertThat(env.context.getBeansOfType(SetterPermission::class.java)).hasSize(1)
+            val types =
+                env.context.beanDefinitionNames
+                    .mapNotNull { env.context.getType(it) }
+                    .flatMap { type -> generateSequence(type) { it.superclass }.flatMap { listOf(it) + it.interfaces } }
+            assertThat(types.map { it.simpleName }).noneMatch { it.endsWith("Policy" + "RoleResolver") }
             assertThat(env.refused(id("IDN-NOBODY"))).isTrue()
         }
 

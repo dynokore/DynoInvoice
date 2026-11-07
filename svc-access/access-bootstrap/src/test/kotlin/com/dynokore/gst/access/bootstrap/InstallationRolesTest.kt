@@ -96,7 +96,7 @@ class InstallationRolesTest {
             }
         }
 
-    private fun InstallationRoleDirectory.at(subject: String) = rolesOf(subject)
+    private fun InstallationRoleDirectory.at(subject: String) = rolesHeldBy(subject)
 
     private fun SetterPermission.holdsAt(
         subject: String,

@@ -122,7 +122,7 @@ class LiveSetterPermissionTest {
         level: ScopeLevel = ScopeLevel.TENANT,
         scopeRef: String? = tenant.toString(),
         entityRef: String? = null,
-    ) = holdsFor(ACTOR, tenant, key, level, scopeRef, entityRef)
+    ) = holds(Actor(ACTOR), tenant, level, scopeRef, entityRef, key)
 
     private fun LiveSetterPermission.holdsFor(
         actor: String,
@@ -130,8 +130,7 @@ class LiveSetterPermissionTest {
         key: String,
         level: ScopeLevel = ScopeLevel.TENANT,
         scopeRef: String? = inTenant.toString(),
-        entityRef: String? = null,
-    ) = holds(Actor(actor), inTenant, level, scopeRef, entityRef, key)
+    ) = holds(Actor(actor), inTenant, level, scopeRef, null, key)
 
     @Test
     fun `INV-AC-10161 a tenant admin holds vp-64 set and not vp-44 set, a security officer the reverse`() {
