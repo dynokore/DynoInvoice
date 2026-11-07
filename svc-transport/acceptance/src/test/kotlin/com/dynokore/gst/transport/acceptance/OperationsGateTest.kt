@@ -143,10 +143,11 @@ class OperationsGateTest {
 
     @Test
     fun `the task of this service whose operation still answers 501 is not in the done set`() {
+        val stubsOf4982 = stubs + "electAcknowledgementRoute" + "clearAcknowledgementRoute"
         // INV-T-4982 owns receiveApNotification: listing the task while the operation answers 501 fails the gate
-        run(done = "INV-T-4982\n", stubSet = stubs + "electAcknowledgementRoute" + "clearAcknowledgementRoute") shouldContain
+        run(done = "INV-T-4982\n", stubSet = stubsOf4982) shouldContain
             "operation electAcknowledgementRoute: task INV-T-4982 is done but the operation still answers 501"
-        run(done = "INV-T-4982\n", stubSet = stubs + "clearAcknowledgementRoute" + "clearAcknowledgementRoute") shouldContain
+        run(done = "INV-T-4982\n", stubSet = stubsOf4982) shouldContain
             "operation clearAcknowledgementRoute: task INV-T-4982 is done but the operation still answers 501"
         run(done = "$cell\n", stubSet = stubs + "receiveApNotification") shouldContain
             "operation receiveApNotification: task $cell is done but the operation still answers 501"
@@ -316,7 +317,7 @@ class OperationsGateTest {
     }
 
     @Test
-    fun `INV-AC-18428 the state function returns null for the state 3 done text with submitPayload added to its stub set`() {
+        // the exact state 3 set lacks submitPayload (live since INV-T-4981): adding it is a look-alike
         // the exact state 3 set already lacks submitPayload (live since INV-T-4981): adding it is a look-alike
         stateOf(state3.done, state3.stubSet + "submitPayload", state3.cell).shouldBeNull()
         // and a set lacking any other operation is a look-alike too
