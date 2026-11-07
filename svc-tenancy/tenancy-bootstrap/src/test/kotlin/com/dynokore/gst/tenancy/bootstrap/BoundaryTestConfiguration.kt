@@ -85,7 +85,7 @@ class TestPeople :
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
     private val clock = Clock.systemUTC()
-    private val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
+    internal val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
     private val version = AtomicLong()
     private val approvals =
         ReplicaActionAuthority(
@@ -113,13 +113,16 @@ class TestPeople :
         entityRef: String,
         role: String,
         validUntil: java.time.Instant? = null,
+        tenant: TenantId = TENANT,
+        scope: GrantScope = GrantScope.ENTITY,
     ): String {
         val grantRef = "GR-${UUID.randomUUID()}"
         feed(
             person,
             grantRef,
             RoleGrantState.ACTIVE,
-            RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60), validUntil),
+            RoleGrant(role, scope, entityRef, clock.instant().minusSeconds(60), validUntil),
+            tenant,
         )
         return grantRef
     }
@@ -144,10 +147,11 @@ class TestPeople :
         grantRef: String,
         state: RoleGrantState,
         grant: RoleGrant,
+        tenant: TenantId = TENANT,
     ) {
         replica.accept(
             AuthorityChanged(
-                TENANT,
+                tenant,
                 person,
                 version.incrementAndGet(),
                 AuthorityRecord.RoleGrantRecord(grantRef, state, grant),
@@ -294,24 +298,4 @@ object TestOperationRoles {
 
     /** The one role that holds [key]; the call fails when the catalogue lists none or several. */
     fun soleHolder(key: String): String = holders(key).single()
-}
-
-/**
- * The writer as a caller holding [role]: the setter permission of the call is true when the generated matrix lists
- * [role] for the permission key the writer asks about (INV-Q-10027); the key and the roles are never written by hand.
- */
-fun PolicyWriter.asRole(role: String): PolicyWriter = asRoles(setOf(role))
-
-/** As [asRole] for a caller holding any of [roles]; the empty set holds nothing. */
-fun PolicyWriter.asRoles(roles: Set<String>): PolicyWriter {
-    val delegate = this
-    val permission =
-        SetterPermission { _, _, _, _, _, key -> roles.any { it in TestOperationRoles.holders(key) } }
-    return object : PolicyWriter by delegate {
-        override fun setPolicy(command: SetPolicyCommand): PolicyChange =
-            RequestBoundSetterPermission.bind(permission) { delegate.setPolicy(command) }
-
-        override fun acknowledgeControlRelaxation(command: AcknowledgeRelaxationCommand): RelaxationStatus =
-            RequestBoundSetterPermission.bind(permission) { delegate.acknowledgeControlRelaxation(command) }
-    }
 }

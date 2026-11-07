@@ -53,7 +53,7 @@ class SchemeElectionTest {
         on: LocalDate,
         key: VariationPointKey = vp53,
     ) = env.inTx {
-        env.writer.asRole("entity.admin").setPolicy(
+        env.writer.asRole(env.tenants, "entity.admin").setPolicy(
             SetPolicyCommand(
                 key,
                 PolicyScope.entity(env.tenants.current(), entity.entityRef),
@@ -252,7 +252,7 @@ class SchemeElectionTest {
         entity: EntityResponse,
         planned: VariationPointDefinition,
     ) = env.inTx {
-        env.writer.asRole(TestOperationRoles.holders(planned.setPermission).first()).setPolicy(
+        env.writer.asRole(env.tenants, TestOperationRoles.holders(planned.setPermission).first()).setPolicy(
             SetPolicyCommand(
                 planned.key,
                 PolicyScope.entity(env.tenants.current(), entity.entityRef),

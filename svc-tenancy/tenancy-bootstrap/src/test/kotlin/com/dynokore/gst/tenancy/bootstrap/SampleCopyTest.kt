@@ -144,7 +144,7 @@ class SampleCopyTest {
             scope: PolicyScope,
             on: List<SelectedOption>,
         ) = env.writer
-            .asRole("tenant.admin")
+            .asRole(env.tenants, "tenant.admin")
             .acknowledgeControlRelaxation(
                 AcknowledgeRelaxationCommand(
                     key,
@@ -169,7 +169,7 @@ class SampleCopyTest {
             env.inTenant(tenant) {
                 env.inTx {
                     val relaxation = acknowledged(key, scope, on)
-                    env.writer.asRole("security.officer").setPolicy(
+                    env.writer.asRole(env.tenants, "security.officer").setPolicy(
                         SetPolicyCommand(
                             key,
                             scope,
@@ -340,7 +340,7 @@ class SampleCopyTest {
                 runCatching {
                     s.env.inTenant(tenant) {
                         s.env.inTx {
-                            s.env.writer.asRole("security.officer").setPolicy(
+                            s.env.writer.asRole(s.env.tenants, "security.officer").setPolicy(
                                 SetPolicyCommand(
                                     VariationPointKey("VP-44"),
                                     PolicyScope.tenant(tenant),

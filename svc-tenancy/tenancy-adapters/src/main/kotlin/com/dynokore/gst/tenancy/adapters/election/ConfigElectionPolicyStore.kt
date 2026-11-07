@@ -24,6 +24,7 @@ import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
 import java.time.LocalDate
 import java.util.UUID
@@ -148,12 +149,8 @@ class ConfigElectionPolicyStore(
         try {
             // The election command has already decided the caller's permission (entity-config.manage or the approval
             // by election-change.approve) through ActionAuthority; the writer asks only for this one row's setting
-            // key on this one entity, and every other key or entity is refused (INV-Q-10027, fail closed).
-            val proven =
-                SetterPermission { _, _, _, _, ofEntity, permissionKey ->
-                    permissionKey == SetterPermission.settingKey(key) && ofEntity == entityRef
-                }
-            RequestBoundSetterPermission.bind(proven) {
+            // key at ENTITY level, and every other key or level is refused (INV-Q-10027, fail closed).
+            RequestBoundSetterPermission.bind(ElectionSetterPermission(key)) {
                 ElectionWriteMarker.allowing(key) { writer.setPolicy(command) }
             }
         } catch (refused: PolicyRefused) {
@@ -174,4 +171,21 @@ class IssuanceProfileExtras(
         elections
             .history(entityRef, ElectionKind.ISSUANCE_MODE)
             .map { ProfileEntry(ISSUANCE_MODE_ATTRIBUTE, it.value, it.effectiveFrom) }
+}
+
+/**
+ * The setter permission of an election write: true exactly when the writer asks for the setting key of [key]
+ * (string equality, nothing normalised) at [ScopeLevel.ENTITY]; every other key or level is false.
+ */
+class ElectionSetterPermission(
+    private val key: VariationPointKey,
+) : SetterPermission {
+    override fun holds(
+        actor: Actor,
+        tenant: TenantId,
+        level: ScopeLevel,
+        scopeRef: String?,
+        entityRef: String?,
+        permissionKey: String,
+    ): Boolean = permissionKey == SetterPermission.settingKey(key) && level == ScopeLevel.ENTITY
 }
