@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.adapters.election
 import com.dynokore.gst.tenancy.adapters.events.EventContexts
 import com.dynokore.gst.tenancy.application.election.ApprovedChange
 import com.dynokore.gst.tenancy.application.election.ElectionAudit
+import com.dynokore.gst.tenancy.application.election.ExemptPurchaseAuditRecord
 import com.dynokore.gst.tenancy.application.election.PendingChange
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriter
@@ -44,6 +45,20 @@ class AuditLogElectionAudit(
         )
     }
 
+    override fun exemptPurchaseRecorded(record: ExemptPurchaseAuditRecord) {
+        record(
+            AuditEntry(
+                actor = record.recordedBy,
+                action = EXEMPT_PURCHASE_RECORDED,
+                scope = record.entityRef,
+                reason =
+                    "EXEMPT_PURCHASE_CODES recorded for " + record.taxCodes.sorted().joinToString(",") +
+                        " at " + record.recordedAt.toString(),
+            ),
+            record.entityRef,
+        )
+    }
+
     private fun describe(change: PendingChange): String =
         "${change.value}${change.basis?.let { "/$it" }.orEmpty()} effective ${change.effectiveFrom}"
 
@@ -57,5 +72,6 @@ class AuditLogElectionAudit(
     companion object {
         const val REQUESTED = "election-change.requested"
         const val APPROVED = "election-change.approved"
+        const val EXEMPT_PURCHASE_RECORDED = "election.exempt-purchase.recorded"
     }
 }

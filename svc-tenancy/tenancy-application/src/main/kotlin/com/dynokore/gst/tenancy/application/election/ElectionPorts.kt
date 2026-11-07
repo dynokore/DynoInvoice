@@ -77,7 +77,18 @@ interface ElectionAudit {
 
     /** "approved": names the approver and the requester. */
     fun approved(approval: ApprovedChange)
+
+    /** "exempt-purchase recorded": names the acting user ID and the codes of the INV-REQ-369 election. */
+    fun exemptPurchaseRecorded(record: ExemptPurchaseAuditRecord)
 }
+
+/** What the audit entry of a recorded exempt-purchase election holds; [recordedBy] is the user ID, never a role. */
+data class ExemptPurchaseAuditRecord(
+    val entityRef: String,
+    val taxCodes: List<String>,
+    val recordedBy: String,
+    val recordedAt: Instant,
+)
 
 /** The verified caller of the operation in hand (the end-user token's `sub`, API-24), never a request field. */
 fun interface CallerSource {
