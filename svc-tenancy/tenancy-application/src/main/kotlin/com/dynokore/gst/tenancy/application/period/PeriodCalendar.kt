@@ -304,7 +304,46 @@ class PackDeltaPreview(
                 .flatMap { recomputation.changes(it, release.effectiveFrom, release.pack, cause) }
                 .map { DueDateMove(it.entityRef, it.periodRef, it.oldFilingDueDate, it.newFilingDueDate) }
         }
+
+    /**
+     * The delta of one entity, a page of it (INV-REQ-88, INV-AC-16823): the moves [DueDateRecomputation.changes] gives
+     * with the pack cause, which are the ones the activation publishes for that entity, ordered by `periodRef`
+     * ascending. [after] is the last `periodRef` of the previous page (absent for the first page); [limit] is 1 to
+     * [MAX_PAGE]. Null when the release is not staged as a calendar pack here or the entity is unknown. Writes nothing.
+     */
+    fun deltaPage(
+        entityRef: String,
+        packIdentifier: String,
+        version: String,
+        limit: Int,
+        after: String? = null,
+    ): PackDeltaPage? {
+        require(limit in 1..MAX_PAGE) { "limit must be 1 to $MAX_PAGE" }
+        return tx.inTransaction {
+            val release = staged.find(packIdentifier, version) ?: return@inTransaction null
+            val entity = structure.entity(entityRef) ?: return@inTransaction null
+            val cause = DueDateCause.Pack(packIdentifier, version, release.effectiveFrom)
+            val moves =
+                recomputation
+                    .changes(entity, release.effectiveFrom, release.pack, cause)
+                    .map { DueDateMove(it.entityRef, it.periodRef, it.oldFilingDueDate, it.newFilingDueDate) }
+                    .sortedBy { it.periodRef }
+                    .filter { after == null || it.periodRef > after }
+            PackDeltaPage(moves.take(limit), moves.size > limit)
+        }
+    }
+
+    companion object {
+        /** The greatest page size of [deltaPage]. */
+        const val MAX_PAGE = 500
+    }
 }
+
+/** One page of the delta of an entity: [more] is true when another page follows [items]. */
+data class PackDeltaPage(
+    val items: List<DueDateMove>,
+    val more: Boolean,
+)
 
 /**
  * The effect of a calendar pack activation on the stored periods (INV-REQ-88, INV-AC-110): when [version] is a staged

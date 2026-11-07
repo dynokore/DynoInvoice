@@ -7,4 +7,7 @@ object PeriodPermissions {
 
     /** recordExtension: the catalogue row `period-extension.record` (gstCatalogue 2.31.0). */
     const val EXTENSION_RECORD = "period-extension.record"
+
+    /** readPackDelta: the catalogue row `calendar-pack-delta.view` (INV-T-16826). */
+    const val PACK_DELTA_VIEW = "calendar-pack-delta.view"
 }
