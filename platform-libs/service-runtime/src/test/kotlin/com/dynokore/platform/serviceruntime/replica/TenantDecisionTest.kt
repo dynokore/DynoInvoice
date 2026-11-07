@@ -39,7 +39,7 @@ class TenantDecisionTest {
         kind: PrincipalKind,
         id: String = "p1",
     ) = if (kind == PrincipalKind.MACHINE) {
-        Principal.machine(id, TENANT_A, MachineEntityCoverage.None)
+        Principal.machine(id, TENANT_A, MachineEntityCoverage.None, "filing-workflow")
     } else {
         Principal(id, kind)
     }

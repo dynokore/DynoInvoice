@@ -29,7 +29,7 @@ class AuthorityReplicaTest {
         TENANT_A,
         // A MACHINE principal is made only inside service-runtime (INV-Q-9028 A).
         if (kind == PrincipalKind.MACHINE) {
-            Principal.machine("p1", TENANT_A, MachineEntityCoverage.None)
+            Principal.machine("p1", TENANT_A, MachineEntityCoverage.None, "filing-workflow")
         } else {
             Principal("p1", kind)
         },

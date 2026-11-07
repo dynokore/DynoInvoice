@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.0.0] - 2026-11-08
+### Changed
+- BREAKING (MAJOR, G-OWN): `Principal.machine(...)` takes the new required parameter `machineType` (fourth position, after `coverage`; no default, fail closed) and `Principal` gains `machineType`, non-null exactly for kind MACHINE and part of equality. A public factory signature change is source- and binary-incompatible (INV-T-13567, INV-REQ-584, INV-AC-13560).
+- The machine token verifier reads the claim `principal_type` unchanged and refuses with 401 a token without it, with an empty or non-string value, or with leading or trailing space.
+
 ## [12.3.1] - 2026-11-07
 ### Changed
 - Version step only (G-DVS, INV-T-18183): the published bytes change because the dependency `outbox-and-queue` stepped to 6.18.0 (CertificationMarkRequested joins the platform event class); no code change in this module.

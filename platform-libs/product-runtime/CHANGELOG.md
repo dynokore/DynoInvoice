@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.15.1] - 2026-11-08
+### Changed
+- Version step only (G-DVS, INV-T-13567): the published bytes change because the dependency `service-runtime` stepped to 13.0.0.
+
 ## [2.15.0] - 2026-11-07
 ### Added
 - `PlatformEventCatalogue` gains `CERTIFICATION_MARK_REQUESTED` (topic `gst.platform.certification-mark-requested.v1`, type `com.dynokore.gst.platform.CertificationMarkRequested.v1`) (INV-T-16409 design question option C, INV-REQ-1226, INV-AC-18180, INV-T-18183).

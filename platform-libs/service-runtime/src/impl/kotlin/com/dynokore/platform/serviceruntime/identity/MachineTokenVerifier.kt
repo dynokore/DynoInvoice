@@ -42,6 +42,7 @@ internal sealed interface MachineVerdict {
  *  - `iss` equals the configured issuer and `aud` contains the configured audience (none configured: refused);
  *  - `exp` has not passed and `iat` is present;
  *  - `sub` and `client_id` are the same non-blank string, and `tenant_id` is present for the scopes that need one;
+ *  - `principal_type` is a non-empty string without leading or trailing space, carried unchanged as the principal's `machineType`;
  *  - `scope` is exactly one string and `jti` is a non-blank string (RFC 9068 section 2.2; INV-Q-13630 A).
  * Then the scope is checked against the operation line (403 when it differs): it equals the line's scope, or it is
  * `certification` on a line whose additional principal is `certification`. A `certification` token also needs the
@@ -59,6 +60,9 @@ internal class MachineTokenVerifier(
         val jwt = parse(authorization) ?: return MachineVerdict.BadToken
         val claims = verifiedClaims(jwt) ?: return MachineVerdict.BadToken
         val scope = claims.claims["scope"] as? String ?: return MachineVerdict.BadToken
+        val machineType =
+            (claims.claims["principal_type"] as? String)?.takeIf { it.isNotEmpty() && it == it.trim() }
+                ?: return MachineVerdict.BadToken
         val subject = claims.subject?.takeIf { it.isNotBlank() }
         if (subject == null || claims.claims["client_id"] != subject) return MachineVerdict.BadToken
         val tenant =
@@ -86,6 +90,7 @@ internal class MachineTokenVerifier(
                 subject,
                 tenant,
                 coverage,
+                machineType,
                 scope,
                 jti,
             ),

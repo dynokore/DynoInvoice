@@ -224,7 +224,7 @@ class RoleDecisionTest {
 
     @Test
     fun `the decision uses only the principal named in the request`() {
-        val worker = Principal.machine("worker-1", TENANT_A, MachineEntityCoverage.Tenant(tenantRef))
+        val worker = Principal.machine("worker-1", TENANT_A, MachineEntityCoverage.Tenant(tenantRef), "filing-workflow")
         grant("approver", principal = "worker-1")
         decide(principal = Principal("user-1", PrincipalKind.HUMAN)) shouldBe noGrant
         decide(principal = worker) shouldBe granted

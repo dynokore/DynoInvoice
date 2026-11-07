@@ -112,7 +112,7 @@ class ReplicaAutoConfigurationTest {
     ) = replica.decide(
         AuthorizationRequest(
             tenant,
-            Principal.machine("client-1", tenant, coverage, "ingest", "jti-1"),
+            Principal.machine("client-1", tenant, coverage, "ingest", "ingest", "jti-1"),
             "E1",
             "ingest",
             operation = OperationKey("POST", "/v1/transactions", "ingest"),

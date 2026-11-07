@@ -18,7 +18,9 @@ enum class PrincipalKind { HUMAN, CONSENT_AGENT, MACHINE }
  * rulings INV-Q-9028 A, INV-Q-9040 A, INV-Q-9032 A): the public constructor refuses that kind and the factory is
  * internal to service-runtime. A machine principal carries the token's [tenant] (null for a scope without one) and
  * the [entityCoverage] its `principal_scope` claim states, its [scope] and its [tokenId] (`jti`, null when absent;
- * both are audit data and not part of equality).
+ * both are audit data and not part of equality) and its [machineType], the `principal_type` claim unchanged and
+ * opaque (role vocabulary stays out of this library, ARC-16): non-null exactly for kind [PrincipalKind.MACHINE], part
+ * of equality.
  */
 class Principal internal constructor(
     val id: String,
@@ -27,16 +29,24 @@ class Principal internal constructor(
     val entityCoverage: MachineEntityCoverage?,
     val scope: String? = null,
     val tokenId: String? = null,
+    val machineType: String? = null,
 ) {
-    constructor(id: String, kind: PrincipalKind) : this(id, kind, null, null, null, null) {
+    constructor(id: String, kind: PrincipalKind) : this(id, kind, null, null, null, null, null) {
         require(kind != PrincipalKind.MACHINE) { "a machine principal is made only by a verified machine access token" }
+    }
+
+    init {
+        require((kind == PrincipalKind.MACHINE) == (machineType != null)) {
+            "machineType is set exactly for a machine principal"
+        }
     }
 
     override fun equals(other: Any?): Boolean =
         other is Principal &&
-            id == other.id && kind == other.kind && tenant == other.tenant && entityCoverage == other.entityCoverage
+            id == other.id && kind == other.kind && tenant == other.tenant && entityCoverage == other.entityCoverage &&
+            machineType == other.machineType
 
-    override fun hashCode(): Int = listOf(id, kind, tenant, entityCoverage).hashCode()
+    override fun hashCode(): Int = listOf(id, kind, tenant, entityCoverage, machineType).hashCode()
 
     override fun toString(): String = "Principal(id=$id, kind=$kind)"
 
@@ -69,9 +79,10 @@ class Principal internal constructor(
             id: String,
             tenant: TenantId?,
             coverage: MachineEntityCoverage,
+            machineType: String,
             scope: String? = null,
             tokenId: String? = null,
-        ) = Principal(id, PrincipalKind.MACHINE, tenant, coverage, scope, tokenId)
+        ) = Principal(id, PrincipalKind.MACHINE, tenant, coverage, scope, tokenId, machineType)
     }
 }
 

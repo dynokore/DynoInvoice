@@ -34,7 +34,7 @@ class DegradedAllowTest {
         scope: String? = "ingest",
         tenant: TenantId? = TENANT_A,
         coverage: MachineEntityCoverage = MachineEntityCoverage.Entity("E1"),
-    ) = Principal.machine("client-1", tenant, coverage, scope, "jti-1")
+    ) = Principal.machine("client-1", tenant, coverage, "filing-workflow", scope, "jti-1")
 
     private fun ask(
         replica: AuthorityReplica = replica(),

@@ -140,6 +140,7 @@ class MachineTokenFilterTest {
             .claim("tenant_id", MT_TENANT.toString())
             .claim("scope", scope)
             .claim("principal_scope", "entity:E1")
+            .claim("principal_type", "filing-workflow")
             .jwtID("jti-1")
             .issueTime(Date.from(now))
             .expirationTime(Date.from(now.plusSeconds(600)))
@@ -228,7 +229,14 @@ class MachineTokenFilterTest {
         publish(item(machineKeys, "mk", "MACHINE_ACCESS"))
         status(token()) shouldBe 200
         resolverCalls.get() shouldBe 0
-        seen.single() shouldBe Principal.machine("client-1", MT_TENANT, MachineEntityCoverage.Entity("E1"))
+        seen.single() shouldBe
+            Principal.machine(
+                "client-1",
+                MT_TENANT,
+                MachineEntityCoverage.Entity("E1"),
+                "filing-workflow",
+            )
+        seen.single()!!.machineType shouldBe "filing-workflow"
         seen.single()!!.kind shouldBe PrincipalKind.MACHINE
         bound.single() shouldBe MT_TENANT
     }
@@ -284,6 +292,18 @@ class MachineTokenFilterTest {
         status(token(claims("ingest") { claim("scope", listOf("ingest")) })) shouldBe 401
         status(token(claims("ingest") { claim("scope", null) })) shouldBe 401
         status(token(claims("INGEST"))) shouldBe 403
+    }
+
+    @Test
+    fun `INV-AC-13560 a token without a valid principal_type claim is 401 and builds no principal`() {
+        publish(item(machineKeys, "mk", "MACHINE_ACCESS"))
+        status(token(claims { claim("principal_type", null) })) shouldBe 401
+        status(token(claims { claim("principal_type", "") })) shouldBe 401
+        status(token(claims { claim("principal_type", "filing-workflow ") })) shouldBe 401
+        status(token(claims { claim("principal_type", " filing-workflow") })) shouldBe 401
+        status(token(claims { claim("principal_type", 7) })) shouldBe 401
+        status(token(claims { claim("principal_type", null).claim("scope", "filing-workflow") })) shouldBe 401
+        seen.size shouldBe 0
     }
 
     @Test

@@ -101,7 +101,13 @@ class MachineTokenWiringTest {
         runner(dir).run { context ->
             context.startupFailure shouldBe null
             val filter = filterOf(context, "entityRefScopeFilter").filter!!
-            val tenant = Principal.machine("m", WIRE_TENANT, MachineEntityCoverage.Tenant(WIRE_TENANT.toString()))
+            val tenant =
+                Principal.machine(
+                    "m",
+                    WIRE_TENANT,
+                    MachineEntityCoverage.Tenant(WIRE_TENANT.toString()),
+                    "filing-workflow",
+                )
             post(filter, tenant) shouldBe 200
             post(
                 filter,
@@ -109,6 +115,7 @@ class MachineTokenWiringTest {
                     "m",
                     WIRE_TENANT,
                     MachineEntityCoverage.Tenant("0b000000-0000-0000-0000-00000000000b"),
+                    "filing-workflow",
                 ),
             ) shouldBe
                 403

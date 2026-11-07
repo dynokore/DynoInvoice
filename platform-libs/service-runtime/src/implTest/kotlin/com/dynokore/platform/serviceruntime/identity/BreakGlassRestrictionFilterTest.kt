@@ -120,7 +120,7 @@ class BreakGlassRestrictionFilterTest {
         if (machine) {
             request.setAttribute(
                 MachineTokenFilter.PRINCIPAL_ATTRIBUTE,
-                Principal.machine("client-1", tenantT, MachineEntityCoverage.Entity("E1")),
+                Principal.machine("client-1", tenantT, MachineEntityCoverage.Entity("E1"), "filing-workflow"),
             )
         }
         val response = MockHttpServletResponse()
