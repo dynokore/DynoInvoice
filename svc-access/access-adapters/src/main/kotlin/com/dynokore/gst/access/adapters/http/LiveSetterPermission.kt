@@ -43,7 +43,7 @@ class LiveSetterPermission(
         return runCatching {
             when {
                 level == ScopeLevel.INSTALLATION && scopeRef == null -> {
-                    installation.rolesHeldBy(subject).any { allows(it, permission) }
+                    installation.rolesOf(subject).any { allows(it, permission) }
                 }
 
                 level == ScopeLevel.TENANT && scopeRef == tenant.toString() -> {

@@ -25,7 +25,7 @@ class ResolvedResealPermissionCheck(
         runCatching {
             val actor = tenants.currentActor() ?: return false
             roles
-                .rolesHeldBy(actor)
+                .rolesOf(actor)
                 .any { matrix.allowance(it, BREAK_GLASS_RESEAL) == Allowance.PERMITTED }
         }.getOrDefault(false)
 }

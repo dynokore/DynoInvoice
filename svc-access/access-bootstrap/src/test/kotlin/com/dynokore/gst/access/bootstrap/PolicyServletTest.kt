@@ -164,7 +164,7 @@ class PolicyServletTest {
             setUp(context)
             val response = setPolicy(context, "token-nobody")
             assertThat(response.status).isEqualTo(403)
-            assertThat(response.contentAsString).contains("POL-004")
+            assertThat(response.contentAsString).contains("SRT-004")
             assertThat(landing(context)).isEqualTo("tenant.admin")
         }
 
@@ -179,12 +179,12 @@ class PolicyServletTest {
         }
 
     @Test
-    fun `INV-AC-10161 setPolicy is 200 for a holder and 403 for a non-holder, nothing stored`() =
+    fun `INV-AC-10161 setPolicy is 200 for a holder and 403 SRT-004 for a non-holder, nothing stored`() =
         run { context ->
             setUp(context)
             val refused = setPolicy(context, "token-nobody")
             assertThat(refused.status).isEqualTo(403)
-            assertThat(refused.contentAsString).contains("POL-004")
+            assertThat(refused.contentAsString).contains("SRT-004")
             assertThat(landing(context)).isEqualTo("tenant.admin")
             val accepted = setPolicy(context, "token-admin")
             assertThat(accepted.status).describedAs(accepted.contentAsString).isEqualTo(200)

@@ -45,7 +45,7 @@ class InstallationRolesTest {
     ) {
         val resolver = principals("user:op-1", "user:grantee")
         BoundaryFixture
-            .runner(catalogueMatrix = true, form = "PRIVATE", tokenProperties = TestSecrets.TOKEN_PROPERTIES + roles)
+            .runner(tokenProperties = TestSecrets.TOKEN_PROPERTIES + roles)
             .withBean(EndUserPrincipalResolver::class.java, { resolver })
             .run { context ->
                 context.startupFailure?.let { throw it }
@@ -96,7 +96,7 @@ class InstallationRolesTest {
             }
         }
 
-    private fun InstallationRoleDirectory.at(subject: String) = rolesHeldBy(subject)
+    private fun InstallationRoleDirectory.at(subject: String) = rolesOf(subject)
 
     private fun SetterPermission.holdsAt(
         subject: String,
@@ -122,7 +122,7 @@ class InstallationRolesTest {
             val before = stored(kit, effective.plusDays(1))
             val denied = setPreset(kit.context, "user:grantee", "REGULATED_PRIVATE", effective)
             assertThat(denied.status).isEqualTo(403)
-            assertThat(denied.contentAsString).contains("POL-004")
+            assertThat(denied.contentAsString).contains("SRT-004")
             assertThat(stored(kit, effective.plusDays(1))).isEqualTo(before)
             val ok = setPreset(kit.context, "user:op-1", "REGULATED_PRIVATE", effective)
             assertThat(ok.status).describedAs(ok.contentAsString).isEqualTo(200)
@@ -159,9 +159,7 @@ class InstallationRolesTest {
             val permission = kit.context.getBean(SetterPermission::class.java)
             listOf("user:op-1 ", "USER:OP-1", "user:op-10", "user:op-", "").forEach {
                 assertThat(production.at(it)).describedAs("[$it]").isEmpty()
-                if (it.isNotBlank()) {
-                    assertThat(permission.holdsAt(it, kit.tenant)).describedAs("[$it]").isFalse()
-                }
+                assertThat(permission.holdsAt(it, kit.tenant)).describedAs("[$it]").isFalse()
             }
             listOf(ScopeLevel.GROUP, ScopeLevel.ENTITY, ScopeLevel.FEED).forEach {
                 assertThat(permission.holdsAt("user:op-1", kit.tenant, it, "x")).describedAs(it.name).isFalse()

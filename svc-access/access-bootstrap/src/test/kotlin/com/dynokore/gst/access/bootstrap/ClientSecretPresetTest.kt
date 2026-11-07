@@ -32,7 +32,7 @@ import java.util.UUID
  * VP-77 (INV-REQ-2760): client_secret_basic is available under the default preset, switched off by the
  * regulated-private preset and never switched back on; the ap-callback principal keeps its own method (INV-AC-2770).
  * The write goes through the mounted `setPolicy` servlet over the real PolicyWriter; the roles come from the
- * `SetterPermission` seam. The preset takes effect 30 days ahead and the test clock is moved past it, so no other
+ * `PolicyRoleResolver` seam. The preset takes effect 30 days ahead and the test clock is moved past it, so no other
  * test sees it (an installation value cannot be taken back).
  */
 class ClientSecretPresetTest {
@@ -50,14 +50,7 @@ class ClientSecretPresetTest {
         block: (PrincipalKit) -> Unit,
     ) {
         val principals = TestTokenPrincipals(mapOf("token-operator" to EndUserPrincipal(operator, null, emptySet())))
-        var runner =
-            BoundaryFixture
-                .runner(
-                    catalogueMatrix = true,
-                    form = "PRIVATE",
-                ).withBean(EndUserPrincipalResolver::class.java, {
-                    principals
-                })
+        var runner = BoundaryFixture.runner().withBean(EndUserPrincipalResolver::class.java, { principals })
         if (roles != null) runner = runner.withBean(SetterPermission::class.java, { roles })
         runner.run { context ->
             context.startupFailure?.let { throw it }
@@ -144,7 +137,7 @@ class ClientSecretPresetTest {
             val effective = effectiveOf(kit)
             val response = setPreset(kit.context, "REGULATED_PRIVATE", effective)
             assertThat(response.status).isEqualTo(403)
-            assertThat(response.contentAsString).contains("POL-004")
+            assertThat(response.contentAsString).contains("SRT-004")
             assertThat(stored(kit, effective.plusDays(1))).doesNotContain("REGULATED_PRIVATE")
         }
 
