@@ -29,6 +29,7 @@ internal object CursorFault {
 
     /** When set, the next cursor read signals [entered] and holds the run until [release] opens. */
     @Volatile var entered: java.util.concurrent.CountDownLatch? = null
+
     @Volatile var release = java.util.concurrent.CountDownLatch(1)
 }
 
@@ -225,7 +226,9 @@ class ApPollingDbTest {
         CursorFault.entered = entered
         TestClock.now = t0
         val start = java.util.concurrent.CountDownLatch(1)
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        val pool =
+            java.util.concurrent.Executors
+                .newFixedThreadPool(2)
         try {
             val runs =
                 listOf(a.context, b).map { c ->
@@ -240,7 +243,8 @@ class ApPollingDbTest {
             val finished = runs.filter { it.isDone || waitDone(it) }
             finished.map { it.get() } shouldBe listOf(FireResult.SKIPPED_NOT_LEADER)
             CursorFault.release.countDown()
-            runs.map { it.get(HOLD_SECONDS, java.util.concurrent.TimeUnit.SECONDS) }.count { it == FireResult.RAN } shouldBe 1
+            val results = runs.map { it.get(HOLD_SECONDS, java.util.concurrent.TimeUnit.SECONDS) }
+            results.count { it == FireResult.RAN } shouldBe 1
         } finally {
             CursorFault.release.countDown()
             pool.shutdownNow()
