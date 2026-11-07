@@ -112,6 +112,8 @@ springBoot-starterActuator = { module = "org.springframework.boot:spring-boot-st
 # service-runtime impl runtime classpath (dependency only; no span is emitted yet). Versions managed by the Spring Boot BOM.
 micrometer-tracingBridgeOtel = { module = "io.micrometer:micrometer-tracing-bridge-otel" }
 opentelemetry-exporterOtlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp" }
+opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api" }
+opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk" }
 # STK-23 (service-runtime, INV-T-2872 / T28): the generated ARC-08 client's own
 # `RestClient`/`ClientHttpRequestInterceptor` — client-side only, never
 # `spring-webmvc` or a servlet container (this module ships no web starter,

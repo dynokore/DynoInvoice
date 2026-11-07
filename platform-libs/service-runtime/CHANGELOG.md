@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [12.3.0] - 2026-11-07
+### Added
+- A CLIENT span with `peer.service` for each call through `internalRestClientBuilder`, exported as OTLP/HTTP protobuf (the SDK `OtlpHttpSpanExporter`, compression none) to `<gst.bindings.telemetry-export-otlp-endpoint>/v1/traces`, and W3C `traceparent` propagation in (`TraceContextCaptureFilter`, via `TraceParent.parse`) and out (INV-T-17628, INV-Q-17607 A, INV-AC-17625). Properties: `gst.tracing.peers`, `management.tracing.sampling.probability`; failed exports are counted and logged without span content. `opentelemetry-api`, `opentelemetry-sdk` and `opentelemetry-exporter-otlp` move to the impl compile classpath (INV-Q-17752 A).
+
 ## [12.2.0] - 2026-11-07
 ### Added
 - `ClosedErrorCode.REQUEST_TOO_LARGE` (SRT-014, HTTP 413, "Request over a size or count limit of its operation", TERMINAL, owner Platform; INV-T-17300, coordinator ruling INV-Q-17287 A, INV-AC-17299): no Retry-After; the status is the new constant `HttpStatusCodes.PAYLOAD_TOO_LARGE`.

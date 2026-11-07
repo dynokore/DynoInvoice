@@ -363,3 +363,20 @@ the next success. A breach is also logged at WARN unless the service declares it
 A service declares its own audit actions in its own properties (`gst.security-events.mapping[<action>]=<class>`); they merge
 with the shipped entry by key. The context does not start without a `TelemetryExport` bean (`gst.bindings.telemetry-export`).
 `SECURITY-EVENTS.md` holds the configuration, the drop reasons and the producer coverage per class.
+
+## Outbound spans and trace context (INV-T-17628; INV-AC-17625, INV-Q-17607 A)
+
+A call made with a `RestClient` built from `internalRestClientBuilder` produces one CLIENT span, exported as OTLP/HTTP protobuf to
+`<gst.bindings.telemetry-export-otlp-endpoint>/v1/traces`, and carries the W3C `traceparent` of that span. An inbound
+`traceparent` that `TraceParent.parse` accepts is the parent of the span; one it refuses is ignored and a new trace starts.
+The span has exactly the attributes `peer.service`, `http.request.method`, `http.response.status_code` and `server.address`;
+the resource attribute `service.name` is `gst.service`. A failed export is counted (`gst_trace_export_failed_total`) and logged as
+`TRACE_EXPORT_FAILED` without span content; the call is not affected. Without the endpoint property no tracing bean exists.
+
+A deployment must set three properties:
+
+| Property | Meaning |
+|---|---|
+| `gst.bindings.telemetry-export-otlp-endpoint` | the collector base URL; without it nothing is exported |
+| `gst.tracing.peers[n].host` and `.service` | the host of an outbound URL and the service id of the callee; a host is matched by equality (no case folding, no trimming); an unmapped host is exported as its own `peer.service` |
+| `management.tracing.sampling.probability` | the share of new traces that are sampled, 0.0 to 1.0 (Spring Boot 4.1 name; default 0.1 when unset); a remote parent's sampled flag is honoured |

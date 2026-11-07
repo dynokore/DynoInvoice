@@ -190,8 +190,12 @@ dependencies {
     listOf("implRuntimeOnly", "implTestRuntimeOnly").forEach { config ->
         add(config, platform(libs.springBoot.dependencies))
         add(config, libs.micrometer.tracingBridgeOtel)
-        add(config, libs.opentelemetry.exporterOtlp)
     }
+    // INV-T-17628 (INV-Q-17752 A): the API, SDK and OTLP exporter are compiled against by service-runtime/src/impl/.../tracing.
+    add("implTestRuntimeOnly", libs.opentelemetry.exporterOtlp)
+    add("implImplementation", libs.opentelemetry.api)
+    add("implImplementation", libs.opentelemetry.sdk)
+    add("implImplementation", libs.opentelemetry.exporterOtlp)
     add("implTestImplementation", libs.springBoot.test)
     // INV-T-4125 (API-33, INV-Q-4103 A): a running service on its application and management ports. Tomcat at the
     // patched version platform-libs-bom pins (libs.versions.toml tomcatEmbed), Prometheus for /metrics.

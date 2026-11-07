@@ -189,6 +189,10 @@ dependencies {
     add("implTestRuntimeOnly", libs.springSecurity.oauth2Jose)
     // The JobRuntime bean of service-runtime's impl (ShedLock on JDBC, as its own implTest has them).
     add("implTestRuntimeOnly", libs.shedlock.core)
+    // service-runtime impl's tracing auto-configuration (INV-T-17628) loads the OpenTelemetry SDK and OTLP exporter, which a service gets from the published impl POM.
+    add("implTestRuntimeOnly", libs.opentelemetry.api)
+    add("implTestRuntimeOnly", libs.opentelemetry.sdk)
+    add("implTestRuntimeOnly", libs.opentelemetry.exporterOtlp)
     // The TPL-18 WiringTest's DataSource from Spring Boot's DataSource auto-configuration on a lazy Hikari pool with
     // no database (INV-Q-4196 (A), coordinator ruling INV-Q-4436): spring-boot-jdbc, HikariCP and the driver.
     // A service gets resilience4j-retry (security-event emitter of service-runtime) from the published impl POM (INV-Q-12141).

@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.tracing.TracingAutoConfiguration
 import com.dynokore.platform.tenancyjooq.TenancyProbeAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.context.annotation.Configurations
@@ -99,6 +100,7 @@ internal fun platform(): List<Class<*>> =
         L1CompositionAutoConfiguration::class.java,
         TenancyJooqWiring::class.java,
         TenancyProbeAutoConfiguration::class.java,
+        TracingAutoConfiguration::class.java,
     )
 
 /** In Spring Boot's auto-configuration order (@AutoConfiguration before/after). */
