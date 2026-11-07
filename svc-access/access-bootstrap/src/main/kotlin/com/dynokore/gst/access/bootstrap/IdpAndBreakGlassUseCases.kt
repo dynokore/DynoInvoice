@@ -313,6 +313,7 @@ class SealedAccountUseCases {
     ) = SignInWithBackoffUseCase(dependencies.tx, sessions, keeper, attempts, effects, clock)
 
     @Bean
+    @Suppress("LongParameterList") // one collaborator per port of the use case, as its constructor
     fun resealBreakGlassUseCase(
         dependencies: GrantDependencies,
         sessions: BreakGlassSessions,
