@@ -36,7 +36,7 @@ class OperationsGateTest {
         val cell: String,
     )
 
-    /** Parallel change (INV-Q-15626 A): exactly the two states before and after INV-T-12486. */
+    /** Parallel change (INV-Q-15626 A): exactly the three states: before INV-T-12486, after it and after INV-T-4982. */
     private val state1 =
         GateState(
             done = "INV-T-4981\n",
@@ -49,7 +49,15 @@ class OperationsGateTest {
             stubSet = OperationsGate.contractOperations(openapi) - "submitPayload" - "receiveApNotification",
             cell = "INV-T-12486",
         )
-    private val allStates = listOf(state1, state2)
+    private val state3 =
+        GateState(
+            done = "INV-T-4981\nINV-T-12486\nINV-T-4982\n",
+            stubSet =
+                OperationsGate.contractOperations(openapi) - "submitPayload" - "receiveApNotification" -
+                    "electAcknowledgementRoute" - "clearAcknowledgementRoute",
+            cell = "INV-T-12486",
+        )
+    private val allStates = listOf(state1, state2, state3)
 
     /** The state selected by the done text alone (equality), or null. */
     private fun stateByDone(done: String?): GateState? = allStates.firstOrNull { it.done == done }
@@ -90,7 +98,8 @@ class OperationsGateTest {
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        // INV-T-4981 has overridden submitPayload; every other operation still answers 501 until INV-T-12486
+        // state 1: only submitPayload is live; state 2 adds receiveApNotification (INV-T-12486); state 3 adds
+        // electAcknowledgementRoute and clearAcknowledgementRoute (INV-T-4982)
         stubs shouldBe stateByDone(doneText)!!.stubSet
     }
 
@@ -135,9 +144,9 @@ class OperationsGateTest {
     @Test
     fun `the task of this service whose operation still answers 501 is not in the done set`() {
         // INV-T-4982 owns receiveApNotification: listing the task while the operation answers 501 fails the gate
-        run(done = "INV-T-4982\n") shouldContain
+        run(done = "INV-T-4982\n", stubSet = stubs + "electAcknowledgementRoute" + "clearAcknowledgementRoute") shouldContain
             "operation electAcknowledgementRoute: task INV-T-4982 is done but the operation still answers 501"
-        run(done = "INV-T-4982\n") shouldContain
+        run(done = "INV-T-4982\n", stubSet = stubs + "clearAcknowledgementRoute" + "clearAcknowledgementRoute") shouldContain
             "operation clearAcknowledgementRoute: task INV-T-4982 is done but the operation still answers 501"
         run(done = "$cell\n", stubSet = stubs + "receiveApNotification") shouldContain
             "operation receiveApNotification: task $cell is done but the operation still answers 501"
@@ -239,6 +248,79 @@ class OperationsGateTest {
     @Test
     fun `the state function returns null for a null cell`() {
         stateOf(state1.done, state1.stubSet, null).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns state 3 for the state 3 triple`() {
+        stateOf(state3.done, state3.stubSet, state3.cell) shouldBe state3
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for the state 3 done text with the state 2 stub set`() {
+        stateOf(state3.done, state2.stubSet, state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for state 3 with electAcknowledgementRoute still a stub`() {
+        stateOf(state3.done, state3.stubSet + "electAcknowledgementRoute", state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for state 3 with clearAcknowledgementRoute still a stub`() {
+        stateOf(state3.done, state3.stubSet + "clearAcknowledgementRoute", state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for the state 2 done text with the state 3 stub set`() {
+        stateOf(state2.done, state3.stubSet, state2.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for the state 3 triple with the cell INV-T-4982`() {
+        stateOf(state3.done, state3.stubSet, "INV-T-4982").shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for the done lines in the order 4981 4982 12486`() {
+        stateOf("INV-T-4981\nINV-T-4982\nINV-T-12486\n", state3.stubSet, state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for a state 3 done text ending with INV-T-49820`() {
+        stateOf("INV-T-4981\nINV-T-12486\nINV-T-49820\n", state3.stubSet, state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for a state 3 done text with CR LF after INV-T-4982`() {
+        stateOf("INV-T-4981\nINV-T-12486\nINV-T-4982\r\n", state3.stubSet, state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for a state 3 done text with a leading space before INV-T-4982`() {
+        stateOf("INV-T-4981\nINV-T-12486\n INV-T-4982\n", state3.stubSet, state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for the state 3 done text plus a line INV-T-4983`() {
+        stateOf(state3.done + "INV-T-4983\n", state3.stubSet, state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for a null done text with the state 3 stub set`() {
+        stateOf(null, state3.stubSet, state3.cell).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for the state 3 triple with a null cell`() {
+        stateOf(state3.done, state3.stubSet, null).shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-18428 the state function returns null for the state 3 done text with a stub set differing in submitPayload`() {
+        // the exact state 3 set already lacks submitPayload (live since INV-T-4981): adding it is a look-alike
+        stateOf(state3.done, state3.stubSet + "submitPayload", state3.cell).shouldBeNull()
+        // and a set lacking any other operation is a look-alike too
+        stateOf(state3.done, state3.stubSet - "setConnectionEntities", state3.cell).shouldBeNull()
     }
 
     @Test
