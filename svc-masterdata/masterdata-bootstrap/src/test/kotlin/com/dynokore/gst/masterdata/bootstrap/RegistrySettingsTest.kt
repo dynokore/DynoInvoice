@@ -25,8 +25,9 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * INV-T-4946, the settings half (INV-Q-10167 A, INV-Q-16977 A): VP-29, VP-38 and VP-65 are written through the
  * `setPolicy` servlet that service-runtime mounts over the service's PolicyWriter, with a test `SetterPermission`
- * (service-runtime 12 decides by permission key, INV-Q-10027). A shorter value is accepted and stored; a lifetime above the default is
- * refused with its POL code and the stored value stays; AUTO_APPLY is stored for the entity it was set for.
+ * (service-runtime 12 decides by permission key, INV-Q-10027). A shorter value is accepted and stored; a lifetime
+ * above the default is refused with its POL code and the stored value stays; AUTO_APPLY is stored for the entity it
+ * was set for.
  */
 class RegistrySettingsTest {
     private val tenant = AtomicReference<TenantId>()
