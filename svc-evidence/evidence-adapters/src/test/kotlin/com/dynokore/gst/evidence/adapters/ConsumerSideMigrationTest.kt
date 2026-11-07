@@ -22,7 +22,7 @@ class ConsumerSideMigrationTest {
     @Test
     fun `the files V1 and the consumer-side migration, executed in order, build the schema the generator builds`() {
         val fromGenerator = scratch { url -> viaGenerator(url, generated) }
-        val fromMigrations = scratch { url -> viaFiles(url, "V1__evidence_schema.sql", CONSUMER_SIDE) }
+        val fromMigrations = scratch { url -> viaFiles(url, "V1__evidence_schema.sql", CONSUMER_SIDE, TESTMODE) }
         assertEqual(fromGenerator, fromMigrations)
     }
 
@@ -30,7 +30,7 @@ class ConsumerSideMigrationTest {
     @Test
     fun `V1 plus the consumer-side migration run by Flyway build the schema the generator builds`() {
         val fromGenerator = scratch { url -> viaGenerator(url, generated) }
-        val fromMigrations = scratch { url -> viaMigrations(url, "V1__evidence_schema.sql", CONSUMER_SIDE) }
+        val fromMigrations = scratch { url -> viaMigrations(url, "V1__evidence_schema.sql", CONSUMER_SIDE, TESTMODE) }
         assertEqual(fromGenerator, fromMigrations)
     }
 
@@ -49,6 +49,18 @@ class ConsumerSideMigrationTest {
         Files.exists(source) shouldBe true
         val marker = "@" + "Disabled"
         Files.readString(source).contains(marker) shouldBe false
+    }
+
+    /** After its leading comment lines the testmode migration equals the generator's upgrade statement, plus `;`. */
+    @Test
+    fun `the testmode migration equals the generator upgrade statement after its comment lines`() {
+        val body =
+            resource(TESTMODE)
+                .lines()
+                .dropWhile { it.startsWith("--") }
+                .joinToString("\n")
+                .trim()
+        body shouldBe OutboxSchema.testModeUpgradeDdl(EvidenceDb.SCHEMA).trim() + ";"
     }
 
     private fun assertEqual(
@@ -252,5 +264,6 @@ class ConsumerSideMigrationTest {
 
     private companion object {
         const val CONSUMER_SIDE = "V3__evidence_consumer_side.sql"
+        const val TESTMODE = "V12__outbox_testmode.sql"
     }
 }
