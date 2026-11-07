@@ -170,4 +170,20 @@ class ListFactsTest {
         missing(ListFactsPolicy.extract(payload(taxCodes = listOf("A".repeat(21))))) shouldBe setOf("categoryCodes")
         complete(ListFactsPolicy.extract(payload(taxCodes = listOf("A".repeat(20))))).categoryCodes.size shouldBe 1
     }
+
+    @Test
+    fun `INV-AC-16320 absent or non-list lines is incomplete and an empty list is complete`() {
+        missing(ListFactsPolicy.extract(payload() - "lines")) shouldBe setOf("categoryCodes")
+        val stringLines = payload() + ("lines" to mapOf("value" to "SR"))
+        missing(ListFactsPolicy.extract(stringLines)) shouldBe setOf("categoryCodes")
+        complete(ListFactsPolicy.extract(payload(taxCodes = emptyList()))).categoryCodes shouldBe emptySet()
+    }
+
+    @Test
+    fun `INV-AC-16320 three-decimal amount is incomplete and trailing zeros are stripped`() {
+        val bad = mapOf("sgdTotalExcludingTax" to "9.123", "sgdTotalTax" to "1.00")
+        missing(ListFactsPolicy.extract(payload(totals = bad))) shouldBe setOf("taxableAmount")
+        val ok = mapOf("sgdTotalExcludingTax" to "9.100", "sgdTotalTax" to "1.00")
+        complete(ListFactsPolicy.extract(payload(totals = ok))).taxableAmount shouldBe BigDecimal("9.1")
+    }
 }
