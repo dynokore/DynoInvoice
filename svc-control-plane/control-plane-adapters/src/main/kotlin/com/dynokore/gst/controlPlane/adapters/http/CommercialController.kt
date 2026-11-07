@@ -2,6 +2,7 @@ package com.dynokore.gst.controlPlane.adapters.http
 
 import com.dynokore.gst.controlPlane.adapters.bundle.CanonicalJson
 import com.dynokore.gst.controlPlane.application.commercial.CallerCredential
+import com.dynokore.gst.controlPlane.application.commercial.CommercialPermission
 import com.dynokore.gst.controlPlane.application.commercial.GetLicence
 import com.dynokore.gst.controlPlane.application.commercial.GetTenantProvisioningRequest
 import com.dynokore.gst.controlPlane.application.commercial.IssueLicence
@@ -15,9 +16,8 @@ import com.dynokore.gst.controlPlane.application.commercial.RecordQualificationC
 import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdministratorInvitation
 import com.dynokore.gst.controlPlane.application.commercial.ReissueInvitationCommand
 import com.dynokore.gst.controlPlane.application.commercial.ReissueResult
-import com.dynokore.gst.controlPlane.application.pack.OperatorRole
-import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
+import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.contract.api.CommercialApi
 import com.dynokore.gst.controlPlane.contract.model.FirstInvitationReissueResponse
 import com.dynokore.gst.controlPlane.contract.model.IssueLicenceRequest
@@ -56,7 +56,7 @@ import java.util.HexFormat
 import java.util.UUID
 
 /**
- * The commercial operations of `commercial.admin` (INV-REQ-906 b1, INV-REQ-1306, TPL-08): managePlan,
+ * The commercial operations (INV-REQ-906 b1, INV-REQ-1306, TPL-08): managePlan,
  * recordQualification, issueLicence, getLicence, provisionTenant, getTenantProvisioningRequest and
  * requestFirstAdministratorInvitationReissue. The other
  * operations of the commercial tag are not overridden here, so the generated interface answers 501 for them;
@@ -70,7 +70,7 @@ class CommercialController(
     private val platform: PlatformTenantBinding,
     private val transactions: TransactionRunner,
     private val runner: OperationRunner,
-    private val roles: OperatorRoles,
+    private val permissions: OperatorPermissions,
     private val managePlan: ManagePlan,
     private val recordQualification: RecordQualification,
     private val provisionTenant: ProvisionTenant,
@@ -150,7 +150,7 @@ class CommercialController(
     override fun getTenantProvisioningRequest(contractReference: String): ResponseEntity<TenantProvisioningResponse> {
         val caller = OperatorCaller.of(principals)
         val actor = caller.principal.actor
-        requireCommercialAdmin(caller)
+        requireKey(caller, CommercialPermission.TENANT_PROVISIONING_REQUEST_VIEW)
         val ref = caller.commandOf { CommercialRef(contractReference) }
         val found = platform.bindPlatform(actor) { transactions.inTransaction { getProvisioning.get(ref) } }
         return ResponseEntity.ok(provisioningOf(found ?: problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)))
@@ -226,14 +226,18 @@ class CommercialController(
     override fun getLicence(licenceRef: String): ResponseEntity<LicenceIssueResponse> {
         val caller = OperatorCaller.of(principals)
         val actor = caller.principal.actor
-        requireCommercialAdmin(caller)
+        requireKey(caller, CommercialPermission.LICENCE_VIEW)
         val ref = caller.commandOf { CommercialRef(licenceRef) }
         val found = platform.bindPlatform(actor) { transactions.inTransaction { getLicence.get(ref) } }
         return ResponseEntity.ok(licenceOf(found ?: problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)))
     }
 
-    private fun requireCommercialAdmin(caller: OperatorCaller) {
-        if (!roles.holds(caller.principal.actor, OperatorRole.COMMERCIAL_ADMIN)) {
+    /** The read is decided by the operation's own permission key (deny by default), never by a role name. */
+    private fun requireKey(
+        caller: OperatorCaller,
+        permissionKey: String,
+    ) {
+        if (!permissions.holds(caller.principal.actor, permissionKey)) {
             problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
         }
     }
