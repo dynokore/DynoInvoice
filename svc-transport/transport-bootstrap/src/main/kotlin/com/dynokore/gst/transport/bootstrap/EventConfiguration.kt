@@ -16,7 +16,8 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(TransportEvents.entries + PlatformEventEntries.entries)
+    fun eventCatalogue(): EventCatalogue =
+        EventCatalogue(TransportEvents.entries + TransportEvents.consumed + PlatformEventEntries.entries)
 }
 
 object TransportEvents {
@@ -30,6 +31,13 @@ object TransportEvents {
             "NetworkDocumentReceived" to "gst.transport.network-document-received.v1",
             "AccessPointRouteChanged" to "gst.transport.access-point-route-changed.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
+
+    /** The one event transport-svc consumes (INV-Q-4993 B): the tenancy profile change, for the issuance mode only. */
+    const val ENTITY_PROFILE_TOPIC = "gst.tenancy.entity-profile-changed.v1"
+    const val ENTITY_PROFILE_TYPE = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
+
+    val consumed: List<CatalogueEntry> =
+        listOf(CatalogueEntry(ENTITY_PROFILE_TYPE, ENTITY_PROFILE_TOPIC, setOf("tenancy-svc"), contentTopic = false))
 
     val entries: List<CatalogueEntry> =
         topicByType.map { (type, topic) ->

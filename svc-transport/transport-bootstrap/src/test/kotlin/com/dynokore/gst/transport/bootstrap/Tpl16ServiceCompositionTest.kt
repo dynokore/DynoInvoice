@@ -39,6 +39,7 @@ class Tpl16ServiceCompositionTest {
             catalogueTypes(context) shouldBe
                 (
                     TransportEvents.entries.map { it.eventType } +
+                        TransportEvents.consumed.map { it.eventType } +
                         PlatformEventCatalogue.ALL.filter { it.topic != null }.map { it.eventType }
                 ).toSet()
             listOf(
@@ -47,6 +48,8 @@ class Tpl16ServiceCompositionTest {
                 PlatformEventCatalogue.AUDIT_ENTRY_RECORDED,
             ).forEach { catalogue.find(it.eventType)!!.producers shouldBe setOf(CatalogueEntry.EVERY_SERVICE) }
             TransportEvents.entries.forEach { catalogue.find(it.eventType)!!.producers shouldBe setOf("transport-svc") }
+            // the one consumed event (INV-Q-4993 B) is produced by tenancy-svc only
+            TransportEvents.consumed.forEach { catalogue.find(it.eventType)!!.producers shouldBe setOf("tenancy-svc") }
         }
     }
 

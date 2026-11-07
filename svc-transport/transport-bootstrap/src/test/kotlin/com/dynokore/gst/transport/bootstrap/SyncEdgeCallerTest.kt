@@ -137,6 +137,10 @@ class SyncEdgeCallerTest {
         return mapOf(
             "POST /internal/v1/transport/payloads" to CallerChecks.Reach(ACCEPTED, body),
             ENTITIES to CallerChecks.Reach(STUB, """{"entityRefs":["E-001"]}"""),
+            // built (INV-T-4982): a named caller reaches the handler once; the end user of this test holds no
+            // `vp-49.set` grant, so the handler itself answers 403 and records nothing
+            ROUTE to CallerChecks.Reach(FORBIDDEN, """{"acknowledgementRoute":"POLLING"}"""),
+            "DELETE $ROUTE_PATH" to CallerChecks.Reach(FORBIDDEN, ""),
         )
     }
 
@@ -250,6 +254,9 @@ class SyncEdgeCallerTest {
         const val INTERNAL = "/internal/v1/"
         const val ACCEPTED = 202
         const val STUB = 501
+        const val FORBIDDEN = 403
+        const val ROUTE_PATH = "/internal/v1/transport/connections/{connectionRef}/acknowledgement-route"
+        const val ROUTE = "PUT $ROUTE_PATH"
         const val ENTITIES = "PUT /internal/v1/transport/connections/{connectionRef}/entities"
         const val UNIQUE = 12
     }
