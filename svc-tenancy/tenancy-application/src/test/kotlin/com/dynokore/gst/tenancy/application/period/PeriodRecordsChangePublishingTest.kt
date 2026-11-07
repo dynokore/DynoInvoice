@@ -298,7 +298,7 @@ private class Setup(
 
 class PeriodRecordsChangePublishingTest {
     @Test
-    fun `generate that inserts records publishes once with the records in force and the version drawn`() {
+    fun `INV-AC-18047 generate that inserts records publishes once with the records in force and the version drawn`() {
         val s = Setup()
         val outcome = s.generation.generate("ENT-1")
         assertTrue(outcome is PeriodOutcome.Done)
@@ -329,7 +329,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `finalPeriod that replaces records publishes once with the set after the change and no superseded record`() {
+    fun `INV-AC-18047 finalPeriod that replaces records publishes once with the set after the change and no superseded record`() {
         val s = Setup()
         s.generation.generate("ENT-1")
         s.recorded.changes.clear()
@@ -352,7 +352,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `finalPeriod repeated with the same date publishes nothing`() {
+    fun `INV-AC-18047 finalPeriod repeated with the same date publishes nothing`() {
         val s = Setup()
         s.generation.generate("ENT-1")
         s.generation.finalPeriod("ENT-1", LocalDate.of(2026, 8, 15))
@@ -362,7 +362,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `applyProposal publishes once with the set after the replacement besides the FilingFrequencyChange`() {
+    fun `INV-AC-18047 applyProposal publishes once with the set after the replacement besides the FilingFrequencyChange`() {
         val s = Setup()
         s.generation.generate("ENT-1")
         s.recorded.changes.clear()
@@ -378,7 +378,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `confirmRecord of a single record publishes nothing`() {
+    fun `INV-AC-18047 confirmRecord of a single record publishes nothing`() {
         val s = Setup()
         s.generation.generate("ENT-1")
         s.recorded.changes.clear()
@@ -390,7 +390,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `a refused confirm publishes nothing`() {
+    fun `INV-AC-18047 a refused confirm publishes nothing`() {
         val s = Setup()
         s.generation.generate("ENT-1")
         s.recorded.changes.clear()
@@ -417,7 +417,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `an Invalid generation publishes nothing`() {
+    fun `INV-AC-18047 an Invalid generation publishes nothing`() {
         val s = Setup(firstEffective = LocalDate.of(2026, 3, 1))
         assertTrue(s.generation.generate("ENT-1") is PeriodOutcome.Invalid)
         assertTrue(s.generation.finalPeriod("ENT-1", LocalDate.of(2026, 8, 15)) is PeriodOutcome.Invalid)
@@ -426,7 +426,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `a Refused generation publishes nothing`() {
+    fun `INV-AC-18047 a Refused generation publishes nothing`() {
         val s = Setup(packAvailable = false)
         assertTrue(s.generation.generate("ENT-1") is PeriodOutcome.Refused)
         assertTrue(s.generation.finalPeriod("ENT-1", LocalDate.of(2026, 8, 15)) is PeriodOutcome.Refused)
@@ -434,7 +434,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `a NotFound entity publishes nothing`() {
+    fun `INV-AC-18047 a NotFound entity publishes nothing`() {
         val s = Setup()
         assertTrue(s.generation.generate("ENT-9") is PeriodOutcome.NotFound)
         assertTrue(s.generation.finalPeriod("ENT-9", LocalDate.of(2026, 8, 15)) is PeriodOutcome.NotFound)
@@ -442,7 +442,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `versions published for one entity strictly rise across the calls`() {
+    fun `INV-AC-18047 versions published for one entity strictly rise across the calls`() {
         val s = Setup()
         s.generation.generate("ENT-1")
         s.generation.generate("ENT-1")
@@ -454,7 +454,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
-    fun `the default publisher is NONE and accepts a change`() {
+    fun `INV-AC-18047 the default publisher is NONE and accepts a change`() {
         PeriodRecordsChangePublisher.NONE.publish(PeriodRecordsChange("ENT-1", 1, emptyList()))
     }
 }
