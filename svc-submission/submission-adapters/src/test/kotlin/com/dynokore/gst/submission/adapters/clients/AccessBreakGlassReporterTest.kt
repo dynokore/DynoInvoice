@@ -57,10 +57,16 @@ class AccessBreakGlassReporterTest {
                 body,
             )
         if (delayMillis > 0) Thread.sleep(delayMillis)
+        // the stub enforces the contract: exactly the members action and target, and a UUID Idempotency-Key
+        val key = exchange.requestHeaders.getFirst("Idempotency-Key")
+        val members = runCatching { mapper.readTree(body).propertyNames().toSet() }.getOrNull()
+        val keyIsUuid = key != null && runCatching { UUID.fromString(key) }.isSuccess
+        val valid = members == setOf("action", "target") && keyIsUuid
+        val code = if (valid) status else 400
         val answer = """{"actionRef":"ACT-1","unlockRef":"BG-1","action":"READINESS"}""".toByteArray()
         runCatching {
             exchange.responseHeaders.add("Content-Type", "application/json")
-            exchange.sendResponseHeaders(status, answer.size.toLong())
+            exchange.sendResponseHeaders(code, answer.size.toLong())
             exchange.responseBody.write(answer)
         }
         exchange.close()
@@ -135,7 +141,11 @@ class AccessBreakGlassReporterTest {
         for (code in listOf(200, 400, 401, 403, 404, 409, 500)) {
             seen.clear()
             status = code
-            shouldThrow<RuntimeException> { report() }
+            if (code == 200) {
+                shouldThrow<BreakGlassReportFailedException> { report() }
+            } else {
+                shouldThrow<RuntimeException> { report() }
+            }
             seen.size shouldBe 1
         }
     }
