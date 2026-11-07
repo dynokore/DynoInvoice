@@ -53,6 +53,7 @@ sealed interface ExemptPurchaseOutcome {
  * `entity-config.manage` on the entity (decided by the authority replica, INV-Q-10027; no role is compared). The
  * election takes effect at once; no approval step is published for it. Not wired in this slice.
  */
+@Suppress("LongParameterList") // the ports of the one operation, as ElectionCommands
 class ExemptPurchaseElections(
     private val tx: TransactionRunner,
     private val entities: EntityStore,

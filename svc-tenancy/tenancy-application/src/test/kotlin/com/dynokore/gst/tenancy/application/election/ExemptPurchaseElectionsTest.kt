@@ -30,9 +30,10 @@ class ExemptPurchaseElectionsTest {
     private val audit = FakeAudit()
     private var actor = u1
 
-    private val service = build { person, ref, action ->
-        person == u1 && ref == "E1" && action == "entity-config.manage"
-    }
+    private val service =
+        build { person, ref, action ->
+            person == u1 && ref == "E1" && action == "entity-config.manage"
+        }
 
     private fun build(authority: ActionAuthority) =
         ExemptPurchaseElections(
@@ -52,10 +53,9 @@ class ExemptPurchaseElectionsTest {
         text: String = basis,
         ref: String = "E1",
         from: LocalDate = october,
-        using: ExemptPurchaseElections = service,
     ): ExemptPurchaseOutcome {
         actor = by
-        return using.record(ref, taxCodes, text, from)
+        return service.record(ref, taxCodes, text, from)
     }
 
     private fun assertNothingStored(outcome: ExemptPurchaseOutcome) {
@@ -107,7 +107,8 @@ class ExemptPurchaseElectionsTest {
 
     @Test
     fun `INV-AC-18132 an authority that throws is Forbidden`() {
-        val outcome = record(using = build { _, _, _ -> error("down") })
+        actor = u1
+        val outcome = build { _, _, _ -> error("down") }.record("E1", codes, basis, october)
         assertInstanceOf(ExemptPurchaseOutcome.Forbidden::class.java, outcome)
         assertNothingStored(outcome)
     }
