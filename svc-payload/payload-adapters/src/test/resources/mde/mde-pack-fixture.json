@@ -1,7 +1,21 @@
 {
   "rows": [
     {
-      "businessTermId": "BT-1",
+      "businessTermId": "IBT-001",
+      "canonicalSource": "canonicalDocument.documentNumber.value",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "NOT_MDE",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): contract canonical/schemas/canonical-version-created-payload.schema.json (platform-contracts e92e0736)",
       "specifications": [
         {
           "specificationVersion": "PINT-SG-1.0",
@@ -16,22 +30,21 @@
       ]
     },
     {
-      "businessTermId": "BT-1-CN",
-      "specifications": [
-        {
-          "specificationVersion": "PINT-SG-1.0",
-          "pintCardinality": "EXACTLY_ONE",
-          "syntaxPath": "/CreditNote/cbc:ID"
-        },
-        {
-          "specificationVersion": "SG-PEPPOL-BIS-1.0",
-          "pintCardinality": "EXACTLY_ONE",
-          "syntaxPath": "/CreditNote/cbc:ID"
-        }
-      ]
-    },
-    {
-      "businessTermId": "BT-2",
+      "businessTermId": "IBT-002",
+      "canonicalSource": "canonicalDocument.documentDate.value",
+      "dataType": "DATE",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "NOT_MDE",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): contract canonical/schemas/canonical-version-created-payload.schema.json (platform-contracts e92e0736)",
       "specifications": [
         {
           "specificationVersion": "PINT-SG-1.0",
@@ -42,9 +55,20 @@
     },
     {
       "businessTermId": "IBT-047",
+      "canonicalSource": "canonicalDocument.parties.value.buyer.identifierValue",
+      "dataType": "IDENTIFIER",
       "documentTypeCodes": [
-        "380"
+        "380",
+        "381"
       ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-485 and INV-REQ-463",
       "specifications": [
         {
           "specificationVersion": "PINT-SG-1.0",
@@ -55,9 +79,20 @@
     },
     {
       "businessTermId": "IBT-030",
+      "canonicalSource": "canonicalDocument.identityTriple.value.supplierId",
+      "dataType": "IDENTIFIER",
       "documentTypeCodes": [
-        "380"
+        "380",
+        "381"
       ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-485 and INV-REQ-463",
       "specifications": [
         {
           "specificationVersion": "PINT-SG-1.0",
@@ -68,53 +103,25 @@
     },
     {
       "businessTermId": "IBT-031",
+      "canonicalSource": "canonicalDocument.identityTriple.value.supplierGstn",
+      "dataType": "IDENTIFIER",
       "documentTypeCodes": [
-        "380"
+        "380",
+        "381"
       ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-485 and INV-REQ-463",
       "specifications": [
         {
           "specificationVersion": "PINT-SG-1.0",
           "pintCardinality": "ZERO_OR_ONE",
           "syntaxPath": "/Invoice/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"
-        }
-      ]
-    },
-    {
-      "businessTermId": "IBT-047",
-      "documentTypeCodes": [
-        "381"
-      ],
-      "specifications": [
-        {
-          "specificationVersion": "PINT-SG-1.0",
-          "pintCardinality": "ZERO_OR_ONE",
-          "syntaxPath": "/CreditNote/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
-        }
-      ]
-    },
-    {
-      "businessTermId": "IBT-030",
-      "documentTypeCodes": [
-        "381"
-      ],
-      "specifications": [
-        {
-          "specificationVersion": "PINT-SG-1.0",
-          "pintCardinality": "ZERO_OR_ONE",
-          "syntaxPath": "/CreditNote/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
-        }
-      ]
-    },
-    {
-      "businessTermId": "IBT-031",
-      "documentTypeCodes": [
-        "381"
-      ],
-      "specifications": [
-        {
-          "specificationVersion": "PINT-SG-1.0",
-          "pintCardinality": "ZERO_OR_ONE",
-          "syntaxPath": "/CreditNote/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"
         }
       ]
     }

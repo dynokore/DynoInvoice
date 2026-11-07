@@ -28,10 +28,11 @@ class PartyProjectionTest {
     private fun nodes(
         xml: String,
         path: String,
-    ): NodeList = TableConformanceGate.select(TableConformanceGate.parse(xml), path)
+        code: String,
+    ): NodeList = TableConformanceGate.select(TableConformanceGate.parse(xml), path, code)
 
     private fun texts(xml: String): List<String> {
-        val all = nodes(xml, "//*[not(*)] | //@*")
+        val all = nodes(xml, "//*[not(*)] | //@*", "380")
         return (0 until all.length).map { all.item(it).textContent }
     }
 
@@ -39,12 +40,18 @@ class PartyProjectionTest {
 
     @Test
     fun `INV-AC-1503 the customer UEN is in IBT-047 and not in IBT-046 for 380 and 381`() {
-        for ((code, root) in listOf("380" to "Invoice", "381" to "CreditNote")) {
+        for (code in listOf("380", "381")) {
             val xml = built(build(code, PartyInput("SG_UEN", "201888888A"))).xml
-            val ibt047 = nodes(xml, "/$root/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID")
+            val ibt047 =
+                nodes(xml, "/Invoice/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID", code)
             ibt047.length shouldBe 1
             ibt047.item(0).textContent shouldBe "201888888A"
-            nodes(xml, "/$root/cac:AccountingCustomerParty/cac:Party/cac:PartyIdentification/cbc:ID").length shouldBe 0
+            nodes(
+                xml,
+                "/Invoice/cac:AccountingCustomerParty/cac:Party/cac:PartyIdentification/cbc:ID",
+                code,
+            ).length shouldBe
+                0
             texts(xml).count { it == "201888888A" } shouldBe 1
         }
     }
@@ -54,24 +61,26 @@ class PartyProjectionTest {
         for (scheme in listOf("sg_uen", "SG_UEN2", "SG_UEN ", "")) {
             for (code in listOf("380", "381")) {
                 val xml = built(build(code, PartyInput(scheme, "201888888A"))).xml
-                nodes(xml, "//cac:AccountingCustomerParty//cbc:CompanyID").length shouldBe 0
+                nodes(xml, "//cac:AccountingCustomerParty//cbc:CompanyID", code).length shouldBe 0
                 texts(xml).none { it.contains("201888888A") } shouldBe true
             }
         }
     }
 
     @Test
-    fun `INV-AC-742 IBT-030 and IBT-031 come from the triple, never from the caller supplier`() {
-        for ((code, root) in listOf("380" to "Invoice", "381" to "CreditNote")) {
+    fun `INV-AC-742 INV-AC-18131 IBT-030 and IBT-031 come from the triple, never from the caller supplier`() {
+        for (code in listOf("380", "381")) {
             val result = built(build(code, PartyInput("SG_UEN", "201888888A")))
             nodes(
                 result.xml,
-                "/$root/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID",
+                "/Invoice/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID",
+                code,
             ).item(0).textContent shouldBe
                 "201912345A"
             nodes(
                 result.xml,
-                "/$root/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
+                "/Invoice/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
+                code,
             ).item(0).textContent shouldBe
                 "M2-1234567-8"
             texts(result.xml).none { it.contains("SSC-CENTRE-9") } shouldBe true
@@ -82,7 +91,7 @@ class PartyProjectionTest {
     }
 
     @Test
-    fun `IdentityTripleAbsent refuses for 380 and 381 whatever the caller supplier holds`() {
+    fun `INV-AC-18131 IdentityTripleAbsent refuses for 380 and 381 whatever the caller supplier holds`() {
         for (code in listOf("380", "381")) {
             build(code, PartyInput("SG_UEN", "201888888A"), identity = null) shouldBe
                 BuildResult.Refused(RefusalReason.IDENTITY_TRIPLE_ABSENT)

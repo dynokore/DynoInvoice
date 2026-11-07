@@ -1,7 +1,9 @@
 package com.dynokore.gst.payload.adapters.projection
 
 import com.dynokore.platform.integrationcanon.xml.HardenedXml
+import org.w3c.dom.Attr
 import org.w3c.dom.Document
+import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 import tools.jackson.databind.JsonNode
@@ -11,28 +13,46 @@ import javax.xml.namespace.NamespaceContext
 import javax.xml.xpath.XPathConstants
 import javax.xml.xpath.XPathFactory
 
-/** One row of the MDE pack that applies to a document: the Business Term and the path. */
+/** One row of the MDE pack that applies to a document: the Business Term, its document type codes and the path. */
 data class GateRow(
     val businessTermId: String,
     val syntaxPath: String,
+    val documentTypeCodes: List<String>,
 )
 
 /**
- * The table conformance gate (INV-Q-7106 A item 4), fails closed. The rows that apply to a document of type code T and
- * specification version S are those whose documentTypeCodes contain T by equality and that have a specifications entry
- * with specificationVersion equal to S. It returns the failures by name; an empty list is a pass.
+ * The table conformance gate (INV-Q-7106 A item 4, INV-Q-18099 A), fails closed. The rows that apply to a document of
+ * type code T and specification version S are those whose documentTypeCodes contain T by equality and that have a
+ * specifications entry with specificationVersion equal to S. It returns the failures by name; an empty list is a pass.
  */
 object TableConformanceGate {
     private const val CBC = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
     private const val CAC = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+    private const val INVOICE_NS = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+    private const val CREDIT_NOTE_NS = "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2"
 
-    /** A namespace context for exactly the prefixes cbc and cac. */
-    private val namespaces =
+    private fun rootNamespace(typeCode: String): String? =
+        when (typeCode) {
+            "380" -> INVOICE_NS
+            "381" -> CREDIT_NOTE_NS
+            else -> null
+        }
+
+    private fun rootName(typeCode: String): String? =
+        when (typeCode) {
+            "380" -> "Invoice"
+            "381" -> "CreditNote"
+            else -> null
+        }
+
+    /** Exactly three prefixes: cbc, cac and root (bound from T, never read from the document); others are null. */
+    private fun namespaces(typeCode: String) =
         object : NamespaceContext {
             override fun getNamespaceURI(prefix: String?): String =
                 when (prefix) {
                     "cbc" -> CBC
                     "cac" -> CAC
+                    "root" -> rootNamespace(typeCode) ?: XMLConstants.NULL_NS_URI
                     else -> XMLConstants.NULL_NS_URI
                 }
 
@@ -43,14 +63,24 @@ object TableConformanceGate {
 
     private fun text(node: JsonNode): String? = if (node.isString) node.stringValue() else null
 
+    private fun firstStep(path: String) = path.removePrefix("/").substringBefore('/')
+
+    /** The first step a row's path must have: the Invoice form for a row that lists 380 (alone or with 381). */
+    private fun expectedFirstStep(codes: List<String>): String? =
+        when {
+            codes == listOf("380") || codes.toSet() == setOf("380", "381") -> "Invoice"
+            codes == listOf("381") -> "CreditNote"
+            else -> null
+        }
+
     /**
-     * GAP (reported): the root element of a UBL document is in the Invoice-2 or CreditNote-2 namespace, and an
-     * unprefixed step of an XPath 1.0 path selects no-namespace elements only, so `/Invoice/...` with a context of
-     * exactly cbc and cac selects nothing. Provisional until the owner rules: the root step is matched by local-name().
+     * Evaluates a path for the type code T: the first step `Invoice` is replaced by `CreditNote` for 381, and the first
+     * step is rewritten to `root:<step>`; nothing else is rewritten.
      */
     fun select(
         document: Document,
         path: String,
+        typeCode: String,
     ): NodeList {
         val xpath =
             XPathFactory
@@ -61,12 +91,12 @@ object TableConformanceGate {
                         true,
                     )
                 }.newXPath()
-        xpath.namespaceContext = namespaces
-        val rooted =
-            Regex(
-                "^/([A-Za-z]+)(/|$)",
-            ).replace(path) { "/*[local-name()='${it.groupValues[1]}']${it.groupValues[2]}" }
-        return xpath.evaluate(rooted, document, XPathConstants.NODESET) as NodeList
+        xpath.namespaceContext = namespaces(typeCode)
+        val step = firstStep(path)
+        val rest = path.removePrefix("/").removePrefix(step)
+        val mapped = if (typeCode == "381" && step == "Invoice") "CreditNote" else step
+        val rewritten = if (mapped == "Invoice" || mapped == "CreditNote") "/root:$mapped$rest" else path
+        return xpath.evaluate(rewritten, document, XPathConstants.NODESET) as NodeList
     }
 
     fun parse(xml: String): Document =
@@ -82,51 +112,63 @@ object TableConformanceGate {
         fixture.path("rows").flatMap { row ->
             val types = row.path("documentTypeCodes").mapNotNull { text(it) }
             if (documentTypeCode !in types) return@flatMap emptyList()
-            row
-                .path(
-                    "specifications",
-                ).filter { it.path("specificationVersion").asString() == specificationVersion }
-                .map {
-                    GateRow(row.path("businessTermId").asString(), it.path("syntaxPath").asString())
-                }
+            row.path("specifications").filter { text(it.path("specificationVersion")) == specificationVersion }.map {
+                GateRow(text(row.path("businessTermId")).orEmpty(), text(it.path("syntaxPath")).orEmpty(), types)
+            }
         }
 
     fun check(
         xml: String,
+        typeCode: String,
         rows: List<GateRow>,
     ): List<String> {
         val failures = mutableListOf<String>()
         if (rows.isEmpty()) failures += "(d) no row applies to the document"
         val document = parse(xml)
-        val root = document.documentElement.localName
+        val root = document.documentElement
+        if (root.namespaceURI != rootNamespace(typeCode) || root.localName != rootName(typeCode)) {
+            failures += "(e) the root is {${root.namespaceURI}}${root.localName}, type $typeCode needs " +
+                "{${rootNamespace(typeCode)}}${rootName(typeCode)}"
+        }
         val selectedBy = linkedMapOf<Node, MutableList<GateRow>>()
         for (row in rows) {
-            val first = row.syntaxPath.removePrefix("/").substringBefore('/')
-            if (first !=
-                root
-            ) {
+            val expected = expectedFirstStep(row.documentTypeCodes)
+            if (firstStep(row.syntaxPath) != expected) {
                 failures +=
-                    "(c) row ${row.businessTermId} path ${row.syntaxPath} starts with $first, " +
-                    "the document root is $root"
+                    "(c) row ${row.businessTermId} path ${row.syntaxPath} has first step ${firstStep(
+                        row.syntaxPath,
+                    )}, " +
+                    "expected $expected for ${row.documentTypeCodes}"
+                continue
             }
-            val nodes = select(document, row.syntaxPath)
+            val nodes = select(document, row.syntaxPath, typeCode)
             if (nodes.length == 0) failures += "(a) row ${row.businessTermId} path ${row.syntaxPath} selects no node"
             for (i in 0 until nodes.length) selectedBy.getOrPut(nodes.item(i)) { mutableListOf() }.add(row)
         }
-        val leaves = leaves(document.documentElement)
-        for (leaf in leaves) {
-            val by = selectedBy[leaf].orEmpty()
-            if (by.size != 1) {
-                failures += "(b) leaf ${describe(leaf)} is selected by ${by.size} rows ${by.map { it.businessTermId }}"
-            }
-        }
-        for (node in selectedBy.keys) {
-            if (node !in leaves) failures += "(b) a row selects ${describe(node)}, which is no leaf the builder wrote"
-        }
+        failures += leafFailures(leaves(root), selectedBy)
         return failures
     }
 
-    private fun leaves(element: org.w3c.dom.Element): Set<Node> {
+    private fun leafFailures(
+        leaves: Set<Node>,
+        selectedBy: Map<Node, List<GateRow>>,
+    ): List<String> {
+        val out = mutableListOf<String>()
+        for (leaf in leaves) {
+            val by = selectedBy[leaf].orEmpty()
+            if (by.size !=
+                1
+            ) {
+                out += "(b) leaf ${describe(leaf)} is selected by ${by.size} rows ${by.map { it.businessTermId }}"
+            }
+        }
+        for (node in selectedBy.keys) {
+            if (node !in leaves) out += "(b) a row selects ${describe(node)}, which is no leaf the builder wrote"
+        }
+        return out
+    }
+
+    private fun leaves(element: Element): Set<Node> {
         val out = linkedSetOf<Node>()
         val attributes = element.attributes
         for (i in 0 until attributes.length) {
@@ -136,7 +178,7 @@ object TableConformanceGate {
         var childElements = 0
         var child = element.firstChild
         while (child != null) {
-            if (child is org.w3c.dom.Element) {
+            if (child is Element) {
                 childElements++
                 out += leaves(child)
             }
@@ -150,8 +192,8 @@ object TableConformanceGate {
         val names = mutableListOf<String>()
         var n: Node? = node
         while (n != null && n !is Document) {
-            names += if (n is org.w3c.dom.Attr) "@${n.name}" else n.nodeName
-            n = if (n is org.w3c.dom.Attr) n.ownerElement else n.parentNode
+            names += if (n is Attr) "@${n.name}" else n.nodeName
+            n = if (n is Attr) n.ownerElement else n.parentNode
         }
         return "/" + names.reversed().joinToString("/") + " = '" + node.textContent + "'"
     }

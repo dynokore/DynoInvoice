@@ -16,6 +16,14 @@ val bindingKernel: Configuration by configurations.creating {
     isCanBeResolved = true
 }
 
+// The pinned platform-contracts bundle: its rules/schemas/mde-pack-contents.schema.json is staged for the fixture
+// schema test (INV-T-7178, INV-Q-18101 A). Test time only.
+val contractsBundle: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+
 // The xjc tool (INV-Q-7106 A): a build-time dependency on its own resolvable configuration, on no compile or runtime classpath.
 val xjc: Configuration by configurations.creating {
     isCanBeConsumed = false
@@ -56,6 +64,7 @@ dependencies {
     implementation(libs.saxon.he)
     implementation(libs.jakarta.xml.bind.api)
     implementation(libs.jaxb.runtime)
+    contractsBundle(variantOf(libs.platformContracts.bundle) { artifactType("zip") })
     xjc(libs.jaxb.xjc)
     xjc(libs.jaxb.runtime) // xjc 4 loads the JAXB implementation from its own class path
     implementation(libs.springBoot.starterWeb)
@@ -76,6 +85,7 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
     testImplementation(libs.platform.konsistRules)
@@ -322,3 +332,21 @@ tasks.named("compileKotlin") { dependsOn(ublGenerationTasks) }
 tasks.named("compileJava") { dependsOn(ublGenerationTasks) }
 
 tasks.named("check") { dependsOn(verifyXsdManifest, verifyXsdSets, verifyNoGeneratedSources) }
+
+// INV-T-7178 (INV-Q-18101 A): the MDE pack schema from the pinned bundle, staged for MdePackFixtureSchemaTest.
+val stageMdeSchema =
+    tasks.register<Sync>("stageMdeSchema") {
+        from(zipTree(contractsBundle.singleFile)) { include("rules/schemas/mde-pack-contents.schema.json") }
+        into(layout.buildDirectory.dir("mde-schema"))
+    }
+
+tasks.withType<Test>().configureEach {
+    dependsOn(stageMdeSchema)
+    systemProperty(
+        "gst.mde.schema",
+        layout.buildDirectory
+            .file("mde-schema/rules/schemas/mde-pack-contents.schema.json")
+            .get()
+            .asFile.path,
+    )
+}

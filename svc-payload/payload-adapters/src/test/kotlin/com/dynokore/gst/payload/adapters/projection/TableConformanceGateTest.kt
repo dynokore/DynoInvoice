@@ -17,6 +17,7 @@ class TableConformanceGateTest {
         )
     private val spec = "PINT-SG-1.0"
     private val registry = DocumentBuilderRegistry.standard()
+    private val partyTerms = setOf("IBT-030", "IBT-031", "IBT-047")
     private val input =
         PartyIdentifierInput(
             PartyInput("SG_UEN", "201888888A"),
@@ -35,35 +36,41 @@ class TableConformanceGateTest {
 
     private fun rows(code: String) = TableConformanceGate.applyingRows(fixture, code, spec)
 
+    // The builder writes the three party terms only; IBT-001 and IBT-002 rows also apply (GAP reported).
+    private fun partyRows(code: String) = rows(code).filter { it.businessTermId in partyTerms }
+
     private fun failures(
         code: String,
-        rows: List<GateRow> = rows(code),
+        rows: List<GateRow> = partyRows(code),
         xml: String = xml(code),
-    ) = TableConformanceGate.check(xml, rows)
+    ) = TableConformanceGate.check(xml, code, rows)
 
-    private val ibt047 = "/Invoice/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
+    private fun row(id: String) = partyRows("380").first { it.businessTermId == id }
+
+    private fun starts(
+        code: String,
+        rule: String,
+        vararg rows: GateRow,
+    ) = failures(code, partyRows(code) + rows).any { it.startsWith("($rule)") }
 
     @Test
-    fun `INV-AC-1503 ConformanceGate passes for 380 and 381 over the fixture rows`() {
-        rows("380").size shouldBe 3
-        rows("381").size shouldBe 3
+    fun `INV-AC-1503 ConformanceGate passes for 380 and 381 over the party rows`() {
+        partyRows("380").size shouldBe 3
+        partyRows("381").size shouldBe 3
         failures("380") shouldBe emptyList()
         failures("381") shouldBe emptyList()
     }
 
     @Test
-    fun `ConformanceGate fails on a UEN written at IBT-046 instead of IBT-047`() {
-        val wrong =
-            xml("380")
-                .replace("PartyLegalEntity", "PartyIdentification", ignoreCase = false)
-        // both supplier and buyer legal entities moved; the leaf at IBT-046 is selected by no row
+    fun `ConformanceGate rule b fails on a UEN written at IBT-046 instead of IBT-047`() {
+        val wrong = xml("380").replace("PartyLegalEntity", "PartyIdentification")
         failures("380", xml = wrong).any { it.startsWith("(b)") } shouldBe true
     }
 
     @Test
     fun `ConformanceGate rule a fails on a look-alike path`() {
         val rows =
-            rows("380").map {
+            partyRows("380").map {
                 if (it.businessTermId ==
                     "IBT-047"
                 ) {
@@ -77,21 +84,36 @@ class TableConformanceGateTest {
 
     @Test
     fun `ConformanceGate rule b fails on a written leaf whose row is removed`() {
-        val rows = rows("380").filter { it.businessTermId != "IBT-031" }
-        failures("380", rows).any { it.startsWith("(b)") && "selected by 0 rows" in it } shouldBe true
+        failures(
+            "380",
+            partyRows("380").filter { it.businessTermId != "IBT-031" },
+        ).any { "selected by 0 rows" in it } shouldBe
+            true
     }
 
     @Test
-    fun `ConformanceGate rule b fails when a leaf is selected by two rows`() {
-        val rows = rows("380")
-        val twice = rows + rows.first { it.businessTermId == "IBT-030" }
-        failures("380", twice).any { it.startsWith("(b)") && "selected by 2 rows" in it } shouldBe true
+    fun `ConformanceGate rule b fails when a leaf is selected by two rows under a look-alike id`() {
+        starts("380", "b", row("IBT-030").copy(businessTermId = "IBT-030-1")) shouldBe true
     }
 
     @Test
-    fun `ConformanceGate rule c fails on a CreditNote path in a row of type 380`() {
-        val rows = rows("380") + GateRow("IBT-047", ibt047.replace("/Invoice/", "/CreditNote/"))
-        failures("380", rows).any { it.startsWith("(c)") } shouldBe true
+    fun `ConformanceGate rule c fails on a wrong first step, each alone`() {
+        val p = row("IBT-030").syntaxPath
+        val creditNote = p.replaceFirst("/Invoice/", "/CreditNote/")
+        starts("380", "c", row("IBT-030").copy(syntaxPath = creditNote, documentTypeCodes = listOf("380"))) shouldBe
+            true
+        starts("381", "c", row("IBT-030").copy(syntaxPath = p, documentTypeCodes = listOf("381"))) shouldBe true
+        starts("380", "c", row("IBT-030").copy(syntaxPath = creditNote)) shouldBe true
+        starts("381", "c", row("IBT-030").copy(syntaxPath = creditNote)) shouldBe true
+        starts("380", "c", row("IBT-030").copy(syntaxPath = p.replaceFirst("/Invoice/", "/root:Invoice/"))) shouldBe
+            true
+        starts(
+            "380",
+            "c",
+            row("IBT-030").copy(syntaxPath = p.replaceFirst("/Invoice/", "/*[local-name()='Invoice']/")),
+        ) shouldBe
+            true
+        starts("380", "c", row("IBT-030").copy(syntaxPath = p.replaceFirst("/Invoice/", "/*/"))) shouldBe true
     }
 
     @Test
@@ -102,8 +124,20 @@ class TableConformanceGateTest {
     }
 
     @Test
-    fun `ConformanceGate applies only rows with the document type code by equality`() {
-        rows("380").all { it.syntaxPath.startsWith("/Invoice/") } shouldBe true
-        rows("381").all { it.syntaxPath.startsWith("/CreditNote/") } shouldBe true
+    fun `ConformanceGate rule e fails on a root in no namespace, a look-alike namespace or the other root`() {
+        val invoice = xml("380")
+        val ns = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+        val noNs = invoice.replace(" xmlns:ns3=\"$ns\"", "").replace(Regex("<(/?)[A-Za-z0-9]+:Invoice"), "<$1Invoice")
+        failures("380", xml = noNs.replace("xmlns=\"$ns\"", "")).any { it.startsWith("(e)") } shouldBe true
+        failures("380", xml = invoice.replace("$ns", "$ns.1")).any { it.startsWith("(e)") } shouldBe true
+        failures("381", xml = invoice).any { it.startsWith("(e)") } shouldBe true
+    }
+
+    @Test
+    fun `ConformanceGate select rewrites only the first step`() {
+        val doc = TableConformanceGate.parse(xml("381"))
+        val p = row("IBT-030").syntaxPath
+        TableConformanceGate.select(doc, p, "381").length shouldBe 1
+        TableConformanceGate.select(doc, p, "380").length shouldBe 0
     }
 }
