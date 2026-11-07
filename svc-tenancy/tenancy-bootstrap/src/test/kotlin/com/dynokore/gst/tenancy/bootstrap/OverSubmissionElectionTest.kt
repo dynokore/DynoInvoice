@@ -48,7 +48,7 @@ class OverSubmissionElectionTest {
         option: String,
         roles: Set<String>,
     ) = env.inTx {
-        env.writer.asRoles(roles).setPolicy(
+        env.writer.asRoles(env.tenants, roles).setPolicy(
             SetPolicyCommand(
                 vp21,
                 PolicyScope.entity(env.tenants.current(), entity.entityRef),
