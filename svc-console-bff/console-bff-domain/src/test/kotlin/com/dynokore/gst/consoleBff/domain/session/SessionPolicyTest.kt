@@ -41,6 +41,13 @@ class SessionPolicyTest {
     }
 
     @Test
+    fun `INV-AC-14455 now before openedAt alone is ClockSkew`() {
+        val opened = t0.plusSeconds(100)
+        policy.evaluate(opened, t0.plusSeconds(50), t0.plusSeconds(60)) shouldBe SessionVerdict.ClockSkew
+        policy.evaluate(opened, t0.plusSeconds(50), opened.minusNanos(1)) shouldBe SessionVerdict.ClockSkew
+    }
+
+    @Test
     fun `INV-AC-14455 invalid limits are refused`() {
         shouldThrow<IllegalArgumentException> { SessionPolicy(Duration.ZERO, absolute) }
         shouldThrow<IllegalArgumentException> { SessionPolicy(Duration.ofSeconds(-1), absolute) }
