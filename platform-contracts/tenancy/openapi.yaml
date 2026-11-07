@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.32.0
+  version: 1.33.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -756,6 +756,100 @@ paths:
                       filingDueDate: "2026-04-30"
                       filingDate: "2026-05-06"
                       extensionGranted: true
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/calendar-pack-deltas:
+    get:
+      operationId: getCalendarPackDelta
+      summary: Dry-run delta of a staged calendar pack for one entity (INV-REQ-88)
+      description: >-
+        The dry-run delta of FR-AG.18: the periods of the entity whose filing due date moves under the staged calendar pack
+        release named by packIdentifier and version, each with its old and its new filing due date. The operation is read-only,
+        writes nothing and publishes no event; it computes the delta on demand from the periods stored now and the staged
+        calendar pack release, so it is current at the time of the call. The caller must hold the permission
+        calendar-pack-delta.view on the entity (decided per request, never a role name); 403 when it does not. 404 when the
+        pair names no staged calendar pack release or the entity is unknown. 400 for a missing or blank parameter, a limit
+        outside 1 to 500 and an invalid or expired cursor.
+
+
+        The list pages by cursor (API-18): limit defaults to 100 and is at most 500 (a larger value is refused with 400);
+        cursor is opaque and integrity-protected, bound to the principal, filters and sort that produced it, and valid for
+        at least 24 hours (another filter, another principal or an expired cursor is refused with 400); the order is
+        periodRef ascending, which is total because a period reference is unique within an entity; nextCursor is omitted on
+        the last page; there is no offset and no total count. An entity none of whose periods moves gets an empty items.
+      tags:
+      - periods
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - FR-AG.18
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: packIdentifier
+        in: query
+        required: true
+        description: The identifier of the staged calendar pack release.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+        example: SG-GST-CALENDAR
+      - name: version
+        in: query
+        required: true
+        description: The version of the staged calendar pack release.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+        example: 2026.2.0
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          maximum: 500
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The periods whose filing due date moves, ordered by periodRef ascending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarPackDeltaResponse'
+              examples:
+                default:
+                  value:
+                    entityRef: ENT-3F2A9C
+                    packIdentifier: SG-GST-CALENDAR
+                    version: 2026.2.0
+                    items:
+                    - periodRef: 2026Q2
+                      oldFilingDueDate: "2026-07-31"
+                      newFilingDueDate: "2026-08-14"
         "400":
           $ref: '#/components/responses/Error'
         "401":
@@ -5492,6 +5586,45 @@ components:
         extensionGranted:
           type: boolean
           description: A flag, not a fifth state; true with any state (INV-REQ-85 b4).
+    CalendarPackDeltaItem:
+      type: object
+      required:
+      - periodRef
+      - oldFilingDueDate
+      - newFilingDueDate
+      properties:
+        periodRef:
+          type: string
+          maxLength: 64
+        oldFilingDueDate:
+          type: string
+          format: date
+        newFilingDueDate:
+          type: string
+          format: date
+    CalendarPackDeltaResponse:
+      type: object
+      required:
+      - entityRef
+      - packIdentifier
+      - version
+      - items
+      properties:
+        entityRef:
+          type: string
+          maxLength: 64
+        packIdentifier:
+          type: string
+          maxLength: 64
+        version:
+          type: string
+          maxLength: 64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CalendarPackDeltaItem'
+        nextCursor:
+          type: string
     PeriodRecordListResponse:
       type: object
       required:

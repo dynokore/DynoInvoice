@@ -214,3 +214,10 @@ SCHEME_HANDLER	enum_value	schemas/certification-status-changed-payload.schema.js
 # INV-T-18121 adds two rows (INV-REQ-369), bound to the schema: ElectionRequest.taxCodes and ElectionRequest.basis.
 ElectionRequest.taxCodes	schema_property	openapi.yaml	INV-REQ-369
 ElectionRequest.basis	schema_property	openapi.yaml	INV-REQ-369
+# INV-T-16825 adds the calendar pack delta rows (INV-REQ-88).
+getCalendarPackDelta	operation	openapi.yaml	INV-REQ-88
+CalendarPackDeltaResponse.items	schema_property	openapi.yaml	INV-REQ-88
+CalendarPackDeltaResponse.nextCursor	schema_property	openapi.yaml	INV-REQ-88
+CalendarPackDeltaItem.periodRef	schema_property	openapi.yaml	INV-REQ-88
+CalendarPackDeltaItem.oldFilingDueDate	schema_property	openapi.yaml	INV-REQ-88
+CalendarPackDeltaItem.newFilingDueDate	schema_property	openapi.yaml	INV-REQ-88

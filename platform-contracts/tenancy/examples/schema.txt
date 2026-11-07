@@ -47,3 +47,4 @@
 ../openapi.yaml#/components/schemas/CertifySandboxRequest certify-sandbox-request-*.json
 ../openapi.yaml#/components/schemas/CertificationResponse certification-response-*.json
 ../schemas/period-records-changed-payload.schema.json period-records-changed-*.json
+../openapi.yaml#/components/schemas/CalendarPackDeltaResponse calendar-pack-delta-response-*.json

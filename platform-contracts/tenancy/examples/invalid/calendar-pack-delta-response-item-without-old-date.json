@@ -1,0 +1,11 @@
+{
+  "entityRef": "ENT-3F2A9C",
+  "packIdentifier": "SG-GST-CALENDAR",
+  "version": "2026.2.0",
+  "items": [
+    {
+      "periodRef": "2026Q2",
+      "newFilingDueDate": "2026-08-14"
+    }
+  ]
+}
