@@ -31,6 +31,9 @@ interface CounterpartyRepository {
         recordedAt: Instant,
     ): CounterpartyVersion
 
+    /** The current version of every counterparty of the tenant, lowest party reference first (reads only). */
+    fun allCurrent(): List<CounterpartyVersion>
+
     /** The versions of [party] above [afterVersion], ascending, at most [limit]; empty when it has none. */
     fun history(
         party: PartyRef,

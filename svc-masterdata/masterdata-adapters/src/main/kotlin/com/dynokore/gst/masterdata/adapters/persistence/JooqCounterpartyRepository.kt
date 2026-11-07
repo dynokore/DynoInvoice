@@ -68,6 +68,14 @@ class JooqCounterpartyRepository(
         return reader.load(party, last)
     }
 
+    override fun allCurrent(): List<CounterpartyVersion> =
+        dsl
+            .select(COUNTERPARTY.PARTY_REF, COUNTERPARTY.LAST_VERSION)
+            .from(COUNTERPARTY)
+            .orderBy(COUNTERPARTY.PARTY_REF)
+            .fetch()
+            .mapNotNull { reader.load(PartyRef(it.value1().column("party_ref")), it.value2().column("last_version")) }
+
     override fun append(
         party: PartyRef,
         content: CounterpartyContent,

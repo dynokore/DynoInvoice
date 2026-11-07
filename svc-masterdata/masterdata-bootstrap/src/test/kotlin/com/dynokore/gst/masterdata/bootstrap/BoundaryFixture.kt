@@ -58,7 +58,7 @@ fun interface TestRoleResolver {
     ): Set<String>
 }
 
-/** The permission keys of the test subjects: the operator holds all four, any other person none. */
+/** The permission keys of the test subjects: the two operators hold all four, any other person none. */
 object TestPermissions {
     private val all =
         setOf(
@@ -68,7 +68,10 @@ object TestPermissions {
             MasterdataPermissions.MASTERDATA_EXCEPTION_RESOLVE,
         )
 
-    fun keysOf(person: String): Set<String> = if (person == OPERATOR) all else emptySet()
+    /** A second person holding the same keys, for the criteria that compare a starter with another principal. */
+    const val OTHER_OPERATOR = "IDN-OPERATOR-2"
+
+    fun keysOf(person: String): Set<String> = if (person == OPERATOR || person == OTHER_OPERATOR) all else emptySet()
 }
 
 /**

@@ -117,12 +117,15 @@ internal class RegistryStub : AutoCloseable {
     private val writes = AtomicInteger()
 
     @Volatile private var down = false
+    private val unavailable = ConcurrentHashMap.newKeySet<String>()
+    private val delays = ConcurrentHashMap<String, Long>()
     private val server: HttpServer =
         HttpServer.create(InetSocketAddress("0.0.0.0", 0), 0).also { server ->
             server.createContext("/") { exchange ->
                 if (exchange.requestMethod == "GET") gets.incrementAndGet() else writes.incrementAndGet()
                 val value = exchange.requestURI.path.removePrefix("/lookup/")
-                val answer = if (down) Answer(UNAVAILABLE, "") else answers[value] ?: Answer(NOT_FOUND, NOT_FOUND_BODY)
+                delays[value]?.let { Thread.sleep(it) }
+                val answer = if (down || value in unavailable) Answer(UNAVAILABLE, "") else answers[value] ?: Answer(NOT_FOUND, NOT_FOUND_BODY)
                 val bytes = answer.body.toByteArray()
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(answer.status, if (bytes.isEmpty()) -1 else bytes.size.toLong())
@@ -144,6 +147,19 @@ internal class RegistryStub : AutoCloseable {
 
     fun notFound(value: String) {
         answers.remove(value)
+    }
+
+    /** The register is unreachable for [value] only (a 503), the others answer as configured. */
+    fun unavailable(value: String) {
+        unavailable += value
+    }
+
+    /** The answer for [value] comes [millis] late. */
+    fun delay(
+        value: String,
+        millis: Long,
+    ) {
+        delays[value] = millis
     }
 
     fun down(enabled: Boolean) {
