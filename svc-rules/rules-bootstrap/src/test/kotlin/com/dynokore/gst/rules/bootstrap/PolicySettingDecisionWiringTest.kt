@@ -53,7 +53,7 @@ class PolicySettingDecisionWiringTest {
             )
 
     @Test
-    fun `INV-AC-18450 the production context holds exactly one AuthorityReplica and a PolicyWriter and no role resolver bean`() {
+    fun `INV-AC-18450 the context holds one AuthorityReplica and no role resolver bean`() {
         runner().run { context ->
             context.startupFailure?.let { throw it }
             context.getBeansOfType(AuthorityReplica::class.java).size shouldBe 1
@@ -61,8 +61,10 @@ class PolicySettingDecisionWiringTest {
             context.getBeansOfType(PolicyWriter::class.java).keys shouldBe setOf("policyWriter")
             // by name: the type left the platform surface (INV-T-10128); a bean counts by any type in its hierarchy
             context.beanDefinitionNames
-                .filter { name -> context.getType(name)?.let(::typeNames)?.any { it.endsWith(".PolicyRoleResolver") } == true }
-                .shouldBeEmpty()
+                .filter { name ->
+                    context.getType(name)?.let(::typeNames)?.any { it.endsWith(".PolicyRoleResolver") } ==
+                        true
+                }.shouldBeEmpty()
         }
     }
 
@@ -80,8 +82,12 @@ class PolicySettingDecisionWiringTest {
     }
 
     private fun typeNames(type: Class<*>): Set<String> =
-        generateSequence(listOf(type)) { level -> level.flatMap { listOfNotNull(it.superclass) + it.interfaces }.ifEmpty { null } }
-            .flatten()
+        generateSequence(listOf(type)) { level ->
+            level
+                .flatMap {
+                    listOfNotNull(it.superclass) + it.interfaces
+                }.ifEmpty { null }
+        }.flatten()
             .map { it.name }
             .toSet()
 }
