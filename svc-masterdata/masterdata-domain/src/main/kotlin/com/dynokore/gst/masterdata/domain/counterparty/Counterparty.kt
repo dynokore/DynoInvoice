@@ -70,4 +70,6 @@ data class CounterpartyVersion(
     val version: Long,
     val recordedAt: Instant,
     val content: CounterpartyContent,
+    /** The import whose apply wrote this version; null for every other write (INV-REQ-833 b2). */
+    val importId: String? = null,
 )

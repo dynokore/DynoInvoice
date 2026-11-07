@@ -32,6 +32,15 @@ class ApiRefusal(
     val detail: String? = null,
 ) : RuntimeException("${code.code}: ${detail ?: code.title}")
 
+/**
+ * The repeat answer of a FAILED record (INV-Q-18032): the envelope stored with the record, with the status and headers
+ * of its code; never a new envelope and never a second run.
+ */
+class StoredFailure(
+    val code: ClosedErrorCode,
+    val body: String,
+) : RuntimeException("${code.code}: stored failure of a FAILED record", null, false, false)
+
 /** A refusal with a masterdata catalogue code (MDM-005, answered 422), rendered by the service-runtime renderer. */
 class MasterdataRefusal(
     val code: MasterdataErrorCode,
@@ -145,5 +154,17 @@ class ApiRefusalAdvice {
         const val BULK_CAP = 5000
         val CAPPED_LISTS = setOf("docUuids", "documents", "rows")
         const val MALFORMED_DETAIL = "The request does not match the published contract."
+    }
+}
+
+/** Renders [StoredFailure]: the stored envelope with the status and headers of its code (INV-Q-18032). */
+@RestControllerAdvice
+class StoredFailureAdvice {
+    @ExceptionHandler(StoredFailure::class)
+    fun stored(failure: StoredFailure): ResponseEntity<String> {
+        val problem = Problems.render(failure.code, UUID.randomUUID().toString())
+        val headers = HttpHeaders()
+        problem.headers.forEach { (name, value) -> headers.add(name, value) }
+        return ResponseEntity.status(problem.status).headers(headers).body(failure.body)
     }
 }

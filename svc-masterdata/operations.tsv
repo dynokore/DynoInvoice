@@ -3,9 +3,9 @@ operation	configureIdentityTriple	INV-T-4942	done
 operation	confirmIdentityTripleChange	INV-T-4942	done
 operation	resolveCounterparty	INV-T-4943	done
 operation	bulkResolveCounterparty	INV-T-4944	done
-operation	importCounterparties	INV-T-4944	open
-operation	dryRunCounterpartyImport	INV-T-4944	open
-operation	getCounterpartyImportDryRun	INV-T-4944	open
+operation	importCounterparties	INV-T-4944	done
+operation	dryRunCounterpartyImport	INV-T-4944	done
+operation	getCounterpartyImportDryRun	INV-T-4944	done
 operation	runGapReport	INV-T-4944	done
 operation	getGapReport	INV-T-4944	done
 operation	sendCounterpartyRequest	INV-T-4945	open
@@ -18,7 +18,7 @@ operation	testConnection	INV-T-4947	open
 operation	rotateCredential	INV-T-4947	open
 operation	resolveMasterDataGap	INV-T-4943	done
 operation	getRegisterAndRates	INV-T-4947	open
-operation	getImportRecord	INV-T-4944	open
+operation	getImportRecord	INV-T-4944	done
 operation	getCounterpartyHistory	INV-T-4943	done
 operation	recordIngestedCounterparty	INV-T-4943	done
 operation	getNetworkRegistration	INV-T-4946	done

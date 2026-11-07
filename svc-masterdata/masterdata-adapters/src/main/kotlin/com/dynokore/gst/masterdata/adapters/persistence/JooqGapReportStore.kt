@@ -15,6 +15,7 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
+import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -121,5 +122,21 @@ class JooqGapReportStore(
                 )
             }
         return GapReportResult(rows, node.get("notChecked").values().map { it.asString() })
+    }
+
+    override fun failRunningBefore(before: Instant): Int {
+        val at = clock.instant().atOffset(ZoneOffset.UTC)
+        val envelope = Problems.render(ClosedErrorCode.INTERNAL_ERROR, UUID.randomUUID().toString()).body
+        return dsl
+            .update(GAP_REPORT)
+            .set(GAP_REPORT.STATE, RecordState.FAILED.name)
+            .set(GAP_REPORT.COMPLETED_AT, at)
+            .set(GAP_REPORT.ERROR, DSL.value(envelope).cast(SQLDataType.JSONB))
+            .set(GAP_REPORT.UPDATED_AT, at)
+            .set(GAP_REPORT.VERSION, GAP_REPORT.VERSION.plus(1L))
+            .where(
+                GAP_REPORT.STATE.eq(RecordState.RUNNING.name),
+                GAP_REPORT.STARTED_AT.lt(before.atOffset(ZoneOffset.UTC)),
+            ).execute()
     }
 }

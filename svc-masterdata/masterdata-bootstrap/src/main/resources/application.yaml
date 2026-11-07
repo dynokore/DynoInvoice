@@ -22,6 +22,7 @@ service-runtime:
     runs-reprocessing: false                        # masterdata-svc runs no pack-activation reprocessing (INV-Q-4485)
   idempotency.schema: masterdata                   # the API-15 key store of the mounted setPolicy (INV-Q-9649 A)
   datasource.credential: db/masterdata_runtime          # the runtime login only; read through SecretStore on every new connection
+  jobs.retention: P30D                              # how long finished job runs are kept (at least the schedule interval plus the tolerance); the migration runner writes the same value to the job-retention row
 management:
   server.port: 8081                                 # API-33: health, metrics and diagnostics only on the management port
   endpoints.web:
@@ -35,6 +36,9 @@ management:
       live.include: livenessState
       ready.include: readinessState,vault,db,eventLoops   # own schema, event loops and vault only (FR-AH.17)
 logging.structured.format.console: ecs             # STK-35
+masterdata:
+  long-command.sweep-cron: "0 */5 * * * *"          # six-field cron of the long-command-sweep job, evaluated in UTC; no default in code
+  long-command.max-run: PT15M                      # a RUNNING gap report, dry run or import older than this is finalised FAILED
 gst:
   service: masterdata-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
@@ -46,3 +50,7 @@ inv:
     platform-scoped-tables:
       - masterdata.write_installation_setting
       - masterdata.config_purge_tenant
+      - masterdata.shedlock                         # JobSchema.platformScopedTables("masterdata")
+      - masterdata.job_retention
+  masterdata:
+    job-scheduling.enabled: true                    # INV-Q-16793 A: fire the registered jobs on their cron; the boundary tests set it false

@@ -3,6 +3,7 @@ package com.dynokore.gst.masterdata.adapters.persistence
 import com.dynokore.platform.configresolver.ConfigSchema
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.serviceruntime.http.IdempotencySchema
+import com.dynokore.platform.serviceruntime.jobs.JobSchema
 import com.dynokore.platform.tenancykernel.TenantRlsMigration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -25,6 +26,7 @@ class GeneratedMigrationsTest {
     private val registry = "V202611061020__create_registry_lookups.sql"
     private val outboxTestMode = "V202611061030__outbox_testmode.sql"
     private val gapReportAndImport = "V202611071000__create_gap_report_and_import.sql"
+    private val jobTables = "V202611071010__create_job_tables.sql"
 
     private fun migration(name: String): String =
         checkNotNull(
@@ -47,6 +49,14 @@ class GeneratedMigrationsTest {
         BLANK_CODE_POINTS.fold(text) { acc, cp ->
             acc.replace(String(Character.toChars(cp)), "\\u" + "%04X".format(Locale.ROOT, cp))
         }
+
+    @Test
+    fun `the job tables migration is the DDL service-runtime generates for the masterdata schema`() {
+        assertEquals(
+            JobSchema.ddl("masterdata", "masterdata_runtime", "masterdata_sys").trim(),
+            body(migration(jobTables)),
+        )
+    }
 
     @Test
     fun `the outbox migration is the DDL outbox-and-queue generates for the masterdata schema`() {
