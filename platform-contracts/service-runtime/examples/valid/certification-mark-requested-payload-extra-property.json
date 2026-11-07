@@ -1,0 +1,4 @@
+{
+  "trigger": "NEW_TRAIN",
+  "note": "extra property is allowed"
+}

@@ -21,3 +21,4 @@ submission	schemas/compliance-alert-values-measured-payload.schema.json
 service-runtime	schemas/tenant-wide-evidence-integrity-failed-payload.schema.json
 service-runtime	schemas/installation-status-changed-payload.schema.json
 service-runtime	schemas/tenant-wide-archive-volume-measured-payload.schema.json
+service-runtime	schemas/certification-mark-requested-payload.schema.json

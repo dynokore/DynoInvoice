@@ -54,3 +54,4 @@ schemas/installation-status-changed-payload.schema.json	installationRef	NONE
 schemas/tenant-wide-archive-volume-measured-payload.schema.json	tenantRef	NONE
 schemas/tenant-wide-archive-volume-measured-payload.schema.json	bytes	NONE
 schemas/tenant-wide-archive-volume-measured-payload.schema.json	measuredAt	NONE
+schemas/certification-mark-requested-payload.schema.json	trigger	NONE

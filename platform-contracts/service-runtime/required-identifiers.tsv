@@ -121,3 +121,5 @@ installationRef	property	schemas/installation-status-changed-payload.schema.json
 tenantRef	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	INV-REQ-878
 bytes	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	INV-REQ-878
 measuredAt	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	INV-REQ-878
+trigger	property	schemas/certification-mark-requested-payload.schema.json	INV-REQ-1226
+NEW_TRAIN	enum_value	schemas/certification-mark-requested-payload.schema.json	INV-REQ-1226

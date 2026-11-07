@@ -15,3 +15,4 @@
 ../schemas/tenant-wide-evidence-integrity-failed-payload.schema.json tenant-wide-evidence-integrity-failed-payload-*.json
 ../schemas/installation-status-changed-payload.schema.json installation-status-changed-payload-*.json
 ../schemas/tenant-wide-archive-volume-measured-payload.schema.json tenant-wide-archive-volume-measured-payload-*.json
+../schemas/certification-mark-requested-payload.schema.json certification-mark-requested-payload-*.json

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/certification-mark-requested-payload.schema.json",
+  "title": "CertificationMarkRequestedPayload",
+  "description": "Payload of the CertificationMarkRequested event (class: platform, INV-REQ-1226). The schema is owned by service-runtime. The event is an internal request of tenancy-svc to mark every certified entity of every tenant stale; it is written under the platform tenant with the platform entity. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "trigger": {
+      "type": "string",
+      "description": "What caused the request.",
+      "enum": [
+        "NEW_TRAIN"
+      ]
+    }
+  },
+  "required": [
+    "trigger"
+  ],
+  "additionalProperties": true
+}
