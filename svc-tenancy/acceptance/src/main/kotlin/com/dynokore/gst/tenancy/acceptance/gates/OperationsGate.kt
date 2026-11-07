@@ -256,7 +256,8 @@ internal object Assignments {
             of("INV-T-4929", "FilingFrequencyChanged") +
             of("INV-T-4930", "PeriodExtended", "PeriodDueDateChanged") +
             of("INV-T-4933", "InstallationStatusChanged", "PlanLimitExceeded") +
-            of("INV-T-16564", "PeriodRecordsChanged")
+            of("INV-T-16564", "PeriodRecordsChanged") +
+            of("INV-T-16409", "CertificationStatusChanged")
 
     fun of(kind: String): Map<String, String> =
         when (kind) {

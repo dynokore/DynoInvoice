@@ -255,6 +255,35 @@ class GatesTest {
     }
 
     @Test
+    @Suppress("ktlint:standard:max-line-length")
+    fun `INV-AC-17922 the CertificationStatusChanged channel row is required, exact and not done without its payload test`() {
+        val (spec, async, table) = ruled()
+        val row = "CertificationStatusChanged\tchannel\tINV-T-16409\tpending\n"
+        Assignments.channels["CertificationStatusChanged"] shouldBe "INV-T-16409"
+
+        fun run(
+            t: String,
+            classes: Set<String> = emptySet(),
+        ) = OperationsGate
+            .check(spec, async, t, OperationsGate.Code(emptySet(), emptySet(), classes))
+            .map { it.subject to it.message }
+        (row in table) shouldBe true
+        run(table).shouldBeEmpty()
+        run(table.replace(row, "")).single() shouldBe
+            ("CertificationStatusChanged" to "the contract holds this channel but the table does not list it")
+        run(table.replace(row, row.replace("CertificationStatusChanged", "CertificationStatusChange")))
+            .map { it.first }
+            .toSet() shouldBe setOf("CertificationStatusChanged", "CertificationStatusChange")
+        val done = table.replace(row, row.replace("pending", "done"))
+        run(done).single() shouldBe
+            (
+                "CertificationStatusChanged" to
+                    "task INV-T-16409 is done but no test class CertificationStatusChangedPayloadSchemaTest exists"
+            )
+        run(done, setOf("CertificationStatusChangedPayloadSchemaTest")).shouldBeEmpty()
+    }
+
+    @Test
     fun `a stub inside a comment or a string is not a 501 stub`() {
         val dir =
             kotlin.io.path
