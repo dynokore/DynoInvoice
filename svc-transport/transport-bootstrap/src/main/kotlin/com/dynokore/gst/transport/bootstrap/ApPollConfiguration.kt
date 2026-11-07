@@ -17,6 +17,7 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.SmartLifecycle
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -85,12 +86,16 @@ class ApPollConfiguration {
 
     @Bean
     fun apPollJobs(
-        runtime: JobRuntime,
+        runtime: ObjectProvider<JobRuntime>,
         properties: ApProperties,
         poll: PollAccessPoint,
         pollLog: ApPollLog,
         clock: Clock,
-    ): ApPollJobs = ApPollJobs(runtime, properties, poll, pollLog, clock)
+    ): ApPollJobs {
+        val polling = properties.adapters.any { it.notifications == NotificationMode.POLLING }
+        // a service with no POLLING adapter needs no job runtime; with one, a missing runtime fails the start
+        return ApPollJobs(if (polling) runtime.getObject() else null, properties, poll, pollLog, clock)
+    }
 
     private companion object {
         const val WORKLOAD_PRINCIPAL = "svc:transport-svc"
@@ -99,7 +104,7 @@ class ApPollConfiguration {
 
 /** Registers the poll jobs and fires them at the poll interval on every instance; the runtime elects the one run. */
 class ApPollJobs(
-    private val runtime: JobRuntime,
+    private val runtime: JobRuntime?,
     properties: ApProperties,
     private val poll: PollAccessPoint,
     private val pollLog: ApPollLog,
@@ -129,7 +134,7 @@ class ApPollJobs(
                     // one run per tick is the job_run key's; a lease would block ticks shorter than itself
                     lockAtLeastFor = Duration.ZERO,
                 )
-            runtime.register(definition) { run(adapter) }
+            checkNotNull(runtime) { "polling needs the job runtime" }.register(definition) { run(adapter) }
         }
     }
 
@@ -142,7 +147,7 @@ class ApPollJobs(
     override fun start() {
         if (scheduler != null || adapters.isEmpty()) return
         val every = checkNotNull(interval).toMillis()
-        runtime.announce()
+        checkNotNull(runtime).announce()
         scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("ap-poll").factory()).also {
                 it.scheduleWithFixedDelay({ jobNames.forEach(::fire) }, every, every, TimeUnit.MILLISECONDS)
@@ -152,7 +157,7 @@ class ApPollJobs(
     @Suppress("TooGenericExceptionCaught")
     private fun fire(job: String) {
         try {
-            runtime.fire(job)
+            checkNotNull(runtime).fire(job)
         } catch (e: Exception) {
             // a failed run is recorded by the job runtime; the next tick polls again from the stored cursor
             log.warn("{} firing failed: {}", job, e.javaClass.simpleName)

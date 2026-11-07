@@ -133,7 +133,8 @@ class ApPollingDbTest {
             c.createStatement().use { s ->
                 s
                     .executeQuery(
-                        "select count(*) from transport.outbox where type like '%AcknowledgementReceived%' and tenant_id = '$tenant'",
+                        "select count(*) from transport.outbox where type like '%AcknowledgementReceived%' " +
+                            "and tenant_id = '$tenant'",
                     ).use {
                         it.next()
                         it.getInt(1)
