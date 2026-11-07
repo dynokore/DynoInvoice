@@ -30,11 +30,6 @@ import java.time.Duration
 import java.time.LocalDate
 import java.util.UUID
 
-/** The edge `ingestion-svc->canonical-svc` gave no answer: timeout, open breaker, full bulkhead or no connection. */
-class CanonicalUnavailableException(
-    message: String,
-) : RuntimeException(message)
-
 /**
  * TPL-07, ARC-08: the `recordDocument` operation of canonical-svc (INV-REQ-806, INV-REQ-1192) over HTTP, through the
  * client generated from the owner's contract (STK-46) and the policy of the sync edge. A replay is canonical-svc's
@@ -82,7 +77,8 @@ class CanonicalRecorderAdapter(
         }
     }
 
-    private fun unavailable(reason: String): Nothing = throw CanonicalUnavailableException("$EDGE: $reason")
+    /** The edge gave no answer (ARC-19: an expected failure is a value, INV-REQ-1193): timeout, open breaker, full bulkhead or no connection. */
+    private fun unavailable(reason: String): CanonicalAnswer = CanonicalAnswer.Unavailable("$EDGE: $reason")
 
     private fun send(tree: JsonNode): CanonicalAnswer =
         try {

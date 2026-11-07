@@ -3,6 +3,7 @@ package com.dynokore.gst.ingestion.acceptance
 import com.dynokore.gst.ingestion.domain.recording.RecordingMapping
 import com.dynokore.gst.ingestion.domain.recording.RecordingOutcome
 import io.kotest.matchers.collections.shouldContainAll
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -40,5 +41,14 @@ class RelayCodesContractTest {
     fun `a relay set holding ING-013 is not covered by the contract`() {
         contractCodes shouldNotContain "ING-013"
         (contractCodes.containsAll(RecordingMapping.RELAY_CODES + "ING-013")) shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-14090 submitTransaction declares ING-023 and the look-alikes are not members`() {
+        contractCodes shouldContain RecordingOutcome.Unavailable.ERROR_CODE
+        contractCodes shouldContain "ING-023"
+        contractCodes shouldNotContain "ING-22"
+        contractCodes shouldNotContain "ING-024"
+        contractCodes shouldNotContain "ing-023"
     }
 }

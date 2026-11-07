@@ -19,6 +19,7 @@ import com.dynokore.platform.serviceruntime.resilience.resilience4j.Resilience4j
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -165,35 +166,38 @@ class CanonicalRecorderAdapterTest {
     }
 
     @Test
-    fun `an answer after the read timeout throws, one request when the edge has no retry`() {
+    fun `INV-AC-14090 an answer after the read timeout is Unavailable, one request when the edge has no retry`() {
         stub.reply = CanonicalStub.Reply(201, delayMillis = 1500)
-        shouldThrow<CanonicalUnavailableException> {
-            withAdapter(registry(timeout = Duration.ofMillis(300))) { it.record(command) }
-        }.message shouldContain "timed out"
+        val answer = withAdapter(registry(timeout = Duration.ofMillis(300))) { it.record(command) }
+        answer.shouldBeInstanceOf<CanonicalAnswer.Unavailable>().reason.let {
+            it shouldContain "ingestion-svc->canonical-svc"
+            it shouldContain "timed out"
+        }
         stub.seen.size shouldBe 1
     }
 
     @Test
-    fun `an edge that retries makes as many requests as its policy allows and then throws`() {
+    fun `INV-AC-14090 an edge that retries makes as many requests as its policy allows and then is Unavailable`() {
         stub.reply = CanonicalStub.Reply(201, delayMillis = 1500)
         val retry =
             RetryProperties(maxAttempts = 2, initialBackoff = Duration.ofMillis(10), maxBackoff = Duration.ofMillis(20))
-        shouldThrow<CanonicalUnavailableException> {
-            withAdapter(registry(timeout = Duration.ofMillis(300), retry = retry)) { it.record(command) }
+        val answer = withAdapter(registry(timeout = Duration.ofMillis(300), retry = retry)) { it.record(command) }
+        answer.shouldBeInstanceOf<CanonicalAnswer.Unavailable>().reason.let {
+            it shouldContain "ingestion-svc->canonical-svc"
+            it shouldContain "timed out"
         }
         stub.seen.size shouldBe 2
     }
 
     @Test
-    fun `a refused connection throws`() {
+    fun `INV-AC-14090 a refused connection is Unavailable`() {
         val closed = ServerSocket(0).use { it.localPort }
         runner("http://127.0.0.1:$closed", registry()).run { context ->
-            shouldThrow<CanonicalUnavailableException> {
-                context
-                    .getBean(
-                        CanonicalRecorder::class.java,
-                    ).record(command)
-            }.message shouldContain "refused"
+            val answer = context.getBean(CanonicalRecorder::class.java).record(command)
+            answer.shouldBeInstanceOf<CanonicalAnswer.Unavailable>().reason.let {
+                it shouldContain "ingestion-svc->canonical-svc"
+                it shouldContain "refused"
+            }
         }
     }
 
