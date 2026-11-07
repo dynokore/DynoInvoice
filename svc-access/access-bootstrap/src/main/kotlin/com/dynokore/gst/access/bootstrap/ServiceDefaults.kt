@@ -3,10 +3,10 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.events.AccessEventCatalogue
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.http.InstallationRole
-import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
-import com.dynokore.gst.access.adapters.http.LiveTenantGrants
 import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
+import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
 import com.dynokore.gst.access.adapters.http.LiveSetterPermission
+import com.dynokore.gst.access.adapters.http.LiveTenantGrants
 import com.dynokore.gst.access.adapters.persistence.jooq.Access
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.grant.EntityDirectory
@@ -16,9 +16,9 @@ import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
-import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.Schema

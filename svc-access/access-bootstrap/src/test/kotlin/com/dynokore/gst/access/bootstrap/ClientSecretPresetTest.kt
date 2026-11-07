@@ -4,17 +4,17 @@ import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
 import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse.Decision
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.platform.configresolver.Actor
 import com.dynokore.platform.configresolver.BusinessDate
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.configresolver.ScopeLevel
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.configresolver.Actor
-import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServlet
@@ -32,7 +32,7 @@ import java.util.UUID
  * VP-77 (INV-REQ-2760): client_secret_basic is available under the default preset, switched off by the
  * regulated-private preset and never switched back on; the ap-callback principal keeps its own method (INV-AC-2770).
  * The write goes through the mounted `setPolicy` servlet over the real PolicyWriter; the roles come from the
- * `PolicyRoleResolver` seam. The preset takes effect 30 days ahead and the test clock is moved past it, so no other
+ * `SetterPermission` seam. The preset takes effect 30 days ahead and the test clock is moved past it, so no other
  * test sees it (an installation value cannot be taken back).
  */
 class ClientSecretPresetTest {
@@ -50,7 +50,14 @@ class ClientSecretPresetTest {
         block: (PrincipalKit) -> Unit,
     ) {
         val principals = TestTokenPrincipals(mapOf("token-operator" to EndUserPrincipal(operator, null, emptySet())))
-        var runner = BoundaryFixture.runner().withBean(EndUserPrincipalResolver::class.java, { principals })
+        var runner =
+            BoundaryFixture
+                .runner(
+                    catalogueMatrix = true,
+                    form = "PRIVATE",
+                ).withBean(EndUserPrincipalResolver::class.java, {
+                    principals
+                })
         if (roles != null) runner = runner.withBean(SetterPermission::class.java, { roles })
         runner.run { context ->
             context.startupFailure?.let { throw it }
@@ -137,7 +144,7 @@ class ClientSecretPresetTest {
             val effective = effectiveOf(kit)
             val response = setPreset(kit.context, "REGULATED_PRIVATE", effective)
             assertThat(response.status).isEqualTo(403)
-            assertThat(response.contentAsString).contains("SRT-004")
+            assertThat(response.contentAsString).contains("POL-004")
             assertThat(stored(kit, effective.plusDays(1))).doesNotContain("REGULATED_PRIVATE")
         }
 
@@ -150,8 +157,9 @@ class ClientSecretPresetTest {
             assertThat(production).isInstanceOf(LiveSetterPermission::class.java)
             val key = "vp-77.set"
             // positive control: the same subject holds the key at the level TENANT
-            assertThat(production.holds(Actor(subject), kit.tenant, ScopeLevel.TENANT, kit.tenant.toString(), null, key))
-                .isTrue()
+            assertThat(
+                production.holds(Actor(subject), kit.tenant, ScopeLevel.TENANT, kit.tenant.toString(), null, key),
+            ).isTrue()
             assertThat(production.holds(Actor(subject), kit.tenant, ScopeLevel.INSTALLATION, null, null, key)).isFalse()
             assertThat(production.holds(Actor(subject), TenantId.PLATFORM, ScopeLevel.INSTALLATION, null, null, key))
                 .isFalse()

@@ -8,10 +8,10 @@ import com.dynokore.gst.access.application.link.LinkPasscodeSettings
 import com.dynokore.gst.access.contract.model.VerifySignatoryLinkRequest
 import com.dynokore.gst.access.domain.link.LinkRef
 import com.dynokore.platform.configresolver.ScopeLevel
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -55,8 +55,8 @@ class SignedLinkSettingTest {
                 SetterPermission::class.java,
                 {
                     SetterPermission { actor, _, level, _, _, _ ->
- level == ScopeLevel.INSTALLATION && actor.principal == "user:operator"
- }
+                        level == ScopeLevel.INSTALLATION && actor.principal == "user:operator"
+                    }
                 },
             ).run { context ->
                 context.startupFailure?.let { throw it }

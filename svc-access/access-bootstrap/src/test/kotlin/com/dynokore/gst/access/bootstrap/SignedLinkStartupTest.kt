@@ -4,10 +4,10 @@ import com.dynokore.gst.access.adapters.link.PemSealingKeys
 import com.dynokore.gst.access.application.link.OaepPasscodeSealer
 import com.dynokore.gst.access.application.link.PasscodeSealer
 import com.dynokore.platform.configresolver.ScopeLevel
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.configresolver.SetterPermission
 import jakarta.servlet.http.HttpServlet
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -41,8 +41,8 @@ class SignedLinkStartupTest {
             SetterPermission::class.java,
             {
                 SetterPermission { actor, _, level, _, _, _ ->
- level == ScopeLevel.INSTALLATION && actor.principal == "user:operator"
- }
+                    level == ScopeLevel.INSTALLATION && actor.principal == "user:operator"
+                }
             },
         )
 

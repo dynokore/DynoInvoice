@@ -268,7 +268,7 @@ class CatalogueAcceptanceTest {
                     selected = listOf(SelectedOption("TENANT_PRECEDENCE", precedence)),
                     effectiveFrom = LocalDate.now(ZoneId.of("Asia/Singapore")),
                     reason = "precedence",
-                    actor = Actor(admin, setOf("tenant.admin")),
+                    actor = Actor(admin),
                     correlation = CorrelationId("c-4935"),
                     causation = CausationId("c-4935"),
                 )

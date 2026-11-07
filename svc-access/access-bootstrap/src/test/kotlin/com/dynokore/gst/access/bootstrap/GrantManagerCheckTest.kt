@@ -3,11 +3,11 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.http.GrantsController
+import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
 import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
+import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.adapters.http.LiveTenantGrants
 import com.dynokore.gst.access.adapters.http.SoleOperatorController
-import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
-import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
@@ -22,10 +22,10 @@ import com.dynokore.gst.access.domain.role.PermissionDefinition
 import com.dynokore.gst.access.domain.role.PermissionKind
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
-import com.dynokore.platform.configresolver.ScopeLevel
-import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.configresolver.Actor
+import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SetterPermission
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -111,8 +111,11 @@ class GrantManagerCheckTest {
         fun refused(actor: String) = refusals(actor).all { it }
     }
 
-    private fun run(block: (Env) -> Unit) {
-        BoundaryFixture.runner().run { context ->
+    private fun run(
+        catalogue: Boolean = false,
+        block: (Env) -> Unit,
+    ) {
+        BoundaryFixture.runner(catalogueMatrix = catalogue).run { context ->
             context.startupFailure?.let { throw it }
             block(Env(context))
         }
@@ -254,7 +257,16 @@ class GrantManagerCheckTest {
             env.tenants.bind(tenantA, id("IDN-ADMIN")) {
                 assertThat(check(env, env.matrix, live = live).mayManageGrants()).isFalse()
             }
-            assertThat(permission.holds(Actor(id("IDN-ADMIN")), tenantA, ScopeLevel.TENANT, tenantA.toString(), null, ADMIN_KEY)).isFalse()
+            assertThat(
+                permission.holds(
+                    Actor(id("IDN-ADMIN")),
+                    tenantA,
+                    ScopeLevel.TENANT,
+                    tenantA.toString(),
+                    null,
+                    ADMIN_KEY,
+                ),
+            ).isFalse()
         }
 
     @Test
@@ -272,12 +284,19 @@ class GrantManagerCheckTest {
             val bound = env.context.getBean(GrantManagerCheck::class.java)
             assertThat(bound).isNotSameAs(GrantManagerCheck.DENY_ALL).isInstanceOf(LiveGrantManagerCheck::class.java)
             assertThat(env.context.getBean(SetterPermission::class.java)).isInstanceOf(LiveSetterPermission::class.java)
+            // exactly one bean decides the setting permission, and no bean answers with role names
+            assertThat(env.context.getBeansOfType(SetterPermission::class.java)).hasSize(1)
+            val types =
+                env.context.beanDefinitionNames
+                    .mapNotNull { env.context.getType(it) }
+                    .flatMap { type -> generateSequence(type) { it.superclass }.flatMap { listOf(it) + it.interfaces } }
+            assertThat(types.map { it.simpleName }).noneMatch { it.endsWith("PolicyRoleResolver") }
             assertThat(env.refused(id("IDN-NOBODY"))).isTrue()
         }
 
     @Test
     fun `setter permission - tenant admin holds the tenant admin key and not the security officer key`() =
-        run { env ->
+        run(catalogue = true) { env ->
             env.seed(id("IDN-ADMIN"), Role.TENANT_ADMIN)
             assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString())).isTrue()
             assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString(), "vp-44.set")).isFalse()

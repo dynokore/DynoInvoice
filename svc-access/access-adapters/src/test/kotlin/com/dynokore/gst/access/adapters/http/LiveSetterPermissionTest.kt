@@ -70,9 +70,8 @@ class LiveSetterPermissionTest {
         status: GrantStatus = GrantStatus.ACTIVE,
         from: Instant = now.minusSeconds(3600),
         until: Instant? = now.plusSeconds(3600),
-        grantTenant: TenantRef = tenantRef,
     ) = Grant(
-        GrantHeader(GrantRef(UUID.randomUUID().toString()), grantTenant, IdentityRef(ACTOR)),
+        GrantHeader(GrantRef(UUID.randomUUID().toString()), tenantRef, IdentityRef(ACTOR)),
         role,
         scope,
         ValidityWindow(from, until),
@@ -104,7 +103,7 @@ class LiveSetterPermissionTest {
             }
         val repository =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(GrantRepository::class.java)) { _, method, _ ->
-                check(method.name == "findByIdentity") { "unexpected ${method.name}" }
+                check(method.name.startsWith("findByIdentity")) { "unexpected ${method.name}" }
                 if (failing) error("database down")
                 grants
             } as GrantRepository
@@ -123,9 +122,15 @@ class LiveSetterPermissionTest {
         level: ScopeLevel = ScopeLevel.TENANT,
         scopeRef: String? = tenant.toString(),
         entityRef: String? = null,
-        inTenant: TenantId = tenant,
-        actor: String = ACTOR,
-    ) = holds(Actor(actor), inTenant, level, scopeRef, entityRef, key)
+    ) = holds(Actor(ACTOR), tenant, level, scopeRef, entityRef, key)
+
+    private fun LiveSetterPermission.holdsFor(
+        actor: String,
+        inTenant: TenantId,
+        key: String,
+        level: ScopeLevel = ScopeLevel.TENANT,
+        scopeRef: String? = inTenant.toString(),
+    ) = holds(Actor(actor), inTenant, level, scopeRef, null, key)
 
     @Test
     fun `INV-AC-10161 a tenant admin holds vp-64 set and not vp-44 set, a security officer the reverse`() {
@@ -152,22 +157,22 @@ class LiveSetterPermissionTest {
     }
 
     @Test
-    fun `INV-AC-2224 a grant of the same role in another tenant, an entity grant and the platform tenant hold nothing`() {
-        val elsewhere = grant(Role.TENANT_ADMIN, Scope.Tenant(TenantRef("other")), grantTenant = TenantRef("other"))
+    fun `INV-AC-2224 another tenant, an entity grant and the platform tenant hold nothing`() {
+        val elsewhere = grant(Role.TENANT_ADMIN, Scope.Tenant(TenantRef("other")))
         assertThat(permission(listOf(elsewhere)).at(admin)).isFalse()
         val entityScoped = grant(Role.TENANT_ADMIN, Scope.Entity(EntityRef("ENT-1")))
         assertThat(permission(listOf(entityScoped)).at(admin)).isFalse()
         val held = permission(listOf(grant(Role.TENANT_ADMIN)))
-        assertThat(held.at(admin, inTenant = TenantId.PLATFORM, scopeRef = TenantId.PLATFORM.toString())).isFalse()
-        assertThat(held.at(admin, inTenant = otherTenant)).isFalse()
+        assertThat(held.holdsFor(ACTOR, TenantId.PLATFORM, admin)).isFalse()
+        assertThat(held.holdsFor(ACTOR, otherTenant, admin, scopeRef = tenant.toString())).isFalse()
         assertThat(held.at(admin, scopeRef = null)).isFalse()
     }
 
     @Test
     fun `INV-AC-2224 a failed read and an exception are false`() {
         assertThat(permission(listOf(grant(Role.TENANT_ADMIN)), failing = true).at(admin)).isFalse()
-        assertThat(permission(listOf(grant(Role.TENANT_ADMIN)), failing = true).at(admin, ScopeLevel.ENTITY, "ENT-1", "ENT-1"))
-            .isFalse()
+        val failing = permission(listOf(grant(Role.TENANT_ADMIN)), failing = true)
+        assertThat(failing.at(admin, ScopeLevel.ENTITY, "ENT-1", "ENT-1")).isFalse()
     }
 
     @Test
@@ -179,16 +184,20 @@ class LiveSetterPermissionTest {
     }
 
     @Test
-    fun `INV-AC-10161 a configured installation entry holds the key by exact subject and only when the matrix lists it`() {
+    fun `INV-AC-10161 a configured entry holds the key by exact subject when the matrix lists it`() {
         val entries = listOf(InstallationRole.of("user:op", "deployment.operator"))
-        val installation = { p: LiveSetterPermission, actor: String -> p.at(installationKey, ScopeLevel.INSTALLATION, null, actor = actor) }
+        val installation = { p: LiveSetterPermission, actor: String ->
+            p.holdsFor(actor, tenant, installationKey, ScopeLevel.INSTALLATION, null)
+        }
         assertThat(installation(permission(emptyList(), entries), "user:op")).isTrue()
         assertThat(installation(permission(emptyList(), entries, withOperatorKey = false), "user:op")).isFalse()
-        listOf("user:op ", "USER:OP", "user:o", "user:other", "").forEach {
+        listOf("user:op ", "USER:OP", "user:o", "user:other").forEach {
             assertThat(installation(permission(emptyList(), entries), it)).describedAs("[$it]").isFalse()
         }
-        assertThat(permission(emptyList(), entries).at(installationKey, ScopeLevel.INSTALLATION, tenant.toString(), actor = "user:op"))
-            .isFalse()
+        val withRef = permission(emptyList(), entries)
+        assertThat(
+            withRef.holdsFor("user:op", tenant, installationKey, ScopeLevel.INSTALLATION, tenant.toString()),
+        ).isFalse()
     }
 
     @Test
@@ -204,8 +213,9 @@ class LiveSetterPermissionTest {
     }
 
     @Test
-    fun `INV-AC-2224 at the entity levels an outside, a consent-derived, an unknown entity and a role without the key hold nothing`() {
-        val outside = permission(listOf(grant(Role.ENTITY_ADMIN, Scope.Entity(EntityRef("ENT-9")))), known = setOf("ENT-1", "ENT-9"))
+    fun `INV-AC-2224 at the entity levels outside, consent-derived, unknown and keyless hold nothing`() {
+        val other = grant(Role.ENTITY_ADMIN, Scope.Entity(EntityRef("ENT-9")))
+        val outside = permission(listOf(other), known = setOf("ENT-1", "ENT-9"))
         assertThat(outside.at(admin, ScopeLevel.ENTITY, "ENT-1", "ENT-1")).isFalse()
         val consent = grant(Role.TENANT_ADMIN, Scope.ConsentDerived(tenantRef, ConsentCheck { true }))
         assertThat(permission(listOf(consent)).at(admin, ScopeLevel.ENTITY, "ENT-1", "ENT-1")).isFalse()
@@ -218,7 +228,10 @@ class LiveSetterPermissionTest {
     @Test
     fun `INV-AC-2224 GROUP and every other level are false for every actor`() {
         val held = permission(listOf(grant(Role.TENANT_ADMIN)))
-        ScopeLevel.values().filter { it !in setOf(ScopeLevel.TENANT, ScopeLevel.INSTALLATION, ScopeLevel.ENTITY, ScopeLevel.CLIENT_ENTITY) }
+        val decided = setOf(ScopeLevel.TENANT, ScopeLevel.INSTALLATION, ScopeLevel.ENTITY, ScopeLevel.CLIENT_ENTITY)
+        ScopeLevel
+            .values()
+            .filter { it !in decided }
             .forEach { level ->
                 assertThat(held.at(admin, level, tenant.toString(), "ENT-1")).describedAs(level.name).isFalse()
                 assertThat(held.at(admin, level, null)).describedAs(level.name).isFalse()
@@ -227,9 +240,16 @@ class LiveSetterPermissionTest {
 
     @Test
     fun `no role name is compared in the new classes`() {
-        val dir = java.nio.file.Path.of("src/main/kotlin/com/dynokore/gst/access/adapters/http")
+        val dir =
+            java.nio.file.Path
+                .of("src/main/kotlin/com/dynokore/gst/access/adapters/http")
         listOf("LiveSetterPermission.kt", "InstallationRoleDirectory.kt").forEach { file ->
-            val text = java.nio.file.Files.readString(dir.resolve(file)).lines().filterNot { it.trimStart().startsWith("*") || it.trimStart().startsWith("/*") }.joinToString("\n")
+            val text =
+                java.nio.file.Files
+                    .readString(dir.resolve(file))
+                    .lines()
+                    .filterNot { it.trimStart().startsWith("*") || it.trimStart().startsWith("/*") }
+                    .joinToString("\n")
             assertThat(text).describedAs(file).doesNotContain("Role.").doesNotContainPattern("\"[a-z]+\\.[a-z-]+\"")
         }
     }

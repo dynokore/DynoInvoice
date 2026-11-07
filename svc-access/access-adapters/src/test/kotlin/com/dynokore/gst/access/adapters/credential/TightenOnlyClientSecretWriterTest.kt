@@ -86,7 +86,7 @@ class TightenOnlyClientSecretWriterTest {
         listOf(SelectedOption(option, "{}")),
         from,
         "preset",
-        Actor("op", setOf("deployment.operator")),
+        Actor("op"),
         CorrelationId("corr-1"),
         CausationId("cause-1"),
     )

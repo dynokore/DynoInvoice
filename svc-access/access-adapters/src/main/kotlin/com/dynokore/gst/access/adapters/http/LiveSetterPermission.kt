@@ -43,7 +43,7 @@ class LiveSetterPermission(
         return runCatching {
             when {
                 level == ScopeLevel.INSTALLATION && scopeRef == null -> {
-                    installation.rolesOf(subject).any { allows(it, permission) }
+                    installation.rolesHeldBy(subject).any { allows(it, permission) }
                 }
 
                 level == ScopeLevel.TENANT && scopeRef == tenant.toString() -> {
@@ -52,8 +52,8 @@ class LiveSetterPermission(
                     } == true
                 }
 
-                entityRef != null && level in ENTITY_LEVELS && (level == ScopeLevel.ENTITY || scopeRef == entityRef) -> {
-                    entityHolds(subject, tenant, entityRef, permission)
+                isEntityTarget(level, scopeRef, entityRef) -> {
+                    entityHolds(subject, tenant, checkNotNull(entityRef), permission)
                 }
 
                 else -> {
@@ -88,6 +88,12 @@ class LiveSetterPermission(
                 }
         } == true
     }
+
+    private fun isEntityTarget(
+        level: ScopeLevel,
+        scopeRef: String?,
+        entityRef: String?,
+    ): Boolean = entityRef != null && level in ENTITY_LEVELS && (level == ScopeLevel.ENTITY || scopeRef == entityRef)
 
     private fun allows(
         role: Role,
