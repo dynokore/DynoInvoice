@@ -370,6 +370,10 @@ object BoundaryFixture {
     /** A mounted directory with the runtime login password of this database and [signingKey] as the token key. */
     fun mount(signingKey: com.nimbusds.jose.jwk.ECKey?) = TestSecrets.mount(RUNTIME_PASSWORD, signingKey = signingKey)
 
+    /** A mounted directory whose delivery key secret is [deliveryKeyPem] (absent when null). */
+    fun mountWithDeliveryKey(deliveryKeyPem: String?) =
+        TestSecrets.mount(RUNTIME_PASSWORD, deliveryKeyPem = deliveryKeyPem)
+
     /** Removes the published verification keys of earlier tests, so a test can state the exact set (INV-T-8850). */
     fun deleteVerificationKeys() =
         asSuperuser {

@@ -8,6 +8,7 @@ import com.dynokore.gst.access.adapters.http.JournalOutcome
 import com.dynokore.gst.access.adapters.persistence.JooqIdentities
 import com.dynokore.gst.access.adapters.persistence.JooqInstallationFacts
 import com.dynokore.gst.access.adapters.persistence.JooqMappingAcknowledgements
+import com.dynokore.gst.access.application.approval.AcknowledgeMappingUseCase
 import com.dynokore.gst.access.application.approval.ApprovalSettings
 import com.dynokore.gst.access.application.approval.ApproverStandings
 import com.dynokore.gst.access.application.approval.DecideOverrideReleaseUseCase
@@ -20,6 +21,7 @@ import com.dynokore.gst.access.application.approval.MappingAcknowledgements
 import com.dynokore.gst.access.application.approval.ReadInstallationFactUseCase
 import com.dynokore.gst.access.application.approval.ReadMappingAcknowledgementUseCase
 import com.dynokore.gst.access.application.approval.RecordInstallationFactUseCase
+import com.dynokore.gst.access.application.approval.RecordsMappingAcknowledgements
 import com.dynokore.gst.access.application.authorise.Authorise
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.grant.GrantAudit
@@ -97,7 +99,7 @@ class ApprovalUseCases {
     fun identities(dsl: DSLContext): Identities = JooqIdentities(dsl)
 
     @Bean
-    fun mappingAcknowledgements(dsl: DSLContext): MappingAcknowledgements = JooqMappingAcknowledgements(dsl)
+    fun mappingAcknowledgements(dsl: DSLContext): RecordsMappingAcknowledgements = JooqMappingAcknowledgements(dsl)
 
     /** A code is overridable only when the error catalogue holds it, by exact equality, as OVERRIDABLE. */
     @Bean
@@ -139,9 +141,19 @@ class ApprovalUseCases {
     ) = ReadMappingAcknowledgementUseCase(tx, store)
 
     @Bean
+    fun acknowledgeMappingUseCase(
+        tx: TransactionRunner,
+        store: RecordsMappingAcknowledgements,
+        authorise: Authorise,
+        audit: GrantAudit,
+        clock: Clock,
+    ) = AcknowledgeMappingUseCase(tx, store, authorise, audit, clock)
+
+    @Bean
     fun approvalOperations(
         packApproval: DecidePackApprovalUseCase,
         overrideRelease: DecideOverrideReleaseUseCase,
         acknowledgements: ReadMappingAcknowledgementUseCase,
-    ) = ApprovalOperations(packApproval, overrideRelease, acknowledgements)
+        acknowledge: AcknowledgeMappingUseCase,
+    ) = ApprovalOperations(packApproval, overrideRelease, acknowledgements, acknowledge)
 }

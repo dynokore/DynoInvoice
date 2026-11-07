@@ -6,12 +6,14 @@ import com.dynokore.gst.access.adapters.breakglass.ValueConstraintsChain
 import com.dynokore.gst.access.adapters.consent.AgentTenancyConstraints
 import com.dynokore.gst.access.adapters.consent.VariationPointAgentTenancy
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
+import com.dynokore.gst.access.adapters.link.LinkPasscodeConstraints
 import com.dynokore.gst.access.adapters.persistence.JooqLiveConsentProbe
 import com.dynokore.gst.access.adapters.separation.ConflictingPairsConstraints
 import com.dynokore.gst.access.application.consent.AgentScope
 import com.dynokore.gst.access.application.consent.AgentTenancy
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.consent.ScopeItemRequirements
+import com.dynokore.gst.access.application.link.SmsGatewayBinding
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.ValueConstraints
@@ -55,13 +57,16 @@ class AgentTenancyUseCases {
 
     /**
      * The checks `setPolicy` asks of its owning service: VP-73 (INV-Q-3167), the pair of VP-08, VP-74 (INV-REQ-2757
-     * behaviour 4), VP-82 (INV-REQ-9271) and the amount of VP-32 (INV-REQ-1293); no other variation point is checked.
+     * behaviour 4), VP-82 (INV-REQ-9271), the amount of VP-32 (INV-REQ-1293) and VP-75 (INV-REQ-2758); no other
+     * variation point is checked.
      */
     @Bean
     fun valueConstraints(
         catalogue: RoleCatalogue,
         mapper: ObjectMapper,
         dsl: DSLContext,
+        // the default (not bound) is the fail-closed value; Spring injects the bean of SignedLinkUseCases
+        smsGateway: SmsGatewayBinding = SmsGatewayBinding { false },
     ): ValueConstraints =
         ValueConstraintsChain(
             listOf(
@@ -70,6 +75,7 @@ class AgentTenancyUseCases {
                 AgentTenancyConstraints(JooqLiveConsentProbe(dsl)),
                 ConflictingPairsConstraints(catalogue, mapper),
                 OverrideAmountConstraints(mapper),
+                LinkPasscodeConstraints(smsGateway),
             ),
         )
 }

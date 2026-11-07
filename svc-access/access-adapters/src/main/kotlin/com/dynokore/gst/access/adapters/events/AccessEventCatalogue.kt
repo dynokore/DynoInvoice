@@ -16,6 +16,7 @@ import org.yaml.snakeyaml.Yaml
 object AccessEventCatalogue {
     const val SERVICE = "access-svc"
     const val ASYNCAPI_RESOURCE = "gst/contracts/access/asyncapi.yaml"
+    const val TOPICS_RESOURCE = "gst/contracts/event-log/topics.yaml"
 
     /**
      * The scaffold channel the contract keeps only because its removal would be a breaking change (asyncapi header).
@@ -24,7 +25,10 @@ object AccessEventCatalogue {
 
     fun load(): EventCatalogue = build(loadText())
 
-    fun build(asyncApi: String): EventCatalogue {
+    fun build(
+        asyncApi: String,
+        linkProducers: Set<String> = signedLinkProducers(),
+    ): EventCatalogue {
         val own = producedBy(asyncApi)
         val ownTypes = own.map { it.eventType }.toSet()
         val consumed =
@@ -50,7 +54,16 @@ object AccessEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + platform)
+        // SignedLinkRequested is no replica feed and no platform event: its producers are those the event-log topics
+        // file of the pinned bundle lists for access-svc
+        val link =
+            CatalogueEntry(
+                SignedLinkRequestedHandler.TYPE,
+                SignedLinkRequestedHandler.TOPIC,
+                linkProducers,
+                contentTopic = false,
+            )
+        return EventCatalogue(own + consumed + platform + link)
     }
 
     /** A channel message is either inline or a `$ref` to `#/components/messages/<name>`. */
@@ -105,10 +118,34 @@ object AccessEventCatalogue {
         return producers
     }
 
+    /**
+     * The producers of SignedLinkRequested, from `event-log/topics.yaml` of the pinned bundle (INV-Q-17900): the entry
+     * of the topic and type that lists access-svc among its subscribers. A missing entry, a missing subscriber or an
+     * empty or missing `producers` list is an [IllegalStateException]; the set is never empty or a default.
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun signedLinkProducers(topics: String = loadResource(TOPICS_RESOURCE)): Set<String> {
+        val document = Yaml().load<Any?>(topics) as? Map<String, Any?>
+        val entries = checkNotNull(document?.get("topics") as? List<Any?>) { "$TOPICS_RESOURCE has no topics list" }
+        val entry =
+            checkNotNull(
+                entries.filterIsInstance<Map<String, Any?>>().firstOrNull {
+                    it["topic"] == SignedLinkRequestedHandler.TOPIC &&
+                        it["event_type"] == SignedLinkRequestedHandler.TYPE &&
+                        (it["subscribers"] as? List<Any?>).orEmpty().contains(SERVICE)
+                },
+            ) { "$TOPICS_RESOURCE has no entry of ${SignedLinkRequestedHandler.TYPE} that access-svc subscribes to" }
+        val producers = (entry["producers"] as? List<Any?>).orEmpty().map { it.toString() }.toSet()
+        check(producers.isNotEmpty()) { "$TOPICS_RESOURCE lists no producers for ${SignedLinkRequestedHandler.TYPE}" }
+        return producers
+    }
+
     private const val CONSUMED_EVENTS_KEY = "x-consumed-events"
 
-    private fun loadText(): String =
-        checkNotNull(AccessEventCatalogue::class.java.classLoader.getResourceAsStream(ASYNCAPI_RESOURCE)) {
-            "$ASYNCAPI_RESOURCE is not on the classpath"
+    private fun loadText(): String = loadResource(ASYNCAPI_RESOURCE)
+
+    private fun loadResource(name: String): String =
+        checkNotNull(AccessEventCatalogue::class.java.classLoader.getResourceAsStream(name)) {
+            "$name is not on the classpath"
         }.use { it.readBytes().toString(Charsets.UTF_8) }
 }

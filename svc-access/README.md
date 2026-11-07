@@ -61,6 +61,21 @@ in one pass:
   report is counted in `break_glass_report_rejected_total` by reason (INV-T-9172).
 - The simulator image of the tests is named by digest in `access-bootstrap/src/test/resources/simulators.properties`.
 
+## Signed links (INV-T-4940, INV-T-17453)
+
+A signed link is issued only on the event `SignedLinkRequested` (topic `gst.masterdata.signed-link-requested.v1`, ruling
+INV-Q-17416 B); the sender is the system actor `system:access-svc`, never the event's `source`. The passcode is sealed to
+notification-svc's delivery key and travels in a message of its own.
+
+- **Start-up key.** The SecretStore binding `message-delivery-sealing-public-key` holds notification-svc's public key
+  as PEM SubjectPublicKeyInfo. It is read once at start-up. An absent or unreadable secret, a key that is not RSA, or an
+  RSA key shorter than 3072 bits stops the start-up (fail closed).
+- **Property `access.signed-link.sms-gateway-bound`** (ruling INV-Q-17203 A). Exactly `true` or `false`; absent is
+  `false`; any other value (`yes`, `1`, `TRUE`) stops the start-up. `setPolicy` accepts VP-75 SMS_ONLY only when it
+  is `true`.
+- **Rate limit.** The limit on `recordSignatoryAction` is the gateway's (route class `signed-link`,
+  `rate-limits.signed-link-per-link`); access-svc never throttles and never answers 429 (INV-AC-2686).
+
 ## Open items
 
 - INV-AC-1912 (entity-scope row policy) is deferred to INV-T-7520 (INV-Q-7453 option B): its row in `ac-keys.tsv` carries

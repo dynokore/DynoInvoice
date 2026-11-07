@@ -18,6 +18,7 @@ private val HIGH_RISK =
         "signInBreakGlass",
         "resealBreakGlass",
         "recordBreakGlassAction",
+        "recordSignatoryAction",
     )
 
 /**
@@ -40,7 +41,7 @@ internal fun importsReplica(name: String): Boolean = importPackage(name) == REPL
  */
 class HighRiskLiveDecisionTest {
     @Test
-    fun `INV-AC-16548 the marked operations of the contract are exactly the nine access operations`() {
+    fun `INV-AC-16548 the marked operations of the contract are exactly the ten access operations`() {
         val urls =
             ContractDocument::class.java.classLoader
                 .getResources("META-INF/gst/high-risk-operations.tsv")

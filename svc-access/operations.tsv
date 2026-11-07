@@ -25,7 +25,8 @@ operation	openOperatorSession	INV-T-4154	open
 operation	inviteDiagnostics	INV-T-4941	done
 operation	withdrawDiagnosticInvitation	INV-T-4941	done
 operation	issueSignatoryLink	INV-T-4940	open
-operation	verifySignatoryLink	INV-T-4940	open
+operation	recordSignatoryAction	INV-T-17453	done
+operation	verifySignatoryLink	INV-T-17453	done
 operation	unlockBreakGlass	INV-T-4938	done
 operation	signInBreakGlass	INV-T-8853	done
 operation	recordBreakGlassAction	INV-T-4938	done
@@ -34,11 +35,11 @@ operation	runAccessReview	INV-T-15798	open
 operation	closeAccessReview	INV-T-15798	open
 operation	grantConsent	INV-T-4939	done
 operation	withdrawConsent	INV-T-4939	done
-operation	acknowledgeMapping	INV-T-4940	open
+operation	acknowledgeMapping	INV-T-17453	done
 channel	accessAuthorityChanged	INV-T-4934	done
 channel	accessOperatorSessionKeysChanged	INV-T-4154	open
-channel	accessAccessAlertRaised	INV-T-4938	open
-channel	accessMessageRequested	INV-T-4940	open
+channel	accessAccessAlertRaised	INV-T-4938	done
+channel	accessMessageRequested	INV-T-4940	done
 channel	accessExampleHappened	UNASSIGNED	open
 operation	provisionFirstAdministrator	INV-T-8226	done
 operation	provisionInstallationFirstAdministrator	INV-T-8226	done
@@ -51,3 +52,5 @@ operation	getMappingAcknowledgement	INV-T-4936	done
 operation	recordInstallationApproverFact	INV-T-4936	done
 operation	getInstallationApproverFact	INV-T-4936	done
 channel	accessAuthorityHeadObserved	INV-T-9054	open
+operation	requestConsultantGrant	INV-T-15800	open
+operation	decideConsultantGrant	INV-T-15800	open

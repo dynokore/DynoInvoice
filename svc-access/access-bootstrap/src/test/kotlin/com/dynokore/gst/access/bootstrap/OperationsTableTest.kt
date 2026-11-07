@@ -323,9 +323,10 @@ class OperationsTableTest {
         ).anyMatch { "done but no task" in it }
         assertThat(verify(base.map { it.replace("\tINV-T-4934\tdone", "\tINV-T-4934\topen") }))
             .anyMatch { "published by the code but not marked done" in it }
-        val unpublished = "channel\taccessMessageRequested\tINV-T-4940\tdone"
-        assertThat(verify(base.map { if (it.startsWith("channel\taccessMessageRequested")) unpublished else it }))
-            .containsExactly("channel accessMessageRequested: marked done but the code does not publish it")
+        val unpublished = "channel\taccessOperatorSessionKeysChanged\tINV-T-4154\tdone"
+        assertThat(
+            verify(base.map { if (it.startsWith("channel\taccessOperatorSessionKeysChanged")) unpublished else it }),
+        ).containsExactly("channel accessOperatorSessionKeysChanged: marked done but the code does not publish it")
     }
 
     @Test

@@ -227,6 +227,10 @@ class PlatformGrantWriteSurfaceTest {
                 "withdrawDiagnosticInvitation" to false,
                 "issueSignatoryLink" to false,
                 "verifySignatoryLink" to false,
+                "recordSignatoryAction" to false, // the link evidence; WITHDRAW changes a consent, not a role_grant
+                // the two consultant-grant operations of the pinned contract: INV-T-15800 sets the real values
+                "requestConsultantGrant" to false,
+                "decideConsultantGrant" to false,
                 "provisionFirstAdministrator" to true, // ProvisionFirstAdministrator: a PENDING tenant.admin grant
                 "provisionInstallationFirstAdministrator" to true, // the same use case
                 "reissueFirstAdministratorInvitation" to false,

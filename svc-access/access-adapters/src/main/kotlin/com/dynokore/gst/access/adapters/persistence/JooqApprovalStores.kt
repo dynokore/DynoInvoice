@@ -11,8 +11,10 @@ import com.dynokore.gst.access.application.approval.InstallationApproverFact
 import com.dynokore.gst.access.application.approval.InstallationFacts
 import com.dynokore.gst.access.application.approval.MappingAcknowledgement
 import com.dynokore.gst.access.application.approval.MappingAcknowledgements
+import com.dynokore.gst.access.application.approval.RecordsMappingAcknowledgements
 import com.dynokore.gst.access.domain.grant.GranteeKind
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.platform.outboxandqueue.UuidV7
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -39,7 +41,7 @@ class JooqIdentities(
 /** TPL-11. Exact match on the pack version and the client: a look-alike of either finds no row. */
 class JooqMappingAcknowledgements(
     private val dsl: DSLContext,
-) : MappingAcknowledgements {
+) : RecordsMappingAcknowledgements {
     override fun find(
         packVersion: String,
         clientRef: String,
@@ -56,6 +58,25 @@ class JooqMappingAcknowledgements(
                     it.acknowledgedAt.column("acknowledgedAt").toInstant(),
                 )
             }
+
+    /** The first acknowledgement of a pair stays: the unique key turns a second insert into no change. */
+    override fun record(
+        packVersion: String,
+        clientRef: String,
+        by: String,
+        at: Instant,
+    ): MappingAcknowledgement {
+        dsl
+            .insertInto(MAPPING_ACKNOWLEDGEMENT)
+            .set(MAPPING_ACKNOWLEDGEMENT.ID, UuidV7().next(at))
+            .set(MAPPING_ACKNOWLEDGEMENT.PACK_VERSION, packVersion)
+            .set(MAPPING_ACKNOWLEDGEMENT.CLIENT_REF, clientRef)
+            .set(MAPPING_ACKNOWLEDGEMENT.ACKNOWLEDGED_BY, by)
+            .set(MAPPING_ACKNOWLEDGEMENT.ACKNOWLEDGED_AT, at.atOffset(ZoneOffset.UTC))
+            .onConflictDoNothing()
+            .execute()
+        return checkNotNull(find(packVersion, clientRef)) { "the acknowledgement just written is not readable" }
+    }
 }
 
 /**

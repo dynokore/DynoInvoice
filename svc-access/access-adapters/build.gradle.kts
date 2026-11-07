@@ -53,4 +53,17 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
 }
 
+// The event-log topics of the pinned platform-contracts bundle, which access-contract already unpacks: the allowed
+// producers of SignedLinkRequested are read from this one file at start-up (INV-Q-17900), never kept as a constant.
+val topicsFile =
+    rootProject.layout.projectDirectory.file(
+        "access-contract/build/contracts-repo/.bundle/event-log/topics.yaml",
+    )
+val stageEventLogTopics by tasks.registering(Copy::class) {
+    from(topicsFile) { into("gst/contracts/event-log") }
+    into(layout.buildDirectory.dir("generated/contracts"))
+    doFirst { check(topicsFile.asFile.isFile) { "${topicsFile.asFile} is missing: the bundle is not staged" } }
+}
+tasks.processResources { from(stageEventLogTopics) }
+
 tasks.withType<Test>().configureEach { useJUnitPlatform() }

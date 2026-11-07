@@ -30,18 +30,37 @@ object TestSecrets {
             "access.invitation.code-key-version=$INVITATION_KEY_VERSION",
         )
 
+    /** The delivery key pair of notification-svc, generated once for the run: RSA 3072, the shortest accepted. */
+    val deliveryKeyPair: java.security.KeyPair by lazy { rsaKeyPair(3072) }
+
+    fun rsaKeyPair(bits: Int): java.security.KeyPair =
+        java.security.KeyPairGenerator
+            .getInstance("RSA")
+            .apply { initialize(bits) }
+            .generateKeyPair()
+
+    /** PEM SubjectPublicKeyInfo of [key], the form of the secret `message-delivery-sealing-public-key`. */
+    fun pem(key: java.security.PublicKey): String =
+        "-----BEGIN PUBLIC KEY-----\n" +
+            java.util.Base64
+                .getMimeEncoder(64, "\n".toByteArray())
+                .encodeToString(key.encoded) +
+            "\n-----END PUBLIC KEY-----\n"
+
     fun newSigningKey(): ECKey = ECKeyGenerator(Curve.P_256).generate()
 
     fun mount(
         databasePassword: String = "unused-in-composition-tests",
         bindingKey: String = BINDING_KEY,
         signingKey: ECKey? = newSigningKey(),
+        deliveryKeyPem: String? = pem(deliveryKeyPair.public),
     ): Path {
         val root = Files.createTempDirectory("access-secrets")
         write(root, "tenancy/binding-key-current", bindingKey)
         write(root, "access/revocation-cursor-key", CURSOR_KEY)
         write(root, "access/invitation-code-key/$INVITATION_KEY_VERSION", INVITATION_KEY)
         write(root, "db/access_runtime", databasePassword)
+        deliveryKeyPem?.let { write(root, "message-delivery-sealing-public-key", it) }
         signingKey?.let { replaceSigningKey(root, it) }
         root.toFile().deleteOnExit()
         return root

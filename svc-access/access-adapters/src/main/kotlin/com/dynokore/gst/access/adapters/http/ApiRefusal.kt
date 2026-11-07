@@ -30,6 +30,14 @@ class ApiConflict(
     val detail: String,
 ) : RuntimeException(detail)
 
+/**
+ * A signed link that was invalidated (the passcode attempt limit) or revoked: 410 with the catalogue code ACC-004
+ * (INV-AC-2765). The code is not one of the closed service-runtime cases, so the envelope is written here, with the
+ * title the contract's example gives and the severity, disposition and owner of the catalogue row ACC-004; a test
+ * compares those three with the catalogue.
+ */
+class ApiLinkInvalidated : RuntimeException("ACC-004: Signed link invalidated")
+
 /** ARC-19, CS-14: the one place a refusal becomes the API-20 envelope. */
 @RestControllerAdvice
 class ApiRefusalAdvice {
@@ -52,6 +60,32 @@ class ApiRefusalAdvice {
     fun mismatch(failure: MethodArgumentTypeMismatchException): ResponseEntity<String> =
         refuse(ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "${failure.name} is not a valid value"))
 
+    @ExceptionHandler(ApiLinkInvalidated::class)
+    fun invalidated(): ResponseEntity<String> {
+        val body =
+            JsonMapper
+                .builder()
+                .build()
+                .createObjectNode()
+                .apply {
+                    put("type", Problems.typeOf(LINK_INVALIDATED))
+                    put("title", "Signed link invalidated")
+                    put("status", HttpStatus.GONE.value())
+                    put(
+                        "correlationId",
+                        CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
+                    )
+                    put("code", LINK_INVALIDATED)
+                    put("severity", "INFO")
+                    put("disposition", "MANUAL")
+                    put("remediationOwner", "The link's sender")
+                }.toString()
+        return ResponseEntity
+            .status(HttpStatus.GONE)
+            .header(HttpHeaders.CONTENT_TYPE, Problems.CONTENT_TYPE)
+            .body(body)
+    }
+
     @ExceptionHandler(ApiConflict::class)
     fun conflict(conflict: ApiConflict): ResponseEntity<String> {
         val body =
@@ -73,5 +107,9 @@ class ApiRefusalAdvice {
             .status(HttpStatus.CONFLICT)
             .header(HttpHeaders.CONTENT_TYPE, Problems.CONTENT_TYPE)
             .body(body)
+    }
+
+    private companion object {
+        const val LINK_INVALIDATED = "ACC-004"
     }
 }

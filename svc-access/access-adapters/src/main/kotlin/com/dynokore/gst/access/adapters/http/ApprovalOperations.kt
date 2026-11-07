@@ -1,5 +1,7 @@
 package com.dynokore.gst.access.adapters.http
 
+import com.dynokore.gst.access.application.approval.AcknowledgeMappingOutcome
+import com.dynokore.gst.access.application.approval.AcknowledgeMappingUseCase
 import com.dynokore.gst.access.application.approval.DecideOverrideReleaseUseCase
 import com.dynokore.gst.access.application.approval.DecidePackApprovalUseCase
 import com.dynokore.gst.access.application.approval.ReadMappingAcknowledgementUseCase
@@ -15,6 +17,7 @@ import com.dynokore.gst.access.domain.approval.PackVerdict
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import java.math.BigDecimal
 import java.time.ZoneOffset
@@ -28,7 +31,32 @@ class ApprovalOperations(
     private val packApproval: DecidePackApprovalUseCase,
     private val overrideRelease: DecideOverrideReleaseUseCase,
     private val acknowledgements: ReadMappingAcknowledgementUseCase,
+    private val acknowledge: AcknowledgeMappingUseCase,
 ) {
+    /** `acknowledgeMapping`: the caller is the authenticated subject; denied key 403, repeat returns the first. */
+    fun acknowledgeMapping(
+        actor: IdentityRef,
+        packVersion: String,
+        clientRef: String,
+    ): ResponseEntity<AcknowledgeMappingResponse> {
+        val client = reference("clientRef") { EntityRef(clientRef) }
+        return when (val outcome = acknowledge.handle(actor, packVersion, client)) {
+            is AcknowledgeMappingOutcome.Recorded -> {
+                ResponseEntity.status(HttpStatus.CREATED).body(
+                    AcknowledgeMappingResponse(
+                        outcome.acknowledgement.packVersion,
+                        outcome.acknowledgement.clientRef,
+                        outcome.acknowledgement.acknowledgedAt.atOffset(ZoneOffset.UTC),
+                    ),
+                )
+            }
+
+            AcknowledgeMappingOutcome.NotSignatory -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+        }
+    }
+
     fun decidePackApproval(
         entityRef: String,
         authorRef: String,

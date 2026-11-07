@@ -32,22 +32,29 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /** The records a test puts on the topic; the consumer reads them through [EventLogReader] in offset order. */
 class TopicFeed : EventLogReader {
-    private val records = CopyOnWriteArrayList<LogRecord>()
+    private val records = CopyOnWriteArrayList<Pair<String, LogRecord>>()
     private val json = EnvelopeJson()
 
-    fun put(envelope: Envelope) {
-        records += LogRecord(NEXT_OFFSET.incrementAndGet(), json.write(envelope))
+    fun put(
+        envelope: Envelope,
+        topic: String = TOPIC,
+    ) {
+        records += topic to LogRecord(NEXT_OFFSET.incrementAndGet(), json.write(envelope))
     }
 
     fun putRaw(envelopeJson: String) {
-        records += LogRecord(NEXT_OFFSET.incrementAndGet(), envelopeJson)
+        records += TOPIC to LogRecord(NEXT_OFFSET.incrementAndGet(), envelopeJson)
     }
 
     override fun read(
         topic: String,
         afterOffset: Long,
         limit: Int,
-    ): List<LogRecord> = if (topic == TOPIC) records.filter { it.offset > afterOffset }.take(limit) else emptyList()
+    ): List<LogRecord> =
+        records
+            .filter { it.first == topic && it.second.offset > afterOffset }
+            .map { it.second }
+            .take(limit)
 
     companion object {
         const val TOPIC = "gst.platform.break-glass-action-reported.v1"
@@ -69,6 +76,7 @@ class BreakGlassActionReportedTest {
     private val type = "com.dynokore.gst.platform.BreakGlassActionReported.v1"
     private val auditType = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
     private val meter = "break_glass_report_rejected_total"
+    private val breakGlassConsumer = "breakGlassReportConsumer"
 
     private inner class Env(
         val context: AssertableWebApplicationContext,
@@ -339,7 +347,14 @@ class BreakGlassActionReportedTest {
                     "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
                 ),
             ).bufferedReader().readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-        assertThat(lines).isEqualTo(listOf("com.dynokore.gst.access.bootstrap.BreakGlassReportFeed"))
+        // INV-T-17453 adds the feed of SignedLinkRequested; the break-glass feed is still listed once
+        assertThat(lines)
+            .isEqualTo(
+                listOf(
+                    "com.dynokore.gst.access.bootstrap.BreakGlassReportFeed",
+                    "com.dynokore.gst.access.bootstrap.SignedLinkFeed",
+                ),
+            )
     }
 
     @Test
@@ -348,7 +363,12 @@ class BreakGlassActionReportedTest {
             val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
             assertThat(sinks).hasSize(1)
             assertThat(sinks.values.single().javaClass).isNotEqualTo(LoggingRebuildRequiredSink::class.java)
-            assertThat(env.context.getBeansOfType(InboxConsumer::class.java)).hasSize(1)
+            assertThat(
+                env.context
+                    .getBeansOfType(InboxConsumer::class.java)
+                    .keys
+                    .filter { it == breakGlassConsumer },
+            ).hasSize(1)
         }
 
     @Test
@@ -356,7 +376,12 @@ class BreakGlassActionReportedTest {
         runWith(false) { env ->
             val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
             assertThat(sinks.values.map { it.javaClass }).isEqualTo(listOf(LoggingRebuildRequiredSink::class.java))
-            assertThat(env.context.getBeansOfType(InboxConsumer::class.java).size).isEqualTo(1)
+            assertThat(
+                env.context
+                    .getBeansOfType(InboxConsumer::class.java)
+                    .keys
+                    .filter { it == breakGlassConsumer },
+            ).hasSize(1)
         }
 
     @Test
