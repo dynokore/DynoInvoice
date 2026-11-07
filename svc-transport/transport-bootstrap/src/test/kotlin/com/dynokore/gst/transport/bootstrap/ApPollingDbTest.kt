@@ -26,6 +26,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** Makes the cursor store of the running context fail on its next write, as an instance that stops would. */
 internal object CursorFault {
     val failNextWrite = AtomicBoolean(false)
+
+    /** When set, the next cursor read signals [entered] and holds the run until [release] opens. */
+    @Volatile var entered: java.util.concurrent.CountDownLatch? = null
+    @Volatile var release = java.util.concurrent.CountDownLatch(1)
 }
 
 // not @Configuration: component scanning of the test classpath would put it into every other test's context
@@ -39,6 +43,15 @@ internal class CursorFaultConfig {
             ): Any =
                 if (bean is PollCursorStore) {
                     object : PollCursorStore by bean {
+                        override fun read(adapter: AdapterId): String? {
+                            CursorFault.entered?.let {
+                                CursorFault.entered = null
+                                it.countDown()
+                                CursorFault.release.await(HOLD_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                            }
+                            return bean.read(adapter)
+                        }
+
                         override fun write(
                             adapter: AdapterId,
                             cursor: String?,
@@ -79,6 +92,8 @@ internal class TestClockConfig {
         }
 }
 
+private const val HOLD_SECONDS = 30L
+
 /**
  * Leader-elected polling of the AP notifications (INV-REQ-586, INV-Q-9684): two application contexts over one
  * database (the ShedLock election of service-runtime) and the certification-kit AP simulator.
@@ -88,6 +103,8 @@ class ApPollingDbTest {
     fun resetSimulator() {
         ApSimulator.reset()
         CursorFault.failNextWrite.set(false)
+        CursorFault.entered = null
+        CursorFault.release = java.util.concurrent.CountDownLatch(1)
     }
 
     private val tenant = UUID.randomUUID()
@@ -168,7 +185,7 @@ class ApPollingDbTest {
                 check(first.startupFailure == null) { "first context failed: ${first.startupFailure}" }
                 TransportContext
                     .online(other, *overrides, "gst.instance-id=transport-svc-1")
-                    .withUserConfiguration(TestClockConfig::class.java)
+                    .withUserConfiguration(CursorFaultConfig::class.java, TestClockConfig::class.java)
                     .run { second ->
                         check(second.startupFailure == null) { "second context failed: ${second.startupFailure}" }
                         block(Harness(first, adapter, AdapterId("unused")), second)
@@ -197,6 +214,43 @@ class ApPollingDbTest {
         ledgerRows() shouldBe 2
         acknowledgementEvents() shouldBe 1
     }
+
+    @Test
+    fun `INV-AC-9489 two instances firing at once, the lock is taken by one and the other is skipped not leader`(
+        @TempDir dir: Path,
+        @TempDir other: Path,
+    ) = twoInstances(dir, other, *polling()) { a, b ->
+        a.submitOne()
+        val entered = java.util.concurrent.CountDownLatch(1)
+        CursorFault.entered = entered
+        TestClock.now = t0
+        val start = java.util.concurrent.CountDownLatch(1)
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        try {
+            val runs =
+                listOf(a.context, b).map { c ->
+                    pool.submit<FireResult?> {
+                        start.await()
+                        c.getBean(JobRuntime::class.java).fire(job(), t0)[JobTarget.Whole]
+                    }
+                }
+            start.countDown()
+            // the holder is inside its run (cursor read) and keeps the lock; the other instance must be refused
+            entered.await(HOLD_SECONDS, java.util.concurrent.TimeUnit.SECONDS) shouldBe true
+            val finished = runs.filter { it.isDone || waitDone(it) }
+            finished.map { it.get() } shouldBe listOf(FireResult.SKIPPED_NOT_LEADER)
+            CursorFault.release.countDown()
+            runs.map { it.get(HOLD_SECONDS, java.util.concurrent.TimeUnit.SECONDS) }.count { it == FireResult.RAN } shouldBe 1
+        } finally {
+            CursorFault.release.countDown()
+            pool.shutdownNow()
+        }
+        (a.context.polls() + b.polls()) shouldBe 1
+        acknowledgementEvents() shouldBe 1
+    }
+
+    private fun waitDone(f: java.util.concurrent.Future<*>): Boolean =
+        runCatching { f.get(WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS) }.isSuccess
 
     @Test
     fun `INV-AC-1780 a notification seen in two polls gives one ledger row and one event`(
@@ -298,5 +352,6 @@ class ApPollingDbTest {
 
     private companion object {
         const val ID_LENGTH = 12
+        const val WAIT_SECONDS = 10L
     }
 }
