@@ -1,7 +1,7 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
-import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
+import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse.Decision
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.BusinessDate
@@ -13,7 +13,8 @@ import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.configresolver.Actor
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServlet
@@ -41,18 +42,16 @@ class ClientSecretPresetTest {
     /** The preset date, 30 days after the day of the injected clock the code under test and the VP-77 reader run on. */
     private fun effectiveOf(kit: PrincipalKit): LocalDate = BusinessDate.today(kit.clock).plusDays(30)
 
-    private fun resolver(heldAt: ScopeLevel): PolicyRoleResolver =
-        PolicyRoleResolver { actor, _, level, _, _ ->
-            if (actor == operator && level == heldAt) setOf("deployment.operator") else emptySet()
-        }
+    private fun resolver(heldAt: ScopeLevel): SetterPermission =
+        SetterPermission { actor, _, level, _, _, _ -> actor.principal == operator && level == heldAt }
 
     private fun run(
-        roles: PolicyRoleResolver? = null,
+        roles: SetterPermission? = null,
         block: (PrincipalKit) -> Unit,
     ) {
         val principals = TestTokenPrincipals(mapOf("token-operator" to EndUserPrincipal(operator, null, emptySet())))
         var runner = BoundaryFixture.runner().withBean(EndUserPrincipalResolver::class.java, { principals })
-        if (roles != null) runner = runner.withBean(PolicyRoleResolver::class.java, { roles })
+        if (roles != null) runner = runner.withBean(SetterPermission::class.java, { roles })
         runner.run { context ->
             context.startupFailure?.let { throw it }
             block(PrincipalKit(context, grantDays = 120))
@@ -143,17 +142,19 @@ class ClientSecretPresetTest {
         }
 
     @Test
-    fun `the production resolver returns no role at the level INSTALLATION for a holder of deployment operator`() =
+    fun `the production permission holds no key at the level INSTALLATION for a holder of deployment operator`() =
         run { kit ->
             val subject = "user:operator-holder"
             Seeds.grant(kit.context, kit.tenant, SeedSpec(subject, Role.DEPLOYMENT_OPERATOR))
-            val production = kit.context.getBean(PolicyRoleResolver::class.java)
-            assertThat(production).isInstanceOf(TenantPolicyRoleResolver::class.java)
-            // positive control: the same subject holds the role at the level TENANT
-            assertThat(production.rolesOf(subject, kit.tenant, ScopeLevel.TENANT, kit.tenant.toString(), null))
-                .contains("deployment.operator")
-            assertThat(production.rolesOf(subject, kit.tenant, ScopeLevel.INSTALLATION, null, null)).isEmpty()
-            assertThat(production.rolesOf(subject, TenantId.PLATFORM, ScopeLevel.INSTALLATION, null, null)).isEmpty()
+            val production = kit.context.getBean(SetterPermission::class.java)
+            assertThat(production).isInstanceOf(LiveSetterPermission::class.java)
+            val key = "vp-77.set"
+            // positive control: the same subject holds the key at the level TENANT
+            assertThat(production.holds(Actor(subject), kit.tenant, ScopeLevel.TENANT, kit.tenant.toString(), null, key))
+                .isTrue()
+            assertThat(production.holds(Actor(subject), kit.tenant, ScopeLevel.INSTALLATION, null, null, key)).isFalse()
+            assertThat(production.holds(Actor(subject), TenantId.PLATFORM, ScopeLevel.INSTALLATION, null, null, key))
+                .isFalse()
         }
 
     @Test

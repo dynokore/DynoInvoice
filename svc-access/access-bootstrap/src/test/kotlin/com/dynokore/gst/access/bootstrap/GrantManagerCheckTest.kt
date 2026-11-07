@@ -6,7 +6,8 @@ import com.dynokore.gst.access.adapters.http.GrantsController
 import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
 import com.dynokore.gst.access.adapters.http.LiveTenantGrants
 import com.dynokore.gst.access.adapters.http.SoleOperatorController
-import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
+import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
+import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
@@ -23,7 +24,8 @@ import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.configresolver.Actor
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -248,11 +250,11 @@ class GrantManagerCheckTest {
                     failing,
                     Clock.systemUTC(),
                 )
-            val roles = TenantPolicyRoleResolver(live)
+            val permission = LiveSetterPermission(live, env.matrix, InstallationRoleDirectory())
             env.tenants.bind(tenantA, id("IDN-ADMIN")) {
                 assertThat(check(env, env.matrix, live = live).mayManageGrants()).isFalse()
             }
-            assertThat(roles.rolesOf(id("IDN-ADMIN"), tenantA, ScopeLevel.TENANT, tenantA.toString(), null)).isEmpty()
+            assertThat(permission.holds(Actor(id("IDN-ADMIN")), tenantA, ScopeLevel.TENANT, tenantA.toString(), null, ADMIN_KEY)).isFalse()
         }
 
     @Test
@@ -265,42 +267,46 @@ class GrantManagerCheckTest {
         }
 
     @Test
-    fun `the service context binds the live check and the live resolver, never the deny-all`() =
+    fun `the service context binds the live check and the live setter permission, never the deny-all`() =
         run { env ->
             val bound = env.context.getBean(GrantManagerCheck::class.java)
             assertThat(bound).isNotSameAs(GrantManagerCheck.DENY_ALL).isInstanceOf(LiveGrantManagerCheck::class.java)
-            assertThat(env.context.getBean(PolicyRoleResolver::class.java))
-                .isInstanceOf(TenantPolicyRoleResolver::class.java)
+            assertThat(env.context.getBean(SetterPermission::class.java)).isInstanceOf(LiveSetterPermission::class.java)
             assertThat(env.refused(id("IDN-NOBODY"))).isTrue()
         }
 
     @Test
-    fun `policy roles - tenant admin gets exactly tenant admin`() =
+    fun `setter permission - tenant admin holds the tenant admin key and not the security officer key`() =
         run { env ->
             env.seed(id("IDN-ADMIN"), Role.TENANT_ADMIN)
-            assertThat(
-                roles(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString()),
-            ).containsExactly("tenant.admin")
+            assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString())).isTrue()
+            assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString(), "vp-44.set")).isFalse()
         }
 
     @Test
-    fun `policy roles - group scope, other level, other scope reference and revoked grant give the empty set`() =
+    fun `setter permission - group scope, other level, other scope reference and revoked grant hold nothing`() =
         run { env ->
             env.seed(id("IDN-GRP"), Role.TENANT_ADMIN, Scope.Group(GroupRef("GRP-1"), TenantRef(tenantA.toString())))
             env.seed(id("IDN-ADMIN"), Role.TENANT_ADMIN)
             env.seed(id("IDN-REV"), Role.TENANT_ADMIN, status = GrantStatus.REVOKED)
-            assertThat(roles(env, id("IDN-GRP"), ScopeLevel.TENANT, tenantA.toString())).isEmpty()
-            assertThat(roles(env, id("IDN-ADMIN"), ScopeLevel.ENTITY, tenantA.toString())).isEmpty()
-            assertThat(roles(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantB.toString())).isEmpty()
-            assertThat(roles(env, id("IDN-ADMIN"), ScopeLevel.TENANT, null)).isEmpty()
-            assertThat(roles(env, id("IDN-REV"), ScopeLevel.TENANT, tenantA.toString())).isEmpty()
-            assertThat(roles(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString().uppercase())).isEmpty()
+            assertThat(holds(env, id("IDN-GRP"), ScopeLevel.TENANT, tenantA.toString())).isFalse()
+            assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.ENTITY, tenantA.toString())).isFalse()
+            assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantB.toString())).isFalse()
+            assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, null)).isFalse()
+            assertThat(holds(env, id("IDN-REV"), ScopeLevel.TENANT, tenantA.toString())).isFalse()
+            assertThat(holds(env, id("IDN-ADMIN"), ScopeLevel.TENANT, tenantA.toString().uppercase())).isFalse()
         }
 
-    private fun roles(
+    private fun holds(
         env: Env,
         actor: String,
         level: ScopeLevel,
         scopeRef: String?,
-    ): Set<String> = env.context.getBean(PolicyRoleResolver::class.java).rolesOf(actor, tenantA, level, scopeRef, null)
+        key: String = ADMIN_KEY,
+    ): Boolean =
+        env.context.getBean(SetterPermission::class.java).holds(Actor(actor), tenantA, level, scopeRef, null, key)
+
+    private companion object {
+        const val ADMIN_KEY = "vp-64.set"
+    }
 }

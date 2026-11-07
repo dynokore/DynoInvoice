@@ -6,12 +6,11 @@ import com.dynokore.gst.access.domain.role.PermissionDefinition
 import com.dynokore.gst.access.domain.role.PermissionKind
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
-import com.dynokore.platform.configresolver.ScopeLevel
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -31,9 +30,10 @@ class ResealPermissionCheckTest {
         )
 
     private fun check(
-        installationRoles: Set<String>,
+        installationRoles: Set<Role>,
         matrix: PermissionMatrix,
         actor: String? = "user:caller",
+        configuredFor: String = "user:caller",
     ): Boolean {
         val tenants =
             object : TenantContext {
@@ -48,30 +48,28 @@ class ResealPermissionCheckTest {
                 ): T = block()
             }
         val roles =
-            PolicyRoleResolver { _, _, level, _, _ ->
-                if (level == ScopeLevel.INSTALLATION) installationRoles else emptySet()
-            }
+            InstallationRoleDirectory(installationRoles.map { InstallationRole(configuredFor, it) })
         return ResolvedResealPermissionCheck(tenants, roles, matrix).mayReseal()
     }
 
     @Test
     fun `a role that holds the permission is admitted whatever its name`() {
         val granted = matrix(mapOf(Role.PLATFORM_ENGINEER to mapOf(reseal to Allowance.PERMITTED)))
-        assertThat(check(setOf("platform.engineer"), granted)).isTrue()
+        assertThat(check(setOf(Role.PLATFORM_ENGINEER), granted)).isTrue()
     }
 
     @Test
     fun `deployment operator holding only the unlock key is refused`() {
         val unlockOnly = matrix(mapOf(Role.DEPLOYMENT_OPERATOR to mapOf(unlock to Allowance.PERMITTED)))
-        assertThat(check(setOf("deployment.operator"), unlockOnly)).isFalse()
+        assertThat(check(setOf(Role.DEPLOYMENT_OPERATOR), unlockOnly)).isFalse()
     }
 
     @Test
     fun `a platform engineer is refused in the private matrix and a look-alike key does not count`() {
         val private =
             matrix(mapOf(Role.DEPLOYMENT_OPERATOR to mapOf(reseal to Allowance.PERMITTED)))
-        assertThat(check(setOf("platform.engineer"), private)).isFalse()
-        assertThat(check(setOf("deployment.operator"), private)).isTrue()
+        assertThat(check(setOf(Role.PLATFORM_ENGINEER), private)).isFalse()
+        assertThat(check(setOf(Role.DEPLOYMENT_OPERATOR), private)).isTrue()
         listOf("break-glass.reseal ", "break-glass.resealed").forEach { key ->
             val other = Permission(key)
             val lookAlike =
@@ -79,16 +77,20 @@ class ResealPermissionCheckTest {
                     listOf(PermissionDefinition(other, PermissionKind.WRITE)),
                     mapOf(Role.DEPLOYMENT_OPERATOR to mapOf(other to Allowance.PERMITTED)),
                 )
-            assertThat(check(setOf("deployment.operator"), lookAlike)).describedAs(key).isFalse()
+            assertThat(check(setOf(Role.DEPLOYMENT_OPERATOR), lookAlike)).describedAs(key).isFalse()
         }
     }
 
     @Test
-    fun `no role, an unknown role name, no actor and a failing resolver all refuse`() {
+    fun `no role, an unknown role name, no actor and a configured entry for another subject all refuse`() {
         val granted = matrix(mapOf(Role.DEPLOYMENT_OPERATOR to mapOf(reseal to Allowance.PERMITTED)))
         assertThat(check(emptySet(), granted)).isFalse()
-        assertThat(check(setOf("Deployment.Operator", ""), granted)).isFalse()
-        assertThat(check(setOf("deployment.operator"), granted, actor = null)).isFalse()
+        listOf("Deployment.Operator", "", "deployment.operator ").forEach { name ->
+            assertThrows<IllegalArgumentException>(name) { InstallationRole.of("user:caller", name) }
+        }
+        assertThat(check(setOf(Role.DEPLOYMENT_OPERATOR), granted, configuredFor = "user:other")).isFalse()
+        assertThat(check(setOf(Role.DEPLOYMENT_OPERATOR), granted, configuredFor = "USER:CALLER")).isFalse()
+        assertThat(check(setOf(Role.DEPLOYMENT_OPERATOR), granted, actor = null)).isFalse()
     }
 
     @Test

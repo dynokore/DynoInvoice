@@ -11,7 +11,7 @@ import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -52,15 +52,11 @@ class AgentTenancyTest {
                     )
                 },
             ).withBean(
-                PolicyRoleResolver::class.java,
+                SetterPermission::class.java,
                 {
-                    PolicyRoleResolver { actor, _, level, _, _ ->
-                        if (level == ScopeLevel.INSTALLATION && actor == "user:operator") {
-                            setOf("deployment.operator")
-                        } else {
-                            emptySet()
-                        }
-                    }
+                    SetterPermission { actor, _, level, _, _, _ ->
+ level == ScopeLevel.INSTALLATION && actor.principal == "user:operator"
+ }
                 },
             ).run { context ->
                 context.startupFailure?.let { throw it }

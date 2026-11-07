@@ -5,7 +5,8 @@ import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.http.InstallationRole
 import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
 import com.dynokore.gst.access.adapters.http.LiveTenantGrants
-import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
+import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
+import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.adapters.persistence.jooq.Access
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.grant.EntityDirectory
@@ -17,7 +18,7 @@ import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.Schema
@@ -77,18 +78,24 @@ class ServiceDefaults {
         clock: Clock,
     ) = LiveTenantGrants(tenants, tx, grants, clock)
 
+    /** The installation-scope roles of the configured `access.installation-roles`; the property has no default. */
+    @Bean
+    @ConditionalOnMissingBean
+    fun installationRoleDirectory(installation: InstallationRoleProperties) =
+        InstallationRoleDirectory(installation.entries())
+
     /**
-     * The roles `setPolicy` of service-runtime asks for: the live tenant grants at the TENANT level, the configured
-     * `access.installation-roles` at the INSTALLATION level (INV-REQ-2756 item 1, INV-Q-8789 A). The property has no
-     * default: start-up fails when it is absent or an entry is invalid.
+     * The permission `setPolicy` of service-runtime asks for a key `vp-NN.set` (INV-REQ-2756 item 1, INV-Q-10027):
+     * decided from the actor's live grants and the configured installation roles through this service's own matrix.
      */
     @Bean
     @ConditionalOnMissingBean
-    fun policyRoleResolver(
+    fun setterPermission(
         live: LiveTenantGrants,
-        installation: InstallationRoleProperties,
+        matrix: PermissionMatrix,
+        installation: InstallationRoleDirectory,
         directory: EntityDirectory,
-    ): PolicyRoleResolver = TenantPolicyRoleResolver(live, installation.entries(), directory)
+    ): SetterPermission = LiveSetterPermission(live, matrix, installation, directory)
 
     /**
      * The fixed permission set of each of the six machine principal types (INV-REQ-584, INV-Q-8779 A). Built from the

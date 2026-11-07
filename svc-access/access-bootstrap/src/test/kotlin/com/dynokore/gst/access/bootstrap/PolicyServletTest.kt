@@ -38,7 +38,7 @@ class TestTokenPrincipals(
 
 /**
  * INV-AC-2767 through the mounted PolicyCommandServlet (INV-T-4935, ruling INV-Q-8183): the servlet registered by
- * service-runtime at PolicyCommandServlet.MAPPING answers over the real PolicyWriter, the TenantPolicyRoleResolver
+ * service-runtime at PolicyCommandServlet.MAPPING answers over the real PolicyWriter, the LiveSetterPermission
  * binding and the IdempotencyStore on the access schema. The principal comes from a test-only resolver.
  */
 class PolicyServletTest {
@@ -121,6 +121,7 @@ class PolicyServletTest {
     private fun setPolicy(
         context: AssertableWebApplicationContext,
         token: String?,
+        value: String = """["tax.approver","tenant.admin"]""",
     ): MockHttpServletResponse {
         val request = MockHttpServletRequest("POST", "/internal/v1/policies/VP-73")
         request.contentType = "application/json"
@@ -128,7 +129,7 @@ class PolicyServletTest {
         request.addHeader("Idempotency-Key", UUID.randomUUID().toString())
         val today = LocalDate.now(ZoneId.of("Asia/Singapore"))
         request.setContent(
-            """{"scopeLevel":"TENANT","scopeRef":"$tenant","selected":[{"option":"TENANT_PRECEDENCE","value":["tax.approver","tenant.admin"]}],"effectiveDate":"$today","reason":"precedence"}"""
+            """{"scopeLevel":"TENANT","scopeRef":"$tenant","selected":[{"option":"TENANT_PRECEDENCE","value":$value}],"effectiveDate":"$today","reason":"precedence"}"""
                 .toByteArray(),
         )
         val response = MockHttpServletResponse()
@@ -174,6 +175,28 @@ class PolicyServletTest {
             val response = setPolicy(context, "token-entity-admin")
             assertThat(response.status).isGreaterThanOrEqualTo(400)
             assertThat(response.contentAsString).contains("POL-004")
+            assertThat(landing(context)).isEqualTo("tenant.admin")
+        }
+
+    @Test
+    fun `INV-AC-10161 setPolicy answers 200 for a holder of the key and 403 SRT-004 for a non-holder with nothing stored`() =
+        run { context ->
+            setUp(context)
+            val refused = setPolicy(context, "token-nobody")
+            assertThat(refused.status).isEqualTo(403)
+            assertThat(refused.contentAsString).contains("SRT-004")
+            assertThat(landing(context)).isEqualTo("tenant.admin")
+            val accepted = setPolicy(context, "token-admin")
+            assertThat(accepted.status).describedAs(accepted.contentAsString).isEqualTo(200)
+            assertThat(landing(context)).isEqualTo("tax.approver")
+        }
+
+    @Test
+    fun `INV-AC-2224 a holder with a value outside the bounds is refused and the effective value is unchanged`() =
+        run { context ->
+            setUp(context)
+            val response = setPolicy(context, "token-admin", """["tax.approver","no.such.role"]""")
+            assertThat(response.status).describedAs(response.contentAsString).isGreaterThanOrEqualTo(400)
             assertThat(landing(context)).isEqualTo("tenant.admin")
         }
 }

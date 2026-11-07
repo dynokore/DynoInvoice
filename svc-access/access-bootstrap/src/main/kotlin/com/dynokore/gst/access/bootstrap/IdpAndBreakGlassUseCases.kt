@@ -6,6 +6,7 @@ import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
 import com.dynokore.gst.access.adapters.events.BreakGlassSessionChangedOutbox
 import com.dynokore.gst.access.adapters.http.BreakGlassSealing
 import com.dynokore.gst.access.adapters.http.BreakGlassSignInReplay
+import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
 import com.dynokore.gst.access.adapters.http.ResealPermissionCheck
 import com.dynokore.gst.access.adapters.http.ResolvedResealPermissionCheck
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassAccounts
@@ -50,7 +51,6 @@ import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.serviceruntime.replica.BreakGlassSessionView
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -326,7 +326,7 @@ class SealedAccountUseCases {
     @Bean
     fun resealPermissionCheck(
         tenants: TenantContext,
-        roles: PolicyRoleResolver,
+        roles: InstallationRoleDirectory,
         matrix: PermissionMatrix,
     ): ResealPermissionCheck = ResolvedResealPermissionCheck(tenants, roles, matrix)
 

@@ -1,7 +1,8 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.http.InstallationRole
-import com.dynokore.gst.access.adapters.http.TenantPolicyRoleResolver
+import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
+import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.configresolver.BusinessDate
 import com.dynokore.platform.configresolver.PolicyReader
@@ -11,7 +12,8 @@ import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.configresolver.Actor
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServlet
@@ -27,7 +29,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * INV-AC-9212 (INV-Q-8789 A): the production resolver answers `platform.engineer` or `deployment.operator` at the
+ * INV-AC-9212 (INV-Q-8789 A): the production permission answers `platform.engineer` or `deployment.operator` at the
  * INSTALLATION level to the subjects listed in `access.installation-roles` and to no one else, and the property is
  * required, validated and has no default. The context is the service as composed in production over the real database.
  */
@@ -94,22 +96,28 @@ class InstallationRolesTest {
             }
         }
 
-    private fun PolicyRoleResolver.at(
+    private fun InstallationRoleDirectory.at(subject: String) = rolesOf(subject)
+
+    private fun SetterPermission.holdsAt(
         subject: String,
         tenant: TenantId,
         level: ScopeLevel = ScopeLevel.INSTALLATION,
         scopeRef: String? = null,
-    ) = rolesOf(subject, tenant, level, scopeRef, null)
+        key: String = "vp-77.set",
+    ) = holds(Actor(subject), tenant, level, scopeRef, null, key)
 
     @Test
     fun `INV-AC-9212 a listed subject sets VP-77 at installation scope, an unlisted grantee does not`() =
         run { kit ->
             Seeds.grant(kit.context, kit.tenant, SeedSpec("user:grantee", Role.DEPLOYMENT_OPERATOR))
-            val production = kit.context.getBean(PolicyRoleResolver::class.java)
-            assertThat(production).isInstanceOf(TenantPolicyRoleResolver::class.java)
-            assertThat(production.at("user:op-1", kit.tenant)).isEqualTo(setOf("deployment.operator"))
-            assertThat(production.at("user:eng-1", kit.tenant)).isEqualTo(setOf("platform.engineer"))
-            assertThat(production.at("user:grantee", kit.tenant)).isEmpty()
+            val production = kit.context.getBean(InstallationRoleDirectory::class.java)
+            val permission = kit.context.getBean(SetterPermission::class.java)
+            assertThat(permission).isInstanceOf(LiveSetterPermission::class.java)
+            assertThat(production.at("user:op-1")).isEqualTo(setOf(Role.DEPLOYMENT_OPERATOR))
+            assertThat(production.at("user:eng-1")).isEqualTo(setOf(Role.PLATFORM_ENGINEER))
+            assertThat(production.at("user:grantee")).isEmpty()
+            assertThat(permission.holdsAt("user:op-1", kit.tenant)).isTrue()
+            assertThat(permission.holdsAt("user:grantee", kit.tenant)).isFalse()
             val effective = BusinessDate.today(kit.clock).plusDays(400)
             val before = stored(kit, effective.plusDays(1))
             val denied = setPreset(kit.context, "user:grantee", "REGULATED_PRIVATE", effective)
@@ -137,34 +145,39 @@ class InstallationRolesTest {
                 "access.installation-roles[1].role=platform.engineer",
             ),
         ) { kit ->
-            val production = kit.context.getBean(PolicyRoleResolver::class.java)
-            val both = setOf("deployment.operator", "platform.engineer")
-            assertThat(production.at("user:both", kit.tenant)).isEqualTo(both)
-            assertThat(production.at("user:both", TenantId.PLATFORM)).isEqualTo(both)
+            val production = kit.context.getBean(InstallationRoleDirectory::class.java)
+            val permission = kit.context.getBean(SetterPermission::class.java)
+            assertThat(production.at("user:both")).isEqualTo(setOf(Role.DEPLOYMENT_OPERATOR, Role.PLATFORM_ENGINEER))
+            assertThat(permission.holdsAt("user:both", kit.tenant)).isTrue()
+            assertThat(permission.holdsAt("user:both", TenantId.PLATFORM)).isTrue()
         }
 
     @Test
     fun `probe look-alike subjects and other levels get the empty set`() =
         run { kit ->
-            val production = kit.context.getBean(PolicyRoleResolver::class.java)
+            val production = kit.context.getBean(InstallationRoleDirectory::class.java)
+            val permission = kit.context.getBean(SetterPermission::class.java)
             listOf("user:op-1 ", "USER:OP-1", "user:op-10", "user:op-", "").forEach {
-                assertThat(production.at(it, kit.tenant)).describedAs("[$it]").isEmpty()
+                assertThat(production.at(it)).describedAs("[$it]").isEmpty()
+                assertThat(permission.holdsAt(it, kit.tenant)).describedAs("[$it]").isFalse()
             }
             listOf(ScopeLevel.GROUP, ScopeLevel.ENTITY, ScopeLevel.FEED).forEach {
-                assertThat(production.at("user:op-1", kit.tenant, it, "x")).describedAs(it.name).isEmpty()
-                assertThat(production.at("user:op-1", kit.tenant, it)).describedAs(it.name).isEmpty()
+                assertThat(permission.holdsAt("user:op-1", kit.tenant, it, "x")).describedAs(it.name).isFalse()
+                assertThat(permission.holdsAt("user:op-1", kit.tenant, it)).describedAs(it.name).isFalse()
             }
             // no tenant grant gives nothing at TENANT; a scope reference at INSTALLATION is not the installation
             val tenantRef = kit.tenant.toString()
-            assertThat(production.at("user:op-1", kit.tenant, ScopeLevel.TENANT, tenantRef)).isEmpty()
-            assertThat(production.at("user:op-1", kit.tenant, ScopeLevel.INSTALLATION, tenantRef)).isEmpty()
+            assertThat(permission.holdsAt("user:op-1", kit.tenant, ScopeLevel.TENANT, tenantRef)).isFalse()
+            assertThat(permission.holdsAt("user:op-1", kit.tenant, ScopeLevel.INSTALLATION, tenantRef)).isFalse()
         }
 
     @Test
     fun `the empty list starts and gives every subject the empty set`() =
         run(arrayOf("access.installation-roles=")) { kit ->
-            val production = kit.context.getBean(PolicyRoleResolver::class.java)
-            assertThat(production.at("user:op-1", kit.tenant)).isEmpty()
+            val production = kit.context.getBean(InstallationRoleDirectory::class.java)
+            val permission = kit.context.getBean(SetterPermission::class.java)
+            assertThat(production.at("user:op-1")).isEmpty()
+            assertThat(permission.holdsAt("user:op-1", kit.tenant)).isFalse()
         }
 
     @Test

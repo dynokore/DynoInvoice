@@ -7,7 +7,7 @@ import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.configresolver.SetterPermission
 import jakarta.servlet.http.HttpServlet
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -38,15 +38,11 @@ class SignedLinkStartupTest {
             EndUserPrincipalResolver::class.java,
             { TestTokenPrincipals(mapOf("token-operator" to EndUserPrincipal("user:operator", null, emptySet()))) },
         ).withBean(
-            PolicyRoleResolver::class.java,
+            SetterPermission::class.java,
             {
-                PolicyRoleResolver { actor, _, level, _, _ ->
-                    if (level == ScopeLevel.INSTALLATION && actor == "user:operator") {
-                        setOf("deployment.operator")
-                    } else {
-                        emptySet()
-                    }
-                }
+                SetterPermission { actor, _, level, _, _, _ ->
+ level == ScopeLevel.INSTALLATION && actor.principal == "user:operator"
+ }
             },
         )
 

@@ -3,9 +3,6 @@ package com.dynokore.gst.access.adapters.http
 import com.dynokore.gst.access.application.breakglass.BREAK_GLASS_RESEAL
 import com.dynokore.gst.access.domain.role.Allowance
 import com.dynokore.gst.access.domain.role.PermissionMatrix
-import com.dynokore.gst.access.domain.role.Role
-import com.dynokore.platform.configresolver.ScopeLevel
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.tenancykernel.TenantContext
 
 /** The caller check of `resealBreakGlass`: the permission `break-glass.reseal`, decided per request (INV-Q-16100 A). */
@@ -21,15 +18,14 @@ fun interface ResealPermissionCheck {
  */
 class ResolvedResealPermissionCheck(
     private val tenants: TenantContext,
-    private val roles: PolicyRoleResolver,
+    private val roles: InstallationRoleDirectory,
     private val matrix: PermissionMatrix,
 ) : ResealPermissionCheck {
     override fun mayReseal(): Boolean =
         runCatching {
             val actor = tenants.currentActor() ?: return false
             roles
-                .rolesOf(actor, tenants.current(), ScopeLevel.INSTALLATION, null, null)
-                .mapNotNull { Role.ofWire(it) }
+                .rolesOf(actor)
                 .any { matrix.allowance(it, BREAK_GLASS_RESEAL) == Allowance.PERMITTED }
         }.getOrDefault(false)
 }
