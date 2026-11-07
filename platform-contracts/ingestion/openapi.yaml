@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ingestion API
-  version: 1.17.0
+  version: 1.18.0
   description: >-
     Contract-first source of truth for ingestion (API-01, STK-44). The
     `ingestion-contract` module generates its server interfaces and DTOs
@@ -164,7 +164,9 @@ paths:
       x-error-codes: [ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021, ING-023]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-805, INV-REQ-806, INV-REQ-807, INV-REQ-808, INV-REQ-809, INV-REQ-428, INV-REQ-327, INV-REQ-829, INV-REQ-2761]
       x-operation:
-        role: ingest
+        kind: PERMISSION
+        permission: machine.ingestion.channels.write
+        permission-also: machine.certification.ingest
         scope: entity
         precondition: >-
           sourceRevision for this (entityRef, sourceSystem, sourceKey) is
@@ -322,7 +324,9 @@ paths:
       x-error-codes: [ING-003, ING-001, ING-002, ING-004, ING-005, ING-007, ING-009, ING-011, ING-012, ING-016, ING-019, ING-020, ING-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-811, INV-REQ-809, INV-REQ-829, INV-REQ-2761]
       x-operation:
-        role: ingest
+        kind: PERMISSION
+        permission: machine.ingestion.channels.write
+        permission-also: machine.certification.ingest
         scope: entity
         precondition: >-
           The manifest's declared count and total agree with the batch's
@@ -401,6 +405,10 @@ paths:
       x-caller-auth: end-user
       x-degraded-allow: true
       x-principal-also: certification
+      x-operation:
+        kind: PERMISSION
+        permission: machine.ingestion.channels.write
+        permission-also: machine.certification.ingest
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-1168]
@@ -463,7 +471,9 @@ paths:
       x-error-codes: [ING-006, ING-004, ING-014, ING-018, ING-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-812, INV-REQ-829]
       x-operation:
-        role: ingest
+        kind: PERMISSION
+        permission: machine.ingestion.channels.write
+        permission-also: machine.certification.ingest
         scope: entity
         precondition: >-
           aggregateType is POS, STI or PCP and does not contradict
@@ -581,7 +591,9 @@ paths:
           PAY-006, PAY-009, PAY-011, PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324, INV-REQ-829, INV-REQ-2761]
       x-operation:
-        role: ingest
+        kind: PERMISSION
+        permission: machine.ingestion.channels.write
+        permission-also: machine.certification.ingest
         scope: entity
         precondition: >-
           As `submitTransaction`'s recording precondition, then full
@@ -686,7 +698,9 @@ paths:
       x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013, ING-021]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-325, INV-REQ-829]
       x-operation:
-        role: ingest
+        kind: PERMISSION
+        permission: machine.ingestion.channels.write
+        permission-also: machine.certification.ingest
         scope: entity
         precondition: >-
           None — a stateless, side-effect-free check (INV-REQ-325); the
@@ -744,7 +758,9 @@ paths:
       x-error-codes: [ING-004]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-791]
       x-operation:
-        role: ingest
+        kind: PERMISSION
+        permission: machine.control-totals.write
+        permission-also: machine.certification.ingest
         scope: entity+period
         precondition: >-
           The entity and period exist (tenancy-svc replica); entityRef is
