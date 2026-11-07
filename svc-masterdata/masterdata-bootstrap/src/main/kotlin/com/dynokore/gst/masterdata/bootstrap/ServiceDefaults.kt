@@ -1,5 +1,6 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.events.IdentityTripleChangedOutbox
 import com.dynokore.gst.masterdata.adapters.events.IdentityTripleCorrectedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterDataResolvedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
@@ -9,6 +10,7 @@ import com.dynokore.gst.masterdata.application.identity.BackdatedCorrections
 import com.dynokore.gst.masterdata.application.identity.ConfirmerAuthority
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
 import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
+import com.dynokore.gst.masterdata.application.identity.IdentityTripleChangedPublisher
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleCorrectedPublisher
 import com.dynokore.gst.masterdata.application.identity.TripleRepository
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerRole
@@ -49,12 +51,21 @@ class ServiceDefaults {
         tenants: TenantContext,
     ): IdentityTripleCorrectedPublisher = IdentityTripleCorrectedOutbox(outbox, mapper, tenants)
 
+    /** No default or no-op publisher exists: a missing bean fails the start (fail closed). */
+    @Bean
+    fun identityTripleChangedPublisher(
+        outbox: OutboxWriter,
+        mapper: ObjectMapper,
+        tenants: TenantContext,
+    ): IdentityTripleChangedPublisher = IdentityTripleChangedOutbox(outbox, mapper, tenants)
+
     @Bean
     fun backdatedCorrections(
         triples: TripleRepository,
         clock: Clock,
         publisher: IdentityTripleCorrectedPublisher,
-    ) = BackdatedCorrections(triples, clock, publisher)
+        changedPublisher: IdentityTripleChangedPublisher,
+    ) = BackdatedCorrections(triples, clock, publisher, changedPublisher)
 
     @Bean
     fun confirmerAuthority(

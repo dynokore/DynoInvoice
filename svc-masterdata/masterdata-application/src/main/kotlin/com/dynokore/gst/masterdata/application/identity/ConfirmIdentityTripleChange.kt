@@ -44,7 +44,8 @@ sealed interface ConfirmOutcome {
  *
  * INV-REQ-1006, INV-Q-7876 A: a change whose effective date is earlier than the date of the confirmation (the clock's
  * date in UTC), and which replaces a version already in force on that date, is a correction of the past; it appends
- * `IdentityTripleCorrected` in the same transaction as the write of the triple and the move to CONFIRMED.
+ * `IdentityTripleCorrected` in the same transaction as the write of the triple and the move to CONFIRMED. Every
+ * confirmed change also appends exactly one `IdentityTripleChanged` (INV-REQ-1135, INV-Q-16401 A) in that transaction.
  */
 class ConfirmIdentityTripleChange(
     private val tx: TransactionRunner,
@@ -72,6 +73,7 @@ class ConfirmIdentityTripleChange(
                 } else {
                     val correction = corrections.isCorrection(change)
                     triples.save(change.version, change.proposedBy, command.confirmer, role.wire)
+                    corrections.publishChanged(change)
                     if (correction) corrections.publish(change)
                     ConfirmOutcome.Confirmed(change.version)
                 }
@@ -87,6 +89,7 @@ class BackdatedCorrections(
     private val triples: TripleRepository,
     private val clock: Clock,
     private val publisher: IdentityTripleCorrectedPublisher,
+    private val changedPublisher: IdentityTripleChangedPublisher,
 ) {
     /** Read before the save: a stored version on or before today must already exist for the same constitution. */
     fun isCorrection(change: PendingChange): Boolean {
@@ -98,6 +101,9 @@ class BackdatedCorrections(
     }
 
     fun publish(change: PendingChange) = publisher.publish(change)
+
+    /** INV-REQ-1135, INV-Q-16401 A: every confirmed change appends `IdentityTripleChanged` in the same transaction. */
+    fun publishChanged(change: PendingChange) = changedPublisher.publish(change)
 }
 
 /** Who may confirm: the tenant's confirmer set and the roles a subject holds at an entity, read together. */
