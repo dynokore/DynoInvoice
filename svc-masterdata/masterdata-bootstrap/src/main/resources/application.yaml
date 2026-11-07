@@ -35,8 +35,6 @@ management:
       live.include: livenessState
       ready.include: readinessState,vault,db,eventLoops   # own schema, event loops and vault only (FR-AH.17)
 logging.structured.format.console: ecs             # STK-35
-masterdata:
-  long-command.max-run: PT15M                      # a RUNNING gap report, dry run or import older than this is finalised FAILED
 gst:
   service: masterdata-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

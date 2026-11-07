@@ -29,7 +29,6 @@ interface CounterpartyRepository {
         party: PartyRef,
         content: CounterpartyContent,
         recordedAt: Instant,
-        importId: String? = null,
     ): CounterpartyVersion
 
     /** The current version of every counterparty of the tenant, lowest party reference first (reads only). */

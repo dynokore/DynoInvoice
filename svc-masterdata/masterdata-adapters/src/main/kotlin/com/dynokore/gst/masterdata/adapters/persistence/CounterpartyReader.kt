@@ -45,13 +45,7 @@ internal class CounterpartyReader(
                 schemes = statusesOf(party, number),
                 providedBy = ProvidedBy.valueOf(row.providedBy.column("provided_by")),
             )
-        return CounterpartyVersion(
-            party,
-            number,
-            row.recordedAt.column("recorded_at").toInstant(),
-            content,
-            row.importId,
-        )
+        return CounterpartyVersion(party, number, row.recordedAt.column("recorded_at").toInstant(), content)
     }
 
     private fun arcsProvenance(row: CounterpartyVersionRecord) =

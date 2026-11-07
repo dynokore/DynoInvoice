@@ -80,7 +80,6 @@ class JooqCounterpartyRepository(
         party: PartyRef,
         content: CounterpartyContent,
         recordedAt: Instant,
-        importId: String?,
     ): CounterpartyVersion {
         val now = clock.instant().atOffset(ZoneOffset.UTC)
         val number =
@@ -101,8 +100,8 @@ class JooqCounterpartyRepository(
                 .fetchOne()
                 ?.lastVersion
                 .column("last_version")
-        insertVersion(party, number, content, recordedAt, now, importId)
-        return CounterpartyVersion(party, number, recordedAt, content, importId)
+        insertVersion(party, number, content, recordedAt, now)
+        return CounterpartyVersion(party, number, recordedAt, content)
     }
 
     override fun history(
@@ -119,14 +118,12 @@ class JooqCounterpartyRepository(
             .fetch()
             .mapNotNull { reader.load(party, it.value1().column("party_version")) }
 
-    @Suppress("LongParameterList") // the columns of one version row
     private fun insertVersion(
         party: PartyRef,
         number: Long,
         content: CounterpartyContent,
         recordedAt: Instant,
         now: OffsetDateTime,
-        importId: String?,
     ) {
         val arcs = content.arcs
         dsl
@@ -144,7 +141,6 @@ class JooqCounterpartyRepository(
             .set(COUNTERPARTY_VERSION.ARCS_PROVIDED_BY, arcs?.provenance?.providedBy?.name)
             .set(COUNTERPARTY_VERSION.ARCS_EVIDENCE_REF, arcs?.provenance?.evidenceRef?.value)
             .set(COUNTERPARTY_VERSION.ARCS_CAPTURED_AT, arcs?.provenance?.capturedAt?.atOffset(ZoneOffset.UTC))
-            .set(COUNTERPARTY_VERSION.IMPORT_ID, importId)
             .set(COUNTERPARTY_VERSION.CREATED_AT, now)
             .set(COUNTERPARTY_VERSION.UPDATED_AT, now)
             .set(COUNTERPARTY_VERSION.VERSION, 0L)

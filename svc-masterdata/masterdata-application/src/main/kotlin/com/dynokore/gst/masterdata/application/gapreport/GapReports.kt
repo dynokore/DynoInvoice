@@ -62,9 +62,6 @@ interface GapReportStore {
     fun fail(gapReportId: String)
 
     fun find(gapReportId: String): GapReportRecord?
-
-    /** Finalises FAILED every RUNNING record started before [before]; returns how many. */
-    fun failRunningBefore(before: Instant): Int
 }
 
 /** One run's answer: the finished [record] or the still RUNNING one (the caller answers 200 or 202). */

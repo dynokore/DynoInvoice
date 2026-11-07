@@ -36,7 +36,8 @@ GRANT SELECT, INSERT, UPDATE ON masterdata.gap_report TO masterdata_runtime;
 CREATE TABLE masterdata.counterparty_import_dry_run (
     id            uuid        PRIMARY KEY,
     tenant_id     uuid        NOT NULL,
-    dry_run_id    text        NOT NULL CHECK (length(dry_run_id) BETWEEN 1 AND 40),   -- the request names no entity
+    dry_run_id    text        NOT NULL CHECK (length(dry_run_id) BETWEEN 1 AND 40),
+    entity_ref    text        NOT NULL CHECK (length(entity_ref) BETWEEN 1 AND 40),
     actor_ref     text        NOT NULL CHECK (length(actor_ref) BETWEEN 1 AND 128),
     file_hash     text        NOT NULL CHECK (file_hash ~ '^[0-9a-f]{64}$'),  -- the caller's SHA-256, stored as given
     row_count     integer     NOT NULL CHECK (row_count BETWEEN 0 AND 5000),

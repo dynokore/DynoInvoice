@@ -46,7 +46,6 @@ internal object CounterpartyMapping {
             sameTenant = sameness?.sameTenant,
             arcsGstChargeAgreed = content.arcs?.agreed,
             approvedSchemes = schemes.map(::scheme).ifEmpty { null },
-            importId = version.importId,
         )
     }
 

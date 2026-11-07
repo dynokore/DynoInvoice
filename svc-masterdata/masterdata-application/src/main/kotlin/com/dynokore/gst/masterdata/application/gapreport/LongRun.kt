@@ -45,19 +45,3 @@ class LongRunner(
         }
     }
 }
-
-/**
- * Finalises FAILED every RUNNING record of the bound tenant that is older than [maxRun] (INV-Q-17291): a gap report,
- * a dry run or an import whose worker died. A younger record is left alone. Returns how many were finalised.
- */
-class SweepStaleRecords(
-    private val tx: com.dynokore.platform.tenancykernel.TransactionRunner,
-    private val clock: java.time.Clock,
-    private val maxRun: Duration,
-    private val sweeps: List<(java.time.Instant) -> Int>,
-) {
-    fun run(): Int {
-        val before = clock.instant().minus(maxRun)
-        return tx.inTransaction { sweeps.sumOf { it(before) } }
-    }
-}
