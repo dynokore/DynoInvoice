@@ -31,7 +31,7 @@ class SignedLinkUseCases {
         dsl: DSLContext,
         tenants: TenantContext,
         clock: Clock,
-    ): SignedLinks = JooqSignedLinks(dsl, tenants, clock)
+    ): SignedLinks = JooqSignedLinks(dsl, tenants, clock, SignedLinkIssueUseCases.SYSTEM_ACTOR)
 
     @Bean
     fun linkTenants(

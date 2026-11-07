@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.events.AccessEventCatalogue
 import com.dynokore.gst.access.adapters.events.OutboxLinkMessages
 import com.dynokore.gst.access.adapters.events.SignedLinkRequestedHandler
 import com.dynokore.gst.access.application.link.IssueSignedLinkUseCase
@@ -35,7 +36,7 @@ class SignedLinkFeed {
         useCase: IssueSignedLinkUseCase,
         messages: OutboxLinkMessages,
         mapper: ObjectMapper,
-    ) = SignedLinkRequestedHandler(useCase, messages, mapper, SignedLinkRequestedHandler.PRODUCERS)
+    ) = SignedLinkRequestedHandler(useCase, messages, mapper, AccessEventCatalogue.signedLinkProducers())
 
     @Bean
     @ConditionalOnBean(EventLogReader::class, TenantScope::class, RebuildRequiredSink::class)

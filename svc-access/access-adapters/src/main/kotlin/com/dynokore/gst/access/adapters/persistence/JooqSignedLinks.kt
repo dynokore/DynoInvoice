@@ -27,6 +27,8 @@ class JooqSignedLinks(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
     private val clock: Clock,
+    /** The sender recorded on a link issued by an event (ruling INV-Q-17207 A): the system actor, never a role. */
+    private val systemActor: String,
     private val ids: UuidV7 = UuidV7(),
 ) : SignedLinks {
     override fun find(ref: LinkRef): SignedLink? =
@@ -53,7 +55,7 @@ class JooqSignedLinks(
 
     override fun insert(link: SignedLink) {
         val now = clock.instant().atOffset(ZoneOffset.UTC)
-        val actor = actor()
+        val sender = if (link.source == LinkSource.EVENT) systemActor else actor()
         dsl
             .insertInto(SIGNED_LINK)
             .set(SIGNED_LINK.ID, ids.next(clock.instant()))
@@ -74,9 +76,9 @@ class JooqSignedLinks(
             .set(SIGNED_LINK.SOURCE, link.source.name)
             .set(SIGNED_LINK.SOURCE_EVENT_ID, link.sourceEventId)
             .set(SIGNED_LINK.CREATED_AT, now)
-            .set(SIGNED_LINK.CREATED_BY, actor)
+            .set(SIGNED_LINK.CREATED_BY, sender)
             .set(SIGNED_LINK.UPDATED_AT, now)
-            .set(SIGNED_LINK.UPDATED_BY, actor)
+            .set(SIGNED_LINK.UPDATED_BY, sender)
             .set(SIGNED_LINK.VERSION, link.version)
             .execute()
     }

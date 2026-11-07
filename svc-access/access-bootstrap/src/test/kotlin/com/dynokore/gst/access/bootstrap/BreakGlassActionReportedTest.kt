@@ -76,6 +76,25 @@ class BreakGlassActionReportedTest {
     private val type = "com.dynokore.gst.platform.BreakGlassActionReported.v1"
     private val auditType = "com.dynokore.gst.platform.AuditEntryRecorded.v1"
     private val meter = "break_glass_report_rejected_total"
+    private val breakGlassConsumer = "breakGlassReportConsumer"
+
+    /** Ruled by INV-Q-17898: exactly these two consumers, and exactly one of them is the break-glass one. */
+    private fun assertConsumerNames(names: Collection<String>) {
+        assertThat(names).containsExactlyInAnyOrder(breakGlassConsumer, "signedLinkRequestedConsumer")
+        assertThat(names.count { it == breakGlassConsumer }).isEqualTo(1)
+    }
+
+    @Test
+    fun `INV-AC-9168 negative fixture - a third or renamed consumer fails the exact name check`() {
+        org.assertj.core.api.Assertions
+            .assertThatThrownBy {
+                assertConsumerNames(listOf(breakGlassConsumer, "signedLinkRequestedConsumer", "thirdConsumer"))
+            }.isInstanceOf(AssertionError::class.java)
+        org.assertj.core.api.Assertions
+            .assertThatThrownBy { assertConsumerNames(listOf(breakGlassConsumer, "renamedConsumer")) }
+            .isInstanceOf(AssertionError::class.java)
+        assertConsumerNames(listOf("signedLinkRequestedConsumer", breakGlassConsumer))
+    }
 
     private inner class Env(
         val context: AssertableWebApplicationContext,
@@ -346,7 +365,14 @@ class BreakGlassActionReportedTest {
                     "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
                 ),
             ).bufferedReader().readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-        assertThat(lines).isEqualTo(listOf("com.dynokore.gst.access.bootstrap.BreakGlassReportFeed"))
+        // INV-T-17453 adds the feed of SignedLinkRequested; the break-glass feed is still listed once
+        assertThat(lines)
+            .isEqualTo(
+                listOf(
+                    "com.dynokore.gst.access.bootstrap.BreakGlassReportFeed",
+                    "com.dynokore.gst.access.bootstrap.SignedLinkFeed",
+                ),
+            )
     }
 
     @Test
@@ -355,7 +381,7 @@ class BreakGlassActionReportedTest {
             val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
             assertThat(sinks).hasSize(1)
             assertThat(sinks.values.single().javaClass).isNotEqualTo(LoggingRebuildRequiredSink::class.java)
-            assertThat(env.context.getBeansOfType(InboxConsumer::class.java)).hasSize(1)
+            assertConsumerNames(env.context.getBeansOfType(InboxConsumer::class.java).keys)
         }
 
     @Test
@@ -363,7 +389,7 @@ class BreakGlassActionReportedTest {
         runWith(false) { env ->
             val sinks = env.context.getBeansOfType(RebuildRequiredSink::class.java)
             assertThat(sinks.values.map { it.javaClass }).isEqualTo(listOf(LoggingRebuildRequiredSink::class.java))
-            assertThat(env.context.getBeansOfType(InboxConsumer::class.java).size).isEqualTo(1)
+            assertConsumerNames(env.context.getBeansOfType(InboxConsumer::class.java).keys)
         }
 
     @Test

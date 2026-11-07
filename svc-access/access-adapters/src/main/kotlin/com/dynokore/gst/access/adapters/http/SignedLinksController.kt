@@ -1,11 +1,14 @@
 package com.dynokore.gst.access.adapters.http
 
 import com.dynokore.gst.access.adapters.persistence.SignatoryEvidenceRefs
+import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.link.LinkTenants
 import com.dynokore.gst.access.application.link.RecordSignatoryActionUseCase
+import com.dynokore.gst.access.application.link.SignatoryAction
 import com.dynokore.gst.access.application.link.SignatoryActionCommand
 import com.dynokore.gst.access.application.link.SignatoryActionKind
 import com.dynokore.gst.access.application.link.SignatoryActionOutcome
+import com.dynokore.gst.access.application.link.SignedLinks
 import com.dynokore.gst.access.application.link.VerifyLinkOutcome
 import com.dynokore.gst.access.application.link.VerifySignatoryLinkUseCase
 import com.dynokore.gst.access.contract.api.SignedLinksApi
@@ -19,6 +22,7 @@ import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -35,12 +39,16 @@ import java.util.UUID
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
 // template)
+@Suppress("LongParameterList") // one collaborator per port
 open class SignedLinksController(
     private val verify: VerifySignatoryLinkUseCase,
     private val record: RecordSignatoryActionUseCase,
     private val linkTenants: LinkTenants,
     private val platform: PlatformTenantBinding,
     private val tenants: TenantContext,
+    private val links: SignedLinks,
+    private val consents: ConsentRepository,
+    private val tx: TransactionRunner,
 ) : SignedLinksApi {
     override fun verifySignatoryLink(
         linkRef: String,
@@ -102,8 +110,27 @@ open class SignedLinksController(
                 evidenceRef = SignatoryEvidenceRefs.refOf(tenant, action),
                 // the stored value has the precision of the column, so a repeat answers the same instant
                 recordedAt = action.recordedAt.truncatedTo(ChronoUnit.MICROS).atOffset(ZoneOffset.UTC),
+                handoverStatementRef = handoverStatementOf(tenant, actor, action),
             ),
         )
+    }
+
+    /** Present on WITHDRAW only: the stored reference of the withdrawn consent of the link, the same on a repeat. */
+    private fun handoverStatementOf(
+        tenant: TenantId,
+        actor: String,
+        action: SignatoryAction,
+    ): String? {
+        if (action.kind != SignatoryActionKind.WITHDRAW) return null
+        return tenants.bind(tenant, actor) {
+            tx.inTransaction {
+                links
+                    .find(action.linkRef)
+                    ?.consent
+                    ?.let { consents.find(it) }
+                    ?.handoverStatementRef
+            }
+        }
     }
 
     private fun refusalOf(outcome: SignatoryActionOutcome): RuntimeException =
