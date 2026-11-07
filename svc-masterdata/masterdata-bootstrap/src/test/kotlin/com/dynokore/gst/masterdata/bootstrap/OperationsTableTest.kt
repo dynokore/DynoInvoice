@@ -1,5 +1,6 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.events.IdentityTripleChangedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
 import com.dynokore.gst.masterdata.adapters.events.PublishedChannels
 import com.dynokore.gst.masterdata.bootstrap.OperationsGate.Contract
@@ -179,6 +180,36 @@ class OperationsTableTest {
     }
 
     @Test
+    fun `INV-AC-16047 PublishedChannels lists exactly the three published channel names`() {
+        assertThat(PublishedChannels.ALL).isEqualTo(
+            setOf(
+                "masterdataMasterDataResolved",
+                "masterdataIdentityTripleCorrected",
+                "masterdataIdentityTripleChanged",
+            ),
+        )
+        assertThat(PublishedChannels.ALL).contains(IdentityTripleChangedOutbox.CHANNEL)
+        assertThat(table).contains("channel\tmasterdataIdentityTripleChanged\tINV-T-17823\tdone")
+    }
+
+    @Test
+    fun `INV-AC-16047 probe - PublishedChannels ALL with a fourth name fails the gate`() {
+        assertThat(verify(table)).isEmpty()
+        assertThat(verify(table, published = PublishedChannels.ALL + "masterdataReferenceRateLoaded"))
+            .containsExactly("channel masterdataReferenceRateLoaded: published by the code but not marked done")
+        val reopened =
+            table.map {
+                if (it.startsWith("channel\tmasterdataIdentityTripleCorrected\t")) {
+                    "channel\tmasterdataIdentityTripleCorrected\tINV-T-8017\topen"
+                } else {
+                    it
+                }
+            }
+        assertThat(verify(reopened))
+            .containsExactly("channel masterdataIdentityTripleCorrected: published by the code but not marked done")
+    }
+
+    @Test
     fun `probe - rows the contract does not hold, repeats, look-alikes and bad cells fail the gate`() {
         val base = table
 
@@ -192,14 +223,19 @@ class OperationsTableTest {
         assertThat(withRow("route\tx\tINV-T-1\topen")).anyMatch { "kind must be" in it }
         assertThat(withRow("operation\tx\tINV-T-1")).anyMatch { "four tab-separated" in it }
         assertThat(withRow("operation\tx\tUNASSIGNED\topen")).anyMatch { "task must be" in it }
-        val published = setOf("masterdataMasterDataResolved", "masterdataIdentityTripleCorrected")
+        val published =
+            setOf(
+                "masterdataMasterDataResolved",
+                "masterdataIdentityTripleCorrected",
+                "masterdataIdentityTripleChanged",
+            )
         assertThat(verify(base, published = published + "masterdataReferenceRateLoaded"))
             .containsExactly("channel masterdataReferenceRateLoaded: published by the code but not marked done")
         val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
         assertThat(
             verify(
                 base.map { if (it.startsWith("channel\tmasterdataMasterDataResolved")) unpublished else it },
-                published = setOf("masterdataIdentityTripleCorrected"),
+                published = setOf("masterdataIdentityTripleCorrected", "masterdataIdentityTripleChanged"),
             ),
         ).containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
     }
