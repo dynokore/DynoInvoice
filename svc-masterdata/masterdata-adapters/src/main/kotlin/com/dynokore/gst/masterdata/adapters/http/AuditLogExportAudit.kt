@@ -1,24 +1,15 @@
 package com.dynokore.gst.masterdata.adapters.http
 
 import com.dynokore.gst.masterdata.application.gapreport.ExportAudit
-import com.dynokore.gst.masterdata.application.gapreport.FailureEnvelope
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.tenancykernel.TenantContext
 import java.util.UUID
-
-/** The API-20 envelope text stored on a FAILED record; rendered only by [Problems] (ARC-19). */
-class ProblemsFailureEnvelope : FailureEnvelope {
-    override fun internalError(): String =
-        Problems.render(ClosedErrorCode.INTERNAL_ERROR, UUID.randomUUID().toString()).body
-}
 
 /** One audit entry per export through audit-log, in the export's transaction; the actor is the user (INV-Q-10647). */
 class AuditLogExportAudit(

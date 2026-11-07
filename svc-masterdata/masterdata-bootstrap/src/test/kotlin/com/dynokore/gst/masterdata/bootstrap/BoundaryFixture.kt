@@ -1,6 +1,7 @@
 package com.dynokore.gst.masterdata.bootstrap
 
 import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
+import com.dynokore.gst.masterdata.application.imports.ImportEvidence
 import com.dynokore.gst.masterdata.application.permission.MasterdataPermissions
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.platform.outboxandqueue.Envelope
@@ -95,6 +96,24 @@ object TestRoles {
 @EnableConfigurationProperties
 class BoundaryTestConfiguration {
     @Bean
+    fun importFaults(): BeanPostProcessor =
+        object : BeanPostProcessor {
+            override fun postProcessAfterInitialization(
+                bean: Any,
+                beanName: String,
+            ): Any =
+                if (bean is ImportEvidence) {
+                    ImportEvidence { entity, importId, hash ->
+                        ImportFault.delayMillis[entity]?.let { Thread.sleep(it) }
+                        check(entity !in ImportFault.failing) { "import apply made to fail" }
+                        bean.recorded(entity, importId, hash)
+                    }
+                } else {
+                    bean
+                }
+        }
+
+    @Bean
     fun clock(): Clock = MovableClock()
 
     @Bean
@@ -115,6 +134,12 @@ class BoundaryTestConfiguration {
                     bean
                 }
         }
+}
+
+/** The faults a test arms on the last step of an import apply, per entity: a delay past `x-timeout`, or a throw. */
+object ImportFault {
+    val delayMillis = ConcurrentHashMap<String, Long>()
+    val failing: MutableSet<String> = ConcurrentHashMap.newKeySet()
 }
 
 class CapturingOutboxWriter(

@@ -20,8 +20,6 @@ import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.Resource
-import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -56,12 +54,10 @@ open class GapReportController(
         val answer = run.handle(entity, actor)
         val status = status(answer.record)
         if (answer.finished) return ResponseEntity.ok(status.result)
-        return untyped(
-            ResponseEntity
-                .status(HttpStatus.ACCEPTED)
-                .header(HttpHeaders.LOCATION, "/internal/v1/masterdata/gap-reports/${answer.record.gapReportId}")
-                .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS)
-                .body(status),
+        throw LongCommandAccepted(
+            status,
+            "/internal/v1/masterdata/gap-reports/${answer.record.gapReportId}",
+            RETRY_AFTER_SECONDS,
         )
     }
 
@@ -113,10 +109,6 @@ open class GapReportController(
             error = record.error?.let { mapper.readValue(it, ErrorEnvelope::class.java) },
         )
 
-    @Suppress("UNCHECKED_CAST")
-    private fun untyped(response: ResponseEntity<GapReportStatus>): ResponseEntity<GapReport> =
-        response as ResponseEntity<GapReport>
-
     private fun csv(line: ExportLine): String =
         listOf(
             line.counterpartyRef,
@@ -131,7 +123,7 @@ open class GapReportController(
     /** RFC 4180: a cell with a comma, quote or line break is quoted and its quotes doubled. */
     private fun cell(value: String?): String {
         val text = value.orEmpty()
-        return if (text.any { it == ',' || it == '"' || it == '\r' || it == '\n' }) {
+        return if (text.any { it in SPECIAL }) {
             "\"" + text.replace("\"", "\"\"") + "\""
         } else {
             text
@@ -139,7 +131,8 @@ open class GapReportController(
     }
 
     private companion object {
+        val SPECIAL = setOf(',', '"', '\r', '\n')
         const val HEADER = "counterpartyRef,findingClass,errorCode,uen,legalName,addressLine1,postalCode"
-        const val RETRY_AFTER_SECONDS = "2"
+        const val RETRY_AFTER_SECONDS = 2L
     }
 }

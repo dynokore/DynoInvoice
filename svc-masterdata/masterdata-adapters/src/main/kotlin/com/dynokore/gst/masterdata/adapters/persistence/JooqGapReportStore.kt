@@ -8,12 +8,16 @@ import com.dynokore.gst.masterdata.application.gapreport.GapReportStore
 import com.dynokore.gst.masterdata.application.gapreport.RecordState
 import com.dynokore.gst.masterdata.domain.counterparty.GapClass
 import com.dynokore.platform.outboxandqueue.UuidV7
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.Problems
 import org.jooq.DSLContext
-import org.jooq.JSONB
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.UUID
 
 /**
  * TPL-11. The gap report records (API-17): a RUNNING record is inserted by the caller's own committed transaction and
@@ -26,25 +30,30 @@ class JooqGapReportStore(
     private val mapper: ObjectMapper,
     private val ids: UuidV7 = UuidV7(),
 ) : GapReportStore {
-    override fun insertRunning(record: GapReportRecord) {
-        val now = clock.instant().atOffset(ZoneOffset.UTC)
+    override fun insertRunning(
+        gapReportId: String,
+        entity: String,
+        actor: String,
+    ): GapReportRecord {
+        val started = clock.instant()
+        val now = started.atOffset(ZoneOffset.UTC)
         dsl
             .insertInto(GAP_REPORT)
-            .set(GAP_REPORT.ID, ids.next(clock.instant()))
-            .set(GAP_REPORT.GAP_REPORT_ID, record.gapReportId)
-            .set(GAP_REPORT.ENTITY_REF, record.entity)
-            .set(GAP_REPORT.ACTOR_REF, record.actor)
+            .set(GAP_REPORT.ID, ids.next(started))
+            .set(GAP_REPORT.GAP_REPORT_ID, gapReportId)
+            .set(GAP_REPORT.ENTITY_REF, entity)
+            .set(GAP_REPORT.ACTOR_REF, actor)
             .set(GAP_REPORT.STATE, RecordState.RUNNING.name)
-            .set(GAP_REPORT.STARTED_AT, record.startedAt.atOffset(ZoneOffset.UTC))
+            .set(GAP_REPORT.STARTED_AT, now)
             .set(GAP_REPORT.CREATED_AT, now)
             .set(GAP_REPORT.UPDATED_AT, now)
             .set(GAP_REPORT.VERSION, 0L)
             .execute()
+        return GapReportRecord(gapReportId, entity, actor, RecordState.RUNNING, started, null, null, null)
     }
 
     override fun finish(
         gapReportId: String,
-        completedAt: Instant,
         result: GapReportResult,
     ) {
         val root = mapper.createObjectNode()
@@ -57,29 +66,27 @@ class JooqGapReportStore(
         }
         val notChecked = root.putArray("notChecked")
         result.notChecked.forEach { notChecked.add(it) }
-        close(gapReportId, completedAt, RecordState.SUCCEEDED, GAP_REPORT.RESULT, root.toString())
-    }
-
-    override fun fail(
-        gapReportId: String,
-        completedAt: Instant,
-        error: String,
-    ) = close(gapReportId, completedAt, RecordState.FAILED, GAP_REPORT.ERROR, error)
-
-    private fun close(
-        gapReportId: String,
-        completedAt: Instant,
-        state: RecordState,
-        column: org.jooq.TableField<*, JSONB?>,
-        json: String,
-    ) {
-        val at = completedAt.atOffset(ZoneOffset.UTC)
-        @Suppress("UNCHECKED_CAST")
+        val at = clock.instant().atOffset(ZoneOffset.UTC)
         dsl
             .update(GAP_REPORT)
-            .set(GAP_REPORT.STATE, state.name)
+            .set(GAP_REPORT.STATE, RecordState.SUCCEEDED.name)
             .set(GAP_REPORT.COMPLETED_AT, at)
-            .set(column as org.jooq.Field<JSONB?>, JSONB.jsonb(json))
+            .set(GAP_REPORT.RESULT, DSL.value(root.toString()).cast(SQLDataType.JSONB))
+            .set(GAP_REPORT.UPDATED_AT, at)
+            .set(GAP_REPORT.VERSION, GAP_REPORT.VERSION.plus(1L))
+            .where(GAP_REPORT.GAP_REPORT_ID.eq(gapReportId), GAP_REPORT.STATE.eq(RecordState.RUNNING.name))
+            .execute()
+    }
+
+    /** The record becomes FAILED with the API-20 envelope of an internal error, rendered by [Problems] only. */
+    override fun fail(gapReportId: String) {
+        val at = clock.instant().atOffset(ZoneOffset.UTC)
+        val envelope = Problems.render(ClosedErrorCode.INTERNAL_ERROR, UUID.randomUUID().toString()).body
+        dsl
+            .update(GAP_REPORT)
+            .set(GAP_REPORT.STATE, RecordState.FAILED.name)
+            .set(GAP_REPORT.COMPLETED_AT, at)
+            .set(GAP_REPORT.ERROR, DSL.value(envelope).cast(SQLDataType.JSONB))
             .set(GAP_REPORT.UPDATED_AT, at)
             .set(GAP_REPORT.VERSION, GAP_REPORT.VERSION.plus(1L))
             .where(GAP_REPORT.GAP_REPORT_ID.eq(gapReportId), GAP_REPORT.STATE.eq(RecordState.RUNNING.name))
@@ -115,5 +122,21 @@ class JooqGapReportStore(
                 )
             }
         return GapReportResult(rows, node.get("notChecked").values().map { it.asString() })
+    }
+
+    override fun failRunningBefore(before: Instant): Int {
+        val at = clock.instant().atOffset(ZoneOffset.UTC)
+        val envelope = Problems.render(ClosedErrorCode.INTERNAL_ERROR, UUID.randomUUID().toString()).body
+        return dsl
+            .update(GAP_REPORT)
+            .set(GAP_REPORT.STATE, RecordState.FAILED.name)
+            .set(GAP_REPORT.COMPLETED_AT, at)
+            .set(GAP_REPORT.ERROR, DSL.value(envelope).cast(SQLDataType.JSONB))
+            .set(GAP_REPORT.UPDATED_AT, at)
+            .set(GAP_REPORT.VERSION, GAP_REPORT.VERSION.plus(1L))
+            .where(
+                GAP_REPORT.STATE.eq(RecordState.RUNNING.name),
+                GAP_REPORT.STARTED_AT.lt(before.atOffset(ZoneOffset.UTC)),
+            ).execute()
     }
 }

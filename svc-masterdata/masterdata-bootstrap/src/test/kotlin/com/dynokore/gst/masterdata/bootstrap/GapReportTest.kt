@@ -24,38 +24,25 @@ class GapReportTest {
     private val duplicateUen = "53012345X"
 
     private class Seed(
-        val absent: String,
-        val invalid: String,
-        val conflict: String,
-        val incomplete: String,
-        val duplicateA: String,
-        val duplicateB: String,
-        val outage: String,
-    )
+        val refs: List<String>,
+    ) {
+        val absent get() = refs[0]
+        val invalid get() = refs[1]
+        val conflict get() = refs[2]
+        val incomplete get() = refs[3]
+        val duplicateA get() = refs[4]
+        val duplicateB get() = refs[5]
+        val outage get() = refs[6]
+    }
 
     private fun RegistryEnv.seed(): Seed {
-        val s =
-            Seed(
-                unique("CTP-A"),
-                unique("CTP-B"),
-                unique("CTP-C"),
-                unique("CTP-D"),
-                unique("CTP-E1"),
-                unique("CTP-E2"),
-                unique("CTP-F"),
-            )
+        val s = Seed(listOf("A", "B", "C", "D", "E1", "E2", "F").map { unique("CTP-$it") })
         val name = "ACME"
+        val short = CounterpartyAddress(addressLine1 = "1 Road", postalCode = " ")
         ce.write(s.absent, ce.request("PEPPOL_PARTICIPANT_ID" to "0195:X", name = name, address = ADDRESS))
         ce.write(s.invalid, ce.request("UEN" to "5301234X", name = name, address = ADDRESS))
         ce.write(s.conflict, ce.request("UEN" to conflictUen, "GSTN" to "M2-9999999-9", name = name, address = ADDRESS))
-        ce.write(
-            s.incomplete,
-            ce.request(
-                "UEN" to "201912345A",
-                name = name,
-                address = CounterpartyAddress(addressLine1 = "1 Road", postalCode = " "),
-            ),
-        )
+        ce.write(s.incomplete, ce.request("UEN" to "201912345A", name = name, address = short))
         ce.write(s.duplicateA, ce.request("UEN" to duplicateUen, name = name, address = ADDRESS))
         ce.write(s.duplicateB, ce.request("UEN" to duplicateUen, name = name, address = ADDRESS))
         ce.write(s.outage, ce.request("UEN" to outageUen, "GSTN" to "M2-1111111-1", name = name, address = ADDRESS))

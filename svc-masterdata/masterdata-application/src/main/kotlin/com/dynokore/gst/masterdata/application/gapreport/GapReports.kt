@@ -12,7 +12,6 @@ import com.dynokore.gst.masterdata.domain.counterparty.gapRows
 import com.dynokore.gst.masterdata.domain.counterparty.gstnOrNull
 import com.dynokore.gst.masterdata.domain.counterparty.uenOrNull
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 
@@ -44,28 +43,28 @@ data class GapReportRecord(
     val error: String?,
 )
 
-/** The gap report records of the bound tenant; every call runs inside the caller's transaction. */
+/**
+ * The gap report records of the bound tenant; every call runs inside the caller's transaction. The store stamps the
+ * times and renders the API-20 envelope of a FAILED record itself.
+ */
 interface GapReportStore {
-    fun insertRunning(record: GapReportRecord)
+    fun insertRunning(
+        gapReportId: String,
+        entity: String,
+        actor: String,
+    ): GapReportRecord
 
     fun finish(
         gapReportId: String,
-        completedAt: Instant,
         result: GapReportResult,
     )
 
-    fun fail(
-        gapReportId: String,
-        completedAt: Instant,
-        error: String,
-    )
+    fun fail(gapReportId: String)
 
     fun find(gapReportId: String): GapReportRecord?
-}
 
-/** Renders the API-20 envelope text stored on a FAILED record; written by the adapter, never built here. */
-fun interface FailureEnvelope {
-    fun internalError(): String
+    /** Finalises FAILED every RUNNING record started before [before]; returns how many. */
+    fun failRunningBefore(before: Instant): Int
 }
 
 /** One run's answer: the finished [record] or the still RUNNING one (the caller answers 200 or 202). */
@@ -77,7 +76,8 @@ data class GapReportRun(
 /**
  * INV-REQ-316, INV-AC-1608, INV-AC-1609, INV-AC-9599: lists the counterparties that would block or misstate
  * submission, in the five classes, and writes no master data. The RUNNING record is committed before the work starts;
- * the work runs on the bounded executor (INV-Q-17291). Class 3 goes only through [LookupGstRegister.check], the register
+ * the work runs on the bounded executor (INV-Q-17291). Class 3 goes only through [LookupGstRegister.check], the
+ * register
  * use case with its cache, for the entity of the request; a counterparty whose lookup is unavailable is `notChecked`.
  */
 class RunGapReport(
@@ -86,26 +86,22 @@ class RunGapReport(
     private val store: GapReportStore,
     private val register: LookupGstRegister,
     private val runner: LongRunner,
-    private val failure: FailureEnvelope,
-    private val clock: Clock,
 ) {
     fun handle(
         entity: String,
         actor: String,
     ): GapReportRun {
         val id = "GAP-" + UUID.randomUUID()
-        val started = clock.instant()
-        val running = GapReportRecord(id, entity, actor, RecordState.RUNNING, started, null, null, null)
-        tx.inTransaction { store.insertRunning(running) }
+        val running = tx.inTransaction { store.insertRunning(id, entity, actor) }
         val outcome =
             runner.run {
                 try {
                     val result = compute(entity)
-                    tx.inTransaction { store.finish(id, clock.instant(), result) }
+                    tx.inTransaction { store.finish(id, result) }
                 } catch (
                     @Suppress("TooGenericExceptionCaught") e: Exception,
                 ) {
-                    tx.inTransaction { store.fail(id, clock.instant(), failure.internalError()) }
+                    tx.inTransaction { store.fail(id) }
                     throw e
                 }
             }
@@ -163,7 +159,7 @@ class ReadGapReport(
     ): GapReportRecord? = tx.inTransaction { store.find(gapReportId) }?.takeIf { it.actor == actor }
 }
 
-/** One line of the export: the counterparty's current values; [findingClass] and [errorCode] are null for notChecked. */
+/** One export line: the counterparty's current values; [findingClass] and [errorCode] are null for notChecked. */
 data class ExportLine(
     val counterpartyRef: String,
     val findingClass: GapClass?,
