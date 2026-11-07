@@ -36,7 +36,12 @@ class TableConformanceGateTest {
                 registry.find(
                     BuilderKey(SpecificationFamily.PINT_SG, code),
                 ) as BuilderLookup.Found
-            ).builder.build(input, Direction.SALE, SpecificationFamily.PINT_SG, SubmissionType.TYPE_2) as BuildResult.Built
+            ).builder.build(
+                input,
+                Direction.SALE,
+                SpecificationFamily.PINT_SG,
+                SubmissionType.TYPE_2,
+            ) as BuildResult.Built
         ).xml
 
     private fun rows(code: String) = TableConformanceGate.applyingRows(fixture, code, spec)

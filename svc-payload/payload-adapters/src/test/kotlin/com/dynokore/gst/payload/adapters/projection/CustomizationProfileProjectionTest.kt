@@ -20,7 +20,8 @@ class CustomizationProfileProjectionTest {
         )
     private val registry = DocumentBuilderRegistry.standard()
     private val triple = IdentityTriple("0195:201912345A", "201912345A", "M2-1234567-8")
-    private val input = PartyIdentifierInput(PartyInput("SG_UEN", "201888888A"), PartyInput("0195", "SSC-CENTRE-9"), triple)
+    private val input =
+        PartyIdentifierInput(PartyInput("SG_UEN", "201888888A"), PartyInput("0195", "SSC-CENTRE-9"), triple)
     private val bisType2 =
         "urn:cen.eu:en16931:2017#conformant#urn:fdc:peppol.eu:2017:poacc:billing:LocalTaxInvoice:sg:1.0"
 
@@ -126,7 +127,14 @@ class CustomizationProfileProjectionTest {
     }
 
     private fun built380() =
-        (build("380", Direction.SALE, SpecificationFamily.SG_PEPPOL_BIS, SubmissionType.TYPE_2) as BuildResult.Built).xml
+        (
+            build(
+                "380",
+                Direction.SALE,
+                SpecificationFamily.SG_PEPPOL_BIS,
+                SubmissionType.TYPE_2,
+            ) as BuildResult.Built
+        ).xml
 
     private fun row(id: String) = applying("380").first { it.businessTermId == id }
 
@@ -147,7 +155,8 @@ class CustomizationProfileProjectionTest {
 
     @Test
     fun `ConformanceGate rule c fails on a CreditNote path in the IBT-024 row of 380 and 381`() {
-        val rows = applying("380").filter { it.businessTermId != "IBT-024" } +
+        val rows =
+            applying("380").filter { it.businessTermId != "IBT-024" } +
                 row("IBT-024").copy(syntaxPath = "/CreditNote/cbc:CustomizationID")
         gate(built380(), "380", rows).any { it.startsWith("(c)") } shouldBe true
     }

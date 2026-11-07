@@ -104,7 +104,8 @@ class PartyProjectionTest {
                 BuildResult.Refused(RefusalReason.IDENTITY_TRIPLE_ABSENT)
         }
         // Built is the only member that carries XML
-        BuildResult::class.sealedSubclasses.map { it.simpleName }.toSet() shouldBe setOf("Built", "Refused", "CustomizationIdUnpublished")
+        BuildResult::class.sealedSubclasses.map { it.simpleName }.toSet() shouldBe
+            setOf("Built", "Refused", "CustomizationIdUnpublished")
         BuildResult.Refused::class.java.declaredFields.map { it.name } shouldBe listOf("reason")
     }
 
