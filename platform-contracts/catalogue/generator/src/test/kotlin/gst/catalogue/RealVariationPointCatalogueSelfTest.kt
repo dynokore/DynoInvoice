@@ -68,10 +68,10 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
-    fun `INV-T-8291 VP-81 offers exactly the three ruled options, planned, set and acknowledged by tenant admin`() {
+    fun `INV-AC-8290 VP-81 offers exactly the three ruled options, available, set and acknowledged by tenant admin`() {
         val vp81 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-81" }
         assertEquals("INV-REQ-8287", vp81.requirement)
-        assertEquals(VpStatus.PLANNED, vp81.status)
+        assertEquals(VpStatus.AVAILABLE, vp81.status)
         assertEquals("vp-81.set", vp81.setPermission)
         val fields = vp81.fields!!
         assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
