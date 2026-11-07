@@ -1,7 +1,11 @@
 package com.dynokore.gst.masterdata.application.gapreport
 
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
+import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Future
 import java.util.concurrent.RejectedExecutionException
@@ -47,17 +51,41 @@ class LongRunner(
 }
 
 /**
- * Finalises FAILED every RUNNING record of the bound tenant that is older than [maxRun] (INV-Q-17291): a gap report,
- * a dry run or an import whose worker died. A younger record is left alone. Returns how many were finalised.
+ * Finalises FAILED every RUNNING record older than [maxRun] (INV-Q-17291): a gap report, a dry run or an import whose
+ * worker died. A younger record is left alone. A job runs under no tenant, so the tenants come from [source] and each
+ * tenant's records are updated under that tenant's own binding, in its own transaction, so every update stays under the
+ * tenant's row-level security (INV-Q-18051 A). A failure for one tenant is logged with the tenant id and the others go
+ * on; the call then throws when any tenant failed, so the job run is recorded failed. Returns how many were finalised.
  */
+@Suppress("LongParameterList") // the ports of one sweep: tenants, clock, setting and the three stores
 class SweepStaleRecords(
-    private val tx: com.dynokore.platform.tenancykernel.TransactionRunner,
-    private val clock: java.time.Clock,
+    private val tx: TransactionRunner,
+    private val clock: Clock,
     private val maxRun: Duration,
-    private val sweeps: List<(java.time.Instant) -> Int>,
+    private val source: StaleRecordTenantSource,
+    private val tenants: TenantContext,
+    private val actor: String,
+    private val sweeps: List<(Instant) -> Int>,
 ) {
     fun run(): Int {
         val before = clock.instant().minus(maxRun)
-        return tx.inTransaction { sweeps.sumOf { it(before) } }
+        var finalised = 0
+        val failed = mutableListOf<TenantId>()
+        source.tenants(before).forEach { tenant ->
+            try {
+                finalised += tenants.bind(tenant, actor) { tx.inTransaction { sweeps.sumOf { it(before) } } }
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: RuntimeException,
+            ) {
+                LOG.log(System.Logger.Level.ERROR, "long-command sweep failed for tenant ${tenant.value}", e)
+                failed += tenant
+            }
+        }
+        check(failed.isEmpty()) { "the long-command sweep failed for ${failed.size} tenant(s)" }
+        return finalised
+    }
+
+    private companion object {
+        private val LOG = System.getLogger(SweepStaleRecords::class.java.name)
     }
 }

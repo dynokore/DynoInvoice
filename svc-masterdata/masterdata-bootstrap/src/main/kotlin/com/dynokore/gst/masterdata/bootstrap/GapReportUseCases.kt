@@ -5,6 +5,7 @@ import com.dynokore.gst.masterdata.adapters.http.AuditLogExportAudit
 import com.dynokore.gst.masterdata.adapters.persistence.JooqDryRunStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqGapReportStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqImportStore
+import com.dynokore.gst.masterdata.adapters.persistence.JooqStaleRecordTenantSource
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
 import com.dynokore.gst.masterdata.application.gapreport.ExportAudit
@@ -13,6 +14,7 @@ import com.dynokore.gst.masterdata.application.gapreport.GapReportStore
 import com.dynokore.gst.masterdata.application.gapreport.LongRunner
 import com.dynokore.gst.masterdata.application.gapreport.ReadGapReport
 import com.dynokore.gst.masterdata.application.gapreport.RunGapReport
+import com.dynokore.gst.masterdata.application.gapreport.StaleRecordTenantSource
 import com.dynokore.gst.masterdata.application.gapreport.SweepStaleRecords
 import com.dynokore.gst.masterdata.application.imports.DryRunCounterpartyImport
 import com.dynokore.gst.masterdata.application.imports.DryRunStore
@@ -24,6 +26,8 @@ import com.dynokore.gst.masterdata.application.imports.ReadImportRecord
 import com.dynokore.gst.masterdata.application.registry.LookupGstRegister
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
+import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -158,13 +162,27 @@ class GapReportUseCases {
         gapReports: GapReportStore,
         dryRuns: DryRunStore,
         imports: ImportStore,
+        source: StaleRecordTenantSource,
+        tenants: TenantContext,
+        principal: WorkloadPrincipal,
         environment: Environment,
     ) = SweepStaleRecords(
         tx,
         clock,
         Duration.parse(environment.getRequiredProperty("masterdata.long-command.max-run")),
+        source,
+        tenants,
+        principal.value,
         listOf(gapReports::failRunningBefore, dryRuns::failRunningBefore, imports::failRunningBefore),
     )
+
+    @Bean
+    fun staleRecordTenantSource(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        principal: WorkloadPrincipal,
+        transactions: TransactionRunner,
+    ): StaleRecordTenantSource = JooqStaleRecordTenantSource(dsl, platform, principal, transactions)
 
     private companion object {
         const val WORKERS = 4

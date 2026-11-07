@@ -510,8 +510,8 @@ class ImportTest {
             }
             insert(old, SWEEP_OLD_MINUTES)
             insert(young, 1)
-            val swept = env.ce.inTenant { env.context.getBean(SweepStaleRecords::class.java).run() }
-            assertThat(swept).isEqualTo(1)
+            val swept = env.context.getBean(SweepStaleRecords::class.java).run()
+            assertThat(swept).isGreaterThanOrEqualTo(1)
 
             fun state(id: String) =
                 BoundaryFixture.asSuperuser { c ->

@@ -52,5 +52,6 @@ inv:
       - masterdata.config_purge_tenant
       - masterdata.shedlock                         # JobSchema.platformScopedTables("masterdata")
       - masterdata.job_retention
+      - masterdata.stale_record_tenants             # INV-Q-18051 A: a definer function, tenant ids only
   masterdata:
     job-scheduling.enabled: true                    # INV-Q-16793 A: fire the registered jobs on their cron; the boundary tests set it false
