@@ -51,5 +51,9 @@ tasks.withType<Test>().configureEach {
             "contracts-repo/platform-contracts/evidence/${libs.versions.platformContractsBundle.get()}",
         )
     systemProperty("gst.contract.dir", contractDir.get().asFile.path)
+    // The identity binding has no default in code or application.yaml (INV-T-12601); the tests that start the
+    // service with a stand-in end-user token give the installation values here. ProductionIdentityTest overrides them.
+    systemProperty("evidence.identity-provider.issuer-uri", "https://issuer.invalid/realms/test")
+    systemProperty("service-runtime.end-user-identity.audience", "evidence-svc")
     dependsOn(":evidence-contract:generateContractServer")
 }

@@ -5,38 +5,61 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
-import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
+import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
+import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantId
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicLong
 
 /**
- * The two ports a test stands in for, which the access service and its authority replica fill in production: the
- * end-user token (`Bearer <tenant>/<actor>`, entities [ENTITIES] granted) and the setting role of the actor. It sits
- * outside the packages the application scans, so only a test puts it in a context.
+ * The end-user token a test sends (`Bearer <tenant>/<actor>`, entities [ENTITIES] granted), which the identity provider
+ * signs in production. The permission is not stood in for any more (INV-T-12601): resolving a token seeds the actor's
+ * TENANT-scope `tenant.admin` grant into the production `AuthorityReplica`, so `setPolicy` is decided by
+ * `AuthorityReplica.decide` for `vp-43.set` as it is in production. It sits outside the packages the application scans,
+ * so only a test puts it in a context. The signed-token path is proved by `ProductionIdentityTest`.
  */
 @Configuration(proxyBeanMethods = false)
 class RetentionBeans {
-    @Bean
-    @Primary
-    fun retentionEndUserResolver(): EndUserPrincipalResolver =
-        EndUserPrincipalResolver { authorization ->
-            authorization?.removePrefix("Bearer ")?.split('/')?.takeIf { it.size == 2 }?.let { (tenant, actor) ->
-                EndUserPrincipal(actor, TenantId.of(tenant), ENTITIES.map { EntityRef(it) }.toSet())
-            }
-        }
+    private val version = AtomicLong()
 
     @Bean
     @Primary
-    fun retentionRoles(): PolicyRoleResolver = PolicyRoleResolver { _, _, _, _, _ -> setOf("tenant.admin") }
+    fun retentionEndUserResolver(authority: ObjectProvider<AuthorityReplica>): EndUserPrincipalResolver =
+        EndUserPrincipalResolver { authorization ->
+            authorization?.removePrefix("Bearer ")?.split('/')?.takeIf { it.size == 2 }?.let { (tenant, actor) ->
+                val tenantId = TenantId.of(tenant)
+                seed(authority.getObject(), tenantId, actor)
+                EndUserPrincipal(actor, tenantId, ENTITIES.map { EntityRef(it) }.toSet())
+            }
+        }
+
+    private fun seed(
+        replica: AuthorityReplica,
+        tenant: TenantId,
+        actor: String,
+    ) {
+        val at = version.incrementAndGet()
+        val grant = RoleGrant("tenant.admin", GrantScope.TENANT, tenant.toString(), Instant.EPOCH)
+        replica.accept(
+            AuthorityChanged(tenant, actor, at, AuthorityRecord.RoleGrantRecord("grant-$actor", RoleGrantState.ACTIVE, grant)),
+        )
+        replica.onSnapshotComplete(at)
+    }
 
     companion object {
         val ENTITIES = listOf("ENT-A", "ENT-B")
     }
 }
 
-/** Only the workload tokens: no end-user resolver and no role resolver, as production has them today (INV-Q-12588). */
+/** Only the workload tokens: no end-user resolver of the test, so the production one is built. */
 @Configuration(proxyBeanMethods = false)
 class WorkloadTokensOnly {
     /** `token-<name>` is verified as subject `sa-<name>`; every other token is refused. */
@@ -53,7 +76,7 @@ class WorkloadTokensOnly {
         }
 }
 
-/** The end-user token is bound but no role resolver exists: the probe of INV-Q-12588 for the second port. */
+/** The end-user token is bound; the grant of the actor is not seeded, so the permission decision refuses. */
 @Configuration(proxyBeanMethods = false)
 class EndUserTokensOnly {
     @Bean
