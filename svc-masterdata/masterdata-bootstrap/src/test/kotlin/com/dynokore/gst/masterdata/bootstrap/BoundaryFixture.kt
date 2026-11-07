@@ -248,11 +248,9 @@ object BoundaryFixture {
                     null
                 ) {
                     it.withBean(ConfirmerRoles::class.java, {
-                        ConfirmerRoles {
-                            subject,
-                            entity,
-                            ->
-                            resolver.rolesOf(subject.value, entity.value)
+                        // stands in for ReplicaConfirmerRoles, whose contract is fail closed: a failing lookup is empty
+                        ConfirmerRoles { subject, entity ->
+                            runCatching { resolver.rolesOf(subject.value, entity.value) }.getOrDefault(emptySet())
                         }
                     })
                 } else {

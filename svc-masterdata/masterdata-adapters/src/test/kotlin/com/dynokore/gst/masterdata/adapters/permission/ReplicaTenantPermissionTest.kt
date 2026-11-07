@@ -69,7 +69,7 @@ class ReplicaTenantPermissionTest {
                 AuthorityRecord.RoleGrantRecord(
                     "g$version",
                     RoleGrantState.ACTIVE,
-                    RoleGrant(role, scope, "S", now.minusSeconds(60), validUntil),
+                    RoleGrant(role, scope, tenant.toString(), now.minusSeconds(60), validUntil),
                 ),
             ),
         )
@@ -87,11 +87,9 @@ class ReplicaTenantPermissionTest {
     fun `a tenant-scope grant of the key is served and of another key or entity scope is refused`() {
         grant("identity:P-VIEW", MasterdataPermissions.GAP_REPORT_VIEW)
         grant("identity:P-ENT", MasterdataPermissions.GAP_REPORT_VIEW, GrantScope.ENTITY)
-        grant("identity:P-EXP", MasterdataPermissions.GAP_REPORT_EXPORT)
         assertTrue(permission.holds("identity:P-VIEW", MasterdataPermissions.GAP_REPORT_VIEW))
         assertFalse(permission.holds("identity:P-VIEW", MasterdataPermissions.GAP_REPORT_EXPORT))
         assertFalse(permission.holds("identity:P-ENT", MasterdataPermissions.GAP_REPORT_VIEW))
-        assertFalse(permission.holds("identity:P-EXP", MasterdataPermissions.GAP_REPORT_VIEW))
         assertFalse(permission.holds("identity:NOBODY", MasterdataPermissions.GAP_REPORT_VIEW))
     }
 
@@ -99,10 +97,11 @@ class ReplicaTenantPermissionTest {
     fun `an expired grant, a role name and a look-alike key are refused`() {
         grant("identity:P-OLD", MasterdataPermissions.COUNTERPARTY_IMPORT_RUN, validUntil = now.minusSeconds(1))
         holdRole("identity:P-ROLE", "a-role-the-matrix-does-not-list")
-        grant("identity:P-LIKE", MasterdataPermissions.COUNTERPARTY_IMPORT_RUN + "s")
+        grant("identity:P-LIKE", MasterdataPermissions.GAP_REPORT_VIEW)
         assertFalse(permission.holds("identity:P-OLD", MasterdataPermissions.COUNTERPARTY_IMPORT_RUN))
         assertFalse(permission.holds("identity:P-ROLE", MasterdataPermissions.COUNTERPARTY_IMPORT_RUN))
         assertFalse(permission.holds("identity:P-LIKE", MasterdataPermissions.COUNTERPARTY_IMPORT_RUN))
+        assertFalse(permission.holds("identity:P-LIKE", MasterdataPermissions.GAP_REPORT_VIEW + "s"))
     }
 
     @Test

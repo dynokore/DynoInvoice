@@ -3,6 +3,7 @@ package com.dynokore.gst.masterdata.bootstrap
 import com.dynokore.gst.masterdata.domain.registry.RegisterPolicy
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
@@ -23,8 +24,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * INV-T-4946, the settings half (INV-Q-10167 A, INV-Q-16977 A): VP-29, VP-38 and VP-65 are written through the
- * `setPolicy` servlet that service-runtime mounts over the service's PolicyWriter, with a test `PolicyRoleResolver`
- * (the production role binding is INV-Q-8972). A shorter value is accepted and stored; a lifetime above the default is
+ * `setPolicy` servlet that service-runtime mounts over the service's PolicyWriter, with a test `SetterPermission`
+ * (service-runtime 12 decides by permission key, INV-Q-10027). A shorter value is accepted and stored; a lifetime above the default is
  * refused with its POL code and the stored value stays; AUTO_APPLY is stored for the entity it was set for.
  */
 class RegistrySettingsTest {
@@ -38,8 +39,24 @@ class RegistrySettingsTest {
             actor?.takeIf { it.startsWith("IDN-") }?.let { EndUserPrincipal(it, tenant.get(), entities.toSet()) }
         }
 
+    /** Who may set which setting (INV-Q-10027): decided by the permission key, as the service-runtime port asks. */
+    private val setters =
+        SetterPermission { actor, _, _, _, _, key ->
+            when (actor.principal) {
+                "IDN-INTEGRATOR" -> key == "vp-38.set"
+                "IDN-ADVISOR" -> key in setOf("vp-65.set", "vp-29.set")
+                else -> false
+            }
+        }
+
     private fun run(block: (RegistryEnv) -> Unit) =
-        runRegistry(customize = { it.withBean(EndUserPrincipalResolver::class.java, { principals }) }) { env ->
+        runRegistry(
+            customize = {
+                it
+                    .withBean(EndUserPrincipalResolver::class.java, { principals })
+                    .withBean(SetterPermission::class.java, { setters })
+            },
+        ) { env ->
             tenant.set(env.ce.tenant)
             block(env)
         }
