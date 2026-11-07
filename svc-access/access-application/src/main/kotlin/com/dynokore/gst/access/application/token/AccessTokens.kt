@@ -141,6 +141,7 @@ class IssueAccessTokenUseCase(
         principal: ServicePrincipal,
         environment: TenantEnvironment? = null,
     ): IssuedToken {
+        val principalType = PrincipalTypeClaim.of(principal.type.name)
         val now = clock.instant()
         val session = signer.open()
         val published =
@@ -159,7 +160,6 @@ class IssueAccessTokenUseCase(
         if (!now.isBefore(published.validFrom.plus(settings.keyRotationInterval))) {
             throw SigningKeyUnavailable("the signing key ${session.kid} is past its signing interval")
         }
-        val principalType = PrincipalTypeClaim.of(principal.type.name)
         val tokenId = newTokenId()
         val claims =
             AccessTokenClaims(

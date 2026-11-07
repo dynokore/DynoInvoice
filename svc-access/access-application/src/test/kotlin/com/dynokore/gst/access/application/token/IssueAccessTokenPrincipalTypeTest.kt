@@ -17,9 +17,11 @@ import java.time.ZoneOffset
 /** INV-AC-13560 (issuing side), INV-REQ-584: the claim `principal_type` carries the kebab-case machine type. */
 class IssueAccessTokenPrincipalTypeTest {
     private val claims = mutableListOf<AccessTokenClaims>()
+    private var opened = 0
 
     private val signer =
         AccessTokenSigner {
+            opened++
             object : SigningSession {
                 override val kid = "k1"
                 override val alg = "EdDSA"
@@ -116,5 +118,12 @@ class IssueAccessTokenPrincipalTypeTest {
             listOf("ingest", "filing-workflow", "ap-callback", "reporting", "monitoring", "certification"),
             PrincipalType.entries.map { PrincipalTypeClaim.of(it.name) },
         )
+    }
+
+    @Test
+    fun `INV-AC-13560 the type lookup runs before the signer is opened and the claims carry its result`() {
+        useCase.issue(principal(PrincipalType.REPORTING))
+        assertEquals(1, opened)
+        assertEquals("reporting", claims.single().principalType)
     }
 }
