@@ -39,6 +39,84 @@
           "syntaxPath": "/Invoice/cbc:IssueDate"
         }
       ]
+    },
+    {
+      "businessTermId": "IBT-047",
+      "documentTypeCodes": [
+        "380"
+      ],
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-030",
+      "documentTypeCodes": [
+        "380"
+      ],
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-031",
+      "documentTypeCodes": [
+        "380"
+      ],
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-047",
+      "documentTypeCodes": [
+        "381"
+      ],
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/CreditNote/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-030",
+      "documentTypeCodes": [
+        "381"
+      ],
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/CreditNote/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-031",
+      "documentTypeCodes": [
+        "381"
+      ],
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/CreditNote/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"
+        }
+      ]
     }
   ]
 }
