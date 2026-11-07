@@ -1,10 +1,10 @@
 package com.dynokore.gst.masterdata.adapters.permission
 
+import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.masterdata.application.permission.MasterdataPermissions
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
-import com.dynokore.gst.catalogue.DeploymentForm
-import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.GrantScope
@@ -28,7 +28,9 @@ class ReplicaTenantPermissionTest {
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val form = DeploymentForm.SAAS
     private val roleMap =
-        OperationRoleMap { key -> OperationRoles.rolesFor(form, key).mapValues { CellAllowance.valueOf(it.value.name) } }
+        OperationRoleMap { key ->
+            OperationRoles.rolesFor(form, key).mapValues { CellAllowance.valueOf(it.value.name) }
+        }
     private val replica = AuthorityReplica(clock, roleMap).also { it.onSnapshotComplete(0) }
     private val tenants =
         object : TenantContext {
@@ -46,7 +48,12 @@ class ReplicaTenantPermissionTest {
     private var version = 0L
 
     /** A role the generated permission matrix lists for [key] (read from the catalogue, never written here). */
-    private fun roleOf(key: String): String = OperationRoles.rolesFor(form, key).keys.sorted().first()
+    private fun roleOf(key: String): String =
+        OperationRoles
+            .rolesFor(form, key)
+            .keys
+            .sorted()
+            .first()
 
     private fun holdRole(
         person: String,

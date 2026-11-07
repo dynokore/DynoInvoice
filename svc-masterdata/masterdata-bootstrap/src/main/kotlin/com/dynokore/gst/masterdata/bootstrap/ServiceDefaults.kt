@@ -4,6 +4,7 @@ import com.dynokore.gst.masterdata.adapters.events.IdentityTripleChangedOutbox
 import com.dynokore.gst.masterdata.adapters.events.IdentityTripleCorrectedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterDataResolvedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
+import com.dynokore.gst.masterdata.adapters.permission.ReplicaConfirmerRoles
 import com.dynokore.gst.masterdata.adapters.permission.ReplicaTenantPermission
 import com.dynokore.gst.masterdata.adapters.persistence.jooq.Masterdata
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
@@ -14,7 +15,6 @@ import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleChangedPublisher
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleCorrectedPublisher
 import com.dynokore.gst.masterdata.application.identity.TripleRepository
-import com.dynokore.gst.masterdata.adapters.permission.ReplicaConfirmerRoles
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerRole
 import com.dynokore.gst.masterdata.domain.identity.ConfirmerSet
