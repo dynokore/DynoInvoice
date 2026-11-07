@@ -338,6 +338,20 @@ class ApPollingDbTest {
         job() shouldBe "ap-poll-${adapter.value}"
     }
 
+    @Test
+    fun `INV-AC-1780 the registered lease values of a poll job equal the two default constants`(
+        @TempDir dir: Path,
+        @TempDir other: Path,
+    ) = twoInstances(dir, other, *polling()) { a, _ ->
+        val def =
+            a.context
+                .getBean(JobRuntime::class.java)
+                .registered()
+                .single { it.name == job() }
+        def.lockAtLeastFor shouldBe com.dynokore.platform.serviceruntime.jobs.JobDefinition.DEFAULT_LOCK_AT_LEAST_FOR
+        def.lockAtMostFor shouldBe com.dynokore.platform.serviceruntime.jobs.JobDefinition.DEFAULT_LOCK_AT_MOST_FOR
+    }
+
     /** The row the migration runner writes at install (INV-Q-4346); this harness applies only the Flyway files. */
     private fun writeRetentionRow() =
         TransportDb.superuser().use { c ->

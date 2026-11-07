@@ -14,7 +14,9 @@ object ApPollSchedule {
 
     fun cron(interval: Duration): String {
         val s = interval.seconds
-        require(interval.nano == 0 && s > 0) { "transport.ap.poll-interval must be a whole number of seconds" }
+        require(
+            interval.nano == 0 && s > 0,
+        ) { "transport.ap.poll-interval $interval must be a whole number of seconds" }
         return when {
             s < MINUTE -> {
                 "*/$s * * * * *".also { require(MINUTE % s == 0L) { divisor(interval) } }

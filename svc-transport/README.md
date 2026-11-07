@@ -73,6 +73,12 @@ Gradle runs in the CI image; the build needs Docker (jOOQ code generation and th
 
 `transport.ap.environment` (`SANDBOX` or `PRODUCTION`), `transport.ap.sandbox-endpoint`, `transport.ap.production-endpoint`, `transport.ap.timeout`, `transport.ap.metrics-window` and the adapter list `transport.ap.adapters[n].id` / `.path`. There is no default environment or endpoint. A sandbox configuration resolves only the sandbox endpoint.
 
+`transport.ap.adapters[n].notifications` is `CALLBACK` (the default: the AP calls the notification endpoint) or `POLLING` (the service polls on a leader-elected schedule, one job `ap-poll-<id>` per adapter).
+
+`transport.ap.poll-interval` has no default and is required when an adapter is `POLLING`; it must be a whole number of seconds that divides a minute, an hour or a day and is strictly longer than the job lease (`JobDefinition.DEFAULT_LOCK_AT_LEAST_FOR`, 30 seconds), so PT1M, PT5M and PT1H start while PT30S, PT29S and PT7M fail start-up; nothing is rounded.
+
+`transport.ap.adapters[n].id` of a `POLLING` adapter must match `^[a-z0-9-]{1,40}$` (the job name `ap-poll-<id>` uses it exactly); the ids of `CALLBACK` adapters are not checked.
+
 ## Gates
 
 | Gate | Where | Fails when |

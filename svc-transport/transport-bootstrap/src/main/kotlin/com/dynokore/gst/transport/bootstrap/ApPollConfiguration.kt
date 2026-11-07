@@ -131,8 +131,7 @@ class ApPollJobs(
                     JobSchedule(ApPollSchedule.cron(every)),
                     JobCriticality.STANDARD,
                     every.multipliedBy(TOLERANCE_TICKS),
-                    // one run per tick is the job_run key's; a lease would block ticks shorter than itself
-                    lockAtLeastFor = Duration.ZERO,
+                    // the default leases (JobDefinition.DEFAULT_LOCK_AT_*): the ShedLock election gives the one run
                 )
             checkNotNull(runtime) { "polling needs the job runtime" }.register(definition) { run(adapter) }
         }
@@ -176,6 +175,6 @@ class ApPollJobs(
         private const val OWNER = "transport-svc"
         private const val TOLERANCE_TICKS = 2L
 
-        fun jobName(adapter: AdapterId): String = "ap-poll-${adapter.value.lowercase()}"
+        fun jobName(adapter: AdapterId): String = "ap-poll-${adapter.value}"
     }
 }
