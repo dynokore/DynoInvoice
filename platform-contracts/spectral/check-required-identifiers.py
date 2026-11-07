@@ -45,6 +45,11 @@ map has exactly one line for that table and old (identifier, kind, file), and th
 new triple of that line and the requirement cell of the removed row; every comparison is by equality of the trimmed cell. Every
 data line of the base map is checked and a malformed, unruled, duplicated or self-mapping line is a finding naming its line
 number. The map exempts rows, never a table.
+A retirement line (INV-T-17435, INV-Q-17427 A) has the token RETIRED in each of new_identifier, new_kind and new_file and an
+`INV-Q-<number>` key in ruling. It exempts a removed row only when its table and old triple equal the row's, the table at the head
+holds no row with that triple, and the element is absent at the head (kind operation: no operationId equal to old_identifier in
+<dir>/old_file; other kinds: the lookup of the plain check finds nothing). A line with RETIRED in only some of the three cells is
+a finding naming its line number.
 Without --base the behaviour is the plain check above.
 
 Audited-operation completeness (INV-T-7643, INV-Q-7641 A; made unconditional by INV-T-7650), with and without --base:
@@ -188,6 +193,7 @@ def row_keys(text: str) -> set[tuple[str, str, str]]:
     return keys
 
 
+RETIRED = "RETIRED"
 RENAMES = "spectral/required-identifiers-renames.tsv"
 RENAME_HEADER = ("table", "old_identifier", "old_kind", "old_file", "new_identifier", "new_kind", "new_file", "ruling")
 
@@ -234,7 +240,13 @@ def rename_findings(lines: list[tuple[int, list[str]]]) -> list[str]:
         if len(c) != 8 or not all(c):
             found.append(f"{tag}: needs exactly eight non-empty cells")
             continue
-        if not re.fullmatch(r"INV-[A-Z]+-[0-9]+", c[7]):
+        marks = [x == RETIRED for x in c[4:7]]
+        if any(marks) and not all(marks):
+            found.append(f"{tag}: self-contradicting line: {RETIRED} must be in all of new_identifier, new_kind and new_file or in none")
+        if all(marks):
+            if not re.fullmatch(r"INV-Q-[0-9]+", c[7]):
+                found.append(f"{tag}: the ruling cell {c[7]!r} of a retirement line is not an INV-Q-<number> key")
+        elif not re.fullmatch(r"INV-[A-Z]+-[0-9]+", c[7]):
             found.append(f"{tag}: the ruling cell {c[7]!r} is not an INV-<KIND>-<number> key")
         if not re.fullmatch(r"[^/]+/required-identifiers\.tsv", c[0]) or c[0].split("/")[0] in (".", ".."):
             found.append(f"{tag}: the table cell {c[0]!r} is not of the form <dir>/required-identifiers.tsv")
@@ -248,8 +260,33 @@ def rename_findings(lines: list[tuple[int, list[str]]]) -> list[str]:
     return found
 
 
+def is_retirement(c: list[str]) -> bool:
+    return len(c) == 8 and all(c) and all(x == RETIRED for x in c[4:7])
+
+
+def valid_retirement(c: list[str]) -> bool:
+    return (is_retirement(c) and re.fullmatch(r"INV-Q-[0-9]+", c[7]) is not None
+            and re.fullmatch(r"[^/]+/required-identifiers\.tsv", c[0]) is not None and c[0].split("/")[0] not in (".", ".."))
+
+
+def absent_at_head(root: Path, table: str, ident: str, kind: str, file: str) -> bool:
+    """INV-Q-17427 A: the element of a retired row is really absent from the file at the head; anything unreadable is not absent."""
+    base = (root / table).parent.resolve()
+    target = (base / file).resolve()
+    if base not in target.parents or not target.is_file() or kind not in KINDS:
+        return False
+    try:
+        loaded = collect(yaml.safe_load(target.read_text()))
+    except yaml.YAMLError:
+        return False
+    if kind in SCOPED:
+        parts = ident.split(".", SCOPED[kind] - 1)
+        return len(parts) == SCOPED[kind] and all(parts) and tuple(parts) not in loaded[kind]
+    return ident not in loaded[kind]
+
+
 def valid_rename(c: list[str]) -> bool:
-    return (len(c) == 8 and all(c) and re.fullmatch(r"INV-[A-Z]+-[0-9]+", c[7]) is not None
+    return (len(c) == 8 and all(c) and not any(x == RETIRED for x in c[4:7]) and re.fullmatch(r"INV-[A-Z]+-[0-9]+", c[7]) is not None
             and re.fullmatch(r"[^/]+/required-identifiers\.tsv", c[0]) is not None and c[0].split("/")[0] not in (".", "..")
             and c[1:4] != c[4:7])
 
@@ -286,6 +323,8 @@ def check_base(root: Path, sha: str) -> list[str]:
             ident, kind, file = key
             hits = [c for _, c in lines if len(c) == 8 and all(c) and c[0] == name and tuple(c[1:4]) == key]
             if len(hits) == 1 and valid_rename(hits[0]) and base_reqs[key] <= head_reqs.get(tuple(hits[0][4:7]), set()):
+                continue
+            if len(hits) == 1 and valid_retirement(hits[0]) and key not in head_reqs and absent_at_head(root, name, ident, kind, file):
                 continue
             findings.append(f"{name}: row removed since {sha}: {ident!r} ({kind}, {file})")
     return findings

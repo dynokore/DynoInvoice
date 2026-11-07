@@ -1,0 +1,7 @@
+openapi: 3.1.0
+info: {title: retire fixture, version: 1.0.0}
+paths:
+  /keep:
+    get: {operationId: keepOp, responses: {"200": {description: ok}}}
+  /link:
+    post: {operationId: issueSignatoryLink, responses: {"200": {description: ok}}}

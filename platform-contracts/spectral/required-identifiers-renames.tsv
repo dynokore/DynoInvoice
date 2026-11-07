@@ -1,3 +1,9 @@
 table	old_identifier	old_kind	old_file	new_identifier	new_kind	new_file	ruling
 control-plane/required-identifiers.tsv	classifiedByRole	property	openapi.yaml	classifiedBy	property	openapi.yaml	INV-Q-10647
 control-plane/required-identifiers.tsv	GateRunResponse.recordedByRole	schema_property	openapi.yaml	GateRunResponse.recordedBy	schema_property	openapi.yaml	INV-Q-10647
+# Rename lines map a removed row to a new row of the same table: new_identifier, new_kind and new_file name the new row.
+# Retirement line (INV-T-17435, INV-Q-17427 A): the token RETIRED in each of new_identifier, new_kind and new_file, and in
+# ruling a Keel question key matching ^INV-Q-[0-9]+$. It exempts one removed row (same table, old_identifier, old_kind, old_file)
+# only if the head holds no row with that triple and the element is really absent from <dir>/<old_file> at the head (kind
+# operation: no operationId equal to old_identifier). The map is read from the base commit. RETIRED in only some of the three
+# cells, a duplicate line for one table and old triple, or an unruled line is a finding.

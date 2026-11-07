@@ -306,6 +306,44 @@ rename_case map-bad-ruling 1 "map line 2" 'svc/required-identifiers.tsv\tbeta\tp
 rename_case map-duplicate-old 1 "map line 3" "$RL$RL" "true"
 rename_case map-self 1 "map line 2" 'svc/required-identifiers.tsv\tbeta\tproperty\topenapi.yaml\tbeta\tproperty\topenapi.yaml\tINV-Q-10647\n' "true"
 rename_case map-unused-line 0 "" "$RL" "true"
+# INV-T-17435 (INV-Q-17427 A, INV-AC-17436): the retirement line type of the rename map. Fixtures live in fixtures/required-identifiers-retire/;
+# each case is a throwaway git repository whose base commit holds svc with the base table, the base openapi.yaml, asyncapi.yaml and the map.
+RT=fixtures/required-identifiers-retire
+RR='svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-Q-17427\n'
+mkt() { # name, map lines -> $T/<name>
+  mkdir -p "$T/$1/svc" "$T/$1/spectral" "$T/$1/other"
+  cp $RT/openapi-base.yaml "$T/$1/svc/openapi.yaml"; cp $RT/asyncapi.yaml "$T/$1/svc/asyncapi.yaml"; cp $RT/table-base.tsv "$T/$1/svc/required-identifiers.tsv"
+  cp $RT/openapi-base.yaml "$T/$1/other/openapi.yaml"; cp $RT/table-base.tsv "$T/$1/other/required-identifiers.tsv"
+  printf "${RH}$2" > "$T/$1/spectral/required-identifiers-renames.tsv"
+  git -C "$T/$1" init -q && git -C "$T/$1" add -A && git -C "$T/$1" -c user.name=t -c user.email=t@t commit -q -m base
+}
+retire_case() { # name, expected rc, expected text, map lines at the base, mutation run in $T/<name>
+  n=$1; want=$2; txt=$3; ml=$4; mkt "$n" "$ml"; shift 4; (cd "$T/$n" && eval "$*")
+  out=$(python3 check-required-identifiers.py --base "$(git -C "$T/$n" rev-parse HEAD)" "$T/$n" 2>&1); rc=$?
+  if [ "$want" = 0 ] && [ $rc -ne 0 ]; then echo "gst-ci: FAIL — INV-AC-17436 retire case '$n' rejected:"; echo "$out"; failed=1
+  elif [ "$want" = 1 ] && [ $rc -eq 0 ]; then echo "gst-ci: FAIL — INV-AC-17436 retire case '$n' was accepted"; failed=1
+  elif [ "$want" = 1 ] && ! case "$out" in *"$txt"*) true;; *) false;; esac; then echo "gst-ci: FAIL — INV-AC-17436 retire case '$n' failed, but not with '$txt':"; echo "$out"; failed=1
+  else echo "gst-ci: self-test INV-AC-17436 retire '$n' behaved as expected"; fi
+}
+HEADRM="cp \"$PWD/$RT/table-head.tsv\" svc/required-identifiers.tsv; cp \"$PWD/$RT/openapi-head.yaml\" svc/openapi.yaml"
+GONE2="'issueSignatoryLink' (operation, openapi.yaml)"
+retire_case retire-ok 0 "" "$RR" "$HEADRM"
+retire_case retire-still-present 1 "$GONE2" "$RR" "cp \"$PWD/$RT/table-head.tsv\" svc/required-identifiers.tsv"
+retire_case retire-lookalike-plural 1 "$GONE2" 'svc/required-identifiers.tsv\tissueSignatoryLinks\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-Q-17427\n' "$HEADRM"
+retire_case retire-lookalike-case 1 "$GONE2" 'svc/required-identifiers.tsv\tissuesignatorylink\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-Q-17427\n' "$HEADRM"
+retire_case retire-other-table 1 "$GONE2" 'other/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-Q-17427\n' "$HEADRM"
+retire_case retire-kind-property 1 "$GONE2" 'svc/required-identifiers.tsv\tissueSignatoryLink\tproperty\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-Q-17427\n' "$HEADRM"
+retire_case retire-file-asyncapi 1 "$GONE2" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\tasyncapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-Q-17427\n' "$HEADRM"
+retire_case retire-ruling-req 1 "map line 2" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-REQ-2588\n' "$HEADRM"
+retire_case retire-ruling-req-row 1 "$GONE2" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\tINV-REQ-2588\n' "$HEADRM"
+retire_case retire-ruling-empty 1 "map line 2" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\t\n' "$HEADRM"
+retire_case retire-ruling-empty-row 1 "$GONE2" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tRETIRED\tRETIRED\t\n' "$HEADRM"
+retire_case retire-duplicate 1 "map line 3" "$RR$RR" "$HEADRM"
+retire_case retire-duplicate-row 1 "$GONE2" "$RR$RR" "$HEADRM"
+retire_case retire-partial 1 "map line 2" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tproperty\topenapi.yaml\tINV-Q-17427\n' "$HEADRM"
+retire_case retire-partial-row 1 "$GONE2" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tRETIRED\tproperty\topenapi.yaml\tINV-Q-17427\n' "$HEADRM"
+retire_case retire-map-added-in-change 1 "$GONE2" "" "$HEADRM; printf \"\$(printf '$RH$RR')\" > spectral/required-identifiers-renames.tsv"
+retire_case retire-rename-still-passes 0 "" 'svc/required-identifiers.tsv\tissueSignatoryLink\toperation\topenapi.yaml\tkeepOp2\toperation\topenapi.yaml\tINV-Q-10647\n' "sed -i 's/^issueSignatoryLink\toperation/keepOp2\toperation/' svc/required-identifiers.tsv; sed -i 's/operationId: issueSignatoryLink/operationId: keepOp2/' svc/openapi.yaml"
 # INV-T-13720 (INV-Q-13717 A): the kind root_property. Each case is a JSON Schema or OpenAPI file in the temporary directory.
 mkr() { # name, kind, identifier, json text -> $T/<name>/svc/s.json with a one-row table
   mkdir -p "$T/$1/svc"; printf '%s\n' "$4" > "$T/$1/svc/s.json"
