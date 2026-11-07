@@ -2,8 +2,12 @@ package com.dynokore.gst.evidence.retention
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.application.retention.EffectiveRetention
+import com.dynokore.gst.evidence.application.retention.RetentionPolicy
 import com.dynokore.gst.evidence.bootstrap.EvidenceContext
 import com.dynokore.gst.evidence.domain.retention.RetentionTier
+import com.dynokore.platform.configresolver.PolicyReader
+import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
@@ -74,8 +78,57 @@ class RetentionService(
     private val runner = context.getBean(TransactionRunner::class.java)
     private val effective = context.getBean(EffectiveRetention::class.java)
 
+    private val reader = context.getBean(PolicyReader::class.java)
+
+    /** The grants of the context's one authority replica (INV-T-9236). */
+    val grants = ReplicaGrants(context.getBean(AuthorityReplica::class.java))
+
     /** A tenant of its own: the rows of one test never meet another's. */
     fun newTenant(): TenantId = TenantId(UUID.randomUUID())
+
+    /** A tenant of its own with no grant at all (INV-T-9236). */
+    fun bareTenant(): TenantId = newTenant()
+
+    fun <T : Any> beansOf(type: Class<T>): Map<String, T> = context.getBeansOfType(type)
+
+    /** The value [PolicyReader] resolves for [tenant] (and [entity] when given) on today, as its selected options. */
+    fun selected(
+        tenant: TenantId,
+        entity: String? = null,
+    ): List<SelectedOption> =
+        scope.bind(tenant, "svc:evidence-svc") {
+            runner.inTransaction {
+                reader
+                    .resolve(
+                        RetentionPolicy.KEY,
+                        if (entity == null) PolicyScope.tenant(tenant) else PolicyScope.entity(tenant, entity),
+                        today(),
+                    ).selected
+            }
+        }
+
+    /** A `setPolicy` call by the end user [who] (workload `console-bff`) whose grants the test fed to the replica. */
+    fun setBy(
+        who: String,
+        tenant: TenantId,
+        level: String,
+        entity: String?,
+        years: Map<RetentionTier, Number>,
+    ): Answer {
+        seedStructure(tenant)
+        val ref = if (level == "TENANT") tenant.value.toString() else entity
+        val body = body(level, ref, entity.takeIf { level != "TENANT" }, record(years), "baseline")
+        return post(tenant, body, bearer = TestIdentity.token(who, tenant.value))
+    }
+
+    private fun seedStructure(tenant: TenantId) {
+        if (structured.add(tenant)) {
+            val structure = context.getBean(StructureReplica::class.java)
+            ENTITIES.forEach {
+                structure.accept(OrganisationStructureChanged(tenant, it, StructureChange.CREATED, entityNode()))
+            }
+        }
+    }
 
     /** A tenant-scope value: `values` holds the years per tier, or null for the option YEARS_5. */
     fun setTenant(
@@ -159,11 +212,12 @@ class RetentionService(
         body: String,
         caller: String? = "console-bff",
         suffix: String = "",
+        bearer: String? = null,
     ): Answer {
         val request =
             HttpRequest
                 .newBuilder(URI.create("http://localhost:$port/internal/v1/policies/VP-43$suffix"))
-                .apply { endUserToken(tenant)?.let { header("Authorization", "Bearer $it") } }
+                .apply { (bearer ?: endUserToken(tenant))?.let { header("Authorization", "Bearer $it") } }
                 .apply { caller?.let { header("X-Workload-Token", "token-$it") } }
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .header("Content-Type", "application/json")
