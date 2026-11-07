@@ -363,6 +363,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
     fun `INV-AC-18047 applyProposal publishes once with the set after the replacement besides the FilingFrequencyChange`() {
         val s = Setup()
         s.generation.generate("ENT-1")
