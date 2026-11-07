@@ -317,8 +317,8 @@ class OperationsGateTest {
     }
 
     @Test
+    fun `INV-AC-18428 the state function returns null for state 3 with submitPayload added to the stubs`() {
         // the exact state 3 set lacks submitPayload (live since INV-T-4981): adding it is a look-alike
-        // the exact state 3 set already lacks submitPayload (live since INV-T-4981): adding it is a look-alike
         stateOf(state3.done, state3.stubSet + "submitPayload", state3.cell).shouldBeNull()
         // and a set lacking any other operation is a look-alike too
         stateOf(state3.done, state3.stubSet - "setConnectionEntities", state3.cell).shouldBeNull()
