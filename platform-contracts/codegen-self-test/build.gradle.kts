@@ -82,7 +82,11 @@ tasks.register("verifyFlatModels") {
                 continue
             }
             val text = f.readText()
-            for (required in listOf("data class CertifySandboxRequest(", "val outcome", "val suiteVersion", "val failedScenarios")) {
+            // The generator writes `data class X(` in the server file and `data class X (` in the
+            // client file: the check asserts the shape, not the whitespace (INV-T-17921 ruling).
+            val dataClass = Regex("""data class CertifySandboxRequest\s*\(""")
+            if (!dataClass.containsMatchIn(text)) problems += "${f.path}: missing text 'data class CertifySandboxRequest('"
+            for (required in listOf("val outcome", "val suiteVersion", "val failedScenarios")) {
                 if (!text.contains(required)) problems += "${f.path}: missing text '$required'"
             }
             if (text.contains("sealed interface")) problems += "${f.path}: contains 'sealed interface'"
