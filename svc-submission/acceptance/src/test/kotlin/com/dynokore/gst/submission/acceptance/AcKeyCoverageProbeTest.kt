@@ -2,8 +2,10 @@ package com.dynokore.gst.submission.acceptance
 
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
+import java.io.File
 
 /** The probes of the key gate: each is run once, with the row it must name. */
 class AcKeyCoverageProbeTest {
@@ -46,5 +48,44 @@ class AcKeyCoverageProbeTest {
         AcKeyCoverage.findings(table + "INV-AC-5\tTBD\t3\n", names).shouldNotBeEmpty()
         AcKeyCoverage.findings(table + "INV-AC-2180\tINV-T-2\t3\n", names).shouldNotBeEmpty()
         AcKeyCoverage.findings(table + "INV-AC-7\tINV-T-2\tx\n", names).shouldNotBeEmpty()
+    }
+
+    private val waveTable =
+        "criterion\ttask\twave\nINV-AC-2\tINV-T-2\t2\nINV-AC-3\tINV-T-3\t3\nINV-AC-4\tINV-T-4\t4\n"
+
+    @Test
+    fun `a wave 2 row without a test is a finding`() {
+        val f = AcKeyCoverage.findings(waveTable, listOf("INV-AC-3 a()"))
+        f.single() shouldBe "INV-AC-2 (task INV-T-2, wave 2): no executed test name holds the key as a whole token"
+    }
+
+    @Test
+    fun `a wave 3 row without a test is a finding`() {
+        val f = AcKeyCoverage.findings(waveTable, listOf("INV-AC-2 a()"))
+        f.single() shouldBe "INV-AC-3 (task INV-T-3, wave 3): no executed test name holds the key as a whole token"
+    }
+
+    @Test
+    fun `a wave 4 row without a test is no finding`() {
+        AcKeyCoverage.findings(waveTable, listOf("INV-AC-2 a()", "INV-AC-3 b()")).shouldBeEmpty()
+    }
+
+    @Test
+    fun `a wave 2 row whose test holds the look alike of a wave 2 key gives both findings`() {
+        val t = "criterion\ttask\twave\nINV-AC-9344\tINV-T-9347\t2\n"
+        val f = AcKeyCoverage.findings(t, listOf("INV-AC-93440 x()"))
+        f.size shouldBe 2
+        f[0] shouldBe "INV-AC-9344 (task INV-T-9347, wave 2): no executed test name holds the key as a whole token"
+        f[1] shouldContain "INV-AC-93440"
+    }
+
+    @Test
+    fun `the real table without the test of the wave 2 row of task 9347 is a finding`() {
+        val table = File(System.getProperty("gst.root.dir"), "ac-keys.tsv").readText()
+        val keys = AcKeyCoverage.parse(table).first.map { it.criterion }
+        AcKeyCoverage.findings(table, keys.map { "$it t()" }).shouldBeEmpty()
+        val f = AcKeyCoverage.findings(table, keys.filter { it != "INV-AC-9344" }.map { "$it t()" })
+        f.single() shouldBe
+            "INV-AC-9344 (task INV-T-9347, wave 2): no executed test name holds the key as a whole token"
     }
 }
