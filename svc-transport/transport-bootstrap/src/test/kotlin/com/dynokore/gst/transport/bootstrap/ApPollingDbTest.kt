@@ -17,7 +17,6 @@ import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
@@ -29,7 +28,7 @@ internal object CursorFault {
     val failNextWrite = AtomicBoolean(false)
 }
 
-@Configuration(proxyBeanMethods = false)
+// not @Configuration: component scanning of the test classpath would put it into every other test's context
 internal class CursorFaultConfig {
     @Bean
     fun cursorFault(): BeanPostProcessor =
@@ -68,7 +67,7 @@ internal object TestClock : java.time.Clock() {
     override fun withZone(zone: java.time.ZoneId): java.time.Clock = this
 }
 
-@Configuration(proxyBeanMethods = false)
+// not @Configuration: component scanning of the test classpath would put it into every other test's context
 internal class TestClockConfig {
     @Bean
     fun testClock(): BeanPostProcessor =
@@ -259,7 +258,7 @@ class ApPollingDbTest {
         @TempDir dir: Path,
     ) {
         TransportContext.online(dir, *props("POLLING")).run { c ->
-            check(c.startupFailure != null) { "the context started without poll-interval" }
+            checkNotNull(c.startupFailure) { "the context started without poll-interval" }
             generateSequence(c.startupFailure) { it.cause }.joinToString { it.message.orEmpty() } shouldContain
                 "poll-interval"
         }

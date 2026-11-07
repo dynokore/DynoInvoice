@@ -65,15 +65,11 @@ class ApPollConfiguration {
     fun apPollLog(): ApPollLog = ApPollLog()
 
     @Bean
-    fun apPollJobs(
-        runtime: JobRuntime,
-        properties: ApProperties,
+    fun pollAccessPoint(
         adapters: AccessPointAdapters,
         cursors: PollCursorStore,
         receive: ReceiveApNotification,
-        pollLog: ApPollLog,
-        clock: Clock,
-    ): ApPollJobs {
+    ): PollAccessPoint {
         val source =
             object : NotificationSource {
                 override fun pageAfter(
@@ -84,14 +80,17 @@ class ApPollConfiguration {
                         "adapter ${adapter.value} cannot be polled"
                     }.pageAfter(adapter, cursor)
             }
-        return ApPollJobs(
-            runtime,
-            properties,
-            PollAccessPoint(source, cursors, receive),
-            pollLog,
-            clock,
-        )
+        return PollAccessPoint(source, cursors, receive)
     }
+
+    @Bean
+    fun apPollJobs(
+        runtime: JobRuntime,
+        properties: ApProperties,
+        poll: PollAccessPoint,
+        pollLog: ApPollLog,
+        clock: Clock,
+    ): ApPollJobs = ApPollJobs(runtime, properties, poll, pollLog, clock)
 
     private companion object {
         const val WORKLOAD_PRINCIPAL = "svc:transport-svc"
