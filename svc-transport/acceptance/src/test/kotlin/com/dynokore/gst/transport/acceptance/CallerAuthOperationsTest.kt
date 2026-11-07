@@ -28,7 +28,33 @@ class CallerAuthOperationsTest {
     @Test
     fun `INV-AC-17912 the check reports a finding naming the source for each in-memory probe`() {
         findings(RULED, listOf(RULED)).shouldBeEmpty()
-        val probes =
+        PROBES.forEach { p ->
+            val result = findings(p.generated, p.resources)
+            result.shouldNotBeEmpty()
+            (result.any { it.contains(p.source) }) shouldBe true
+            println("probe '${p.name}' -> $result")
+        }
+    }
+
+    private data class Probe(
+        val name: String,
+        val generated: String?,
+        val resources: List<String>,
+        val source: String,
+    )
+
+    companion object {
+        private const val GENERATED =
+            "transport-contract/build/generated/caller-auth/META-INF/gst/caller-auth-operations.tsv"
+        private const val RESOURCE = "META-INF/gst/caller-auth-operations.tsv"
+        private const val SRC_GENERATED = "generated file"
+        private const val SRC_RESOURCE = "classpath resource"
+        private const val METHOD = "POST"
+        private const val PATH = "/v1/ap/{adapterId}/notifications"
+        private const val VALUE = "signed-callback"
+        private val RULED = line(METHOD, PATH, VALUE)
+
+        private val PROBES =
             listOf(
                 Probe("generated file missing", null, listOf(RULED), SRC_GENERATED),
                 Probe("generated file empty", "", listOf(RULED), SRC_GENERATED),
@@ -67,31 +93,6 @@ class CallerAuthOperationsTest {
                 Probe("resource list empty", RULED, emptyList(), SRC_RESOURCE),
                 Probe("resource list twice", RULED, listOf(RULED, RULED), SRC_RESOURCE),
             )
-        probes.forEach { p ->
-            val result = findings(p.generated, p.resources)
-            result.shouldNotBeEmpty()
-            (result.any { it.contains(p.source) }) shouldBe true
-            println("probe '${p.name}' -> $result")
-        }
-    }
-
-    private data class Probe(
-        val name: String,
-        val generated: String?,
-        val resources: List<String>,
-        val source: String,
-    )
-
-    companion object {
-        private const val GENERATED =
-            "transport-contract/build/generated/caller-auth/META-INF/gst/caller-auth-operations.tsv"
-        private const val RESOURCE = "META-INF/gst/caller-auth-operations.tsv"
-        private const val SRC_GENERATED = "generated file"
-        private const val SRC_RESOURCE = "classpath resource"
-        private const val METHOD = "POST"
-        private const val PATH = "/v1/ap/{adapterId}/notifications"
-        private const val VALUE = "signed-callback"
-        private val RULED = line(METHOD, PATH, VALUE)
 
         private fun line(
             method: String,
@@ -99,7 +100,7 @@ class CallerAuthOperationsTest {
             value: String,
         ): String = "$method\t$path\t$value\n"
 
-        /** Findings of the caller-auth operations check; each names its source. Empty means the ruled text everywhere. */
+        /** Findings of the caller-auth check; each names its source. Empty means the ruled text everywhere. */
         fun findings(
             generated: String?,
             resources: List<String>,
