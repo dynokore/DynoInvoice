@@ -8,7 +8,7 @@ import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.time.Duration
 
-/** The start-up rules of `transport.ap.poll-interval` and of the id of a POLLING adapter (INV-Q-9684 and its rulings). */
+/** Start-up rules of `transport.ap.poll-interval` and of the id of a POLLING adapter (INV-Q-9684, its rulings). */
 class ApPollSettingsTest {
     private fun props(
         interval: String?,

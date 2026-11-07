@@ -133,6 +133,22 @@ class ApPollingDbTest {
             getBean(JobRuntime::class.java).fire(job(), at)[JobTarget.Whole]
         }
 
+    /**
+     * The next tick comes at least one poll-interval (longer than the lease) later; the lease runs on the database
+     * clock, so a test that fires its next tick at once lets the lease of the previous run lapse first.
+     */
+    private fun lapseLease() =
+        TransportDb.superuser().use { c ->
+            c
+                .prepareStatement(
+                    "update transport.shedlock set lock_until = now() at time zone 'utc' - interval '1 second' " +
+                        "where name = ?",
+                ).use {
+                    it.setString(1, "transport-svc.${job()}")
+                    it.executeUpdate() shouldBe 1
+                }
+        }
+
     private fun ApplicationContext.polls() = getBean(ApPollLog::class.java).entries.size
 
     private fun java.sql.Connection.count(
@@ -209,6 +225,7 @@ class ApPollingDbTest {
 
         // the AP delivers the same notification again; firing 2 is the next tick
         ApSimulator.control("/ap/notifications/redeliver", "{}")
+        lapseLease()
         val second = listOf(b.fire(t0.plus(Duration.ofHours(1))), a.context.fire(t0.plus(Duration.ofHours(1))))
         second.count { it == FireResult.RAN } shouldBe 1
         (a.context.polls() + b.polls()) shouldBe 2
@@ -265,6 +282,7 @@ class ApPollingDbTest {
         a.context.fire(t0) shouldBe FireResult.RAN
         val ledgerAfterFirst = ledgerRows()
         ApSimulator.control("/ap/notifications/redeliver", "{}")
+        lapseLease()
         b.fire(t0.plus(Duration.ofHours(1))) shouldBe FireResult.RAN
         ledgerRows() shouldBe ledgerAfterFirst
         acknowledgementEvents() shouldBe 1
@@ -280,6 +298,7 @@ class ApPollingDbTest {
         a.context.fire(t0) // the run fails at the cursor store: recorded FAILED, cursor not stored
         cursorRows() shouldBe 0
         acknowledgementEvents() shouldBe 1
+        lapseLease()
         b.fire(t0.plus(Duration.ofHours(1))) shouldBe FireResult.RAN
         cursorRows() shouldBe 1
         ledgerRows() shouldBe 2
