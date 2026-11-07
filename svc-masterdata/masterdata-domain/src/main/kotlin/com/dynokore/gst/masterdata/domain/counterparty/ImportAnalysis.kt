@@ -70,8 +70,7 @@ private const val MDM_NO_TARGET = "MDM-010"
 
 /**
  * The dry run of a counterparty import (INV-Q-9793, INV-Q-17289), a pure function of the rows and the held records.
- * Per row: UEN absent (MDM-002, `/uen`), UEN refused by [UenFormat] (MDM-003, `/uen`, the literal `NA` is never
- * judged),
+ * Per row: UEN absent (MDM-002, `/uen`), UEN refused by [UenFormat] (MDM-003, `/uen`, the literal `NA` is never judged),
  * address line 1 or postal code missing (MDM-006). A row with such a finding is rejected and joins no other list.
  * The other rows form duplicate groups: file rows with the same UEN as held (no trimming), and rows whose UEN is held
  * by a counterparty other than the one their own `counterpartyRef` names; every row of a group is listed and none is
@@ -89,11 +88,25 @@ fun analyseImport(
         val found = rowFindings(number, row)
         if (found.isEmpty()) clean += number to row else rejected += found
     }
-    val duplicates = duplicateGroups(clean, held)
-    val duplicateRows = duplicates.flatMap { it.rows }.toSet()
+    val byUen = clean.groupBy({ it.second.uen!! }, { it })
+    val duplicateRows = mutableSetOf<Int>()
+    val duplicates = mutableListOf<ImportDuplicate>()
+    byUen.forEach { (uen, group) ->
+        val heldRef = held.byUen(uen)?.partyRef?.value
+        val foreign =
+            group.filter { (_, r) ->
+                heldRef != null && r.counterpartyRef != null &&
+                    r.counterpartyRef != heldRef
+            }
+        val members = if (group.size > 1) group else foreign
+        if (members.isNotEmpty()) {
+            duplicates += ImportDuplicate(uen, members.map { it.first }, heldRef)
+            duplicateRows += members.map { it.first }
+        }
+    }
     val targets = mutableListOf<ImportTarget>()
     clean.filter { it.first !in duplicateRows }.forEach { (number, row) ->
-        val ref = row.counterpartyRef ?: held.byUen(row.uen.orEmpty())?.partyRef?.value
+        val ref = row.counterpartyRef ?: held.byUen(row.uen!!)?.partyRef?.value
         if (ref == null) {
             rejected +=
                 RejectedImportRow(
@@ -109,27 +122,13 @@ fun analyseImport(
     return preview(rejected.sortedBy { it.row }, duplicates.sortedBy { it.rows.first() }, targets, held)
 }
 
-private fun duplicateGroups(
-    clean: List<Pair<Int, ImportRow>>,
-    held: HeldCounterparties,
-): List<ImportDuplicate> =
-    clean.groupBy({ it.second.uen.orEmpty() }, { it }).mapNotNull { (uen, group) ->
-        val heldRef = held.byUen(uen)?.partyRef?.value
-        val foreign =
-            group.filter { (_, r) ->
-                heldRef != null && r.counterpartyRef != null && r.counterpartyRef != heldRef
-            }
-        val members = if (group.size > 1) group else foreign
-        if (members.isEmpty()) null else ImportDuplicate(uen, members.map { it.first }, heldRef)
-    }
-
 private fun rowFindings(
     number: Int,
     row: ImportRow,
 ): List<RejectedImportRow> {
     val found = mutableListOf<RejectedImportRow>()
     val uen = row.uen
-    if (uen.isNullOrEmpty()) {
+    if (uen == null || uen.isEmpty()) {
         found += RejectedImportRow(number, MDM_UEN_ABSENT, "the UEN is absent", "/uen")
     } else if (uen != NA && !UenFormat.accepts(uen)) {
         found += RejectedImportRow(number, MDM_UEN_INVALID, "the UEN has no valid form", "/uen")
@@ -155,7 +154,7 @@ private fun preview(
     val changes = mutableListOf<ImportChange>()
     targets.forEach { t ->
         val before = held.current(t.party)?.content
-        val uen = t.data.uen.orEmpty()
+        val uen = t.data.uen!!
         val fields =
             listOf(
                 Triple("uen", before?.identifiers?.firstOrNull { it.scheme.isUenOrNone() }?.value, uen),

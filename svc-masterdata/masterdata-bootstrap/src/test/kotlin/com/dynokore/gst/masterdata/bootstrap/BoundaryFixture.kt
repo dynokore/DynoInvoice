@@ -56,10 +56,7 @@ fun interface TestRoleResolver {
     ): Set<String>
 }
 
-/**
- * The roles of the test subjects, answered through the [ConfirmerRoles] port (service-runtime 12.0.0 removed
- * PolicyRoleResolver).
- */
+/** The roles of the test subjects, answered through the [ConfirmerRoles] port (service-runtime 12.0.0 removed PolicyRoleResolver). */
 object TestRoles {
     val roles: ConcurrentHashMap<String, Set<String>> =
         ConcurrentHashMap(
