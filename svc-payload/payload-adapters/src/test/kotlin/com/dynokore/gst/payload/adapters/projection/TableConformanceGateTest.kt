@@ -1,6 +1,8 @@
 package com.dynokore.gst.payload.adapters.projection
 
+import com.dynokore.gst.payload.domain.Direction
 import com.dynokore.gst.payload.domain.SpecificationFamily
+import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.party.IdentityTriple
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyInput
@@ -20,7 +22,7 @@ class TableConformanceGateTest {
         )
     private val spec = "PINT-SG-1.0"
     private val registry = DocumentBuilderRegistry.standard()
-    private val partyTerms = setOf("IBT-030", "IBT-031", "IBT-047")
+    private val partyTerms = setOf("IBT-023", "IBT-024", "IBT-030", "IBT-031", "IBT-047")
     private val input =
         PartyIdentifierInput(
             PartyInput("SG_UEN", "201888888A"),
@@ -34,7 +36,7 @@ class TableConformanceGateTest {
                 registry.find(
                     BuilderKey(SpecificationFamily.PINT_SG, code),
                 ) as BuilderLookup.Found
-            ).builder.build(input) as BuildResult.Built
+            ).builder.build(input, Direction.SALE, SpecificationFamily.PINT_SG, SubmissionType.TYPE_2) as BuildResult.Built
         ).xml
 
     private fun rows(code: String) = TableConformanceGate.applyingRows(fixture, code, spec)

@@ -1,6 +1,8 @@
 package com.dynokore.gst.payload.adapters.projection
 
+import com.dynokore.gst.payload.domain.Direction
 import com.dynokore.gst.payload.domain.SpecificationFamily
+import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.party.IdentityTriple
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyInput
@@ -22,7 +24,12 @@ class PartyProjectionTest {
         identity: IdentityTriple? = triple,
     ): BuildResult {
         val found = registry.find(BuilderKey(SpecificationFamily.PINT_SG, code)) as BuilderLookup.Found
-        return found.builder.build(PartyIdentifierInput(buyer, supplier, identity))
+        return found.builder.build(
+            PartyIdentifierInput(buyer, supplier, identity),
+            Direction.SALE,
+            SpecificationFamily.PINT_SG,
+            SubmissionType.TYPE_2,
+        )
     }
 
     private fun nodes(
@@ -96,8 +103,8 @@ class PartyProjectionTest {
             build(code, PartyInput("SG_UEN", "201888888A"), identity = null) shouldBe
                 BuildResult.Refused(RefusalReason.IDENTITY_TRIPLE_ABSENT)
         }
-        // the result type has no member that carries XML next to Refused: Built is the only one
-        BuildResult::class.sealedSubclasses.map { it.simpleName }.toSet() shouldBe setOf("Built", "Refused")
+        // Built is the only member that carries XML
+        BuildResult::class.sealedSubclasses.map { it.simpleName }.toSet() shouldBe setOf("Built", "Refused", "CustomizationIdUnpublished")
         BuildResult.Refused::class.java.declaredFields.map { it.name } shouldBe listOf("reason")
     }
 

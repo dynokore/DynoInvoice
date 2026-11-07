@@ -1,8 +1,15 @@
 package com.dynokore.gst.payload.adapters.projection
 
+import com.dynokore.gst.payload.domain.CustomizationId
+import com.dynokore.gst.payload.domain.CustomizationIdResult
+import com.dynokore.gst.payload.domain.Direction
+import com.dynokore.gst.payload.domain.ProfileId
 import com.dynokore.gst.payload.domain.SpecificationFamily
+import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyIdentifiers
+import com.dynokore.gst.payload.ubl.ubl_21.cbc.CustomizationIDType
+import com.dynokore.gst.payload.ubl.ubl_21.cbc.ProfileIDType
 import com.dynokore.gst.payload.ubl.ubl_21.creditnote.CreditNoteType
 import com.dynokore.gst.payload.ubl.ubl_21.invoice.InvoiceType
 import com.dynokore.gst.payload.ubl.ubl_21.creditnote.ObjectFactory as CreditNoteFactory
@@ -12,11 +19,20 @@ import com.dynokore.gst.payload.ubl.ubl_21.invoice.ObjectFactory as InvoiceFacto
 class PintSgInvoiceBuilder : DocumentBuilder {
     override val key = BuilderKey(SpecificationFamily.PINT_SG, "380")
 
-    override fun build(input: PartyIdentifierInput): BuildResult {
+    override fun build(
+        input: PartyIdentifierInput,
+        direction: Direction,
+        family: SpecificationFamily,
+        submissionType: SubmissionType,
+    ): BuildResult {
         val (parties, resolved) = PartyXml.parties(input)
         if (parties == null) return BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
+        val customization = CustomizationId.expected(family, submissionType)
+        if (customization !is CustomizationIdResult.Selected) return unpublished(customization)
         val invoice =
             InvoiceType().apply {
+                customizationID = CustomizationIDType().apply { value = customization.value }
+                profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
                 accountingCustomerParty = parties.buyer
                 accountingSupplierParty = parties.supplier
             }
@@ -29,15 +45,29 @@ class PintSgInvoiceBuilder : DocumentBuilder {
 class PintSgCreditNoteBuilder : DocumentBuilder {
     override val key = BuilderKey(SpecificationFamily.PINT_SG, "381")
 
-    override fun build(input: PartyIdentifierInput): BuildResult {
+    override fun build(
+        input: PartyIdentifierInput,
+        direction: Direction,
+        family: SpecificationFamily,
+        submissionType: SubmissionType,
+    ): BuildResult {
         val (parties, resolved) = PartyXml.parties(input)
         if (parties == null) return BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
+        val customization = CustomizationId.expected(family, submissionType)
+        if (customization !is CustomizationIdResult.Selected) return unpublished(customization)
         val note =
             CreditNoteType().apply {
+                customizationID = CustomizationIDType().apply { value = customization.value }
+                profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
                 accountingCustomerParty = parties.buyer
                 accountingSupplierParty = parties.supplier
             }
         val xml = PartyXml.marshal(CreditNoteFactory().createCreditNote(note), CreditNoteFactory::class.java)
         return BuildResult.Built(xml, parties.senderId)
     }
+}
+
+private fun unpublished(result: CustomizationIdResult): BuildResult {
+    val u = result as CustomizationIdResult.Unpublished
+    return BuildResult.CustomizationIdUnpublished(u.family, u.submissionType)
 }

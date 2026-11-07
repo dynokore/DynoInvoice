@@ -1,6 +1,8 @@
 package com.dynokore.gst.payload.adapters.projection
 
+import com.dynokore.gst.payload.domain.Direction
 import com.dynokore.gst.payload.domain.SpecificationFamily
+import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.RefusalReason
 
@@ -23,13 +25,24 @@ sealed interface BuildResult {
     data class Refused(
         val reason: RefusalReason,
     ) : BuildResult
+
+    /** The pair has no published Customization ID (INV-Q-7180 A): no XML, no IBT-024 and no default. */
+    data class CustomizationIdUnpublished(
+        val family: SpecificationFamily,
+        val submissionType: SubmissionType,
+    ) : BuildResult
 }
 
 /** A hand-written builder that writes the generated JAXB objects of one specification family and document type. */
 interface DocumentBuilder {
     val key: BuilderKey
 
-    fun build(input: PartyIdentifierInput): BuildResult
+    fun build(
+        input: PartyIdentifierInput,
+        direction: Direction,
+        family: SpecificationFamily,
+        submissionType: SubmissionType,
+    ): BuildResult
 }
 
 /** The outcome of a registry lookup. */
