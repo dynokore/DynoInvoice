@@ -45,7 +45,7 @@ class CustomizationProfileProjectionTest {
         return (0 until nodes.length).map { nodes.item(it).textContent }
     }
 
-    // The gate over every row that applies except the two fixture rows of IBT-001 and IBT-002 (INV-T-18187 removes this).
+    // The gate over the applying rows except IBT-001 and IBT-002, which no builder writes (INV-T-18187 removes this).
     private fun gate(
         xml: String,
         code: String,

@@ -19,6 +19,7 @@ import com.dynokore.gst.payload.ubl.ubl_21.invoice.ObjectFactory as InvoiceFacto
 class PintSgInvoiceBuilder : DocumentBuilder {
     override val key = BuilderKey(SpecificationFamily.PINT_SG, "380")
 
+    /** The first refusal that applies wins: the identity triple, then the Customization ID (INV-Q-7180 A). */
     override fun build(
         input: PartyIdentifierInput,
         direction: Direction,
@@ -26,18 +27,30 @@ class PintSgInvoiceBuilder : DocumentBuilder {
         submissionType: SubmissionType,
     ): BuildResult {
         val (parties, resolved) = PartyXml.parties(input)
-        if (parties == null) return BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
         val customization = CustomizationId.expected(family, submissionType)
-        if (customization !is CustomizationIdResult.Selected) return unpublished(customization)
-        val invoice =
-            InvoiceType().apply {
-                customizationID = CustomizationIDType().apply { value = customization.value }
-                profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
-                accountingCustomerParty = parties.buyer
-                accountingSupplierParty = parties.supplier
+        return when {
+            parties == null -> {
+                BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
             }
-        val xml = PartyXml.marshal(InvoiceFactory().createInvoice(invoice), InvoiceFactory::class.java)
-        return BuildResult.Built(xml, parties.senderId)
+
+            customization !is CustomizationIdResult.Selected -> {
+                with(customization as CustomizationIdResult.Unpublished) {
+                    BuildResult.CustomizationIdUnpublished(this.family, this.submissionType)
+                }
+            }
+
+            else -> {
+                val invoice =
+                    InvoiceType().apply {
+                        customizationID = CustomizationIDType().apply { value = customization.value }
+                        profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
+                        accountingCustomerParty = parties.buyer
+                        accountingSupplierParty = parties.supplier
+                    }
+                val xml = PartyXml.marshal(InvoiceFactory().createInvoice(invoice), InvoiceFactory::class.java)
+                BuildResult.Built(xml, parties.senderId)
+            }
+        }
     }
 }
 
@@ -45,6 +58,7 @@ class PintSgInvoiceBuilder : DocumentBuilder {
 class PintSgCreditNoteBuilder : DocumentBuilder {
     override val key = BuilderKey(SpecificationFamily.PINT_SG, "381")
 
+    /** The first refusal that applies wins: the identity triple, then the Customization ID (INV-Q-7180 A). */
     override fun build(
         input: PartyIdentifierInput,
         direction: Direction,
@@ -52,22 +66,29 @@ class PintSgCreditNoteBuilder : DocumentBuilder {
         submissionType: SubmissionType,
     ): BuildResult {
         val (parties, resolved) = PartyXml.parties(input)
-        if (parties == null) return BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
         val customization = CustomizationId.expected(family, submissionType)
-        if (customization !is CustomizationIdResult.Selected) return unpublished(customization)
-        val note =
-            CreditNoteType().apply {
-                customizationID = CustomizationIDType().apply { value = customization.value }
-                profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
-                accountingCustomerParty = parties.buyer
-                accountingSupplierParty = parties.supplier
+        return when {
+            parties == null -> {
+                BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
             }
-        val xml = PartyXml.marshal(CreditNoteFactory().createCreditNote(note), CreditNoteFactory::class.java)
-        return BuildResult.Built(xml, parties.senderId)
-    }
-}
 
-private fun unpublished(result: CustomizationIdResult): BuildResult {
-    val u = result as CustomizationIdResult.Unpublished
-    return BuildResult.CustomizationIdUnpublished(u.family, u.submissionType)
+            customization !is CustomizationIdResult.Selected -> {
+                with(customization as CustomizationIdResult.Unpublished) {
+                    BuildResult.CustomizationIdUnpublished(this.family, this.submissionType)
+                }
+            }
+
+            else -> {
+                val note =
+                    CreditNoteType().apply {
+                        customizationID = CustomizationIDType().apply { value = customization.value }
+                        profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
+                        accountingCustomerParty = parties.buyer
+                        accountingSupplierParty = parties.supplier
+                    }
+                val xml = PartyXml.marshal(CreditNoteFactory().createCreditNote(note), CreditNoteFactory::class.java)
+                BuildResult.Built(xml, parties.senderId)
+            }
+        }
+    }
 }
