@@ -244,9 +244,9 @@ internal fun PolicyWriter.asRoles(
         val tenant = tenants.current()
         roles.forEach {
             if (level == ScopeLevel.ENTITY) {
-                people.grantRole(person, checkNotNull(scope.entity), it, tenant = tenant)
+                people.grantRole(person, checkNotNull(scope.entity), it, site = GrantSite(tenant))
             } else {
-                people.grantRole(person, tenant.value.toString(), it, tenant = tenant, scope = GrantScope.TENANT)
+                people.grantRole(person, tenant.value.toString(), it, site = GrantSite(tenant, GrantScope.TENANT))
             }
         }
     }

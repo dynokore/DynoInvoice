@@ -71,6 +71,12 @@ class CapturingOutboxWriter(
         }
 }
 
+/** Where a test role grant applies: the tenant and the grant scope. */
+data class GrantSite(
+    val tenant: TenantId = TestPeople.TENANT,
+    val scope: GrantScope = GrantScope.ENTITY,
+)
+
 /**
  * The people of a test: who calls, and which roles each person holds for which entity (the authority replica of the
  * service, here a table). One bean answers the caller and authority ports of the elections: the permissions follow
@@ -113,16 +119,15 @@ class TestPeople :
         entityRef: String,
         role: String,
         validUntil: java.time.Instant? = null,
-        tenant: TenantId = TENANT,
-        scope: GrantScope = GrantScope.ENTITY,
+        site: GrantSite = GrantSite(),
     ): String {
         val grantRef = "GR-${UUID.randomUUID()}"
         feed(
             person,
             grantRef,
             RoleGrantState.ACTIVE,
-            RoleGrant(role, scope, entityRef, clock.instant().minusSeconds(60), validUntil),
-            tenant,
+            RoleGrant(role, site.scope, entityRef, clock.instant().minusSeconds(60), validUntil),
+            site.tenant,
         )
         return grantRef
     }
@@ -191,7 +196,7 @@ class TestPeople :
         }
     }
 
-    private companion object {
+    internal companion object {
         /** The roles the catalogue permits `period-extension.record`, read through RolePermissions (INV-Q-16671). */
         val EXTENDING: Set<String> =
             DeploymentForm.entries
