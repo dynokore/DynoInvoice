@@ -170,7 +170,7 @@ private class Extensions : PeriodExtensionStore {
     }
 }
 
-private class Facts : FilingFactStore {
+private class FactsStore : FilingFactStore {
     val facts = mutableListOf<FilingFact>()
 
     override fun keep(fact: FilingFact): Boolean = facts.add(fact)
@@ -218,7 +218,7 @@ private class World(
     val structure = Structure(listOf(a, b))
     val periods = PdPeriods()
     val extensions = Extensions()
-    val facts = Facts()
+    val facts = FactsStore()
     val outbox = Outbox()
     private val statuses =
         object : EntityStatusStore {
