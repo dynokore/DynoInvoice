@@ -121,7 +121,7 @@ internal open class Vp62TestSupport {
         role: String,
         relaxation: RelaxationId? = null,
     ) = period.env.inTx {
-        period.env.writer.asRole(period.env.tenants, role).acknowledgeControlRelaxation(
+        period.env.writer.asRole(role).acknowledgeControlRelaxation(
             AcknowledgeRelaxationCommand(
                 vp62,
                 scope,
@@ -144,7 +144,7 @@ internal open class Vp62TestSupport {
         effective: LocalDate = day("2026-09-01"),
         option: List<SelectedOption> = move,
     ) = period.env.inTx {
-        period.env.writer.asRole(period.env.tenants, "tax.approver").setPolicy(
+        period.env.writer.asRole("tax.approver").setPolicy(
             SetPolicyCommand(
                 vp62,
                 scope,

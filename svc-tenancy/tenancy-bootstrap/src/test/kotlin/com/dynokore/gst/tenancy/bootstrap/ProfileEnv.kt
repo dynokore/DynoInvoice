@@ -14,34 +14,21 @@ import com.dynokore.gst.tenancy.contract.model.GroupResponse
 import com.dynokore.gst.tenancy.contract.model.PhaseAssessmentReturn
 import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.domain.TenantRefs
-import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
 import com.dynokore.platform.configresolver.Actor
-import com.dynokore.platform.configresolver.PolicyChange
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.PolicyWriter
-import com.dynokore.platform.configresolver.RelaxationStatus
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.SetPolicyCommand
-import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
-import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
-import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
-import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
-import com.dynokore.platform.serviceruntime.replica.GrantScope
-import com.dynokore.platform.serviceruntime.replica.Principal
-import com.dynokore.platform.serviceruntime.replica.PrincipalKind
-import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import java.math.BigDecimal
-import java.time.Clock
-import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -176,7 +163,7 @@ internal class ProfileEnv(
             } else {
                 PolicyScope.entity(tenant, entity.entityRef, group = group.groupRef)
             }
-        writer.asRole(tenants, role).setPolicy(
+        writer.asRole(role).setPolicy(
             SetPolicyCommand(
                 VariationPointKey(key),
                 scope,
@@ -204,67 +191,3 @@ internal class ProfileEnv(
             assessments.latest(record.id)
         }
 }
-
-/**
- * The writer as the person [person] holding [roles] (INV-Q-10027): at each call the person is given the roles by
- * [TestPeople.grantRole] at the scope the command writes at (ENTITY on the entity, or TENANT), in a real
- * [AuthorityReplica] built over the generated catalogue matrix, and the one [SetterPermission] below asks that
- * replica's `decide` for the permission key the writer asks about. No role name is compared here; an empty [roles]
- * holds nothing, so the writer refuses with POL-004.
- */
-internal fun PolicyWriter.asRoles(
-    tenants: TenantContext,
-    roles: Set<String>,
-    person: String = "user:test",
-): PolicyWriter {
-    val delegate = this
-    val people = TestPeople()
-    val decided =
-        SetterPermission { _, _, level, _, ofEntity, permissionKey ->
-            val request =
-                AuthorizationRequest(
-                    tenants.current(),
-                    Principal(person, PrincipalKind.HUMAN),
-                    ofEntity.orEmpty(),
-                    permissionKey,
-                )
-            val decision =
-                if (level == ScopeLevel.ENTITY) {
-                    people.replica.decide(request, Deadline.after(Duration.ofSeconds(2), Clock.systemUTC()))
-                } else {
-                    people.replica.decideTenant(request.tenant, request.principal, permissionKey)
-                }
-            decision.allowed
-        }
-
-    fun grant(
-        scope: PolicyScope,
-        level: ScopeLevel,
-    ) {
-        val tenant = tenants.current()
-        roles.forEach {
-            if (level == ScopeLevel.ENTITY) {
-                people.grantRole(person, checkNotNull(scope.entity), it, site = GrantSite(tenant))
-            } else {
-                people.grantRole(person, tenant.value.toString(), it, site = GrantSite(tenant, GrantScope.TENANT))
-            }
-        }
-    }
-    return object : PolicyWriter by delegate {
-        override fun setPolicy(command: SetPolicyCommand): PolicyChange {
-            grant(command.scope, command.level)
-            return RequestBoundSetterPermission.bind(decided) { delegate.setPolicy(command) }
-        }
-
-        override fun acknowledgeControlRelaxation(command: AcknowledgeRelaxationCommand): RelaxationStatus {
-            grant(command.scope, command.level)
-            return RequestBoundSetterPermission.bind(decided) { delegate.acknowledgeControlRelaxation(command) }
-        }
-    }
-}
-
-/** As [asRoles] for a person holding the one role [role]. */
-internal fun PolicyWriter.asRole(
-    tenants: TenantContext,
-    role: String,
-): PolicyWriter = asRoles(tenants, setOf(role))

@@ -71,12 +71,6 @@ class CapturingOutboxWriter(
         }
 }
 
-/** Where a test role grant applies: the tenant and the grant scope. */
-data class GrantSite(
-    val tenant: TenantId = TestPeople.TENANT,
-    val scope: GrantScope = GrantScope.ENTITY,
-)
-
 /**
  * The people of a test: who calls, and which roles each person holds for which entity (the authority replica of the
  * service, here a table). One bean answers the caller and authority ports of the elections: the permissions follow
@@ -91,7 +85,7 @@ class TestPeople :
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
     private val clock = Clock.systemUTC()
-    internal val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
+    private val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
     private val version = AtomicLong()
     private val approvals =
         ReplicaActionAuthority(
@@ -119,15 +113,13 @@ class TestPeople :
         entityRef: String,
         role: String,
         validUntil: java.time.Instant? = null,
-        site: GrantSite = GrantSite(),
     ): String {
         val grantRef = "GR-${UUID.randomUUID()}"
         feed(
             person,
             grantRef,
             RoleGrantState.ACTIVE,
-            RoleGrant(role, site.scope, entityRef, clock.instant().minusSeconds(60), validUntil),
-            site.tenant,
+            RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60), validUntil),
         )
         return grantRef
     }
@@ -152,11 +144,10 @@ class TestPeople :
         grantRef: String,
         state: RoleGrantState,
         grant: RoleGrant,
-        tenant: TenantId = TENANT,
     ) {
         replica.accept(
             AuthorityChanged(
-                tenant,
+                TENANT,
                 person,
                 version.incrementAndGet(),
                 AuthorityRecord.RoleGrantRecord(grantRef, state, grant),
@@ -196,7 +187,7 @@ class TestPeople :
         }
     }
 
-    internal companion object {
+    private companion object {
         /** The roles the catalogue permits `period-extension.record`, read through RolePermissions (INV-Q-16671). */
         val EXTENDING: Set<String> =
             DeploymentForm.entries
@@ -303,4 +294,24 @@ object TestOperationRoles {
 
     /** The one role that holds [key]; the call fails when the catalogue lists none or several. */
     fun soleHolder(key: String): String = holders(key).single()
+}
+
+/**
+ * The writer as a caller holding [role]: the setter permission of the call is true when the generated matrix lists
+ * [role] for the permission key the writer asks about (INV-Q-10027); the key and the roles are never written by hand.
+ */
+fun PolicyWriter.asRole(role: String): PolicyWriter = asRoles(setOf(role))
+
+/** As [asRole] for a caller holding any of [roles]; the empty set holds nothing. */
+fun PolicyWriter.asRoles(roles: Set<String>): PolicyWriter {
+    val delegate = this
+    val permission =
+        SetterPermission { _, _, _, _, _, key -> roles.any { it in TestOperationRoles.holders(key) } }
+    return object : PolicyWriter by delegate {
+        override fun setPolicy(command: SetPolicyCommand): PolicyChange =
+            RequestBoundSetterPermission.bind(permission) { delegate.setPolicy(command) }
+
+        override fun acknowledgeControlRelaxation(command: AcknowledgeRelaxationCommand): RelaxationStatus =
+            RequestBoundSetterPermission.bind(permission) { delegate.acknowledgeControlRelaxation(command) }
+    }
 }
