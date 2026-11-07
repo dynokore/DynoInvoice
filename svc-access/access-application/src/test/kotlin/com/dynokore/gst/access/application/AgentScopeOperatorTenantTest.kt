@@ -161,6 +161,22 @@ class AgentScopeOperatorTenantTest {
             ValidityWindow(moment.minusSeconds(3600), null),
         )
 
+    private val elevations =
+        object : Elevations {
+            override fun findPending(ask: ElevationAsk): ElevationRecord? = error("not used")
+
+            override fun insert(ask: ElevationAsk): ElevationRecord = error("not used")
+
+            override fun lock(ref: String): ElevationRecord? = error("not used")
+
+            override fun update(
+                before: ElevationRecord,
+                after: ElevationRecord,
+            ) = error("not used")
+
+            override fun findByRequester(requester: IdentityRef): List<ElevationRecord> = error("not used")
+        }
+
     private fun decide(
         grantTenant: String,
         live: Consent?,
@@ -203,21 +219,6 @@ class AgentScopeOperatorTenantTest {
                 override fun membership(entity: EntityRef): EntityMembership? = EntityMembership(entityTenant, null)
 
                 override fun entitiesCoveredBy(scope: Scope): Set<EntityRef> = error("not used")
-            }
-        val elevations =
-            object : Elevations {
-                override fun findPending(ask: ElevationAsk): ElevationRecord? = error("not used")
-
-                override fun insert(ask: ElevationAsk): ElevationRecord = error("not used")
-
-                override fun lock(ref: String): ElevationRecord? = error("not used")
-
-                override fun update(
-                    before: ElevationRecord,
-                    after: ElevationRecord,
-                ) = error("not used")
-
-                override fun findByRequester(requester: IdentityRef): List<ElevationRecord> = error("not used")
             }
         val overlay =
             OperatorOverlay(
