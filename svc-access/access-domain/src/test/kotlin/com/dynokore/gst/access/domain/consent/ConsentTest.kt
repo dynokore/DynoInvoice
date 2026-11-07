@@ -63,27 +63,7 @@ class ConsentTest {
     }
 
     @Test
-    fun `the agent policy refuses no record, another agent, another client, a missing item and a withdrawn record`() {
-        val live = consent(ScopeItem.SUBMIT_INVOICE_DATA)
-        val item = ScopeItem.SUBMIT_INVOICE_DATA
-
-        fun permits(
-            record: Consent?,
-            who: IdentityRef = agent,
-            where: EntityRef = client,
-            what: ScopeItem = item,
-        ) = AgentConsentPolicy.permits(record, who, where, what, day)
-        assertTrue(permits(live))
-        assertFalse(permits(null))
-        assertFalse(permits(live, who = IdentityRef("AGT-2")))
-        assertFalse(permits(live, who = IdentityRef("agt-1")))
-        assertFalse(permits(live, where = EntityRef("CLI-B")))
-        assertFalse(permits(live, what = ScopeItem.FILE_GST_RETURN))
-        assertFalse(permits(live.withdrawn("HOS-2")))
-    }
-
-    @Test
-    fun `the client policy ignores the consent agent but keeps client, item, validity and withdrawal`() {
+    fun `INV-AC-17815 the client policy ignores the consent agent but keeps client, item, validity and withdrawal`() {
         val live = consent(ScopeItem.SUBMIT_INVOICE_DATA)
         val item = ScopeItem.SUBMIT_INVOICE_DATA
         assertTrue(AgentConsentPolicy.permitsClient(live, client, item, day))
@@ -91,6 +71,14 @@ class ConsentTest {
         assertFalse(AgentConsentPolicy.permitsClient(live, EntityRef("CLI-B"), item, day))
         assertFalse(AgentConsentPolicy.permitsClient(live, client, ScopeItem.MAPPING_APPROVAL, day))
         assertFalse(AgentConsentPolicy.permitsClient(live.withdrawn("HOS-2"), client, item, day))
+    }
+
+    @Test
+    fun `INV-AC-17815 the agent policy declares no member named permits`() {
+        val names = AgentConsentPolicy::class.java.declaredMethods.map { it.name }
+        // Kotlin mangles the name of a function that takes a value class: `permits-<hash>`.
+        assertFalse(names.any { it == "permits" || it.startsWith("permits-") }, "declared: $names")
+        assertTrue(names.any { it == "permitsClient" || it.startsWith("permitsClient-") }, "declared: $names")
     }
 
     @Test

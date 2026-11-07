@@ -82,22 +82,15 @@ data class Consent(
 }
 
 /**
- * Whether an agent may perform an operation that needs [item] on a client entity (INV-REQ-913). A pure function of the
- * consent record it is given, so it cannot serve a cached copy; the caller reads the record live. No record, a record
- * of another agent or client, a withdrawn or not yet valid record, or a record without the item all refuse.
+ * Whether an operation that needs [item] on a client entity is covered by a consent (INV-REQ-913). A pure function of
+ * the consent record it is given, so it cannot serve a cached copy; the caller reads the record live. No record, a
+ * record of another client, a withdrawn or not yet valid record, or a record without the item all refuse. The caller
+ * compares the consent's agent with the agent tenant (owner ruling of 2026-11-07, option A).
  */
 object AgentConsentPolicy {
-    fun permits(
-        consent: Consent?,
-        agent: IdentityRef,
-        client: EntityRef,
-        item: ScopeItem,
-        on: LocalDate,
-    ): Boolean = consent != null && consent.agent == agent && permitsClient(consent, client, item, on)
-
     /**
-     * The same decision without the comparison against the consent's agent identity, for a consent-derived grant held
-     * by someone other than the agent operator, such as the `tax.approver` (INV-REQ-996; ruling INV-Q-9320 A).
+     * The decision on the client, the item, the validity and the withdrawal. The caller compares the consent's agent
+     * with the agent tenant; this function does not decide that (INV-REQ-996; rulings INV-Q-9320 A, 2026-11-07 A).
      */
     fun permitsClient(
         consent: Consent?,
