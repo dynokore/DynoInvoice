@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Test
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 
+/** Fixture terms that apply to 380 and 381 but are not written by the builders here; INV-T-18187 removes this. */
+private val UNWRITTEN_TERMS = listOf("IBT-001", "IBT-002")
+
 /** INV-T-7178: the table conformance gate over the fixture pack and the probes that must make it fail. */
 class TableConformanceGateTest {
     private val fixture: JsonNode =
@@ -36,8 +39,8 @@ class TableConformanceGateTest {
 
     private fun rows(code: String) = TableConformanceGate.applyingRows(fixture, code, spec)
 
-    // The builder writes the three party terms only; IBT-001 and IBT-002 rows also apply (GAP reported).
-    private fun partyRows(code: String) = rows(code).filter { it.businessTermId in partyTerms }
+    // Applying rows without the UNWRITTEN_TERMS rows (coverage-gap ruling): the terms the builders write.
+    private fun partyRows(code: String) = rows(code).filter { it.businessTermId !in UNWRITTEN_TERMS }
 
     private fun failures(
         code: String,
@@ -55,10 +58,21 @@ class TableConformanceGateTest {
 
     @Test
     fun `INV-AC-1503 ConformanceGate passes for 380 and 381 over the party rows`() {
-        partyRows("380").size shouldBe 3
-        partyRows("381").size shouldBe 3
-        failures("380") shouldBe emptyList()
-        failures("381") shouldBe emptyList()
+        for (code in listOf("380", "381")) {
+            rows(code).map { it.businessTermId }.filter { it !in UNWRITTEN_TERMS }.toSet() shouldBe partyTerms
+            val applying = rows(code).map { it.businessTermId }.toSet()
+            UNWRITTEN_TERMS.all { it in applying } shouldBe true
+            failures(code) shouldBe emptyList()
+        }
+    }
+
+    @Test
+    fun `ConformanceGate rule a fails over all applying rows naming IBT-001 and IBT-002`() {
+        UNWRITTEN_TERMS shouldBe listOf("IBT-001", "IBT-002")
+        for (code in listOf("380", "381")) {
+            val fails = failures(code, rows(code)).filter { it.startsWith("(a)") }
+            UNWRITTEN_TERMS.forEach { t -> fails.any { t in it } shouldBe true }
+        }
     }
 
     @Test
