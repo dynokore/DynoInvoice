@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -96,6 +96,10 @@ paths:
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-869, INV-REQ-871, INV-REQ-905, INV-REQ-1232]
+      x-operation:
+        kind: PERMISSION
+        permission: exception.view
+        permission-also: machine.status.read
       parameters:
         - name: entityRef
           in: query
