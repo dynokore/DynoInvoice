@@ -132,6 +132,8 @@ RecordDocumentRequest.transactionDate	schema_property	openapi.yaml	INV-REQ-68
 DocumentVersion.prescribedPeriodRef	schema_property	openapi.yaml	INV-REQ-68
 recordDocument.PER-011	operation_error_code	openapi.yaml	INV-REQ-67
 recordDocument.PER-009	operation_error_code	openapi.yaml	INV-REQ-68
+# INV-T-16160. Row for the ruling INV-Q-16151 A: recordDocument declares ING-024 (debit note held for review, VP-54).
+recordDocument.ING-024	operation_error_code	openapi.yaml	INV-REQ-1315
 # INV-T-7109. Rows for INV-REQ-485 (read from Keel) and the ruling INV-Q-7104 A. INV-REQ-485 names CanonicalParty.partyUen, a store field of canonical-svc with no property in this contract (the UEN travels as identifierValue where identifierScheme is SG_UEN), so it has no row. No row of this block existed before.
 name	property	openapi.yaml	INV-REQ-485
 gstn	property	openapi.yaml	INV-REQ-485

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -97,7 +97,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
-      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017, PER-009, PER-011]
+      x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017, PER-009, PER-011, ING-024]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192, INV-REQ-714, INV-REQ-432, INV-REQ-67, INV-REQ-68, INV-REQ-696]
       x-operation:
         role: ingest
@@ -185,7 +185,9 @@ paths:
             (PER-009); released automatically on recovery (ING-016), on
             acceptance (ING-013), when the election is recorded (PER-011) or
             when the period is generated (PER-009), and re-derived on release
-            (INV-REQ-67, INV-REQ-68).
+            (INV-REQ-67, INV-REQ-68). A debit note is held with ING-024 when
+            the entity elected HOLD_FOR_REVIEW (VP-54) and is released by a
+            person.
           content:
             application/json:
               schema:
