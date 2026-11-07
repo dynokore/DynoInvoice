@@ -53,9 +53,10 @@ class PolicySettingDecisionWiringTest {
             )
 
     @Test
-    fun `the production context holds exactly one AuthorityReplica and a PolicyWriter and no role resolver bean`() {
+    fun `INV-AC-18450 the production context holds exactly one AuthorityReplica and a PolicyWriter and no role resolver bean`() {
         runner().run { context ->
             context.startupFailure?.let { throw it }
+            context.getBeansOfType(AuthorityReplica::class.java).size shouldBe 1
             context.getBeansOfType(AuthorityReplica::class.java).keys shouldBe setOf("authorityReplica")
             context.getBeansOfType(PolicyWriter::class.java).keys shouldBe setOf("policyWriter")
             context.beanDefinitionNames
@@ -66,7 +67,7 @@ class PolicySettingDecisionWiringTest {
     }
 
     @Test
-    fun `the production code names no PolicyRoleResolver, no rolesOf and no tax approver role literal`() {
+    fun `INV-AC-18450 the production code names no PolicyRoleResolver, no rolesOf and no tax approver role literal`() {
         val main = File(File("..").canonicalFile, "rules-bootstrap/src/main")
         val hits =
             main
