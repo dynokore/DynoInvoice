@@ -1294,3 +1294,9 @@ permissions:
       - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
       - {role: implementation.consultant, form: SAAS, allowance: PERMITTED}
       - {role: implementation.consultant, form: PRIVATE, allowance: PERMITTED}
+  - key: questionnaire.answer
+    kind: WRITE
+    row: "Record onboarding questionnaire answers"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}

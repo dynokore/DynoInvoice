@@ -128,6 +128,7 @@ object RolePermissionsChecker {
             "Reissue the first administrator invitation",
             "View a licence",
             "View a tenant provisioning request",
+            "Record onboarding questionnaire answers",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -210,6 +211,10 @@ object RolePermissionsChecker {
             "licence.view" to "View a licence",
             "tenant-provisioning-request.view" to "View a tenant provisioning request",
         )
+
+    /** The (key, row) pair of the onboarding questionnaire answer key (INV-T-18097, coordinator ruling option A; the label is own wording, Inference), compared by equality. */
+    val questionnairePairs: Map<String, String> =
+        mapOf("questionnaire.answer" to "Record onboarding questionnaire answers")
 
     /** The (key, row) pair of the exception queue read key (INV-T-16573, INV-Q-15877 A), compared by equality. */
     val exceptionViewPairs: Map<String, String> =
@@ -431,6 +436,7 @@ object RolePermissionsChecker {
             "tenant-invitation.reissue" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "commercial.admin")),
             "licence.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "tenant-provisioning-request.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
+            "questionnaire.answer" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "break-glass.reseal" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
             "operator-session.open" to
                 Required(
@@ -655,6 +661,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in commercialReadPairs && it.row in commercialReadPairs.values }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${commercialReadPairs.keys.joinToString()}, which alone carry the licence and tenant provisioning request read rows (INV-T-16273)."
+        }
+        questionnairePairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${questionnairePairs.keys.joinToString()}, INV-T-18097)."
+        }
+        table.permissions.filter { it.key !in questionnairePairs && (it.row in questionnairePairs.values || it.key.startsWith("questionnaire.")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${questionnairePairs.keys.joinToString()}, which alone carry the onboarding questionnaire answer row (INV-T-18097)."
         }
         resealPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }

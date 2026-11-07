@@ -422,6 +422,21 @@ class RolePermissionsTest {
     }
 
     @Test
+    fun `INV-AC-18096 questionnaire answer is WRITE and held by tenant admin alone in both forms`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("questionnaire.answer"))
+        val actual =
+            both
+                .flatMap { form ->
+                    RolePermissions.cells(form).mapNotNull { (role, perms) ->
+                        perms["questionnaire.answer"]?.let { Triple(role, form, it) }
+                    }
+                }.toSet()
+        assertEquals(both.map { Triple("tenant.admin", it, y) }.toSet(), actual)
+        assertNull(RolePermissions.kind("questionnaire.answers"))
+        assertNull(RolePermissions.kind("questionnaire.answer-"))
+    }
+
+    @Test
     fun `INV-AC-17221 gap report and counterparty import keys carry exactly the INV-NOTE-7 cells`() {
         val expected =
             mapOf(
