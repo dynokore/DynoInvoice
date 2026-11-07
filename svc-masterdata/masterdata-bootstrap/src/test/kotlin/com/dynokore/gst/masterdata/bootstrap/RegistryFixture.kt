@@ -125,7 +125,15 @@ internal class RegistryStub : AutoCloseable {
                 if (exchange.requestMethod == "GET") gets.incrementAndGet() else writes.incrementAndGet()
                 val value = exchange.requestURI.path.removePrefix("/lookup/")
                 delays[value]?.let { Thread.sleep(it) }
-                val answer = if (down || value in unavailable) Answer(UNAVAILABLE, "") else answers[value] ?: Answer(NOT_FOUND, NOT_FOUND_BODY)
+                val answer =
+                    if (down ||
+                        value in unavailable
+                    ) {
+                        Answer(UNAVAILABLE, "")
+                    } else {
+                        answers[value]
+                            ?: Answer(NOT_FOUND, NOT_FOUND_BODY)
+                    }
                 val bytes = answer.body.toByteArray()
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(answer.status, if (bytes.isEmpty()) -1 else bytes.size.toLong())

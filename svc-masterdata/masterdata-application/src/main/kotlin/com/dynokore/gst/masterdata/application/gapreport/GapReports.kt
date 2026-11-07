@@ -102,7 +102,9 @@ class RunGapReport(
                 try {
                     val result = compute(entity)
                     tx.inTransaction { store.finish(id, clock.instant(), result) }
-                } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") e: Exception,
+                ) {
                     tx.inTransaction { store.fail(id, clock.instant(), failure.internalError()) }
                     throw e
                 }
@@ -140,7 +142,12 @@ class RunGapReport(
         if (fact == null) {
             notChecked += version.partyRef.value
         } else if (conflictsWithRegister(gstn, fact.found, fact.status, fact.gstNumber)) {
-            rows += GapFinding(version.partyRef.value, GapClass.GST_REGISTER_CONFLICT, GapClass.GST_REGISTER_CONFLICT.errorCode)
+            rows +=
+                GapFinding(
+                    version.partyRef.value,
+                    GapClass.GST_REGISTER_CONFLICT,
+                    GapClass.GST_REGISTER_CONFLICT.errorCode,
+                )
         }
     }
 }
@@ -194,16 +201,18 @@ class ExportGapReport(
         tx.inTransaction {
             val record = store.find(gapReportId)?.takeIf { it.actor == actor && it.state == RecordState.SUCCEEDED }
             val result = record?.result ?: return@inTransaction null
+
             fun line(
                 ref: String,
                 gapClass: GapClass?,
                 code: String?,
             ): ExportLine {
                 val content =
-                    parties.current(
-                        com.dynokore.gst.masterdata.domain.counterparty
-                            .PartyRef(ref),
-                    )?.content
+                    parties
+                        .current(
+                            com.dynokore.gst.masterdata.domain.counterparty
+                                .PartyRef(ref),
+                        )?.content
                 return ExportLine(
                     ref,
                     gapClass,

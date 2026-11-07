@@ -1,6 +1,9 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.http.AuditLogExportAudit
+import com.dynokore.gst.masterdata.adapters.http.ProblemsFailureEnvelope
 import com.dynokore.gst.masterdata.adapters.persistence.JooqCounterpartyRepository
+import com.dynokore.gst.masterdata.adapters.persistence.JooqGapReportStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqPendingChangeRepository
 import com.dynokore.gst.masterdata.adapters.persistence.JooqStructureNodeRepository
 import com.dynokore.gst.masterdata.adapters.persistence.JooqTripleRepository
@@ -11,6 +14,13 @@ import com.dynokore.gst.masterdata.application.counterparty.ReadCounterpartyHist
 import com.dynokore.gst.masterdata.application.counterparty.RecordCounterparty
 import com.dynokore.gst.masterdata.application.counterparty.ResolveCounterparty
 import com.dynokore.gst.masterdata.application.counterparty.StructureNodeRepository
+import com.dynokore.gst.masterdata.application.gapreport.ExportAudit
+import com.dynokore.gst.masterdata.application.gapreport.ExportGapReport
+import com.dynokore.gst.masterdata.application.gapreport.FailureEnvelope
+import com.dynokore.gst.masterdata.application.gapreport.GapReportStore
+import com.dynokore.gst.masterdata.application.gapreport.LongRunner
+import com.dynokore.gst.masterdata.application.gapreport.ReadGapReport
+import com.dynokore.gst.masterdata.application.gapreport.RunGapReport
 import com.dynokore.gst.masterdata.application.identity.BackdatedCorrections
 import com.dynokore.gst.masterdata.application.identity.ConfirmIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ConfirmerAuthority
@@ -20,29 +30,19 @@ import com.dynokore.gst.masterdata.application.identity.PendingChangeRepository
 import com.dynokore.gst.masterdata.application.identity.ProposeIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple
 import com.dynokore.gst.masterdata.application.identity.TripleRepository
-import com.dynokore.gst.masterdata.adapters.http.AuditLogExportAudit
-import com.dynokore.gst.masterdata.adapters.http.ProblemsFailureEnvelope
-import com.dynokore.gst.masterdata.adapters.persistence.JooqGapReportStore
-import com.dynokore.gst.masterdata.application.gapreport.ExportAudit
-import com.dynokore.gst.masterdata.application.gapreport.ExportGapReport
-import com.dynokore.gst.masterdata.application.gapreport.FailureEnvelope
-import com.dynokore.gst.masterdata.application.gapreport.GapReportStore
-import com.dynokore.gst.masterdata.application.gapreport.LongRunner
-import com.dynokore.gst.masterdata.application.gapreport.ReadGapReport
-import com.dynokore.gst.masterdata.application.gapreport.RunGapReport
 import com.dynokore.gst.masterdata.application.registry.LookupGstRegister
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.DSLContext
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 import tools.jackson.databind.ObjectMapper
+import java.time.Clock
 import java.time.Duration
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import org.jooq.DSLContext
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import java.time.Clock
 
 /**
  * TPL-18: the only place a use case is constructed. No DataSource bean here or anywhere in the service (owner ruling

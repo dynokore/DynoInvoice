@@ -34,15 +34,28 @@ class GapReportTest {
     )
 
     private fun RegistryEnv.seed(): Seed {
-        val s = Seed(
-            unique("CTP-A"), unique("CTP-B"), unique("CTP-C"), unique("CTP-D"), unique("CTP-E1"),
-            unique("CTP-E2"), unique("CTP-F"),
-        )
+        val s =
+            Seed(
+                unique("CTP-A"),
+                unique("CTP-B"),
+                unique("CTP-C"),
+                unique("CTP-D"),
+                unique("CTP-E1"),
+                unique("CTP-E2"),
+                unique("CTP-F"),
+            )
         val name = "ACME"
         ce.write(s.absent, ce.request("PEPPOL_PARTICIPANT_ID" to "0195:X", name = name, address = ADDRESS))
         ce.write(s.invalid, ce.request("UEN" to "5301234X", name = name, address = ADDRESS))
         ce.write(s.conflict, ce.request("UEN" to conflictUen, "GSTN" to "M2-9999999-9", name = name, address = ADDRESS))
-        ce.write(s.incomplete, ce.request("UEN" to "201912345A", name = name, address = CounterpartyAddress(addressLine1 = "1 Road")))
+        ce.write(
+            s.incomplete,
+            ce.request(
+                "UEN" to "201912345A",
+                name = name,
+                address = CounterpartyAddress(addressLine1 = "1 Road", postalCode = " "),
+            ),
+        )
         ce.write(s.duplicateA, ce.request("UEN" to duplicateUen, name = name, address = ADDRESS))
         ce.write(s.duplicateB, ce.request("UEN" to duplicateUen, name = name, address = ADDRESS))
         ce.write(s.outage, ce.request("UEN" to outageUen, "GSTN" to "M2-1111111-1", name = name, address = ADDRESS))
@@ -97,17 +110,27 @@ class GapReportTest {
 
     private fun rowsOf(report: JsonNode) =
         report.get("rows").values().map {
-            Triple(it.get("counterpartyRef").asString(), it.get("findingClass").asString(), it.get("errorCode")?.asString())
+            Triple(
+                it.get("counterpartyRef").asString(),
+                it.get("findingClass").asString(),
+                it.get("errorCode")?.asString(),
+            )
         }
 
     private fun RegistryEnv.fingerprint(): String =
         BoundaryFixture.asSuperuser { c ->
-            val tables = listOf("counterparty", "counterparty_version", "counterparty_identifier", "counterparty_scheme_status")
+            val tables =
+                listOf("counterparty", "counterparty_version", "counterparty_identifier", "counterparty_scheme_status")
             tables.joinToString("|") { table ->
-                c.createStatement().executeQuery(
-                    "select count(*) || ':' || coalesce(md5(string_agg(t::text, '|' order by t::text)), '') " +
-                        "from masterdata.$table t where tenant_id = '${ce.tenant}'::uuid",
-                ).use { rs -> rs.next(); rs.getString(1) }
+                c
+                    .createStatement()
+                    .executeQuery(
+                        "select count(*) || ':' || coalesce(md5(string_agg(t::text, '|' order by t::text)), '') " +
+                            "from masterdata.$table t where tenant_id = '${ce.tenant}'::uuid",
+                    ).use { rs ->
+                        rs.next()
+                        rs.getString(1)
+                    }
             }
         }
 
@@ -122,7 +145,13 @@ class GapReportTest {
         ).sortedWith(compareBy({ it.first }, { gapOrder(it.second) }))
 
     private fun gapOrder(name: String) =
-        listOf("UEN_ABSENT", "UEN_INVALID", "GST_REGISTER_CONFLICT", "ADDRESS_INCOMPLETE", "DUPLICATE_UEN").indexOf(name)
+        listOf(
+            "UEN_ABSENT",
+            "UEN_INVALID",
+            "GST_REGISTER_CONFLICT",
+            "ADDRESS_INCOMPLETE",
+            "DUPLICATE_UEN",
+        ).indexOf(name)
 
     @Test
     fun `INV-AC-1608 each seeded counterparty is listed once with its class and no other`() =
@@ -236,7 +265,9 @@ class GapReportTest {
                 assertThat(env.call("GET", "/internal/v1/masterdata/gap-reports/$id", actor = "IDN-NOBODY").status)
                     .isEqualTo(403)
                 val other = TestPermissions.OTHER_OPERATOR
-                assertThat(env.call("GET", "/internal/v1/masterdata/gap-reports/$id", actor = other).status).isEqualTo(404)
+                assertThat(
+                    env.call("GET", "/internal/v1/masterdata/gap-reports/$id", actor = other).status,
+                ).isEqualTo(404)
                 assertThat(env.call("GET", "/internal/v1/masterdata/gap-reports/$id/export", actor = other).status)
                     .isEqualTo(404)
                 assertThat(env.call("GET", "/internal/v1/masterdata/gap-reports/GAP-unknown").status).isEqualTo(404)
@@ -245,10 +276,15 @@ class GapReportTest {
 
     private fun latestId(env: RegistryEnv): String =
         BoundaryFixture.asSuperuser { c ->
-            c.createStatement().executeQuery(
-                "select gap_report_id from masterdata.gap_report where tenant_id = '${env.ce.tenant}'::uuid " +
-                    "order by started_at desc limit 1",
-            ).use { rs -> rs.next(); rs.getString(1) }
+            c
+                .createStatement()
+                .executeQuery(
+                    "select gap_report_id from masterdata.gap_report where tenant_id = '${env.ce.tenant}'::uuid " +
+                        "order by started_at desc limit 1",
+                ).use { rs ->
+                    rs.next()
+                    rs.getString(1)
+                }
         }
 
     @Test
@@ -267,14 +303,17 @@ class GapReportTest {
                 assertThat(lines).hasSize(1 + s.expected().size + 1)
                 assertThat(lines).contains("${s.invalid},UEN_INVALID,MDM-003,5301234X,ACME,1 Raffles Place,048616")
                 assertThat(lines.last()).startsWith("${s.outage},,,")
-                assertThat(env.call("GET", "/internal/v1/masterdata/gap-reports/$id/export", actor = "IDN-NOBODY").status)
-                    .isEqualTo(403)
-                assertThat(env.call("GET", "/internal/v1/masterdata/gap-reports/GAP-unknown/export").status).isEqualTo(404)
+                assertThat(
+                    env.call("GET", "/internal/v1/masterdata/gap-reports/$id/export", actor = "IDN-NOBODY").status,
+                ).isEqualTo(403)
+                assertThat(
+                    env.call("GET", "/internal/v1/masterdata/gap-reports/GAP-unknown/export").status,
+                ).isEqualTo(404)
             }
         }
 
     private companion object {
-        const val LATE_MILLIS = 3500L
+        const val LATE_MILLIS = 2500L
         const val POLLS = 40
         const val POLL_MILLIS = 250L
     }
