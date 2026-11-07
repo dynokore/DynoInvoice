@@ -255,7 +255,7 @@ class GatesTest {
     }
 
     @Test
-    @Suppress("ktlint:standard:max-line-length")
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
     fun `INV-AC-17922 the CertificationStatusChanged channel row is required, exact and not done without its payload test`() {
         val (spec, async, table) = ruled()
         val row = "CertificationStatusChanged\tchannel\tINV-T-16409\tpending\n"
