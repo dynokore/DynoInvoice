@@ -49,6 +49,7 @@ object PlatformEventCatalogue {
         fixed("TenantWideArchiveVolumeMeasured", "tenant-wide-archive-volume-measured")
 
     val AUTHORITY_HEAD_OBSERVED = fixed("AuthorityHeadObserved", "authority-head-observed")
+    val CERTIFICATION_MARK_REQUESTED = fixed("CertificationMarkRequested", "certification-mark-requested")
 
     /** Every platform event, in INV-REQ-1226 b1's order. */
     val ALL: List<PlatformEvent> =
@@ -73,6 +74,7 @@ object PlatformEventCatalogue {
             BREAK_GLASS_ACTION_REPORTED,
             TENANT_WIDE_ARCHIVE_VOLUME_MEASURED,
             AUTHORITY_HEAD_OBSERVED,
+            CERTIFICATION_MARK_REQUESTED,
         )
 
     /** True when [eventType] is a platform event. */

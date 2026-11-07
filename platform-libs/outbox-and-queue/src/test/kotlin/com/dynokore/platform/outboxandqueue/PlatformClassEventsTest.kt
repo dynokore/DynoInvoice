@@ -35,6 +35,7 @@ class PlatformClassEventsTest {
             "BreakGlassActionReported",
             "TenantWideArchiveVolumeMeasured",
             "AuthorityHeadObserved",
+            "CertificationMarkRequested",
         )
     private val refused =
         listOf(
@@ -340,6 +341,39 @@ class PlatformClassEventsTest {
         listOf(
             "com.dynokore.gst.access.AuthorityHeadObserved.v1",
             "com.dynokore.gst.platform.AuthorityHeadObserve.v1",
+        ).forEach {
+            assertThrows(
+                IllegalArgumentException::class.java,
+                { envelope(it, TenantId.PLATFORM, EntityRef.PLATFORM) },
+                it,
+            )
+        }
+    }
+
+    @Test
+    fun `INV-AC-18180 name set holds CertificationMarkRequested and not the look-alike`() {
+        assertTrue(Envelope.isPlatformType("com.dynokore.gst.platform.CertificationMarkRequested.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.CertificationMarkRequest.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.certificationMarkRequested.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.platform.CertificationMarkRequestedX.v1"))
+    }
+
+    @Test
+    fun `INV-AC-18180 CertificationMarkRequested under the platform tenant is built and reads back platform pair`() {
+        val e =
+            envelope("com.dynokore.gst.platform.CertificationMarkRequested.v1", TenantId.PLATFORM, EntityRef.PLATFORM)
+        val text = json.write(e)
+        assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+        val back = json.read(text)
+        assertEquals(TenantId.PLATFORM, back.tenant)
+        assertEquals(EntityRef.PLATFORM, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-18180 CertificationMarkRequested tenancy type and look-alike are refused under platform tenant`() {
+        listOf(
+            "com.dynokore.gst.tenancy.CertificationMarkRequested.v1",
+            "com.dynokore.gst.platform.CertificationMarkRequest.v1",
         ).forEach {
             assertThrows(
                 IllegalArgumentException::class.java,

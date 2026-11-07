@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [12.3.1] - 2026-11-07
+### Changed
+- Version step only (G-DVS, INV-T-18183): the published bytes change because the dependency `outbox-and-queue` stepped to 6.18.0 (CertificationMarkRequested joins the platform event class); no code change in this module.
+
 ## [12.3.0] - 2026-11-07
 ### Added
 - A CLIENT span with `peer.service` for each call through `internalRestClientBuilder`, exported as OTLP/HTTP protobuf (the SDK `OtlpHttpSpanExporter`, compression none) to `<gst.bindings.telemetry-export-otlp-endpoint>/v1/traces`, and W3C `traceparent` propagation in (`TraceContextCaptureFilter`, via `TraceParent.parse`) and out (INV-T-17628, INV-Q-17607 A, INV-AC-17625). Properties: `gst.tracing.peers`, `management.tracing.sampling.probability`; failed exports are counted and logged without span content. `opentelemetry-api`, `opentelemetry-sdk` and `opentelemetry-exporter-otlp` move to the impl compile classpath (INV-Q-17752 A).

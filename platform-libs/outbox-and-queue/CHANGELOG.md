@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.18.0] - 2026-11-07
+### Added
+- `CertificationMarkRequested` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds twenty-one platform events; `com.dynokore.gst.tenancy.CertificationMarkRequested.v1` stays a domain type refused under the platform tenant (INV-T-16409 design question option C, INV-REQ-1226, INV-AC-18180, INV-T-18183).
+
 ## [6.17.0] - 2026-11-06
 ### Added
 - `AuthorityHeadObserved` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds twenty platform events; `com.dynokore.gst.access.AuthorityHeadObserved.v1` stays a domain type refused under the platform tenant (INV-Q-17070 B, INV-REQ-1226, INV-AC-17082, INV-T-17086).
