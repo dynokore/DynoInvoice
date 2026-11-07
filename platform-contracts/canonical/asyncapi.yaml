@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: canonical events
-  version: 1.11.0
+  version: 1.11.1
   description: >-
     Every event canonical produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -147,7 +147,9 @@ components:
         tax subtotals and parties (INV-NOTE-3 §20.2 to §20.5). Content added 25 Sep 2026 (AD-30): payload-svc
         builds the projection from it, reconciliation-svc its Box read model (FR-Z.16), evidence-svc its
         retained copy (FR-AA.15) and console-bff its search index (SCR-03.1); submission-svc reads the
-        identifiers only. Every content field carries its FR-AE.72 classification. Kept for the content
+        identifiers and the named list facts of its obligation register only (document number, document
+        type code, direction, counterparty name and UEN, taxable and GST amounts, category codes;
+        INV-Q-16290). Every content field carries its FR-AE.72 classification. Kept for the content
         window only (FR-AH.9). Authored by INV-T-2854 (T10). The credit note's optional preceding-document
         fields (IBT-025, IBT-026), blank-linkage justification and evidenceRef added by INV-T-3457
         (INV-REQ-560, INV-REQ-561, INV-Q-3450), additive within v1 (API-41). The optional object `routingFacts`
