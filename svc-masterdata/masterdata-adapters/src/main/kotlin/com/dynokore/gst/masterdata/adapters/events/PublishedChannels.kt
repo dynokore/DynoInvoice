@@ -7,7 +7,8 @@ package com.dynokore.gst.masterdata.adapters.events
  * `IdentityTripleCorrected` and `IdentityTripleChanged`; the other channels belong to rates and signed links.
  */
 object PublishedChannels {
-    val ALL: Set<String> = setOf(
+    val ALL: Set<String> =
+        setOf(
             MasterDataResolvedOutbox.CHANNEL,
             IdentityTripleCorrectedOutbox.CHANNEL,
             IdentityTripleChangedOutbox.CHANNEL,
