@@ -37,12 +37,14 @@ class AccreditationOperationsTest {
     private val rows = ArrayList<AccreditationRecord>()
     private val asked = ArrayList<Pair<String, String>>()
 
-    /** The stub: the actors in [holders] hold exactly [AccreditationPermission.RECORD]. */
+    /** The stub: [holders] hold exactly RECORD; [viewers] hold exactly READ. */
     private var holders = setOf("alice", "bob")
+    private var viewers = setOf("alice", "bob")
     private val permissions =
         OperatorPermissions { actor, key ->
             asked += actor to key
-            key == AccreditationPermission.RECORD && actor in holders
+            (key == AccreditationPermission.RECORD && actor in holders) ||
+                (key == AccreditationPermission.READ && actor in viewers)
         }
     private val records =
         object : AccreditationRecords {
@@ -173,6 +175,32 @@ class AccreditationOperationsTest {
         }
         rows shouldBe emptyList()
         read.get("carol") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-2338 getAccreditation asks exactly actor and accreditation view and the keys are distinct`() {
+        AccreditationPermission.READ shouldBe "accreditation.view"
+        AccreditationPermission.RECORD shouldBe "accreditation.record"
+        asked.clear()
+        read.get("alice")
+        asked shouldBe listOf("alice" to "accreditation.view")
+    }
+
+    @Test
+    fun `INV-AC-2338 a holder of only accreditation record is refused the read`() {
+        viewers = emptySet()
+        holders = setOf("alice")
+        call(commandOf("alice"))!!
+        read.get("alice") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-2338 a holder of only accreditation view reads and is refused to record`() {
+        viewers = setOf("vera")
+        holders = emptySet()
+        read.get("vera")!!.currency shouldBe Currency.NOT_RECORDED
+        record.permits("vera", commandOf("vera")) shouldBe false
+        rows shouldBe emptyList()
     }
 
     @Test

@@ -24,8 +24,8 @@ object AccreditationPermission {
     /** recordAccreditation. */
     const val RECORD = "accreditation.record"
 
-    /** getAccreditation: the record key (INV-T-7322). */
-    const val READ = RECORD
+    /** getAccreditation (INV-Q-15430 A): its own key, not an alias of [RECORD]. */
+    const val READ = "accreditation.view"
 
     /** listAccreditationTasks (INV-Q-15430 A). */
     const val TASK_LIST = "accreditation-task.list"
