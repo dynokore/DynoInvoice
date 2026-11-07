@@ -67,3 +67,11 @@ POST /internal/v1/aggregation/batches added the new required request property `s
 # INV-Q-10678 A (INV-T-10676), Coordinator ruling (delegated, owner 2026-10-14) and INV-Q-13677, on INV-Q-3569's reasoning (no train is published, no consumer deployed; owner answer on INV-Q-10647): the role property of AccreditationRecord is replaced by the user-ID property recordedBy; the two optional role properties of GateRunResponse and ReleaseGateResult are removed without an ERR from the gate.
 GET /internal/v1/control-plane/accreditation removed the required property `record/recordedByRole` from the response with the `200` status
 POST /internal/v1/control-plane/accreditation removed the required property `recordedByRole` from the response with the `201` status
+#
+# INV-Q-17986 (INV-T-17921, breakdown tooling/gap17921-gap.md; Coordinator ruling, delegated, owner 2026-10-14, option A) on INV-Q-3569's reasoning:
+# CertifySandboxRequest becomes a flat object schema (a `not` clause instead of `oneOf`, so the generators write a data class) and
+# failedScenarios gains minItems 1. Permitted within v1 because no train is published (platform-release manifest/trains/ holds only its README)
+# and no consumer of the operation is deployed. The flat schema accepts the same request documents as main, so nothing is widened; the two lines
+# record oasdiff's structural findings. After the first published train a new or tighter request bound is breaking (API-03).
+POST /internal/v1/tenancy/entities/{entityRef}/certifications removed `subschema #1, subschema #2` from the request body `oneOf` list
+POST /internal/v1/tenancy/entities/{entityRef}/certifications the `failedScenarios` request property's minItems was set to `1`
