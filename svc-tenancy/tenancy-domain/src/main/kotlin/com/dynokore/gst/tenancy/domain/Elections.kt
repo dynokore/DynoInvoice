@@ -43,6 +43,13 @@ object ElectionKeys {
     const val ENTIRE_INVOICE = "ENTIRE_INVOICE"
     const val APPROVED_SOURCE = "APPROVED_SOURCE"
 
+    /** The exempt-purchase election (INV-REQ-369); not yet in RECORDABLE, a later slice routes it. */
+    const val EXEMPT_PURCHASE_CODES = "EXEMPT_PURCHASE_CODES"
+
+    private val CODE_PATTERN = Regex("^[A-Z0-9][A-Z0-9_-]{0,39}$")
+    private const val MAX_CODES = 50
+    private const val MAX_BASIS = 500
+
     private val RECORDABLE =
         mapOf(
             INVOICE_DATE to ElectionKind.PURCHASE_DATE_BASIS,
@@ -53,6 +60,23 @@ object ElectionKeys {
 
     /** The election [key] belongs to, by exact equality; null for any other text (no trimming, no case folding). */
     fun recordableKind(key: String): ElectionKind? = RECORDABLE[key]
+
+    /**
+     * The refusal of an exempt-purchase election, or null when valid: 1 to 50 distinct codes each matching
+     * `^[A-Z0-9][A-Z0-9_-]{0,39}$` (whole text, no trimming, no case folding), a basis of 1 to 500 characters that is
+     * not blank (INV-REQ-369).
+     */
+    fun exemptPurchaseRefusal(
+        codes: List<String>,
+        basis: String,
+    ): String? =
+        when {
+            codes.isEmpty() || codes.size > MAX_CODES -> "taxCodes must hold 1 to $MAX_CODES codes"
+            codes.any { !CODE_PATTERN.matches(it) } -> "every tax code must match ${CODE_PATTERN.pattern}"
+            codes.toSet().size != codes.size -> "tax codes must be distinct"
+            basis.isBlank() || basis.length > MAX_BASIS -> "basis must be 1 to $MAX_BASIS characters and not blank"
+            else -> null
+        }
 }
 
 object ElectionRules {
