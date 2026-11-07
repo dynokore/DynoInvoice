@@ -1,6 +1,9 @@
 package com.dynokore.gst.tenancy.adapters.election
 
+import com.dynokore.gst.tenancy.application.election.ApprovedChange
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseAuditRecord
+import com.dynokore.gst.tenancy.application.election.PendingChange
+import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditWriteFailed
 import com.dynokore.platform.auditlog.AuditWriter
@@ -16,6 +19,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 /** The exempt-purchase entry of INV-REQ-369 goes through the same writer as the other election entries. */
@@ -134,7 +138,25 @@ class AuditLogElectionAuditTest {
     }
 
     @Test
-    fun `INV-AC-18241 requested and approved keep their actions`() {
+    fun `INV-AC-18241 requested and approved entries still carry their actions`() {
+        val writer = Recording()
+        val audit = AuditLogElectionAudit(writer, tenants())
+        val change =
+            PendingChange(
+                changeRef = "c-1",
+                entityRef = entity,
+                kind = ElectionKind.ISSUANCE_MODE,
+                value = "V",
+                basis = null,
+                effectiveFrom = LocalDate.of(2026, 10, 1),
+                requestedBy = "user-u1",
+                requestedAt = instant,
+            )
+        audit.requested(change)
+        audit.approved(ApprovedChange(change, "user-u2", instant))
+        writer.entries.map { it.first.action } shouldBe listOf("election-change.requested", "election-change.approved")
+        writer.entries.map { it.first.actor } shouldBe listOf("user-u1", "user-u2")
+        writer.entries.map { it.first.scope } shouldBe listOf("E", "E")
         AuditLogElectionAudit.REQUESTED shouldBe "election-change.requested"
         AuditLogElectionAudit.APPROVED shouldBe "election-change.approved"
     }
