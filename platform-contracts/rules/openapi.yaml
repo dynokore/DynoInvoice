@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.19.0
+  version: 1.20.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -113,6 +113,11 @@ paths:
         rules-svc`, "evaluation of a pre-issuance draft that has no
         canonical record yet", §33.1). Stateless and side-effect free, like
         `evaluateDocument`, but callable before the document is recorded.
+        A credit note which gives `precedingDocumentNumber` must also give
+        `precedingDocumentDate`; a request with the number and no date is
+        refused with HTTP 400 and code SRT-001. rules-svc makes no lookup and
+        raises no RUL-008 on this operation; the caller resolves the date and
+        resends (INV-REQ-701 behavior 4, INV-Q-14421 B).
       tags: [evaluation]
       x-principal: ingest
       x-caller-auth: end-user
@@ -1364,7 +1369,10 @@ components:
             (canonical-svc) looks up the entity's document of that number and sends
             `precedingDocumentDate` when it found one. A credit note with this number and no
             `precedingDocumentDate` means the caller found none, and rules-svc answers RUL-008
-            (INV-REQ-701 behavior 3, INV-AC-1819, INV-Q-14404 A).
+            (INV-REQ-701 behavior 3, INV-AC-1819, INV-Q-14404 A). This lookup rule applies to
+            `evaluateDocument`. On `evaluatePreIssuanceDraft` the date is required whenever the
+            number is given, and a request with the number and no date is refused with HTTP 400
+            SRT-001 (INV-REQ-701 behavior 4, INV-Q-14421 B).
         precedingDocumentDate:
           type: string
           format: date
@@ -1373,7 +1381,10 @@ components:
             and mapping resolve by it (INV-REQ-701 b1, INV-REQ-362 b4).
             The caller (canonical-svc) sends it when its lookup of the document named by
             `precedingDocumentNumber` found one; a credit note with the number and no date is
-            answered with RUL-008 (INV-REQ-701 behavior 3, INV-AC-1819, INV-Q-14404 A).
+            answered with RUL-008 (INV-REQ-701 behavior 3, INV-AC-1819, INV-Q-14404 A). This
+            lookup rule applies to `evaluateDocument`. On `evaluatePreIssuanceDraft` the date is
+            required whenever the number is given (HTTP 400 SRT-001, INV-REQ-701 behavior 4,
+            INV-Q-14421 B).
         lineSign:
           type: string
           enum: [POSITIVE, NEGATIVE, ZERO]
