@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -103,6 +103,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [readiness]
       x-principal: filing-workflow
+      x-operation:
+        kind: PERMISSION
+        permission: machine.readiness.view
       x-break-glass-action: READINESS
       x-caller-auth: end-user
       x-timeout: 3000
@@ -260,7 +263,8 @@ paths:
       x-error-codes: [SRT-004]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-554, INV-REQ-555, INV-REQ-814, INV-REQ-951]
       x-operation:
-        role: filing-workflow
+        kind: PERMISSION
+        permission: machine.drain.run
         scope: filing-workflow
         precondition: The entity and period exist and have queued or held items to attempt (FR-C.8).
         reversibility: IRREVERSIBLE
@@ -333,6 +337,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [readiness]
       x-principal: filing-workflow
+      x-operation:
+        kind: PERMISSION
+        permission: machine.readiness.view
       x-break-glass-action: READINESS
       x-caller-auth: end-user
       x-timeout: 3000
@@ -438,7 +445,8 @@ paths:
       x-error-codes: [PER-001]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-655, INV-REQ-914, INV-REQ-917, INV-REQ-961]
       x-operation:
-        role: filing-workflow
+        kind: PERMISSION
+        permission: machine.filing.confirm
         scope: filing-workflow
         precondition: >-
           Readiness has been checked for the period (INV-REQ-555); a filedAt
@@ -520,6 +528,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-operation:
+        kind: PERMISSION
+        permission: machine.submissions.read
       x-break-glass-action: VIEW
       x-caller-auth: end-user
       x-timeout: 3000
@@ -612,6 +623,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-operation:
+        kind: PERMISSION
+        permission: machine.status.read
       x-break-glass-action: VIEW
       x-caller-auth: end-user
       x-timeout: 3000
@@ -677,6 +691,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-operation:
+        kind: PERMISSION
+        permission: machine.reconciliation.read
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
@@ -731,6 +748,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-operation:
+        kind: PERMISSION
+        permission: machine.submissions.read
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
@@ -825,6 +845,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [metrics]
       x-principal: reporting
+      x-operation:
+        kind: PERMISSION
+        permission: machine.status.read
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [SRT-001, SRT-004, SRT-005]
@@ -921,6 +944,9 @@ paths:
         re-read (a safe GET; INV-REQ-1204 b7, INV-Q-3571).
       tags: [transactions]
       x-principal: reporting
+      x-operation:
+        kind: PERMISSION
+        permission: machine.status.read
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: []
