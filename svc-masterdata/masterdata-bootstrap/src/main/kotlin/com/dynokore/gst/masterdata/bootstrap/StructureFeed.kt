@@ -11,9 +11,10 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.tenancyjooq.TenancyJooq
+import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
@@ -23,9 +24,18 @@ import java.time.Clock
  * platform asks for several topics, both applying the node to the service's own structure table. The default
  * consumer of service-runtime backs off when an `InboxConsumer` bean exists; the first is primary for the replay
  * wiring. product-runtime keeps feeding the structure replica separately.
+ *
+ * An auto-configuration ordered after the platform's L1 composition: the `@ConditionalOnBean` guards below test beans
+ * (`TenantScope`, `EventLogReader`) that L1 declares, which user configuration would be evaluated before
+ * (INV-Q-16993 A, INV-AC-16991).
  */
-@Configuration(proxyBeanMethods = false)
+@AutoConfiguration(afterName = ["com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration"])
 class StructureFeed {
+    /** The default sink (INV-Q-10834 A): a rebuild-required incident is logged, never silent; a service sink wins. */
+    @Bean
+    @ConditionalOnMissingBean(RebuildRequiredSink::class)
+    fun rebuildRequiredSink(): RebuildRequiredSink = LoggingRebuildRequiredSink()
+
     @Bean
     fun structureNodeFeedHandler(
         apply: ApplyStructureNode,
