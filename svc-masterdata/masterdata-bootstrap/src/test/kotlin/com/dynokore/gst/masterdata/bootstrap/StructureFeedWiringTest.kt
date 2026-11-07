@@ -126,7 +126,9 @@ class StructureFeedWiringTest {
     @Test
     fun `INV-AC-16991 the logging sink writes one ERROR line with consumer topic offset and watermark`() {
         val records = mutableListOf<LogRecord>()
-        val logger = java.util.logging.Logger.getLogger(LoggingRebuildRequiredSink::class.java.name)
+        val logger =
+            java.util.logging.Logger
+                .getLogger(LoggingRebuildRequiredSink::class.java.name)
         val handler =
             object : Handler() {
                 override fun publish(record: LogRecord) {
