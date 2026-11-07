@@ -1,5 +1,10 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.http.ApiConflict
+import com.dynokore.gst.access.adapters.http.ApiRefusal
+import com.dynokore.gst.access.adapters.http.BreakGlassController
+import com.dynokore.gst.access.application.idp.DirectoryGroupMembers
+import com.dynokore.gst.access.application.idp.IdentityProviderAvailability
 import com.dynokore.gst.access.bootstrap.AcceptFirstAdministratorFixture.viaConsole
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.json
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.withService
@@ -9,9 +14,14 @@ import com.dynokore.gst.access.bootstrap.SealFixture.passExpiry
 import com.dynokore.gst.access.bootstrap.SealFixture.reseal
 import com.dynokore.gst.access.bootstrap.SealFixture.unlocked
 import com.dynokore.gst.access.bootstrap.served.ServedContext
+import com.dynokore.gst.access.contract.model.UnlockBreakGlassRequest
+import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 
@@ -99,4 +109,69 @@ class BreakGlassSessionChangedTest {
         body,
         UUID.randomUUID(),
     )
+}
+
+/**
+ * INV-AC-9303 (f): the unlock refusals before the session row is written append no `BreakGlassSessionChanged`: the
+ * identity-provider probe 409 and an approver who does not hold the pairing role.
+ */
+class BreakGlassSessionChangedRefusalTest {
+    private val tenant = TenantId(UUID.randomUUID())
+    private val type = "com.dynokore.gst.platform.BreakGlassSessionChanged.v1"
+
+    private fun run(block: (BreakGlassController, TenantContext, CapturedEvents, StubIdentityProvider) -> Unit) {
+        val clock = MovableClock()
+        val idp = StubIdentityProvider(clock)
+        BoundaryFixture
+            .runner()
+            .withBean(DirectoryGroupMembers::class.java, { DirectoryGroupMembers { emptySet() } })
+            .withAllowBeanDefinitionOverriding(true)
+            .withBean("identityProviderAvailability", IdentityProviderAvailability::class.java, { idp.availability })
+            .withBean("clock", Clock::class.java, { clock })
+            .run { context ->
+                context.startupFailure?.let { throw it }
+                Seeds.grant(context, tenant, SeedSpec("IDN-ADM", Role.TENANT_ADMIN))
+                Seeds.grant(context, tenant, SeedSpec("IDN-APP", Role.TAX_APPROVER))
+                Seeds.grant(context, tenant, SeedSpec("IDN-OTHER", Role.AUDITOR))
+                val captured = context.getBean(CapturedEvents::class.java)
+                captured.envelopes.clear()
+                // the approvals are made before the unlock, so the refusal under test is the only one left
+                BreakGlassApproving.approveOthers(context, tenant, "IDN-ADM", listOf("IDN-ADM", "IDN-APP", "IDN-OTHER"))
+                block(
+                    context.getBean(BreakGlassController::class.java),
+                    context.getBean(TenantContext::class.java),
+                    captured,
+                    idp,
+                )
+            }
+    }
+
+    private fun unlock(
+        api: BreakGlassController,
+        tenants: TenantContext,
+        vararg approvers: String,
+    ) = tenants.bind(tenant, "IDN-ADM") {
+        api.unlockBreakGlass(UUID.randomUUID(), UnlockBreakGlassRequest(tenant.toString(), approvers.toList()))
+    }
+
+    private fun sessions(): List<String> = FirstAdministratorFixture.rows("access.break_glass_session", tenant)
+
+    @Test
+    fun `INV-AC-9303 f - the identity-provider probe 409 appends nothing and opens no session`() =
+        run { api, tenants, captured, idp ->
+            idp.tick()
+            assertThatThrownBy { unlock(api, tenants, "IDN-ADM", "IDN-APP") }.isInstanceOf(ApiConflict::class.java)
+            assertThat(captured.envelopes.filter { it.type == type }).isEmpty()
+            assertThat(sessions()).isEmpty()
+        }
+
+    @Test
+    fun `INV-AC-9303 f - roles not held appends nothing and opens no session`() =
+        run { api, tenants, captured, idp ->
+            idp.failBoth()
+            repeat(3) { idp.tick() }
+            assertThatThrownBy { unlock(api, tenants, "IDN-ADM", "IDN-OTHER") }.isInstanceOf(ApiRefusal::class.java)
+            assertThat(captured.envelopes.filter { it.type == type }).isEmpty()
+            assertThat(sessions()).isEmpty()
+        }
 }
