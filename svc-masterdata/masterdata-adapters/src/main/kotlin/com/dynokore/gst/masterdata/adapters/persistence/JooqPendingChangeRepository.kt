@@ -73,13 +73,11 @@ class JooqPendingChangeRepository(
     override fun markConfirmed(
         change: PendingChange,
         confirmedBy: PersonRef,
-        confirmedRole: String,
     ): Boolean =
         dsl
             .update(IDENTITY_TRIPLE_CHANGE)
             .set(IDENTITY_TRIPLE_CHANGE.STATE, ChangeState.CONFIRMED.name)
             .set(IDENTITY_TRIPLE_CHANGE.CONFIRMED_BY, confirmedBy.value)
-            .set(IDENTITY_TRIPLE_CHANGE.CONFIRMED_ROLE, confirmedRole)
             .set(IDENTITY_TRIPLE_CHANGE.UPDATED_AT, clock.instant().atOffset(ZoneOffset.UTC))
             .set(IDENTITY_TRIPLE_CHANGE.VERSION, IDENTITY_TRIPLE_CHANGE.VERSION.plus(1L))
             .where(

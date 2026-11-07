@@ -1,6 +1,5 @@
 package com.dynokore.gst.masterdata.bootstrap
 
-import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.imports.ImportEvidence
 import com.dynokore.gst.masterdata.application.permission.MasterdataPermissions
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
@@ -8,6 +7,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import io.micrometer.core.instrument.MeterRegistry
@@ -51,7 +51,7 @@ class CapturedEvents {
     val envelopes = CopyOnWriteArrayList<Envelope>()
 }
 
-/** A test-side roles lookup by actor and entity; the runner wraps it as the [ConfirmerRoles] bean. */
+/** A test-side roles lookup by actor and entity; the runner feeds it to the replica fixture [TestAuthority]. */
 fun interface TestRoleResolver {
     fun rolesOf(
         actor: String,
@@ -76,8 +76,8 @@ object TestPermissions {
 }
 
 /**
- * The roles of the test subjects, answered through the [ConfirmerRoles] port (service-runtime 12.0.0 removed
- * PolicyRoleResolver).
+ * The roles of the test subjects, held as grants of the replica fixture [TestAuthority] (the decision is
+ * `entity-config.confirm` through `AuthorityReplica.decide`).
  */
 object TestRoles {
     val roles: ConcurrentHashMap<String, Set<String>> =
@@ -208,10 +208,14 @@ object BoundaryFixture {
      * dev/prod parity, INV-T-10865): a psql run would keep a raw U+FEFF that Flyway drops. The binding functions the
      * installer left in the schema are baselined at 0, so V1 still runs.
      */
-    private fun migrate() {
+    private fun migrate(
+        jdbcUrl: String = container.jdbcUrl,
+        target: String? = null,
+    ) {
         Flyway
             .configure()
-            .dataSource(container.jdbcUrl, container.username, container.password)
+            .dataSource(jdbcUrl, container.username, container.password)
+            .also { if (target != null) it.target(target) }
             .schemas("masterdata")
             .defaultSchema("masterdata")
             .locations("filesystem:" + migrationsDir.toAbsolutePath().normalize())
@@ -240,7 +244,10 @@ object BoundaryFixture {
     }
 
     /** Runs a SQL file as the container's superuser through psql, stopping at the first error. */
-    private fun runFile(file: Path) {
+    private fun runFile(
+        file: Path,
+        database: String = container.databaseName,
+    ) {
         val target = "/tmp/${file.fileName}"
         container.copyFileToContainer(MountableFile.forHostPath(file), target)
         val result =
@@ -251,11 +258,26 @@ object BoundaryFixture {
                 "-U",
                 container.username,
                 "-d",
-                container.databaseName,
+                database,
                 "-f",
                 target,
             )
         check(result.exitCode == 0) { "$file failed: ${result.stderr}" }
+    }
+
+    /**
+     * A second, empty database of the container migrated up to [target] (all migrations when null), with the binding
+     * functions installed first as for the main one; the JDBC URL is returned (INV-T-8118 migration test).
+     */
+    fun migratedDatabase(
+        name: String,
+        target: String?,
+    ): String {
+        asSuperuser { it.createStatement().execute("CREATE DATABASE $name") }
+        runFile(bindingFunctions(), name)
+        val url = container.jdbcUrl.replaceAfterLast('/', name)
+        migrate(url, target)
+        return url
     }
 
     /** A superuser connection, for the assertions that must see every row. */
@@ -272,15 +294,16 @@ object BoundaryFixture {
     fun runner(resolver: TestRoleResolver? = testResolver): WebApplicationContextRunner =
         WebApplicationContextRunner()
             .let {
-                if (resolver !=
-                    null
-                ) {
-                    it.withBean(ConfirmerRoles::class.java, {
-                        // stands in for ReplicaConfirmerRoles, whose contract is fail closed: a failing lookup is empty
-                        ConfirmerRoles { subject, entity ->
-                            runCatching { resolver.rolesOf(subject.value, entity.value) }.getOrDefault(emptySet())
-                        }
-                    })
+                if (resolver != null) {
+                    val clock = MovableClock()
+                    val replica = TestAuthority.newReplica(clock)
+                    val feeder = TestAuthority.Feeder(replica, clock)
+                    it
+                        .withBean(AuthorityReplica::class.java, { replica })
+                        .withBean(
+                            TestAuthority.FeedingProcessor::class.java,
+                            { TestAuthority.FeedingProcessor(feeder, resolver) },
+                        )
                 } else {
                     it
                 }

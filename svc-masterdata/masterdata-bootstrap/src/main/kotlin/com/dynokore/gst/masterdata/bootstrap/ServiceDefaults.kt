@@ -4,14 +4,14 @@ import com.dynokore.gst.masterdata.adapters.events.IdentityTripleChangedOutbox
 import com.dynokore.gst.masterdata.adapters.events.IdentityTripleCorrectedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterDataResolvedOutbox
 import com.dynokore.gst.masterdata.adapters.events.MasterdataEventCatalogue
-import com.dynokore.gst.masterdata.adapters.permission.ReplicaConfirmerRoles
+import com.dynokore.gst.masterdata.adapters.permission.ReplicaConfirmerPermission
 import com.dynokore.gst.masterdata.adapters.permission.ReplicaTenantPermission
 import com.dynokore.gst.masterdata.adapters.persistence.jooq.Masterdata
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
 import com.dynokore.gst.masterdata.application.identity.BackdatedCorrections
 import com.dynokore.gst.masterdata.application.identity.ConfirmerAuthority
+import com.dynokore.gst.masterdata.application.identity.ConfirmerPermission
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
-import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleChangedPublisher
 import com.dynokore.gst.masterdata.application.identity.IdentityTripleCorrectedPublisher
 import com.dynokore.gst.masterdata.application.identity.TripleRepository
@@ -72,8 +72,8 @@ class ServiceDefaults {
     @Bean
     fun confirmerAuthority(
         policy: ConfirmerPolicy,
-        roles: ConfirmerRoles,
-    ) = ConfirmerAuthority(policy, roles)
+        permission: ConfirmerPermission,
+    ) = ConfirmerAuthority(policy, permission)
 
     /**
      * The confirmer set. While VP-09 is `planned` the port holds exactly {entity.admin, tenant.admin, tax.approver}
@@ -85,17 +85,17 @@ class ServiceDefaults {
     fun confirmerPolicy(): ConfirmerPolicy = ConfirmerPolicy { PLANNED_CONFIRMERS }
 
     /**
-     * The roles of the confirming subject at the entity come from the authority replica's public holder query
-     * (service-runtime 12.0.0 removed `PolicyRoleResolver`). Fail closed (INV-Q-8121 A, CS-23, API-24): no replica, a
-     * stale replica and an exception alike give the empty set, so nobody can confirm.
+     * The confirmation is decided by the permission `entity-config.confirm` through `AuthorityReplica.decide`
+     * (INV-Q-10027). Fail closed (INV-Q-8121 A, CS-23, API-24): no replica, a DEGRADED answer, a denial and an
+     * exception alike refuse.
      */
     @Bean
     @ConditionalOnMissingBean
-    fun confirmerRoles(
+    fun confirmerPermission(
         replica: ObjectProvider<AuthorityReplica>,
         tenants: TenantContext,
         clock: Clock,
-    ): ConfirmerRoles = ReplicaConfirmerRoles(replica.getIfAvailable(), tenants, clock)
+    ): ConfirmerPermission = ReplicaConfirmerPermission(replica.getIfAvailable(), tenants, clock)
 
     /** The permission check of the tenant-scoped operations: the authority replica, fail closed (INV-Q-17215 A). */
     @Bean

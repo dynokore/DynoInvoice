@@ -6,6 +6,7 @@ import com.dynokore.gst.masterdata.domain.identity.EntityRef
 import com.dynokore.gst.masterdata.domain.identity.PendingChange
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.gst.masterdata.domain.identity.TripleVersion
+import com.dynokore.platform.serviceruntime.replica.DecisionSource
 
 /** The stored triples of the bound tenant (TPL-11); every call runs inside the caller's transaction. */
 interface TripleRepository {
@@ -20,7 +21,6 @@ interface TripleRepository {
         version: TripleVersion,
         proposedBy: PersonRef,
         confirmedBy: PersonRef,
-        confirmedRole: String,
     )
 }
 
@@ -48,7 +48,6 @@ interface PendingChangeRepository {
     fun markConfirmed(
         change: PendingChange,
         confirmedBy: PersonRef,
-        confirmedRole: String,
     ): Boolean
 }
 
@@ -60,12 +59,24 @@ fun interface ConfirmerPolicy {
     fun confirmers(): ConfirmerSet
 }
 
-/** The roles (wire form) the authenticated [subject] holds at [entity]; an empty set means none (fail closed). */
-fun interface ConfirmerRoles {
-    fun rolesOf(
+/**
+ * The answer of the permission `entity-config.confirm` for one subject at one entity: [allowed] and the [source] of the
+ * authority decision it was built from (INV-Q-10025: only LOCAL and FALLBACK count).
+ */
+data class ConfirmerDecision(
+    val allowed: Boolean,
+    val source: DecisionSource,
+)
+
+/**
+ * Whether the authenticated [subject] holds the permission `entity-config.confirm` at [entity], decided per request by
+ * the authority replica (INV-Q-10027, INV-Q-8121). No role name crosses this port.
+ */
+fun interface ConfirmerPermission {
+    fun decide(
         subject: PersonRef,
         entity: EntityRef,
-    ): Set<String>
+    ): ConfirmerDecision
 }
 
 /**

@@ -49,7 +49,6 @@ class JooqTripleRepository(
         version: TripleVersion,
         proposedBy: PersonRef,
         confirmedBy: PersonRef,
-        confirmedRole: String,
     ) {
         val now = clock.instant().atOffset(ZoneOffset.UTC)
         dsl
@@ -63,7 +62,6 @@ class JooqTripleRepository(
             .set(IDENTITY_TRIPLE.EFFECTIVE_FROM, version.effectiveFrom)
             .set(IDENTITY_TRIPLE.PROPOSED_BY, proposedBy.value)
             .set(IDENTITY_TRIPLE.CONFIRMED_BY, confirmedBy.value)
-            .set(IDENTITY_TRIPLE.CONFIRMED_ROLE, confirmedRole)
             .set(IDENTITY_TRIPLE.CREATED_AT, now)
             .set(IDENTITY_TRIPLE.UPDATED_AT, now)
             .set(IDENTITY_TRIPLE.VERSION, 0L)
@@ -78,7 +76,6 @@ class JooqTripleRepository(
             .set(IDENTITY_TRIPLE.SUPPLIER_GSTN, version.triple.supplierGstn)
             .set(IDENTITY_TRIPLE.PROPOSED_BY, proposedBy.value)
             .set(IDENTITY_TRIPLE.CONFIRMED_BY, confirmedBy.value)
-            .set(IDENTITY_TRIPLE.CONFIRMED_ROLE, confirmedRole)
             .set(IDENTITY_TRIPLE.UPDATED_AT, now)
             .set(IDENTITY_TRIPLE.VERSION, IDENTITY_TRIPLE.VERSION.plus(1L))
             .execute()

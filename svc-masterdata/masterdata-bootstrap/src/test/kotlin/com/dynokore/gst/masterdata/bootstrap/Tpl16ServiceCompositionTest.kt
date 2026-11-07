@@ -1,8 +1,8 @@
 package com.dynokore.gst.masterdata.bootstrap
 
 import com.dynokore.gst.masterdata.application.identity.ConfirmIdentityTripleChange
+import com.dynokore.gst.masterdata.application.identity.ConfirmerPermission
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
-import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.identity.ProposeIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple
 import com.dynokore.platform.auditlog.AuditWriter
@@ -57,7 +57,7 @@ class Tpl16ServiceCompositionTest {
                 ProposeIdentityTripleChange::class,
                 ConfirmIdentityTripleChange::class,
                 ConfirmerPolicy::class,
-                ConfirmerRoles::class,
+                ConfirmerPermission::class,
             ).forEach { assertThat(context.getBeansOfType(it.java)).describedAs(it.simpleName).isNotEmpty() }
             assertThat(context.getBeanNamesForType(DataSource::class.java).toList()).containsExactly("dataSource")
         }

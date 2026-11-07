@@ -8,6 +8,7 @@ dependencies {
     implementation(libs.platform.partyRegistry.api)
     implementation(project(":masterdata-domain"))
     implementation(libs.platform.tenancyKernel.api)
+    implementation(libs.platform.serviceRuntime.impl)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)

@@ -45,24 +45,18 @@ enum class ConfirmationRefusal {
 /** The rule of INV-REQ-1007 and INV-REQ-1270, with no waiver. */
 object ConfirmationRule {
     /**
-     * [confirmer] is the authenticated subject of the confirming call and [confirmerRoles] the roles it holds (wire
-     * form); neither comes from a request body. The roles are compared with the set by equality.
+     * [confirmer] is the authenticated subject of the call, never a body field. [permitted] is the answer of the
+     * permission `entity-config.confirm` for that subject (INV-Q-10027); this rule holds no role name. The different
+     * person rule comes first and is never waived.
      */
     fun check(
         proposer: PersonRef,
         confirmer: PersonRef,
-        confirmerRoles: Set<String>,
-        allowed: ConfirmerSet,
+        permitted: Boolean,
     ): ConfirmationRefusal? =
         when {
             confirmer.isSamePersonAs(proposer) -> ConfirmationRefusal.SAME_PERSON
-            allowed.roles.none { it.wire in confirmerRoles } -> ConfirmationRefusal.ROLE_NOT_ALLOWED
+            !permitted -> ConfirmationRefusal.ROLE_NOT_ALLOWED
             else -> null
         }
-
-    /** The role the confirmation is recorded under: the first in the fixed order that the subject holds and may use. */
-    fun roleOf(
-        confirmerRoles: Set<String>,
-        allowed: ConfirmerSet,
-    ): ConfirmerRole? = ConfirmerRole.entries.firstOrNull { it in allowed.roles && it.wire in confirmerRoles }
 }

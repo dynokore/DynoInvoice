@@ -7,6 +7,7 @@ import com.dynokore.gst.masterdata.domain.identity.EntityRef
 import com.dynokore.gst.masterdata.domain.identity.PendingChange
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.gst.masterdata.domain.identity.TripleVersion
+import com.dynokore.platform.serviceruntime.replica.DecisionSource
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 import java.time.LocalDate
@@ -60,19 +61,21 @@ class ConfirmIdentityTripleChange(
             if (change == null) {
                 ConfirmOutcome.UnknownChange
             } else {
-                val held = authority.rolesOf(command.confirmer, command.entity)
-                val allowed = authority.confirmers()
-                val refusal = ConfirmationRule.check(change.proposedBy, command.confirmer, held, allowed)
-                val role = ConfirmationRule.roleOf(held, allowed)
-                if (refusal != null || role == null) {
-                    ConfirmOutcome.Refused(refusal ?: ConfirmationRefusal.ROLE_NOT_ALLOWED)
+                val refusal =
+                    ConfirmationRule.check(
+                        change.proposedBy,
+                        command.confirmer,
+                        authority.permits(command.confirmer, command.entity),
+                    )
+                if (refusal != null) {
+                    ConfirmOutcome.Refused(refusal)
                 } else if (change.state != ChangeState.PENDING_CONFIRMATION ||
-                    !changes.markConfirmed(change, command.confirmer, role.wire)
+                    !changes.markConfirmed(change, command.confirmer)
                 ) {
                     ConfirmOutcome.NotPending
                 } else {
                     val correction = corrections.isCorrection(change)
-                    triples.save(change.version, change.proposedBy, command.confirmer, role.wire)
+                    triples.save(change.version, change.proposedBy, command.confirmer)
                     corrections.publishChanged(change)
                     if (correction) corrections.publish(change)
                     ConfirmOutcome.Confirmed(change.version)
@@ -106,15 +109,30 @@ class BackdatedCorrections(
     fun publishChanged(change: PendingChange) = changedPublisher.publish(change)
 }
 
-/** Who may confirm: the tenant's confirmer set and the roles a subject holds at an entity, read together. */
+/**
+ * Who may confirm: the tenant's confirmer set (data only while VP-09 is `planned`, never read for the decision) and the
+ * permission `entity-config.confirm` at an entity, decided per request (INV-Q-10027).
+ */
 class ConfirmerAuthority(
     private val policy: ConfirmerPolicy,
-    private val roles: ConfirmerRoles,
+    private val permission: ConfirmerPermission,
 ) {
     fun confirmers() = policy.confirmers()
 
-    fun rolesOf(
+    fun decide(
         subject: PersonRef,
         entity: EntityRef,
-    ) = roles.rolesOf(subject, entity)
+    ) = permission.decide(subject, entity)
+
+    /** True only when the decision allows and comes from the local replica or the fallback (INV-Q-10025); fail closed. */
+    fun permits(
+        subject: PersonRef,
+        entity: EntityRef,
+    ): Boolean =
+        try {
+            val decision = decide(subject, entity)
+            decision.allowed && decision.source != DecisionSource.DEGRADED
+        } catch (_: Exception) {
+            false
+        }
 }

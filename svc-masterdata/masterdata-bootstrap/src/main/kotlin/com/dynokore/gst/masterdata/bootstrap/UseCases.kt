@@ -15,7 +15,6 @@ import com.dynokore.gst.masterdata.application.identity.BackdatedCorrections
 import com.dynokore.gst.masterdata.application.identity.ConfirmIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ConfirmerAuthority
 import com.dynokore.gst.masterdata.application.identity.ConfirmerPolicy
-import com.dynokore.gst.masterdata.application.identity.ConfirmerRoles
 import com.dynokore.gst.masterdata.application.identity.PendingChangeRepository
 import com.dynokore.gst.masterdata.application.identity.ProposeIdentityTripleChange
 import com.dynokore.gst.masterdata.application.identity.ResolveIdentityTriple

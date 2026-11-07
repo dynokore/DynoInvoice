@@ -50,7 +50,7 @@ class AcceptanceCriteriaTest {
     private val nobody = "IDN-NOBODY"
     private val sole = "IDN-SOLE"
 
-    /** The roles each authenticated subject holds, answered through the ConfirmerRoles port. */
+    /** The roles each authenticated subject holds, held as grants of the replica fixture (TestAuthority). */
     private val roles = TestRoles.roles
 
     private val companyViaSoleProp = Constitution("COMPANY_VIA_SOLE_PROPRIETORSHIP")
@@ -342,12 +342,12 @@ class AcceptanceCriteriaTest {
                 )
             assertThat(policy.confirmers().roles.map { it.wire })
                 .containsExactlyInAnyOrder("entity.admin", "tenant.admin", "tax.approver")
-            // the domain rule: roles are compared with the set by equality, a look-alike role does not count
+            // the domain rule holds no role name: the permission answer decides, the different person rule comes first
             val rule = com.dynokore.gst.masterdata.domain.identity.ConfirmationRule
-            val set = policy.confirmers()
-            assertThat(rule.check(PersonRef(admin), PersonRef(otherAdmin), setOf("Entity.Admin", "tenant.admin2"), set))
+            assertThat(rule.check(PersonRef(admin), PersonRef(otherAdmin), false))
                 .isEqualTo(ConfirmationRefusal.ROLE_NOT_ALLOWED)
-            assertThat(rule.check(PersonRef(admin), PersonRef(otherAdmin), setOf("tax.approver"), set)).isNull()
+            assertThat(rule.check(PersonRef(admin), PersonRef(otherAdmin), true)).isNull()
+            assertThat(rule.check(PersonRef(admin), PersonRef(admin), true)).isEqualTo(ConfirmationRefusal.SAME_PERSON)
         }
 
     @Test

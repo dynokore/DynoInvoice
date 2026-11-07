@@ -36,6 +36,7 @@ dependencies {
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.flyway.core)
+    testImplementation(libs.gstCatalogue)
     testImplementation(libs.flyway.databasePostgresql)
     testImplementation(libs.jsonSchemaValidator)
     testImplementation(libs.platform.productRuntime.impl)
