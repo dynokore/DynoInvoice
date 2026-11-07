@@ -38,6 +38,7 @@ class PeriodGeneration(
     private val planner: PeriodPlanner,
     private val history: FrequencyHistoryStore,
     private val periods: PeriodRecordStore,
+    private val changes: PeriodRecordsChangePublisher = PeriodRecordsChangePublisher.NONE,
 ) {
     fun generate(entityRef: String): PeriodOutcome =
         tx.inTransaction {
@@ -72,7 +73,8 @@ class PeriodGeneration(
                     if (final == null) {
                         PeriodOutcome.Refused("no final period results for the registration end date")
                     } else {
-                        storeFinal(entity, plan.periods.filter { it.start < final.start }, final)
+                        val changed = storeFinal(entity, plan.periods.filter { it.start < final.start }, final)
+                        if (changed) publishChange(entity)
                         PeriodOutcome.Done(periods.inForce(entity.id))
                     }
                 }
@@ -92,32 +94,49 @@ class PeriodGeneration(
             }
 
             is Plan.Periods -> {
-                insertMissing(entity, plan.periods)
+                if (insertMissing(entity, plan.periods)) publishChange(entity)
                 PeriodOutcome.Done(periods.inForce(entity.id))
             }
         }
     }
 
-    /** Stores the planned periods that start after every record in force; the stored ones are left as they are. */
+    /**
+     * Stores the planned periods that start after every record in force; the stored ones are left as they are.
+     * True when at least one record was inserted.
+     */
     private fun insertMissing(
         entity: EntityRecord,
         planned: List<StoredPeriod>,
-    ) {
+    ): Boolean {
         val lastEnd = periods.inForce(entity.id).maxOfOrNull { it.end }
-        planned.filter { lastEnd == null || it.start.isAfter(lastEnd) }.forEach { periods.insert(entity.id, it) }
+        val missing = planned.filter { lastEnd == null || it.start.isAfter(lastEnd) }
+        missing.forEach { periods.insert(entity.id, it) }
+        return missing.isNotEmpty()
+    }
+
+    /** Publishes the records in force after the change, with a version drawn in this transaction. */
+    private fun publishChange(entity: EntityRecord) {
+        changes.publish(
+            PeriodRecordsChangePublisher.changeOf(
+                entity.ref,
+                structure.nextStructureVersion(),
+                periods.inForce(entity.id),
+            ),
+        )
     }
 
     private fun storeFinal(
         entity: EntityRecord,
         before: List<StoredPeriod>,
         final: StoredPeriod,
-    ) {
+    ): Boolean {
         val stored = periods.inForce(entity.id)
         val replaced = stored.filter { !it.start.isBefore(final.start) }
-        if (replaced.size == 1 && replaced.single().sameGenerated(final)) return
+        if (replaced.size == 1 && replaced.single().sameGenerated(final)) return false
         val lastEnd = stored.filter { it.start < final.start }.maxOfOrNull { it.end }
         before.filter { lastEnd == null || it.start.isAfter(lastEnd) }.forEach { periods.insert(entity.id, it) }
         periods.supersedeFrom(entity.id, final.start)
         periods.insert(entity.id, final)
+        return true
     }
 }

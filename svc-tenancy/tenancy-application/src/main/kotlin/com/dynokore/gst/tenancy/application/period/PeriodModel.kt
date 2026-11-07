@@ -193,3 +193,41 @@ data class FilingFrequencyChange(
 interface FilingFrequencyChangePublisher {
     fun publish(change: FilingFrequencyChange)
 }
+
+/** One period span of the entity as PeriodRecordsChanged carries it (event-carried state transfer, INV-Q-16535 A). */
+data class PeriodSpanRecord(
+    val periodRef: String,
+    val periodStart: LocalDate,
+    val periodEnd: LocalDate,
+)
+
+/**
+ * One PeriodRecordsChanged to publish through the outbox in the changing transaction: the full set of records in force
+ * after the change, earliest start first, with the version drawn from the service's one monotonic sequence
+ * (`StructureStore.nextStructureVersion()`), so a consumer applies it idempotently by version.
+ */
+data class PeriodRecordsChange(
+    val entityRef: String,
+    val version: Long,
+    val periods: List<PeriodSpanRecord>,
+)
+
+interface PeriodRecordsChangePublisher {
+    fun publish(change: PeriodRecordsChange)
+
+    companion object {
+        /** Publishes nothing: the default until the production wiring exists. */
+        val NONE: PeriodRecordsChangePublisher =
+            object : PeriodRecordsChangePublisher {
+                override fun publish(change: PeriodRecordsChange) = Unit
+            }
+
+        /** The change for [entityRef] from the records in force [inForce] after the call, at [version]. */
+        internal fun changeOf(
+            entityRef: String,
+            version: Long,
+            inForce: List<StoredPeriod>,
+        ): PeriodRecordsChange =
+            PeriodRecordsChange(entityRef, version, inForce.map { PeriodSpanRecord(it.periodRef, it.start, it.end) })
+    }
+}

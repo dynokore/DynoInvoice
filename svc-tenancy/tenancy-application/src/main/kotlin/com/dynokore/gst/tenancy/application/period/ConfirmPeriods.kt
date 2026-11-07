@@ -53,6 +53,7 @@ class ConfirmPeriods(
     private val access: PeriodAccess,
     stores: PeriodStores,
     private val publisher: FilingFrequencyChangePublisher,
+    private val changes: PeriodRecordsChangePublisher = PeriodRecordsChangePublisher.NONE,
 ) {
     private val history = stores.history
     private val proposals = stores.proposals
@@ -193,6 +194,13 @@ class ConfirmPeriods(
                 previous.frequency,
                 pending.frequency,
                 computed.first { it.start == pending.effectiveFrom }.periodRef,
+            ),
+        )
+        changes.publish(
+            PeriodRecordsChangePublisher.changeOf(
+                entityRef,
+                structure.nextStructureVersion(),
+                periods.inForce(entityId),
             ),
         )
     }
