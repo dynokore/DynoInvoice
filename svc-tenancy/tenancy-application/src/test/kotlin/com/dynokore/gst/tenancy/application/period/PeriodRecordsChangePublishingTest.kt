@@ -329,6 +329,7 @@ class PeriodRecordsChangePublishingTest {
     }
 
     @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
     fun `INV-AC-18047 finalPeriod that replaces records publishes once with the set after the change and no superseded record`() {
         val s = Setup()
         s.generation.generate("ENT-1")
