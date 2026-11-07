@@ -227,7 +227,7 @@ class GatesTest {
     }
 
     @Test
-    fun `the PeriodRecordsChanged channel row is required, exact and not done without its payload test`() {
+    fun `INV-AC-17892 the PeriodRecordsChanged channel row is required, exact and not done without its payload test`() {
         val (spec, async, table) = ruled()
         val row = "PeriodRecordsChanged\tchannel\tINV-T-16564\tpending\n"
         Assignments.channels["PeriodRecordsChanged"] shouldBe "INV-T-16564"
