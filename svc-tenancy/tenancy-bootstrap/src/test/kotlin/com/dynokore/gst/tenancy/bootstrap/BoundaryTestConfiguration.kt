@@ -12,13 +12,20 @@ import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
+import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
 import com.dynokore.platform.configresolver.BackdatingFloor
 import com.dynokore.platform.configresolver.DelegationProbe
+import com.dynokore.platform.configresolver.PolicyChange
+import com.dynokore.platform.configresolver.PolicyWriter
+import com.dynokore.platform.configresolver.RelaxationStatus
+import com.dynokore.platform.configresolver.SetPolicyCommand
+import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.StagedOutboxRow
+import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -64,6 +71,12 @@ class CapturingOutboxWriter(
         }
 }
 
+/** Where a test role grant applies: the tenant and the grant scope. */
+data class GrantSite(
+    val tenant: TenantId = TestPeople.TENANT,
+    val scope: GrantScope = GrantScope.ENTITY,
+)
+
 /**
  * The people of a test: who calls, and which roles each person holds for which entity (the authority replica of the
  * service, here a table). One bean answers the caller and authority ports of the elections: the permissions follow
@@ -78,7 +91,7 @@ class TestPeople :
     var caller: String = "identity:USR-001"
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
     private val clock = Clock.systemUTC()
-    private val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
+    internal val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
     private val version = AtomicLong()
     private val approvals =
         ReplicaActionAuthority(
@@ -106,13 +119,15 @@ class TestPeople :
         entityRef: String,
         role: String,
         validUntil: java.time.Instant? = null,
+        site: GrantSite = GrantSite(),
     ): String {
         val grantRef = "GR-${UUID.randomUUID()}"
         feed(
             person,
             grantRef,
             RoleGrantState.ACTIVE,
-            RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60), validUntil),
+            RoleGrant(role, site.scope, entityRef, clock.instant().minusSeconds(60), validUntil),
+            site.tenant,
         )
         return grantRef
     }
@@ -137,10 +152,11 @@ class TestPeople :
         grantRef: String,
         state: RoleGrantState,
         grant: RoleGrant,
+        tenant: TenantId = TENANT,
     ) {
         replica.accept(
             AuthorityChanged(
-                TENANT,
+                tenant,
                 person,
                 version.incrementAndGet(),
                 AuthorityRecord.RoleGrantRecord(grantRef, state, grant),
@@ -180,7 +196,7 @@ class TestPeople :
         }
     }
 
-    private companion object {
+    internal companion object {
         /** The roles the catalogue permits `period-extension.record`, read through RolePermissions (INV-Q-16671). */
         val EXTENDING: Set<String> =
             DeploymentForm.entries
