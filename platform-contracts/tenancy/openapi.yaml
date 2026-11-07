@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.30.0
+  version: 1.31.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -3715,32 +3715,28 @@ components:
           maxLength: 32
         failedScenarios:
           type: array
+          minItems: 1
           maxItems: 500
           items:
             type: string
             maxLength: 128
           description: The identifiers of the acceptance scenarios that failed. Required, with at least one item, when outcome is FAILED; not required otherwise (INV-Q-16403).
-      oneOf:
-      - required:
-        - outcome
-        - failedScenarios
-        properties:
-          outcome:
-            const: FAILED
-          failedScenarios:
-            type: array
-            minItems: 1
-            items:
-              type: string
-              maxLength: 128
-      - required:
-        - outcome
-        properties:
-          outcome:
-            const: PASSED
-        not:
-          required:
+      not:
+        anyOf:
+        - required:
+          - outcome
+          properties:
+            outcome:
+              const: FAILED
+          not:
+            required:
+            - failedScenarios
+        - required:
+          - outcome
           - failedScenarios
+          properties:
+            outcome:
+              const: PASSED
     CertificationResponse:
       type: object
       required:

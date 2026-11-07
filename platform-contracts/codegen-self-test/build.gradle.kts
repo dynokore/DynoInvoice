@@ -53,4 +53,40 @@ tasks.register("compileAllContracts") {
         "Generates and compiles every service's contract-server, contract-client and " +
             "event-types Kotlin (INV-T-2850 follow-up; T9-T14b's ad-hoc proof, made permanent)."
     dependsOn(subprojects.map { "${it.path}:compileKotlin" })
+    dependsOn("verifyFlatModels")
+}
+
+// INV-T-17921: CertifySandboxRequest must generate a data class (a oneOf made it a sealed
+// interface with branch classes that dropped the members). Fails closed: a missing file, a
+// missing text or a present `sealed interface` fails the build and names the file.
+val flatModelFiles =
+    mapOf(
+        "tenancy_server" to
+            "build/modules/tenancy_server/build/generated/contract-server/src/main/kotlin/" +
+            "com/dynokore/gst/tenancy_server/contract/model/CertifySandboxRequest.kt",
+        "tenancy_client" to
+            "build/modules/tenancy_client/build/generated/contract-client/src/main/kotlin/" +
+            "com/dynokore/gst/tenancy_client/adapters/clients/model/CertifySandboxRequest.kt",
+    )
+
+tasks.register("verifyFlatModels") {
+    group = "verification"
+    description = "Fails unless the generated server and client CertifySandboxRequest are flat data classes (INV-T-17921)."
+    dependsOn(flatModelFiles.keys.map { ":$it:compileKotlin" })
+    val files = flatModelFiles.values.map { layout.projectDirectory.file(it).asFile }
+    doLast {
+        val problems = mutableListOf<String>()
+        for (f in files) {
+            if (!f.isFile) {
+                problems += "${f.path}: generated file is missing"
+                continue
+            }
+            val text = f.readText()
+            for (required in listOf("data class CertifySandboxRequest(", "val outcome", "val suiteVersion", "val failedScenarios")) {
+                if (!text.contains(required)) problems += "${f.path}: missing text '$required'"
+            }
+            if (text.contains("sealed interface")) problems += "${f.path}: contains 'sealed interface'"
+        }
+        if (problems.isNotEmpty()) throw GradleException("verifyFlatModels failed:\n" + problems.joinToString("\n"))
+    }
 }
