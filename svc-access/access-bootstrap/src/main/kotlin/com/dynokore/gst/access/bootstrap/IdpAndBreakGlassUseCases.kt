@@ -3,6 +3,7 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.breakglass.SecureRandomSealingCredentials
 import com.dynokore.gst.access.adapters.breakglass.VariationPointBreakGlassSettings
 import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
+import com.dynokore.gst.access.adapters.events.BreakGlassSessionChangedOutbox
 import com.dynokore.gst.access.adapters.http.BreakGlassSealing
 import com.dynokore.gst.access.adapters.http.BreakGlassSignInReplay
 import com.dynokore.gst.access.adapters.http.ResealPermissionCheck
@@ -20,6 +21,7 @@ import com.dynokore.gst.access.application.breakglass.BreakGlassAccounts
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
 import com.dynokore.gst.access.application.breakglass.BreakGlassApprovals
 import com.dynokore.gst.access.application.breakglass.BreakGlassEffects
+import com.dynokore.gst.access.application.breakglass.BreakGlassSessionEvents
 import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
 import com.dynokore.gst.access.application.breakglass.BreakGlassSettings
 import com.dynokore.gst.access.application.breakglass.MAX_APPROVAL_WINDOW
@@ -186,6 +188,14 @@ class BreakGlassUseCases {
         mapper: ObjectMapper,
     ): BreakGlassAlerts = BreakGlassAlertOutbox(outbox, tenants, mapper)
 
+    /** INV-Q-9119 A: the platform event `BreakGlassSessionChanged` at every unlock and every reseal (INV-AC-9303). */
+    @Bean
+    fun breakGlassSessionEvents(
+        outbox: OutboxWriter,
+        tenants: TenantContext,
+        mapper: ObjectMapper,
+    ): BreakGlassSessionEvents = BreakGlassSessionChangedOutbox(outbox, tenants, mapper)
+
     /** VP-08 as `setPolicy` of service-runtime stores it and the config-resolver resolves it (INV-REQ-1269). */
     @Bean
     fun breakGlassSettings(
@@ -212,6 +222,7 @@ class BreakGlassUseCases {
         availability: IdentityProviderAvailability,
         approvals: BreakGlassApprovals,
         window: BreakGlassApprovalWindow,
+        sessionEvents: BreakGlassSessionEvents,
     ) = UnlockBreakGlassUseCase(
         dependencies.tx,
         sessions,
@@ -222,6 +233,7 @@ class BreakGlassUseCases {
         availability,
         approvals,
         window.value,
+        sessionEvents,
     )
 
     @Bean
@@ -307,7 +319,8 @@ class SealedAccountUseCases {
         keeper: SealedAccountKeeper,
         audit: GrantAudit,
         clock: Clock,
-    ) = ResealBreakGlassUseCase(dependencies.tx, sessions, keeper, audit, clock)
+        sessionEvents: BreakGlassSessionEvents,
+    ) = ResealBreakGlassUseCase(dependencies.tx, sessions, keeper, audit, clock, sessionEvents)
 
     @Bean
     fun resealPermissionCheck(

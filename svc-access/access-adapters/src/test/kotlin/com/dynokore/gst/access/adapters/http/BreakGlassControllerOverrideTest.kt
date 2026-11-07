@@ -235,7 +235,7 @@ class BreakGlassControllerOverrideTest {
                 effects,
                 clock,
             ),
-            ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock),
+            ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock) { _, _ -> },
             { false },
             BreakGlassSignInReplay(
                 tx,
@@ -264,7 +264,7 @@ class BreakGlassControllerOverrideTest {
                 availability,
                 approvals,
                 Duration.ofMinutes(15),
-            )
+            ) { _, _ -> }
         return BreakGlassController(
             unlock,
             ApproveBreakGlassUnlockUseCase(

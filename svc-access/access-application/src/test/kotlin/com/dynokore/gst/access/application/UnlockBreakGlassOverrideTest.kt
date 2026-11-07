@@ -152,7 +152,7 @@ class UnlockBreakGlassOverrideTest {
                 ): Int = approvers.size
             },
             Duration.ofMinutes(15),
-        )
+        ) { _, _ -> }
 
     private fun fakeGrants(): GrantRepository =
         object : GrantRepository {

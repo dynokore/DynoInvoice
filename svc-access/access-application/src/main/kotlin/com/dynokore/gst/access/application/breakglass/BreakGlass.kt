@@ -149,6 +149,7 @@ class UnlockBreakGlassUseCase(
     private val availability: IdentityProviderAvailability,
     private val approvals: BreakGlassApprovals,
     private val approvalWindow: Duration,
+    private val sessionEvents: BreakGlassSessionEvents,
 ) {
     /** Thrown inside the transaction when a named approver has no approval left, so that the session row rolls back. */
     private class ApprovalShortfall : RuntimeException(null, null, false, false)
@@ -200,6 +201,7 @@ class UnlockBreakGlassUseCase(
                 throw ApprovalShortfall()
             }
             effects.recordUnlock(actor, session.ref, recordedReason)
+            sessionEvents.changed(session, BreakGlassSessionStatus.OPEN)
             UnlockBreakGlassOutcome.Unlocked(session)
         }
 }
@@ -343,6 +345,7 @@ class ResealBreakGlassUseCase(
     private val keeper: SealedAccountKeeper,
     private val audit: GrantAudit,
     private val clock: Clock,
+    private val sessionEvents: BreakGlassSessionEvents,
 ) {
     fun handle(
         actor: String,
@@ -362,6 +365,7 @@ class ResealBreakGlassUseCase(
                 else -> {
                     val credential = keeper.rotate()
                     sessions.markSealed(unlockRef)
+                    sessionEvents.changed(session.copy(sealed = true), BreakGlassSessionStatus.SEALED)
                     audit.record(GrantAuditEntry(actor, "resealBreakGlass", "break-glass:$unlockRef", null, null))
                     ResealBreakGlassOutcome.Resealed(session.copy(sealed = true), credential)
                 }
