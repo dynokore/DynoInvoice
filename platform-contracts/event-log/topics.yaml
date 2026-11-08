@@ -600,6 +600,7 @@ topics:
     producers:
       - rules-svc
     subscribers:
+      - masterdata-svc
       - notification-svc
       - payload-svc
       - reconciliation-svc
@@ -612,6 +613,7 @@ topics:
     producers:
       - rules-svc
     subscribers:
+      - masterdata-svc
       - notification-svc
       - payload-svc
       - reconciliation-svc
@@ -1720,6 +1722,18 @@ replay_topics:
       - rules-svc
     subscribers:
       - evidence-svc
+  - topic: gst.rules.replay-masterdata.v1
+    event_types:
+      - com.dynokore.gst.platform.ReplayCompleted.v1
+      - com.dynokore.gst.rules.RulePackActivated.v1
+      - com.dynokore.gst.rules.RulePackStaged.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: true
+    producers:
+      - rules-svc
+    subscribers:
+      - masterdata-svc
   - topic: gst.rules.replay-notification.v1
     event_types:
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
@@ -2240,6 +2254,7 @@ replay_request_topics:
     subscribers:
       - access-svc
       - every service
+      - rules-svc
       - tenancy-svc
   - topic: gst.notification.replay-requested.v1
     event_types:

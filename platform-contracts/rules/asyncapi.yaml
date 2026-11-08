@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: rules events
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Every event rules produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -87,7 +87,7 @@ components:
       summary: RulePackStaged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event RulePackStaged (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: rules-svc. Consumed by: notification-svc, payload-svc,
+        class: domain). Emitted by: rules-svc. Consumed by: masterdata-svc, notification-svc, payload-svc,
         reconciliation-svc, tenancy-svc. Delivery: At-least-once; retained while any pack version it carries
         can still be resolved (FR-Z.10). Payload (catalogue text): pack identifier, pack type, version,
         effective_from, min_engine_version, and the signed artefact — manifest, checksums, signature and
@@ -102,7 +102,7 @@ components:
       summary: RulePackActivated — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event RulePackActivated (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: rules-svc. Consumed by: notification-svc, payload-svc,
+        class: domain). Emitted by: rules-svc. Consumed by: masterdata-svc, notification-svc, payload-svc,
         reconciliation-svc, tenancy-svc. Delivery: Fenced, §5.5. Payload (catalogue text): pack identifier,
         version, effective-from. Authored by INV-T-2853 (T9).
       contentType: application/cloudevents+json
