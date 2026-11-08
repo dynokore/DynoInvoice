@@ -79,3 +79,5 @@ POST /internal/v1/tenancy/entities/{entityRef}/certifications the `failedScenari
 # sendCounterpartyRequest requestBody.required is true. Permitted within v1 because no train is published (platform-release manifest/trains/ holds only its README)
 # and no consumer of the operation is deployed. After the first published train a newly required body is breaking (API-03).
 POST /internal/v1/masterdata/counterparties/{counterpartyRef}/requests request body became required
+# INV-Q-18654 A (INV-T-18670, breakdown tooling/gap4983b-gap.md; Coordinator ruling, delegated, owner 2026-10-14) on INV-Q-3569's reasoning (no train is published, no consumer of failoverAdapter is deployed): FailoverAdapterRequest gains the required entityRef.
+POST /internal/v1/transport/adapters/{adapterRef}/failovers added the new required request property `entityRef`

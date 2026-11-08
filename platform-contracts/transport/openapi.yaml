@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -39,14 +39,11 @@ info:
     stays out of bounds (archived).
 
 
-    `x-operation.role` is a single string (Spectral schema: `role: {type:
-    string, minLength: 1}`), so where INV-NOTE-7/§3 name more than one
-    authorised actor, `role` below carries the one Keel names as
-    performing the action in a flow (failoverAdapter: `integration.engineer`,
-    INV-FLOW-247 step 3) or lists first in its screen-table Roles column
-    (rotateCredential: `tenant.admin`; testConnection: `integration.engineer`);
-    every other actor Keel also authorises is named in full in the
-    operation's own description, not silently dropped.
+    The four operations rotateCredential, testConnection, failoverAdapter
+    and setConnectionEntities carry `x-operation.kind: PERMISSION` with a
+    scoped permission key of the role-permissions catalogue (INV-T-18670,
+    INV-Q-18652 A); the other actors Keel authorises are decided by the
+    catalogue, not named here.
 
 
     Neither new operation has a matching code in the vendored gst-catalogue
@@ -400,7 +397,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
       x-operation:
-        role: tenant.admin
+        kind: PERMISSION
+        permission: ap-credential.manage
         scope: entity
         precondition: "A replacement credential is already held (in the vault) for this adapter (INV-NOTE-7 §7)."
         reversibility: COMPENSABLE
@@ -458,7 +456,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
       x-operation:
-        role: integration.engineer
+        kind: PERMISSION
+        permission: adapter.configure
         scope: entity
         precondition: "The adapter is configured (INV-NOTE-7 §7)."
         reversibility: UNDOABLE
@@ -478,7 +477,7 @@ paths:
                 $ref: '#/components/schemas/ConnectionTestResult'
               examples:
                 default:
-                  value: { adapterRef: "AP-PRIMARY", state: "UP", checkedAt: "2026-09-27T03:15:00Z" }
+                  value: { adapterRef: "AP-PRIMARY", state: "UP", resultClass: "SUCCESS", checkedAt: "2026-09-27T03:15:00Z" }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/transport/adapters/{adapterRef}/failovers:
@@ -507,11 +506,13 @@ paths:
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-timeout: 2000
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-E.2, "INV-NOTE-7 §3 SCR-18.4", "INV-FLOW-247"]
       x-operation:
-        role: integration.engineer
+        kind: PERMISSION
+        permission: adapter.failover
         scope: entity
         precondition: "A second AP adapter is already configured and running concurrently for this entity (FR-E.2; INV-NOTE-7 §3 SCR-18.4 \"Second AP adapter per entity\")."
         reversibility: UNDOABLE
@@ -532,6 +533,7 @@ paths:
               default:
                 value:
                   targetAdapterRef: "AP-SECONDARY"
+                  entityRef: "ENT-CL0043"
       responses:
         '200':
           description: The entity's adapter cutover state after failover.
@@ -577,7 +579,8 @@ paths:
       x-error-codes: [SUB-018, SUB-019]
       x-requirements: [INV-REQ-796, INV-REQ-1286, INV-REQ-1310, INV-REQ-1317]
       x-operation:
-        role: integration.engineer
+        kind: PERMISSION
+        permission: adapter.configure
         scope: tenant
         precondition: "The connection exists (INV-REQ-1310, connection scope)."
         reversibility: UNDOABLE
@@ -966,8 +969,16 @@ components:
           description: 'Connection health state (this producer''s own vocabulary, service-runtime ConnectionStatusChangedPayload).'
           enum: [UP, DOWN, DEGRADED]
           x-extensible-enum: true
+        resultClass:
+          type: string
+          description: 'Classified result of the test run (INV-REQ-835 behavior 3): reached and answered as expected; network or DNS failure; credential refused; reached and authenticated but the answer is not the expected contract.'
+          enum: [SUCCESS, UNREACHABLE, AUTHENTICATION_REFUSED, UNEXPECTED_RESPONSE]
+        detail:
+          type: string
+          maxLength: 40
+          description: 'A code only, never a raw error (INV-REQ-835 behavior 5).'
         checkedAt: { type: string, format: date-time }
-      required: [adapterRef, state]
+      required: [adapterRef, state, resultClass]
     FailoverAdapterRequest:
       type: object
       description: >-
@@ -975,7 +986,8 @@ components:
         (FR-E.2 precondition); this names it as the cutover target.
       properties:
         targetAdapterRef: { type: string, maxLength: 40 }
-      required: [targetAdapterRef]
+        entityRef: { type: string, maxLength: 40 }
+      required: [targetAdapterRef, entityRef]
     FailoverResult:
       type: object
       properties:

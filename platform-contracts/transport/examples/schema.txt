@@ -9,3 +9,5 @@
 ../openapi.yaml#/components/schemas/SubmitPayloadRequest submit-payload-request-*.json
 ../schemas/acknowledgement-received-payload.schema.json acknowledgement-received-payload-*.json
 ../openapi.yaml#/components/schemas/ApNotification ap-notification-*.json
+../openapi.yaml#/components/schemas/FailoverAdapterRequest failover-adapter-request-*.json
+../openapi.yaml#/components/schemas/ConnectionTestResult connection-test-result-*.json
