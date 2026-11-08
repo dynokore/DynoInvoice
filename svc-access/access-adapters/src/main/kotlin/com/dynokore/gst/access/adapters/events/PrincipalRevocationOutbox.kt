@@ -1,9 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
-import com.dynokore.gst.access.adapters.http.ScopeParser
-import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.principal.PrincipalRevocationPublisher
-import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.principal.ServicePrincipal
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -19,38 +16,29 @@ import java.time.format.DateTimeFormatter
 /**
  * TPL-05: maps the revocation of a service principal to the contract event AuthorityChanged with changeKind
  * REVOCATION and a principalRecord in state REVOKED (INV-API-3325, schema `authority-changed-payload`), appended in the
- * command transaction the caller holds: one event per entity the principal's scope reaches (an entity scope is that
- * entity, a tenant scope every entity of the tenant).
+ * command transaction the caller holds: one event for the principal, not one per entity.
  */
 class PrincipalRevocationOutbox(
     private val outbox: OutboxWriter,
     private val mapper: ObjectMapper,
     private val clock: Clock,
-    private val directory: EntityDirectory,
 ) : PrincipalRevocationPublisher {
     override fun publishRevoked(
         principal: ServicePrincipal,
         nextVersion: () -> Long,
     ) {
-        val tenant = TenantId.of(principal.tenant.value)
-        // a domain event cannot carry the tenant-wide entity: the revocation is keyed on each entity the scope reaches
-        val scope =
-            (ScopeParser.parse(principal.scope, principal.tenant) as? ScopeParser.Parsed.Ok)
-                ?.scope
-                ?.takeUnless { it is Scope.ConsentDerived }
-                ?: error("the scope of a stored principal is unreadable")
-        directory.entitiesCoveredBy(scope).sortedBy { it.value }.forEach { entity ->
-            val context = EventContexts.forAggregate(tenant, EntityRef(entity.value), principal.ref)
-            outbox.append(
-                listOf(
-                    OutboundEvent(
-                        PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
-                        payload(principal, nextVersion()).toString(),
-                    ),
+        // one principalRecord event for the principal (INV-Q-8972 A); a replica voids every grant record below its version
+        val context =
+            EventContexts.forAggregate(TenantId.of(principal.tenant.value), EntityRef.TENANT_WIDE, principal.ref)
+        outbox.append(
+            listOf(
+                OutboundEvent(
+                    PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
+                    payload(principal, nextVersion()).toString(),
                 ),
-                context,
-            )
-        }
+            ),
+            context,
+        )
     }
 
     internal fun payload(

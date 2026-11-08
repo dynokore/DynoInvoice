@@ -1,22 +1,22 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
-import com.dynokore.gst.access.application.grant.AuthorityGrantRecord
-import com.dynokore.gst.access.application.grant.EntityDirectory
-import com.dynokore.gst.access.application.grant.GrantedAction
+import com.dynokore.gst.access.application.grant.RoleGrantChange
+import com.dynokore.gst.access.application.grant.RoleGrantState
 import com.dynokore.gst.access.domain.consent.Consent
 import com.dynokore.gst.access.domain.consent.ConsentRef
 import com.dynokore.gst.access.domain.consent.ConsentStatus
 import com.dynokore.gst.access.domain.consent.ConsentTerms
 import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.IdentityRef
-import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.ScopeLevel
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.principal.PrincipalStatus
 import com.dynokore.gst.access.domain.principal.PrincipalType
 import com.dynokore.gst.access.domain.principal.ServicePrincipal
+import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.outboxandqueue.EmissionGuard
 import com.dynokore.platform.outboxandqueue.EmissionNotPermitted
 import com.dynokore.platform.outboxandqueue.Envelope
@@ -49,7 +49,7 @@ class AuthorityChangedPayloadTest {
             mapper = mapper,
         )
     private val schema =
-        resource("gst/contracts/access/schemas/authority-changed-payload.schema.json").let { text ->
+        resource("gst/contracts/service-runtime/schemas/authority-changed-payload.schema.json").let { text ->
             SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12).getSchema(text)
         }
 
@@ -58,54 +58,100 @@ class AuthorityChangedPayloadTest {
             it.readBytes().toString(Charsets.UTF_8)
         }
 
-    private fun record(vararg actions: GrantedAction) =
-        AuthorityGrantRecord(
-            tenant = TenantRef("0a000000-0000-4000-8000-00000000000a"),
-            identity = IdentityRef("IDN-1"),
-            entity = EntityRef("ENT-1"),
-            authorityVersion = 42,
-            actions = actions.toList(),
-            windowFrom = Instant.parse("2026-10-19T00:00:00Z"),
-            windowTo = null,
-        )
+    private val tenantValue = "0a000000-0000-4000-8000-00000000000a"
 
-    private fun action(
+    private fun change(
         level: ScopeLevel = ScopeLevel.ENTITY,
-        periods: Pair<LocalDate, LocalDate>? = null,
+        state: RoleGrantState = RoleGrantState.ACTIVE,
+        scopeRef: String = "ENT-1",
         until: Instant? = Instant.parse("2027-09-30T23:59:59Z"),
-    ) = GrantedAction(
-        "doc.view",
-        level,
-        "ENT-1",
-        Instant.parse("2026-10-19T00:00:00Z"),
-        until,
-        periods?.first,
-        periods?.second,
+        periods: Pair<LocalDate, LocalDate>? = null,
+        grantRef: String = "GRT-1",
+        version: Long = 42,
+    ) = RoleGrantChange(
+        tenant = TenantRef(tenantValue),
+        identity = IdentityRef("IDN-1"),
+        grantRef = GrantRef(grantRef),
+        role = Role.TAX_APPROVER,
+        state = state,
+        scopeLevel = level,
+        scopeRef = scopeRef,
+        validFrom = Instant.parse("2026-10-19T00:00:00Z"),
+        validUntil = until,
+        periodFrom = periods?.first,
+        periodTo = periods?.second,
+        authorityVersion = version,
     )
 
-    private fun errors(record: AuthorityGrantRecord) =
-        schema.validate(outbox.payload(record).toString(), com.networknt.schema.InputFormat.JSON)
+    private val span = LocalDate.of(2027, 1, 1) to LocalDate.of(2027, 6, 30)
+
+    /** One change per scope level, with the scope reference the mapper gives it. */
+    private val perLevel: List<RoleGrantChange> =
+        listOf(
+            change(ScopeLevel.TENANT, scopeRef = tenantValue),
+            change(ScopeLevel.GROUP, scopeRef = "GRP-1"),
+            change(ScopeLevel.ENTITY),
+            change(ScopeLevel.ENTITY_PERIOD, periods = span),
+            change(ScopeLevel.CONSENT, scopeRef = tenantValue),
+        )
+
+    private fun errors(change: RoleGrantChange) =
+        schema.validate(outbox.payload(change).toString(), com.networknt.schema.InputFormat.JSON)
 
     @Test
-    fun `a grant record, a period grant and an explicit removal validate against the AuthorityChanged schema`() {
-        assertTrue(errors(record(action())).isEmpty())
-        assertTrue(
-            errors(
-                record(action(ScopeLevel.ENTITY_PERIOD, LocalDate.of(2027, 1, 1) to LocalDate.of(2027, 6, 30))),
-            ).isEmpty(),
-        )
-        assertTrue(errors(record(action(until = null))).isEmpty())
-        assertTrue(errors(record()).isEmpty(), "an empty list is an explicit removal")
+    fun `a role grant change of every scope level and state validates against the AuthorityChanged schema`() {
+        perLevel.forEach { c ->
+            RoleGrantState.entries.forEach { state ->
+                val errors = errors(c.copy(state = state))
+                assertTrue(errors.isEmpty(), "${c.scopeLevel} $state $errors")
+            }
+        }
+        assertTrue(errors(change(until = null)).isEmpty())
     }
 
     @Test
-    fun `the payload carries the one record, the version and the principal`() {
-        val node = outbox.payload(record(action()))
-        assertEquals("GRANT", node["changeKind"].asString())
+    fun `the payload of a grant carries the role grant record with each field equal to the expected value`() {
+        val node = outbox.payload(change())
+        assertEquals("ROLE_GRANT", node["changeKind"].asString())
         assertEquals("IDN-1", node["principalRef"].asString())
         assertEquals(42L, node["authorityVersion"].asLong())
-        assertEquals("ENT-1", node["grantRecord"]["entityRef"].asString())
-        assertTrue(!node.has("consentRecord") && !node.has("principalRecord"))
+        val record = node["roleGrantRecord"]
+        assertEquals("GRT-1", record["grantRef"].asString())
+        assertEquals("tax.approver", record["role"].asString())
+        assertEquals("ACTIVE", record["state"].asString())
+        assertEquals("ENTITY", record["scopeLevel"].asString())
+        assertEquals("ENT-1", record["scopeRef"].asString())
+        assertEquals("2026-10-19T00:00:00Z", record["validFrom"].asString())
+        assertEquals("2027-09-30T23:59:59Z", record["validUntil"].asString())
+        assertTrue(!record.has("periodFrom") && !record.has("periodTo"))
+        assertTrue(!node.has("grantRecord") && !node.has("consentRecord") && !node.has("principalRecord"))
+        assertTrue(!node.has("validity"))
+    }
+
+    @Test
+    fun `INV-AC-1911 an entity-period grant carries the span as dates and no periodRefs`() {
+        val record = outbox.payload(change(ScopeLevel.ENTITY_PERIOD, periods = span))["roleGrantRecord"]
+        assertEquals("ENTITY_PERIOD", record["scopeLevel"].asString())
+        assertEquals("2027-01-01", record["periodFrom"].asString())
+        assertEquals("2027-06-30", record["periodTo"].asString())
+        assertTrue(!record.has("periodRefs"))
+        assertEquals("2027-09-30T23:59:59Z", record["validUntil"].asString())
+    }
+
+    @Test
+    fun `a revoke is the same grantRef in state REMOVED and an open-ended grant has no validUntil`() {
+        val removed = outbox.payload(change(state = RoleGrantState.REMOVED, version = 43))
+        assertEquals("REMOVED", removed["roleGrantRecord"]["state"].asString())
+        assertEquals("GRT-1", removed["roleGrantRecord"]["grantRef"].asString())
+        assertEquals(43L, removed["authorityVersion"].asLong())
+        assertTrue(!outbox.payload(change(until = null))["roleGrantRecord"].has("validUntil"))
+    }
+
+    @Test
+    fun `a scope level written lower case does not validate against the schema`() {
+        val node = outbox.payload(change())
+        (node["roleGrantRecord"] as tools.jackson.databind.node.ObjectNode).put("scopeLevel", "entity")
+        assertTrue(schema.validate(node.toString(), com.networknt.schema.InputFormat.JSON).isNotEmpty())
     }
 
     @Test
@@ -206,26 +252,19 @@ class AuthorityChangedPayloadTest {
                 }
             }
         val grants = AuthorityChangedOutbox(writer, mapper)
-        grants.publish(listOf(record(action())))
+        grants.publish(listOf(change()))
         grants.publish(consent(ConsentStatus.LIVE, ScopeItem.SUBMIT_INVOICE_DATA))
-        val directory =
-            object : EntityDirectory {
-                override fun membership(entity: EntityRef) = null
-
-                override fun entitiesCoveredBy(scope: Scope) = setOf(EntityRef("ENT-1"))
-            }
-        val tenant = "0a000000-0000-4000-8000-00000000000a"
         val principal =
             ServicePrincipal(
                 "PRN-1",
-                TenantRef(tenant),
+                TenantRef(tenantValue),
                 PrincipalType.INGEST,
-                "tenant:$tenant",
+                "tenant:$tenantValue",
                 null,
                 PrincipalStatus.REVOKED,
                 1,
             )
-        PrincipalRevocationOutbox(writer, mapper, Clock.systemUTC(), directory).publishRevoked(principal) { 7L }
+        PrincipalRevocationOutbox(writer, mapper, Clock.systemUTC()).publishRevoked(principal) { 7L }
         assertEquals(3, captured.size)
         captured.forEach { assertEquals("com.dynokore.gst.platform.AuthorityChanged.v1", it.type) }
     }

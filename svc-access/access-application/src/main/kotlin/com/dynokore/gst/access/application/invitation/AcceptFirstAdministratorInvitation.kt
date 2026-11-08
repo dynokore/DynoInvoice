@@ -3,17 +3,15 @@ package com.dynokore.gst.access.application.invitation
 import com.dynokore.gst.access.application.breakglass.SealedAccountKeeper
 import com.dynokore.gst.access.application.breakglass.SealingCredential
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
-import com.dynokore.gst.access.application.grant.AuthorityRecords
-import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.grant.RoleGrantMapper
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.GranteeKind
 import com.dynokore.gst.access.domain.grant.IdentityRef
-import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -82,11 +80,9 @@ class AcceptFirstAdministratorInvitation(
     private val tx: TransactionRunner,
     private val grants: GrantRepository,
     effects: AcceptFirstAdministratorEffects,
-    directory: EntityDirectory,
-    matrix: PermissionMatrix,
     private val clock: Clock,
 ) {
-    private val records = AuthorityRecords(directory, matrix)
+    private val records = RoleGrantMapper()
     private val invitations = effects.invitations
     private val codes = effects.codes
     private val publisher = effects.publisher
@@ -205,19 +201,13 @@ class AcceptFirstAdministratorInvitation(
         grants.update(pending, active)
         invitations.markAccepted(command.invitationRef, command.idempotencyKey, fingerprint)
         publisher.publish(
-            records.forChange(
-                active.tenant,
-                identity,
-                active,
-                grants.findByIdentity(identity),
-                grants::nextAuthorityVersion,
-            ),
+            records.forChange(active, grants::nextAuthorityVersion),
         )
         audit.record(
             GrantAuditEntry(
                 actor = command.subject,
                 action = "acceptFirstAdministratorInvitation",
-                scope = "${active.scope.level}:${AuthorityRecords.scopeRefOf(active.scope)}",
+                scope = "${active.scope.level}:${RoleGrantMapper.scopeRefOf(active.scope)}",
                 reason = null,
                 priorStateJson = priorState(pending),
             ),

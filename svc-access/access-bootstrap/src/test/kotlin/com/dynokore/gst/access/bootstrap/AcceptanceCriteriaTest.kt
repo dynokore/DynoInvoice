@@ -26,6 +26,7 @@ import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.DecisionSource
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
@@ -321,12 +322,13 @@ class AcceptanceCriteriaTest {
     fun `INV-AC-2186 an authority change reaches the replica within one second, structure comes from cache`() =
         run { _, env ->
             env.entity(tenantA, "ENT-R")
-            val replica = AuthorityReplica(env.clock, fallback = null)
+            val replica =
+                AuthorityReplica(env.clock, env.context.getBean(OperationRoleMap::class.java), fallback = null)
             // the start-up sync of a service whose replica is current
             replica.onSnapshotComplete(0)
             val feed = env.context.getBean(AuthorityFeedHandler::class.java)
             val feedRequest =
-                AuthorizationRequest(tenantA, Principal("IDN-R", PrincipalKind.HUMAN), "ENT-R", "doc.view")
+                AuthorizationRequest(tenantA, Principal("IDN-R", PrincipalKind.HUMAN), "ENT-R", "doc.view.content")
 
             fun deliver() {
                 val handler = AuthorityFeedHandler(replica)

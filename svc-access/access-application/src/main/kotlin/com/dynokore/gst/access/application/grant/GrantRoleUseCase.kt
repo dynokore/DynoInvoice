@@ -10,7 +10,6 @@ import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantStatus
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
-import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.access.domain.role.SeparationOfDuty
@@ -34,21 +33,18 @@ class GrantRoleEffects(
 /**
  * `grantRole` (INV-REQ-864, INV-REQ-859): refuses a grant without a scope, with an unknown role or with an Operator
  * role (INV-Q-9069 A, before any lock or write); otherwise stores the
- * grant (a repeat of the same identity, role and scope returns the original), publishes AuthorityChanged for every
- * entity
- * the scope reaches in the same transaction, and writes the audit entry (INV-REQ-861). The identity row is locked
+ * grant (a repeat of the same identity, role and scope returns the original), publishes one AuthorityChanged role-grant event
+ * in the same transaction, and writes the audit entry (INV-REQ-861). The identity row is locked
  * before the
  * authority versions are drawn, so versions per identity follow commit order (INV-API-3325).
  */
 class GrantRoleUseCase(
     private val tx: TransactionRunner,
     private val grants: GrantRepository,
-    directory: EntityDirectory,
-    matrix: PermissionMatrix,
     private val effects: GrantRoleEffects,
     private val rules: GrantRoleRules,
 ) {
-    private val records = AuthorityRecords(directory, matrix)
+    private val records = RoleGrantMapper()
 
     fun handle(command: GrantRoleCommand): GrantRoleOutcome {
         val scope = command.scope
@@ -167,19 +163,13 @@ class GrantRoleUseCase(
             )
         grants.insert(grant)
         effects.publisher.publish(
-            records.forChange(
-                command.tenant,
-                command.identity,
-                grant,
-                grants.findByIdentity(command.identity),
-                grants::nextAuthorityVersion,
-            ),
+            records.forChange(grant, grants::nextAuthorityVersion),
         )
         effects.audit.record(
             GrantAuditEntry(
                 actor = command.actor,
                 action = "grantRole",
-                scope = "${scope.level}:${AuthorityRecords.scopeRefOf(scope)}",
+                scope = "${scope.level}:${RoleGrantMapper.scopeRefOf(scope)}",
                 reason = null,
                 priorStateJson = null,
             ),
@@ -189,17 +179,15 @@ class GrantRoleUseCase(
 }
 
 /**
- * `revokeGrant`: revokes a grant, publishes the removal for every entity it reached and audits it with the prior state.
+ * `revokeGrant`: revokes a grant, publishes the one role-grant removal event and audits it with the prior state.
  */
 class RevokeGrantUseCase(
     private val tx: TransactionRunner,
     private val grants: GrantRepository,
-    directory: EntityDirectory,
-    matrix: PermissionMatrix,
     private val publisher: AuthorityChangePublisher,
     private val audit: GrantAudit,
 ) {
-    private val records = AuthorityRecords(directory, matrix)
+    private val records = RoleGrantMapper()
 
     fun handle(
         actor: String,
@@ -213,19 +201,13 @@ class RevokeGrantUseCase(
             if (after === current) return@inTransaction RevokeGrantOutcome.AlreadyRevoked(current)
             grants.update(current, after)
             publisher.publish(
-                records.forChange(
-                    after.tenant,
-                    after.identity,
-                    after,
-                    grants.findByIdentity(after.identity),
-                    grants::nextAuthorityVersion,
-                ),
+                records.forChange(after, grants::nextAuthorityVersion),
             )
             audit.record(
                 GrantAuditEntry(
                     actor = actor,
                     action = "revokeGrant",
-                    scope = "${current.scope.level}:${AuthorityRecords.scopeRefOf(current.scope)}",
+                    scope = "${current.scope.level}:${RoleGrantMapper.scopeRefOf(current.scope)}",
                     reason = null,
                     priorStateJson = """{"status":"${current.status}","role":"${current.role.wire}"}""",
                 ),

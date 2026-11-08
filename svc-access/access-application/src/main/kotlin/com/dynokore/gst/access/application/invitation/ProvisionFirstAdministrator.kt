@@ -1,9 +1,9 @@
 package com.dynokore.gst.access.application.invitation
 
-import com.dynokore.gst.access.application.grant.AuthorityRecords
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.grant.RoleGrantMapper
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantSource
@@ -160,7 +160,7 @@ class ProvisionFirstAdministrator(
             GrantAuditEntry(
                 actor = command.actor,
                 action = "provisionFirstAdministrator",
-                scope = "${grant.scope.level}:${AuthorityRecords.scopeRefOf(grant.scope)}",
+                scope = "${grant.scope.level}:${RoleGrantMapper.scopeRefOf(grant.scope)}",
                 reason = null,
                 priorStateJson = null,
             ),

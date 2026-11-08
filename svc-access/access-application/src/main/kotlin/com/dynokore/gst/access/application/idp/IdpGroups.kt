@@ -1,11 +1,10 @@
 package com.dynokore.gst.access.application.idp
 
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
-import com.dynokore.gst.access.application.grant.AuthorityRecords
-import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
+import com.dynokore.gst.access.application.grant.RoleGrantMapper
 import com.dynokore.gst.access.application.separation.ConflictingPairPolicy
 import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.domain.grant.Grant
@@ -18,7 +17,6 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
-import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.access.domain.role.SeparationOfDuty
@@ -97,11 +95,9 @@ class IdpProvisioningEffects(
  */
 class GroupGrantReconciler(
     private val grants: GrantRepository,
-    directory: EntityDirectory,
-    matrix: PermissionMatrix,
     private val effects: IdpProvisioningEffects,
 ) {
-    private val records = AuthorityRecords(directory, matrix)
+    private val records = RoleGrantMapper()
 
     fun reconcile(
         actor: String,
@@ -170,7 +166,7 @@ class GroupGrantReconciler(
             )
         grants.insert(grant)
         effects.publisher.publish(
-            records.forChange(tenant, identity, grant, grants.findByIdentity(identity), grants::nextAuthorityVersion),
+            records.forChange(grant, grants::nextAuthorityVersion),
         )
         audit(actor, "idpGroupGrant", grant, null)
     }
@@ -185,13 +181,7 @@ class GroupGrantReconciler(
         if (after === current) return
         grants.update(current, after)
         effects.publisher.publish(
-            records.forChange(
-                after.tenant,
-                after.identity,
-                after,
-                grants.findByIdentity(after.identity),
-                grants::nextAuthorityVersion,
-            ),
+            records.forChange(after, grants::nextAuthorityVersion),
         )
         audit(actor, "idpGroupRevoke", current, """{"status":"${current.status}","role":"${current.role.wire}"}""")
     }
@@ -205,7 +195,7 @@ class GroupGrantReconciler(
         GrantAuditEntry(
             actor,
             action,
-            "${grant.scope.level}:${AuthorityRecords.scopeRefOf(grant.scope)}",
+            "${grant.scope.level}:${RoleGrantMapper.scopeRefOf(grant.scope)}",
             "mapping ${grant.sourceRef}",
             prior,
         ),
@@ -262,10 +252,8 @@ class MapIdpGroupUseCase private constructor(
     constructor(
         shared: IdpGroupCollaborators,
         grants: GrantRepository,
-        directory: EntityDirectory,
-        matrix: PermissionMatrix,
         effects: IdpProvisioningEffects,
-    ) : this(shared, GroupGrantReconciler(grants, directory, matrix, effects), effects.catalogue)
+    ) : this(shared, GroupGrantReconciler(grants, effects), effects.catalogue)
 
     fun handle(command: MapIdpGroupCommand): MapIdpGroupOutcome {
         val role = Role.ofWire(command.roleWire)
@@ -331,10 +319,8 @@ class UnmapIdpGroupUseCase private constructor(
     constructor(
         shared: IdpGroupCollaborators,
         grants: GrantRepository,
-        directory: EntityDirectory,
-        matrix: PermissionMatrix,
         effects: IdpProvisioningEffects,
-    ) : this(shared, GroupGrantReconciler(grants, directory, matrix, effects))
+    ) : this(shared, GroupGrantReconciler(grants, effects))
 
     fun handle(
         actor: String,
@@ -361,10 +347,8 @@ class SyncIdpGroupsUseCase private constructor(
     constructor(
         shared: IdpGroupCollaborators,
         grants: GrantRepository,
-        directory: EntityDirectory,
-        matrix: PermissionMatrix,
         effects: IdpProvisioningEffects,
-    ) : this(shared, GroupGrantReconciler(grants, directory, matrix, effects))
+    ) : this(shared, GroupGrantReconciler(grants, effects))
 
     /**
      * Synchronises every active mapping of the bound tenant; each mapping is its own transaction. A mapping whose

@@ -8,7 +8,6 @@ import com.dynokore.gst.access.adapters.persistence.JooqCredentialRepository
 import com.dynokore.gst.access.adapters.persistence.JooqPrincipalRepository
 import com.dynokore.gst.access.adapters.persistence.JooqRevocationListWriter
 import com.dynokore.gst.access.application.authorise.MachineAuthorise
-import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.principal.AuthenticatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.ClientSecretPolicy
@@ -54,8 +53,7 @@ class PrincipalUseCases {
         outbox: OutboxWriter,
         mapper: ObjectMapper,
         clock: Clock,
-        directory: EntityDirectory,
-    ): PrincipalRevocationPublisher = PrincipalRevocationOutbox(outbox, mapper, clock, directory)
+    ): PrincipalRevocationPublisher = PrincipalRevocationOutbox(outbox, mapper, clock)
 
     /** The list entry is written in a transaction of its own, bound to the platform tenant (INV-Q-8785 A). */
     @Bean

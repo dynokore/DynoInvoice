@@ -131,8 +131,6 @@ class UseCases {
     ) = GrantRoleUseCase(
         dependencies.tx,
         dependencies.grants,
-        dependencies.directory,
-        dependencies.matrix,
         effects,
         rules,
     )
@@ -145,8 +143,6 @@ class UseCases {
     ) = RevokeGrantUseCase(
         dependencies.tx,
         dependencies.grants,
-        dependencies.directory,
-        dependencies.matrix,
         publisher,
         audit,
     )

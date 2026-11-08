@@ -108,8 +108,6 @@ class InvitationUseCases {
         dependencies.tx,
         dependencies.grants,
         effects,
-        dependencies.directory,
-        dependencies.matrix,
         clock,
     )
 

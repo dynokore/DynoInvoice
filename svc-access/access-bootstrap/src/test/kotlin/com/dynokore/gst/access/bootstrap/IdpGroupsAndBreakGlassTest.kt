@@ -34,6 +34,7 @@ import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.serviceruntime.binding.IdentityProvider
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -176,7 +177,8 @@ class IdpGroupsAndBreakGlassTest {
             assertThat(changed).hasSize(1)
             assertThat(changed.single().dataJson).contains("IDN-U2")
             // the replica that receives the event holds no action for the leaver
-            val replica = AuthorityReplica(env.clock, fallback = null)
+            val replica =
+                AuthorityReplica(env.clock, env.context.getBean(OperationRoleMap::class.java), fallback = null)
             replica.onSnapshotComplete(0)
             changed.forEach { AuthorityFeedHandler(replica).handle(it) }
             assertThat(replica.heldEntities(tenant, "IDN-U2")).isEmpty()

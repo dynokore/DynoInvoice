@@ -108,21 +108,21 @@ class IdpAndBreakGlassUseCases {
         shared: IdpGroupCollaborators,
         dependencies: GrantDependencies,
         effects: IdpProvisioningEffects,
-    ) = MapIdpGroupUseCase(shared, dependencies.grants, dependencies.directory, dependencies.matrix, effects)
+    ) = MapIdpGroupUseCase(shared, dependencies.grants, effects)
 
     @Bean
     fun unmapIdpGroupUseCase(
         shared: IdpGroupCollaborators,
         dependencies: GrantDependencies,
         effects: IdpProvisioningEffects,
-    ) = UnmapIdpGroupUseCase(shared, dependencies.grants, dependencies.directory, dependencies.matrix, effects)
+    ) = UnmapIdpGroupUseCase(shared, dependencies.grants, effects)
 
     @Bean
     fun syncIdpGroupsUseCase(
         shared: IdpGroupCollaborators,
         dependencies: GrantDependencies,
         effects: IdpProvisioningEffects,
-    ) = SyncIdpGroupsUseCase(shared, dependencies.grants, dependencies.directory, dependencies.matrix, effects)
+    ) = SyncIdpGroupsUseCase(shared, dependencies.grants, effects)
 }
 
 /**

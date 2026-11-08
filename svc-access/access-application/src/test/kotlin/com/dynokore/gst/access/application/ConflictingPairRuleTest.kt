@@ -1,8 +1,6 @@
 package com.dynokore.gst.access.application
 
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
-import com.dynokore.gst.access.application.grant.AuthorityGrantRecord
-import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.grant.GrantRepository
@@ -11,6 +9,7 @@ import com.dynokore.gst.access.application.grant.GrantRoleEffects
 import com.dynokore.gst.access.application.grant.GrantRoleOutcome
 import com.dynokore.gst.access.application.grant.GrantRoleRules
 import com.dynokore.gst.access.application.grant.GrantRoleUseCase
+import com.dynokore.gst.access.application.grant.RoleGrantChange
 import com.dynokore.gst.access.application.idp.GroupGrantReconciler
 import com.dynokore.gst.access.application.idp.IdpGroupMapping
 import com.dynokore.gst.access.application.idp.IdpProvisioningEffects
@@ -21,8 +20,6 @@ import com.dynokore.gst.access.application.separation.RolePair
 import com.dynokore.gst.access.application.separation.SoleOperatorAck
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
 import com.dynokore.gst.access.application.separation.SoleOperatorScope
-import com.dynokore.gst.access.domain.grant.EntityMembership
-import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.Grant
 import com.dynokore.gst.access.domain.grant.GrantHeader
 import com.dynokore.gst.access.domain.grant.GrantRef
@@ -34,7 +31,6 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
-import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.gst.access.domain.role.TenantGrantableRoles
@@ -106,21 +102,14 @@ class ConflictingPairRuleTest {
             override fun withdraw(ref: String) = error("not used")
         }
 
-    private val directory =
-        object : EntityDirectory {
-            override fun membership(entity: EntityRef): EntityMembership? = null
-
-            override fun entitiesCoveredBy(scope: Scope): Set<EntityRef> = emptySet()
-        }
-
     private class Writes :
         AuthorityChangePublisher,
         GrantAudit {
-        val events = mutableListOf<AuthorityGrantRecord>()
+        val events = mutableListOf<RoleGrantChange>()
         val audit = mutableListOf<GrantAuditEntry>()
 
-        override fun publish(records: List<AuthorityGrantRecord>) {
-            events += records
+        override fun publish(changes: List<RoleGrantChange>) {
+            events += changes
         }
 
         override fun record(entry: GrantAuditEntry) {
@@ -160,8 +149,6 @@ class ConflictingPairRuleTest {
     ) = GrantRoleUseCase(
         tx,
         repo,
-        directory,
-        PermissionMatrix(emptyList(), emptyMap()),
         GrantRoleEffects(writes, writes),
         GrantRoleRules(RoleCatalogue.ALL, noAck, { SoleOperatorScope.ONE_HOLDER_WITHDRAW_BLOCKED }, pairs),
     )
@@ -287,7 +274,7 @@ class ConflictingPairRuleTest {
                 pairsOf(Role.TAX_OPERATOR to Role.FINANCE_VIEWER),
             )
         val mapping = IdpGroupMapping("M-1", "grp", Role.FINANCE_VIEWER, scope, LocalDate.parse("2026-01-01"), null)
-        GroupGrantReconciler(repo, directory, PermissionMatrix(emptyList(), emptyMap()), effects)
+        GroupGrantReconciler(repo, effects)
             .reconcile("user:admin", tenant, mapping, setOf(person, other))
         assertEquals(listOf(Role.TAX_OPERATOR), repo.findByIdentity(person).map { it.role })
         assertEquals(listOf(Role.FINANCE_VIEWER), repo.findByIdentity(other).map { it.role })

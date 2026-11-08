@@ -1,7 +1,6 @@
 package com.dynokore.gst.access.application
 
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
-import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.application.grant.GrantRoleCommand
@@ -27,7 +26,6 @@ import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
-import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -67,7 +65,6 @@ class OperatorRoleRefusalTest {
     private val tenant = TenantRef("T-1")
     private val scope = Scope.Tenant(tenant)
     private val tenantScope: Scope = scope
-    private val matrix = PermissionMatrix(emptyList(), emptyMap())
     private val allRoles = RoleCatalogue.ALL
 
     /** A collaborator that fails the test on any call. */
@@ -93,8 +90,6 @@ class OperatorRoleRefusalTest {
         GrantRoleUseCase(
             markerTx,
             failing<GrantRepository>(),
-            failing<EntityDirectory>(),
-            matrix,
             GrantRoleEffects(failing<AuthorityChangePublisher>(), failing<GrantAudit>()),
             GrantRoleRules(
                 allRoles,
@@ -122,8 +117,6 @@ class OperatorRoleRefusalTest {
                 Clock.fixed(Instant.parse("2026-10-28T00:00:00Z"), ZoneOffset.UTC),
             ),
             failing<GrantRepository>(),
-            failing<EntityDirectory>(),
-            matrix,
             mapEffects(),
         )
 
@@ -256,8 +249,7 @@ class OperatorRoleRefusalTest {
     private fun mappingOf(role: Role) =
         IdpGroupMapping("MAP-1", "grp", role, tenantScope, LocalDate.parse("2026-10-28"), null)
 
-    private fun reconciler(grants: GrantRepository) =
-        GroupGrantReconciler(grants, failing<EntityDirectory>(), matrix, mapEffects())
+    private fun reconciler(grants: GrantRepository) = GroupGrantReconciler(grants, mapEffects())
 
     @Test
     fun `INV-AC-12018 the directory sync writes no grant for a mapping of an Operator role`() {

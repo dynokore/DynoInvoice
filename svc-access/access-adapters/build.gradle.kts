@@ -66,4 +66,21 @@ val stageEventLogTopics by tasks.registering(Copy::class) {
 }
 tasks.processResources { from(stageEventLogTopics) }
 
+// The payload schema of AuthorityChanged is owned by service-runtime in the bundle (INV-T-9355): the payload tests read the
+// file the pinned bundle holds and never a copy, so a bundle step reaches them. Test resources only.
+val authoritySchemaFile =
+    rootProject.layout.projectDirectory.file(
+        "access-contract/build/contracts-repo/.bundle/service-runtime/schemas/authority-changed-payload.schema.json",
+    )
+val stageAuthoritySchema by tasks.registering(Copy::class) {
+    from(authoritySchemaFile) { into("gst/contracts/service-runtime/schemas") }
+    into(layout.buildDirectory.dir("generated/contract-test-resources"))
+    doFirst {
+        check(
+            authoritySchemaFile.asFile.isFile,
+        ) { "${authoritySchemaFile.asFile} is missing: the bundle is not staged" }
+    }
+}
+tasks.processTestResources { from(stageAuthoritySchema) }
+
 tasks.withType<Test>().configureEach { useJUnitPlatform() }

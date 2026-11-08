@@ -22,12 +22,11 @@ class PrincipalRevocationPayloadTest {
             outbox = org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java),
             mapper = JsonMapper.builder().build(),
             clock = Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"), ZoneOffset.UTC),
-            directory = org.mockito.Mockito.mock(com.dynokore.gst.access.application.grant.EntityDirectory::class.java),
         )
     private val schema =
         checkNotNull(
             javaClass.classLoader.getResourceAsStream(
-                "gst/contracts/access/schemas/authority-changed-payload.schema.json",
+                "gst/contracts/service-runtime/schemas/authority-changed-payload.schema.json",
             ),
         ).use { it.readBytes().toString(Charsets.UTF_8) }
             .let { SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12).getSchema(it) }

@@ -1,47 +1,42 @@
 package com.dynokore.gst.access.application.grant
 
-import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.GrantRef
 import com.dynokore.gst.access.domain.grant.IdentityRef
 import com.dynokore.gst.access.domain.grant.ScopeLevel
 import com.dynokore.gst.access.domain.grant.TenantRef
+import com.dynokore.gst.access.domain.role.Role
 import java.time.Instant
 import java.time.LocalDate
 
+/** Whether a role grant is held or removed (the wire `state` of `roleGrantRecord`). */
+enum class RoleGrantState { ACTIVE, REMOVED }
+
 /**
- * One action an identity holds on an entity, with the scope it comes from and its validity (INV-API-3325 grant record).
+ * One role grant of one identity after a change (INV-Q-8972 A): the role, the scope level and reference, the validity
+ * and, for an entity-period scope only, the period span. [authorityVersion] comes from access-svc's one sequence
+ * (INV-REQ-1201 behaviour 1); a revoke of the same grant has the same [grantRef] and a higher version.
  */
-data class GrantedAction(
-    val action: String,
+data class RoleGrantChange(
+    val tenant: TenantRef,
+    val identity: IdentityRef,
+    val grantRef: GrantRef,
+    val role: Role,
+    val state: RoleGrantState,
     val scopeLevel: ScopeLevel,
     val scopeRef: String,
     val validFrom: Instant,
     val validUntil: Instant?,
     val periodFrom: LocalDate?,
     val periodTo: LocalDate?,
-)
-
-/**
- * The full grant state, after a change, of one (tenant, identity, entity); an empty [actions] is an explicit removal
- * that
- * a replica keeps as a tombstone. [authorityVersion] comes from access-svc's one sequence (INV-REQ-1201 behaviour 1).
- */
-data class AuthorityGrantRecord(
-    val tenant: TenantRef,
-    val identity: IdentityRef,
-    val entity: EntityRef,
     val authorityVersion: Long,
-    val actions: List<GrantedAction>,
-    val windowFrom: Instant,
-    val windowTo: Instant?,
 )
 
 /**
- * Publishes AuthorityChanged (INV-API-3325) through outbox-and-queue in the command transaction: one event per record,
- * all
- * appended before the transaction commits. The adapter owns the mapping to the contract event (TPL-05).
+ * Publishes AuthorityChanged (INV-API-3325) through outbox-and-queue in the command transaction: one event per change,
+ * all appended before the transaction commits. The adapter owns the mapping to the contract event (TPL-05).
  */
 interface AuthorityChangePublisher {
-    fun publish(records: List<AuthorityGrantRecord>)
+    fun publish(changes: List<RoleGrantChange>)
 }
 
 /** What a grant change records in the audit log: actor, action, scope, reason and prior state (INV-REQ-861). */

@@ -146,7 +146,8 @@ class RevocationWriteTest {
             assertThat(entriesOf(kit.context, "PRN-FORGED")).isEmpty()
         }
 
-    private fun revocationEntities(
+    /** The aggregate key of each REVOCATION event: the principal, with the tenant-wide entity on every one. */
+    private fun revocationKeys(
         kit: PrincipalKit,
         block: () -> Unit,
     ): List<String> {
@@ -154,43 +155,11 @@ class RevocationWriteTest {
         captured.envelopes.clear()
         block()
         val mapper = JsonMapper.builder().build()
-        return captured.envelopes
-            .filter { it.type == PlatformEventCatalogue.AUTHORITY_CHANGED.eventType }
-            .filter { mapper.readTree(it.dataJson).get("changeKind").asString() == "REVOCATION" }
-            .map { it.entity.value }
+        val revocations =
+            captured.envelopes
+                .filter { it.type == PlatformEventCatalogue.AUTHORITY_CHANGED.eventType }
+                .filter { mapper.readTree(it.dataJson).get("changeKind").asString() == "REVOCATION" }
+        revocations.forEach { assertThat(it.entity.isTenantWide).describedAs("tenant-wide entity").isTrue() }
+        return revocations.map { it.subject }
     }
-
-    @Test
-    fun `INV-AC-8616 a principal bound to three entities emits three events, one for each entity`() =
-        run { kit ->
-            listOf("ENT-1", "ENT-2", "ENT-3").forEach(kit::entity)
-            val created = kit.create("INGEST", scope = "tenant:${kit.tenant}")
-            val entities = revocationEntities(kit) { kit.revoke(created.principalRef) }
-            assertThat(entities).hasSize(3)
-            assertThat(entities.toSet()).containsExactlyInAnyOrder("ENT-1", "ENT-2", "ENT-3")
-        }
-
-    @Test
-    fun `INV-AC-8616 a principal bound to one entity emits one event`() =
-        run { kit ->
-            listOf("ENT-1", "ENT-2").forEach(kit::entity)
-            val created = kit.create("INGEST", scope = "entity:ENT-2")
-            val entities = revocationEntities(kit) { kit.revoke(created.principalRef) }
-            assertThat(entities).containsExactly("ENT-2")
-        }
-
-    @Test
-    fun `INV-AC-8616 a tenant with no entity emits no event, the entry exists and the next call is refused`() =
-        run { kit ->
-            val key = kit.newKey("k")
-            val created = kit.create("INGEST", scope = "tenant:${kit.tenant}", method = PrincipalKit.JWT, key = key)
-            val ref = created.principalRef
-            assertThat(kit.authenticate(ref, PrincipalKit.AUTH_JWT, kit.proof(key, ref)).decision)
-                .isEqualTo(Decision.AUTHENTICATED)
-            val entities = revocationEntities(kit) { kit.revoke(ref) }
-            assertThat(entities).isEmpty()
-            assertThat(entriesOf(kit.context, ref)).hasSize(1)
-            assertThat(kit.authenticate(ref, PrincipalKit.AUTH_JWT, kit.proof(key, ref)).decision)
-                .isEqualTo(Decision.REFUSED)
-        }
 }
