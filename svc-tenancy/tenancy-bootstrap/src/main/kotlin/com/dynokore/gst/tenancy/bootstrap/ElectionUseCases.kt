@@ -13,7 +13,6 @@ import com.dynokore.gst.tenancy.adapters.election.RequestCallerSource
 import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
 import com.dynokore.gst.tenancy.adapters.election.RulePackStagedHandler
 import com.dynokore.gst.tenancy.adapters.election.SchemeEventDependencies
-import com.dynokore.gst.tenancy.adapters.election.UnrecordedEntityFacts
 import com.dynokore.gst.tenancy.adapters.persistence.JooqAccessPointRouteStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqElectionChangeStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqExemptPurchaseElectionStore
@@ -173,11 +172,6 @@ class ElectionUseCases {
         writer: AuditWriter,
         tenants: TenantContext,
     ): ElectionAudit = AuditLogElectionAudit(writer, tenants)
-
-    /** The entity facts answer NOT_RECORDED until INV-T-4933 binds the stored questionnaire answers (INV-Q-9696 B). */
-    @Bean
-    @ConditionalOnMissingBean(EntityFactSource::class)
-    fun entityFactSource(): EntityFactSource = UnrecordedEntityFacts()
 
     @Bean
     @ConditionalOnMissingBean(CallerSource::class)

@@ -50,6 +50,14 @@ open class BoundaryDatabase(
     private val libraryTables = listOf("config_setting", "config_resolved_value", "config_relaxation_acknowledgement")
     private val notLibrary = libraryTables.joinToString(",") { "'$it'" }
 
+    /**
+     * The tables exempt from the two per-entity rules of INV-AC-2041 (no nullable `entity_id` or `group_id`, no key
+     * that is exactly {tenant_id} or {group_id}): exact names compared by equality, no glob, no prefix, no case folding
+     * (owner answer INV-Q-9833 A). `applied_profile_tenant` holds one row per tenant, keyed by `tenant_id` alone.
+     * Every other table of the schema keeps both rules; a name added here needs an owner ruling.
+     */
+    val scopeExemptTables = listOf("applied_profile_tenant")
+
     private val migrationsDir: Path = Path.of("..", "tenancy-adapters", "src", "main", "resources", "db", "migration")
     private val roles: Path = Path.of("..", "tenancy-adapters", "src", "integrationTest", "resources", "roles.sql")
 
@@ -155,18 +163,18 @@ open class BoundaryDatabase(
         }
 
     /** The (table, column) pairs of `entity_id` or `group_id` columns that are nullable. */
-    fun nullableScopeColumns(): List<Pair<String, String>> =
+    fun nullableScopeColumns(exempt: List<String> = scopeExemptTables): List<Pair<String, String>> =
         asSuperuser { c ->
             c
                 .prepareStatement(
                     "select table_name, column_name from information_schema.columns where table_schema = 'tenancy' " +
                         "and column_name in ('entity_id', 'group_id') and is_nullable = 'YES' " +
-                        "and table_name not in ($notLibrary)",
+                        "and table_name not in ($notLibrary)" + notIn("table_name", exempt),
                 ).use { s -> s.executeQuery().use(::textPairs) }
         }
 
     /** Every primary or unique key of the tenancy schema: (table, comma-joined sorted columns). */
-    fun keyColumns(): List<Pair<String, String>> =
+    fun keyColumns(exempt: List<String> = scopeExemptTables): List<Pair<String, String>> =
         asSuperuser { c ->
             c
                 .prepareStatement(
@@ -174,8 +182,40 @@ open class BoundaryDatabase(
                         "from pg_constraint k join pg_class cl on cl.oid = k.conrelid " +
                         "join pg_namespace n on n.oid = cl.relnamespace " +
                         "join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey) " +
-                        "where n.nspname = 'tenancy' and k.contype in ('p', 'u') group by k.oid, cl.relname",
+                        "where n.nspname = 'tenancy' and k.contype in ('p', 'u')" + notIn("cl.relname", exempt) +
+                        " group by k.oid, cl.relname",
                 ).use { s -> s.executeQuery().use(::textPairs) }
+        }
+
+    /** An exact-equality exclusion of [names] (no pattern matching); the names are code constants, never input. */
+    private fun notIn(
+        column: String,
+        names: List<String>,
+    ) = if (names.isEmpty()) "" else " and $column not in (${names.joinToString(",") { "'$it'" }})"
+
+    /** The names of the tables the migrations created in schema tenancy. */
+    fun tableNames(): Set<String> =
+        asSuperuser { c ->
+            c
+                .prepareStatement("select table_name from information_schema.tables where table_schema = 'tenancy'")
+                .use { s ->
+                    s.executeQuery().use { rs ->
+                        generateSequence { if (rs.next()) rs.getString(1) else null }.toSet()
+                    }
+                }
+        }
+
+    /** The names of the columns of [table] in schema tenancy. */
+    fun columnNames(table: String): Set<String> =
+        asSuperuser { c ->
+            c
+                .prepareStatement(
+                    "select column_name from information_schema.columns " +
+                        "where table_schema = 'tenancy' and table_name = ?",
+                ).use { s ->
+                    s.setString(1, table)
+                    s.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toSet() }
+                }
         }
 
     private fun textPairs(rs: java.sql.ResultSet): List<Pair<String, String>> =

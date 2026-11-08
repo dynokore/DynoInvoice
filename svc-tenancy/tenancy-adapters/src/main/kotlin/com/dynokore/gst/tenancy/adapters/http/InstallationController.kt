@@ -1,11 +1,30 @@
 package com.dynokore.gst.tenancy.adapters.http
 
+import com.dynokore.gst.tenancy.application.election.CallerSource
+import com.dynokore.gst.tenancy.application.installation.ElectionOutcome
+import com.dynokore.gst.tenancy.application.installation.InstallOutcome
+import com.dynokore.gst.tenancy.application.installation.InstallationAuthority
+import com.dynokore.gst.tenancy.application.installation.InstallationHealth
 import com.dynokore.gst.tenancy.application.installation.InstallationOutcome
+import com.dynokore.gst.tenancy.application.installation.InstallationPermissions
+import com.dynokore.gst.tenancy.application.installation.InstallationStatus
 import com.dynokore.gst.tenancy.application.installation.InstallationStep
+import com.dynokore.gst.tenancy.application.installation.InstalledLicence
+import com.dynokore.gst.tenancy.application.installation.Licences
+import com.dynokore.gst.tenancy.application.installation.Platform
+import com.dynokore.gst.tenancy.application.installation.PlatformElection
 import com.dynokore.gst.tenancy.application.installation.RecordInstallationAction
 import com.dynokore.gst.tenancy.contract.api.InstallationApi
+import com.dynokore.gst.tenancy.contract.model.ElectPlatformRequest
+import com.dynokore.gst.tenancy.contract.model.InstallLicenceRequest
 import com.dynokore.gst.tenancy.contract.model.InstallationActionAck
+import com.dynokore.gst.tenancy.contract.model.InstallationFactsRequest
+import com.dynokore.gst.tenancy.contract.model.InstallationFactsResponse
+import com.dynokore.gst.tenancy.contract.model.LicenceResponse
+import com.dynokore.gst.tenancy.contract.model.PlatformElectionResponse
 import com.dynokore.gst.tenancy.contract.model.RecordInstallationActionRequest
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.context.request.RequestContextHolder
@@ -24,10 +43,16 @@ import java.util.UUID
  * validated by the contract; the permanent key is (run id, step), so its value does not decide the outcome.
  */
 @RestController
+@Suppress("TooManyFunctions", "LongParameterList") // one function per contract operation; one port per use case
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin)
 open class InstallationController(
     private val record: RecordInstallationAction,
+    private val status: InstallationStatus,
+    private val health: InstallationHealth,
+    private val licences: Licences,
     private val mapper: ObjectMapper,
+    private val caller: CallerSource,
+    private val authority: InstallationAuthority,
 ) : InstallationApi {
     override fun recordInstallationAction(
         idempotencyKey: UUID,
@@ -44,6 +69,62 @@ open class InstallationController(
             ),
         )
     }
+
+    /** electPlatform (INV-REQ-1313): the SaaS form and SUPPLIED_APPLIANCE are refused with POL-011, nothing stored. */
+    override fun electPlatform(
+        idempotencyKey: UUID,
+        electPlatformRequest: ElectPlatformRequest,
+    ): ResponseEntity<PlatformElectionResponse> {
+        val allowed =
+            try {
+                authority.holds(caller.actor(), InstallationPermissions.SET_PLATFORM)
+            } catch (_: RuntimeException) {
+                false
+            }
+        if (!allowed) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        val requested = Platform.valueOf(electPlatformRequest.platform.value)
+        return when (val outcome = status.elect(requested)) {
+            is ElectionOutcome.Elected -> ResponseEntity.status(HttpStatus.CREATED).body(response(outcome.election))
+            is ElectionOutcome.Refused -> optionRefused(outcome.reason)
+        }
+    }
+
+    /** getPlatformElection: 404 before any election; there is no default. */
+    override fun getPlatformElection(): ResponseEntity<PlatformElectionResponse> =
+        ResponseEntity.ok(response(status.election() ?: notFound()))
+
+    /** recordInstallationFacts (INV-REQ-1095): stores the facts; DEP-004 iff the train is outside the window. */
+    override fun recordInstallationFacts(
+        idempotencyKey: UUID,
+        installationFactsRequest: InstallationFactsRequest,
+    ): ResponseEntity<InstallationFactsResponse> {
+        val request = installationFactsRequest
+        val stored = health.record(request.trainVersion, request.supportedTrainVersions)
+        return ResponseEntity.ok(InstallationFactsResponse(stored.trainVersion, stored.supportedTrainVersions))
+    }
+
+    /** installLicence (INV-REQ-1076): a refused file is 400 and nothing is recorded. */
+    override fun installLicence(
+        idempotencyKey: UUID,
+        installLicenceRequest: InstallLicenceRequest,
+    ): ResponseEntity<LicenceResponse> =
+        when (val outcome = licences.install(installLicenceRequest.licenceId, installLicenceRequest.signedFile)) {
+            is InstallOutcome.Installed -> ResponseEntity.status(HttpStatus.CREATED).body(licenceOf(outcome.licence))
+            is InstallOutcome.Refused -> invalid(outcome.reason)
+        }
+
+    /** getLicenceStatus: the latest installed licence, 404 when none. */
+    override fun getLicenceStatus(): ResponseEntity<LicenceResponse> =
+        ResponseEntity.ok(licenceOf(licences.latest() ?: notFound()))
+
+    private fun licenceOf(licence: InstalledLicence) =
+        LicenceResponse(licence.licenceId, LicenceResponse.Status.forValue(licence.status.name), licence.expiresAt)
+
+    private fun response(election: PlatformElection) =
+        PlatformElectionResponse(
+            PlatformElectionResponse.Platform.forValue(election.platform.name),
+            election.electedAt.atOffset(ZoneOffset.UTC),
+        )
 
     private fun step(request: RecordInstallationActionRequest) =
         InstallationStep(

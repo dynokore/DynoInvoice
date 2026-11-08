@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.syncedge
 
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
@@ -67,7 +68,9 @@ class TestIdentity(
         EndUserPrincipalResolver { authorization ->
             Doubles.resolverCalls.incrementAndGet()
             if (authorization == "Bearer $USER_TOKEN") {
-                EndUserPrincipal(ACTOR, TenantId.of(TENANT_A), emptySet())
+                // the entity scope covers the sample entityRef ("a", the shortest sample string): the entity-reference
+                // filter admits a request only for an entity in the scope of the user (INV-T-8521)
+                EndUserPrincipal(ACTOR, TenantId.of(TENANT_A), setOf(EntityRef("a")))
             } else {
                 null
             }

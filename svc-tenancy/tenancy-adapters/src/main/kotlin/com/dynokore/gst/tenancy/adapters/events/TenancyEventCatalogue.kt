@@ -21,6 +21,12 @@ object TenancyEventCatalogue {
     const val SHORT_CODE_USED_TOPIC = "gst.aggregation.short-code-used.v1"
     const val PERIOD_FILING_STATUS_TYPE = "com.dynokore.gst.submission.PeriodFilingStatusChanged.v1"
     const val PERIOD_FILING_STATUS_TOPIC = "gst.submission.period-filing-status-changed.v1"
+    const val SUBMISSION_ACKNOWLEDGED_TYPE = "com.dynokore.gst.submission.SubmissionAcknowledged.v1"
+    const val SUBMISSION_ACKNOWLEDGED_TOPIC = "gst.submission.submission-acknowledged.v1"
+    const val ARCHIVE_VOLUME_TYPE = "com.dynokore.gst.evidence.ArchiveVolumeMeasured.v1"
+    const val ARCHIVE_VOLUME_TOPIC = "gst.evidence.archive-volume-measured.v1"
+    const val TENANT_WIDE_ARCHIVE_VOLUME_TYPE = "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
+    const val TENANT_WIDE_ARCHIVE_VOLUME_TOPIC = "gst.platform.tenant-wide-archive-volume-measured.v1"
     const val ASYNCAPI_RESOURCE = "gst/contracts/tenancy/asyncapi.yaml"
 
     /**
@@ -53,7 +59,8 @@ object TenancyEventCatalogue {
         val consumedDomain = consumedDomainEvents()
         val known =
             ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
-                ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED
+                ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED +
+                SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
@@ -97,6 +104,13 @@ object TenancyEventCatalogue {
                 setOf(SERVICE),
                 contentTopic = false,
             ),
+            CatalogueEntry(
+                SUBMISSION_ACKNOWLEDGED_TYPE,
+                SUBMISSION_ACKNOWLEDGED_TOPIC,
+                setOf("submission-svc"),
+                contentTopic = false,
+            ),
+            CatalogueEntry(ARCHIVE_VOLUME_TYPE, ARCHIVE_VOLUME_TOPIC, setOf("evidence-svc"), contentTopic = false),
         )
 
     /**

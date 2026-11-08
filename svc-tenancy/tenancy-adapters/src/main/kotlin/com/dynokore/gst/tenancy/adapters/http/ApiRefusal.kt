@@ -34,6 +34,11 @@ class ConstraintRefusal(
     val detail: String,
 ) : RuntimeException("POL-014: $detail")
 
+/** An option the setting does not offer: 422 POL-011 (INV-Q-5172), with the reason the caller may be told. */
+class OptionRefusal(
+    val detail: String,
+) : RuntimeException("POL-011: $detail")
+
 /** ARC-19, CS-14: the one place a refusal becomes the API-20 envelope. */
 @RestControllerAdvice
 class ApiRefusalAdvice {
@@ -55,6 +60,20 @@ class ApiRefusalAdvice {
         val base =
             Problems.policy(
                 PolicyErrorCode.CONSTRAINT_REFUSED,
+                CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
+            )
+        val envelope = (mapper.readTree(base.body) as ObjectNode).put("detail", refusal.detail)
+        return ResponseEntity
+            .status(base.status)
+            .header(HttpHeaders.CONTENT_TYPE, Problems.CONTENT_TYPE)
+            .body(mapper.writeValueAsString(envelope))
+    }
+
+    @ExceptionHandler(OptionRefusal::class)
+    fun refuse(refusal: OptionRefusal): ResponseEntity<String> {
+        val base =
+            Problems.policy(
+                PolicyErrorCode.UNKNOWN_OPTION,
                 CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
             )
         val envelope = (mapper.readTree(base.body) as ObjectNode).put("detail", refusal.detail)
@@ -106,6 +125,8 @@ internal fun shortCodeConflict(reason: CodeRefusal): Nothing =
     }
 
 /** 422 POL-014 for an election the checks of the owning service refuse (the contract's x-error-codes). */
+internal fun optionRefused(reason: String): Nothing = throw OptionRefusal(reason)
+
 internal fun constraintRefused(reason: String): Nothing = throw ConstraintRefusal(reason)
 
 /** 403 SRT-004 for a caller, confirmer or approver who lacks the role, is the caller or cannot be proven. */

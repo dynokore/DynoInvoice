@@ -35,6 +35,8 @@ dependencies {
     runtimeOnly(libs.postgresql)
 
     testImplementation(libs.gstCatalogue)
+    testImplementation(libs.bouncycastle.bcprov)
+    testImplementation(libs.bouncycastle.bcpkix)
     testImplementation(libs.springBoot.starterTest)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.flyway.core)

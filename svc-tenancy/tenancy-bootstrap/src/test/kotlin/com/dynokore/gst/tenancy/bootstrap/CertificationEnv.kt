@@ -15,7 +15,7 @@ import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
+import org.springframework.context.ConfigurableApplicationContext
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
@@ -69,7 +69,7 @@ internal class CertificationEnv(
     val env: ProfileEnv,
     private val log: TopicLog,
 ) {
-    private val context: AssertableWebApplicationContext = env.context
+    private val context: ConfigurableApplicationContext = env.context
     private val json = EnvelopeJson()
     private val mapper = JsonMapper.builder().build()
     val people: TestPeople = context.getBean(TestPeople::class.java)

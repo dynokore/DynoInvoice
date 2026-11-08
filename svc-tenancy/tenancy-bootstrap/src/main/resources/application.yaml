@@ -50,6 +50,7 @@ inv:
     platform-scoped-tables:
       - tenancy.installation_fact
       - tenancy.installation_action
+      - tenancy.installed_licence
       - tenancy.write_installation_setting
       - tenancy.config_purge_tenant
       # definer function of INV-Q-11717 (tenant listing for replay); it holds no tenant data

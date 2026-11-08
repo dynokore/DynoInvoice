@@ -5,9 +5,13 @@ import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.catalogue.RoleAllowance
 import com.dynokore.gst.catalogue.RolePermissions
 import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
+import com.dynokore.gst.tenancy.adapters.installation.ReplicaInstallationAuthority
+import com.dynokore.gst.tenancy.adapters.workspace.ReplicaTenantAuthority
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
+import com.dynokore.gst.tenancy.application.installation.InstallationAuthority
+import com.dynokore.gst.tenancy.application.workspace.TenantAuthority
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
@@ -38,6 +42,7 @@ import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import org.springframework.beans.factory.config.BeanPostProcessor
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -93,6 +98,8 @@ class TestPeople :
     private val granted = ConcurrentHashMap<Pair<String, String>, Set<String>>()
     private val clock = Clock.systemUTC()
     internal val replica = AuthorityReplica(clock, TestOperationRoles.map).also { it.onSnapshotComplete(0) }
+    internal val installationReplica =
+        AuthorityReplica(clock, TestOperationRoles.privateMap).also { it.onSnapshotComplete(0) }
     private val version = AtomicLong()
     private val approvals =
         ReplicaActionAuthority(
@@ -123,13 +130,8 @@ class TestPeople :
         site: GrantSite = GrantSite(),
     ): String {
         val grantRef = "GR-${UUID.randomUUID()}"
-        feed(
-            person,
-            grantRef,
-            RoleGrantState.ACTIVE,
-            RoleGrant(role, site.scope, entityRef, clock.instant().minusSeconds(60), validUntil),
-            site.tenant,
-        )
+        val grant = RoleGrant(role, site.scope, entityRef, clock.instant().minusSeconds(60), validUntil)
+        feed(replica, site.tenant, person, AuthorityRecord.RoleGrantRecord(grantRef, RoleGrantState.ACTIVE, grant))
         return grantRef
     }
 
@@ -155,30 +157,37 @@ class TestPeople :
         role: String,
         grantRef: String,
     ) {
-        feed(
-            person,
-            grantRef,
-            RoleGrantState.REMOVED,
-            RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60)),
-        )
+        val grant = RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60))
+        feed(replica, TENANT, person, AuthorityRecord.RoleGrantRecord(grantRef, RoleGrantState.REMOVED, grant))
     }
 
     private fun feed(
+        target: AuthorityReplica,
+        tenant: TenantId,
         person: String,
-        grantRef: String,
-        state: RoleGrantState,
-        grant: RoleGrant,
-        tenant: TenantId = TENANT,
+        record: AuthorityRecord.RoleGrantRecord,
     ) {
-        replica.accept(
-            AuthorityChanged(
-                tenant,
-                person,
-                version.incrementAndGet(),
-                AuthorityRecord.RoleGrantRecord(grantRef, state, grant),
-            ),
-        )
-        replica.observeHead(version.get())
+        target.accept(AuthorityChanged(tenant, person, version.incrementAndGet(), record))
+        target.observeHead(version.get())
+    }
+
+    /** A role grant of [role] at TENANT scope of [tenant], decided through `decideTenant` (INV-Q-10027). */
+    fun grantTenantRole(
+        tenant: TenantId,
+        person: String,
+        role: String,
+    ) {
+        grantRole(person, tenant.value.toString(), role, site = GrantSite(tenant, GrantScope.TENANT))
+    }
+
+    /** A role grant of [role] at scope INSTALLATION under [TenantId.PLATFORM], fed to the installation replica. */
+    fun grantInstallationRole(
+        person: String,
+        role: String,
+    ) {
+        val grant = RoleGrant(role, GrantScope.INSTALLATION, null, clock.instant().minusSeconds(60))
+        val record = AuthorityRecord.RoleGrantRecord("GR-${UUID.randomUUID()}", RoleGrantState.ACTIVE, grant)
+        feed(installationReplica, TenantId.PLATFORM, person, record)
     }
 
     /** Every permission key the service asked about, in order: the keys are compared with the catalogue by equality. */
@@ -297,9 +306,25 @@ class BoundaryTestConfiguration {
     @Primary
     fun testPeople(): TestPeople = TestPeople()
 
+    /** The double of the entity facts; `inv.test.stored-facts=true` keeps the stored binding (INV-AC-9769). */
     @Bean
     @Primary
+    @ConditionalOnProperty("inv.test.stored-facts", havingValue = "false", matchIfMissing = true)
     fun testFacts(): TestFacts = TestFacts()
+
+    /** The production binding over the replica of [TestPeople]: no grant, no access (INV-Q-10027). */
+    @Bean
+    @Primary
+    fun testTenantAuthority(
+        people: TestPeople,
+        tenants: TenantContext,
+    ): TenantAuthority = ReplicaTenantAuthority(people.replica, tenants)
+
+    /** The production binding over the installation replica of [TestPeople] (PRIVATE matrix): no grant, no access. */
+    @Bean
+    @Primary
+    fun testInstallationAuthority(people: TestPeople): InstallationAuthority =
+        ReplicaInstallationAuthority(people.installationReplica)
 
     @Bean
     fun capturedEvents(): CapturedEvents = CapturedEvents()
@@ -341,6 +366,15 @@ object TestOperationRoles {
         OperationRoleMap { key ->
             OperationRoles.rolesFor(form, key).mapValues { CellAllowance.valueOf(it.value.name) }
         }
+
+    /** The matrix of the PRIVATE form, where the installation-scope keys (`vp-52.set`) have a holder. */
+    val privateMap: OperationRoleMap =
+        OperationRoleMap { key ->
+            OperationRoles.rolesFor(DeploymentForm.PRIVATE, key).mapValues { CellAllowance.valueOf(it.value.name) }
+        }
+
+    /** The roles the PRIVATE matrix lists for [key], as a set. */
+    fun privateHolders(key: String): Set<String> = privateMap.rolesFor(key).keys
 
     /** The roles the catalogue lists for [key], as a set. */
     fun holders(key: String): Set<String> = map.rolesFor(key).keys

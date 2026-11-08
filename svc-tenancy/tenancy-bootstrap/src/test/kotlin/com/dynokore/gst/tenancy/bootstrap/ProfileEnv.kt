@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.http.EntitiesController
 import com.dynokore.gst.tenancy.adapters.http.TenantsController
+import com.dynokore.gst.tenancy.application.questionnaire.QuestionnairePermissions
 import com.dynokore.gst.tenancy.application.status.EntityLifecycleGuard
 import com.dynokore.gst.tenancy.application.status.EntityStatusQueries
 import com.dynokore.gst.tenancy.application.status.PhaseAssessmentStore
@@ -38,7 +39,7 @@ import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
+import org.springframework.context.ConfigurableApplicationContext
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.Duration
@@ -63,9 +64,9 @@ internal fun gstReturn(
 
 /** The application context of the service over PostgreSQL, with the helpers the profile tests share. */
 internal class ProfileEnv(
-    context: AssertableWebApplicationContext,
+    context: ConfigurableApplicationContext,
 ) {
-    val context: AssertableWebApplicationContext = context
+    val context: ConfigurableApplicationContext = context
     val tenantsApi: TenantsController = context.getBean(TenantsController::class.java)
     val api: EntitiesController = context.getBean(EntitiesController::class.java)
     val queries: EntityStatusQueries = context.getBean(EntityStatusQueries::class.java)
@@ -76,6 +77,25 @@ internal class ProfileEnv(
     val reader: PolicyReader = context.getBean(PolicyReader::class.java)
     val assessments: PhaseAssessmentStore = context.getBean(PhaseAssessmentStore::class.java)
     private val tx: TransactionRunner = context.getBean(TransactionRunner::class.java)
+
+    /** The current caller of [TestPeople] holds [role] at TENANT scope of [tenant] (INV-Q-10027). */
+    fun allowRole(
+        tenant: TenantId,
+        role: String,
+    ) {
+        val people = context.getBean(TestPeople::class.java)
+        people.grantTenantRole(tenant, people.actor(), role)
+    }
+
+    /** The current caller holds the role the catalogue gives `questionnaire.answer`, at TENANT scope of [tenant]. */
+    fun allowQuestionnaire(tenant: TenantId) =
+        allowRole(tenant, TestOperationRoles.holders(QuestionnairePermissions.ANSWER).single())
+
+    /** The current caller holds [role] at scope INSTALLATION under the platform tenant. */
+    fun allowInstallationRole(role: String) {
+        val people = context.getBean(TestPeople::class.java)
+        people.grantInstallationRole(people.actor(), role)
+    }
 
     fun <T> inTenant(
         tenant: TenantId,

@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.bootstrap
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureChangedOutbox
 import com.dynokore.gst.tenancy.adapters.events.TenantNodePublisher
 import com.dynokore.gst.tenancy.adapters.persistence.InstallationFactRow
+import com.dynokore.gst.tenancy.adapters.persistence.JooqAppliedProfileStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqEntityStatusStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqInstallationFactRepository
 import com.dynokore.gst.tenancy.adapters.persistence.JooqStructureStore
@@ -10,6 +11,8 @@ import com.dynokore.gst.tenancy.adapters.persistence.JooqTenantStore
 import com.dynokore.gst.tenancy.adapters.persistence.PlatformScope
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.INSTALLATION_FACT
 import com.dynokore.gst.tenancy.application.installation.InstallationFactRepository
+import com.dynokore.gst.tenancy.application.profile.AppliedOperatingProfiles
+import com.dynokore.gst.tenancy.application.profile.AppliedProfileStore
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
@@ -102,4 +105,17 @@ class UseCases {
         dsl: DSLContext,
         tenants: TenantContext,
     ): EntityStatusStore = JooqEntityStatusStore(dsl, tenants)
+
+    @Bean
+    fun appliedProfileStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): AppliedProfileStore = JooqAppliedProfileStore(dsl, tenants)
+
+    @Bean
+    fun appliedOperatingProfiles(
+        tx: TransactionRunner,
+        store: StructureStore,
+        profiles: AppliedProfileStore,
+    ): AppliedOperatingProfiles = AppliedOperatingProfiles(tx, store, profiles)
 }

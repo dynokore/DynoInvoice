@@ -194,6 +194,30 @@ class AcceptanceCriteriaTest {
     }
 
     @Test
+    fun `INV-AC-2041 the exempt table names are tables that the migrations create`() {
+        assertThat(BoundaryFixture.scopeExemptTables).isNotEmpty()
+        assertThat(BoundaryFixture.tableNames()).containsAll(BoundaryFixture.scopeExemptTables)
+    }
+
+    @Test
+    fun `INV-AC-2041 each exempt table has no entity or group column and is keyed by exactly tenant_id`() {
+        val keys = BoundaryFixture.keyColumns(emptyList())
+        BoundaryFixture.scopeExemptTables.forEach { table ->
+            assertThat(BoundaryFixture.columnNames(table)).doesNotContain("entity_id", "group_id")
+            assertThat(keys.filter { it.first == table }.map { it.second }).contains("tenant_id")
+        }
+    }
+
+    @Test
+    fun `INV-AC-2041 the key rule holds over the other tables with the exempt names removed from the query`() {
+        val exempt = BoundaryFixture.scopeExemptTables.toSet()
+        val keys = BoundaryFixture.keyColumns(emptyList()).filter { it.first !in exempt }
+        assertThat(keys.filter { it.second == "tenant_id" || it.second == "group_id" })
+            .containsExactly("tenant" to "tenant_id")
+        assertThat(BoundaryFixture.nullableScopeColumns(emptyList()).filter { it.first !in exempt }).isEmpty()
+    }
+
+    @Test
     fun `INV-AC-1900 a query without the tenant predicate returns no other tenant's rows`() {
         run { _, env ->
             val (one, _) = env.structure()
@@ -230,6 +254,7 @@ class AcceptanceCriteriaTest {
                     "inv.tenancy.platform-scoped-tables[2]",
                     "inv.tenancy.platform-scoped-tables[3]",
                     "inv.tenancy.platform-scoped-tables[4]",
+                    "inv.tenancy.platform-scoped-tables[5]",
                 )
             val names =
                 env.context.environment.propertySources

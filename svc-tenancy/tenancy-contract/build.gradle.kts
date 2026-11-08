@@ -116,6 +116,7 @@ val stageContractResources =
                 "error-envelope.schema.json",
                 "cloud-event-envelope.schema.json",
                 "policy-changed-payload.schema.json",
+                "installation-status-changed-payload.schema.json",
             )
             into("gst/contracts/service-runtime/schemas")
         }

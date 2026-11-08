@@ -49,7 +49,7 @@ internal class ElectionEnv(
     val env: ProfileEnv,
 ) {
     val people: TestPeople = env.context.getBean(TestPeople::class.java)
-    val facts: TestFacts = env.context.getBean(TestFacts::class.java)
+    val facts: TestFacts by lazy { env.context.getBean(TestFacts::class.java) }
     val commands: ElectionCommands = env.context.getBean(ElectionCommands::class.java)
     val queries: ElectionStatusQueries = env.context.getBean(ElectionStatusQueries::class.java)
     val gate: ElectionGate = env.context.getBean(ElectionGate::class.java)
