@@ -21,16 +21,9 @@ jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876, 3030c14b adds the INV-T-8269 marker rule and the recordEntitlement operation); bumped deliberately, like platform-libs' product-runtime does.
 platformContractsBundle = "0.0.0-dev+6ea58301"
-<<<<<<< HEAD
-# Explicit override of the catalogue platform-libs builds against (2.11.0 at line 82 of its gradle/libs.versions.toml):
-# the floor of RolePermissionsPinTest is 2.31.0 and no BOM release carries a catalogue at or above it (INV-T-12278).
-# INV-T-18702: 2.44.0 carries the permission key sandbox-certification.record (added in 2.37.0), proved by SandboxCertificationRolesTest.
-gstCatalogue = "2.44.0"
-=======
 bouncycastle = "1.86"
 # Explicit override of the catalogue platform-libs builds against (INV-T-12278); 2.45.0 is above the RolePermissionsPinTest floor of 2.31.0.
 gstCatalogue = "2.45.0"
->>>>>>> a1d5d601 (INV-T-4933 entitlement, metering, licence status, version window, operating profiles and installation health (squashed for rebase onto 449d0468))
 
 [libraries]
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
