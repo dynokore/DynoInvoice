@@ -49,7 +49,7 @@ interface CredentialStateStore {
 }
 
 sealed interface RotateCredentialOutcome {
-    /** [repeat] is true when (connectionRef, credentialRef) was rotated before; [rotation] is then the original. */
+    /** [repeat] is true when (connectionRef, credentialRef) was rotated before; [rotation] is then the original outcome. */
     data class Rotated(
         val rotation: com.dynokore.gst.masterdata.application.connection.Rotated,
         val repeat: Boolean,
@@ -88,24 +88,15 @@ class RotateCredential(
             if (!permission.allows(caller)) return@inTransaction RotateCredentialOutcome.Forbidden
             val overlap = settings.overlap ?: return@inTransaction RotateCredentialOutcome.OverlapNotConfigured
             val record = store.find(connectionRef) ?: return@inTransaction RotateCredentialOutcome.Unknown
-            val state =
-                states.find(connectionRef) ?: CredentialState(connectionRef, record.credentialRef, null, null, null)
+            val state = states.find(connectionRef) ?: CredentialState(connectionRef, record.credentialRef, null, null, null)
             state.done[credentialRef]?.let { return@inTransaction RotateCredentialOutcome.Rotated(it, repeat = true) }
             if (credentialRef == state.currentRef) return@inTransaction RotateCredentialOutcome.SameAsCurrent
-            val value =
-                secrets.read(credentialRef) ?: return@inTransaction RotateCredentialOutcome.ReplacementUnavailable
+            val value = secrets.read(credentialRef) ?: return@inTransaction RotateCredentialOutcome.ReplacementUnavailable
             value.fill('\u0000')
             val now = clock.instant()
             val rotated = Rotated(connectionRef, credentialRef, state.currentRef, now.plus(overlap), now)
             states.save(
-                CredentialState(
-                    connectionRef,
-                    credentialRef,
-                    state.currentRef,
-                    rotated.overlapEnd,
-                    now,
-                    state.done + (credentialRef to rotated),
-                ),
+                CredentialState(connectionRef, credentialRef, state.currentRef, rotated.overlapEnd, now, state.done + (credentialRef to rotated)),
             )
             RotateCredentialOutcome.Rotated(rotated, repeat = false)
         }
@@ -217,16 +208,8 @@ class CheckCredentialExpiry(
             for (e in expiries.all()) {
                 for (d in days) {
                     val due = !now.isBefore(e.credentialExpiresAt.minus(d.toLong(), ChronoUnit.DAYS))
-                    if (due && now.isBefore(e.credentialExpiresAt) &&
-                        !log.wasReminded(e.connectionRef, e.credentialRef, d)
-                    ) {
-                        val event =
-                            ConnectionCredentialExpiryReminderRequested(
-                                e.connectionRef,
-                                e.credentialRef,
-                                d,
-                                e.credentialExpiresAt,
-                            )
+                    if (due && now.isBefore(e.credentialExpiresAt) && !log.wasReminded(e.connectionRef, e.credentialRef, d)) {
+                        val event = ConnectionCredentialExpiryReminderRequested(e.connectionRef, e.credentialRef, d, e.credentialExpiresAt)
                         publisher.publish(event)
                         log.markReminded(e.connectionRef, e.credentialRef, d)
                         requested += event

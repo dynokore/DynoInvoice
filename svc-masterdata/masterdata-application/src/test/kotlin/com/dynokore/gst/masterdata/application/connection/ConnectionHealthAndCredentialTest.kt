@@ -126,16 +126,7 @@ class ConnectionHealthAndCredentialTest {
     private val caller = PersonRef("U-1")
     private val records =
         HealthRecords().also {
-            it.save(
-                ConnectionRecord(
-                    "CON-1",
-                    "DIRECTORY",
-                    "https://d.example",
-                    "cred-old",
-                    EnvironmentTag.SANDBOX,
-                    "masterdata-svc",
-                ),
-            )
+            it.save(ConnectionRecord("CON-1", "DIRECTORY", "https://d.example", "cred-old", EnvironmentTag.SANDBOX, "masterdata-svc"))
         }
     private val settings = HealthSettings(Duration.ofMinutes(5), failureThreshold = 3, openFor = Duration.ofSeconds(30))
     private val calls = Calls()
@@ -221,8 +212,7 @@ class ConnectionHealthAndCredentialTest {
 
     @Test
     fun `INV-AC-18782 a caller without connection view permission learns nothing`() {
-        val denied =
-            GetConnectionHealth(HealthTx, records, calls, memory, { published += it }, { false }, settings, clock)
+        val denied = GetConnectionHealth(HealthTx, records, calls, memory, { published += it }, { false }, settings, clock)
         assertEquals(GetConnectionHealthOutcome.Forbidden, denied.handle(caller, "CON-1"))
         assertEquals(GetConnectionHealthOutcome.Unknown, health.handle(caller, "CON-9"))
     }
@@ -260,15 +250,9 @@ class ConnectionHealthAndCredentialTest {
 
     @Test
     fun `INV-AC-18782 a repeat of the same rotation returns the original outcome and starts no second window`() {
-        val first =
-            rotation(
-                Duration.ofMinutes(10),
-            ).handle(caller, "CON-1", "cred-new") as RotateCredentialOutcome.Rotated
+        val first = rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new") as RotateCredentialOutcome.Rotated
         clock.now = t0.plusSeconds(120)
-        val again =
-            rotation(
-                Duration.ofMinutes(10),
-            ).handle(caller, "CON-1", "cred-new") as RotateCredentialOutcome.Rotated
+        val again = rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new") as RotateCredentialOutcome.Rotated
         assertTrue(again.repeat)
         assertEquals(first.rotation, again.rotation)
         assertEquals(t0.plus(Duration.ofMinutes(10)), states.find("CON-1")!!.overlapEnd)
@@ -280,28 +264,10 @@ class ConnectionHealthAndCredentialTest {
         assertEquals(RotateCredentialOutcome.OverlapNotConfigured, rotation(null).handle(caller, "CON-1", "cred-new"))
         assertNull(states.find("CON-1"))
         assertEquals(0, secrets.reads)
-        assertEquals(
-            RotateCredentialOutcome.ReplacementUnavailable,
-            rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "missing"),
-        )
-        assertEquals(
-            RotateCredentialOutcome.SameAsCurrent,
-            rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "cred-old"),
-        )
-        assertEquals(
-            RotateCredentialOutcome.Unknown,
-            rotation(Duration.ofMinutes(1)).handle(caller, "CON-9", "cred-new"),
-        )
-        val denied =
-            RotateCredential(
-                HealthTx,
-                records,
-                states,
-                secrets,
-                { false },
-                RotationSettings(Duration.ofMinutes(1)),
-                clock,
-            )
+        assertEquals(RotateCredentialOutcome.ReplacementUnavailable, rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "missing"))
+        assertEquals(RotateCredentialOutcome.SameAsCurrent, rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "cred-old"))
+        assertEquals(RotateCredentialOutcome.Unknown, rotation(Duration.ofMinutes(1)).handle(caller, "CON-9", "cred-new"))
+        val denied = RotateCredential(HealthTx, records, states, secrets, { false }, RotationSettings(Duration.ofMinutes(1)), clock)
         assertEquals(RotateCredentialOutcome.Forbidden, denied.handle(caller, "CON-1", "cred-new"))
         assertNull(states.find("CON-1"))
     }

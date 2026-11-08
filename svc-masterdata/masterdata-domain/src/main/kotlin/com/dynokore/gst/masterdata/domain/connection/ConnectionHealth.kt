@@ -3,7 +3,7 @@ package com.dynokore.gst.masterdata.domain.connection
 import java.time.Duration
 import java.time.Instant
 
-/** The adapter circuit-breaker state; equal to the `breakerState` enum of `ConnectionHealth` in openapi.yaml. */
+/** The adapter circuit-breaker state; equal to the `breakerState` enum of `ConnectionHealth` in masterdata/openapi.yaml. */
 enum class BreakerState {
     CLOSED,
     HALF_OPEN,
@@ -24,7 +24,7 @@ enum class ConnectionState {
     ;
 
     companion object {
-        /** closed = UP, half-open = DEGRADED, open = DOWN; an exhaustive `when`, so a new value cannot compile unmapped. */
+        /** closed = UP, half-open = DEGRADED, open = DOWN; an exhaustive `when`, so a new breaker value cannot compile unmapped. */
         fun of(breaker: BreakerState): ConnectionState =
             when (breaker) {
                 BreakerState.CLOSED -> UP
@@ -54,9 +54,7 @@ data class CallFailure(
 ) {
     init {
         require(classification != TestClass.SUCCESS) { "a failure is not classified SUCCESS" }
-        require(
-            detail == null || ConnectionTestResult.DETAIL.matches(detail),
-        ) { "the detail is a code, not raw error text" }
+        require(detail == null || ConnectionTestResult.DETAIL.matches(detail)) { "the detail is a code, not raw error text" }
     }
 }
 
