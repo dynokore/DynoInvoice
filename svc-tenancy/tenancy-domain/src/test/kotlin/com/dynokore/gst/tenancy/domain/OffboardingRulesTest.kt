@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/** INV-AC-1905: the manifest part of the record state, and the holder rule of INV-AC-2056, on the pure rules. */
+/** Export manifest: the manifest part of the record state, and the holder rule of INV-AC-2056, on the pure rules. */
 class OffboardingRulesTest {
     private fun manifest(
         state: ExportState,
@@ -13,7 +13,7 @@ class OffboardingRulesTest {
     ) = ExportManifest("EXP-1", state, contents)
 
     @Test
-    fun `INV-AC-1905 READY with all six members is COMPLETED`() {
+    fun `export manifest: READY with all six members is COMPLETED`() {
         assertEquals(
             OffboardingState.COMPLETED,
             OffboardingRules.recordState(manifest(ExportState.READY, ExportContent.entries.toSet())),
@@ -21,13 +21,13 @@ class OffboardingRulesTest {
     }
 
     @Test
-    fun `INV-AC-1905 READY with five members is not COMPLETED`() {
+    fun `export manifest: READY with five members is not COMPLETED`() {
         val five = ExportContent.entries.drop(1).toSet()
         assertEquals(OffboardingState.REQUESTED, OffboardingRules.recordState(manifest(ExportState.READY, five)))
     }
 
     @Test
-    fun `INV-AC-1905 a FAILED manifest is FAILED even with six members`() {
+    fun `export manifest: a FAILED manifest is FAILED even with six members`() {
         assertEquals(
             OffboardingState.FAILED,
             OffboardingRules.recordState(manifest(ExportState.FAILED, ExportContent.entries.toSet())),
@@ -35,7 +35,7 @@ class OffboardingRulesTest {
     }
 
     @Test
-    fun `INV-AC-1905 a REQUESTED manifest with six members is not COMPLETED`() {
+    fun `export manifest: a REQUESTED manifest with six members is not COMPLETED`() {
         assertEquals(
             OffboardingState.REQUESTED,
             OffboardingRules.recordState(manifest(ExportState.REQUESTED, ExportContent.entries.toSet())),
