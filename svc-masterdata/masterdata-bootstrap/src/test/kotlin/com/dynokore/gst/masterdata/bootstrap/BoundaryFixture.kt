@@ -1,5 +1,6 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.permission.OperationPermissionKeys
 import com.dynokore.gst.masterdata.application.imports.ImportEvidence
 import com.dynokore.gst.masterdata.application.permission.MasterdataPermissions
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
@@ -59,7 +60,7 @@ fun interface TestRoleResolver {
     ): Set<String>
 }
 
-/** The permission keys of the test subjects: the two operators hold all four, any other person none. */
+/** The permission keys of the test subjects: the two operators hold all of them, any other person none. */
 object TestPermissions {
     private val all =
         setOf(
@@ -67,6 +68,10 @@ object TestPermissions {
             MasterdataPermissions.GAP_REPORT_EXPORT,
             MasterdataPermissions.COUNTERPARTY_IMPORT_RUN,
             MasterdataPermissions.MASTERDATA_EXCEPTION_RESOLVE,
+            OperationPermissionKeys.EXCHANGE_RATE_ENTER,
+            OperationPermissionKeys.CONNECTION_CONFIGURE,
+            OperationPermissionKeys.CONNECTION_VIEW,
+            OperationPermissionKeys.CONNECTION_TEST,
         )
 
     /** A second person holding the same keys, for the criteria that compare a starter with another principal. */

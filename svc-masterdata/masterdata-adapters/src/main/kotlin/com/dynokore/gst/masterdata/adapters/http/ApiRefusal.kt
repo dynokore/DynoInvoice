@@ -91,7 +91,6 @@ class ApiRefusalAdvice {
      * is the nearest existing code.
      */
     @ExceptionHandler(
-        HttpMessageNotReadableException::class,
         MethodArgumentTypeMismatchException::class,
         ServletRequestBindingException::class,
         HttpMediaTypeNotSupportedException::class,

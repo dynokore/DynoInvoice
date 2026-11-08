@@ -11,11 +11,12 @@ operation	getGapReport	INV-T-4944	done
 operation	sendCounterpartyRequest	INV-T-4945	open
 operation	submitCounterpartyDetails	INV-T-4945	open
 operation	importRates	INV-T-4947	open
-operation	enterRate	INV-T-4947	open
-operation	createConnection	INV-T-4947	open
-operation	getConnection	INV-T-4947	open
-operation	testConnection	INV-T-4947	open
+operation	enterRate	INV-T-18774	done
+operation	createConnection	INV-T-18774	done
+operation	getConnection	INV-T-18774	done
+operation	testConnection	INV-T-18774	done
 operation	rotateCredential	INV-T-4947	open
+operation	getConnectionHealth	INV-T-18776	open
 operation	resolveMasterDataGap	INV-T-4943	done
 operation	getRegisterAndRates	INV-T-4947	open
 operation	getImportRecord	INV-T-4944	done
@@ -29,6 +30,8 @@ operation	exportGapReport	INV-T-4944	done
 channel	masterdataMasterDataResolved	INV-T-4943	done
 channel	masterdataReferenceRateLoaded	INV-T-4947	open
 channel	masterdataSignedLinkRequested	INV-T-4945	open
+channel	accessSignedLinkIssued	INV-T-4945	open
+channel	accessSignedLinkInvalidated	INV-T-4945	open
 channel	masterdataIdentityTripleCorrected	INV-T-8017	done
 channel	masterdataIdentityTripleChanged	INV-T-17823	done
 channel	masterdataExampleHappened	PLACEHOLDER	open

@@ -29,6 +29,7 @@ dependencies {
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.configResolver.impl)
     implementation(libs.springBoot.starterWeb)
+    implementation(libs.springBoot.starterValidation)
     implementation(libs.springBoot.starterActuator)
     implementation(libs.springBoot.starterJdbc)
     runtimeOnly(libs.postgresql)

@@ -20,7 +20,9 @@ import com.dynokore.gst.masterdata.contract.model.CounterpartyDryRunResultDuplic
 import com.dynokore.gst.masterdata.contract.model.CounterpartyDryRunResultPreview
 import com.dynokore.gst.masterdata.contract.model.CounterpartyDryRunResultPreviewChangesInner
 import com.dynokore.gst.masterdata.contract.model.CounterpartyDryRunStatus
+import com.dynokore.gst.masterdata.contract.model.EnterRateRequest
 import com.dynokore.gst.masterdata.contract.model.ErrorEnvelope
+import com.dynokore.gst.masterdata.contract.model.ExchangeRate
 import com.dynokore.gst.masterdata.contract.model.ImportCounterpartiesRequest
 import com.dynokore.gst.masterdata.contract.model.ImportRecord
 import com.dynokore.gst.masterdata.contract.model.ImportResult
@@ -55,7 +57,13 @@ open class ImportController(
     private val permission: TenantPermission,
     private val tenants: TenantContext,
     private val mapper: ObjectMapper,
+    private val rates: ManualRateEntry,
 ) : ImportApi {
+    override fun enterRate(
+        idempotencyKey: UUID,
+        enterRateRequest: EnterRateRequest,
+    ): ResponseEntity<ExchangeRate> = rates.handle(enterRateRequest)
+
     override fun dryRunCounterpartyImport(
         idempotencyKey: UUID,
         counterpartyDryRunRequest: CounterpartyDryRunRequest,

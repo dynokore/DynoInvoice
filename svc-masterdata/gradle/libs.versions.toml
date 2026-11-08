@@ -7,8 +7,8 @@ platformBuild = "0.23.4"
 # The tested set of platform-libs modules (STK-60): platform-libs-bom.
 platformLibsBom = "0.173.0"
 # The published platform-contracts bundle this service stages its contract from (STK-46, API-01).
-platformContractsBundle = "0.0.0-dev+06013671"
-gstCatalogue = "2.44.0"
+platformContractsBundle = "0.0.0-dev+4c5a55aa"
+gstCatalogue = "2.55.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"

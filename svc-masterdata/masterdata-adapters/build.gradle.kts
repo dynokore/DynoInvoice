@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.springBoot.starterWeb)
+    implementation(libs.springBoot.starterValidation)
     implementation(libs.jooq)
     implementation(libs.jackson.moduleKotlin)
     implementation(libs.snakeyaml)
