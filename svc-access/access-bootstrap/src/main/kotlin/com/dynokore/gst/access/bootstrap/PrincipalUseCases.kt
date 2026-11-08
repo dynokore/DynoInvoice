@@ -4,6 +4,8 @@ import com.dynokore.gst.access.adapters.credential.NimbusCredentialMaterial
 import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
 import com.dynokore.gst.access.adapters.credential.VariationPointClientSecretPolicy
 import com.dynokore.gst.access.adapters.events.PrincipalRevocationOutbox
+import com.dynokore.gst.access.adapters.events.StoredAuthorityVersions
+import com.dynokore.gst.access.adapters.events.VersionStoringPrincipalRevocations
 import com.dynokore.gst.access.adapters.persistence.JooqCredentialRepository
 import com.dynokore.gst.access.adapters.persistence.JooqPrincipalRepository
 import com.dynokore.gst.access.adapters.persistence.JooqRevocationListWriter
@@ -53,7 +55,12 @@ class PrincipalUseCases {
         outbox: OutboxWriter,
         mapper: ObjectMapper,
         clock: Clock,
-    ): PrincipalRevocationPublisher = PrincipalRevocationOutbox(outbox, mapper, clock)
+        dsl: DSLContext,
+    ): PrincipalRevocationPublisher =
+        VersionStoringPrincipalRevocations(
+            PrincipalRevocationOutbox(outbox, mapper, clock),
+            StoredAuthorityVersions(dsl),
+        )
 
     /** The list entry is written in a transaction of its own, bound to the platform tenant (INV-Q-8785 A). */
     @Bean

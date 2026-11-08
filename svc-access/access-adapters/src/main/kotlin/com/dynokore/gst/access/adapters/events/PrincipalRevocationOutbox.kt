@@ -10,8 +10,6 @@ import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
 import java.time.Clock
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 /**
  * TPL-05: maps the revocation of a service principal to the contract event AuthorityChanged with changeKind
@@ -20,9 +18,11 @@ import java.time.format.DateTimeFormatter
  */
 class PrincipalRevocationOutbox(
     private val outbox: OutboxWriter,
-    private val mapper: ObjectMapper,
+    mapper: ObjectMapper,
     private val clock: Clock,
 ) : PrincipalRevocationPublisher {
+    private val payloads = AuthorityChangedPayloads(mapper)
+
     override fun publishRevoked(
         principal: ServicePrincipal,
         nextVersion: () -> Long,
@@ -45,17 +45,5 @@ class PrincipalRevocationOutbox(
     internal fun payload(
         principal: ServicePrincipal,
         authorityVersion: Long,
-    ): ObjectNode {
-        val root = mapper.createObjectNode()
-        root.put("changeKind", "REVOCATION")
-        root.put("principalRef", principal.ref)
-        root.put("authorityVersion", authorityVersion)
-        root.putObject("validity").put("from", ISO.format(clock.instant().atOffset(ZoneOffset.UTC)))
-        root.putObject("principalRecord").put("state", "REVOKED")
-        return root
-    }
-
-    private companion object {
-        val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
-    }
+    ): ObjectNode = payloads.principalRevoked(principal.ref, authorityVersion, clock.instant())
 }

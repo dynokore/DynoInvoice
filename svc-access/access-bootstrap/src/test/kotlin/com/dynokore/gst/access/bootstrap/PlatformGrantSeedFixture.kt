@@ -117,6 +117,22 @@ object PlatformGrantSeedFixture {
         }
     }
 
+    /** Like [apply], with the shipped migration file [file] replaced by [text] (a mutated copy for the gate probes). */
+    fun applyMutated(
+        db: String,
+        file: String,
+        text: String,
+    ) {
+        val dir = Files.createTempDirectory("mutated-migrations")
+        try {
+            Files.list(migrations).use { files -> files.forEach { Files.copy(it, dir.resolve(it.fileName)) } }
+            Files.writeString(dir.resolve(file), text)
+            flyway(db, dir, null).migrate()
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
     /** Runs the statements of [text] from the temporary table on, as access_migrate, in one transaction. */
     fun rerun(
         c: Connection,
@@ -238,7 +254,9 @@ object PlatformGrantSeedFixture {
             isolation.map { it.replace("{public}", "{access_runtime}") } +
                 listOf("identity", "role_grant").map {
                     "$it|platform_seed_insert|INSERT|{access_migrate}|null|(tenant_id = '$PLATFORM'::uuid)"
-                }
+                } +
+                // tenant list of the full sync of AuthorityChanged (INV-T-9061, ruled policy): one row, whole string
+                listOf("role_grant|role_grant_sys_replay_tenants|SELECT|{access_sys}|true|null")
         val found = mutableListOf<String>()
         if (policyRows(c).sorted() != ruled.sorted()) found += "policies ${policyRows(c)} differ from $ruled"
         val forced =
@@ -250,9 +268,11 @@ object PlatformGrantSeedFixture {
         // a definer function of a migration after the seed has its own test; exact names, one line each:
         // resolve_invitation_tenant: INV-T-8227, probed in AcceptFirstAdministratorInvitationTest
         // resolve_signed_link_tenant: INV-T-4940, probed in SignedLinkVerifyTest (unknown and look-alike refs)
+        // replay_authority_tenants: INV-T-9061, probed in ReplayAuthorityTenantsTest (INV-AC-9051 the gate cases)
         val definers =
             "select proname from pg_proc where pronamespace = 'access'::regnamespace and prosecdef " +
-                "and proname not in ('resolve_invitation_tenant', 'resolve_signed_link_tenant') order by 1"
+                "and proname not in ('resolve_invitation_tenant', 'resolve_signed_link_tenant', " +
+                "'replay_authority_tenants') order by 1"
         if (strings(c, definers) != connect(BASE).use { strings(it, definers) }) found += "a definer function was added"
         return found
     }

@@ -4,8 +4,6 @@ import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.consent.ConsentChangePublisher
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.RoleGrantChange
-import com.dynokore.gst.access.domain.consent.ConsentStatus
-import com.dynokore.gst.access.domain.consent.ScopeItem
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -13,7 +11,6 @@ import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
-import java.time.format.DateTimeFormatter
 
 /**
  * TPL-05: maps a role-grant change to the platform event AuthorityChanged (INV-API-3325, INV-Q-8972 A) and appends it
@@ -24,9 +21,11 @@ import java.time.format.DateTimeFormatter
  */
 class AuthorityChangedOutbox(
     private val outbox: OutboxWriter,
-    private val mapper: ObjectMapper,
+    mapper: ObjectMapper,
 ) : AuthorityChangePublisher,
     ConsentChangePublisher {
+    private val payloads = AuthorityChangedPayloads(mapper)
+
     override fun publish(changes: List<RoleGrantChange>) {
         changes.forEach { change ->
             // INV-Q-9229 A: a platform event keyed on the principal; the grant's own entity or period travels in the
@@ -37,10 +36,8 @@ class AuthorityChangedOutbox(
                     EntityRef.TENANT_WIDE,
                     change.identity.value,
                 )
-            outbox.append(
-                listOf(OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, payload(change).toString())),
-                context,
-            )
+            val event = payloads.roleGrant(change).toString()
+            outbox.append(listOf(OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, event)), context)
         }
     }
 
@@ -54,54 +51,18 @@ class AuthorityChangedOutbox(
             )
         outbox.append(
             listOf(
-                OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, consentPayload(record).toString()),
+                OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, payloads.consent(record).toString()),
             ),
             context,
         )
     }
 
-    internal fun consentPayload(record: ConsentAuthorityRecord): ObjectNode {
-        val consent = record.consent
-        val from =
-            consent.terms.validFrom
-                .atStartOfDay()
-                .atOffset(java.time.ZoneOffset.UTC)
-        val root = mapper.createObjectNode()
-        root.put("changeKind", "CONSENT")
-        root.put("principalRef", consent.agent.value)
-        root.put("authorityVersion", record.authorityVersion)
-        root.putObject("validity").put("from", ISO.format(from))
-        val node = root.putObject("consentRecord")
-        node.put("clientEntityRef", consent.client.value)
-        node.put("state", if (consent.status == ConsentStatus.LIVE) "LIVE" else "WITHDRAWN")
-        val items = node.putArray("scopeItems")
-        ScopeItem.entries.filter { it in consent.items }.forEach { items.add(it.wire) }
-        node.put("validFrom", ISO.format(from))
-        return root
-    }
+    internal fun consentPayload(record: ConsentAuthorityRecord): ObjectNode = payloads.consent(record)
 
-    internal fun payload(change: RoleGrantChange): ObjectNode {
-        val root = mapper.createObjectNode()
-        root.put("changeKind", "ROLE_GRANT")
-        root.put("principalRef", change.identity.value)
-        root.put("authorityVersion", change.authorityVersion)
-        val node = root.putObject("roleGrantRecord")
-        node.put("grantRef", change.grantRef.value)
-        node.put("role", change.role.wire)
-        node.put("state", change.state.name)
-        node.put("scopeLevel", change.scopeLevel.name)
-        node.put("scopeRef", change.scopeRef)
-        node.put("validFrom", ISO.format(change.validFrom.atOffset(java.time.ZoneOffset.UTC)))
-        change.validUntil?.let { node.put("validUntil", ISO.format(it.atOffset(java.time.ZoneOffset.UTC))) }
-        change.periodFrom?.let { node.put("periodFrom", it.toString()) }
-        change.periodTo?.let { node.put("periodTo", it.toString()) }
-        return root
-    }
+    internal fun payload(change: RoleGrantChange): ObjectNode = payloads.roleGrant(change)
 
     companion object {
         /** The asyncapi channel this class publishes (operations.tsv lists it). */
         const val CHANNEL = "platformAuthorityChanged"
-
-        private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     }
 }

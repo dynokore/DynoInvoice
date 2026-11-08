@@ -54,6 +54,8 @@ inv:
       - access.write_installation_setting
       # The claim function of the group synchronisation (INV-T-4938): one tenant_id per tenant with an ACTIVE mapping, no tenant data.
       - access.claim_idp_sync_tenants
+      # The tenant list of the full sync of AuthorityChanged (INV-T-9061): one tenant_id per tenant with a grant, consent or principal, no tenant data.
+      - access.replay_authority_tenants
 access:
   # installation-roles: the subjects that hold platform.engineer (SaaS) or deployment.operator (private) at installation
   # scope (INV-Q-8789 A), a list of entries with a subject and a role. Set per installation; there is no default and
