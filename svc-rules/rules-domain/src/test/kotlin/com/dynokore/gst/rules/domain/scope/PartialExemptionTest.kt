@@ -55,7 +55,7 @@ class PartialExemptionTest {
     private fun rulesOf(o: ScopeOutcome) = o.trace.map { it.rule }
 
     @Test
-    fun `INV-AC-398 a partially exempt standard-rated purchase with input tax not claimed is submitted`() {
+    fun `a partially exempt standard-rated purchase with input tax not claimed is submitted`() {
         val o = outcome("TX-RE", partial, claimed = false)
         o.verdict shouldBe ScopeVerdict.IN_SCOPE
         o.categoryCode shouldBe null
@@ -63,7 +63,7 @@ class PartialExemptionTest {
     }
 
     @Test
-    fun `INV-AC-1656 an entity not recorded as partially exempt gets the general rule and no trace`() {
+    fun `an entity not recorded as partially exempt gets the general rule and no trace`() {
         val o = outcome("TX-RE", PartialExemptionFacts(partiallyExempt = false), claimed = false)
         o.verdict shouldBe ScopeVerdict.OUT_OF_SCOPE
         rulesOf(o) shouldBe emptyList()
@@ -74,23 +74,27 @@ class PartialExemptionTest {
     }
 
     @Test
-    fun `INV-AC-1643 a partially exempt disallowed expense mapped to BL is excluded without an election`() {
+    fun `a partially exempt disallowed expense mapped to BL is excluded without an election`() {
         val o = outcome("BL", partial)
-        o.verdict shouldBe ScopeVerdict.EXCLUDED_TXN
+        o.verdict shouldBe ScopeVerdict.OUT_OF_SCOPE
         rulesOf(o) shouldBe listOf(PartialExemption.RULE_NON_REPORTABLE)
     }
 
     @Test
-    fun `INV-AC-2782 a non-partially-exempt purchase mapped to BL is excluded and the trace names BL`() {
+    fun `a non-partially-exempt purchase mapped to BL is excluded and the trace names BL`() {
         val o = outcome("BL")
-        o.verdict shouldBe ScopeVerdict.EXCLUDED_TXN
+        o.verdict shouldBe ScopeVerdict.OUT_OF_SCOPE
         o.trace shouldBe listOf(TraceEntry(PartialExemption.RULE_NON_REPORTABLE, mapOf("categoryCode" to "BL")))
-        // data without a BL row still excludes it; a sale coded BL is not a disallowed expense
-        val bare = ScopeRules(ScopeRulesData(mapOf("SR" to ScopeVerdict.IN_SCOPE), "PASS_THROUGH", emptySet()))
-        bare.verdictOf(facts("BL")) shouldBe ScopeVerdict.OUT_OF_SCOPE
-        outcome("BL", direction = ScopeDirection.SALE).verdict shouldBe ScopeVerdict.EXCLUDED_TXN
-        outcome("bl").verdict shouldBe ScopeVerdict.NOT_SUBMITTABLE
-        outcome("BLX").verdict shouldBe ScopeVerdict.NOT_SUBMITTABLE
+        // whatever the pack lists for BL, and with voluntary over-submission on, the verdict is the same
+        listOf(ScopeVerdict.EXCLUDED_TXN, ScopeVerdict.IN_SCOPE, null).forEach { listed ->
+            val rows = mapOf("SR" to ScopeVerdict.IN_SCOPE) + listOfNotNull(listed?.let { "BL" to it })
+            val pack = ScopeRules(ScopeRulesData(rows, "PASS_THROUGH", emptySet()))
+            pack.verdictOf(facts("BL")) shouldBe ScopeVerdict.OUT_OF_SCOPE
+            pack.verdictOf(facts("BL").copy(voluntaryOverSubmission = true)) shouldBe ScopeVerdict.OUT_OF_SCOPE
+        }
+        // a sale coded BL, and the look-alikes bl, "BL " and BLX, do not take this path
+        outcome("BL", direction = ScopeDirection.SALE).trace shouldBe emptyList()
+        listOf("bl", "BL ", "BLX").forEach { outcome(it).verdict shouldBe ScopeVerdict.NOT_SUBMITTABLE }
     }
 
     private fun facts(code: String) =
@@ -103,7 +107,7 @@ class PartialExemptionTest {
         )
 
     @Test
-    fun `INV-AC-1642 a partially exempt purchase keeps the code the business assigned at processing`() {
+    fun `a partially exempt purchase keeps the code the business assigned at processing`() {
         val o = outcome("TX-ESS", partial)
         o.verdict shouldBe ScopeVerdict.IN_SCOPE
         o.categoryCode shouldBe null
@@ -111,16 +115,21 @@ class PartialExemptionTest {
     }
 
     @Test
-    fun `INV-AC-392 a TX-RE purchase is decided the same before and after de minimis, nothing is recoded`() {
-        val first = outcome("TX-RE", partial, claimed = false)
-        val again = outcome("TX-RE", partial, claimed = true)
-        first.verdict shouldBe again.verdict
-        first.categoryCode shouldBe null
-        again.categoryCode shouldBe null
+    fun `a TX-RE purchase keeps its code and verdict before and after a period end`() {
+        fun at(d: LocalDate) =
+            rules.outcomeOf(
+                facts("TX-RE").copy(date = TransactionDate(d), exemption = partial, inputTaxClaimedNonZero = false),
+            )
+        val before = at(LocalDate.of(2026, 6, 30))
+        val after = at(LocalDate.of(2026, 7, 1))
+        before.verdict shouldBe ScopeVerdict.IN_SCOPE
+        after.verdict shouldBe before.verdict
+        before.categoryCode shouldBe null
+        after.categoryCode shouldBe null
     }
 
     @Test
-    fun `INV-AC-399 with the recorded election TX-N33 legal fees are excluded and the trace names basis`() {
+    fun `with the recorded election TX-N33 legal fees are excluded and the trace names basis`() {
         val o = outcome("TX-N33", PartialExemptionFacts(true, election), internal = "LEGAL")
         o.verdict shouldBe ScopeVerdict.OUT_OF_SCOPE
         o.trace.last() shouldBe
@@ -134,7 +143,7 @@ class PartialExemptionTest {
     }
 
     @Test
-    fun `INV-AC-1645 without the election a TX-N33 purchase is submitted and look-alike codes are not excluded`() {
+    fun `without the election a TX-N33 purchase is submitted and look-alike codes are not excluded`() {
         outcome("TX-N33", partial, internal = "LEGAL").verdict shouldBe ScopeVerdict.IN_SCOPE
         val facts = PartialExemptionFacts(true, election)
         outcome("TX-N3", facts).verdict shouldBe ScopeVerdict.NOT_SUBMITTABLE
@@ -145,7 +154,7 @@ class PartialExemptionTest {
     }
 
     @Test
-    fun `INV-AC-393 claimable-portion mode gives a mixed-use purchase the code TX for the portion`() {
+    fun `claimable-portion mode gives a mixed-use purchase the code TX for the portion`() {
         val mode = ApportionmentMode.CLAIMABLE_PORTION
         val o = outcome("TX-RE", PartialExemptionFacts(false, null, mode, mode))
         o.categoryCode shouldBe "TX"
@@ -159,7 +168,7 @@ class PartialExemptionTest {
     }
 
     @Test
-    fun `INV-AC-1646 entire-invoice mode keeps the mapped code of a mixed-use purchase`() {
+    fun `entire-invoice mode keeps the mapped code of a mixed-use purchase`() {
         val entire = ApportionmentMode.ENTIRE_INVOICE
         val o = outcome("TX-RE", PartialExemptionFacts(false, null, entire, entire))
         o.categoryCode shouldBe null

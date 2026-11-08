@@ -23,8 +23,6 @@ import com.dynokore.gst.rules.domain.coding.LineInput
 import com.dynokore.gst.rules.domain.coding.NO_ELECTION
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
-import com.dynokore.gst.rules.domain.scope.ScopeDirection
-import com.dynokore.gst.rules.domain.scope.ScopeFacts
 import com.dynokore.gst.rules.domain.scope.ScopeOutcome
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
@@ -80,7 +78,8 @@ open class EvaluationController(
                 )
             val coding = codingOf(result, tenant, date, input)
             val (outcome, answered) = scopeOutcomeOf(request, tenant, date, coding)
-            answer(outcome, answered, result, versionsApplied(tenant, date), traceOf(result, tenant, date, input))
+            val trace = ScopeRequestFacts.traceWith(traceOf(result, tenant, date, input), outcome)
+            answer(outcome, answered, result, versionsApplied(tenant, date), trace)
         }
     }
 
@@ -94,18 +93,15 @@ open class EvaluationController(
         date: TransactionDate,
         coding: LineCoding,
     ): Pair<ScopeOutcome, LineCoding> {
-        val dates = profile.datesOf(tenant, request.entityRef, date)
         val facts =
-            ScopeFacts(
-                tenant = tenant,
-                date = date,
-                line = coding,
-                direction = request.direction?.let { ScopeDirection.valueOf(it.value) } ?: ScopeDirection.SALE,
-                sameGroup = request.sameGroup ?: false,
-                inputTaxClaimedNonZero = request.inputTaxClaimedNonZero,
-                voluntaryOverSubmission = voluntary.isOn(tenant, request.entityRef, date),
-                obligationStartDate = dates.obligationStartDate,
-                registrationEndDate = dates.registrationEndDate,
+            ScopeRequestFacts.factsOf(
+                request,
+                tenant,
+                date,
+                coding,
+                profile.datesOf(tenant, request.entityRef, date),
+                profile.exemptionOf(tenant, request.entityRef, date),
+                voluntary.isOn(tenant, request.entityRef, date),
             )
         return try {
             evaluate.scopeOutcomeOf(facts) to coding
@@ -210,7 +206,7 @@ open class EvaluationController(
                 val line = (result as DocumentCodingResult.Coded).document.lines.single()
                 EvaluationResult(
                     scopeVerdict = scope,
-                    categoryCode = coding.categoryCode,
+                    categoryCode = ScopeRequestFacts.categoryCodeOf(outcome, coding.categoryCode),
                     rate = line.rate,
                     ibt022Statement = coding.ibt022Statement,
                     disregardedSupplyWarning = warning,

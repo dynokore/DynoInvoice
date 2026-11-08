@@ -49,7 +49,7 @@ class PartialExemptionFactsTest {
     private fun on(d: LocalDate = day) = TransactionDate(d)
 
     @Test
-    fun `INV-AC-1656 only the exact value true is partially exempt, every other value is not`() {
+    fun `only the exact value true is partially exempt, every other value is not`() {
         facts("partiallyExempt" to "true").exemptionOf(tenant, "E1", on()).partiallyExempt shouldBe true
         listOf("True", "true ", "1", "false", "", "yes", "TRUE").forEach {
             facts("partiallyExempt" to it).exemptionOf(tenant, "E1", on()).partiallyExempt shouldBe false
@@ -62,13 +62,13 @@ class PartialExemptionFactsTest {
     }
 
     @Test
-    fun `INV-AC-399 a recorded election with codes and a basis is read in force on the transaction date`() {
+    fun `a recorded election with codes and a basis is read in force on the transaction date`() {
         val f = facts("exemptPurchaseCodes" to "TX-N33,TX-N34", "exemptPurchaseBasis" to "certain")
         f.exemptionOf(tenant, "E1", on()).election shouldBe ExemptElection(setOf("TX-N33", "TX-N34"), "certain")
     }
 
     @Test
-    fun `INV-AC-1645 no election, a blank basis, a future entry or another entity gives none`() {
+    fun `no election, a blank basis, a future entry or another entity gives none`() {
         facts().exemptionOf(tenant, "E1", on()).election shouldBe null
         facts("exemptPurchaseCodes" to "TX-N33").exemptionOf(tenant, "E1", on()).election shouldBe null
         facts("exemptPurchaseCodes" to "TX-N33", "exemptPurchaseBasis" to "  ")

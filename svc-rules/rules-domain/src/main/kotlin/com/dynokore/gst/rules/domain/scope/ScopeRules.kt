@@ -95,10 +95,9 @@ class ScopeRules(
         val election = f.exemption.election
         return when {
             mapped == PartialExemption.DISALLOWED -> {
-                val packed = data.lineVerdicts[mapped]
-                val verdict = if (packed == ScopeVerdict.EXCLUDED_TXN) packed else ScopeVerdict.OUT_OF_SCOPE
+                // OUT_OF_SCOPE whatever the pack lists for BL (coordinator ruling on the verdicts, INV-T-4969)
                 val entry = TraceEntry(PartialExemption.RULE_NON_REPORTABLE, mapOf("categoryCode" to mapped))
-                ScopeOutcome(verdict, false, listOf(entry))
+                ScopeOutcome(ScopeVerdict.OUT_OF_SCOPE, false, listOf(entry))
             }
 
             partial && election != null && election.names(f.internalTaxCode, mapped) -> {
