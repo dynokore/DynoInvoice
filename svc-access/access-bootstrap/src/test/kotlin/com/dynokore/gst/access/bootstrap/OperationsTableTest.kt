@@ -300,7 +300,7 @@ class OperationsTableTest {
             .containsExactly("done-tasks.txt: INV-T-4934 is listed twice")
         assertThat(verifyDone(listOf("INV-T-4934"), answers = { if (it.path.endsWith("/authorise")) 501 else 200 }))
             .containsExactly("operation authorise: task INV-T-4934 is listed done but the operation still answers 501")
-        assertThat(verifyDone(listOf("INV-T-4934"), published = emptySet()).first())
+        assertThat(verifyDone(listOf("INV-T-4938"), published = emptySet()).first())
             .contains("is listed done but the code does not publish it")
     }
 
@@ -321,7 +321,7 @@ class OperationsTableTest {
         assertThat(
             verify(base.map { it.replace("operation\twithdrawElevationRequest\tINV-T-4941\tdone", unassignedDone) }),
         ).anyMatch { "done but no task" in it }
-        assertThat(verify(base.map { it.replace("\tINV-T-4934\tdone", "\tINV-T-4934\topen") }))
+        assertThat(verify(base.map { it.replace("\taccessAccessAlertRaised\tINV-T-4938\tdone", "\taccessAccessAlertRaised\tINV-T-4938\topen") }))
             .anyMatch { "published by the code but not marked done" in it }
         val unpublished = "channel\taccessOperatorSessionKeysChanged\tINV-T-4154\tdone"
         assertThat(
