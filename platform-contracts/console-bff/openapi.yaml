@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -69,6 +69,8 @@ tags:
     description: Configuration promotion console-bff orchestrates (INV-NOTE-7 §7, SCR-21.4).
   - name: deferrals
     description: Shared deferral of a document or group, held in console-bff's exception read model (INV-REQ-960, SCR-01.5).
+  - name: documents
+    description: Document search across the entities in the caller's scope (INV-REQ-1037, SCR-03.1).
 paths:
   /v1/exceptions:
     get:
@@ -702,6 +704,160 @@ paths:
                     deferredAt: "2026-04-01T02:00:00Z"
         default:
           $ref: '#/components/responses/Error'
+  /bff/document-search:
+    get:
+      operationId: searchDocuments
+      summary: Search documents across the entities in the caller's scope
+      description: >-
+        Document search by document number, Doc UUID, Acknowledgement ID,
+        counterparty name or UEN, amount range, date range, state, category
+        code and error code (INV-REQ-1037, SCR-03.1, SCR-03.2). The page
+        spans the entities in the caller's scope and no others: a hit of an
+        entity outside the scope is never returned, and console-bff enforces
+        authorisation on every read (INV-REQ-871). Without `entityRef` the
+        search covers every entity in the caller's scope. Served from
+        console-bff's search index of identifiers and searchable attributes,
+        built from events.
+
+
+        A criterion that matches invoice content (`counterparty`,
+        `amountFrom`, `amountTo`) is accepted only when the caller's
+        per-request decision for the permission key `doc.view.content` is
+        allow, and `acknowledgementId` only when the decision for
+        `enquiry-lookup.by-acknowledgement` is allow; both are decided by
+        `AuthorityReplica.decide`, never by a role name (INV-Q-10027).
+        Otherwise the answer is 403 and no hit.
+
+
+        Results are paginated (`limit`, `cursor`) and exportable: JSON or
+        CSV is chosen by the Accept header (`application/json` or
+        `text/csv`), not by a parameter. The CSV answer carries the same hits
+        for the same criteria.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000).
+      tags: [documents]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-871, INV-REQ-1037]
+      parameters:
+        - name: entityRef
+          in: query
+          required: false
+          description: Omitted means every entity in the caller's scope.
+          schema:
+            type: string
+            maxLength: 40
+        - name: documentNumber
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: docUuid
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: acknowledgementId
+          in: query
+          required: false
+          description: Accepted only when the decision for `enquiry-lookup.by-acknowledgement` is allow.
+          schema:
+            type: string
+            maxLength: 64
+        - name: counterparty
+          in: query
+          required: false
+          description: A counterparty name or UEN. Accepted only when the decision for `doc.view.content` is allow.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 140
+        - name: amountFrom
+          in: query
+          required: false
+          description: Lower bound of the amount range, a decimal string (API-12). Accepted only when the decision for `doc.view.content` is allow.
+          schema:
+            type: string
+            pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        - name: amountTo
+          in: query
+          required: false
+          description: Upper bound of the amount range, a decimal string (API-12). Accepted only when the decision for `doc.view.content` is allow.
+          schema:
+            type: string
+            pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 40
+        - name: categoryCode
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+        - name: errorCode
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of hits, as JSON, or the same hits as CSV when the Accept header asks for text/csv.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSearchPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                        entityRef: "E-001"
+                        documentNumber: "INV-2026-0042"
+                        version: 1
+                        state: "ACCEPTED"
+                        acknowledgementId: "ACK-0001"
+                        issueDate: "2026-03-15"
+                    nextCursor: "c2"
+            text/csv:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/Error'
 components:
   schemas:
     Exception:
@@ -816,6 +972,41 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Exception'
+        nextCursor:
+          type: string
+      required: [items]
+    DocumentSearchHit:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        entityRef:
+          type: string
+          maxLength: 40
+        documentNumber:
+          type: string
+          maxLength: 64
+        version:
+          type: integer
+          minimum: 1
+        state:
+          type: string
+          maxLength: 40
+        acknowledgementId:
+          type: string
+          maxLength: 64
+        issueDate:
+          type: string
+          format: date
+      required: [docUuid, entityRef, documentNumber, version, state]
+    DocumentSearchPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSearchHit'
         nextCursor:
           type: string
       required: [items]

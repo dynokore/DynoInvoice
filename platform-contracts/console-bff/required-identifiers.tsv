@@ -13,3 +13,5 @@ getExceptionDecisionTrace	operation	openapi.yaml	INV-REQ-942
 Exception.taxableAmount	schema_property	openapi.yaml	INV-REQ-940
 Exception.dueDate	schema_property	openapi.yaml	INV-REQ-940
 Exception.inputKey	schema_property	openapi.yaml	INV-REQ-940
+# INV-T-15840. Operation searchDocuments (INV-REQ-1037, INV-Q-15828).
+searchDocuments	operation	openapi.yaml	INV-REQ-1037
