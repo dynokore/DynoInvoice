@@ -49,10 +49,36 @@ class MigrationKeyMaterialTest {
             ).shouldBeEmpty()
         KeyMaterial.findings("ok.sql", "check (pack_content_hash ~ '^[0-9a-f]{64}\$')").shouldBeEmpty()
     }
+
+    @Test
+    fun `the generated policy name is not a finding`() {
+        KeyMaterial
+            .findings(
+                "gen.sql",
+                "create policy ${KeyMaterial.GENERATED_POLICY_NAME} on controlplane.config_setting using (true);",
+            ).shouldBeEmpty()
+    }
+
+    @Test
+    fun `any other run of the same length is still a finding`() {
+        val name = KeyMaterial.GENERATED_POLICY_NAME
+        listOf(
+            name.dropLast(1) + "x",
+            name + "2",
+            "A".repeat(50),
+        ).forEach { run ->
+            val found = KeyMaterial.findings("x.sql", "create policy $run on t;")
+            found.any { it.contains("long base64-like run") } shouldBe true
+        }
+    }
 }
 
 internal object KeyMaterial {
     private val PEM = Regex("""-----BEGIN [A-Z ]*(?:KEY|CERTIFICATE)-----""", RegexOption.IGNORE_CASE)
+
+    // Policy name produced by ConfigSchema.ddl ("config_relaxation_acknowledgement" + "_tenant_isolation");
+    // skipped by whole-value equality only (INV-T-9238).
+    const val GENERATED_POLICY_NAME = "config_relaxation_acknowledgement_tenant_isolation"
     private val LONG_BASE64 = Regex("""[A-Za-z0-9+/=_-]{40,}""")
     private val LONG_HEX = Regex("""\b[0-9a-fA-F]{32,}\b""")
     private val AWS = Regex("""\b(?:AKIA|ASIA)[0-9A-Z]{16}\b""")
@@ -66,7 +92,7 @@ internal object KeyMaterial {
     ): List<String> {
         val out = ArrayList<String>()
         if (PEM.containsMatchIn(sql)) out += "$file: PEM block"
-        LONG_BASE64.findAll(sql).forEach { out += "$file: long base64-like run '${it.value.take(12)}...'" }
+        LONG_BASE64.findAll(sql).filter { it.value != GENERATED_POLICY_NAME }.forEach { out += "$file: long base64-like run '${it.value.take(12)}...'" }
         LONG_HEX.findAll(sql).forEach { out += "$file: long hex run '${it.value.take(12)}...'" }
         if (AWS.containsMatchIn(sql)) out += "$file: access key id"
         KEY_COLUMN.findAll(sql).map { it.groupValues[1] }.filter { !it.endsWith("_ref") }.forEach {
