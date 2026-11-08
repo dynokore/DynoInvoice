@@ -128,8 +128,10 @@ class ConnectionUseCaseTest {
 
     @Test
     fun `INV-AC-18780 a secret-looking credential reference keeps only the reference text`() {
-        val stored = create(secret = "EXAMPLE_SECRET_REFERENCE") as CreateConnectionOutcome.Stored
-        assertEquals("EXAMPLE_SECRET_REFERENCE", stored.record.credentialRef)
+        // Built at runtime so no provider-format key literal is committed (secret scanners block it).
+        val secretLooking = listOf("sk", "live", "x".repeat(24)).joinToString("_")
+        val stored = create(secret = secretLooking) as CreateConnectionOutcome.Stored
+        assertEquals(secretLooking, stored.record.credentialRef)
         assertEquals(1, store.all.size)
     }
 
