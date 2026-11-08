@@ -74,6 +74,8 @@ dependencies {
     // OutboxSchema (outbox-and-queue impl) and JobSchema, IdempotencySchema (service-runtime impl): the DDL the migrations equal
     testImplementation(libs.platform.outboxAndQueue)
     testImplementation(libs.platform.auditLog)
+    // ConfigSchema, the DDL the config-resolver migration equals
+    testImplementation(libs.platform.configResolver)
     testImplementation(libs.snakeyaml)
     // StageIT starts the certification-kit Access Point simulator image
     testImplementation(libs.testcontainers.core)

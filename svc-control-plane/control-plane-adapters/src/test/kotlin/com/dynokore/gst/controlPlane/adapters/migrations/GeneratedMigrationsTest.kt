@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.adapters.migrations
 
 import com.dynokore.platform.auditlog.AuditSchema
+import com.dynokore.platform.configresolver.ConfigSchema
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.serviceruntime.http.IdempotencySchema
 import com.dynokore.platform.serviceruntime.jobs.JobSchema
@@ -59,8 +60,22 @@ class GeneratedMigrationsTest {
 
     @Test
     fun `the outbox migration is the DDL outbox-and-queue generates for the control-plane schema`() {
-        check("V202610210810__create_outbox.sql", OutboxSchema.ddl(SCHEMA, RUNTIME, SYS))
+        // the testmode column is created by the forward migration V202611081010; an applied V file is never edited
+        check(
+            "V202610210810__create_outbox.sql",
+            OutboxSchema.ddl(SCHEMA, RUNTIME, SYS).replace(",\n    testmode boolean not null default false", ""),
+        )
         rawFeffLines("V202610210810__create_outbox.sql") shouldBe 3
+    }
+
+    @Test
+    fun `the outbox testmode upgrade is the DDL outbox-and-queue generates for the control-plane schema`() {
+        check("V202611081010__outbox_testmode.sql", OutboxSchema.testModeUpgradeDdl(SCHEMA).trim() + ";")
+    }
+
+    @Test
+    fun `the config-resolver migration is the DDL config-resolver generates for the control-plane schema`() {
+        check("V202611081000__create_config_resolver.sql", ConfigSchema.ddl(SCHEMA, RUNTIME, SYS))
     }
 
     @Test

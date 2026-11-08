@@ -2,7 +2,6 @@ package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.events.ControlPlaneEventCatalogue
 import com.dynokore.platform.auditlog.AuditWriter
-import com.dynokore.platform.auditlog.LocalAuditWriter
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -18,6 +17,7 @@ import com.dynokore.platform.serviceruntime.jobs.JobEntityScope
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.jobs.JobSchedule
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
+import com.dynokore.platform.serviceruntime.securityevents.SecurityEventAuditStager
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -45,7 +45,7 @@ class JobRuntimeCompositionTest {
             // service-runtime wraps each AuditWriter; the wrapped one is the local writer
             val audit = context.getBean(AuditWriter::class.java)
             audit.shouldBeInstanceOf<OperatorSessionAuditWriter>()
-            audit.delegate.shouldBeInstanceOf<LocalAuditWriter>()
+            audit.delegate.shouldBeInstanceOf<SecurityEventAuditStager>()
             context.getBeanNamesForType(AuditWriter::class.java).toList() shouldBe listOf("localAuditWriter")
         }
     }

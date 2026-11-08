@@ -62,6 +62,8 @@ dependencies {
     runtimeOnly(libs.platform.auditLog)
     // the platform-scoped tables of config-resolver's ConfigSchema, read by service-runtime's TenancyJooqWiring
     runtimeOnly(libs.platform.configResolver)
+    // ValueConstraints, the type of the VP-45 region check
+    implementation(libs.platform.configResolver.api)
     runtimeOnly(libs.postgresql)
 
     testImplementation(platform(libs.junit.bom))

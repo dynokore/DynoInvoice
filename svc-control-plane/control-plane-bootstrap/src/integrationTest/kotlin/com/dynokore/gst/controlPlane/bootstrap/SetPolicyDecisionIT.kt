@@ -2,10 +2,8 @@ package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.ControlPlaneHarness
 import com.dynokore.gst.controlPlane.adapters.PostgresDb
-import com.dynokore.platform.configresolver.ConstraintVerdict
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
-import com.dynokore.platform.configresolver.ValueConstraints
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
@@ -27,7 +25,6 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.jooq.impl.DSL
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.postgresql.ds.PGSimpleDataSource
@@ -190,11 +187,6 @@ class SetPolicyDecisionIT {
             "spring.datasource.username=${database.getUser()}",
             "spring.flyway.enabled=false",
             "service-runtime.replica.authority-lag-bound=PT1S",
-        ).withBean(
-            ValueConstraints::class.java,
-            // test-only: control-plane-svc binds no ValueConstraints for the VP-45 region list;
-            // without one the writer refuses every value with POL-014, so the authorised case could not store
-            { ValueConstraints { _, _, _, _ -> ConstraintVerdict.Accept } },
         ).run { context: AssertableApplicationContext ->
             context.startupFailure shouldBe null
             block(Env(context, people))
@@ -208,9 +200,6 @@ class SetPolicyDecisionIT {
 
     private fun newTenant() = TenantId(UUID.randomUUID())
 
-    // Disabled until the owner rules the storage and region-check gap (MR description G1, G2): the controlplane schema
-    // has no config-resolver tables (500 on the write) and no ValueConstraints checks a VP-45 region (POL-014).
-    @Disabled("gap G1/G2 of INV-T-9238: no policy storage and no VP-45 value check in control-plane-svc")
     @Test
     fun `INV-AC-2224 one AuthorityReplica in the context and commercial admin at TENANT scope sets VP-45`(
         @TempDir mount: Path,
@@ -222,6 +211,22 @@ class SetPolicyDecisionIT {
         val answer = e.setRegion(e.caller("holder", tenant), tenant)
         withClue(answer.contentAsString) { answer.status shouldBe 200 }
         e.stored(tenant) shouldBe "\"SG\""
+    }
+
+    @Test
+    fun `INV-AC-2224 a region key absent from the region list is 422 POL-014 and nothing is stored`(
+        @TempDir mount: Path,
+    ) = run(mount) { e ->
+        e.synced()
+        val tenant = newTenant()
+        e.role("holder", tenant, "commercial.admin", GrantScope.TENANT, tenant.toString())
+        val token = e.caller("holder", tenant)
+        for (region in listOf("ZZ", "SGX", "sg")) {
+            val answer = e.setRegion(token, tenant, region)
+            withClue("$region: ${answer.contentAsString}") { answer.status shouldBe 422 }
+            answer.contentAsString shouldContain "POL-014"
+            e.stored(tenant) shouldBe null
+        }
     }
 
     @Test
