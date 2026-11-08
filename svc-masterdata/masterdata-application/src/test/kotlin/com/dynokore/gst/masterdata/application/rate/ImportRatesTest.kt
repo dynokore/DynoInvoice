@@ -82,11 +82,16 @@ class ImportRatesTest {
         assertEquals(1, all.size)
         assertEquals(1, events.size)
 
-        assertEquals(ImportRatesOutcome.SourceNotElected, importer.handle(cmd("MAS2")))
-        assertEquals(ImportRatesOutcome.SourceNotElected, importer.handle(cmd("mas")))
-        assertEquals(ImportRatesOutcome.SourceNotElected, importer.handle(cmd("MAS ")))
+        approvedSources = setOf("MAS", "MAS2", "mas", "MAS ")
+        for (lookAlike in listOf("MAS2", "mas", "MAS ")) {
+            assertEquals(ImportRatesOutcome.SourceNotElected, importer.handle(cmd(lookAlike)), lookAlike)
+            assertEquals(1, all.size)
+            assertEquals(1, events.size)
+        }
         approvedSources = setOf("MAS2")
         assertEquals(ImportRatesOutcome.SourceNotApproved, importer.handle(cmd("MAS")))
+        assertEquals(1, all.size)
+        assertEquals(1, events.size)
         electedSource = "MAS2"
         approvedSources = emptySet()
         assertEquals(ImportRatesOutcome.SourceNotApproved, importer.handle(cmd("MAS2")))
