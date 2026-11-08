@@ -258,10 +258,7 @@ components:
       title: SignedLinkIssued
       summary: SignedLinkIssued — access-svc issued the signed link (INV-REQ-901).
       description: >-
-        Domain event SignedLinkIssued (INV-REQ-901, FR-AF.23, INV-AC-18216). Emitted by: access-svc, in the
-        transaction that stores the link (transactional outbox). Consumed by: masterdata-svc, which binds the
-        linkRef to the request named by subjectReference. Delivery: At-least-once. Payload: linkRef,
-        subjectReference, purpose, tenant, expiry. It carries no passcode, token, e-mail address or mobile number.
+        Domain event SignedLinkIssued (INV-REQ-901, FR-AF.23, INV-AC-18216). Emitted by: access-svc. Consumed by: masterdata-svc. Delivery: At-least-once. Access-svc publishes it through the transactional outbox, in the transaction that stores the link; masterdata-svc binds the linkRef to the request named by subjectReference. Payload: linkRef, subjectReference, purpose, tenant, expiry. It carries no passcode, token, e-mail address or mobile number.
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/signed-link-issued-payload.schema.json'
@@ -270,10 +267,7 @@ components:
       title: SignedLinkInvalidated
       summary: SignedLinkInvalidated — a signed link stopped being usable (INV-REQ-901).
       description: >-
-        Domain event SignedLinkInvalidated (INV-REQ-901, FR-AF.23, INV-AC-18216). Emitted by: access-svc.
-        Consumed by: masterdata-svc. Delivery: At-least-once. Payload: linkRef, subjectReference, reason
-        (ATTEMPTS_EXHAUSTED or REVOKED, extensible), invalidatedAt. It carries no passcode, token, e-mail
-        address or mobile number.
+        Domain event SignedLinkInvalidated (INV-REQ-901, FR-AF.23, INV-AC-18216). Emitted by: access-svc. Consumed by: masterdata-svc. Delivery: At-least-once. Payload: linkRef, subjectReference, reason (ATTEMPTS_EXHAUSTED or REVOKED, extensible), invalidatedAt. It carries no passcode, token, e-mail address or mobile number.
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/signed-link-invalidated-payload.schema.json'

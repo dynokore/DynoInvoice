@@ -193,7 +193,3 @@ dryRunCounterpartyImport	operation	openapi.yaml	INV-REQ-317
 getRegisterAndRates	operation	openapi.yaml	INV-REQ-317
 getCounterpartyImportDryRun	operation	openapi.yaml	INV-REQ-830
 getImportRecord	operation	openapi.yaml	INV-REQ-833
-# INV-T-18217. INV-AC-18216: the new answers of the two counterparty request operations. receiveSignedLinkIssued and receiveSignedLinkInvalidated are AsyncAPI operation keys, for which check-required-identifiers.py has no kind, so they are not rows (see the MR gap list).
-sendCounterpartyRequest.400	operation_response	openapi.yaml	INV-REQ-901
-sendCounterpartyRequest.409	operation_response	openapi.yaml	INV-REQ-901
-submitCounterpartyDetails.401	operation_response	openapi.yaml	INV-REQ-901

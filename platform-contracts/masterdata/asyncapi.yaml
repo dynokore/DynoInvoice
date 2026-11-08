@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: masterdata events
-  version: 1.3.0
+  version: 1.2.0
   description: >-
     Every event masterdata produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -51,16 +51,6 @@ channels:
     messages:
       IdentityTripleChanged:
         $ref: '#/components/messages/IdentityTripleChanged'
-  accessSignedLinkIssued:
-    address: 'gst.access.signed-link-issued.v1'
-    messages:
-      SignedLinkIssued:
-        $ref: '#/components/messages/SignedLinkIssued'
-  accessSignedLinkInvalidated:
-    address: 'gst.access.signed-link-invalidated.v1'
-    messages:
-      SignedLinkInvalidated:
-        $ref: '#/components/messages/SignedLinkInvalidated'
   masterdataExampleHappened:
     address: 'gst.masterdata.example-happened.v1'
     messages:
@@ -104,27 +94,6 @@ operations:
       $ref: '#/channels/masterdataIdentityTripleChanged'
     messages:
       - $ref: '#/channels/masterdataIdentityTripleChanged/messages/IdentityTripleChanged'
-  receiveSignedLinkIssued:
-    action: receive
-    description: >-
-      SignedLinkIssued, published by access-svc (INV-REQ-901, FR-AF.23). masterdata-svc binds the linkRef to the
-      request named by subjectReference. Idempotent consumer (at-least-once delivery): a repeated or reordered
-      event leaves the binding equal; an event whose subjectReference names no request is ignored, and a
-      SignedLinkIssued that arrives after the SignedLinkInvalidated of the same linkRef does not reopen the link.
-    channel:
-      $ref: '#/channels/accessSignedLinkIssued'
-    messages:
-      - $ref: '#/channels/accessSignedLinkIssued/messages/SignedLinkIssued'
-  receiveSignedLinkInvalidated:
-    action: receive
-    description: >-
-      SignedLinkInvalidated, published by access-svc (INV-REQ-901, FR-AF.23). masterdata-svc marks the link of
-      the request named by subjectReference as no longer usable. Idempotent consumer (at-least-once delivery): a
-      repeated or reordered event leaves the binding equal.
-    channel:
-      $ref: '#/channels/accessSignedLinkInvalidated'
-    messages:
-      - $ref: '#/channels/accessSignedLinkInvalidated/messages/SignedLinkInvalidated'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -192,26 +161,6 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/identity-triple-changed-payload.schema.json'
-    SignedLinkIssued:
-      name: com.dynokore.gst.access.SignedLinkIssued.v1
-      title: SignedLinkIssued
-      summary: SignedLinkIssued — access-svc issued the signed link for a request of masterdata (INV-REQ-901).
-      description: >-
-        Event SignedLinkIssued of access-svc (access/asyncapi.yaml), consumed by masterdata-svc (INV-REQ-901, FR-AF.23).
-        Delivery: At-least-once.
-      contentType: application/cloudevents+json
-      payload:
-        $ref: '../access/schemas/signed-link-issued-payload.schema.json'
-    SignedLinkInvalidated:
-      name: com.dynokore.gst.access.SignedLinkInvalidated.v1
-      title: SignedLinkInvalidated
-      summary: SignedLinkInvalidated — a signed link stopped being usable before its expiry (INV-REQ-901).
-      description: >-
-        Event SignedLinkInvalidated of access-svc (access/asyncapi.yaml), consumed by masterdata-svc (INV-REQ-901, FR-AF.23).
-        Delivery: At-least-once.
-      contentType: application/cloudevents+json
-      payload:
-        $ref: '../access/schemas/signed-link-invalidated-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.masterdata.ExampleHappened.v1
       title: ExampleHappened
