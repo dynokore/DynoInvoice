@@ -31,6 +31,17 @@ interface RateStore {
         date: LocalDate,
     ): List<ExchangeRate>
 
+    /**
+     * The record in force on [onDate]: the newest revision of the latest record of (source, pair) dated on or before
+     * [onDate], or null when none exists. Never a computed or carried-over value.
+     */
+    fun inForce(
+        source: String,
+        baseCurrency: String,
+        quoteCurrency: String,
+        onDate: LocalDate,
+    ): ExchangeRate?
+
     fun save(rate: ExchangeRate): SaveResult
 }
 

@@ -69,6 +69,17 @@ private class Rates : RateStore {
         date: LocalDate,
     ) = all.filter { key(it, source, baseCurrency, quoteCurrency, date) }
 
+    override fun inForce(
+        source: String,
+        baseCurrency: String,
+        quoteCurrency: String,
+        onDate: LocalDate,
+    ) = all
+        .filter {
+            it.source == source && it.baseCurrency == baseCurrency && it.quoteCurrency == quoteCurrency &&
+                !it.date.isAfter(onDate)
+        }.maxWithOrNull(compareBy({ it.date }, { it.revision }))
+
     override fun save(rate: ExchangeRate): SaveResult =
         if (all.any {
                 key(it, rate.source, rate.baseCurrency, rate.quoteCurrency, rate.date) &&
