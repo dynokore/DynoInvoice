@@ -356,6 +356,20 @@ class AuthorityReplayTest {
             ).containsExactly("PRINCIPAL:${principal.principalRef}")
         }
 
+    @Test
+    fun `INV-AC-9051 a grant whose role has no wire form fails the page with the grant key`() =
+        run { env ->
+            val ref = env.insertGrant(env.tenant.value, "ENTITY", "CLI-A")
+            BoundaryFixture.asSuperuser { c ->
+                c.createStatement().use {
+                    it.execute("update access.role_grant set role = 'retired_role' where grant_ref = '$ref'")
+                }
+            }
+            assertThatThrownBy { env.replay(limit = 1) }
+                .hasMessageContaining(ref)
+                .hasMessageContaining("retired_role")
+        }
+
     private fun decide(
         env: AuthorityReplayKit,
         replica: AuthorityReplica,
