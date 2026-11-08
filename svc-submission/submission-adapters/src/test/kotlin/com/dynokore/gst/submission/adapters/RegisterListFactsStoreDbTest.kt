@@ -157,14 +157,22 @@ class RegisterListFactsStoreDbTest {
         read(a, doc) shouldBe own
     }
 
+    /** Columns of the schema read as the owner: information_schema hides tables the runtime role has no grant on. */
+    private fun schemaColumns(where: String): List<Pair<String, String>> =
+        SubmissionDb.superuser().use { c ->
+            c.createStatement().use { st ->
+                st.executeQuery(
+                    "select table_name, column_name from information_schema.columns " +
+                        "where table_schema = 'submission' and $where",
+                ).use { rs ->
+                    generateSequence { if (rs.next()) rs.getString(1) to rs.getString(2) else null }.toList()
+                }
+            }
+        }
+
     @Test
     fun `INV-AC-16322 the column set is the seven old columns plus exactly the eight new names`() {
-        val columns =
-            dsl
-                .fetch(
-                    "select column_name from information_schema.columns " +
-                        "where table_schema = 'submission' and table_name = 'obligation_register_entry'",
-                ).map { it.get(0, String::class.java)!! }
+        val columns = schemaColumns("table_name = 'obligation_register_entry'").map { it.second }
         columns.toSet() shouldBe oldColumns + newColumns
         columns.size shouldBe oldColumns.size + newColumns.size
     }
@@ -194,13 +202,8 @@ class RegisterListFactsStoreDbTest {
 
     @Test
     fun `INV-AC-16322 no other table of the schema has a column of those names`() {
-        val others =
-            dsl
-                .fetch(
-                    "select table_name, column_name from information_schema.columns " +
-                        "where table_schema = 'submission' and table_name <> 'obligation_register_entry' " +
-                        "and column_name in (${newColumns.joinToString(",") { "'$it'" }})",
-                ).map { "${it.get(0)}.${it.get(1)}" }
+        val names = newColumns.joinToString(",") { "'$it'" }
+        val others = schemaColumns("table_name <> 'obligation_register_entry' and column_name in ($names)")
         others shouldBe emptyList()
     }
 
