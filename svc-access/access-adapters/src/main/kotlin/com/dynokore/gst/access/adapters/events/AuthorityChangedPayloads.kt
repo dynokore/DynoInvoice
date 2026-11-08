@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.adapters.persistence.InstallationRoleGrantRow
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.grant.RoleGrantChange
 import com.dynokore.gst.access.domain.consent.ConsentStatus
@@ -55,6 +56,24 @@ class AuthorityChangedPayloads(
         return root
     }
 
+    /**
+     * The role grant of a configured installation entry (INV-T-9235, INV-Q-8972 A): scope level INSTALLATION and no
+     * `scopeRef`; [validFrom] is the instant the state was written, and there is no end and no period.
+     */
+    fun installationGrant(row: InstallationRoleGrantRow): ObjectNode {
+        val root = mapper.createObjectNode()
+        root.put("changeKind", "ROLE_GRANT")
+        root.put("principalRef", row.subject)
+        root.put("authorityVersion", row.authorityVersion)
+        val node = root.putObject("roleGrantRecord")
+        node.put("grantRef", row.grantRef)
+        node.put("role", row.role)
+        node.put("state", if (row.active) "ACTIVE" else "REMOVED")
+        node.put("scopeLevel", INSTALLATION)
+        node.put("validFrom", ISO.format(row.updatedAt.withOffsetSameInstant(ZoneOffset.UTC)))
+        return root
+    }
+
     /** A principalRecord in state REVOKED: [validFrom] is the instant of the revocation. */
     fun principalRevoked(
         principalRef: String,
@@ -71,6 +90,7 @@ class AuthorityChangedPayloads(
     }
 
     private companion object {
+        const val INSTALLATION = "INSTALLATION"
         val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     }
 }

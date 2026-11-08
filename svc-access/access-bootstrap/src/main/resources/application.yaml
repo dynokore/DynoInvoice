@@ -56,6 +56,9 @@ inv:
       - access.claim_idp_sync_tenants
       # The tenant list of the full sync of AuthorityChanged (INV-T-9061): one tenant_id per tenant with a grant, consent or principal, no tenant data.
       - access.replay_authority_tenants
+      # The published INSTALLATION role grants (INV-T-9235): a grant at installation scope has no tenant; the row policy admits
+      # only a transaction bound to the platform tenant.
+      - access.installation_role_grant
 access:
   # installation-roles: the subjects that hold platform.engineer (SaaS) or deployment.operator (private) at installation
   # scope (INV-Q-8789 A), a list of entries with a subject and a role. Set per installation; there is no default and

@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.adapters.persistence.JooqInstallationRoleGrants
 import com.dynokore.gst.access.adapters.persistence.column
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.CONSENT
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ROLE_GRANT
@@ -42,6 +43,8 @@ import com.dynokore.platform.outboxandqueue.EntityRef as EventEntityRef
 class AuthorityChangedReplaySource(
     private val dsl: DSLContext,
     mapper: ObjectMapper,
+    private val installation: JooqInstallationRoleGrants,
+    private val bound: () -> TenantId,
     private val tenantsOf: () -> List<TenantId>,
 ) : ReplayStateSource {
     private val payloads = AuthorityChangedPayloads(mapper)
@@ -49,8 +52,8 @@ class AuthorityChangedReplaySource(
 
     override val eventType: String = PlatformEventCatalogue.AUTHORITY_CHANGED.eventType
 
-    // the platform tenant's rows are replayed by the platform source (INV-T-9235), not here
-    override fun tenants(): List<TenantId> = tenantsOf().filterNot { it.isPlatform }
+    // the platform tenant holds the installation role grants (INV-T-9235) and nothing else of this source
+    override fun tenants(): List<TenantId> = tenantsOf().filterNot { it.isPlatform } + TenantId.PLATFORM
 
     override fun page(
         scope: ReplayScope?,
@@ -58,6 +61,7 @@ class AuthorityChangedReplaySource(
         limit: Int,
     ): ReplayPage {
         require(limit >= 1) { "a page holds at least one state" }
+        if (bound().isPlatform) return installationPage(scope, cursor, limit)
         val start = ReplayCursor.parse(cursor)
         val found = mutableListOf<Keyed>()
         for (kind in Kind.entries.filter { it >= start.kind }) {
@@ -68,6 +72,40 @@ class AuthorityChangedReplaySource(
         val items = found.take(limit)
         val next = if (found.size > limit) ReplayCursor.format(items.last().kind.name, items.last().key) else null
         return ReplayPage(items.map { it.state }, next)
+    }
+
+    /**
+     * The page of the platform tenant (INV-T-9235): the rows of `installation_role_grant`, ACTIVE and REMOVED, each as
+     * the INSTALLATION role grant at its stored version, with the platform envelope. An INSTALLATION grant covers every
+     * entity, so an ENTITY scope keeps all of them; a PERIOD scope keeps the rows last changed in the range.
+     */
+    private fun installationPage(
+        scope: ReplayScope?,
+        cursor: String?,
+        limit: Int,
+    ): ReplayPage {
+        val after = cursor?.let { ReplayCursor.parse(it).key }
+        val period = scope as? ReplayScope.Period
+        val rows =
+            installation.page(
+                after,
+                period?.from?.atOffset(ZoneOffset.UTC),
+                period?.to?.atOffset(ZoneOffset.UTC),
+                limit + 1,
+            )
+        val items = rows.take(limit)
+        val states =
+            items.map {
+                ReplayedState(
+                    eventType,
+                    payloads.installationGrant(it).toString(),
+                    EventEntityRef.PLATFORM,
+                    it.subject,
+                    docSequence = null,
+                )
+            }
+        val next = if (rows.size > limit) ReplayCursor.format(Kind.GRANT.name, items.last().grantRef) else null
+        return ReplayPage(states, next)
     }
 
     private fun read(

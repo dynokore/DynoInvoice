@@ -1,8 +1,10 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.events.AuthorityChangedReplaySource
+import com.dynokore.gst.access.adapters.persistence.JooqInstallationRoleGrants
 import com.dynokore.platform.outboxandqueue.ReplayedState
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
+import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
 import org.jooq.SQLDialect
@@ -234,7 +236,16 @@ class AuthorityVersionMigrationDbTest {
     fun `INV-AC-9051 a backfilled row replays with the migration's version and no value is drawn`() {
         val last = sequenceLast(db.connection)
         val mapper = JsonMapper.builder().build()
-        val source = AuthorityChangedReplaySource(DSL.using(db.connection, SQLDialect.POSTGRES), mapper) { emptyList() }
+        val dsl = DSL.using(db.connection, SQLDialect.POSTGRES)
+        val source =
+            AuthorityChangedReplaySource(
+                dsl,
+                mapper,
+                JooqInstallationRoleGrants(dsl),
+                { TenantId(UUID.randomUUID()) },
+            ) {
+                emptyList()
+            }
         val replayed = pages(source)
         val grant = db.rows.first { it.ref == "GRT-a-0" }
         val state = replayed.single { it.dataJson.contains("\"grantRef\":\"GRT-a-0\"") }
