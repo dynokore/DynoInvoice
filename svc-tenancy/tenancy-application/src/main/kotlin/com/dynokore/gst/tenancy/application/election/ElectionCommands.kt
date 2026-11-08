@@ -93,7 +93,7 @@ sealed interface ElectionOutcome {
  * INV-Q-9706. Nothing is defaulted. A change of an election already recorded is stored PENDING and takes effect
  * only when another person holding `election-change.approve` approves it (INV-Q-10105).
  */
-@Suppress("LongParameterList", "TooManyFunctions") // the ports and checks of the three operations
+@Suppress("LongParameterList", "TooManyFunctions", "LargeClass") // the ports, checks and profile publishes of the four operations
 class ElectionCommands(
     private val tx: TransactionRunner,
     private val structure: StructureStore,

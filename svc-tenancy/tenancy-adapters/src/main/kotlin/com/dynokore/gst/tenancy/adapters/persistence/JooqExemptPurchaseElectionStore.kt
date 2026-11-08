@@ -6,7 +6,10 @@ import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElectionStore
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
 
-/** The exempt-purchase elections (jOOQ only, CS-18); forced RLS hides the rows of other tenants and entities are matched by ref. */
+/**
+ * The exempt-purchase elections (jOOQ only, CS-18); forced RLS hides the rows of other tenants and the rows are
+ * matched by entity ref.
+ */
 class JooqExemptPurchaseElectionStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,

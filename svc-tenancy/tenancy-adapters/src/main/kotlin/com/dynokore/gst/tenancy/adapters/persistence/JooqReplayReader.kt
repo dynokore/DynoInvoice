@@ -238,14 +238,22 @@ class JooqReplayReader(
                     e.retired.column("retired"),
                     e.structureVersion.column("structure_version"),
                 )
-            val profile =
-                (
-                    statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
-                        exemptPurchaseEntries(exemptPurchases.history(entity.ref))
-                ).sortedBy { it.effectiveDate }
-            ReplayNode(NodeType.ENTITY, entity.ref, entity.ref, entityNode(entity, profile), greatest[entity.id])
+            ReplayNode(
+                NodeType.ENTITY,
+                entity.ref,
+                entity.ref,
+                entityNode(entity, profileOf(entity)),
+                greatest[entity.id],
+            )
         }
     }
+
+    /** The status entries and the exempt-purchase entries of the entity, as getEntityStructure carries them. */
+    private fun profileOf(entity: EntityRecord): List<ProfileEntry> =
+        (
+            statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
+                exemptPurchaseEntries(exemptPurchases.history(entity.ref))
+        ).sortedBy { it.effectiveDate }
 
     private fun units(
         scope: ReplayScope?,

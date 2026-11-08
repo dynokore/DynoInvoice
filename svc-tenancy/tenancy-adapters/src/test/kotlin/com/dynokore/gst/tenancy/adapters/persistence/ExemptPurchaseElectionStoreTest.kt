@@ -105,23 +105,33 @@ class ExemptPurchaseElectionStoreTest {
                 .set(TENANT_GROUP.STRUCTURE_VERSION, version())
                 .set(TENANT_GROUP.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute()
-            listOf(e1, e2).forEachIndexed { index, ref ->
-                dsl
-                    .insertInto(ENTITY)
-                    .set(ENTITY.ID, UUID.randomUUID())
-                    .set(ENTITY.TENANT_ID, tenant.value)
-                    .set(ENTITY.REF, ref)
-                    .set(ENTITY.GROUP_ID, group)
-                    .set(ENTITY.LEGAL_NAME, "Entity $index")
-                    .set(ENTITY.CONSTITUTION, "COMPANY")
-                    .set(ENTITY.CODE, "E$index$tag".uppercase())
-                    .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
-                    .set(ENTITY.STRUCTURE_VERSION, version())
-                    .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-                    .execute()
-            }
+            listOf(e1, e2).forEachIndexed { index, ref -> insertEntity(dsl, tenant, group, ref, index, tag, ::version) }
         }
         return Seed(tenant, e1, e2)
+    }
+
+    private fun insertEntity(
+        dsl: DSLContext,
+        tenant: TenantId,
+        group: UUID,
+        ref: String,
+        index: Int,
+        tag: String,
+        version: () -> Long,
+    ) {
+        dsl
+            .insertInto(ENTITY)
+            .set(ENTITY.ID, UUID.randomUUID())
+            .set(ENTITY.TENANT_ID, tenant.value)
+            .set(ENTITY.REF, ref)
+            .set(ENTITY.GROUP_ID, group)
+            .set(ENTITY.LEGAL_NAME, "Entity $index")
+            .set(ENTITY.CONSTITUTION, "COMPANY")
+            .set(ENTITY.CODE, "E$index$tag".uppercase())
+            .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
+            .set(ENTITY.STRUCTURE_VERSION, version())
+            .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .execute()
     }
 
     private fun commands(
