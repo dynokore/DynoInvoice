@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.16.1] - 2026-11-08
+### Changed
+- Metadata-only release (INV-T-18814, G-DVS): depends on `service-runtime 13.3.0`, whose published module metadata changed; no code change.
+
 ## [2.16.0] - 2026-11-08
 ### Added
 - INV-T-18607: `AuthorityFeedHandler` and `AuthorityHeadFeed` pass the payload `incarnation` (null when absent) to the authority replica; an `incarnation` below 1 is a `ContractViolation`. `AuthorityHeadFeed.decodeHead` returns version and incarnation.

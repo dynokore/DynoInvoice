@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.3.0] - 2026-11-08
+### Added
+- `TenancyErrorCode.MIGRATION_CUTOVER_CONFLICT` (TNC-011, 409, "Migration cutover refused", owner `entity.admin`) and the re-vendored catalogue snapshot at platform-contracts 4d014290 (INV-T-18814, INV-AC-18808).
+
 ## [13.2.0] - 2026-11-08
 ### Added
 - The authority replica orders a change or head by (incarnation, version), an absent incarnation being 1: `AuthorityChanged.incarnation` (nullable, last, `@JvmOverloads` keeps the 4-argument constructor), `ReplicaFeedSink.observeHead(version, incarnation)` (default delegates to the old one), `ReplicaLagTracker.admitIncarnation`, `ReplicaOrderCounter`, `EpochOrder` (INV-T-9262, INV-Q-9243 B, INV-AC-9051).

@@ -40,8 +40,8 @@ class TenancyErrorCodeTest {
         }.filter { it.code.startsWith("TNC-") }
 
     @Test
-    fun `the codes equal the 10 TNC rows of the pinned catalogue snapshot, in order`() {
-        rows.size shouldBe 10
+    fun `the codes equal the 11 TNC rows of the pinned catalogue snapshot, in order`() {
+        rows.size shouldBe 11
         TenancyErrorCode.entries.map { it.code } shouldBe rows.map { it.code }
     }
 
@@ -81,5 +81,27 @@ class TenancyErrorCodeTest {
         }
         val withoutDetail = Problems.renderTenancy(TenancyErrorCode.SHORT_CODE_FIXED, "c")
         mapper.readTree(withoutDetail.body).has("detail") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-18808 MIGRATION_CUTOVER_CONFLICT is the catalogue row TNC-011 and renders as a 409 envelope`() {
+        val row = rows.single { it.code == "TNC-011" }
+        row.severity shouldBe "BLOCK"
+        row.disposition shouldBe "TERMINAL"
+        row.owner shouldBe "entity.admin"
+        row.condition.contains("HTTP 409") shouldBe true
+        val entry = TenancyErrorCode.MIGRATION_CUTOVER_CONFLICT
+        entry.code shouldBe "TNC-011"
+        entry.httpStatus shouldBe 409
+        entry.title shouldBe "Migration cutover refused"
+        entry.title shouldBe row.condition.substringBefore(": ")
+        entry.owner.text shouldBe "entity.admin"
+        entry.owner.text shouldBe row.owner
+        val response = Problems.renderTenancy(entry, "corr-1")
+        response.status shouldBe 409
+        val body = mapper.readTree(response.body)
+        contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+        body.get("code").asString() shouldBe "TNC-011"
+        body.get("type").asString() shouldBe "https://errors.invoice.internal/TNC-011"
     }
 }
