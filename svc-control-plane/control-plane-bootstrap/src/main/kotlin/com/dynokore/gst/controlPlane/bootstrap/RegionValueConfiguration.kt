@@ -15,7 +15,8 @@ import java.time.LocalDate
 /**
  * The value check of VP-45 (INV-T-9238, INV-REQ-1239 behaviour #3): the published option is "any region on the
  * platform's region list" (INV-Q-2322), so a selection is accepted only when [RegionList.contains] is true for its key,
- * compared by equality. Every other variation point key is refused (deny by default, INV-T-9238 ruling 8): a later control-plane row adds its own branch in its own task.
+ * compared by equality. Every other variation point key is refused (deny by default, INV-T-9238 ruling 8): a later
+ * control-plane row adds its own branch in its own task.
  */
 @Configuration(proxyBeanMethods = false)
 class RegionValueConfiguration {
