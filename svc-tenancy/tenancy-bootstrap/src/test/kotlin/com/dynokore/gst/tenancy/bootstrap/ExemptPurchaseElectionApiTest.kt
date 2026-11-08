@@ -118,7 +118,8 @@ class ExemptPurchaseElectionApiTest {
                 e.env.api
                     .getEntityStructure(entity.entityRef)
                     .body!!
-                    .node!!.profile
+                    .node!!
+                    .profile
                     .map { Triple(it.attribute, it.value, it.effectiveDate.toString()) }
             assertThat(read.filter { it.first.startsWith("exemptPurchase") })
                 .containsExactlyInAnyOrderElementsOf(published.filter { it.first.startsWith("exemptPurchase") })
