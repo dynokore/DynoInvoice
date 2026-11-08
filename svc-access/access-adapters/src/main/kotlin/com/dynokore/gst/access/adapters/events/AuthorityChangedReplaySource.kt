@@ -97,10 +97,14 @@ class AuthorityChangedReplaySource(
             ).orderBy(ROLE_GRANT.GRANT_REF)
             .limit(count)
             .fetch()
-            .mapNotNull { row ->
+            .map { row ->
                 val ref = row.grantRef.column("grant_ref")
-                // a role removed from the catalogue grants nothing and has no wire form to replay
-                val role = Role.ofWire(row.role.column("role")) ?: return@mapNotNull null
+                // fail secure: a grant that cannot be replayed must not vanish silently from the page
+                val wire = row.role.column("role")
+                val role =
+                    checkNotNull(
+                        Role.ofWire(wire),
+                    ) { "the grant $ref has the role '$wire' with no wire form to replay" }
                 val version = stored(row.authorityVersion, "role_grant $ref")
                 val change =
                     RoleGrantChange(
@@ -178,7 +182,10 @@ class AuthorityChangedReplaySource(
     ): Condition =
         // the grants of the entity's own levels are kept when they name it; the grants of every other level
         // (TENANT, GROUP, CONSENT) cover the entity and are always kept
-        (scope as? ReplayScope.Entity)?.let { kindCondition.and(entityColumn.eq(it.entity.value)).or(kindCondition.not()) }
+        (scope as? ReplayScope.Entity)?.let {
+            val named = kindCondition.and(entityColumn.eq(it.entity.value))
+            named.or(kindCondition.not())
+        }
             ?: DSL.noCondition()
 
     internal enum class Kind { GRANT, CONSENT, PRINCIPAL }

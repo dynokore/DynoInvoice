@@ -99,7 +99,8 @@ internal class AuthorityReplayKit(
                         "scope_ref, period_from, period_to, valid_from, status, grant_source, created_at, " +
                         "created_by, updated_at, updated_by, version, authority_version) values " +
                         "(gen_random_uuid(), '$of', '$ref', '$identity', 'auditor', '$level', '$scopeRef', $dates, " +
-                        "now(), 'ACTIVE', 'BY_HAND', now(), 's', now(), 's', 0, nextval('access.authority_version_seq'))",
+                        "now(), 'ACTIVE', 'BY_HAND', now(), 's', now(), 's', 0, " +
+                        "nextval('access.authority_version_seq'))",
                 )
             }
         }
