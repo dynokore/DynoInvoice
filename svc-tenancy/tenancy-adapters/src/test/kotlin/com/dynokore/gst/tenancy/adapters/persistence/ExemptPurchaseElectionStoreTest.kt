@@ -105,31 +105,37 @@ class ExemptPurchaseElectionStoreTest {
                 .set(TENANT_GROUP.STRUCTURE_VERSION, version())
                 .set(TENANT_GROUP.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute()
-            listOf(e1, e2).forEachIndexed { index, ref -> insertEntity(dsl, tenant, group, ref, index, tag, ::version) }
+            listOf(e1, e2).forEachIndexed { index, ref ->
+                insertEntity(dsl, NodeSeed(tenant, group, tag, ::version), ref, index)
+            }
         }
         return Seed(tenant, e1, e2)
     }
 
+    private class NodeSeed(
+        val tenant: TenantId,
+        val group: UUID,
+        val tag: String,
+        val version: () -> Long,
+    )
+
     private fun insertEntity(
         dsl: DSLContext,
-        tenant: TenantId,
-        group: UUID,
+        seed: NodeSeed,
         ref: String,
         index: Int,
-        tag: String,
-        version: () -> Long,
     ) {
         dsl
             .insertInto(ENTITY)
             .set(ENTITY.ID, UUID.randomUUID())
-            .set(ENTITY.TENANT_ID, tenant.value)
+            .set(ENTITY.TENANT_ID, seed.tenant.value)
             .set(ENTITY.REF, ref)
-            .set(ENTITY.GROUP_ID, group)
+            .set(ENTITY.GROUP_ID, seed.group)
             .set(ENTITY.LEGAL_NAME, "Entity $index")
             .set(ENTITY.CONSTITUTION, "COMPANY")
-            .set(ENTITY.CODE, "E$index$tag".uppercase())
+            .set(ENTITY.CODE, "E$index${seed.tag}".uppercase())
             .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
-            .set(ENTITY.STRUCTURE_VERSION, version())
+            .set(ENTITY.STRUCTURE_VERSION, seed.version())
             .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
             .execute()
     }

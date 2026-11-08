@@ -195,17 +195,6 @@ class JooqReplayReader(
         limit: Int,
         withStatusOnly: Boolean,
     ): List<ReplayNode> {
-        val hasStatus =
-            DSL
-                .exists(DSL.selectOne().from(ENTITY_STATUS).where(ENTITY_STATUS.ENTITY_ID.eq(ENTITY.ID)))
-                .or(
-                    DSL.exists(
-                        DSL
-                            .selectOne()
-                            .from(EXEMPT_PURCHASE_ELECTION)
-                            .where(EXEMPT_PURCHASE_ELECTION.ENTITY_REF.eq(ENTITY.REF)),
-                    ),
-                )
         val rows =
             dsl
                 .select(ENTITY.asterisk(), TENANT_GROUP.REF)
@@ -216,7 +205,7 @@ class JooqReplayReader(
                     ReplayConditions.all(
                         ReplayConditions.inScope(scope, ENTITY.REF, ENTITY.CHANGED_AT),
                         afterRef?.let { ENTITY.REF.gt(it) },
-                        if (withStatusOnly) hasStatus else null,
+                        if (withStatusOnly) hasProfileEntry() else null,
                     ),
                 ).orderBy(ENTITY.REF)
                 .limit(limit)
@@ -247,6 +236,19 @@ class JooqReplayReader(
             )
         }
     }
+
+    /** The entity has a status entry or an exempt-purchase election, so a profile replay returns it. */
+    private fun hasProfileEntry(): Condition =
+        DSL
+            .exists(DSL.selectOne().from(ENTITY_STATUS).where(ENTITY_STATUS.ENTITY_ID.eq(ENTITY.ID)))
+            .or(
+                DSL.exists(
+                    DSL
+                        .selectOne()
+                        .from(EXEMPT_PURCHASE_ELECTION)
+                        .where(EXEMPT_PURCHASE_ELECTION.ENTITY_REF.eq(ENTITY.REF)),
+                ),
+            )
 
     /** The status entries and the exempt-purchase entries of the entity, as getEntityStructure carries them. */
     private fun profileOf(entity: EntityRecord): List<ProfileEntry> =
