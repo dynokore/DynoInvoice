@@ -60,6 +60,8 @@ class PeriodDueDateEditRefusedTest {
                     it.declaringClass == PeriodsApi::class.java &&
                         !it.isSynthetic
                 }.map { it.name }
-        assertThat(operations).containsExactlyInAnyOrder("confirmPeriods", "listPeriodRecords", "recordExtension")
+        assertThat(
+            operations,
+        ).containsExactlyInAnyOrder("confirmPeriods", "getCalendarPackDelta", "listPeriodRecords", "recordExtension")
     }
 }

@@ -56,3 +56,4 @@ declineElectionChange	operation	INV-T-15888	pending
 listElectionChanges	operation	INV-T-15888	pending
 PeriodRecordsChanged	channel	INV-T-16564	pending
 CertificationStatusChanged	channel	INV-T-16409	pending
+getCalendarPackDelta	operation	INV-T-16829	pending
