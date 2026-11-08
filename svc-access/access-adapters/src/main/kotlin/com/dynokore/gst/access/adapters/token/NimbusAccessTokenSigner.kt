@@ -75,8 +75,13 @@ private class NimbusSigningSession(
                 .claim("scope", claims.scope)
                 .claim("principal_scope", claims.principalScope)
                 .claim("permissions", claims.permissions.sorted())
-                .apply { claims.tenantId?.let { claim("tenant_id", it) } }
-                .build()
+                .apply {
+                    claims.tenantId?.let { tenant ->
+                        claim("tenant_id", tenant)
+                        // the environment is a property of the tenant: no tenant (MONITORING), no claim
+                        claims.environment?.let { claim("environment", it.name) }
+                    }
+                }.build()
         val header =
             JWSHeader
                 .Builder(JWSAlgorithm.ES256)

@@ -3,14 +3,17 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.http.GatewayAuthentication
 import com.dynokore.gst.access.adapters.http.GatewayTokenIssuance
 import com.dynokore.gst.access.adapters.persistence.JooqVerificationKeyRegistry
+import com.dynokore.gst.access.adapters.structure.ReplicaTenantEnvironments
 import com.dynokore.gst.access.adapters.token.NimbusAccessTokenSigner
 import com.dynokore.gst.access.application.token.AccessTokenSigner
 import com.dynokore.gst.access.application.token.IssueAccessTokenUseCase
+import com.dynokore.gst.access.application.token.TenantEnvironments
 import com.dynokore.gst.access.application.token.TokenSettings
 import com.dynokore.gst.access.application.token.VerificationKeyRegistry
 import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -77,5 +80,10 @@ class TokenUseCases {
     fun gatewayTokenIssuance(
         authentication: GatewayAuthentication,
         issuer: IssueAccessTokenUseCase,
-    ) = GatewayTokenIssuance(authentication, issuer)
+        environments: TenantEnvironments,
+    ) = GatewayTokenIssuance(authentication, issuer, environments)
+
+    /** The tenant environment reader; the `createPrincipal` slice injects this bean (INV-T-11816). */
+    @Bean
+    fun tenantEnvironments(structure: StructureReplica): TenantEnvironments = ReplicaTenantEnvironments(structure)
 }

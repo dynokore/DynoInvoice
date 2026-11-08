@@ -1,8 +1,10 @@
 package com.dynokore.gst.access.adapters.http
 
 import com.dynokore.gst.access.application.principal.AuthenticationDecision
+import com.dynokore.gst.access.application.token.CertificationPolicy
 import com.dynokore.gst.access.application.token.IssueAccessTokenUseCase
 import com.dynokore.gst.access.application.token.IssuedToken
+import com.dynokore.gst.access.application.token.TenantEnvironments
 import com.dynokore.gst.access.domain.principal.CredentialMethod
 
 /** The outcome of `issueAccessToken`: a token, or the reason code of the refusal. */
@@ -24,6 +26,7 @@ sealed interface TokenDecision {
 class GatewayTokenIssuance(
     val authentication: GatewayAuthentication,
     private val issuer: IssueAccessTokenUseCase,
+    private val environments: TenantEnvironments,
 ) {
     fun issue(
         principalRef: String,
@@ -31,7 +34,22 @@ class GatewayTokenIssuance(
         proof: String,
     ): TokenDecision =
         when (val decision = authentication.authenticate(principalRef, method, proof)) {
-            is AuthenticationDecision.Refused -> TokenDecision.Refused(decision.reasonCode)
-            is AuthenticationDecision.Authenticated -> TokenDecision.Issued(issuer.issue(decision.principal))
+            is AuthenticationDecision.Refused -> {
+                TokenDecision.Refused(decision.reasonCode)
+            }
+
+            is AuthenticationDecision.Authenticated -> {
+                val principal = decision.principal
+                val environment = environments.of(principal.tenant)
+                if (CertificationPolicy.permits(principal.type, environment)) {
+                    TokenDecision.Issued(issuer.issue(principal, environment))
+                } else {
+                    TokenDecision.Refused(UNKNOWN_PRINCIPAL)
+                }
+            }
         }
+
+    private companion object {
+        const val UNKNOWN_PRINCIPAL = "UNKNOWN"
+    }
 }
