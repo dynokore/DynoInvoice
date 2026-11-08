@@ -212,3 +212,7 @@ overlapEndsAt	property	openapi.yaml	INV-REQ-837
 fileHash	property	openapi.yaml	INV-REQ-506
 rowCount	property	openapi.yaml	INV-REQ-506
 rows	property	openapi.yaml	INV-REQ-506
+createConnection.MDM-016	operation_error_code	openapi.yaml	INV-REQ-834
+testConnection.MDM-017	operation_error_code	openapi.yaml	INV-REQ-835
+testConnection.MDM-018	operation_error_code	openapi.yaml	INV-REQ-835
+enterRate.SRT-008	operation_error_code	openapi.yaml	INV-REQ-1010

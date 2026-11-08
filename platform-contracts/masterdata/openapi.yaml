@@ -1924,8 +1924,17 @@ components:
           type: string
           enum: [CLOSED, HALF_OPEN, OPEN]
           x-extensible-enum: true
-        successRate: { type: number, minimum: 0, maximum: 1 }
-        latencyMillis: { type: integer, minimum: 0 }
+        successRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            The share of successful calls among the calls recorded in the last measuredOverSeconds seconds, 0 to 1; absent, not 0, when no call was recorded in that window.
+        latencyMillis:
+          type: integer
+          minimum: 0
+          description: >-
+            The 95th percentile, by the nearest-rank method, of the durations in whole milliseconds of the calls recorded in the last measuredOverSeconds seconds; absent, not 0, when no call was recorded in that window.
         measuredOverSeconds: { type: integer, minimum: 1 }
         lastFailure:
           type: object
