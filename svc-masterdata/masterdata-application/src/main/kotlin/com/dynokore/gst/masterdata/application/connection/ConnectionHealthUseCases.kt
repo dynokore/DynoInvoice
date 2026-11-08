@@ -36,6 +36,13 @@ interface ConnectionStateMemory {
     )
 }
 
+/** The stores a health read uses. */
+data class HealthPorts(
+    val store: ConnectionStore,
+    val calls: CallRecords,
+    val memory: ConnectionStateMemory,
+)
+
 /** The payload of `ConnectionStatusChanged`: connection, state, last failure (events.yaml). */
 data class ConnectionStatusChanged(
     val connectionRef: String,
@@ -64,9 +71,7 @@ sealed interface GetConnectionHealthOutcome {
  */
 class GetConnectionHealth(
     private val tx: TransactionRunner,
-    private val store: ConnectionStore,
-    private val calls: CallRecords,
-    private val memory: ConnectionStateMemory,
+    private val ports: HealthPorts,
     private val publisher: ConnectionStatusPublisher,
     private val permission: ConnectionViewPermission,
     private val settings: HealthSettings,
@@ -78,19 +83,19 @@ class GetConnectionHealth(
     ): GetConnectionHealthOutcome =
         tx.inTransaction {
             if (!permission.allows(caller)) return@inTransaction GetConnectionHealthOutcome.Forbidden
-            if (store.find(connectionRef) == null) return@inTransaction GetConnectionHealthOutcome.Unknown
+            if (ports.store.find(connectionRef) == null) return@inTransaction GetConnectionHealthOutcome.Unknown
             val now = clock.instant()
             val health =
                 ConnectionHealth.compute(
                     connectionRef,
-                    calls.between(connectionRef, now.minus(settings.window), now),
-                    calls.lastFailure(connectionRef),
+                    ports.calls.between(connectionRef, now.minus(settings.window), now),
+                    ports.calls.lastFailure(connectionRef),
                     now,
                     settings,
                 )
-            if (calls.hasAny(connectionRef) && memory.lastRequested(connectionRef) != health.state) {
+            if (ports.calls.hasAny(connectionRef) && ports.memory.lastRequested(connectionRef) != health.state) {
                 publisher.publish(ConnectionStatusChanged(connectionRef, health.state, health.lastFailure))
-                memory.remember(connectionRef, health.state)
+                ports.memory.remember(connectionRef, health.state)
             }
             GetConnectionHealthOutcome.Found(health)
         }

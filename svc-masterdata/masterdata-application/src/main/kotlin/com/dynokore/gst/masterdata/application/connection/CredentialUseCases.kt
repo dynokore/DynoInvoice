@@ -49,7 +49,7 @@ interface CredentialStateStore {
 }
 
 sealed interface RotateCredentialOutcome {
-    /** [repeat] is true when (connectionRef, credentialRef) was rotated before; [rotation] is then the original outcome. */
+    /** [repeat] is true when (connectionRef, credentialRef) was rotated before; [rotation] is then the original. */
     data class Rotated(
         val rotation: com.dynokore.gst.masterdata.application.connection.Rotated,
         val repeat: Boolean,
@@ -69,12 +69,17 @@ sealed interface RotateCredentialOutcome {
     data object SameAsCurrent : RotateCredentialOutcome
 }
 
+/** The stores a rotation uses. */
+data class RotationPorts(
+    val store: ConnectionStore,
+    val states: CredentialStateStore,
+    val secrets: SecretStore,
+)
+
 /** The scoped permission `connection.configure` is reused for rotation (INV-Q-10027). */
 class RotateCredential(
     private val tx: TransactionRunner,
-    private val store: ConnectionStore,
-    private val states: CredentialStateStore,
-    private val secrets: SecretStore,
+    private val ports: RotationPorts,
     private val permission: ConnectionConfigurePermission,
     private val settings: RotationSettings,
     private val clock: Clock,
@@ -87,16 +92,26 @@ class RotateCredential(
         tx.inTransaction {
             if (!permission.allows(caller)) return@inTransaction RotateCredentialOutcome.Forbidden
             val overlap = settings.overlap ?: return@inTransaction RotateCredentialOutcome.OverlapNotConfigured
-            val record = store.find(connectionRef) ?: return@inTransaction RotateCredentialOutcome.Unknown
-            val state = states.find(connectionRef) ?: CredentialState(connectionRef, record.credentialRef, null, null, null)
+            val record = ports.store.find(connectionRef) ?: return@inTransaction RotateCredentialOutcome.Unknown
+            val state =
+                ports.states.find(connectionRef)
+                    ?: CredentialState(connectionRef, record.credentialRef, null, null, null)
             state.done[credentialRef]?.let { return@inTransaction RotateCredentialOutcome.Rotated(it, repeat = true) }
             if (credentialRef == state.currentRef) return@inTransaction RotateCredentialOutcome.SameAsCurrent
-            val value = secrets.read(credentialRef) ?: return@inTransaction RotateCredentialOutcome.ReplacementUnavailable
+            val value =
+                ports.secrets.read(credentialRef) ?: return@inTransaction RotateCredentialOutcome.ReplacementUnavailable
             value.fill('\u0000')
             val now = clock.instant()
             val rotated = Rotated(connectionRef, credentialRef, state.currentRef, now.plus(overlap), now)
-            states.save(
-                CredentialState(connectionRef, credentialRef, state.currentRef, rotated.overlapEnd, now, state.done + (credentialRef to rotated)),
+            ports.states.save(
+                CredentialState(
+                    connectionRef,
+                    credentialRef,
+                    state.currentRef,
+                    rotated.overlapEnd,
+                    now,
+                    state.done + (credentialRef to rotated),
+                ),
             )
             RotateCredentialOutcome.Rotated(rotated, repeat = false)
         }
@@ -208,8 +223,16 @@ class CheckCredentialExpiry(
             for (e in expiries.all()) {
                 for (d in days) {
                     val due = !now.isBefore(e.credentialExpiresAt.minus(d.toLong(), ChronoUnit.DAYS))
-                    if (due && now.isBefore(e.credentialExpiresAt) && !log.wasReminded(e.connectionRef, e.credentialRef, d)) {
-                        val event = ConnectionCredentialExpiryReminderRequested(e.connectionRef, e.credentialRef, d, e.credentialExpiresAt)
+                    if (due && now.isBefore(e.credentialExpiresAt) &&
+                        !log.wasReminded(e.connectionRef, e.credentialRef, d)
+                    ) {
+                        val event =
+                            ConnectionCredentialExpiryReminderRequested(
+                                e.connectionRef,
+                                e.credentialRef,
+                                d,
+                                e.credentialExpiresAt,
+                            )
                         publisher.publish(event)
                         log.markReminded(e.connectionRef, e.credentialRef, d)
                         requested += event
