@@ -9,28 +9,37 @@ import org.junit.jupiter.api.Test
 class OffboardingRulesTest {
     private fun manifest(
         state: ExportState,
-        contents: Set<ExportContent>,
+        contents: List<ExportContent>,
     ) = ExportManifest("EXP-1", state, contents)
 
     @Test
     fun `export manifest - READY with all six members is COMPLETED`() {
         assertEquals(
             OffboardingState.COMPLETED,
-            OffboardingRules.recordState(manifest(ExportState.READY, ExportContent.entries.toSet())),
+            OffboardingRules.recordState(manifest(ExportState.READY, ExportContent.entries)),
         )
     }
 
     @Test
-    fun `export manifest - READY with five members is not COMPLETED`() {
-        val five = ExportContent.entries.drop(1).toSet()
-        assertEquals(OffboardingState.REQUESTED, OffboardingRules.recordState(manifest(ExportState.READY, five)))
+    fun `export manifest - READY with five members equals REQUESTED for each member left out`() {
+        ExportContent.entries.forEach { left ->
+            val five = ExportContent.entries.filter { it != left }
+            assertEquals(OffboardingState.REQUESTED, OffboardingRules.recordState(manifest(ExportState.READY, five)))
+        }
+    }
+
+    @Test
+    fun `export manifest - READY with six entries and one member repeated equals REQUESTED`() {
+        val repeated = ExportContent.entries.drop(1) + ExportContent.entries[1]
+        assertEquals(6, repeated.size)
+        assertEquals(OffboardingState.REQUESTED, OffboardingRules.recordState(manifest(ExportState.READY, repeated)))
     }
 
     @Test
     fun `export manifest - a FAILED manifest is FAILED even with six members`() {
         assertEquals(
             OffboardingState.FAILED,
-            OffboardingRules.recordState(manifest(ExportState.FAILED, ExportContent.entries.toSet())),
+            OffboardingRules.recordState(manifest(ExportState.FAILED, ExportContent.entries)),
         )
     }
 
@@ -38,7 +47,7 @@ class OffboardingRulesTest {
     fun `export manifest - a REQUESTED manifest with six members is not COMPLETED`() {
         assertEquals(
             OffboardingState.REQUESTED,
-            OffboardingRules.recordState(manifest(ExportState.REQUESTED, ExportContent.entries.toSet())),
+            OffboardingRules.recordState(manifest(ExportState.REQUESTED, ExportContent.entries)),
         )
     }
 

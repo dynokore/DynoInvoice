@@ -36,7 +36,7 @@ data class UnsubmittedOverride(
 data class ExportManifest(
     val exportRef: String,
     val state: ExportState,
-    val contents: Set<ExportContent>,
+    val contents: List<ExportContent>,
 )
 
 /** The rules of offboarding that need no port (INV-REQ-877, INV-REQ-956). */
@@ -55,7 +55,7 @@ object OffboardingRules {
                 OffboardingState.FAILED
             }
 
-            manifest.state == ExportState.READY && manifest.contents.containsAll(ExportContent.entries) -> {
+            manifest.state == ExportState.READY && manifest.contents.toSet().containsAll(ExportContent.entries) -> {
                 OffboardingState.COMPLETED
             }
 
