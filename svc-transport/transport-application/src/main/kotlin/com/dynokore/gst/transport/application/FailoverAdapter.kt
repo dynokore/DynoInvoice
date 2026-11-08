@@ -24,8 +24,7 @@ class FailoverAdapter(
         from: AdapterId,
         target: AdapterId,
     ): RouteOutcome {
-        if (from !in adapters.ids()) throw AdapterNotRegistered(from.value)
-        if (target !in adapters.ids()) throw AdapterNotRegistered(target.value)
+        listOf(from, target).firstOrNull { it !in adapters.ids() }?.let { throw AdapterNotRegistered(it.value) }
         val current = assignments.adapterFor(entity)
         if (current == target) return RouteOutcome.NO_OP
         if (current != from) throw EntityNotOnAdapter(entity, from)

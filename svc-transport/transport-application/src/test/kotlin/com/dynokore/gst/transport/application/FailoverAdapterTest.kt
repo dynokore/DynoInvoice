@@ -143,8 +143,8 @@ class FailoverAdapterTest {
         a.seen.intersect(b.seen.toSet()).isEmpty() shouldBe true
         assignments.map[e2] shouldBe a.adapterId
         assignments.map[e1] shouldBe b.adapterId
-        stub[e1]!!.map { it.first }.toSet() shouldBe setOf(inFlight, newE1)
-        stub[e2]!!.map { it.first } shouldBe listOf(newE2)
+        stubState().getValue(e1).toSet() shouldBe setOf(inFlight, newE1)
+        stubState().getValue(e2) shouldBe listOf(newE2)
     }
 
     @Test
