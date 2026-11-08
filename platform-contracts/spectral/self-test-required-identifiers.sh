@@ -192,6 +192,65 @@ resp_fail resp-operation-case postthing.202 "$NF operation_response"
 resp_fail resp-unknown-operation postThings.202 "$NF operation_response"
 resp_fail resp-no-dot postThing "needs 2 non-empty dot-separated parts (<operationId>.<STATUS>)"
 resp_fail resp-empty-status postThing. "needs 2 non-empty dot-separated parts (<operationId>.<STATUS>)"
+# INV-T-18374: the kinds asyncapi_message and asyncapi_operation. The fixture document has the message LinkIssued
+# (components.messages), the channel key chanOnly (a channels key only), the operation key sendLink whose description writes
+# the operationId-style value descOnlyOp, and an operationId-style field opIdOnly. Another service holds only the look-alike key.
+mka() { # name, identifier, kind, file -> $T/<name>/svc and $T/<name>/other
+  mkdir -p "$T/$1/svc" "$T/$1/other"
+  cat > "$T/$1/svc/asyncapi.yaml" <<'YAML'
+asyncapi: 3.0.0
+info: {title: fixture, version: 1.0.0}
+channels:
+  chanOnly:
+    address: 'x.y.v1'
+    messages:
+      LinkIssued:
+        $ref: '#/components/messages/LinkIssued'
+operations:
+  sendLink:
+    action: send
+    description: Calls descOnlyOp and not more.
+    operationId: opIdOnly
+    channel:
+      $ref: '#/channels/chanOnly'
+components:
+  messages:
+    LinkIssued:
+      name: com.example.LinkIssuedName.v1
+      title: LinkIssuedTitle
+YAML
+  printf 'asyncapi: 3.0.0\ninfo: {title: other, version: 1.0.0}\ncomponents:\n  messages:\n    OnlyOther: {name: x}\noperations:\n  onlyOtherOp: {action: send}\n' > "$T/$1/other/asyncapi.yaml"
+  printf 'identifier\tkind\tfile\trequirement\n%s\t%s\t%s\tR-6\n' "$2" "$3" "$4" > "$T/$1/svc/required-identifiers.tsv"
+  printf 'identifier\tkind\tfile\trequirement\nx\tproperty\topenapi.yaml\tR-6\n' > "$T/$1/other/required-identifiers.tsv"
+  printf 'openapi: 3.1.0\ninfo: {title: o, version: 1.0.0}\nx: {properties: {x: {type: string}}}\n' > "$T/$1/other/openapi.yaml"
+}
+for ok in "LinkIssued asyncapi_message" "sendLink asyncapi_operation"; do
+  set -- $ok; mka "am-pass-$1" "$1" "$2" asyncapi.yaml
+  out=$(python3 check-required-identifiers.py "$T/am-pass-$1" 2>&1) || { echo "gst-ci: FAIL — INV-T-18374 '$1' ($2) rejected:"; echo "$out"; failed=1; }
+done
+am_fail() { # name, identifier, kind, file, expected text
+  mka "$1" "$2" "$3" "$4"; expect_fail_dir "$T/$1" "$5"
+}
+am_fail am-msg-absent Nope asyncapi_message asyncapi.yaml "$NF asyncapi_message"
+am_fail am-msg-case linkIssued asyncapi_message asyncapi.yaml "$NF asyncapi_message"
+am_fail am-msg-substring Link asyncapi_message asyncapi.yaml "$NF asyncapi_message"
+am_fail am-msg-channel-only chanOnly asyncapi_message asyncapi.yaml "$NF asyncapi_message"
+am_fail am-msg-name-value LinkIssuedName asyncapi_message asyncapi.yaml "$NF asyncapi_message"
+am_fail am-msg-operation-key sendLink asyncapi_message asyncapi.yaml "$NF asyncapi_message"
+am_fail am-op-absent nope asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+am_fail am-op-case SendLink asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+am_fail am-op-substring send asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+am_fail am-op-description-only descOnlyOp asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+am_fail am-op-operationid-value opIdOnly asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+am_fail am-op-message-key LinkIssued asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+am_fail am-op-channel-key chanOnly asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+am_fail am-msg-leaves-dir LinkIssued asyncapi_message ../other/asyncapi.yaml "file leaves the directory"
+am_fail am-op-leaves-dir sendLink asyncapi_operation ../other/asyncapi.yaml "file leaves the directory"
+am_fail am-msg-other-service OnlyOther asyncapi_message asyncapi.yaml "$NF asyncapi_message"
+am_fail am-op-other-service onlyOtherOp asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
+# the kind operation is unchanged: an AsyncAPI operation key as an `operation` row stays a finding
+am_fail am-operation-kind-unchanged sendLink operation asyncapi.yaml "$NF operation"
+am_fail am-operation-kind-operationid opIdOnly asyncapi_operation asyncapi.yaml "$NF asyncapi_operation"
 # INV-T-6937 (INV-Q-7027 A): --base. Each case is a throwaway git repository with a base commit.
 TSV='identifier\tkind\tfile\trequirement\nalpha\tproperty\topenapi.yaml\tR-6\nbeta\tproperty\topenapi.yaml\tR-6\n'
 mkb() { # name -> $T/<name> with one commit holding svc/openapi.yaml and the two-row table

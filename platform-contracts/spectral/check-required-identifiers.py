@@ -20,6 +20,10 @@ substring, never in another case):
     schema_enum_value  `<Schema>.<property>.<MEMBER>` (split at the first two dots): that property's own
                 inline schema has an `enum` list with a member equal to <MEMBER>. Neither scoped kind follows
                 `allOf` or `$ref`, nested properties or inline schemas outside `components.schemas`
+    asyncapi_message  a key of `components.messages` of the row's file (an AsyncAPI message name; a `channels` key, a message
+                `name` or `title` value and a description never count; INV-T-18374)
+    asyncapi_operation  a key of the top-level `operations` mapping of the row's file (an AsyncAPI operation key; it is not an
+                `operationId` value, and the kind `operation` is unchanged and does not read it; INV-T-18374)
 file is a YAML or JSON file under the row's own directory (a schema under <service>/schemas/ is
 fine). The file is searched alone, so an identifier present only in another service's directory
 does not count, and a file path that leaves the directory is a finding.
@@ -88,7 +92,7 @@ from pathlib import Path
 
 import yaml
 
-KINDS = ("property", "operation", "enum_value", "query_parameter", "schema_property", "schema_enum_value", "operation_error_code", "operation_response", "root_property")
+KINDS = ("property", "operation", "enum_value", "query_parameter", "schema_property", "schema_enum_value", "operation_error_code", "operation_response", "root_property", "asyncapi_message", "asyncapi_operation")
 SCOPED = {"schema_property": 2, "schema_enum_value": 3, "operation_error_code": 2, "operation_response": 2}
 SCOPED_FORM = {"schema_property": "<Schema>.<property>", "schema_enum_value": "<Schema>.<property>.<MEMBER>", "operation_error_code": "<operationId>.<CODE>", "operation_response": "<operationId>.<STATUS>"}
 HEADER = ("identifier", "kind", "file", "requirement")
@@ -127,6 +131,13 @@ def collect(doc) -> dict[str, set]:
             responses = op.get("responses") if isinstance(op, dict) else None
             if isinstance(op, dict) and isinstance(op.get("operationId"), str) and isinstance(responses, dict):
                 found["operation_response"].update((op["operationId"], str(k)) for k in responses)
+    if isinstance(doc, dict):
+        messages = (doc.get("components") or {}).get("messages") if isinstance(doc.get("components"), dict) else None
+        if isinstance(messages, dict):
+            found["asyncapi_message"].update(str(k) for k in messages)
+        ops = doc.get("operations")
+        if isinstance(ops, dict):
+            found["asyncapi_operation"].update(str(k) for k in ops)
     schemas = (doc.get("components") or {}).get("schemas") if isinstance(doc, dict) else None
     for sname, schema in (schemas.items() if isinstance(schemas, dict) else ()):
         props = schema.get("properties") if isinstance(schema, dict) else None

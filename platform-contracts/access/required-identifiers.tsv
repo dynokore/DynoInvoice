@@ -6,7 +6,7 @@
 # Not rows, because they are not access-contract elements: confirmFiling (submission/openapi.yaml); private_key_jwt and client_secret_basic
 # (the VP-77 authentication settings, INV-REQ-2760, not access operations or schemas); security.officer, platform.engineer and
 # deployment.operator (roles); access-svc and notification-svc (services); MessageDelivery (a port of notification-svc, INV-REQ-817);
-# MessageRequested (a message name under components.messages of access/asyncapi.yaml, not a properties key, an operationId or an enum member).
+# MessageRequested (now a row of kind asyncapi_message, INV-T-18374).
 # INV-T-7988. INV-REQ-2756: the backticked names (tenant.admin, a role; access-svc, a service) are not contract elements, so they are not rows.
 # INV-T-8225. INV-AC-8224: the backticked names tenant.admin and commercial.admin are roles, grantRole is a row that exists, and provisionTenant is an operation of the control-plane contract that exists, so they add no row.
 # INV-T-8672. INV-AC-8671: the backticked names security.officer, tenant.admin, deployment.operator and tax.approver are roles, and mapIdpGroup, unlockBreakGlass, resealBreakGlass and AuthorityChanged exist already, so they add no row.
@@ -182,3 +182,9 @@ reason	property	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
 invalidatedAt	property	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
 ATTEMPTS_EXHAUSTED	enum_value	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
 REVOKED	enum_value	schemas/signed-link-invalidated-payload.schema.json	INV-REQ-901
+# INV-T-18374. The kinds asyncapi_message and asyncapi_operation: message names are keys of components.messages and operation keys are keys of the top-level operations mapping of access/asyncapi.yaml. MessageRequested is named in backticks by INV-REQ-2762.
+SignedLinkIssued	asyncapi_message	asyncapi.yaml	INV-REQ-901
+SignedLinkInvalidated	asyncapi_message	asyncapi.yaml	INV-REQ-901
+publishSignedLinkIssued	asyncapi_operation	asyncapi.yaml	INV-REQ-901
+publishSignedLinkInvalidated	asyncapi_operation	asyncapi.yaml	INV-REQ-901
+MessageRequested	asyncapi_message	asyncapi.yaml	INV-REQ-2762
