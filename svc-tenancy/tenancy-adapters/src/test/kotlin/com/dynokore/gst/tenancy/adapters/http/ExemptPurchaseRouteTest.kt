@@ -124,6 +124,7 @@ class ExemptPurchaseRouteTest {
             commands,
             unused(),
             unused(),
+            unused(),
             CallerSource { "user-1" },
         )
 

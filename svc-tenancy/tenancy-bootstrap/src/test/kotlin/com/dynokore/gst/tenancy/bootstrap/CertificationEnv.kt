@@ -70,6 +70,8 @@ internal class CertificationEnv(
     private val log: TopicLog,
 ) {
     private val context: ConfigurableApplicationContext = env.context
+
+    fun context(): ConfigurableApplicationContext = context
     private val json = EnvelopeJson()
     private val mapper = JsonMapper.builder().build()
     val people: TestPeople = context.getBean(TestPeople::class.java)

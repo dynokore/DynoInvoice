@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.adapters.events
 
 import com.dynokore.gst.tenancy.adapters.certification.ConsumedCertificationEvents
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
+import com.dynokore.gst.tenancy.adapters.rendition.ConsumedRenditionEvents
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
@@ -60,7 +61,7 @@ object TenancyEventCatalogue {
         val known =
             ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED +
-                SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE
+                SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE + ConsumedRenditionEvents.TYPE
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
@@ -111,6 +112,12 @@ object TenancyEventCatalogue {
                 contentTopic = false,
             ),
             CatalogueEntry(ARCHIVE_VOLUME_TYPE, ARCHIVE_VOLUME_TOPIC, setOf("evidence-svc"), contentTopic = false),
+            CatalogueEntry(
+                ConsumedRenditionEvents.TYPE,
+                ConsumedRenditionEvents.TOPIC,
+                setOf("payload-svc"),
+                contentTopic = false,
+            ),
         )
 
     /**

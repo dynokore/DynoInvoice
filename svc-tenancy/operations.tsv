@@ -21,7 +21,7 @@ certifySandbox	operation	INV-T-4931	done
 suspendEntity	operation	INV-T-4931	pending
 deregisterEntity	operation	INV-T-4931	pending
 offboardTenant	operation	INV-T-4931	pending
-recordRenditionResponsibility	operation	INV-T-4931	pending
+recordRenditionResponsibility	operation	INV-T-4931	done
 createWorkspace	operation	INV-T-4932	done
 archiveWorkspace	operation	INV-T-4932	done
 installLicence	operation	INV-T-4933	done

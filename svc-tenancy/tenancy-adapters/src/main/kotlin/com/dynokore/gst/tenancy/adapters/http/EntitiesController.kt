@@ -10,6 +10,8 @@ import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseOutcome
 import com.dynokore.gst.tenancy.application.election.PendingChange
 import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
+import com.dynokore.gst.tenancy.application.rendition.RecordRenditionOutcome
+import com.dynokore.gst.tenancy.application.rendition.RecordRenditionResponsibility
 import com.dynokore.gst.tenancy.application.status.AssessOutcome
 import com.dynokore.gst.tenancy.application.status.AssessPhaseCommands
 import com.dynokore.gst.tenancy.application.status.EntityStatusCommands
@@ -44,6 +46,8 @@ import com.dynokore.gst.tenancy.contract.model.PhaseAssessmentResponse
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionResponse
 import com.dynokore.gst.tenancy.contract.model.RegisterBusinessUnitRequest
+import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityRequest
+import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityResponse
 import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
@@ -84,6 +88,7 @@ open class EntitiesController(
     private val electionCommands: ElectionCommands,
     private val electionQueries: ElectionStatusQueries,
     private val certifySandbox: CertifySandbox,
+    private val recordRendition: RecordRenditionResponsibility,
     private val caller: CallerSource,
 ) : EntitiesApi {
     override fun createGroup(
@@ -426,6 +431,45 @@ open class EntitiesController(
             }
 
             is CertifyOutcome.Invalid -> {
+                invalid(outcome.reason)
+            }
+        }
+
+    /** recordRenditionResponsibility (INV-Q-16397: `attestedBy` must be the authenticated caller, else SRT-004). */
+    override fun recordRenditionResponsibility(
+        entityRef: String,
+        idempotencyKey: UUID,
+        renditionResponsibilityRequest: RenditionResponsibilityRequest,
+    ): ResponseEntity<RenditionResponsibilityResponse> =
+        when (
+            val outcome =
+                recordRendition.handle(
+                    caller.actor(),
+                    entityRef,
+                    renditionResponsibilityRequest.documentClass,
+                    renditionResponsibilityRequest.renderer.value,
+                    renditionResponsibilityRequest.attestedBy,
+                )
+        ) {
+            is RecordRenditionOutcome.Recorded -> {
+                ResponseEntity.status(HttpStatus.CREATED).body(
+                    RenditionResponsibilityResponse(
+                        outcome.attestation.entityRef,
+                        outcome.attestation.documentClass,
+                        RenditionResponsibilityResponse.Renderer.valueOf(outcome.attestation.renderer.name),
+                    ),
+                )
+            }
+
+            RecordRenditionOutcome.Forbidden -> {
+                forbidden("attestedBy must be the authenticated caller")
+            }
+
+            RecordRenditionOutcome.NotFound -> {
+                notFound()
+            }
+
+            is RecordRenditionOutcome.Invalid -> {
                 invalid(outcome.reason)
             }
         }
