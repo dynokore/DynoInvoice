@@ -309,7 +309,9 @@ class ConnectionHealthAndCredentialTest {
         val denied =
             RotateCredential(
                 HealthTx,
-                RotationPorts(records, states, secrets),
+                records,
+                states,
+                secrets,
                 { false },
                 RotationSettings(Duration.ofMinutes(1)),
                 clock,
