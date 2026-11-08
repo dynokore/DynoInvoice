@@ -1,0 +1,8 @@
+# Owner map of spectral/check-required-identifiers.py (INV-T-18955). Read from the base commit, never the working tree.
+# Header (tab separated, 7 cells), then one data line per exempted requirement cell of one row:
+#   table  identifier  kind  file  old_requirement  new_requirement  ruling
+# table is <dir>/required-identifiers.tsv; (identifier, kind, file) is a row of that table at the base; old_requirement is the cell
+# the row had at the base and no longer has; new_requirement matches ^INV-REQ-[0-9]+$ and is a requirement cell of that row at the head;
+# ruling matches ^INV-Q-[0-9]+$. A line exempts one cell of one row, never a table or a row. Malformed, duplicate or unknown-row
+# lines are findings naming the line number. No data line is present.
+table	identifier	kind	file	old_requirement	new_requirement	ruling

@@ -210,7 +210,7 @@ base_case() { # name, expected rc (0 pass, 1 fail), expected text, then the muta
 }
 base_case base-row-deleted 1 "'beta' (property, openapi.yaml)" "sed -i '/^beta/d' svc/required-identifiers.tsv"
 base_case base-row-added 0 "" "printf 'gamma\tproperty\topenapi.yaml\tR-6\n' >> svc/required-identifiers.tsv"
-base_case base-requirement-changed 0 "" "sed -i 's/^beta\(.*\)R-6/beta\1R-7/' svc/required-identifiers.tsv"
+base_case base-requirement-changed 1 "requirement cell changed since" "sed -i 's/^beta\(.*\)R-6/beta\1R-7/' svc/required-identifiers.tsv"
 base_case base-file-changed 1 "'beta' (property, openapi.yaml)" "sed -i 's/^beta\tproperty\topenapi.yaml/beta\tproperty\topenapi.yml/' svc/required-identifiers.tsv; cp svc/openapi.yaml svc/openapi.yml"
 base_case base-kind-changed 1 "'beta' (property, openapi.yaml)" "sed -i 's/^beta\tproperty/beta\toperation/' svc/required-identifiers.tsv"
 base_case base-table-deleted 1 "svc/required-identifiers.tsv: exists at" "rm svc/required-identifiers.tsv; mkdir -p other; cp svc/openapi.yaml other/; printf 'identifier\tkind\tfile\trequirement\nalpha\tproperty\topenapi.yaml\tR-6\n' > other/required-identifiers.tsv"
@@ -367,5 +367,77 @@ mkdir -p "$T/rp-other-service/elsewhere"; echo '{"properties":{"documentFunction
 expect_fail_dir "$T/rp-other-service" "$NF root_property"
 mkr rp-old-kind property documentFunction "$ALLOF"
 out=$(python3 check-required-identifiers.py "$T/rp-old-kind" 2>&1) || { echo "gst-ci: FAIL — kind property on the allOf-only file was rejected:"; echo "$out"; failed=1; }
+# INV-T-18955 (INV-AC-18954): the completeness ratchet (a row for every x-error-codes member new since the base) and the owner ratchet (no silent
+# change of a requirement cell). Each case is a throwaway git repository: the base commit holds svc/openapi.yaml (recordDocument: ING-002;
+# listThings: PER-009, PER-011), a table with the one row recordDocument.ING-002 (INV-REQ-1) and, when given, the owner map; the mutation runs
+# before the check with --base.
+OH='table\tidentifier\tkind\tfile\told_requirement\tnew_requirement\truling\n'
+OT='svc/required-identifiers.tsv\trecordDocument.ING-002\toperation_error_code\topenapi.yaml'
+OL="$OT"'\tINV-REQ-1\tINV-REQ-7\tINV-Q-100\n'
+mkc() { # name, owner map lines (printf format, header added; empty = no map) -> $T/<name>
+  mkdir -p "$T/$1/svc" "$T/$1/spectral"
+  printf 'openapi: 3.1.0\ninfo: {title: f, version: 1.0.0}\npaths:\n  /x:\n    post:\n      operationId: recordDocument\n      x-error-codes: [ING-002]\n  /y:\n    get:\n      operationId: listThings\n      x-error-codes: [PER-009, PER-011]\n' > "$T/$1/svc/openapi.yaml"
+  printf 'identifier\tkind\tfile\trequirement\nrecordDocument.ING-002\toperation_error_code\topenapi.yaml\tINV-REQ-1\n' > "$T/$1/svc/required-identifiers.tsv"
+  [ -n "$2" ] && printf "${OH}$2" > "$T/$1/spectral/required-identifiers-owners.tsv"
+  git -C "$T/$1" init -q && git -C "$T/$1" add -A && git -C "$T/$1" -c user.name=t -c user.email=t@t commit -q -m base
+}
+ratchet_case() { # name, expected rc, expected text, owner map at the base, mutation run in $T/<name>
+  n=$1; want=$2; txt=$3; ml=$4; mkc "$n" "$ml"; shift 4; (cd "$T/$n" && eval "$*")
+  out=$(python3 check-required-identifiers.py --base "$(git -C "$T/$n" rev-parse HEAD)" "$T/$n" 2>&1); rc=$?
+  if [ "$want" = 0 ] && [ $rc -ne 0 ]; then echo "gst-ci: FAIL — INV-AC-18954 ratchet case '$n' rejected:"; echo "$out"; failed=1
+  elif [ "$want" = 1 ] && [ $rc -eq 0 ]; then echo "gst-ci: FAIL — INV-AC-18954 ratchet case '$n' was accepted"; failed=1
+  elif [ "$want" = 1 ] && ! case "$out" in *"$txt"*) true;; *) false;; esac; then echo "gst-ci: FAIL — INV-AC-18954 ratchet case '$n' failed, but not with '$txt':"; echo "$out"; failed=1
+  else echo "gst-ci: self-test INV-AC-18954 ratchet '$n' behaved as expected"; fi
+}
+NEWC="member 'recordDocument.PER-012' of svc/openapi.yaml is new since"
+NOROW="no operation_error_code row with an INV-REQ-<number> requirement cell"
+ADDC="sed -i 's/x-error-codes: \[ING-002\]/x-error-codes: [ING-002, PER-012]/' svc/openapi.yaml"
+ROWC() { echo "printf 'recordDocument.PER-012\\toperation_error_code\\topenapi.yaml\\t$1\\n' >> svc/required-identifiers.tsv"; }
+ratchet_case cx-new-with-row 0 "" "" "$ADDC; $(ROWC INV-REQ-5)"
+ratchet_case cx-new-no-row 1 "$NEWC" "" "$ADDC"
+ratchet_case cx-new-no-row-text 1 "$NOROW" "" "$ADDC"
+ratchet_case cx-row-other-operation 1 "$NEWC" "" "$ADDC; printf 'listThings.PER-012\toperation_error_code\topenapi.yaml\tINV-REQ-5\n' >> svc/required-identifiers.tsv; sed -i 's/PER-009, PER-011\]/PER-009, PER-011, PER-012]/' svc/openapi.yaml"
+ratchet_case cx-row-lookalike-code 1 "$NEWC" "" "$ADDC; printf 'recordDocument.PER-0121\toperation_error_code\topenapi.yaml\tINV-REQ-5\n' >> svc/required-identifiers.tsv"
+ratchet_case cx-row-requirement-r6 1 "$NEWC" "" "$ADDC; $(ROWC R-6)"
+ratchet_case cx-row-requirement-question 1 "$NEWC" "" "$ADDC; $(ROWC INV-Q-11264)"
+ratchet_case cx-row-requirement-lookalike 1 "$NEWC" "" "$ADDC; $(ROWC INV-REQ-5x)"
+ratchet_case cx-row-kind-property 1 "$NEWC" "" "$ADDC; printf 'recordDocument.PER-012\tproperty\topenapi.yaml\tINV-REQ-5\n' >> svc/required-identifiers.tsv"
+ratchet_case cx-row-file-other 1 "$NEWC" "" "$ADDC; printf 'recordDocument.PER-012\toperation_error_code\topenapi.yml\tINV-REQ-5\n' >> svc/required-identifiers.tsv; cp svc/openapi.yaml svc/openapi.yml"
+ratchet_case cx-code-moved 1 "member 'recordDocument.PER-011' of svc/openapi.yaml is new since" "" "sed -i 's/PER-009, PER-011\]/PER-009]/; s/x-error-codes: \[ING-002\]/x-error-codes: [ING-002, PER-011]/' svc/openapi.yaml"
+ratchet_case cx-baseline-no-row 0 "" "" "true"
+ratchet_case cx-new-service 0 "" "" "mkdir svc2; cp svc/openapi.yaml svc2/; printf 'identifier\tkind\tfile\trequirement\nrecordDocument.ING-002\toperation_error_code\topenapi.yaml\tINV-REQ-5\nlistThings.PER-009\toperation_error_code\topenapi.yaml\tINV-REQ-5\nlistThings.PER-011\toperation_error_code\topenapi.yaml\tINV-REQ-5\n' > svc2/required-identifiers.tsv"
+ratchet_case cx-new-service-no-table 1 "member 'listThings.PER-009' of svc2/openapi.yaml is new since" "" "mkdir svc2; cp svc/openapi.yaml svc2/"
+ratchet_case cx-new-service-partial-rows 1 "member 'listThings.PER-011' of svc2/openapi.yaml is new since" "" "mkdir svc2; cp svc/openapi.yaml svc2/; printf 'identifier\tkind\tfile\trequirement\nrecordDocument.ING-002\toperation_error_code\topenapi.yaml\tINV-REQ-5\nlistThings.PER-009\toperation_error_code\topenapi.yaml\tINV-REQ-5\n' > svc2/required-identifiers.tsv"
+# a file that cannot be parsed at the base is a finding, never a skip (the base commit is rebuilt with a broken svc/openapi.yaml)
+mkc cx-base-broken ""; printf 'paths: [unclosed\n' > "$T/cx-base-broken/svc/openapi.yaml"; git -C "$T/cx-base-broken" -c user.name=t -c user.email=t@t commit -q -am broken
+printf "paths: {}\n" > "$T/cx-base-broken/svc/openapi.yaml"
+out=$(python3 check-required-identifiers.py --base "$(git -C "$T/cx-base-broken" rev-parse HEAD)" "$T/cx-base-broken" 2>&1); rc=$?
+[ $rc -eq 0 ] && { echo "gst-ci: FAIL — INV-AC-18954 ratchet case 'cx-base-broken' was accepted"; failed=1; } || case "$out" in *"cannot be parsed"*) echo "gst-ci: self-test INV-AC-18954 ratchet 'cx-base-broken' behaved as expected";; *) echo "gst-ci: FAIL — cx-base-broken:"; echo "$out"; failed=1;; esac
+# without --base the completeness rule does not run
+mkc cx-plain ""; (cd "$T/cx-plain" && eval "$ADDC")
+out=$(python3 check-required-identifiers.py "$T/cx-plain" 2>&1) && echo "gst-ci: self-test INV-AC-18954 ratchet 'cx-plain' (no --base) behaved as expected" || { echo "gst-ci: FAIL — cx-plain rejected:"; echo "$out"; failed=1; }
+# owner rule
+SWAPREQ="sed -i 's/INV-REQ-1\$/INV-REQ-7/' svc/required-identifiers.tsv"
+OWNTXT="requirement cell changed since"
+ratchet_case own-replaced 1 "$OWNTXT" "" "$SWAPREQ"
+ratchet_case own-replaced-text 1 "'recordDocument.ING-002' (operation_error_code, openapi.yaml) had 'INV-REQ-1'" "" "$SWAPREQ"
+ratchet_case own-second-cell 0 "" "" "printf 'recordDocument.ING-002\toperation_error_code\topenapi.yaml\tINV-REQ-7\n' >> svc/required-identifiers.tsv"
+ratchet_case own-map-at-base 0 "" "$OL" "$SWAPREQ"
+ratchet_case own-map-wrong-new 1 "$OWNTXT" "$OL" "sed -i 's/INV-REQ-1\$/INV-REQ-8/' svc/required-identifiers.tsv"
+ratchet_case own-map-other-old 1 "$OWNTXT" "$OT"'\tINV-REQ-2\tINV-REQ-7\tINV-Q-100\n' "$SWAPREQ"
+ratchet_case own-map-other-row 1 "$OWNTXT" 'svc/required-identifiers.tsv\trecordDocument.ING-0021\toperation_error_code\topenapi.yaml\tINV-REQ-1\tINV-REQ-7\tINV-Q-100\n' "$SWAPREQ"
+ratchet_case own-map-working-tree-only 1 "$OWNTXT" "" "$SWAPREQ; printf \"\$(printf '$OH$OL')\" > spectral/required-identifiers-owners.tsv"
+ratchet_case own-map-ruling-req 1 "map line 2" "$OT"'\tINV-REQ-1\tINV-REQ-7\tINV-REQ-1\n' "$SWAPREQ"
+ratchet_case own-map-ruling-req-row 1 "$OWNTXT" "$OT"'\tINV-REQ-1\tINV-REQ-7\tINV-REQ-1\n' "$SWAPREQ"
+ratchet_case own-map-ruling-empty 1 "map line 2" "$OT"'\tINV-REQ-1\tINV-REQ-7\t\n' "$SWAPREQ"
+ratchet_case own-map-ruling-empty-row 1 "$OWNTXT" "$OT"'\tINV-REQ-1\tINV-REQ-7\t\n' "$SWAPREQ"
+ratchet_case own-map-duplicate 1 "map line 3" "$OL$OL" "$SWAPREQ"
+ratchet_case own-map-six-cells 1 "map line 2" "$OT"'\tINV-REQ-1\tINV-REQ-7\n' "$SWAPREQ"
+ratchet_case own-map-six-cells-row 1 "$OWNTXT" "$OT"'\tINV-REQ-1\tINV-REQ-7\n' "$SWAPREQ"
+ratchet_case own-map-old-equals-new 1 "map line 2" "$OT"'\tINV-REQ-1\tINV-REQ-1\tINV-Q-100\n' "true"
+ratchet_case own-map-new-not-req 1 "map line 2" "$OT"'\tINV-REQ-1\tR-7\tINV-Q-100\n' "true"
+ratchet_case own-map-unknown-row 1 "map line 2" 'svc/required-identifiers.tsv\tnope\toperation_error_code\topenapi.yaml\tINV-REQ-1\tINV-REQ-7\tINV-Q-100\n' "true"
+ratchet_case own-map-unknown-table 1 "map line 2" 'svc9/required-identifiers.tsv\trecordDocument.ING-002\toperation_error_code\topenapi.yaml\tINV-REQ-1\tINV-REQ-7\tINV-Q-100\n' "true"
+ratchet_case own-map-unused-line 0 "" "$OL" "true"
 [ "$failed" -eq 0 ] && echo "gst-ci: check-required-identifiers.py self-test passed."
 exit $failed

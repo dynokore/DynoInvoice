@@ -37,8 +37,8 @@ case). Every finding names the table, the row, the identifier and the requiremen
 --base <sha> (INV-T-6937, INV-Q-7027 A) adds a ratchet: every `<dir>/required-identifiers.tsv` that exists at
 that commit must still exist, and every data row of it, keyed by the trimmed (identifier, kind, file) triple, must
 still be a data row of the same table at the head. A removed row is a finding naming the table, the identifier,
-the kind and the file. Comment lines, blank lines and the header are not rows; added rows and a changed
-requirement cell are not findings. A table missing at the head, an empty sha, and an sha that is not a commit of
+the kind and the file. Comment lines, blank lines and the header are not rows; added rows are not findings (a changed
+requirement cell is one, see the owner rule below). A table missing at the head, an empty sha, and an sha that is not a commit of
 the repository at the root each exit 1. A removed row is exempt only through a line of the rename map
 `spectral/required-identifiers-renames.tsv` read from the base commit (never the working tree; INV-T-13510, INV-Q-11109 A): the
 map has exactly one line for that table and old (identifier, kind, file), and the table at the head holds a data row with the
@@ -50,7 +50,18 @@ A retirement line (INV-T-17435, INV-Q-17427 A) has the token RETIRED in each of 
 holds no row with that triple, and the element is absent at the head (kind operation: no operationId equal to old_identifier in
 <dir>/old_file; other kinds: the lookup of the plain check finds nothing). A line with RETIRED in only some of the three cells is
 a finding naming its line number.
-Without --base the behaviour is the plain check above.
+Without --base the behaviour is the plain check above, except that the two ratchet rules below do not run (they need a baseline).
+
+Completeness ratchet (INV-T-18955): M(head) and M(base) are the sets of (directory, operationId, code) of the `x-error-codes` lists of
+`<dir>/openapi.yaml` at the head and at the base (a file absent at the base is the empty set; one that cannot be parsed there is a finding).
+Every member of M(head) minus M(base) needs a data row (`<operationId>.<code>`, operation_error_code, openapi.yaml) in
+`<dir>/required-identifiers.tsv` at the head whose requirement cell matches ^INV-REQ-[0-9]+$. Members of M(base) are the baseline.
+
+Owner ratchet (INV-T-18955): every requirement cell a row had at the base must still be a requirement cell of that row at the head
+(adding a cell is allowed). Exemption: a line of `spectral/required-identifiers-owners.tsv` read from the base commit (never the working
+tree), 7 tab-separated cells: table, identifier, kind, file, old_requirement, new_requirement, ruling (INV-Q-<number>). The line exempts
+one old cell of one row; new_requirement must be a requirement cell of that row at the head. A malformed line, a duplicate (same table,
+triple and old cell) or a line for a row that is not in the table at the base is a finding naming its line number.
 
 Audited-operation completeness (INV-T-7643, INV-Q-7641 A; made unconditional by INV-T-7650), with and without --base:
 H are the data lines of `catalogue/audited-operations.tsv` in the working tree (four tab-separated cells: listedName,
@@ -291,6 +302,92 @@ def valid_rename(c: list[str]) -> bool:
             and c[1:4] != c[4:7])
 
 
+OWNERS = "spectral/required-identifiers-owners.tsv"
+OWNER_HEADER = ("table", "identifier", "kind", "file", "old_requirement", "new_requirement", "ruling")
+INV_REQ = re.compile(r"INV-REQ-[0-9]+")
+
+
+def owner_lines(text: str) -> list[tuple[int, list[str]]]:
+    """(line number, trimmed cells) of every data line of the owner map; comments, blanks and the header are not data lines."""
+    out: list[tuple[int, list[str]]] = []
+    first = True
+    for no, raw in enumerate(text.splitlines(), 1):
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        cells = [c.strip() for c in raw.split("\t")]
+        if first and tuple(cells) == OWNER_HEADER:
+            first = False
+            continue
+        first = False
+        out.append((no, cells))
+    return out
+
+
+def owner_findings(lines: list[tuple[int, list[str]]], base_rows: dict[str, dict]) -> list[str]:
+    """Map checks: each bad line is a finding naming its line number. base_rows: table name -> row_reqs of the table at the base."""
+    found: list[str] = []
+    seen: dict[tuple[str, ...], int] = {}
+    for no, c in lines:
+        tag = f"{OWNERS}: map line {no}"
+        if len(c) != 7 or not all(c):
+            found.append(f"{tag}: needs exactly seven non-empty cells")
+            continue
+        if not INV_REQ.fullmatch(c[5]):
+            found.append(f"{tag}: new_requirement {c[5]!r} does not match INV-REQ-<number>")
+        if not re.fullmatch(r"INV-Q-[0-9]+", c[6]):
+            found.append(f"{tag}: the ruling cell {c[6]!r} is not an INV-Q-<number> key")
+        if c[4] == c[5]:
+            found.append(f"{tag}: old_requirement equals new_requirement")
+        if tuple(c[1:4]) not in base_rows.get(c[0], {}):
+            found.append(f"{tag}: ({c[1]}, {c[2]}, {c[3]}) is not a row of table {c[0]!r} at the base")
+        key = tuple(c[:5])
+        if key in seen:
+            found.append(f"{tag}: the same table, triple and old cell as map line {seen[key]}")
+        else:
+            seen[key] = no
+    return found
+
+
+def valid_owner(c: list[str], key: tuple[str, str, str], table: str, old: str, head_cells: set[str]) -> bool:
+    return (len(c) == 7 and all(c) and c[0] == table and tuple(c[1:4]) == key and c[4] == old and c[4] != c[5]
+            and INV_REQ.fullmatch(c[5]) is not None and c[5] in head_cells and re.fullmatch(r"INV-Q-[0-9]+", c[6]) is not None)
+
+
+def error_members(text: str) -> set[tuple[str, str]] | str:
+    """The (operationId, code) members of an openapi.yaml text, or the parse error text."""
+    try:
+        return collect(yaml.safe_load(text))["operation_error_code"]
+    except yaml.YAMLError as e:
+        return f"cannot be parsed: {str(e).splitlines()[0]}"
+
+
+def check_completeness(root: Path, sha: str, git) -> list[str]:
+    """INV-T-18955: every x-error-codes member new since the base needs an operation_error_code row with an INV-REQ- cell."""
+    findings: list[str] = []
+    for spec in sorted(root.glob("*/openapi.yaml")):
+        d = spec.parent.name
+        name = f"{d}/openapi.yaml"
+        head = error_members(spec.read_text())
+        if isinstance(head, str):
+            findings.append(f"{name}: {head}")
+            continue
+        base: set[tuple[str, str]] = set()
+        if git("cat-file", "-e", f"{sha}:{name}").returncode == 0:
+            shown = git("show", f"{sha}:{name}")
+            parsed = error_members(shown.stdout) if shown.returncode == 0 else f"cannot be read: {shown.stderr.strip()}"
+            if isinstance(parsed, str):
+                findings.append(f"{name}: at {sha} it {parsed}")
+                continue
+            base = parsed
+        table = root / d / "required-identifiers.tsv"
+        reqs = row_reqs(table.read_text()) if table.is_file() else {}
+        for op, code in sorted(head - base):
+            cells = reqs.get((f"{op}.{code}", "operation_error_code", "openapi.yaml"), set())
+            if not any(INV_REQ.fullmatch(x) for x in cells):
+                findings.append(f"x-error-codes member '{op}.{code}' of {name} is new since {sha} and has no operation_error_code row with an INV-REQ-<number> requirement cell")
+    return findings
+
+
 def check_base(root: Path, sha: str) -> list[str]:
     """INV-Q-7027 A: a row of a table at the base commit must still be a row of the same table at the head."""
     if not sha.strip() or sha.startswith("-"):
@@ -308,6 +405,7 @@ def check_base(root: Path, sha: str) -> list[str]:
     mapped = git("show", f"{sha}:{RENAMES}") if RENAMES in listing.stdout.splitlines() else None
     lines = rename_lines(mapped.stdout) if mapped is not None and mapped.returncode == 0 else []
     findings += rename_findings(lines)
+    base_rows: dict[str, dict] = {}
     for name in sorted(n for n in listing.stdout.splitlines() if re.fullmatch(r"[^/]+/required-identifiers\.tsv", n)):
         head = root / name
         if not head.is_file():
@@ -319,6 +417,14 @@ def check_base(root: Path, sha: str) -> list[str]:
             continue
         head_reqs = row_reqs(head.read_text())
         base_reqs = row_reqs(before.stdout)
+        base_rows[name] = base_reqs
+        owners = git("show", f"{sha}:{OWNERS}") if OWNERS in listing.stdout.splitlines() else None
+        olines = owner_lines(owners.stdout) if owners is not None and owners.returncode == 0 else []
+        for key in sorted(set(base_reqs) & set(head_reqs)):
+            for old in sorted(base_reqs[key] - head_reqs[key]):
+                if any(valid_owner(c, key, name, old, head_reqs[key]) for _, c in olines):
+                    continue
+                findings.append(f"requirement cell changed since {sha}: '{key[0]}' ({key[1]}, {key[2]}) had '{old}'")
         for key in sorted(set(base_reqs) - set(head_reqs)):
             ident, kind, file = key
             hits = [c for _, c in lines if len(c) == 8 and all(c) and c[0] == name and tuple(c[1:4]) == key]
@@ -327,6 +433,9 @@ def check_base(root: Path, sha: str) -> list[str]:
             if len(hits) == 1 and valid_retirement(hits[0]) and key not in head_reqs and absent_at_head(root, name, ident, kind, file):
                 continue
             findings.append(f"{name}: row removed since {sha}: {ident!r} ({kind}, {file})")
+    owners = git("show", f"{sha}:{OWNERS}") if OWNERS in listing.stdout.splitlines() else None
+    findings += owner_findings(owner_lines(owners.stdout) if owners is not None and owners.returncode == 0 else [], base_rows)
+    findings += check_completeness(root, sha, git)
     return findings
 
 
