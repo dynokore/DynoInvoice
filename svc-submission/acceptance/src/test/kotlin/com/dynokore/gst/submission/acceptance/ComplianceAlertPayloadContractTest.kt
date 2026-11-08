@@ -63,8 +63,7 @@ class ComplianceAlertPayloadContractTest {
         return value as Map<String, Any?>
     }
 
-    private fun message(): Map<String, Any?> =
-        map(map(map(asyncapi["components"])["messages"])[MESSAGE])
+    private fun message(): Map<String, Any?> = map(map(map(asyncapi["components"])["messages"])[MESSAGE])
 
     private fun schemaFile(): File =
         File(contractDir, (map(message()["payload"])["\$ref"] as String).removePrefix("./"))
