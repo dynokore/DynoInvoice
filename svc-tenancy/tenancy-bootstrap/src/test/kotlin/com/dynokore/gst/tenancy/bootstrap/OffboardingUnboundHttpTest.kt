@@ -29,6 +29,27 @@ class OffboardingUnboundHttpTest {
             }
         }
 
+    private fun post(
+        context: org.springframework.context.ConfigurableApplicationContext,
+        tenant: String,
+        entityRef: String,
+    ): HttpResponse<String> {
+        val port = context.environment.getProperty("local.server.port")
+        val body =
+            """{"scope":"ENTITY","entityRef":"$entityRef","secondConfirmationBy":"identity:USR-0040",""" +
+                """"retentionCustodyHolder":{"name":"Ledger","contactEmail":"a@b.example"}}"""
+        val request =
+            HttpRequest
+                .newBuilder(URI.create("http://localhost:$port/internal/v1/tenancy/tenants/$tenant/offboarding"))
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .header("X-Workload-Token", "token-console-bff")
+                .header("Authorization", "Bearer ${EntityFactsIdentity.TOKEN}")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+    }
+
     @Test
     fun `probe the ports unbound is 422 POL-014 naming the input and nothing is stored`(
         @TempDir dir: Path,
@@ -53,22 +74,7 @@ class OffboardingUnboundHttpTest {
                     EntityFactsIdentity.principal =
                         EndUserPrincipal("user-a", tenant, setOf(EntityRef(entity.entityRef)))
                     val before = count()
-                    val port = context.environment.getProperty("local.server.port")
-                    val body =
-                        """{"scope":"ENTITY","entityRef":"${entity.entityRef}",""" +
-                            """"secondConfirmationBy":"identity:USR-0040",""" +
-                            """"retentionCustodyHolder":{"name":"Ledger","contactEmail":"a@b.example"}}"""
-                    val url = "http://localhost:$port/internal/v1/tenancy/tenants/${tenant.value}/offboarding"
-                    val request =
-                        HttpRequest
-                            .newBuilder(URI.create(url))
-                            .header("Content-Type", "application/json")
-                            .header("Idempotency-Key", UUID.randomUUID().toString())
-                            .header("X-Workload-Token", "token-console-bff")
-                            .header("Authorization", "Bearer ${EntityFactsIdentity.TOKEN}")
-                            .POST(HttpRequest.BodyPublishers.ofString(body))
-                            .build()
-                    val answer = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+                    val answer = post(context, tenant.value.toString(), entity.entityRef)
                     assertThat(answer.statusCode()).describedAs(answer.body()).isEqualTo(422)
                     assertThat(answer.body()).contains("POL-014").contains("unsubmitted-documents-count")
                     assertThat(count()).isEqualTo(before)

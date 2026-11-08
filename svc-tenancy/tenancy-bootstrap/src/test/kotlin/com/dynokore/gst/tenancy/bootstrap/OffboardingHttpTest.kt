@@ -56,22 +56,28 @@ class OffboardingHttpTest {
         val code: String? get() = Regex(""""code"\s*:\s*"([^"]+)"""").find(body)?.groupValues?.get(1)
     }
 
+    /** One stored record, the columns by name. */
     private class Row(
-        val ref: String,
-        val scope: String,
-        val entityRef: String?,
-        val state: String,
-        val holderName: String,
-        val holderEmail: String,
-        val holderMobile: String?,
-        val exportState: String,
-        val exportContents: List<String>,
-        val overrideBy: String?,
-        val overrideStatement: String?,
-        val handover: String?,
-        val requestedBy: String?,
-        val confirmedBy: String?,
-    )
+        private val columns: Map<String, String?>,
+    ) {
+        val scope get() = columns.getValue("scope")!!
+        val state get() = columns.getValue("state")!!
+        val holderName get() = columns.getValue("custody_holder_name")
+        val holderEmail get() = columns.getValue("custody_holder_email")
+        val holderMobile get() = columns.getValue("custody_holder_mobile")
+        val exportContents get() =
+            columns
+                .getValue(
+                    "export_contents",
+                )!!
+                .trim('{', '}')
+                .split(',')
+                .filter { it.isNotEmpty() }
+        val overrideBy get() = columns.getValue("override_acknowledged_by")
+        val overrideStatement get() = columns.getValue("override_statement")
+        val handover get() = columns.getValue("handover_statement_ref")
+        val confirmedBy get() = columns.getValue("second_confirmation_by")
+    }
 
     @BeforeAll
     fun start() {
@@ -164,34 +170,18 @@ class OffboardingHttpTest {
         BoundaryFixture.asSuperuser { c ->
             c
                 .prepareStatement(
-                    "select offboarding_ref, scope, entity_ref, state, custody_holder_name, custody_holder_email, " +
-                        "custody_holder_mobile, export_state, export_contents::text, override_acknowledged_by, " +
-                        "override_statement, handover_statement_ref, requested_by, second_confirmation_by " +
+                    "select scope, state, custody_holder_name, custody_holder_email, custody_holder_mobile, " +
+                        "export_contents::text as export_contents, override_acknowledged_by, override_statement, " +
+                        "handover_statement_ref, second_confirmation_by " +
                         "from tenancy.offboarding_record where tenant_id = ? order by created_at, offboarding_ref",
                 ).use { st ->
                     st.setObject(1, tenant.value)
                     st.executeQuery().use { rs ->
+                        val names = (1..rs.metaData.columnCount).map { rs.metaData.getColumnLabel(it) }
                         generateSequence {
                             if (rs.next()) {
                                 Row(
-                                    rs.getString(1),
-                                    rs.getString(2),
-                                    rs.getString(3),
-                                    rs.getString(4),
-                                    rs.getString(5),
-                                    rs.getString(6),
-                                    rs.getString(7),
-                                    rs.getString(8),
-                                    rs
-                                        .getString(9)
-                                        .trim('{', '}')
-                                        .split(',')
-                                        .filter { it.isNotEmpty() },
-                                    rs.getString(10),
-                                    rs.getString(11),
-                                    rs.getString(12),
-                                    rs.getString(13),
-                                    rs.getString(14),
+                                    names.associateWith { rs.getString(it) },
                                 )
                             } else {
                                 null

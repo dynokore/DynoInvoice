@@ -126,24 +126,12 @@ open class TenantsController(
         idempotencyKey: UUID,
         offboardTenantRequest: OffboardTenantRequest,
     ): ResponseEntity<OffboardingRecordResponse> {
-        val request = offboardTenantRequest
-        val holder = request.retentionCustodyHolder
         val outcome =
             offboard.byPerson(
                 tenantRef,
                 caller.actor(),
                 idempotencyKey.toString(),
-                OffboardRequest(
-                    scope = OffboardingScope.valueOf(request.scope.value),
-                    entityRef = request.entityRef,
-                    retentionCustodyHolder =
-                        DomainHolder(holder.name, holder.contactEmail, holder.contactMobile),
-                    secondConfirmationBy = request.secondConfirmationBy,
-                    unsubmittedOverride =
-                        request.unsubmittedOverride?.let { UnsubmittedOverride(it.acknowledgedBy, it.statement) },
-                    noticeWindowDays = request.noticeWindowDays,
-                    handoverStatementRef = request.handoverStatementRef,
-                ),
+                offboardRequestOf(offboardTenantRequest),
             )
         return when (outcome) {
             is OffboardOutcome.Accepted -> {
@@ -180,6 +168,25 @@ open class TenantsController(
                 offboardingConflict(outcome)
             }
         }
+    }
+
+    private fun offboardRequestOf(request: OffboardTenantRequest): OffboardRequest {
+        val holder = request.retentionCustodyHolder
+        return OffboardRequest(
+            scope = OffboardingScope.valueOf(request.scope.value),
+            entityRef = request.entityRef,
+            retentionCustodyHolder = DomainHolder(holder.name, holder.contactEmail, holder.contactMobile),
+            secondConfirmationBy = request.secondConfirmationBy,
+            unsubmittedOverride =
+                request.unsubmittedOverride?.let {
+                    UnsubmittedOverride(
+                        it.acknowledgedBy,
+                        it.statement,
+                    )
+                },
+            noticeWindowDays = request.noticeWindowDays,
+            handoverStatementRef = request.handoverStatementRef,
+        )
     }
 
     private fun offboardingConflict(outcome: OffboardOutcome.Conflict): Nothing =
