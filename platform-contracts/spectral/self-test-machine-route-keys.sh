@@ -128,7 +128,7 @@ oprobe() { # name, expected fragment, openapi dir, path template, python code on
 PRE=/v1/pre-issuance-checks
 fresh unswept-line
 out=$(python3 spectral/check-machine-route-keys.py "$TMP/unswept-line" 2>&1); rc=$?
-if [ $rc -eq 0 ] && [ "$(printf '%s\n' "$out" | tail -n 1)" = "x-operation-unswept: evidence, reconciliation, submission" ]; then echo "gst-ci: INV-AC-18350 clean tree prints the unswept line as expected (checkPreIssuance pair of ingestion and payload passes)"; else echo "gst-ci: FAIL — INV-AC-18350 clean tree: exit $rc, $out"; failed=1; fi
+if [ $rc -eq 0 ] && [ "$(printf '%s\n' "$out" | tail -n 1)" = "x-operation-unswept: -" ]; then echo "gst-ci: INV-AC-18350 clean tree prints the unswept line as expected (every machine route directory is swept; checkPreIssuance pair of ingestion and payload passes)"; else echo "gst-ci: FAIL — INV-AC-18350 clean tree: exit $rc, $out"; failed=1; fi
 PERM='machine.ingestion.channels.write'
 oprobe xop-permission-one-char "post $PRE: (e) x-operation permission 'machine.ingestion.channels.writf' differs" ingestion $PRE "b = b.replace('permission: $PERM', 'permission: machine.ingestion.channels.writf', 1)"
 oprobe xop-permission-trailing-space "post $PRE: (e) x-operation permission 'machine.ingestion.channels.write ' differs" ingestion $PRE "b = b.replace('permission: $PERM', 'permission: \"$PERM \"', 1)"
@@ -141,8 +141,8 @@ oprobe xop-kind-caller "post $PRE: (e) x-operation kind 'CALLER' is not 'PERMISS
 oprobe xop-kind-lower "post $PRE: (e) x-operation kind 'permission' is not 'PERMISSION'" ingestion $PRE "b = b.replace('kind: PERMISSION', 'kind: permission', 1)"
 oprobe xop-kind-missing "post $PRE: (e) x-operation kind None is not 'PERMISSION'" ingestion $PRE "b = b.replace('        kind: PERMISSION\n', '', 1)"
 oprobe xop-missing "post $PRE: (e) ingestion/openapi.yaml is swept but the operation has no x-operation" ingestion $PRE "import re; b = re.sub(r'      x-operation:\n(        .*\n)+', '', b, count=1)"
-oprobe xop-unswept-permission "post /v1/certification-reports: (e) evidence/openapi.yaml is not swept (no kind) but its x-operation carries permission" evidence /v1/certification-reports "b = b.replace('      x-operation:\n', '      x-operation:\n        permission: machine.certification.report.record\n', 1)"
-oprobe xop-unswept-permission-also "post /v1/certification-reports: (e) evidence/openapi.yaml is not swept (no kind) but its x-operation carries permission-also" evidence /v1/certification-reports "b = b.replace('      x-operation:\n', '      x-operation:\n        permission-also: machine.certification.ingest\n', 1)"
+oprobe xop-unswept-permission "post /v1/certification-reports: (e) evidence/openapi.yaml is not swept (no kind) but its x-operation carries permission" evidence /v1/certification-reports "b = b.replace('        kind: PERMISSION\n', '', 1)"   # every directory is swept on main: dropping evidence's only kind unsweeps it
+oprobe xop-unswept-permission-also "post /v1/certification-reports: (e) evidence/openapi.yaml is not swept (no kind) but its x-operation carries permission-also" evidence /v1/certification-reports "b = b.replace('        kind: PERMISSION\n        permission: machine.certification.report.record\n', '        permission-also: machine.certification.ingest\n', 1)"
 fresh second-file
 mkdir -p "$TMP/second-file/ingestion2"
 printf 'openapi: 3.1.0\npaths:\n  %s:\n    post:\n      operationId: otherCheck\n      x-principal: ingest\n' "$PRE" > "$TMP/second-file/ingestion2/openapi.yaml"
