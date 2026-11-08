@@ -1,6 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
 # pinned at commit 692c582333cf6f650694b24eb100b448946bc347 (2026-11-09), the merge of invoice-docs INV-T-18915 adding MDM-012 to MDM-015, the rate import error codes (INV-T-18916, coordinator ruling of breakdown tooling/gap18772-gap.md);
-# previously pinned at commit a387243fb0b03d0c27b08d77eb936e6e785f8c7b (2026-11-08), the merge of invoice-docs INV-T-18812 adding TNC-011 (INV-T-18813, coordinator ruling of breakdown tooling/tenancy-cutover-gap.md);
+# previously pinned at a387243fb0b03d0c27b08d77eb936e6e785f8c7b (2026-11-08), the merge of invoice-docs INV-T-18812 adding TNC-011 (INV-T-18813, coordinator ruling of breakdown tooling/tenancy-cutover-gap.md);
 # previously pinned at baecd0f87a9069b093da85710352e349ad25beba (2026-11-08), the merge of invoice-docs INV-T-18371 adding MDM-011 (INV-T-18372, coordinator ruling option A of tooling/gap18217-gap.md);
 # previously pinned at 34f1a64f543c01f31b32f33377d941fc35067d7f (2026-11-06), the merge of invoice-docs INV-T-17294 adding SRT-014 and MDM-010 (INV-T-17296, coordinator rulings INV-Q-17287 A, INV-Q-17289 A);
 # previously pinned at 351be219b511369a30d7ccef87bbe7031d632c73 (2026-11-06), the merge of invoice-docs INV-T-17140 adding SRT-013 (INV-T-17141, coordinator ruling INV-Q-17134 A);
