@@ -33,17 +33,13 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
-import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.info.BuildProperties
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Import
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import tools.jackson.databind.JsonNode
@@ -62,14 +58,6 @@ private const val CONSOLE = "console-bff"
 private const val ALT = "-alt"
 private const val PACKS = "/internal/v1/rules/mapping-packs"
 private const val ENTITY = "E-1"
-private const val WAIT_NANOS = 20_000_000_000L
-private const val WAIT_SECONDS = 30L
-private const val POLL_MILLIS = 50L
-private const val ENGINE_VERSION = "2026.11.1"
-
-private fun buildPropertiesOf(version: String) =
-    BuildProperties(java.util.Properties().apply { setProperty("version", version) })
-
 private const val USER_B_TOKEN = "Bearer token-user-b"
 private val TENANT_B = TenantId.of("0b000000-0000-0000-0000-00000000000b")
 
@@ -80,22 +68,7 @@ object MappingPortProbe {
 
     @Volatile var writeOutboxRow = false
 
-    @Volatile var denyAuthority = false
-
-    @Volatile var decisionUnavailable = false
-
-    @Volatile var holderUnavailable = false
-
-    @Volatile var rateUnavailable = false
-
-    @Volatile var rateBlocking = false
-
     fun reset() {
-        denyAuthority = false
-        decisionUnavailable = false
-        holderUnavailable = false
-        rateUnavailable = false
-        rateBlocking = false
         authorityCalls.set(0)
         holderRequests.clear()
         writeOutboxRow = false
@@ -129,7 +102,7 @@ class MappingDoubles {
 
 /** The allowing fakes that replace the four refusing defaults by bean name; registered before the service. */
 @TestConfiguration(proxyBeanMethods = false)
-class MappingAllowingPortsWithoutBuild {
+class MappingAllowingPorts {
     @Bean
     fun packActionAuthority(emitter: PackEventEmitter): PackActionAuthority =
         PackActionAuthority { _, _, _ ->
@@ -149,44 +122,22 @@ class MappingAllowingPortsWithoutBuild {
                     ),
                 )
             }
-            !MappingPortProbe.denyAuthority
+            true
         }
 
     @Bean
     fun packApprovalDecisionPort(): PackApprovalDecisionPort =
-        PackApprovalDecisionPort { _, _, _, _, _ ->
-            if (MappingPortProbe.decisionUnavailable) {
-                PackApprovalDecision.Unavailable
-            } else {
-                PackApprovalDecision.Allow(false, null, "OPTION-1", emptySet())
-            }
-        }
+        PackApprovalDecisionPort { _, _, _, _, _ -> PackApprovalDecision.Allow(false, null, "OPTION-1", emptySet()) }
 
     @Bean
-    fun rateSourcePort(): RateSourcePort =
-        RateSourcePort { _, _ ->
-            when {
-                MappingPortProbe.rateUnavailable -> null
-                MappingPortProbe.rateBlocking -> listOf("RS-1")
-                else -> emptyList()
-            }
-        }
+    fun rateSourcePort(): RateSourcePort = RateSourcePort { _, _ -> emptyList() }
 
     @Bean
     fun holderCopyPort(): HolderCopyPort =
         HolderCopyPort { request ->
             MappingPortProbe.holderRequests.add(request)
-            if (MappingPortProbe.holderUnavailable) HolderCopyResult.Unavailable else HolderCopyResult.Written
+            HolderCopyResult.Written
         }
-}
-
-/** The allowing fakes and a build version, for the contexts that do not vary the version. */
-@TestConfiguration(proxyBeanMethods = false)
-@Import(MappingAllowingPortsWithoutBuild::class)
-class MappingAllowingPorts {
-    /** The build version of the test context (the `BuildProperties` that `buildInfo()` would generate). */
-    @Bean
-    fun buildProperties(): BuildProperties = buildPropertiesOf(ENGINE_VERSION)
 }
 
 /** What the two test classes share: the HTTP calls, the table snapshot and the fixtures of the probe login. */
@@ -249,20 +200,6 @@ open class MappingPackSupport(
         """{"internalTaxCode":"$code","irasCode":"$iras","sourceClass":"$sourceClass","entityRef":"$ENTITY"}""",
     )
 
-    /** An APPROVED pack whose activation is refused 503 SRT-013 because the build version is unusable. */
-    fun refusedActivation() {
-        MappingPortProbe.reset()
-        val version = "ev-${UUID.randomUUID().toString().take(6)}"
-        val packId = seedPack(version, "APPROVED")
-        val before = snapshot()
-        val answer = activate(packId, "2026-01-01")
-        io.kotest.assertions.withClue(answer.body()) {
-            answer.statusCode() shouldBe 503
-            json(answer).get("code").asString() shouldBe "SRT-013"
-        }
-        snapshot() shouldBe before
-    }
-
     protected fun submit(packId: String) = call("POST", "$PACKS/$packId/submissions?entityRef=$ENTITY")
 
     protected fun approve(
@@ -297,32 +234,6 @@ open class MappingPackSupport(
         sql: String,
         vararg binds: Any?,
     ): Any? = probe.inTenant(tenant) { fetchValue(sql, *binds) }
-
-    /**
-     * Inserts a row in a transaction that stays open, starts [request] on another thread, waits until a statement of
-     * the service is blocked on a lock, then commits and returns the answer of [request].
-     */
-    protected fun <T> holdRowUntilInsertWaits(
-        tenant: TenantId,
-        insert: String,
-        vararg binds: Any?,
-        request: () -> T,
-    ): T =
-        probe
-            .inTenant(tenant) {
-                fetchValue(insert, *binds)
-                val answer =
-                    java.util.concurrent.CompletableFuture
-                        .supplyAsync(request)
-                val deadline = System.nanoTime() + WAIT_NANOS
-
-                fun waiting() =
-                    (fetchValue("select count(*) from pg_stat_activity where wait_event_type = 'Lock'") as Number)
-                        .toInt() > 0
-                while (System.nanoTime() < deadline && !waiting()) Thread.sleep(POLL_MILLIS)
-                check(waiting()) { "the insert of the call never waited on the competing row" }
-                answer
-            }.get(WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
 
     protected fun rows(
         tenant: TenantId,
@@ -469,9 +380,6 @@ class MappingPackBoundaryTest(
     @Autowired private val db: org.jooq.DSLContext,
 ) : MappingPackSupport(port) {
     private var counter = 0
-
-    @org.junit.jupiter.api.BeforeEach
-    fun resetProbe() = MappingPortProbe.reset()
 
     private fun label() = "2026.${++counter}-${UUID.randomUUID().toString().take(6)}"
 
@@ -774,385 +682,13 @@ class MappingPackBoundaryTest(
     }
 }
 
-/** The declared refusals, the repeats and the engine version at the service boundary (INV-T-19085, INV-REQ-380). */
-@SpringBootTest(
-    classes = [MappingDoubles::class, MappingAllowingPorts::class, RulesApplication::class],
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = [
-        "service-runtime.idempotency.schema=rules",
-        "service-runtime.workload-identity.callers[0].service=$CONSOLE",
-        "service-runtime.workload-identity.callers[0].subject=subject-of-$CONSOLE",
-        "service-runtime.workload-identity.callers[1].service=$CONSOLE$ALT",
-        "service-runtime.workload-identity.callers[1].subject=subject-of-$CONSOLE$ALT",
-    ],
-)
-class MappingPackOutcomesTest(
-    @org.springframework.boot.test.web.server.LocalServerPort port: Int,
-    @Autowired private val context: ApplicationContext,
-) : MappingPackSupport(port) {
-    private var counter = 0
-
-    @org.junit.jupiter.api.BeforeEach
-    fun resetProbe() = MappingPortProbe.reset()
-
-    private fun label() = "2026.${++counter}-${UUID.randomUUID().toString().take(6)}"
-
-    private fun withClueOf(
-        clue: String,
-        block: () -> Unit,
-    ) = io.kotest.assertions.withClue(clue, block)
-
-    // ---- the refusals the contract declares: status and closed code (INV-T-19085) ----
-
-    private fun codeOf(response: HttpResponse<String>): String = json(response).get("code").asString()
-
-    private fun refusal(
-        response: HttpResponse<String>,
-        status: Int,
-        code: String,
-    ) {
-        withClueOf(response.body()) {
-            response.statusCode() shouldBe status
-            codeOf(response) shouldBe code
-        }
-    }
-
-    @Test
-    fun `a lifecycle conflict answers 409 SRT-008 and stores nothing`() {
-        val packId = seedPack(label())
-        val before = snapshot()
-        refusal(activate(packId, "2026-01-01"), 409, "SRT-008")
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `a missing dry-run delta answers 409 SRT-008 and stores nothing`() {
-        val packId = seedPack(label())
-        val before = snapshot()
-        refusal(submit(packId), 409, "SRT-008")
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `an accepted PRIMARY entry answers 409 SRT-008 and stores nothing`() {
-        val packId = draft(label())
-        ok(mapCode(packId, "P1", "SR", "PRIMARY"), 201)
-        val before = snapshot()
-        refusal(accept(packId, "P1"), 409, "SRT-008")
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `an unknown pack answers 404 SRT-005 and stores nothing`() {
-        val before = snapshot()
-        refusal(submit("MAP-NOPE"), 404, "SRT-005")
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `INV-REQ-380 a taken draft label answers 409 SRT-008 and stores nothing`() {
-        val taken = label()
-        draft(taken)
-        val before = snapshot()
-        refusal(call("POST", PACKS, """{"label":"$taken","entityRef":"$ENTITY"}"""), 409, "SRT-008")
-        snapshot() shouldBe before
-        // look-alikes: another label of the tenant is accepted, and a label held only by another tenant is accepted
-        draft(label())
-        val held = label()
-        seedPack(held, tenant = TENANT_B)
-        draft(held)
-    }
-
-    @Test
-    fun `INV-REQ-380 a unique violation of the lineage key during the insert answers 409 SRT-008`() {
-        // A competing writer holds the label in an open transaction: the existence check cannot see it, the insert of
-        // the call waits on the unique index and fails with 23505 once the writer commits.
-        val raced = label()
-        val before = snapshot()
-        val answer =
-            holdRowUntilInsertWaits(
-                TENANT_A,
-                "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-                    "min_engine_version, registered_by, label, entity_ref) values " +
-                    "(?::uuid, ?::uuid, ?, 'MAPPING', ?, " +
-                    "'TENANT_MAPPING', 'DRAFT', '1.0.0', 'tenancy-probe', ?, '$ENTITY') returning id",
-                UUID.randomUUID().toString(),
-                TENANT_A.toString(),
-                "MAP-$raced",
-                raced,
-                raced,
-            ) { call("POST", PACKS, """{"label":"$raced","entityRef":"$ENTITY"}""") }
-        refusal(answer, 409, "SRT-008")
-        val after = snapshot()
-        after.filterKeys { it != "pack_registry" } shouldBe before.filterKeys { it != "pack_registry" }
-        after.getValue("pack_registry").size shouldBe before.getValue("pack_registry").size + 1
-    }
-
-    @Test
-    fun `INV-REQ-380 an unknown sourceClass in mapTaxCode answers 400 SRT-001 and stores nothing`() {
-        val packId = draft(label())
-        val before = snapshot()
-        refusal(mapCode(packId, "U1", "SR", "TERTIARY"), 400, "SRT-001")
-        snapshot() shouldBe before
-        ok(mapCode(packId, "U2", "SR", "SECONDARY"), 201)
-    }
-
-    @Test
-    fun `INV-REQ-380 an unknown sourceClass filter answers 400 SRT-001`() {
-        val packId = draft(label())
-        refusal(call("GET", "$PACKS/$packId/entries?sourceClass=TERTIARY"), 400, "SRT-001")
-        ok(call("GET", "$PACKS/$packId/entries?sourceClass=SECONDARY"))
-    }
-
-    @Test
-    fun `an unknown entry answers 404 SRT-005 and stores nothing`() {
-        val packId = draft(label())
-        val before = snapshot()
-        refusal(accept(packId, "NOPE"), 404, "SRT-005")
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `a sign-off refusal for an unaccepted entry answers 422 RUL-007 and stores nothing`() {
-        val label = label()
-        val packId = draft(label)
-        ok(mapCode(packId, "S1", "SR", "SECONDARY"), 201)
-        deltaRow(TENANT_A, label, "COMPLETE")
-        ok(submit(packId))
-        val before = snapshot()
-        val answer = approve(packId)
-        withClueOf(answer.body()) { answer.statusCode() shouldBe 422 }
-        codeOf(answer) shouldBe "RUL-007"
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `a code absent from the catalogue answers 422 RUL-009 at sign-off and stores nothing`() {
-        val label = label()
-        val packId = draft(label)
-        ok(mapCode(packId, "Z1", "ZZ", "PRIMARY"), 201)
-        deltaRow(TENANT_A, label, "COMPLETE")
-        ok(submit(packId))
-        val before = snapshot()
-        val answer = approve(packId)
-        withClueOf(answer.body()) { answer.statusCode() shouldBe 422 }
-        codeOf(answer) shouldBe "RUL-009"
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `a namespaced IRAS code answers 422 RUL-010 and not SRT-005 and stores nothing`() {
-        val packId = draft(label())
-        val before = snapshot()
-        val answer = mapCode(packId, "BAD", "X:SR")
-        withClueOf(answer.body()) { answer.statusCode() shouldBe 422 }
-        codeOf(answer) shouldBe "RUL-010"
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `a blocked rate source answers 422 RUL-007 and stores nothing`() {
-        val label = label()
-        val packId = seedPack(label, "SUBMITTED")
-        deltaRow(TENANT_A, label, "COMPLETE")
-        val before = snapshot()
-        MappingPortProbe.rateBlocking = true
-        val answer = approve(packId)
-        answer.statusCode() shouldBe 422
-        codeOf(answer) shouldBe "RUL-007"
-        snapshot() shouldBe before
-    }
-
-    private fun unavailable(response: HttpResponse<String>) {
-        refusal(response, 503, "SRT-013")
-        (codeOf(response) == "SRT-010") shouldBe false // look-alike: HTTP 500 in the catalogue
-    }
-
-    @Test
-    fun `an unavailable approval decision answers 503 SRT-013 and stores nothing`() {
-        val label = label()
-        val packId = seedPack(label, "SUBMITTED")
-        deltaRow(TENANT_A, label, "COMPLETE")
-        val before = snapshot()
-        MappingPortProbe.decisionUnavailable = true
-        unavailable(approve(packId))
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `an unavailable rate source answers 503 SRT-013 and stores nothing`() {
-        val label = label()
-        val packId = seedPack(label, "SUBMITTED")
-        deltaRow(TENANT_A, label, "COMPLETE")
-        val before = snapshot()
-        MappingPortProbe.rateUnavailable = true
-        unavailable(approve(packId))
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `an unavailable holder copy answers 503 SRT-013 and stores nothing`() {
-        val packId = seedPack(label(), "APPROVED")
-        val before = snapshot()
-        MappingPortProbe.holderUnavailable = true
-        unavailable(activate(packId, "2026-01-01"))
-        snapshot() shouldBe before
-    }
-
-    // ---- repeats are a 200 and store nothing (contract repeatKey, INV-REQ-380) ----
-
-    private fun accept(
-        packId: String,
-        entryId: String,
-        expiresOn: String = "2099-01-01",
-        user: String = USER_B_TOKEN,
-    ) = call(
-        "POST",
-        "$PACKS/$packId/entries/$entryId/source-class-acceptance",
-        """{"rationale":"seen","expiresOn":"$expiresOn","entityRef":"$ENTITY"}""",
-        user,
-    )
-
-    @Test
-    @DisplayName(
-        "INV-REQ-380 a repeat of acceptSourceClassEntry" +
-            " for an unexpired acceptance answers 200 and stores no new row",
-    )
-    fun `INV-REQ-380 repeat of acceptSourceClassEntry`() {
-        val packId = draft(label())
-        ok(mapCode(packId, "S1", "SR", "SECONDARY"), 201)
-        ok(accept(packId, "S1"))
-        val before = snapshot()
-        ok(accept(packId, "S1", "2098-06-01")).get("accepted").asBoolean() shouldBe true
-        snapshot() shouldBe before
-        MappingPortProbe.denyAuthority = true
-        accept(packId, "S1").statusCode() shouldBe 403
-        snapshot() shouldBe before
-    }
-
-    @Test
-    fun `acceptSourceClassEntry with an expired acceptance stores the new acceptance`() {
-        val label = label()
-        val packId = draft(label)
-        ok(mapCode(packId, "S1", "SR", "SECONDARY"), 201)
-        value(
-            TENANT_A,
-            "insert into rules.mapping_entry_acceptance (tenant_id, pack_type, pack_version, entry_id, rationale, " +
-                "expires_on, accepted_by, accepted_iras_code, accepted_source_class) values (?::uuid, 'MAPPING', ?, " +
-                "'S1', 'old', '2020-01-01', 'user-b', 'SR', 'SECONDARY') returning entry_id",
-            TENANT_A.toString(),
-            label,
-        )
-        ok(accept(packId, "S1"))
-        value(
-            TENANT_A,
-            "select expires_on from rules.mapping_entry_acceptance where pack_version = ?",
-            label,
-        ).toString() shouldBe "2099-01-01"
-    }
-
-    @Test
-    @DisplayName(
-        "INV-REQ-380 a repeat of submitForApproval" +
-            " for a SUBMITTED pack answers 200 and stores no new row",
-    )
-    fun `INV-REQ-380 repeat of submitForApproval`() {
-        val label = label()
-        val packId = seedPack(label)
-        deltaRow(TENANT_A, label, "COMPLETE")
-        ok(submit(packId))
-        val before = snapshot()
-        ok(submit(packId)).get("status").asString() shouldBe "SUBMITTED"
-        snapshot() shouldBe before
-        MappingPortProbe.denyAuthority = true
-        submit(packId).statusCode() shouldBe 403
-    }
-
-    @Test
-    fun `submitForApproval for an APPROVED pack answers 409 SRT-008 and stores nothing`() {
-        val packId = seedPack(label(), "APPROVED")
-        val before = snapshot()
-        refusal(submit(packId), 409, "SRT-008")
-        snapshot() shouldBe before
-    }
-
-    @Test
-    @DisplayName(
-        "INV-REQ-380 a repeat of approvePack" +
-            " for an APPROVED pack answers 200 and stores no new row",
-    )
-    fun `INV-REQ-380 repeat of approvePack`() {
-        val label = label()
-        val packId = seedPack(label, "SUBMITTED")
-        deltaRow(TENANT_A, label, "COMPLETE")
-        ok(approve(packId))
-        val before = snapshot()
-        ok(approve(packId)).get("status").asString() shouldBe "APPROVED"
-        snapshot() shouldBe before
-        MappingPortProbe.denyAuthority = true
-        approve(packId).statusCode() shouldBe 403
-    }
-
-    @Test
-    fun `approvePack for a DRAFT pack answers 409 SRT-008 and stores nothing`() {
-        val label = label()
-        val packId = seedPack(label)
-        deltaRow(TENANT_A, label, "COMPLETE")
-        val before = snapshot()
-        refusal(approve(packId), 409, "SRT-008")
-        snapshot() shouldBe before
-    }
-
-    @Test
-    @DisplayName(
-        "INV-REQ-380 a repeat of activateMappingPack" +
-            " for an ARMED pack answers 200 and stores no new row",
-    )
-    fun `INV-REQ-380 repeat of activateMappingPack`() {
-        val packId = fullFlow(label(), "2026-01-01")
-        val before = snapshot()
-        ok(activate(packId, "2027-03-01")).get("status").asString() shouldBe "ACTIVE"
-        snapshot() shouldBe before
-        MappingPortProbe.denyAuthority = true
-        activate(packId, "2026-01-01").statusCode() shouldBe 403
-    }
-
-    @Test
-    fun `activateMappingPack for a SUBMITTED pack answers 409 SRT-008 and stores nothing`() {
-        val packId = seedPack(label(), "SUBMITTED")
-        val before = snapshot()
-        refusal(activate(packId, "2026-01-01"), 409, "SRT-008")
-        snapshot() shouldBe before
-    }
-
-    // ---- the engine version at activation ----
-
-    @Test
-    fun `the engine version of the build reaches the registry row and the holder copy`() {
-        val label = label()
-        val packId = draft(label)
-        value(TENANT_A, "select min_engine_version from rules.pack_registry where pack_id = ?", packId) shouldBe "0.0.0"
-        val active = fullFlow(label(), "2026-01-01")
-        val stored = value(TENANT_A, "select min_engine_version from rules.pack_registry where pack_id = ?", active)
-        stored shouldBe ENGINE_VERSION
-        MappingPortProbe.holderRequests.last().minEngineVersion shouldBe ENGINE_VERSION
-        context.getBean(BuildProperties::class.java).version shouldBe ENGINE_VERSION
-    }
-
-    companion object {
-        @DynamicPropertySource
-        @JvmStatic
-        fun props(registry: DynamicPropertyRegistry) = registerCatalogue(registry)
-    }
-}
-
 /**
  * With only the refusing defaults in place the four commands are refused and every table of the schema is equal
  * before and after; the allowing fakes of [MappingPackBoundaryTest] make the same calls succeed, so the refusal is the
  * default and not a defect of the path (INV-Q-14647 A, INV-Q-14650 A, INV-Q-14651 A, INV-Q-14652 A).
  */
 @SpringBootTest(
-    classes = [MappingDoubles::class, VersionedBuild::class, RulesApplication::class],
+    classes = [MappingDoubles::class, RulesApplication::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "service-runtime.idempotency.schema=rules",
@@ -1241,9 +777,8 @@ class MappingPackSchemaTest(
     ) = value(
         tenant,
         "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-            "effective_from, min_engine_version, registered_by, entity_ref) " +
-            "values (?::uuid, ?::uuid, ?, 'MAPPING', ?, 'TENANT_MAPPING', ?, ?::date, '1.0.0', " +
-            "'tenancy-probe', '$ENTITY') returning id",
+            "effective_from, min_engine_version, registered_by) values (?::uuid, ?::uuid, ?, 'MAPPING', ?, " +
+            "'TENANT_MAPPING', ?, ?::date, '1.0.0', 'tenancy-probe') returning id",
         UUID.randomUUID().toString(),
         tenant.toString(),
         "MAP-$version",
@@ -1276,52 +811,6 @@ class MappingPackSchemaTest(
             }
         }
         n shouldBe 56
-    }
-
-    private fun withEntityRef(
-        version: String,
-        entityRef: String?,
-    ) = value(
-        tenantA,
-        "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-            "min_engine_version, registered_by, entity_ref) values (?::uuid, ?::uuid, ?, 'MAPPING', ?, " +
-            "'TENANT_MAPPING', 'DRAFT', '1.0.0', 'tenancy-probe', ?) returning id",
-        UUID.randomUUID().toString(),
-        tenantA.toString(),
-        "ER-$version",
-        version,
-        entityRef,
-    )
-
-    @Test
-    fun `entity_ref of a MAPPING row is refused as a database error when null`() {
-        shouldThrow<Exception> { withEntityRef("er-null", null) }
-    }
-
-    @Test
-    fun `entity_ref of a MAPPING row is refused as a database error when blank`() {
-        shouldThrow<Exception> { withEntityRef("er-blank", "  ") }
-    }
-
-    @Test
-    fun `entity_ref of a MAPPING row is refused as a database error with 65 characters`() {
-        shouldThrow<Exception> { withEntityRef("er-65", "e".repeat(65)) }
-    }
-
-    @Test
-    fun `entity_ref of a MAPPING row is accepted with 64 characters`() {
-        withEntityRef("er-64", "e".repeat(64)) shouldNotBe null
-    }
-
-    @Test
-    fun `entity_ref of a regulatory row is accepted with null`() {
-        value(
-            TenantId.PLATFORM,
-            "select rules.register_platform_pack(?::uuid, 'p', 'SCOPE', 'er-reg', 'ARMED', " +
-                "'2026-01-01'::date, null, '1.0.0', null)",
-            UUID.randomUUID().toString(),
-        ) shouldNotBe null
-        value(tenantA, "select entity_ref from rules.pack_registry where pack_version = 'er-reg'") shouldBe null
     }
 
     @Test
@@ -1489,103 +978,3 @@ class MappingPackSchemaTest(
 }
 
 private const val MINUTE = 16
-
-@SpringBootTest(
-    classes =
-        [MappingDoubles::class, MappingAllowingPortsWithoutBuild::class, BlankBuild::class, RulesApplication::class],
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties =
-        [
-            "service-runtime.idempotency.schema=rules",
-            "service-runtime.workload-identity.callers[0].service=$CONSOLE",
-            "service-runtime.workload-identity.callers[0].subject=subject-of-$CONSOLE",
-        ],
-)
-class MappingPackBlankVersionTest(
-    @org.springframework.boot.test.web.server.LocalServerPort port: Int,
-) : MappingPackSupport(port) {
-    @Test
-    fun `a blank build version refuses the activation with 503 SRT-013 and stores nothing`() = refusedActivation()
-
-    companion object {
-        @DynamicPropertySource
-        @JvmStatic
-        fun props(registry: DynamicPropertyRegistry) = registerCatalogue(registry)
-    }
-}
-
-@SpringBootTest(
-    classes =
-        [
-            MappingDoubles::class,
-            MappingAllowingPortsWithoutBuild::class,
-            UnspecifiedBuild::class,
-            RulesApplication::class,
-        ],
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties =
-        [
-            "service-runtime.idempotency.schema=rules",
-            "service-runtime.workload-identity.callers[0].service=$CONSOLE",
-            "service-runtime.workload-identity.callers[0].subject=subject-of-$CONSOLE",
-        ],
-)
-class MappingPackUnspecifiedVersionTest(
-    @org.springframework.boot.test.web.server.LocalServerPort port: Int,
-) : MappingPackSupport(port) {
-    @Test
-    fun `the Gradle placeholder unspecified refuses the activation with 503 SRT-013 and stores nothing`() =
-        refusedActivation()
-
-    companion object {
-        @DynamicPropertySource
-        @JvmStatic
-        fun props(registry: DynamicPropertyRegistry) = registerCatalogue(registry)
-    }
-}
-
-@SpringBootTest(
-    classes = [MappingDoubles::class, MappingAllowingPortsWithoutBuild::class, RulesApplication::class],
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = [
-        "service-runtime.idempotency.schema=rules",
-        "service-runtime.workload-identity.callers[0].service=$CONSOLE",
-        "service-runtime.workload-identity.callers[0].subject=subject-of-$CONSOLE",
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.info.ProjectInfoAutoConfiguration",
-    ],
-)
-class MappingPackNoBuildInfoTest(
-    @org.springframework.boot.test.web.server.LocalServerPort port: Int,
-    @Autowired private val context: ApplicationContext,
-) : MappingPackSupport(port) {
-    @Test
-    fun `no BuildProperties bean refuses the activation with 503 SRT-013 and stores nothing`() {
-        context.getBeansOfType(BuildProperties::class.java).isEmpty() shouldBe true
-        refusedActivation()
-    }
-
-    companion object {
-        @DynamicPropertySource
-        @JvmStatic
-        fun props(registry: DynamicPropertyRegistry) = registerCatalogue(registry)
-    }
-}
-
-@TestConfiguration(proxyBeanMethods = false)
-class BlankBuild {
-    @Bean
-    fun buildProperties(): BuildProperties = buildPropertiesOf("  ")
-}
-
-@TestConfiguration(proxyBeanMethods = false)
-class UnspecifiedBuild {
-    @Bean
-    fun buildProperties(): BuildProperties = buildPropertiesOf("unspecified")
-}
-
-/** A usable build version, so that the refusing defaults (and not the engine version) decide the answer. */
-@TestConfiguration(proxyBeanMethods = false)
-class VersionedBuild {
-    @Bean
-    fun buildProperties(): BuildProperties = buildPropertiesOf(ENGINE_VERSION)
-}

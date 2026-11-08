@@ -2,7 +2,6 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
-import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
@@ -61,7 +60,6 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
-import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -253,13 +251,7 @@ class RulesConfiguration {
     fun mappingPackStore(
         dsl: DSLContext,
         tenants: TenantContext,
-        engineVersion: EngineVersion,
-        clock: Clock,
-    ): JooqMappingPackStore = JooqMappingPackStore(dsl, tenants, engineVersion, clock)
-
-    /** The build's own version from the `BuildProperties` that `buildInfo()` generates (absent in a bare context). */
-    @Bean
-    fun engineVersion(build: ObjectProvider<BuildProperties>): EngineVersion = EngineVersion(build.ifAvailable)
+    ): JooqMappingPackStore = JooqMappingPackStore(dsl, tenants)
 
     @Bean
     fun dryRunDeltaPort(

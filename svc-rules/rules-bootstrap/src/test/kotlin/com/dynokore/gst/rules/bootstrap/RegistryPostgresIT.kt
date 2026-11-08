@@ -44,8 +44,8 @@ private const val REGISTER_ARGUMENTS = "uuid,text,text,text,text,date,date,text,
 
 private const val INSERT_TENANT_PACK =
     "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-        "effective_from, effective_to, min_engine_version, supersedes, registered_by, entity_ref) " +
-        "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', ?, ?::date, ?::date, '1.0.0', ?, 'tenancy-probe', ?) " +
+        "effective_from, effective_to, min_engine_version, supersedes, registered_by) " +
+        "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', ?, ?::date, ?::date, '1.0.0', ?, 'tenancy-probe') " +
         "returning id"
 
 private const val INSERT_ARTEFACT =
@@ -127,7 +127,6 @@ class RegistryPostgresIT(
         pack.from,
         pack.to,
         pack.supersedes,
-        if (pack.packType == "MAPPING") "E-1" else null,
     )
 
     private fun count(tenant: TenantId?): Long {
@@ -258,7 +257,6 @@ class RegistryPostgresIT(
                 "direct",
                 "ARMED",
                 "2026-01-01",
-                null,
                 null,
                 null,
             )

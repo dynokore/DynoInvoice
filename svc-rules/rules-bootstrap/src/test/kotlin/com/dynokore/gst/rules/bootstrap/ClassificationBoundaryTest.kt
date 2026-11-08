@@ -46,9 +46,9 @@ private const val SCOPE_VERSION = "cs1"
 
 private const val CL_INSERT_PACK =
     "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-        "effective_from, effective_to, min_engine_version, supersedes, registered_by, entity_ref) " +
+        "effective_from, effective_to, min_engine_version, supersedes, registered_by) " +
         "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', 'ARMED', ?::date, null, " +
-        "'1.0.0', null, 'tenancy-probe', 'E-1') returning id"
+        "'1.0.0', null, 'tenancy-probe') returning id"
 
 private const val CL_INSERT_ARTEFACT =
     "insert into rules.pack_artefact (id, pack_id, pack_type, pack_version, tenant_id, effective_from, effective_to, " +
