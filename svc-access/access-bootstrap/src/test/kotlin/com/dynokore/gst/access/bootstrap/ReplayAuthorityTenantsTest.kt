@@ -275,13 +275,13 @@ class ReplayAuthorityTenantsTest {
             val tx = context.getBean(TransactionRunner::class.java)
             val tenants = context.getBean(TenantContext::class.java)
             val platformBinding = context.getBean(PlatformTenantBinding::class.java)
-            val fromPlatform =
-                platformBinding.bindPlatform("svc:access-svc/job:replay") { tx.inTransaction { source.page(null, null, 100) } }
-            assertThat(fromPlatform.items).hasSize(2) // the two configured entries; no role_grant row of the platform tenant
+            val job = "svc:access-svc/job:replay"
+            val fromPlatform = platformBinding.bindPlatform(job) { tx.inTransaction { source.page(null, null, 100) } }
+            // the two configured entries and no role_grant row of the platform tenant
+            assertThat(fromPlatform.items).hasSize(2)
             assertThat(fromPlatform.items.map { it.dataJson }).noneMatch { it.contains("seed-platform") }
             assertThat(fromPlatform.items).allMatch { it.dataJson.contains("INSTALLATION") }
-            val fromTenant =
-                tenants.bind(TenantId(other), "svc:access-svc/job:replay") { tx.inTransaction { source.page(null, null, 100) } }
+            val fromTenant = tenants.bind(TenantId(other), job) { tx.inTransaction { source.page(null, null, 100) } }
             assertThat(fromTenant.items).isNotEmpty().noneMatch { it.dataJson.contains("INSTALLATION") }
         }
     }
