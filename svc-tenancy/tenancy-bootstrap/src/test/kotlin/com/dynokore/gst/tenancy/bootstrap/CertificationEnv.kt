@@ -237,22 +237,23 @@ internal class CertificationEnv(
                     }
                 }
             }
-        val event = Envelope(
-            EventId(id),
-            "/gst/tenancy-svc",
-            MARK_TYPE,
-            "installation",
-            Instant.now(),
-            TenantId.PLATFORM,
-            EntityRef.PLATFORM,
-            null,
-            null,
-            null,
-            "test-0",
-            CorrelationId("corr-$id"),
-            CausationId("cause-$id"),
-            data,
-        )
+        val event =
+            Envelope(
+                EventId(id),
+                "/gst/tenancy-svc",
+                MARK_TYPE,
+                "installation",
+                Instant.now(),
+                TenantId.PLATFORM,
+                EntityRef.PLATFORM,
+                null,
+                null,
+                null,
+                "test-0",
+                CorrelationId("corr-$id"),
+                CausationId("cause-$id"),
+                data,
+            )
         return publishToLog(topic, event)
     }
 

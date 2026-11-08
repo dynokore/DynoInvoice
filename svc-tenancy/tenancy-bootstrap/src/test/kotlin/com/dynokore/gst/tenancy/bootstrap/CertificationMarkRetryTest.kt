@@ -1,17 +1,17 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.events.EventContexts
 import com.dynokore.gst.tenancy.application.installation.InstallationStep
 import com.dynokore.gst.tenancy.application.installation.RecordInstallationAction
-import com.dynokore.gst.tenancy.adapters.events.EventContexts
 import com.dynokore.platform.outboxandqueue.EmissionNotPermitted
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.outboxandqueue.PollResult
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.outboxandqueue.PollResult
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.time.Clock
@@ -24,6 +24,8 @@ import java.util.UUID
 private const val PACK_CONSUMER = "certificationRulePackActivatedConsumer"
 private const val FAIL_TRIGGER_ON_STATUS = "fail_certification_status_update"
 private const val FAIL_TRIGGER_ON_OUTBOX = "fail_mark_requested_insert"
+private const val RELEASE_TRAIN_SQL =
+    "select fact_value from tenancy.installation_fact where fact_key = 'releaseTrain'"
 private val APPLIED_ONE = PollResult(1, 0, 0, 0, 0)
 
 /**
@@ -85,7 +87,18 @@ class CertificationMarkRetryTest {
         train: String,
         at: Instant,
     ) = InstallationStep(
-        run, n, "UPGRADE", "s$n", "SUCCEEDED", at, "r", "op", null, null, null, mapOf("releaseTrain" to train),
+        run,
+        n,
+        "UPGRADE",
+        "s$n",
+        "SUCCEEDED",
+        at,
+        "r",
+        "op",
+        null,
+        null,
+        null,
+        mapOf("releaseTrain" to train),
     )
 
     // the fact table is shared by the tests, so the times only grow and the trains are unique per test
@@ -107,7 +120,7 @@ class CertificationMarkRetryTest {
     }
 
     @Test
-    fun `probe 1 the transaction that writes the releaseTrain fact rolls back, no event row and the entity stays CURRENT`() {
+    fun `probe 1 the fact transaction rolls back, no event row and the entity stays CURRENT`() {
         run { e, env ->
             withTrain(e, env) { recorder, run, entity ->
                 val before = e.markRequestedIds()
@@ -242,13 +255,16 @@ class CertificationMarkRetryTest {
                 val id = (e.markRequestedIds() - before.toSet()).single()
                 val row =
                     BoundaryFixture.asSuperuser { c ->
-                        c.prepareStatement("select tenant_id::text, entity_ref, type from tenancy.outbox where id = ?").use { st ->
-                            st.setString(1, id)
-                            st.executeQuery().use { rs ->
-                                check(rs.next())
-                                Triple(rs.getString(1), rs.getString(2), rs.getString(3))
+                        c
+                            .prepareStatement(
+                                "select tenant_id::text, entity_ref, type from tenancy.outbox where id = ?",
+                            ).use { st ->
+                                st.setString(1, id)
+                                st.executeQuery().use { rs ->
+                                    check(rs.next())
+                                    Triple(rs.getString(1), rs.getString(2), rs.getString(3))
+                                }
                             }
-                        }
                     }
                 assertThat(row)
                     .isEqualTo(Triple(TenantId.PLATFORM.toString(), EntityRef.PLATFORM.value, MARK_TYPE))
@@ -280,7 +296,10 @@ class CertificationMarkRetryTest {
                 BoundaryFixture.asSuperuser { c ->
                     c.prepareStatement("select count(*) from tenancy.outbox where type = ?").use { st ->
                         st.setString(1, lookAlike)
-                        st.executeQuery().use { rs -> rs.next(); rs.getInt(1) }
+                        st.executeQuery().use { rs ->
+                            rs.next()
+                            rs.getInt(1)
+                        }
                     }
                 }
             assertThat(rows).isEqualTo(0)
@@ -289,7 +308,7 @@ class CertificationMarkRetryTest {
 
     private fun releaseTrainFact(): String? =
         BoundaryFixture.asSuperuser { c ->
-            c.prepareStatement("select fact_value from tenancy.installation_fact where fact_key = 'releaseTrain'").use { st ->
+            c.prepareStatement(RELEASE_TRAIN_SQL).use { st ->
                 st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
             }
         }

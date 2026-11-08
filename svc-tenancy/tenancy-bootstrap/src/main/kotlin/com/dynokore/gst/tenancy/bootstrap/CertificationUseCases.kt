@@ -1,8 +1,8 @@
 package com.dynokore.gst.tenancy.bootstrap
 
-import com.dynokore.gst.tenancy.adapters.certification.ConsumedCertificationEvents
 import com.dynokore.gst.tenancy.adapters.certification.CertificationMarkRequestedHandler
 import com.dynokore.gst.tenancy.adapters.certification.CertificationMarkRequestedOutbox
+import com.dynokore.gst.tenancy.adapters.certification.ConsumedCertificationEvents
 import com.dynokore.gst.tenancy.adapters.certification.IdentityTripleChangedHandler
 import com.dynokore.gst.tenancy.adapters.certification.RulePackActivatedCertificationHandler
 import com.dynokore.gst.tenancy.adapters.events.CertificationStatusChangedOutbox

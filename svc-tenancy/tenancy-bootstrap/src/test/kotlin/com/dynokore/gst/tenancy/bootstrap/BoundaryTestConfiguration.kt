@@ -12,8 +12,8 @@ import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.PeriodPermissions
-import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
 import com.dynokore.gst.tenancy.domain.SandboxCertificationPermissions
+import com.dynokore.platform.configresolver.AcknowledgeRelaxationCommand
 import com.dynokore.platform.configresolver.BackdatingFloor
 import com.dynokore.platform.configresolver.DelegationProbe
 import com.dynokore.platform.configresolver.PolicyChange
