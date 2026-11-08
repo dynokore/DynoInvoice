@@ -7,11 +7,7 @@ biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=compileClasspath,testCompileClasspa
 ch.qos.logback:logback-classic:1.5.38=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 ch.qos.logback:logback-core:1.5.38=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.gst:gst-catalogue:2.11.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath
-<<<<<<< HEAD
-com.dynokore.gst:gst-catalogue:2.44.0=testCompileClasspath,testRuntimeClasspath
-=======
 com.dynokore.gst:gst-catalogue:2.45.0=testCompileClasspath,testRuntimeClasspath
->>>>>>> a1d5d601 (INV-T-4933 entitlement, metering, licence status, version window, operating profiles and installation health (squashed for rebase onto 449d0468))
 com.dynokore.platform:audit-log-api:4.0.28=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:audit-log:4.0.28=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:calendar-and-periods-api:1.5.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
