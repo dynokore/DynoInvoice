@@ -12,6 +12,7 @@ import com.dynokore.gst.tenancy.application.structure.NodeType
 import com.dynokore.gst.tenancy.application.structure.StructureChange
 import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.gst.tenancy.application.structure.StructureNodeState
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.replica.Lookup
@@ -379,7 +380,7 @@ class AcceptanceCriteriaTest {
             val envelope = env.captured.envelopes.single()
             assertThat(envelope.type).isEqualTo(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED)
             // the replica applies exactly what the service published
-            ctx.getBean(StructureFeedHandler::class.java).handle(envelope)
+            ctx.getBean("structureFeedHandler", EventHandler::class.java).handle(envelope)
             val lookup = ctx.getBean(StructureReplica::class.java).node(tenant, moved, deadline())
             assertThat(lookup).isInstanceOf(Lookup.Local::class.java)
             assertThat((lookup as Lookup.Local<StructureNode>).value.structureVersion).isEqualTo(3)
