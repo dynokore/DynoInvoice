@@ -7,6 +7,7 @@ class DecodedSpan(
     val parentSpanId: String,
     val kind: Int,
     val attributes: Map<String, String>,
+    val statusCode: Int = 0,
 )
 
 class DecodedTraces(
@@ -17,7 +18,7 @@ class DecodedTraces(
 /**
  * Test-only reader of the OTLP/HTTP protobuf trace body (no protobuf library). Reads TracesData.resource_spans(1) ->
  * ResourceSpans.resource(1).attributes(1) and scope_spans(2) -> ScopeSpans.spans(2) -> Span trace_id(1), span_id(2),
- * parent_span_id(4), kind(6), attributes(9). Malformed or truncated input throws [IllegalArgumentException] (fails closed).
+ * parent_span_id(4), kind(6), attributes(9), status(15).code(3). Malformed or truncated input throws [IllegalArgumentException] (fails closed).
  */
 object OtlpTraceReader {
     fun decode(body: ByteArray): DecodedTraces {
@@ -48,6 +49,7 @@ object OtlpTraceReader {
         var spanId = ""
         var parent = ""
         var kind = 0
+        var status = 0
         val attributes = linkedMapOf<String, String>()
         fields(body) { n, v ->
             when (n) {
@@ -56,9 +58,10 @@ object OtlpTraceReader {
                 4 -> parent = hex(bytes(v))
                 6 -> kind = (v as Long).toInt()
                 9 -> attributes += keyValue(bytes(v))
+                15 -> fields(bytes(v)) { sn, sv -> if (sn == 3) status = (sv as Long).toInt() }
             }
         }
-        return DecodedSpan(traceId, spanId, parent, kind, attributes)
+        return DecodedSpan(traceId, spanId, parent, kind, attributes, status)
     }
 
     private fun keyValue(body: ByteArray): Pair<String, String> {

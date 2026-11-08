@@ -15,7 +15,9 @@ import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean
+import org.springframework.context.ApplicationListener
 import org.springframework.context.annotation.Bean
+import org.springframework.context.event.ContextClosedEvent
 import org.springframework.core.env.Environment
 import org.springframework.http.client.ClientHttpRequestInterceptor
 import java.time.Duration
@@ -31,16 +33,30 @@ import java.time.Duration
 @EnableConfigurationProperties(TracingProperties::class)
 class TracingAutoConfiguration {
     @Bean
+    fun gstSpanExporter(
+        environment: Environment,
+        meters: ObjectProvider<MeterRegistry>,
+    ): CountingSpanExporter =
+        CountingSpanExporter(
+            otlpExporter(environment.getRequiredProperty(ConfiguredTelemetryExport.ENDPOINT_PROPERTY)),
+            meters.ifAvailable,
+        )
+
+    /** Failed exports are no longer logged once the context closes (see [CountingSpanExporter]). */
+    @Bean
+    fun gstSpanExporterClosing(exporter: CountingSpanExporter): ApplicationListener<ContextClosedEvent> =
+        ApplicationListener { exporter.markClosing() }
+
+    @Bean
     fun gstTracerProvider(
         gst: GstProperties,
         environment: Environment,
-        meters: ObjectProvider<MeterRegistry>,
+        exporter: CountingSpanExporter,
     ): SdkTracerProvider {
-        val endpoint = environment.getRequiredProperty(ConfiguredTelemetryExport.ENDPOINT_PROPERTY)
         val probability = environment.getProperty(SAMPLING_PROPERTY, Double::class.javaObjectType, DEFAULT_PROBABILITY)
         val processor =
             BatchSpanProcessor
-                .builder(CountingSpanExporter(otlpExporter(endpoint), meters.ifAvailable))
+                .builder(exporter)
                 .setScheduleDelay(SCHEDULE_DELAY)
                 .setExporterTimeout(EXPORT_TIMEOUT)
                 .build()
@@ -76,6 +92,12 @@ class TracingAutoConfiguration {
         }
 
     companion object {
+        /** Static so the post-processor is registered early without instantiating this configuration. */
+        @Bean
+        @JvmStatic
+        fun messagingSpanPostProcessor(provider: ObjectProvider<SdkTracerProvider>): MessagingSpanPostProcessor =
+            MessagingSpanPostProcessor(provider)
+
         private const val SAMPLING_PROPERTY = "management.tracing.sampling.probability"
         private const val DEFAULT_PROBABILITY = 0.1
         private const val ORDER_TRACE_CONTEXT = -60

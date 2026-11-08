@@ -1,13 +1,8 @@
 package com.dynokore.platform.serviceruntime.tracing
 
 import io.opentelemetry.api.common.AttributeKey
-import io.opentelemetry.api.trace.Span
-import io.opentelemetry.api.trace.SpanContext
 import io.opentelemetry.api.trace.SpanKind
-import io.opentelemetry.api.trace.TraceFlags
-import io.opentelemetry.api.trace.TraceState
 import io.opentelemetry.api.trace.Tracer
-import io.opentelemetry.context.Context
 import org.springframework.http.HttpRequest
 import org.springframework.http.client.ClientHttpRequestExecution
 import org.springframework.http.client.ClientHttpRequestInterceptor
@@ -44,7 +39,7 @@ class ClientSpanInterceptor(
             tracer
                 .spanBuilder(request.method.name())
                 .setSpanKind(SpanKind.CLIENT)
-                .setParent(parentContext())
+                .setParent(TraceParents.parentContext())
                 .setAttribute(PEER_SERVICE, services[host] ?: host)
                 .setAttribute(METHOD, request.method.name())
                 .setAttribute(SERVER_ADDRESS, host)
@@ -61,18 +56,6 @@ class ClientSpanInterceptor(
         } finally {
             span.end()
         }
-    }
-
-    private fun parentContext(): Context {
-        val parent = CurrentTraceParent.current() ?: return Context.root()
-        val remote =
-            SpanContext.createFromRemoteParent(
-                parent.traceId,
-                parent.parentId,
-                TraceFlags.fromHex(parent.traceFlags, 0),
-                TraceState.getDefault(),
-            )
-        return Context.root().with(Span.wrap(remote))
     }
 
     companion object {

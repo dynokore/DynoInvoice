@@ -373,6 +373,10 @@ The span has exactly the attributes `peer.service`, `http.request.method`, `http
 the resource attribute `service.name` is `gst.service`. A failed export is counted (`gst_trace_export_failed_total`) and logged as
 `TRACE_EXPORT_FAILED` without span content; the call is not affected. Without the endpoint property no tracing bean exists.
 
+With the same endpoint, `MessagingSpanPostProcessor` decorates every `EventBinding` bean (a PRODUCER span per `publish`) and every `EventHandler` bean (a CONSUMER span per `handle`), a service's own included. Each span carries exactly `messaging.system` (`gst-event-log`), `messaging.operation.type` (`publish` or `process`), `messaging.destination.name` (the envelope `type`, unchanged) and `messaging.message.id` (the envelope `id`); a throwing delegate ends the span with ERROR status and the exception is rethrown unchanged. Without the endpoint property the beans are not decorated.
+
+`MessagingSpanPostProcessor` replaces each `EventBinding` and `EventHandler` bean with a wrapper (`TracedEventBinding`, `TracedEventHandler`). The wrapper classes are final, so the decorated bean is exposed as the `EventBinding` or `EventHandler` interface only: a consumer MUST inject or fetch such a bean by that interface (with its bean name or a qualifier when there are several), never by the concrete class, and a test that needs members of its own handler keeps its own reference to the instance it constructs (INV-Q-18074). A request for the concrete class fails with Spring's "expected to be of type ... but was actually of type TracedEventHandler" error whenever the endpoint property is set.
+
 A deployment must set three properties:
 
 | Property | Meaning |

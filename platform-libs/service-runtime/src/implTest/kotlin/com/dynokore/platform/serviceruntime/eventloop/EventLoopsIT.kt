@@ -501,6 +501,9 @@ class EventLoopsIT {
     /** The service's own beans, as its bootstrap module declares them. */
     @Configuration(proxyBeanMethods = false)
     class ServiceBeans {
+        /** The handlers as constructed, kept apart from the beans: a bean may be decorated (INV-Q-18074). */
+        val recording: MutableMap<String, RecordingHandler> = java.util.concurrent.ConcurrentHashMap()
+
         @Bean
         fun meterRegistry(): MeterRegistry = SimpleMeterRegistry()
 
@@ -517,13 +520,14 @@ class EventLoopsIT {
         fun handler(
             dsl: AppliedDsl,
             tenants: TenantContext,
-        ): RecordingHandler = RecordingHandler("submission-svc", dsl.dsl, tenants)
+        ): EventHandler = RecordingHandler("submission-svc", dsl.dsl, tenants).also { recording["handler"] = it }
 
         @Bean
         fun secondHandler(
             dsl: AppliedDsl,
             tenants: TenantContext,
-        ): RecordingHandler = RecordingHandler("submission-svc-b", dsl.dsl, tenants)
+        ): EventHandler =
+            RecordingHandler("submission-svc-b", dsl.dsl, tenants).also { recording["secondHandler"] = it }
 
         /** The handlers' own DSLContext on the service's transaction runner, with `submission.applied` declared. */
         @Bean
@@ -551,7 +555,7 @@ class EventLoopsIT {
             scope: TenantScope,
             rebuildRequired: RebuildRequiredSink,
             clock: Clock,
-            handler: RecordingHandler,
+            @org.springframework.beans.factory.annotation.Qualifier("handler") handler: EventHandler,
         ): JdbcInboxConsumer =
             JdbcInboxConsumer(
                 ConsumerSubscription("submission-svc", Service.TOPIC, "submission", RETRY),
@@ -572,7 +576,7 @@ class EventLoopsIT {
             scope: TenantScope,
             rebuildRequired: RebuildRequiredSink,
             clock: Clock,
-            @org.springframework.beans.factory.annotation.Qualifier("secondHandler") handler: RecordingHandler,
+            @org.springframework.beans.factory.annotation.Qualifier("secondHandler") handler: EventHandler,
         ): JdbcInboxConsumer =
             JdbcInboxConsumer(
                 ConsumerSubscription("submission-svc-b", Service.TOPIC, "submission", RETRY),
@@ -612,8 +616,13 @@ class EventLoopsIT {
     class Service(
         val context: ConfigurableApplicationContext,
     ) : AutoCloseable {
-        val handler: RecordingHandler get() = context.getBean("handler", RecordingHandler::class.java)
-        val secondHandler: RecordingHandler get() = context.getBean("secondHandler", RecordingHandler::class.java)
+        val handler: RecordingHandler get() = context.getBean(ServiceBeans::class.java).recording.getValue("handler")
+        val secondHandler: RecordingHandler get() =
+            context
+                .getBean(
+                    ServiceBeans::class.java,
+                ).recording
+                .getValue("secondHandler")
 
         /** Appends [count] events through the OutboxWriter, one transaction each, as a command would. */
         fun append(count: Int): List<Envelope> {
@@ -729,6 +738,9 @@ class EventLoopsIT {
                         "spring.flyway.enabled=false",
                         "spring.main.banner-mode=off",
                         "spring.jmx.enabled=false",
+                        // nothing sampled: the build points the exporter at an unreachable collector, and a sampled span
+                        // would add a shutdown WARN that is not about the loops under test
+                        "management.tracing.sampling.probability=0.0",
                         *extra,
                     ).run()
             return Service(context)
