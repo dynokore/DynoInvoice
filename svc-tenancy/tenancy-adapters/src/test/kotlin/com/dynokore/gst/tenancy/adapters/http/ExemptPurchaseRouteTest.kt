@@ -167,8 +167,11 @@ class ExemptPurchaseRouteTest {
 
     @Test
     fun `INV-AC-18133 taxCodes on another election key is 400 SRT-001 and stores nothing`() {
-        listOf(ElectionKeys.INVOICE_DATE, ElectionKeys.CLAIMABLE_PORTION, ElectionKeys.EXEMPT_PURCHASE_CODES.lowercase())
-            .forEach { refusal(request(election = it)).code shouldBe ClosedErrorCode.CONTRACT_VIOLATION }
+        listOf(
+            ElectionKeys.INVOICE_DATE,
+            ElectionKeys.CLAIMABLE_PORTION,
+            ElectionKeys.EXEMPT_PURCHASE_CODES.lowercase(),
+        ).forEach { refusal(request(election = it)).code shouldBe ClosedErrorCode.CONTRACT_VIOLATION }
         refusal(request(election = ElectionKeys.POSTING_DATE, taxCodes = null)).code shouldBe
             ClosedErrorCode.CONTRACT_VIOLATION
         store.rows.size shouldBe 0
