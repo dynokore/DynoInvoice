@@ -102,7 +102,7 @@ class ComplianceAlertPayloadContractTest {
         events.size shouldBe 3
         events.forEach {
             it.type shouldBe ComplianceAlertPublication.EVENT_TYPE
-            it.type shouldBe "com.dynokore.gst.submission." + message()["name"] + ".v1"
+            it.type shouldBe message()["name"]
         }
     }
 
