@@ -156,7 +156,10 @@ class RenditionResponsibilityHttpTest {
         val body: RenditionResponsibilityResponse?,
     )
 
-    private fun run(block: (Env, TenantId, EntityResponse) -> Unit) {
+    private fun run(
+        admin: Boolean = true,
+        block: (Env, TenantId, EntityResponse) -> Unit,
+    ) {
         val log = TopicLog()
         BoundaryFixture
             .runner()
@@ -167,7 +170,7 @@ class RenditionResponsibilityHttpTest {
                 val env = Env(CertificationEnv(profile, log), log)
                 profile.withEntity { tenant, entity ->
                     env.people.caller = ATTESTER
-                    env.people.grant(ATTESTER, entity.entityRef, ElectionRoles.ENTITY_ADMIN)
+                    if (admin) env.people.grantRole(ATTESTER, entity.entityRef, ElectionRoles.ENTITY_ADMIN)
                     block(env, tenant, entity)
                 }
             }
@@ -277,8 +280,8 @@ class RenditionResponsibilityHttpTest {
 
     @Test
     fun `probe a caller holding only entity-config confirm is 403 and no row is stored`() {
-        run { env, _, entity ->
-            env.people.grant(ATTESTER, entity.entityRef, ElectionRoles.TAX_APPROVER)
+        run(admin = false) { env, _, entity ->
+            env.people.grantRole(ATTESTER, entity.entityRef, ElectionRoles.TAX_APPROVER)
             assertThat(
                 TestOperationRoles.holders(ElectionPermissions.MANAGE),
             ).doesNotContain(ElectionRoles.TAX_APPROVER)
@@ -290,9 +293,9 @@ class RenditionResponsibilityHttpTest {
 
     @Test
     fun `probe a caller holding entity-config manage on another entity is 403 and no row is stored`() {
-        run { env, _, entity ->
-            env.people.grant(ATTESTER, entity.entityRef, ElectionRoles.TAX_APPROVER)
-            env.people.grant(ATTESTER, "OTHER-ENTITY", ElectionRoles.ENTITY_ADMIN)
+        run(admin = false) { env, _, entity ->
+            env.people.grantRole(ATTESTER, entity.entityRef, ElectionRoles.TAX_APPROVER)
+            env.people.grantRole(ATTESTER, "OTHER-ENTITY", ElectionRoles.ENTITY_ADMIN)
             val answer = env.record(entity, "TAX_INVOICE")
             assertThat(answer.status).isEqualTo(HttpStatus.FORBIDDEN.value())
             assertThat(env.rowCount(entity)).isZero()

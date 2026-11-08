@@ -212,7 +212,8 @@ class TestPeople :
         val roles = granted[person to entityRef].orEmpty()
         return when (action) {
             ElectionPermissions.MANAGE -> {
-                ElectionRoles.ENTITY_ADMIN in roles
+                // a role fake for older tests, and the real key decision over grants fed through grantRole
+                ElectionRoles.ENTITY_ADMIN in roles || approvals.holds(person, entityRef, action)
             }
 
             ElectionPermissions.CONFIRM -> {
