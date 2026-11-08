@@ -40,10 +40,11 @@ class OffboardTenantTest {
         )
     private val authorityCalls = mutableListOf<Triple<String, String, String>>()
     private var replicaDown = false
+    private val throwingFor = mutableSetOf<String>()
     private val authority =
         ActionAuthority { person, ref, action ->
             authorityCalls += Triple(person, ref, action)
-            if (replicaDown) error("replica down")
+            if (replicaDown || person in throwingFor) error("replica down")
             action in grants[person].orEmpty()
         }
 
@@ -71,7 +72,7 @@ class OffboardTenantTest {
     private val store = Store()
     private var unsubmitted: () -> Int = { 0 }
     private var exportCalls = 0
-    private var manifest = ExportManifest("EXP-1", ExportState.READY, ExportContent.entries.toSet())
+    private var manifest = ExportManifest("EXP-1", ExportState.READY, ExportContent.entries)
     private val structure: StructureStore =
         StructureStore::class.java.cast(
             Proxy.newProxyInstance(StructureStore::class.java.classLoader, arrayOf(StructureStore::class.java)) {
@@ -223,7 +224,7 @@ class OffboardTenantTest {
         )
         assertEquals(before, store.rows.size)
         store.rows.clear()
-        manifest = ExportManifest("EXP-2", ExportState.REQUESTED, emptySet())
+        manifest = ExportManifest("EXP-2", ExportState.REQUESTED, emptyList())
         assertEquals(OffboardingState.REQUESTED, accepted(person(entityRequest())).state)
         assertEquals(
             "TNC-010",
@@ -243,9 +244,9 @@ class OffboardTenantTest {
 
     @Test
     fun `a new key after a FAILED record is a new request with a new offboardingRef`() {
-        manifest = ExportManifest("EXP-1", ExportState.FAILED, emptySet())
+        manifest = ExportManifest("EXP-1", ExportState.FAILED, emptyList())
         val failed = accepted(person(entityRequest()))
-        manifest = ExportManifest("EXP-2", ExportState.READY, ExportContent.entries.toSet())
+        manifest = ExportManifest("EXP-2", ExportState.READY, ExportContent.entries)
         val second = accepted(person(entityRequest(), "k2"))
         assertEquals(OffboardingState.FAILED, failed.state)
         assertEquals(OffboardingState.COMPLETED, second.state)
@@ -260,14 +261,24 @@ class OffboardTenantTest {
     }
 
     @Test
-    fun `export manifest - a READY manifest with five members is not COMPLETED`() {
-        manifest = ExportManifest("EXP-1", ExportState.READY, ExportContent.entries.drop(1).toSet())
-        assertTrue(accepted(person(entityRequest())).state != OffboardingState.COMPLETED)
+    fun `export manifest - READY with five members equals REQUESTED for each member left out`() {
+        ExportContent.entries.forEachIndexed { i, left ->
+            store.rows.clear()
+            manifest = ExportManifest("EXP-$i", ExportState.READY, ExportContent.entries.filter { it != left })
+            assertEquals(OffboardingState.REQUESTED, accepted(person(entityRequest(), "k$i")).state)
+            assertEquals(OffboardingState.REQUESTED, store.rows.single().state)
+        }
+    }
+
+    @Test
+    fun `export manifest - READY with six entries and one member repeated equals REQUESTED`() {
+        manifest = ExportManifest("EXP-1", ExportState.READY, ExportContent.entries.drop(1) + ExportContent.entries[1])
+        assertEquals(OffboardingState.REQUESTED, accepted(person(entityRequest())).state)
     }
 
     @Test
     fun `export manifest - a FAILED manifest leaves the entity open with a FAILED record`() {
-        manifest = ExportManifest("EXP-1", ExportState.FAILED, emptySet())
+        manifest = ExportManifest("EXP-1", ExportState.FAILED, emptyList())
         assertEquals(OffboardingState.FAILED, accepted(person(entityRequest())).state)
         assertNull(store.blocking(OffboardingScope.ENTITY, "E1"))
     }
@@ -307,9 +318,25 @@ class OffboardTenantTest {
     }
 
     @Test
-    fun `a replica that cannot answer for the confirmer is 403 fail closed`() {
-        replicaDown = true
+    fun `a replica that cannot answer for the caller is 403 fail closed`() {
+        throwingFor += caller
         assertInstanceOf(OffboardOutcome.Forbidden::class.java, person(entityRequest()))
+        assertTrue(store.rows.isEmpty())
+    }
+
+    @Test
+    fun `a replica that answers for the caller and throws only for the confirmer is 403 fail closed`() {
+        throwingFor += "identity:USR-0040"
+        assertInstanceOf(OffboardOutcome.Forbidden::class.java, person(entityRequest(secondBy = "identity:USR-0040")))
+        assertTrue(authorityCalls.any { it == Triple(caller, "E1", ElectionPermissions.MANAGE) })
+        assertTrue(authorityCalls.any { it == Triple("identity:USR-0040", "E1", ElectionPermissions.CONFIRM) })
+        assertTrue(store.rows.isEmpty())
+    }
+
+    @Test
+    fun `a caller holding only the confirm key is 403 and nothing is stored`() {
+        grants["identity:USR-CONF"] = setOf(ElectionPermissions.CONFIRM)
+        assertInstanceOf(OffboardOutcome.Forbidden::class.java, person(entityRequest(), by = "identity:USR-CONF"))
         assertTrue(store.rows.isEmpty())
     }
 
