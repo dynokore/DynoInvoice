@@ -75,3 +75,7 @@ POST /internal/v1/control-plane/accreditation removed the required property `rec
 # record oasdiff's structural findings. After the first published train a new or tighter request bound is breaking (API-03).
 POST /internal/v1/tenancy/entities/{entityRef}/certifications removed `subschema #1, subschema #2` from the request body `oneOf` list
 POST /internal/v1/tenancy/entities/{entityRef}/certifications the `failedScenarios` request property's minItems was set to `1`
+# INV-T-18373 (breakdown tooling/gap18373-gap.md; question INV-Q-18685, located at the body of INV-T-18373, heading oasdiff-breaking-gate / request-body-became-required; precedent INV-Q-3569):
+# sendCounterpartyRequest requestBody.required is true. Permitted within v1 because no train is published (platform-release manifest/trains/ holds only its README)
+# and no consumer of the operation is deployed. After the first published train a newly required body is breaking (API-03).
+POST /internal/v1/masterdata/counterparties/{counterpartyRef}/requests request body became required
