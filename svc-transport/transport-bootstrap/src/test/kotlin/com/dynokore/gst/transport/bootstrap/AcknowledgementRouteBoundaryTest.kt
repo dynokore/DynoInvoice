@@ -15,6 +15,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.PrincipalState
 import com.dynokore.platform.serviceruntime.replica.ScopeLevel
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
@@ -58,15 +59,26 @@ class AcknowledgementRouteBoundaryTest {
             context.getBean(AuthorityReplica::class.java).also { it.onSnapshotComplete(0) }
         private var sequence = 0L
 
+        /** Revokes the principal of [header] (a principal record of a higher authority version voids its grants). */
+        fun revoke(
+            tenant: UUID,
+            header: String,
+        ) {
+            val record = AuthorityRecord.PrincipalRecord(PrincipalState.REVOKED)
+            val change = AuthorityChanged(TenantId(tenant), TestPrincipals.actorOf(header), ++sequence, record)
+            authority.accept(change)
+        }
+
         /** A tenant with two connections, a user holding `vp-49.set` (or not) and the Authorization value. */
         fun user(
             tenant: UUID,
             granted: Boolean = true,
+            action: String = AdministrationPermissions.SET_ROUTE,
         ): String {
             val header = TestPrincipals.register(tenant)
             if (granted) {
                 val since = Clock.systemUTC().instant().minusSeconds(60)
-                val grant = Grant(AdministrationPermissions.SET_ROUTE, ScopeLevel.TENANT, "x", since)
+                val grant = Grant(action, ScopeLevel.TENANT, "x", since)
                 val record = AuthorityRecord.GrantRecord("tenant-wide", listOf(grant))
                 authority.accept(AuthorityChanged(TenantId(tenant), TestPrincipals.actorOf(header), ++sequence, record))
             }
@@ -385,6 +397,70 @@ class AcknowledgementRouteBoundaryTest {
         r.elect(first, "POLLING", null).status shouldBe 401
         val body = """{"acknowledgementRoute":"POLLING"}"""
         r.send("PUT", first, body, r.user(tenant), workload = null).status shouldBe 401
+        r.storedRoute(tenant, first).shouldBeNull()
+        r.published(tenant).size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-9490 a caller holding vp-49 set, decided with source LOCAL, reaches the use case`(
+        @TempDir dir: Path,
+    ) = run(dir) { r ->
+        val (tenant, first, _) = r.connections()
+        val user = r.user(tenant)
+        r.elect(first, "POLLING", user).status shouldBe 200
+        r.storedRoute(tenant, first) shouldBe "POLLING"
+        r.clear(first, user).status shouldBe 200
+        r.storedRoute(tenant, first).shouldBeNull()
+        r.published(tenant).size shouldBe 2
+    }
+
+    @Test
+    fun `INV-AC-9490 a caller denied vp-49 set is refused 403, nothing recorded or published`(
+        @TempDir dir: Path,
+    ) = run(dir) { r ->
+        val (tenant, first, _) = r.connections()
+        val denied = r.user(tenant, granted = false)
+        r.elect(first, "POLLING", denied).status shouldBe 403
+        r.clear(first, denied).status shouldBe 403
+        r.storedRoute(tenant, first).shouldBeNull()
+        r.published(tenant).size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-9490 a caller whose vp-49 set grant was revoked is refused 403, nothing recorded or published`(
+        @TempDir dir: Path,
+    ) = run(dir) { r ->
+        val (tenant, first, _) = r.connections()
+        val user = r.user(tenant)
+        r.elect(first, "POLLING", user).status shouldBe 200
+        r.revoke(tenant, user)
+        r.elect(first, "AP_CALLBACK", user).status shouldBe 403
+        r.clear(first, user).status shouldBe 403
+        r.storedRoute(tenant, first) shouldBe "POLLING"
+        r.published(tenant).size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-9490 a caller holding only a look-alike key of vp-49 set is refused 403, nothing recorded`(
+        @TempDir dir: Path,
+    ) = run(dir) { r ->
+        val (tenant, first, _) = r.connections()
+        for (key in listOf("vp-49.set ", "vp-48.set", "vp-49.get", "VP-49.SET", "vp-49.set.x")) {
+            val user = r.user(tenant, action = key)
+            r.elect(first, "POLLING", user).status shouldBe 403
+            r.clear(first, user).status shouldBe 403
+        }
+        r.storedRoute(tenant, first).shouldBeNull()
+        r.published(tenant).size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-9490 a request without a token is refused 401, nothing recorded`(
+        @TempDir dir: Path,
+    ) = run(dir) { r ->
+        val (tenant, first, _) = r.connections()
+        r.elect(first, "POLLING", null).status shouldBe 401
+        r.clear(first, null).status shouldBe 401
         r.storedRoute(tenant, first).shouldBeNull()
         r.published(tenant).size shouldBe 0
     }
