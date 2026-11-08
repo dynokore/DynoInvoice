@@ -55,3 +55,6 @@ schemas/tenant-wide-archive-volume-measured-payload.schema.json	tenantRef	NONE
 schemas/tenant-wide-archive-volume-measured-payload.schema.json	bytes	NONE
 schemas/tenant-wide-archive-volume-measured-payload.schema.json	measuredAt	NONE
 schemas/certification-mark-requested-payload.schema.json	trigger	NONE
+schemas/connection-credential-expiry-reminder-requested-payload.schema.json	connection	NONE
+schemas/connection-credential-expiry-reminder-requested-payload.schema.json	expiresAt	NONE
+schemas/connection-credential-expiry-reminder-requested-payload.schema.json	offsetDays	NONE

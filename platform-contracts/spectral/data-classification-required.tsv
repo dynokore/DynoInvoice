@@ -22,3 +22,4 @@ service-runtime	schemas/tenant-wide-evidence-integrity-failed-payload.schema.jso
 service-runtime	schemas/installation-status-changed-payload.schema.json
 service-runtime	schemas/tenant-wide-archive-volume-measured-payload.schema.json
 service-runtime	schemas/certification-mark-requested-payload.schema.json
+service-runtime	schemas/connection-credential-expiry-reminder-requested-payload.schema.json

@@ -16,3 +16,4 @@
 ../schemas/installation-status-changed-payload.schema.json installation-status-changed-payload-*.json
 ../schemas/tenant-wide-archive-volume-measured-payload.schema.json tenant-wide-archive-volume-measured-payload-*.json
 ../schemas/certification-mark-requested-payload.schema.json certification-mark-requested-payload-*.json
+../schemas/connection-credential-expiry-reminder-requested-payload.schema.json connection-credential-expiry-reminder-requested-payload-*.json

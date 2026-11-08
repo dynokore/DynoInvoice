@@ -421,6 +421,16 @@ topics:
       - tenancy-svc
     subscribers:
       - tenancy-svc
+  - topic: gst.platform.connection-credential-expiry-reminder-requested.v1
+    event_type: com.dynokore.gst.platform.ConnectionCredentialExpiryReminderRequested.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - masterdata-svc
+      - transport-svc
+    subscribers:
+      - notification-svc
   - topic: gst.platform.connection-status-changed.v1
     event_type: com.dynokore.gst.platform.ConnectionStatusChanged.v1
     content_topic: false
@@ -1319,6 +1329,7 @@ replay_topics:
       - evidence-svc
   - topic: gst.masterdata.replay-notification.v1
     event_types:
+      - com.dynokore.gst.platform.ConnectionCredentialExpiryReminderRequested.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
@@ -2103,6 +2114,7 @@ replay_topics:
       - ingestion-svc
   - topic: gst.transport.replay-notification.v1
     event_types:
+      - com.dynokore.gst.platform.ConnectionCredentialExpiryReminderRequested.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false

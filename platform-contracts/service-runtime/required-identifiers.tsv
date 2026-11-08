@@ -123,3 +123,6 @@ bytes	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	I
 measuredAt	property	schemas/tenant-wide-archive-volume-measured-payload.schema.json	INV-REQ-878
 trigger	property	schemas/certification-mark-requested-payload.schema.json	INV-REQ-1226
 NEW_TRAIN	enum_value	schemas/certification-mark-requested-payload.schema.json	INV-REQ-1226
+connection	property	schemas/connection-credential-expiry-reminder-requested-payload.schema.json	INV-REQ-837
+expiresAt	property	schemas/connection-credential-expiry-reminder-requested-payload.schema.json	INV-REQ-837
+offsetDays	property	schemas/connection-credential-expiry-reminder-requested-payload.schema.json	INV-REQ-837

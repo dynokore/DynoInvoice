@@ -1,14 +1,14 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.19.0
+  version: 1.20.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed, InstallationStatusChanged, TenantWideArchiveVolumeMeasured, CertificationMarkRequested — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed, InstallationStatusChanged, TenantWideArchiveVolumeMeasured, CertificationMarkRequested, ConnectionCredentialExpiryReminderRequested — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
@@ -120,6 +120,12 @@ channels:
     messages:
       TenantWideArchiveVolumeMeasured:
         $ref: '#/components/messages/TenantWideArchiveVolumeMeasured'
+
+  platformConnectionCredentialExpiryReminderRequested:
+    address: 'gst.platform.connection-credential-expiry-reminder-requested.v1'
+    messages:
+      ConnectionCredentialExpiryReminderRequested:
+        $ref: '#/components/messages/ConnectionCredentialExpiryReminderRequested'
 
   platformConnectionStatusChanged:
     address: 'gst.platform.connection-status-changed.v1'
@@ -262,6 +268,14 @@ operations:
       $ref: '#/channels/platformTenantWideArchiveVolumeMeasured'
     messages:
       - $ref: '#/channels/platformTenantWideArchiveVolumeMeasured/messages/TenantWideArchiveVolumeMeasured'
+
+  publishConnectionCredentialExpiryReminderRequested:
+    action: send
+    description: ConnectionCredentialExpiryReminderRequested — an expiry reminder of a connection credential, published by masterdata-svc and transport-svc and consumed by notification-svc (INV-REQ-837).
+    channel:
+      $ref: '#/channels/platformConnectionCredentialExpiryReminderRequested'
+    messages:
+      - $ref: '#/channels/platformConnectionCredentialExpiryReminderRequested/messages/ConnectionCredentialExpiryReminderRequested'
 
   publishConnectionStatusChanged:
     action: send
@@ -517,6 +531,19 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/tenant-wide-archive-volume-measured-payload.schema.json'
+
+    ConnectionCredentialExpiryReminderRequested:
+      name: com.dynokore.gst.platform.ConnectionCredentialExpiryReminderRequested.v1
+      title: ConnectionCredentialExpiryReminderRequested
+      summary: ConnectionCredentialExpiryReminderRequested — a connection credential is about to expire (INV-REQ-837).
+      description: >-
+        Platform event ConnectionCredentialExpiryReminderRequested (class: platform; INV-REQ-837, INV-NOTE-3
+        FR-AG.69). Emitted by: masterdata-svc, transport-svc. Consumed by: notification-svc. Delivery:
+        At-least-once — platform event (AD-27). Payload: connection, expiresAt, offsetDays. The recipients are
+        routing data of the sender (INV-T-12928), not payload; the payload carries no person, address or credential.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/connection-credential-expiry-reminder-requested-payload.schema.json'
 
     ConnectionStatusChanged:
       name: com.dynokore.gst.platform.ConnectionStatusChanged.v1
