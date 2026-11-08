@@ -298,7 +298,7 @@ class AuthorityReplayTest {
         }
 
     @Test
-    fun `INV-AC-9051 the ENTITY scope replays that entity and the PERIOD scope the records changed in it`() =
+    fun `INV-AC-9051 the PERIOD scope replays the records changed in it`() =
         run { env ->
             val t0 = env.kit.clock.freeze()
             env.kit.entity("CLI-A")
@@ -312,14 +312,48 @@ class AuthorityReplayTest {
             val g1Key = "ROLE:${g1.grantRef}"
             val g2Key = "ROLE:${g2.grantRef}"
             val g3Key = "ROLE:${g3.grantRef}"
-            val ofEntity = keys(ReplayScope.Entity(env.tenant, EventEntityRef("CLI-A")))
-            assertThat(ofEntity).contains(g1Key, "CONSENT:CLI-A").doesNotContain(g2Key, g3Key)
-
             val half = t0.plus(Duration.ofMinutes(30))
             val early = keys(ReplayScope.Period(t0.minus(Duration.ofHours(1)), half, env.tenant))
             assertThat(early).contains(g1Key, g2Key).doesNotContain(g3Key)
             val late = keys(ReplayScope.Period(half, t0.plus(Duration.ofHours(2)), env.tenant))
             assertThat(late).containsExactly(g3Key)
+        }
+
+    @Test
+    fun `INV-AC-9051 a replay by ENTITY scope keeps the grants that cover the entity and the revoked principals`() =
+        run { env ->
+            // E1 = CLI-A and E2 = CLI-B: the kit seeded a signatory grant for each and an agent grant for CLI-A
+            val other = UUID.randomUUID()
+            val rows =
+                mapOf(
+                    "tenant" to env.insertGrant(env.tenant.value, "TENANT", env.tenant.toString()),
+                    "group" to env.insertGrant(env.tenant.value, "GROUP", "G1"),
+                    "consent" to env.insertGrant(env.tenant.value, "CONSENT", "CNS-1"),
+                    "e1" to env.insertGrant(env.tenant.value, "ENTITY", "CLI-A"),
+                    "e1period" to env.insertGrant(env.tenant.value, "ENTITY_PERIOD", "CLI-A", period = true),
+                    "e2" to env.insertGrant(env.tenant.value, "ENTITY", "CLI-B"),
+                    "foreign" to env.insertGrant(other, "TENANT", other.toString()),
+                )
+            env.consent("CLI-A")
+            env.consent("CLI-B")
+            val principal = env.kit.create("INGEST", scope = "tenant:${env.tenant}")
+            env.kit.revoke(principal.principalRef)
+            val keys =
+                env
+                    .replay(
+                        ReplayScope.Entity(env.tenant, EventEntityRef("CLI-A")),
+                    ).map { AuthorityReplayKit.keyOf(it) }
+            val roles = keys.filter { it.startsWith("ROLE:") }
+            val kept = listOf("tenant", "group", "consent", "e1", "e1period").map { "ROLE:${rows.getValue(it)}" }
+            val seededForE1 = listOf(env.seeded[0], env.seeded[2]).map { "ROLE:$it" }
+            assertThat(roles).containsAll(kept + seededForE1)
+            assertThat(
+                roles,
+            ).doesNotContain("ROLE:${rows.getValue("e2")}", "ROLE:${rows.getValue("foreign")}", "ROLE:${env.seeded[1]}")
+            assertThat(keys.filter { it.startsWith("CONSENT:") }).containsExactly("CONSENT:CLI-A")
+            assertThat(
+                keys.filter { it.startsWith("PRINCIPAL:") },
+            ).containsExactly("PRINCIPAL:${principal.principalRef}")
         }
 
     private fun decide(
