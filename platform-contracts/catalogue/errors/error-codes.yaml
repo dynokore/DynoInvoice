@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 692c582333cf6f650694b24eb100b448946bc347 (2026-11-09), the merge of invoice-docs INV-T-18915 adding MDM-012 to MDM-015, the rate import error codes (INV-T-18916, coordinator ruling of breakdown tooling/gap18772-gap.md);
+# pinned at commit 03bf5b6ed7232362ceb836094380637c1934b66a (2026-11-09), the merge of invoice-docs INV-T-18946 adding MDM-016 to MDM-018, the connection error codes (INV-T-18947, coordinator ruling of breakdown tooling/gap18774-gap.md);
+# previously pinned at 692c582333cf6f650694b24eb100b448946bc347 (2026-11-09), the merge of invoice-docs INV-T-18915 adding MDM-012 to MDM-015, the rate import error codes (INV-T-18916, coordinator ruling of breakdown tooling/gap18772-gap.md);
 # previously pinned at a387243fb0b03d0c27b08d77eb936e6e785f8c7b (2026-11-08), the merge of invoice-docs INV-T-18812 adding TNC-011 (INV-T-18813, coordinator ruling of breakdown tooling/tenancy-cutover-gap.md);
 # previously pinned at baecd0f87a9069b093da85710352e349ad25beba (2026-11-08), the merge of invoice-docs INV-T-18371 adding MDM-011 (INV-T-18372, coordinator ruling option A of tooling/gap18217-gap.md);
 # previously pinned at 34f1a64f543c01f31b32f33377d941fc35067d7f (2026-11-06), the merge of invoice-docs INV-T-17294 adding SRT-014 and MDM-010 (INV-T-17296, coordinator rulings INV-Q-17287 A, INV-Q-17289 A);
@@ -211,6 +212,21 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+- code: MDM-016
+  condition: "Connection record names an unknown environment tag: the environmentTag of the request is not exactly PRODUCTION or SANDBOX, so no record is stored (UNKNOWN_ENVIRONMENT_TAG; HTTP 400; INV-REQ-834)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: MDM-017
+  condition: "Connection test cannot read the caller's environment: the installation environment tag of the service is unset or is not exactly PRODUCTION or SANDBOX, so the test is refused before any call to the external service (UNKNOWN_ENVIRONMENT; HTTP 500, a configuration error; INV-REQ-834)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: MDM-018
+  condition: "Connection test refused: the environment tag of the connection record differs from the installation environment of the service, so a workspace never uses a production credential and the external service is not called (ENVIRONMENT_MISMATCH_REFUSED; HTTP 403; INV-REQ-834, INV-AC-1883)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
 - code: RUL-001
   condition: Internal tax code has no mapping in the active pack
   severity: BLOCK

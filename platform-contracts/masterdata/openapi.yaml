@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.17.0
+  version: 1.18.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -1133,13 +1133,16 @@ paths:
         `provides`; SCR-13.5, §35.2). Fills a gap raised as PAY-013,
         evidenced, for one currency, date and source. The answer carries
         `provenance` with kind MANUAL, `loadedAt` and the request's
-        `evidenceRef` (INV-REQ-512).
+        `evidenceRef` (INV-REQ-512). Answers `409` with SRT-008 when a
+        concurrent save of the same source, currency pair and date loses
+        the unique-key race (the service assigns the revision; the caller
+        may retry).
       tags: [import]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: [PAY-013]
+      x-error-codes: [PAY-013, SRT-008]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
       x-operation:
         kind: PERMISSION
@@ -1356,13 +1359,15 @@ paths:
         SCR-18.1 to SCR-18.3, the `masterdata-svc` rows). The record
         holds the endpoint, the credential reference in the secret store
         (never the secret), the environment tag and the owner service; the
-        service assigns `connectionRef`.
+        service assigns `connectionRef`. Refuses an environment tag that is
+        not exactly PRODUCTION or SANDBOX with `400` and MDM-016 and stores
+        nothing.
       tags: [connections]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [MDM-016]
       x-requirements: [INV-REQ-834, INV-AC-1883]
       x-operation:
         kind: PERMISSION
@@ -1443,13 +1448,19 @@ paths:
         SCR-18.1 to SCR-18.3, the `masterdata-svc` rows). The owning service runs
         the test against the endpoint with the referenced credential and
         returns a classified result, not a raw error (INV-REQ-835,
-        INV-AC-1884).
+        INV-AC-1884). The caller's environment is never a request property:
+        the service reads it from its own deployment configuration,
+        the installation environment tag set at install time,
+        so a workspace caller cannot claim PRODUCTION. Answers `500` with MDM-017 when the
+        installation environment is unset or unknown, and `403` with MDM-018
+        when the record's environment differs from it, and calls no external
+        service in either case.
       tags: [connections]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [MDM-017, MDM-018]
       x-requirements: [INV-REQ-835, INV-AC-1884]
       x-operation:
         kind: PERMISSION
