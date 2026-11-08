@@ -14,10 +14,11 @@ include:
       - 'ci/image.gitlab-ci.yml' # bootBuildImage, SBOM, image scan, sign, provenance, reproducibility
       - 'ci/publish.gitlab-ci.yml' # image publish
   # The keel-report job reads the JUnit XML of unit-test from the main pipeline and reports the INV-AC numbers in the
-  # testcase names to Keel (the same wiring as platform-libs).
+  # testcase names to Keel (the same wiring as platform-libs) and the check:<job> groups of the jobs that extend
+  # .check-group (INV-T-18903).
   - project: 'keel/tooling'
     ref: main
-    file: 'keel-report-junit.yml'
+    file: 'keel-report-junit-groups.yml'
     inputs:
       runner_tags: [inv-arm64]
       junit_paths: '**/build/test-results/*/TEST-*.xml'
@@ -31,3 +32,8 @@ variables:
   GST_SKIP_REPEATS: "true"
   GST_SKIP_WHEN_VERIFIED_JOBS: "lint"
   IMAGE_NAME: "svc-submission"
+
+# INV-T-18903 (INV-AC-18902): gradle-verification-check reports a check group. The extends array replaces the included
+# job's (platform-build ci/build.gitlab-ci.yml); every other key of the job stays as included.
+gradle-verification-check:
+  extends: [.gradle-job, .check-group]
