@@ -199,14 +199,18 @@ class OffboardTenant(
         request: OffboardRequest,
     ): OffboardOutcome {
         val entityRef = request.entityRef
-        val entity = entityRef?.let { structure.entity(it) ?: return OffboardOutcome.NotFound }
-        if (caller != null && entity != null) {
-            personProblem(caller, entity.ref, request)?.let { return it }
-        }
-        store.byIdempotencyKey(idempotencyKey)?.let { return OffboardOutcome.Replayed(it) }
+        val entity = entityRef?.let { structure.entity(it) }
+        val refusal =
+            when {
+                entityRef != null && entity == null -> OffboardOutcome.NotFound
+                caller != null && entity != null -> personProblem(caller, entity.ref, request)
+                else -> null
+            }
         val holder = checkNotNull(request.retentionCustodyHolder)
-        val conflict = gates(request, holder)
-        return conflict ?: produce(tenantRef, caller, idempotencyKey, request, holder)
+        return refusal
+            ?: store.byIdempotencyKey(idempotencyKey)?.let { OffboardOutcome.Replayed(it) }
+            ?: gates(request, holder)
+            ?: produce(tenantRef, caller, idempotencyKey, request, holder)
     }
 
     private fun personProblem(

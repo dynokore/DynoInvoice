@@ -44,7 +44,7 @@ class OffboardTenantTest {
         ActionAuthority { person, ref, action ->
             authorityCalls += Triple(person, ref, action)
             if (replicaDown) error("replica down")
-            action in (grants[person] ?: emptySet())
+            action in grants[person].orEmpty()
         }
 
     private class Store : OffboardingStore {
