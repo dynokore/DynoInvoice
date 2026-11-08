@@ -129,6 +129,58 @@ class ImportRatesTest {
     }
 
     @Test
+    fun `rejected rows hold a closed reason, rates and currencies are probed`() {
+        val rows =
+            listOf(
+                row(1, "usd", "1.35"),
+                row(2, "EUR", "0"),
+                row(3, "GBP", "abc"),
+                row(4, "JPY", "0.009"),
+            )
+        val out = importer.handle(cmd("MAS", rows)) as ImportRatesOutcome.Loaded
+        assertEquals(
+            listOf(
+                RateRowRejection.CURRENCY_INVALID,
+                RateRowRejection.RATE_INVALID,
+                RateRowRejection.RATE_INVALID,
+            ),
+            out.rejected.map { it.reason },
+        )
+        assertEquals("JPY/SGD", events.single().currencyPairs.single())
+    }
+
+    @Test
+    fun `a revision conflict rejects only that row`() {
+        val conflicting =
+            object : RateStore by store {
+                override fun save(rate: ExchangeRate) =
+                    if (rate.baseCurrency == "EUR") SaveResult.RevisionConflict else store.save(rate)
+            }
+        val rows = listOf(row(1, "USD", "1.35"), row(2, "EUR", "1.5"))
+        val out =
+            ImportRates(tx, conflicting, elected, approved) { events += it }.handle(cmd("MAS", rows))
+                as ImportRatesOutcome.Loaded
+        assertEquals(1, out.stored)
+        assertEquals(listOf(RateRowRejection.REVISION_CONFLICT), out.rejected.map { it.reason })
+    }
+
+    @Test
+    fun `all rows invalid or rowCount 0 stores 0 and publishes no event`() {
+        val bad = importer.handle(cmd("MAS", listOf(row(1, "USD", "abc"), row(2, "EUR", "-1"))))
+        assertEquals(0, (bad as ImportRatesOutcome.Loaded).stored)
+        assertEquals(0, (importer.handle(cmd("MAS", emptyList())) as ImportRatesOutcome.Loaded).stored)
+        assertTrue(events.isEmpty() && all.isEmpty())
+    }
+
+    @Test
+    fun `RateRowRejection has exactly the three ruled members`() {
+        assertEquals(
+            setOf("CURRENCY_INVALID", "RATE_INVALID", "REVISION_CONFLICT"),
+            RateRowRejection.entries.map { it.name }.toSet(),
+        )
+    }
+
+    @Test
     fun `a register outage degrades only the register part`() {
         val down = RegisterAnswer(REGISTER_UNAVAILABLE, null, Reconciliation.NoChange, null)
         val out =

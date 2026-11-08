@@ -9,6 +9,9 @@ enum class Provenance { MANUAL_ENTRY, IMPORT }
 /**
  * INV-REQ-506: one effective-dated rate record per [source], currency pair and [date]. A repeat supersedes: the new
  * record has the next [revision] and the earlier one stays readable.
+ *
+ * A pair is written `BASE/QUOTE` (ISO 4217): [baseCurrency] is the foreign currency, [quoteCurrency] is SGD, and
+ * [rate] is the number of SGD for 1 unit of the base currency.
  */
 data class ExchangeRate(
     val source: String,

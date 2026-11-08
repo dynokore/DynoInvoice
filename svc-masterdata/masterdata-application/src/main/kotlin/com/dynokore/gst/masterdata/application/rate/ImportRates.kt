@@ -46,9 +46,12 @@ data class RateRow(
     val rate: String,
 )
 
+/** Why a row of a rate file was rejected; the wire codes come from the error catalogue, mapped by INV-T-18775. */
+enum class RateRowRejection { CURRENCY_INVALID, RATE_INVALID, REVISION_CONFLICT }
+
 data class RejectedRateRow(
     val row: Int,
-    val code: String,
+    val reason: RateRowRejection,
     val field: String,
 )
 
@@ -125,17 +128,17 @@ class ImportRates(
         for (row in command.rows) {
             val rate = row.rate.trim().toBigDecimalOrNull()
             if (!CURRENCY.matches(row.baseCurrency)) {
-                rejected += RejectedRateRow(row.row, "CURRENCY_INVALID", "baseCurrency")
+                rejected += RejectedRateRow(row.row, RateRowRejection.CURRENCY_INVALID, "baseCurrency")
             } else if (!CURRENCY.matches(row.quoteCurrency)) {
-                rejected += RejectedRateRow(row.row, "CURRENCY_INVALID", "quoteCurrency")
+                rejected += RejectedRateRow(row.row, RateRowRejection.CURRENCY_INVALID, "quoteCurrency")
             } else if (rate == null || rate.signum() <= 0) {
-                rejected += RejectedRateRow(row.row, "RATE_INVALID", "rate")
+                rejected += RejectedRateRow(row.row, RateRowRejection.RATE_INVALID, "rate")
             } else {
                 val record = record(command, row, rate)
                 if (store.save(record) == SaveResult.Saved) {
                     stored += record
                 } else {
-                    rejected += RejectedRateRow(row.row, "REVISION_CONFLICT", "rate")
+                    rejected += RejectedRateRow(row.row, RateRowRejection.REVISION_CONFLICT, "rate")
                 }
             }
         }
