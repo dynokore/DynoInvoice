@@ -30,8 +30,8 @@ recordAppliedOperatingProfile	operation	INV-T-4933	done
 getAppliedOperatingProfile	operation	INV-T-4933	done
 answerQuestionnaire	operation	INV-T-4933	done
 recordInstallationAction	operation	INV-T-3290	done
-recordMigrationCutover	operation	INV-T-7382	pending
-getMigrationCutover	operation	INV-T-7382	pending
+recordMigrationCutover	operation	INV-T-7382	done
+getMigrationCutover	operation	INV-T-7382	done
 openTenant	operation	INV-T-8142	pending
 closeTenant	operation	INV-T-8179	pending
 OrganisationStructureChanged	channel	INV-T-4925	done

@@ -58,6 +58,8 @@ class RenditionAuthorityFailClosedTest {
                 unused(),
                 unused(),
                 authority,
+                unused(),
+                unused(),
                 CallerSource { CALLER },
             )
         return assertThrows<ApiRefusal> {

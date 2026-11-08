@@ -11,6 +11,7 @@ import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
 import com.dynokore.gst.tenancy.application.installation.InstallationAuthority
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverPermissions
 import com.dynokore.gst.tenancy.application.workspace.TenantAuthority
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ElectionRoles
@@ -240,7 +241,10 @@ class TestPeople :
                 )
             }
 
-            SandboxCertificationPermissions.RECORD -> {
+            SandboxCertificationPermissions.RECORD,
+            MigrationCutoverPermissions.RECORD,
+            MigrationCutoverPermissions.VIEW,
+            -> {
                 action in permissions[person to entityRef].orEmpty()
             }
 

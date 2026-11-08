@@ -4,9 +4,11 @@ import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.BUSI
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY_STATUS
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.EXEMPT_PURCHASE_ELECTION
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.MIGRATION_CUTOVER
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT_GROUP
 import com.dynokore.gst.tenancy.application.election.exemptPurchaseEntries
+import com.dynokore.gst.tenancy.application.migration.migrationCutoverEntries
 import com.dynokore.gst.tenancy.application.structure.BusinessUnitRecord
 import com.dynokore.gst.tenancy.application.structure.EntityRecord
 import com.dynokore.gst.tenancy.application.structure.GroupKind
@@ -95,6 +97,7 @@ class JooqReplayReader(
 ) : ReplayReader {
     private val statuses = JooqEntityStatusStore(dsl, tenants)
     private val exemptPurchases = JooqExemptPurchaseElectionStore(dsl, tenants)
+    private val cutovers = JooqMigrationCutoverStore(dsl, tenants)
 
     override fun tenantIds(): List<TenantId> =
         dsl
@@ -232,7 +235,7 @@ class JooqReplayReader(
         }
     }
 
-    /** The entity has a status entry or an exempt-purchase election, so a profile replay returns it. */
+    /** The entity has a status entry, an exempt-purchase election or a migration cutover: a replay returns it. */
     private fun hasProfileEntry(): Condition =
         DSL
             .exists(DSL.selectOne().from(ENTITY_STATUS).where(ENTITY_STATUS.ENTITY_ID.eq(ENTITY.ID)))
@@ -243,13 +246,21 @@ class JooqReplayReader(
                         .from(EXEMPT_PURCHASE_ELECTION)
                         .where(EXEMPT_PURCHASE_ELECTION.ENTITY_REF.eq(ENTITY.REF)),
                 ),
+            ).or(
+                DSL.exists(
+                    DSL
+                        .selectOne()
+                        .from(MIGRATION_CUTOVER)
+                        .where(MIGRATION_CUTOVER.ENTITY_ID.eq(ENTITY.ID)),
+                ),
             )
 
     /** The status entries and the exempt-purchase entries of the entity, as getEntityStructure carries them. */
     private fun profileOf(entity: EntityRecord): List<ProfileEntry> =
         (
             statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
-                exemptPurchaseEntries(exemptPurchases.history(entity.ref))
+                exemptPurchaseEntries(exemptPurchases.history(entity.ref)) +
+                migrationCutoverEntries(cutovers.find(entity.ref))
         ).sortedBy { it.effectiveDate }
 
     private fun units(

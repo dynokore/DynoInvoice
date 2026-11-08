@@ -10,6 +10,12 @@ import com.dynokore.gst.tenancy.application.election.ElectionRecord
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseOutcome
 import com.dynokore.gst.tenancy.application.election.PendingChange
+import com.dynokore.gst.tenancy.application.migration.GetMigrationCutover
+import com.dynokore.gst.tenancy.application.migration.MigrationCutover
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverOutcome
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverPermissions
+import com.dynokore.gst.tenancy.application.migration.NewMigrationCutover
+import com.dynokore.gst.tenancy.application.migration.RecordMigrationCutover
 import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
 import com.dynokore.gst.tenancy.application.rendition.RecordRenditionOutcome
 import com.dynokore.gst.tenancy.application.rendition.RecordRenditionResponsibility
@@ -41,11 +47,13 @@ import com.dynokore.gst.tenancy.contract.model.FilingFrequencyChangeRequest
 import com.dynokore.gst.tenancy.contract.model.FilingFrequencyResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
 import com.dynokore.gst.tenancy.contract.model.IssuanceModeResponse
+import com.dynokore.gst.tenancy.contract.model.MigrationCutoverRecord
 import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.PendingElectionChange
 import com.dynokore.gst.tenancy.contract.model.PhaseAssessmentResponse
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionResponse
+import com.dynokore.gst.tenancy.contract.model.RecordMigrationCutoverRequest
 import com.dynokore.gst.tenancy.contract.model.RegisterBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityRequest
 import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityResponse
@@ -78,7 +86,8 @@ import java.util.UUID
  * request's `tenantRef` must name the bound tenant, else the tenant is absent from the caller's scope (404).
  */
 @RestController
-@Suppress("TooManyFunctions", "LongParameterList") // one function per contract operation; one collaborator per use case
+// one function per contract operation; one collaborator per use case
+@Suppress("TooManyFunctions", "LongParameterList", "LargeClass")
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin)
 open class EntitiesController(
     private val commands: StructureCommands,
@@ -92,6 +101,8 @@ open class EntitiesController(
     private val certifySandbox: CertifySandbox,
     private val recordRendition: RecordRenditionResponsibility,
     private val renditionAuthority: ActionAuthority,
+    private val recordCutover: RecordMigrationCutover,
+    private val getCutover: GetMigrationCutover,
     private val caller: CallerSource,
 ) : EntitiesApi {
     override fun createGroup(
@@ -483,6 +494,87 @@ open class EntitiesController(
             }
         }
     }
+
+    /**
+     * recordMigrationCutover (INV-REQ-1109, INV-Q-6232 A): 201 first record, 200 exact repeat, 409 TNC-011 another
+     * date; the permission key `migration-cutover.record` is decided per request inside the use case (fail closed).
+     */
+    override fun recordMigrationCutover(
+        entityRef: String,
+        idempotencyKey: UUID,
+        recordMigrationCutoverRequest: RecordMigrationCutoverRequest,
+    ): ResponseEntity<MigrationCutoverRecord> =
+        when (
+            val outcome =
+                recordCutover.record(
+                    caller.actor(),
+                    entityRef,
+                    NewMigrationCutover(
+                        recordMigrationCutoverRequest.cutoverDate,
+                        recordMigrationCutoverRequest.priorSolution,
+                        recordMigrationCutoverRequest.approvedBy,
+                        recordMigrationCutoverRequest.evidenceRef,
+                    ),
+                )
+        ) {
+            is MigrationCutoverOutcome.Created -> {
+                ResponseEntity.status(HttpStatus.CREATED).body(cutoverResponse(outcome.cutover))
+            }
+
+            is MigrationCutoverOutcome.Existing -> {
+                ResponseEntity.ok(cutoverResponse(outcome.cutover))
+            }
+
+            else -> {
+                refuseCutover(outcome, MigrationCutoverPermissions.RECORD)
+            }
+        }
+
+    /** getMigrationCutover (INV-REQ-1109): the stored record, 404 when the entity has none. */
+    override fun getMigrationCutover(entityRef: String): ResponseEntity<MigrationCutoverRecord> =
+        when (val outcome = getCutover.get(caller.actor(), entityRef)) {
+            is MigrationCutoverOutcome.Existing -> ResponseEntity.ok(cutoverResponse(outcome.cutover))
+            else -> refuseCutover(outcome, MigrationCutoverPermissions.VIEW)
+        }
+
+    private fun refuseCutover(
+        outcome: MigrationCutoverOutcome,
+        permission: String,
+    ): Nothing =
+        when (outcome) {
+            MigrationCutoverOutcome.Denied -> {
+                forbidden("$permission is required")
+            }
+
+            MigrationCutoverOutcome.NotFound -> {
+                notFound()
+            }
+
+            is MigrationCutoverOutcome.Conflict -> {
+                conflict(
+                    TenancyErrorCode.MIGRATION_CUTOVER_CONFLICT,
+                    "a migration cutover with another date is already recorded for the entity",
+                )
+            }
+
+            is MigrationCutoverOutcome.Rejected -> {
+                invalid(outcome.reason)
+            }
+
+            is MigrationCutoverOutcome.Created, is MigrationCutoverOutcome.Existing -> {
+                error("outcome ${outcome::class.simpleName} is not a refusal")
+            }
+        }
+
+    private fun cutoverResponse(cutover: MigrationCutover): MigrationCutoverRecord =
+        MigrationCutoverRecord(
+            cutover.entityRef,
+            cutover.cutoverDate,
+            cutover.priorSolution,
+            cutover.approvedBy,
+            cutover.recordedAt.atOffset(ZoneOffset.UTC),
+            cutover.evidenceRef,
+        )
 
     private fun pendingChange(change: PendingChange): PendingElectionChange {
         val rateSource = change.kind == ElectionKind.EXCHANGE_RATE_SOURCE
