@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -105,7 +105,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010]
       x-operation:
-        role: certification
+        kind: PERMISSION
+        permission: machine.certification.report.record
         scope: entity
         precondition: >-
           The calling workspace is a non-production certification workspace
