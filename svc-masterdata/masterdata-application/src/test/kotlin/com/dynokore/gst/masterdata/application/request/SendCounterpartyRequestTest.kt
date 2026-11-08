@@ -20,8 +20,14 @@ class SendCounterpartyRequestTest {
         email: String? = "ap@example.com.sg",
         mobile: String? = null,
     ): SendOutcome =
-        SendCounterpartyRequest(DirectTx, requests, bindings, { option }, limits, { tenantDays }, { TENANT }, clock, out)
-            .handle(SendCommand("ENT-1", PARTY, email, mobile))
+        SendCounterpartyRequest(
+            DirectTx,
+            RequestStores(requests, bindings),
+            SendPolicies({ option }, limits, { tenantDays }),
+            { TENANT },
+            clock,
+            out,
+        ).handle(SendCommand("ENT-1", PARTY, email, mobile))
 
     @Test
     fun `INV-AC-2277 the default request route sends a signed link`() {
@@ -121,7 +127,13 @@ class SendCounterpartyRequestTest {
         listOf(1L, 14L, 30L).forEach {
             val fresh = SendCounterpartyRequestTest()
             fresh.send(tenantDays = it)
-            assertEquals(T0.plus(Duration.ofDays(it)), fresh.out.links.single().expiry, "$it")
+            assertEquals(
+                T0.plus(Duration.ofDays(it)),
+                fresh.out.links
+                    .single()
+                    .expiry,
+                "$it",
+            )
         }
     }
 
@@ -139,10 +151,20 @@ class SendCounterpartyRequestTest {
     fun `INV-AC-18554 other limits change the result so no number of days is written in the code`() {
         val a = SendCounterpartyRequestTest()
         a.send(limits = Limits(5, 10))
-        assertEquals(T0.plus(Duration.ofDays(5)), a.out.links.single().expiry)
+        assertEquals(
+            T0.plus(Duration.ofDays(5)),
+            a.out.links
+                .single()
+                .expiry,
+        )
         val b = SendCounterpartyRequestTest()
         b.send(limits = Limits(5, 10), tenantDays = 10)
-        assertEquals(T0.plus(Duration.ofDays(10)), b.out.links.single().expiry)
+        assertEquals(
+            T0.plus(Duration.ofDays(10)),
+            b.out.links
+                .single()
+                .expiry,
+        )
         val c = SendCounterpartyRequestTest()
         assertEquals(SendOutcome.InvalidValidity, c.send(limits = Limits(5, 10), tenantDays = 11))
         assertTrue(c.requests.all.isEmpty())

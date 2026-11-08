@@ -67,3 +67,16 @@ fun interface SubmissionAudit {
         requestId: String,
     )
 }
+
+/** The two stores a request command works on, in one transaction. */
+data class RequestStores(
+    val requests: CounterpartyRequests,
+    val bindings: LinkBindings,
+)
+
+/** What a send reads to decide whether and for how long: VP-30, the installation limits and the tenant value. */
+data class SendPolicies(
+    val method: SendMethodPolicy,
+    val limits: LinkValidityLimits,
+    val tenantValidity: TenantLinkValidity,
+)

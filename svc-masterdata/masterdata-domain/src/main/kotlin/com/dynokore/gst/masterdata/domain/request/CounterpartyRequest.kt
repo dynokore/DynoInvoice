@@ -23,7 +23,7 @@ enum class SendMethod(
     }
 }
 
-/** A counterparty request as masterdata-svc owns it (INV-REQ-901 b1). The id is also the SignedLinkRequested subject. */
+/** A counterparty request masterdata-svc owns (INV-REQ-901 b1); its id is the SignedLinkRequested subject. */
 data class CounterpartyRequest(
     val requestId: String,
     val tenant: String,
@@ -99,10 +99,14 @@ fun acceptsLink(
     requestId: String,
     now: Instant,
 ): Boolean {
-    val linkRef = principal?.linkRef() ?: return false
-    if (binding == null || binding.linkRef != linkRef) return false
-    val expiry = binding.expiry ?: return false
-    return binding.invalidatedAt == null &&
+    val linkRef = principal?.linkRef()
+    val expiry = binding?.expiry
+    return principal != null &&
+        linkRef != null &&
+        binding != null &&
+        expiry != null &&
+        binding.linkRef == linkRef &&
+        binding.invalidatedAt == null &&
         now.isBefore(expiry) &&
         binding.requestId == requestId &&
         binding.tenant == principal.tenant

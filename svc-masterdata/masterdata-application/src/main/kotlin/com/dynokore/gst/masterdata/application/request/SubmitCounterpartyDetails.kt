@@ -44,8 +44,7 @@ sealed interface SubmitOutcome {
  */
 class SubmitCounterpartyDetails(
     private val tx: TransactionRunner,
-    private val requests: CounterpartyRequests,
-    private val bindings: LinkBindings,
+    private val stores: RequestStores,
     private val parties: CounterpartyRepository,
     private val clock: Clock,
     private val publisher: MasterDataResolvedPublisher,
@@ -57,14 +56,16 @@ class SubmitCounterpartyDetails(
         requestId: String,
         expiry: Instant,
     ) = tx.inTransaction {
-        bindings.save((bindings.find(linkRef) ?: LinkBinding.empty(linkRef)).issued(tenant, requestId, expiry))
+        stores.bindings.save(
+            (stores.bindings.find(linkRef) ?: LinkBinding.empty(linkRef)).issued(tenant, requestId, expiry),
+        )
     }
 
     fun applyInvalidated(
         linkRef: String,
         invalidatedAt: Instant,
     ) = tx.inTransaction {
-        bindings.save((bindings.find(linkRef) ?: LinkBinding.empty(linkRef)).invalidated(invalidatedAt))
+        stores.bindings.save((stores.bindings.find(linkRef) ?: LinkBinding.empty(linkRef)).invalidated(invalidatedAt))
     }
 
     fun handle(
@@ -75,24 +76,26 @@ class SubmitCounterpartyDetails(
         tx.inTransaction {
             val now = clock.instant()
             val linkRef = principal?.linkRef()
-            if (!acceptsLink(principal, linkRef?.let(bindings::find), requestId, now)) {
+            if (!acceptsLink(principal, linkRef?.let(stores.bindings::find), requestId, now)) {
                 return@inTransaction SubmitOutcome.Refused
             }
             val verified = principal ?: return@inTransaction SubmitOutcome.Refused
-            val request = requests.find(requestId)
+            val request = stores.requests.find(requestId)
             if (request == null || request.tenant != verified.tenant) return@inTransaction SubmitOutcome.Refused
             val uen = details.uen?.trim().orEmpty()
             val name = details.legalName?.trim().orEmpty()
             val address = details.address
-            if (uen.isEmpty() || name.isEmpty() || address == null || address.line1.isNullOrBlank()) {
+            if (uen.isEmpty() || name.isEmpty() || address?.line1.isNullOrBlank()) {
                 return@inTransaction SubmitOutcome.Incomplete
             }
             val evidence = "${verified.subject}/$requestId"
-            val change = CounterpartyChange(listOf(IdentifierInput(IdentifierScheme.UEN, uen)), name, address, null, null)
-            val content = parties.current(request.party)?.content.after(change, evidence, WriteOrigin.COUNTERPARTY_LINK, now)
+            val change =
+                CounterpartyChange(listOf(IdentifierInput(IdentifierScheme.UEN, uen)), name, address, null, null)
+            val content =
+                parties.current(request.party)?.content.after(change, evidence, WriteOrigin.COUNTERPARTY_LINK, now)
             val version = parties.append(request.party, content, now)
             publisher.publish(request.entity, version)
-            requests.save(request.copy(status = RequestStatus.ANSWERED))
+            stores.requests.save(request.copy(status = RequestStatus.ANSWERED))
             audit.accepted(verified.subject, requestId)
             SubmitOutcome.Accepted(version)
         }

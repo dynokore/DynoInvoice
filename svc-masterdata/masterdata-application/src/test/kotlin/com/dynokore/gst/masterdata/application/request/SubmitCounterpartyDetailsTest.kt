@@ -19,15 +19,25 @@ class SubmitCounterpartyDetailsTest {
     private val bindings = FakeBindings()
     private val parties = FakeParties()
     private val out = Recorder()
-    private val use = SubmitCounterpartyDetails(DirectTx, requests, bindings, parties, clock, out, out)
-    private val details = CounterpartyDetails("201954321B", "Acme Trading Pte Ltd", PostalAddress("1 Raffles Place", null, "048616"))
+    private val use = SubmitCounterpartyDetails(DirectTx, RequestStores(requests, bindings), parties, clock, out, out)
+    private val details =
+        CounterpartyDetails("201954321B", "Acme Trading Pte Ltd", PostalAddress("1 Raffles Place", null, "048616"))
 
     private fun request(
         id: String,
         tenant: String = TENANT,
     ): CounterpartyRequest =
-        CounterpartyRequest(id, tenant, "ENT-1", PARTY, "ap@example.com.sg", null, RequestStatus.SENT, T0, T0.plus(Duration.ofDays(7)))
-            .also { requests.save(it) }
+        CounterpartyRequest(
+            id,
+            tenant,
+            "ENT-1",
+            PARTY,
+            "ap@example.com.sg",
+            null,
+            RequestStatus.SENT,
+            T0,
+            T0.plus(Duration.ofDays(7)),
+        ).also { requests.save(it) }
 
     private fun issue(
         link: String,
@@ -54,7 +64,7 @@ class SubmitCounterpartyDetailsTest {
     }
 
     @Test
-    fun `INV-AC-18230 an accepted submission is stored COUNTERPARTY-provided with evidence and emits one MasterDataResolved`() {
+    fun `INV-AC-18230 an accepted submission is stored COUNTERPARTY-provided and emits one MasterDataResolved`() {
         request("REQ-1")
         issue("L1", "REQ-1")
         val outcome = use.handle(principal("L1"), "REQ-1", details) as SubmitOutcome.Accepted
@@ -63,7 +73,10 @@ class SubmitCounterpartyDetailsTest {
         val uen = content.identifiers.single { it.scheme == IdentifierScheme.UEN }
         assertEquals("201954321B", uen.value)
         assertEquals(ProvidedBy.COUNTERPARTY, uen.provenance.providedBy)
-        assertTrue(uen.provenance.evidenceRef.value.isNotEmpty())
+        assertTrue(
+            uen.provenance.evidenceRef.value
+                .isNotEmpty(),
+        )
         assertEquals("Acme Trading Pte Ltd", content.legalName)
         assertEquals("1 Raffles Place", content.address?.line1)
         assertEquals(1, out.resolved.size)
@@ -72,13 +85,19 @@ class SubmitCounterpartyDetailsTest {
     }
 
     @Test
-    fun `INV-AC-9600 the stored counterparty providedBy is COUNTERPARTY and the invalid link leaves the record equal`() {
+    fun `INV-AC-9600 provenance is COUNTERPARTY and the invalid link leaves the record equal`() {
         request("REQ-1")
         issue("L1", "REQ-1")
         refused(principal("L1x"), "REQ-1")
         val ok = use.handle(principal("L1"), "REQ-1", details) as SubmitOutcome.Accepted
         assertEquals(ProvidedBy.COUNTERPARTY, parties.current(PARTY)?.content?.providedBy)
-        assertTrue(ok.version.content.identifiers.all { it.provenance.evidenceRef.value.isNotEmpty() })
+        assertTrue(
+            ok.version.content.identifiers
+                .all {
+                    it.provenance.evidenceRef.value
+                        .isNotEmpty()
+                },
+        )
     }
 
     @Test
@@ -187,12 +206,19 @@ class SubmitCounterpartyDetailsTest {
         request("REQ-1")
         issue("L1", "REQ-1")
         val v = (use.handle(principal("L1"), "REQ-1", details) as SubmitOutcome.Accepted).version
-        assertEquals("link:L1/REQ-1", v.content.identifiers.single().provenance.evidenceRef.value)
+        assertEquals(
+            "link:L1/REQ-1",
+            v.content.identifiers
+                .single()
+                .provenance.evidenceRef.value,
+        )
     }
 
     @Test
     fun `INV-AC-2668 API part a verified counterparty writes only the counterparty of its own request`() {
-        val other = com.dynokore.gst.masterdata.domain.counterparty.PartyRef("CTP-999")
+        val other =
+            com.dynokore.gst.masterdata.domain.counterparty
+                .PartyRef("CTP-999")
         request("REQ-1")
         issue("L1", "REQ-1")
         use.handle(principal("L1"), "REQ-1", details)

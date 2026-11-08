@@ -44,11 +44,8 @@ sealed interface SendOutcome {
  */
 class SendCounterpartyRequest(
     private val tx: TransactionRunner,
-    private val requests: CounterpartyRequests,
-    private val bindings: LinkBindings,
-    private val method: SendMethodPolicy,
-    private val limits: LinkValidityLimits,
-    private val tenantValidity: TenantLinkValidity,
+    private val stores: RequestStores,
+    private val policies: SendPolicies,
     private val tenant: () -> String,
     private val clock: Clock,
     private val publisher: SignedLinkRequestedPublisher,
@@ -57,17 +54,21 @@ class SendCounterpartyRequest(
         tx.inTransaction {
             val email = command.contactEmail?.trim().orEmpty()
             if (email.isEmpty()) return@inTransaction SendOutcome.InvalidContact
-            val option = SendMethod.parse(method.option()) ?: return@inTransaction SendOutcome.UnknownMethod
+            val option = SendMethod.parse(policies.method.option()) ?: return@inTransaction SendOutcome.UnknownMethod
             if (!option.sendsLink) return@inTransaction SendOutcome.MethodNotLink
             val validity =
-                LinkValidity.effective(limits.defaultDays, limits.maxDays, tenantValidity.days())
+                LinkValidity.effective(
+                    policies.limits.defaultDays,
+                    policies.limits.maxDays,
+                    policies.tenantValidity.days(),
+                )
                     ?: return@inTransaction SendOutcome.InvalidValidity
             val now = clock.instant()
-            val open = requests.openFor(command.party)
+            val open = stores.requests.openFor(command.party)
             if (open != null && live(open, now)) return@inTransaction SendOutcome.Sent(open, false)
             val request =
                 CounterpartyRequest(
-                    requestId = open?.requestId ?: requests.nextId(),
+                    requestId = open?.requestId ?: stores.requests.nextId(),
                     tenant = tenant(),
                     entity = command.entity,
                     party = command.party,
@@ -77,10 +78,16 @@ class SendCounterpartyRequest(
                     lastRequestedAt = now,
                     expiresAt = now.plus(validity),
                 )
-            requests.save(request)
+            stores.requests.save(request)
             publisher.publish(
                 request.entity,
-                SignedLinkRequest(PURPOSE, request.requestId, request.contactEmail, request.contactMobile, request.expiresAt),
+                SignedLinkRequest(
+                    PURPOSE,
+                    request.requestId,
+                    request.contactEmail,
+                    request.contactMobile,
+                    request.expiresAt,
+                ),
             )
             SendOutcome.Sent(request, true)
         }
@@ -94,7 +101,7 @@ class SendCounterpartyRequest(
         now: java.time.Instant,
     ): Boolean =
         now.isBefore(request.expiresAt) &&
-            bindings.forRequest(request.requestId).none {
+            stores.bindings.forRequest(request.requestId).none {
                 it.invalidatedAt?.isAfter(request.lastRequestedAt) == true
             }
 

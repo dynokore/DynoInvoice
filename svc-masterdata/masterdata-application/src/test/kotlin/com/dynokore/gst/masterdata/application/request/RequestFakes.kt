@@ -11,6 +11,7 @@ import com.dynokore.platform.partyregistry.IdentifierScheme
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 internal val T0: Instant = Instant.parse("2026-11-08T00:00:00Z")
@@ -20,9 +21,9 @@ internal val PARTY = PartyRef("CTP-118")
 internal class MutableClock(
     var now: Instant = T0,
 ) : Clock() {
-    override fun getZone() = ZoneOffset.UTC
+    override fun getZone(): ZoneId = ZoneOffset.UTC
 
-    override fun withZone(zone: java.time.ZoneId?): Clock = this
+    override fun withZone(zone: ZoneId?): Clock = this
 
     override fun instant(): Instant = now
 }
@@ -35,7 +36,7 @@ internal class FakeRequests : CounterpartyRequests {
     val all = linkedMapOf<String, CounterpartyRequest>()
     private var seq = 0
 
-    override fun find(requestId: String) = all[requestId]
+    override fun find(requestId: String): CounterpartyRequest? = all[requestId]
 
     override fun openFor(party: PartyRef) = all.values.lastOrNull { it.party == party && it.status.name == "SENT" }
 
@@ -73,8 +74,10 @@ internal class FakeParties : CounterpartyRepository {
         content: CounterpartyContent,
         recordedAt: Instant,
         importId: String?,
-    ): CounterpartyVersion =
-        CounterpartyVersion(party, (current(party)?.version ?: 0) + 1, recordedAt, content, importId).also { versions += it }
+    ): CounterpartyVersion {
+        val next = (current(party)?.version ?: 0) + 1
+        return CounterpartyVersion(party, next, recordedAt, content, importId).also { versions += it }
+    }
 
     override fun allCurrent() = versions.groupBy { it.partyRef }.values.map { it.last() }
 
@@ -85,7 +88,10 @@ internal class FakeParties : CounterpartyRepository {
     ) = versions.filter { it.partyRef == party && it.version > afterVersion }.take(limit)
 }
 
-internal class Recorder : SignedLinkRequestedPublisher, MasterDataResolvedPublisher, SubmissionAudit {
+internal class Recorder :
+    SignedLinkRequestedPublisher,
+    MasterDataResolvedPublisher,
+    SubmissionAudit {
     val links = mutableListOf<SignedLinkRequest>()
     val resolved = mutableListOf<CounterpartyVersion>()
     val audits = mutableListOf<Pair<String, String>>()
