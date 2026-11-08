@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.33.0
+  version: 1.34.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1268,7 +1268,7 @@ paths:
     post:
       operationId: recordMigrationCutover
       summary: Record the entity's migration cutover date from the prior solution
-      description: 'One cutover exists per entity. An exact repeat (same cutoverDate) answers 200 with the same record; a different date after one is recorded is refused with 409 and nothing changes. Documents of the entity dated before cutoverDate are the pre-cutover documents (submitted by the prior solution). The date is published as the attribute migrationCutoverDate on EntityProfileChanged with the other entity attributes.'
+      description: 'One cutover exists per entity. An exact repeat (same cutoverDate) answers 200 with the same record; a different date after one is recorded is refused with 409 and nothing changes. Documents of the entity dated before cutoverDate are the pre-cutover documents (submitted by the prior solution). The date is published as the attribute migrationCutoverDate on EntityProfileChanged with the other entity attributes. The service derives approvedBy from the authenticated user ID; a supplied approvedBy that differs from it is refused with 400, and a caller without the permission migration-cutover.record is refused with 403. The refusal of a different date (409) carries the code TNC-011.'
       tags:
       - entities
       x-principal: filing-workflow
@@ -1278,9 +1278,11 @@ paths:
       x-requirements:
       - INV-REQ-1109
       - INV-REQ-1110
-      x-error-codes: []
+      x-error-codes:
+      - TNC-011
       x-operation:
-        role: entity.admin
+        kind: PERMISSION
+        permission: migration-cutover.record
         scope: entity
         precondition: The entity is registered and has no migration cutover recorded with a different date
         reversibility: COMPENSABLE
@@ -1306,7 +1308,6 @@ paths:
                 value:
                   cutoverDate: "2026-10-01"
                   priorSolution: LegacyPeppolProvider
-                  approvedBy: identity:USR-009
                   evidenceRef: EVD-20261001
       responses:
         "201":
@@ -1365,6 +1366,13 @@ paths:
       - INV-REQ-1109
       - INV-REQ-1110
       x-error-codes: []
+      x-operation:
+        kind: PERMISSION
+        permission: migration-cutover.view
+        scope: entity
+        precondition: The entity is registered.
+        reversibility: UNDOABLE
+        repeatKey: None - a read.
       parameters:
       - name: entityRef
         in: path
@@ -4295,7 +4303,6 @@ components:
       required:
       - cutoverDate
       - priorSolution
-      - approvedBy
       properties:
         cutoverDate:
           type: string
@@ -4307,6 +4314,7 @@ components:
         approvedBy:
           type: string
           maxLength: 128
+          description: Optional. The service derives approvedBy from the authenticated user ID and refuses a different supplied value with 400.
         evidenceRef:
           type: string
           maxLength: 64

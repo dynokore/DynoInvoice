@@ -196,6 +196,7 @@ deregisterEntity.TNC-008	operation_error_code	openapi.yaml	INV-REQ-956
 offboardTenant.TNC-008	operation_error_code	openapi.yaml	INV-REQ-956
 offboardTenant.TNC-009	operation_error_code	openapi.yaml	INV-REQ-956
 offboardTenant.TNC-010	operation_error_code	openapi.yaml	INV-REQ-956
+recordMigrationCutover.TNC-011	operation_error_code	openapi.yaml	INV-REQ-1109
 # INV-T-16406 adds the seven rows above (INV-Q-16387, INV-Q-16403, INV-Q-16395). sandbox-certification.record is a permission key of catalogue/role-permissions/role-permissions.yaml for which the checker has no kind, so it is pinned by RolePermissionsCheckerTest (ruling INV-Q-17496); no data row names it.
 # INV-T-16561 adds two rows (INV-REQ-435; INV-Q-16535 A): periodStart and periodEnd are the backticked names of INV-REQ-435 carried by the PeriodRecordsChanged payload schema. entityRef, version, periods and periodRef are not backticked in the published text of the requirements this task implements, so they add no row.
 periodStart	property	schemas/period-records-changed-payload.schema.json	INV-REQ-435
