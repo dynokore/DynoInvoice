@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -875,7 +875,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
       x-operation:
-        role: deployment.operator
+        kind: PERMISSION
+        permission: exchange-rate.import
         scope: tenant
         precondition: "The source is the entity's elected source."
         reversibility: COMPENSABLE
@@ -1132,7 +1133,8 @@ paths:
       x-error-codes: [PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
       x-operation:
-        role: tax.operator
+        kind: PERMISSION
+        permission: exchange-rate.enter
         scope: entity
         precondition: "Gap raised as PAY-013; evidence attached."
         reversibility: COMPENSABLE
@@ -1354,7 +1356,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-834, INV-AC-1883]
       x-operation:
-        role: integration.engineer
+        kind: PERMISSION
+        permission: connection.configure
         scope: tenant
         precondition: "The credential is already held in the secret store."
         reversibility: COMPENSABLE
@@ -1399,7 +1402,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-834, INV-AC-1883]
       x-operation:
-        role: integration.engineer
+        kind: PERMISSION
+        permission: connection.view
         scope: tenant
         precondition: "The connection record exists."
         reversibility: UNDOABLE
@@ -1439,7 +1443,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-835, INV-AC-1884]
       x-operation:
-        role: integration.engineer
+        kind: PERMISSION
+        permission: connection.test
         scope: tenant
         precondition: "The connection record exists."
         reversibility: UNDOABLE
@@ -1462,6 +1467,48 @@ paths:
                   value: { connectionRef: "CON-31", classification: "AUTHENTICATION_REFUSED", detail: "CREDENTIAL-REFUSED", checkedAt: "2026-03-20T03:10:00Z" }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/connections/{connectionRef}/health:
+    get:
+      operationId: getConnectionHealth
+      summary: Read the health of one connection
+      description: >-
+        Console read to console-bff (INV-REQ-836, INV-REQ-837; INV-NOTE-7
+        SCR-18.1, the `masterdata-svc` rows). Shows the state (UP, DEGRADED,
+        DOWN, mapped from the adapter circuit breaker: closed = up, half-open
+        = degraded, open = down), the breaker state, the success rate, the
+        latency, the last failure and the credential expiry. No property
+        holds a secret.
+      tags: [connections]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-836, INV-REQ-837]
+      x-operation:
+        kind: PERMISSION
+        permission: connection-health.view
+        scope: tenant
+        precondition: "The connection record exists."
+        reversibility: UNDOABLE
+        repeatKey: "None — a read."
+      parameters:
+        - name: connectionRef
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: The health of the connection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionHealth'
+              examples:
+                default:
+                  value: { connectionRef: "CON-31", state: "DOWN", breakerState: "OPEN", successRate: 0.42, latencyMillis: 850, measuredOverSeconds: 300, lastFailure: { at: "2026-03-20T03:10:00Z", classification: "UNREACHABLE", detail: "CONNECT-TIMEOUT" }, credentialExpiresAt: "2026-06-30T00:00:00Z" }
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/masterdata/connections/{connectionRef}/credential-rotations:
     post:
       operationId: rotateCredential
@@ -1479,7 +1526,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-834]
       x-operation:
-        role: tenant.admin
+        kind: PERMISSION
+        permission: connection-credential.rotate
         scope: tenant
         precondition: "A replacement credential is already held in the secret store."
         reversibility: COMPENSABLE
@@ -1817,6 +1865,7 @@ components:
           enum: [PRODUCTION, SANDBOX]
           x-extensible-enum: true
         ownerService: { type: string, maxLength: 40 }
+        credentialExpiresAt: { type: string, format: date-time, description: When the credential expires; drives the expiry reminder (INV-REQ-837). }
       required: [externalService, endpoint, credentialRef, environmentTag, ownerService]
     ConnectionRecord:
       type: object
@@ -1839,7 +1888,42 @@ components:
       description: The replacement credential is already held in the secret store; only its reference is carried, never the secret.
       properties:
         credentialRef: { type: string, maxLength: 100 }
+        credentialExpiresAt: { type: string, format: date-time, description: When the credential expires; drives the expiry reminder (INV-REQ-837). }
       required: [credentialRef]
+    ConnectionHealth:
+      type: object
+      description: >-
+        The health of one connection (INV-REQ-836). No property holds a secret.
+      properties:
+        connectionRef: { type: string, maxLength: 40 }
+        state:
+          type: string
+          enum: [UP, DEGRADED, DOWN]
+          x-extensible-enum: true
+        breakerState:
+          type: string
+          enum: [CLOSED, HALF_OPEN, OPEN]
+          x-extensible-enum: true
+        successRate: { type: number, minimum: 0, maximum: 1 }
+        latencyMillis: { type: integer, minimum: 0 }
+        measuredOverSeconds: { type: integer, minimum: 1 }
+        lastFailure:
+          type: object
+          properties:
+            at: { type: string, format: date-time }
+            classification:
+              type: string
+              enum: [SUCCESS, UNREACHABLE, AUTHENTICATION_REFUSED, UNEXPECTED_RESPONSE]
+              x-extensible-enum: true
+            detail:
+              type: string
+              maxLength: 32
+              pattern: '^[A-Z][A-Z0-9_-]{1,31}$'
+              description: A code only, never free text (INV-Q-2944).
+          required: [at, classification]
+        credentialExpiresAt: { type: string, format: date-time }
+        overlapEndsAt: { type: string, format: date-time, description: When the overlap window of the last rotation ends. }
+      required: [connectionRef, state, breakerState]
     ConnectionTestResult:
       type: object
       properties:
@@ -2410,7 +2494,32 @@ components:
         currencyPairs:
           type: array
           items: { type: string, maxLength: 10 }
+        fileHash: { type: string, maxLength: 128 }
+        rowCount: { type: integer, minimum: 0 }
+        rows:
+          type: array
+          maxItems: 5000
+          description: >-
+            The caller parses the uploaded file and sends the mapped rows with
+            the SHA-256 `fileHash` of the file (API-49), as for
+            `CounterpartyDryRunRequest`. `rows` is optional in the schema only
+            so that the change stays additive (API-03): the service refuses
+            `rows` with a `rowCount` different from the number of rows with
+            `400` SRT-001 and stores nothing.
+          items:
+            $ref: '#/components/schemas/RateImportRow'
       required: [source, dateRange, currencyPairs]
+    RateImportRow:
+      type: object
+      properties:
+        currency: { type: string, maxLength: 3 }
+        date: { type: string, format: date }
+        rate:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,8})?$'
+          description: Exchange rate as a decimal string, up to 8 places (API-12).
+      required: [currency, date, rate]
     EnterRateRequest:
       type: object
       properties:

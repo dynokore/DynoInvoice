@@ -1,0 +1,1 @@
+{ "connectionRef": "CON-31", "state": "DOWN", "breakerState": "OPEN", "successRate": 0.42, "latencyMillis": 850, "measuredOverSeconds": 300, "lastFailure": { "at": "2026-03-20T03:10:00Z", "classification": "UNREACHABLE", "detail": "CONNECT-TIMEOUT" }, "credentialExpiresAt": "2026-06-30T00:00:00Z" }

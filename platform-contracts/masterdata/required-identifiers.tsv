@@ -198,3 +198,17 @@ sendCounterpartyRequest.400	operation_response	openapi.yaml	INV-REQ-901
 sendCounterpartyRequest.409	operation_response	openapi.yaml	INV-REQ-901
 submitCounterpartyDetails.401	operation_response	openapi.yaml	INV-REQ-901
 sendCounterpartyRequest.MDM-011	operation_error_code	openapi.yaml	INV-REQ-901
+# INV-T-18770. Schema names have no kind in check-required-identifiers.py, so ConnectionHealth and RateImportRow are covered by a schema_property row each (see the MR gap list).
+getConnectionHealth	operation	openapi.yaml	INV-REQ-836
+ConnectionHealth.state	schema_property	openapi.yaml	INV-REQ-836
+RateImportRow.rate	schema_property	openapi.yaml	INV-REQ-506
+breakerState	property	openapi.yaml	INV-REQ-836
+successRate	property	openapi.yaml	INV-REQ-836
+latencyMillis	property	openapi.yaml	INV-REQ-836
+measuredOverSeconds	property	openapi.yaml	INV-REQ-836
+lastFailure	property	openapi.yaml	INV-REQ-836
+credentialExpiresAt	property	openapi.yaml	INV-REQ-837
+overlapEndsAt	property	openapi.yaml	INV-REQ-837
+fileHash	property	openapi.yaml	INV-REQ-506
+rowCount	property	openapi.yaml	INV-REQ-506
+rows	property	openapi.yaml	INV-REQ-506
