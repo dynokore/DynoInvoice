@@ -61,6 +61,7 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.operation.OperationOutcome
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -97,6 +98,7 @@ class ReleasesController(
     private val concludeTask: ConcludeAccreditationTask,
     private val accreditationStep: OpenAccreditationTask,
     private val cursors: TaskCursor,
+    private val transactions: TransactionRunner,
 ) : ReleasesApi {
     override fun recordAccreditation(
         idempotencyKey: UUID,
@@ -129,7 +131,7 @@ class ReleasesController(
     override fun getAccreditation(): ResponseEntity<AccreditationStatus> {
         val caller = caller()
         val status =
-            platform.bindPlatform(caller.actor) { getAccreditation.get(caller.actor) }
+            platform.bindPlatform(caller.actor) { transactions.inTransaction { getAccreditation.get(caller.actor) } }
                 ?: problem(ClosedErrorCode.ACCESS_DENIED, caller.correlationId)
         return ResponseEntity.ok(
             AccreditationStatus(

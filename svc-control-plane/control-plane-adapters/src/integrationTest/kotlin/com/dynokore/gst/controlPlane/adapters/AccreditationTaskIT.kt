@@ -454,6 +454,7 @@ class AccreditationTaskIT {
             ConcludeAccreditationTask(taskRepository, grants, clock),
             defaultStep,
             cursorKey,
+            transactions,
         )
 
     private fun asOperator() {

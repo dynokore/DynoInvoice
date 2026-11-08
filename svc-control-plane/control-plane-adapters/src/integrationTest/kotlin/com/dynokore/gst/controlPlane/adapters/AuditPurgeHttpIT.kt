@@ -219,6 +219,7 @@ class AuditPurgeHttpIT {
                 unused<StepReporting>(),
             ),
             TaskCursor { ByteArray(32) },
+            runner,
         )
     }
 
