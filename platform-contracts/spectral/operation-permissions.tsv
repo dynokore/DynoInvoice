@@ -1,5 +1,0 @@
-directory	operationId	permission
-transport	rotateCredential	ap-credential.manage
-transport	testConnection	adapter.configure
-transport	failoverAdapter	adapter.failover
-transport	setConnectionEntities	adapter.configure
