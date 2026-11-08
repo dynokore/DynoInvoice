@@ -25,6 +25,23 @@ sealed interface Lag {
     fun isWithin(bound: Duration): Boolean = this is Measured && duration <= bound
 }
 
+/** Counts the ordering anomalies of the authority feed; the impl half records them as meters (INV-T-9262). */
+fun interface ReplicaOrderCounter {
+    fun increment(name: String)
+
+    companion object {
+        /** An AuthorityChanged (or head) whose incarnation is below the highest seen: refused. */
+        const val LOWER_INCARNATION = "authority_replica_lower_incarnation_total"
+
+        /** A head observed below the head held within the same incarnation: ignored for the lag. */
+        const val HEAD_REGRESSED = "authority_replica_head_regressed_total"
+        val NONE = ReplicaOrderCounter { }
+    }
+}
+
+/** How an incarnation compares with the highest seen (INV-T-9262). */
+enum class EpochOrder { SAME, LOWER, HIGHER }
+
 /**
  * Measures one replica's lag from its feed (INV-REQ-1201 behaviour #1).
  *
@@ -45,11 +62,13 @@ sealed interface Lag {
  * state held. Lag stays [Lag.Unknown], and a bounded replica keeps using its fallback,
  * until the feed reports a full sync or snapshot marker ([onSnapshotComplete]). *
  * Versions are ordered per feed: a feed that delivers out of order per partition
- * must reorder before it reaches the replica. Time comes from the injected [Clock]
+ * must reorder before it reaches the replica. A change or head is ordered by the pair (incarnation, version),
+ * the incarnation first; an absent incarnation is [DEFAULT_INCARNATION] (INV-T-9262, INV-Q-9243 B). Time comes from the injected [Clock]
  * (ARC-13).
  */
 class ReplicaLagTracker(
     private val clock: Clock,
+    private val counter: ReplicaOrderCounter = ReplicaOrderCounter.NONE,
 ) {
     private val lock = Any()
     private var applied = NONE
@@ -59,6 +78,46 @@ class ReplicaLagTracker(
     private var disconnected = false
     private var synced = false
     private var silenceBound: Duration? = null
+    private var incarnation = NO_INCARNATION
+
+    /** The highest incarnation seen, or 0 before the first. */
+    fun incarnation(): Long = synchronized(lock) { incarnation }
+
+    /**
+     * Orders [value] (null is [DEFAULT_INCARNATION]) against the highest seen. [EpochOrder.LOWER] changes nothing.
+     * [EpochOrder.HIGHER] after one was seen forgets the lag state (applied, head, contact, snapshot), so the lag is
+     * [Lag.Unknown] until a new snapshot, and keeps the new value; the caller then clears what it holds. The first
+     * value ever seen is [EpochOrder.SAME]: there is nothing held to clear.
+     */
+    fun admitIncarnation(value: Long?): EpochOrder =
+        synchronized(lock) {
+            val epoch = value ?: DEFAULT_INCARNATION
+            when {
+                incarnation == NO_INCARNATION -> {
+                    incarnation = epoch
+                    EpochOrder.SAME
+                }
+
+                epoch < incarnation -> {
+                    EpochOrder.LOWER
+                }
+
+                epoch == incarnation -> {
+                    EpochOrder.SAME
+                }
+
+                else -> {
+                    incarnation = epoch
+                    applied = NONE
+                    head = NONE
+                    behindSince = null
+                    lastContact = null
+                    disconnected = false
+                    synced = false
+                    EpochOrder.HIGHER
+                }
+            }
+        }
 
     fun onApplied(version: Long) =
         synchronized(lock) {
@@ -71,6 +130,10 @@ class ReplicaLagTracker(
 
     fun observeHead(version: Long) =
         synchronized(lock) {
+            if (version < head) {
+                counter.increment(ReplicaOrderCounter.HEAD_REGRESSED)
+                return@synchronized
+            }
             val now = clock.instant()
             if (version > head) head = version
             if (head > applied && behindSince == null) behindSince = now
@@ -130,5 +193,9 @@ class ReplicaLagTracker(
 
     companion object {
         private const val NONE = -1L
+        private const val NO_INCARNATION = 0L
+
+        /** The incarnation of an event that carries none (INV-T-9262). */
+        const val DEFAULT_INCARNATION = 1L
     }
 }

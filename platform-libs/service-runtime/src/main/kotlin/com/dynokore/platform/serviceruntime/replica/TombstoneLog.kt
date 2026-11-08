@@ -36,6 +36,9 @@ internal class TombstoneLog(
         }
     }
 
+    /** Forgets every noted tombstone (the store is cleared by the caller). */
+    fun clear() = synchronized(noted) { noted.clear() }
+
     /**
      * Removes the tombstones older than the time-to-live, at most [EVICTIONS_PER_APPLY] per call, oldest first.
      * A held grant is never removed.

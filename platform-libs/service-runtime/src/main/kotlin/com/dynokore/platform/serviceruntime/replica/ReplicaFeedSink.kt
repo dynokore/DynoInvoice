@@ -14,6 +14,15 @@ interface ReplicaFeedSink<E> {
     fun observeHead(version: Long)
 
     /**
+     * [observeHead] for a head that carries the source's incarnation (null: absent, which is incarnation 1). A sink
+     * with no incarnation ordering ignores it.
+     */
+    fun observeHead(
+        version: Long,
+        incarnation: Long?,
+    ) = observeHead(version)
+
+    /**
      * The feed has delivered a full sync or snapshot up to [version]. Until this is called after a
      * start, the replica's lag is unknown and a bounded replica uses its fallback.
      */

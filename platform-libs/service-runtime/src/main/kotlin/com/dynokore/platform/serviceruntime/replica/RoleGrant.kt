@@ -84,6 +84,8 @@ internal class RoleIndex {
         }
     }
 
+    fun clear() = keys.clear()
+
     fun keysOf(
         tenant: TenantId,
         role: String,

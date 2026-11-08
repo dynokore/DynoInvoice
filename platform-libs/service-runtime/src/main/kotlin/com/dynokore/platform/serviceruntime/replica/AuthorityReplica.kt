@@ -7,6 +7,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 
 /** Who is acting. Only [MACHINE] keeps working when no decision can be had (INV-REQ-1201 behaviours #4 and #5). */
@@ -244,13 +245,18 @@ sealed interface AuthorityRecord {
  * The platform event `AuthorityChanged`. [authorityVersion] is access-svc's monotonic authority version,
  * the version of the one [record] carried; each service measures its own lag against it (INV-REQ-1201
  * behaviour #1). A null [record] is an event without grant state (a 1.0-shaped or faulty event).
+ * [incarnation] is the epoch of access-svc's version counter (INV-Q-9243 B): events are ordered by the pair
+ * ([incarnation], [authorityVersion]), and null is incarnation 1 ([ReplicaLagTracker.DEFAULT_INCARNATION]).
  */
-data class AuthorityChanged(
-    val tenant: TenantId,
-    val principalId: String,
-    val authorityVersion: Long,
-    val record: AuthorityRecord?,
-)
+data class AuthorityChanged
+    @JvmOverloads
+    constructor(
+        val tenant: TenantId,
+        val principalId: String,
+        val authorityVersion: Long,
+        val record: AuthorityRecord?,
+        val incarnation: Long? = null,
+    )
 
 /**
  * One authorisation question. [resourcePeriod] is the GST accounting period of the document or return
@@ -473,6 +479,7 @@ class AuthorityReplica(
     internal val tombstoneTtl: Duration? = null,
     internal val eventLogRetention: Duration? = null,
     structure: StructureReplica? = null,
+    orderCounter: ReplicaOrderCounter = ReplicaOrderCounter.NONE,
 ) : ReplicaFeedSink<AuthorityChanged> {
     init {
         require((tombstoneTtl == null) == (eventLogRetention == null)) {
@@ -486,7 +493,10 @@ class AuthorityReplica(
     }
 
     /** One feed, so one lag for all record kinds. */
-    val tracker = ReplicaLagTracker(clock)
+    val tracker = ReplicaLagTracker(clock, orderCounter)
+    private val orderCounter = orderCounter
+    private val epochLock = Any()
+    private val epochListeners = CopyOnWriteArrayList<Runnable>()
     val consents =
         EventFedReplica<ConsentKey, AuthorityRecord.ConsentRecord>(
             "authority-consent",
@@ -677,7 +687,51 @@ class AuthorityReplica(
             principal.coversEntity(request.entityRef, entityOfTenant)
     }
 
+    /**
+     * Registers [listener], run after the store is cleared for a higher incarnation, so a cold-start full sync can be
+     * requested at once (INV-T-9057, INV-T-9262). It runs on the feed's thread and must not block.
+     */
+    internal fun onEpochCleared(listener: Runnable) {
+        epochListeners += listener
+    }
+
+    /**
+     * Orders [incarnation] against the highest seen. Lower: counted, logged once, false (the caller stores nothing).
+     * Higher (after one was seen): the lag state is reset first, so every decision goes to the fallback, then the
+     * store is cleared and the listeners run; true. Equal: true, nothing cleared.
+     */
+    private fun admit(
+        incarnation: Long?,
+        what: String,
+    ): Boolean {
+        var cleared = false
+        val order =
+            synchronized(epochLock) {
+                tracker.admitIncarnation(incarnation).also {
+                    if (it == EpochOrder.HIGHER) {
+                        consents.clear()
+                        principals.clear()
+                        roleBook.clear()
+                        cleared = true
+                    }
+                }
+            }
+        if (order == EpochOrder.LOWER) {
+            orderCounter.increment(ReplicaOrderCounter.LOWER_INCARNATION)
+            LOG.log(
+                System.Logger.Level.WARNING,
+                "authority {0} refused, incarnation {1} is below the highest seen {2}",
+                what,
+                incarnation ?: ReplicaLagTracker.DEFAULT_INCARNATION,
+                tracker.incarnation(),
+            )
+        }
+        if (cleared) epochListeners.forEach { it.run() }
+        return order != EpochOrder.LOWER
+    }
+
     override fun accept(event: AuthorityChanged) {
+        if (!admit(event.incarnation, "change")) return
         roleBook.tombstones.evictExpired()
         val version = event.authorityVersion
         when (val record = event.record) {
@@ -713,7 +767,14 @@ class AuthorityReplica(
         principals.apply(ReplicaChange.Upsert(key, PrincipalRevocation(state, version), version))
     }
 
-    override fun observeHead(version: Long) = tracker.observeHead(version)
+    override fun observeHead(version: Long) = observeHead(version, null)
+
+    override fun observeHead(
+        version: Long,
+        incarnation: Long?,
+    ) {
+        if (admit(incarnation, "head")) tracker.observeHead(version)
+    }
 
     override fun onSnapshotComplete(version: Long) = tracker.onSnapshotComplete(version)
 

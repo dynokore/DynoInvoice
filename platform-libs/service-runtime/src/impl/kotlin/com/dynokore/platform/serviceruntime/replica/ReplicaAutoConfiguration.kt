@@ -109,6 +109,7 @@ class ReplicaAutoConfiguration {
             tombstoneTtl = ttl,
             eventLogRetention = eventLogRetention,
             structure = structure.ifAvailable,
+            orderCounter = MicrometerReplicaOrderCounter(meters.ifAvailable),
         )
     }
 

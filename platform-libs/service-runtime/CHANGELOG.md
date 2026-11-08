@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.2.0] - 2026-11-08
+### Added
+- The authority replica orders a change or head by (incarnation, version), an absent incarnation being 1: `AuthorityChanged.incarnation` (nullable, last, `@JvmOverloads` keeps the 4-argument constructor), `ReplicaFeedSink.observeHead(version, incarnation)` (default delegates to the old one), `ReplicaLagTracker.admitIncarnation`, `ReplicaOrderCounter`, `EpochOrder` (INV-T-9262, INV-Q-9243 B, INV-AC-9051).
+- A lower incarnation is refused with nothing stored (`authority_replica_lower_incarnation_total`, one log line); the first change or head of a higher one resets the lag to `Unknown`, clears the store and requests the cold-start full sync at once (`ReplicaColdStartSync`); a head below the head held in the same incarnation is ignored for the lag (`authority_replica_head_regressed_total`).
+- `AuthorityReplica` takes `orderCounter` (last constructor parameter, default none); the impl wiring passes a Micrometer counter.
+
 ## [13.1.1] - 2026-11-08
 ### Changed
 - Version step only (G-DVS, INV-T-18067): the published bytes change because the dependency `outbox-and-queue` steps to 6.19.0 (PlanLimitExceeded joins the tenant-wide domain events); no code change in this module.

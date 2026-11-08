@@ -74,6 +74,15 @@ internal class MicrometerDegradedAllowObserver(
     }
 }
 
+/** Counts the authority feed's ordering anomalies by name (INV-T-9262); no registry, no count. */
+internal class MicrometerReplicaOrderCounter(
+    private val meters: MeterRegistry?,
+) : ReplicaOrderCounter {
+    override fun increment(name: String) {
+        meters?.counter(name)?.increment()
+    }
+}
+
 /** Counts the break-glass counters by name (`break_glass_event_ignored_total`, `break_glass_refused_total`); no registry, no count. */
 internal class MicrometerBreakGlassCounter(
     private val meters: MeterRegistry?,

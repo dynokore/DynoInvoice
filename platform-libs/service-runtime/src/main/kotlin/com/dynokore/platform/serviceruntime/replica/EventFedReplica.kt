@@ -77,6 +77,7 @@ sealed interface Lookup<out V> {
  * replica's getEntityStructure fill, INV-Q-3324): a fill then keeps that version and
  * never overwrites a newer state held. Without it a fill keeps the held version.
  */
+@Suppress("TooManyFunctions") // the 12th function is clear(), INV-T-9262 (CS-50 precedent: AuthorityReplica)
 class EventFedReplica<K : Any, V : Any>(
     val name: String,
     private val clock: Clock,
@@ -137,6 +138,13 @@ class EventFedReplica<K : Any, V : Any>(
 
     /** What is held for [key] with no fallback and no lag check; null for a miss or a held removal. */
     fun peek(key: K): V? = store.get(key)?.value
+
+    /**
+     * Drops every entry, removals and held versions included. Only the authority replica calls it, on the first change
+     * or head of a higher incarnation (INV-T-9262); the tracker is reset by that caller first, so no read in between
+     * is served as local.
+     */
+    internal fun clear() = store.clear()
 
     fun lag(): Lag = tracker.lag()
 

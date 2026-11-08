@@ -20,6 +20,7 @@ internal data class Held<V>(
  * flat partition. A scan with a null partition reads every entry; with a partition it reads only that
  * partition's entries. [visitCount] counts the entries examined by the scans.
  */
+@Suppress("TooManyFunctions") // the 12th function is clear(), INV-T-9262; one map class per replica store
 internal class PartitionedStore<K : Any, V : Any>(
     private val partitionOf: ((K) -> Any)?,
 ) {
@@ -42,6 +43,9 @@ internal class PartitionedStore<K : Any, V : Any>(
                 .computeIfAbsent(partitionKey(key)) { ConcurrentHashMap() }
                 .compute(key) { _, old -> change(old) },
         )
+
+    /** Drops every entry, tombstones and their versions included (a higher incarnation starts the store afresh). */
+    fun clear() = partitions.clear()
 
     fun size(): Int = partitions.values.sumOf { map -> map.values.count { it.value != null } }
 

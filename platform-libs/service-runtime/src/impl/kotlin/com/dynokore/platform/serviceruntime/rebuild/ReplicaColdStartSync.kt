@@ -42,6 +42,10 @@ import java.util.concurrent.TimeUnit
  * topic of `tenancy-svc` the service reads), with the same ownership, foreign-replay and repeat rules, tracked apart
  * from the authority request. With the setting false nothing is written for it, and
  * a request is never addressed to any producer but [TENANCY].
+ *
+ * A higher incarnation of the authority feed clears the replica ([AuthorityReplica.onEpochCleared], INV-T-9262): the
+ * lag is then [Lag.Unknown], and [sync] runs at once on one virtual thread named [NAME_EPOCH] instead of waiting for
+ * the next re-check.
  */
 class ReplicaColdStartSync(
     private val runtime: ConsumerRebuildRuntime,
@@ -74,6 +78,14 @@ class ReplicaColdStartSync(
 
     @Volatile
     private var scheduler: ScheduledExecutorService? = null
+
+    init {
+        // A higher incarnation clears the replica and leaves its lag Unknown: ask for the snapshot at once rather
+        // than at the next re-check (INV-T-9262). A separate thread keeps the request out of the feed's call.
+        replica.onEpochCleared {
+            Thread.ofVirtual().name(NAME_EPOCH).start { PoolLanes.inLane(PoolLane.BACKGROUND) { runSafely() } }
+        }
+    }
 
     override fun onApplicationEvent(event: ApplicationReadyEvent) {
         runSafely()
@@ -180,6 +192,7 @@ class ReplicaColdStartSync(
         const val TENANCY = "tenancy-svc"
         const val REQUIRE_SNAPSHOT_SETTING = "serviceruntime.replica.structure.require-snapshot"
         const val NAME = "replica-cold-start-recheck"
+        const val NAME_EPOCH = "replica-cold-start-epoch"
 
         /** An Inference (INV-Q-11159 A): the caller may set another interval. */
         val DEFAULT_RECHECK_INTERVAL: Duration = Duration.ofSeconds(30)

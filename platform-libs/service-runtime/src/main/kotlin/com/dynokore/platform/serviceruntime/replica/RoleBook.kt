@@ -60,6 +60,13 @@ internal class RoleBook(
         tombstones.track(key, entryBefore)
     }
 
+    /** Drops every role grant, the role index and the noted tombstones (a higher incarnation, INV-T-9262). */
+    fun clear() {
+        grants.clear()
+        index.clear()
+        tombstones.clear()
+    }
+
     /** Drops every role grant of the principal, keeping each version as a tombstone (a record-less event). */
     fun tombstone(
         tenant: TenantId,
