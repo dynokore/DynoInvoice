@@ -61,6 +61,19 @@ class RegisterListFactsStoreDbTest {
         }
     }
 
+    /** Only the thread-local is set: the store's own transaction runner must bind the tenant on the connection. */
+    private fun <T> bindOnly(
+        tenant: UUID,
+        block: () -> T,
+    ): T {
+        bound.set(tenant)
+        try {
+            return block()
+        } finally {
+            bound.remove()
+        }
+    }
+
     private fun seed(
         tenant: UUID,
         doc: String,
@@ -101,13 +114,13 @@ class RegisterListFactsStoreDbTest {
     private fun read(
         tenant: UUID,
         doc: String,
-    ): ListFacts? = asTenant(tenant) { store.facts(TenantId(tenant), doc) }
+    ): ListFacts? = bindOnly(tenant) { store.facts(TenantId(tenant), doc) }
 
     private fun write(
         tenant: UUID,
         doc: String,
         f: ListFacts,
-    ): Boolean = asTenant(tenant) { store.store(TenantId(tenant), doc, f) }
+    ): Boolean = bindOnly(tenant) { store.store(TenantId(tenant), doc, f) }
 
     @Test
     fun `INV-AC-16322 storing and reading back equals the input for SALE and PURCHASE and both category sets`() {
@@ -161,12 +174,13 @@ class RegisterListFactsStoreDbTest {
     private fun schemaColumns(where: String): List<Pair<String, String>> =
         SubmissionDb.superuser().use { c ->
             c.createStatement().use { st ->
-                st.executeQuery(
-                    "select table_name, column_name from information_schema.columns " +
-                        "where table_schema = 'submission' and $where",
-                ).use { rs ->
-                    generateSequence { if (rs.next()) rs.getString(1) to rs.getString(2) else null }.toList()
-                }
+                st
+                    .executeQuery(
+                        "select table_name, column_name from information_schema.columns " +
+                            "where table_schema = 'submission' and $where",
+                    ).use { rs ->
+                        generateSequence { if (rs.next()) rs.getString(1) to rs.getString(2) else null }.toList()
+                    }
             }
         }
 
