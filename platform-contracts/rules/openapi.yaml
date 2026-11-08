@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.21.0
+  version: 1.22.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -348,7 +348,7 @@ paths:
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-entity-ref: entityRef
-      x-error-codes: [RUL-001]
+      x-error-codes: [RUL-001, RUL-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.3, C-4]
       x-operation:
         role: tax.operator
@@ -382,6 +382,8 @@ paths:
               examples:
                 default:
                   value: { entryId: "ENT-9", internalTaxCode: "SR-STD", irasCode: "SR", sourceClass: "PRIMARY" }
+        '422':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/mapping-packs/import:
