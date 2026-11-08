@@ -10,12 +10,10 @@ trap 'rm -rf "$TMP"' EXIT
 failed=0
 
 fresh() { # name -> a copy of the inputs in $TMP/name
-  mkdir -p "$TMP/$1/spectral" "$TMP/$1/catalogue/role-permissions"
-  # every directory named in column 1 of the data rows (header skipped), so a new table row never needs a script edit
-  for d in $(tail -n +2 spectral/operation-permissions.tsv | cut -f1 | sort -u); do
-    mkdir -p "$TMP/$1/$d"
-    cp "$d/openapi.yaml" "$TMP/$1/$d/"
-  done
+  mkdir -p "$TMP/$1/spectral" "$TMP/$1/transport" "$TMP/$1/masterdata" "$TMP/$1/ingestion" "$TMP/$1/catalogue/role-permissions"
+  cp transport/openapi.yaml "$TMP/$1/transport/"
+  cp masterdata/openapi.yaml "$TMP/$1/masterdata/"
+  cp ingestion/openapi.yaml "$TMP/$1/ingestion/"
   cp spectral/operation-permissions.tsv "$TMP/$1/spectral/"
   cp catalogue/role-permissions/role-permissions.yaml "$TMP/$1/catalogue/role-permissions/"
 }
@@ -35,21 +33,15 @@ PY
 probe() { # name, expected fragment, python code
   fresh "$1"
   if ! mutate "$1" "$3"; then echo "gst-ci: FAIL — INV-AC-18673 probe '$1' could not be built"; failed=1; return; fi
-  want=$2
-  case "$want" in # @LAST@ = the line number of the last row of the mutated sandbox table (grep -n)
-    *@LAST@*) last=$(grep -n '' "$TMP/$1/spectral/operation-permissions.tsv" | tail -n 1 | cut -d: -f1)
-              want=$(printf '%s' "$want" | sed "s/@LAST@/$last/");;
-  esac
   out=$(python3 spectral/check-operation-permissions.py "$TMP/$1" 2>&1); rc=$?
   if [ $rc -ne 1 ]; then echo "gst-ci: FAIL — INV-AC-18673 probe '$1' exited $rc, expected 1"; failed=1
-  else case "$out" in *"$want"*) echo "gst-ci: INV-AC-18673 probe '$1' failed as expected ($want)";;
-       *) echo "gst-ci: FAIL — INV-AC-18673 probe '$1' failed, but not with '$want':"; echo "$out"; failed=1;; esac; fi
+  else case "$out" in *"$2"*) echo "gst-ci: INV-AC-18673 probe '$1' failed as expected ($2)";;
+       *) echo "gst-ci: FAIL — INV-AC-18673 probe '$1' failed, but not with '$2':"; echo "$out"; failed=1;; esac; fi
 }
 
 fresh clean
 out=$(python3 spectral/check-operation-permissions.py "$TMP/clean" 2>&1); rc=$?
-rows=$(tail -n +2 spectral/operation-permissions.tsv | grep -c '')
-if [ $rc -ne 0 ] || [ "$out" != "operation-permissions-check: $rows rows" ]; then
+if [ $rc -ne 0 ] || [ "$out" != "operation-permissions-check: 11 rows" ]; then
   echo "gst-ci: FAIL — INV-AC-18673 clean tree: exit $rc, '$out'"; failed=1
 else echo "gst-ci: INV-AC-18673 clean tree passed as expected ($out)"; fi
 
@@ -61,7 +53,7 @@ probe role-property "transport failoverAdapter: (b) x-operation has a role prope
 probe row-removed "transport failoverAdapter: (d) x-operation carries a permission and the operation has no row" "v = v.replace('transport\tfailoverAdapter\tadapter.failover\n', '', 1)"
 probe row-unknown-operation "transport noSuchOperation: (a) 0 operations" "v += 'transport\tnoSuchOperation\tadapter.configure\n'"
 probe row-other-directory "ingestion rotateCredential: (a) 0 operations" "v += 'ingestion\trotateCredential\tap-credential.manage\n'"
-probe duplicate-row "operation-permissions.tsv: line @LAST@ is a duplicate row for transport rotateCredential" "v += 'transport\trotateCredential\tap-credential.manage\n'"
+probe duplicate-row "operation-permissions.tsv: line 13 is a duplicate row for transport rotateCredential" "v += 'transport\trotateCredential\tap-credential.manage\n'"
 probe header-changed "operation-permissions.tsv: the header line must be directory	operationId	permission" "v = v.replace('directory\toperationId\tpermission', 'directory\toperation\tpermission', 1)"
 probe row-width "operation-permissions.tsv: line 2 has 2 fields, expected 3" "v = v.replace('transport\trotateCredential\tap-credential.manage', 'transport\trotateCredential', 1)"
 probe no-data-row "operation-permissions.tsv: the table has no data row" "v = 'directory\toperationId\tpermission\n'"
