@@ -39,12 +39,11 @@ class OffboardTenantTest {
             "identity:USR-TAX" to setOf(ElectionPermissions.CONFIRM),
         )
     private val authorityCalls = mutableListOf<Triple<String, String, String>>()
-    private var replicaDown = false
     private val throwingFor = mutableSetOf<String>()
     private val authority =
         ActionAuthority { person, ref, action ->
             authorityCalls += Triple(person, ref, action)
-            if (replicaDown || person in throwingFor) error("replica down")
+            if (person in throwingFor) error("replica down")
             action in grants[person].orEmpty()
         }
 
