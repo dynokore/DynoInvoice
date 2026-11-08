@@ -59,7 +59,7 @@ ApNotificationReason.code	schema_property	openapi.yaml	INV-Q-9672
 ApNotificationReason.message	schema_property	openapi.yaml	INV-Q-9672
 # INV-T-15637. receiveApNotification answers 503 for a notification of kind INBOUND_NETWORK_DOCUMENT and declares SUB-024 (INV-Q-15628 A, INV-Q-9676 A).
 receiveApNotification.SUB-024	operation_error_code	openapi.yaml	INV-REQ-585
-# INV-T-18670. INV-REQ-796 failover and INV-REQ-835 classified test result. `ConnectionStatusChanged` is the shared platform payload (service-runtime), not a row. The bare schema name `ConnectionTestResult` has no row kind the checker accepts (gap reported on the MR).
+# INV-T-18670. INV-REQ-796 failover and INV-REQ-835 classified test result. `ConnectionStatusChanged` is the shared platform payload (service-runtime), not a row. The bare schema name `ConnectionTestResult` is not a row: the checker has no kind for a bare components.schemas key (INV-Q-5389 A convention); the row `ConnectionTestResult.detail` proves the key `ConnectionTestResult` of components.schemas by the rule of its kind (schema_property).
 failoverAdapter	operation	openapi.yaml	INV-REQ-796
 targetAdapterRef	property	openapi.yaml	INV-REQ-796
 ConnectionTestResult.detail	schema_property	openapi.yaml	INV-REQ-835

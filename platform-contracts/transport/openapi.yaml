@@ -506,6 +506,7 @@ paths:
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-timeout: 2000
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->transport-svc
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-E.2, "INV-NOTE-7 §3 SCR-18.4", "INV-FLOW-247"]
