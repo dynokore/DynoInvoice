@@ -255,7 +255,7 @@ object PlatformGrantSeedFixture {
                 listOf("identity", "role_grant").map {
                     "$it|platform_seed_insert|INSERT|{access_migrate}|null|(tenant_id = '$PLATFORM'::uuid)"
                 } +
-                // tenant list of the full sync of AuthorityChanged (INV-T-9061, ruled policy): one row, whole string
+                // the tenant list of the full sync of AuthorityChanged (INV-T-9061, ruled policy): one row, whole string
                 listOf("role_grant|role_grant_sys_replay_tenants|SELECT|{access_sys}|true|null")
         val found = mutableListOf<String>()
         if (policyRows(c).sorted() != ruled.sorted()) found += "policies ${policyRows(c)} differ from $ruled"
