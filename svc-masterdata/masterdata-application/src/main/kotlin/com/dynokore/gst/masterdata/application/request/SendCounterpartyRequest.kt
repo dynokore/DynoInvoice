@@ -7,6 +7,7 @@ import com.dynokore.gst.masterdata.domain.request.RequestStatus
 import com.dynokore.gst.masterdata.domain.request.SendMethod
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
+import java.time.Instant
 
 /** One send: the counterparty, the entity it is asked for, and the contact the link goes to (INV-REQ-901). */
 data class SendCommand(
@@ -98,7 +99,7 @@ class SendCounterpartyRequest(
      */
     private fun live(
         request: CounterpartyRequest,
-        now: java.time.Instant,
+        now: Instant,
     ): Boolean =
         now.isBefore(request.expiresAt) &&
             stores.bindings.forRequest(request.requestId).none {

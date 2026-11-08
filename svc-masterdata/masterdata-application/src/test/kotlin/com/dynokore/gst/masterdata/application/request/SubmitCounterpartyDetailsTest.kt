@@ -103,7 +103,6 @@ class SubmitCounterpartyDetailsTest {
     @Test
     fun `INV-AC-18230 each link refusal stores and emits nothing and the records stay equal`() {
         request("REQ-1")
-        request("REQ-X", tenant = "22222222-2222-2222-2222-222222222222")
         issue("L1", "REQ-1")
         refused(null, "REQ-1") // absent principal
         refused(LinkPrincipal("sub-of-a-user", TENANT), "REQ-1") // not a link subject
@@ -178,6 +177,13 @@ class SubmitCounterpartyDetailsTest {
         issue("B", "REQ-1", expiry = expiry)
         assertEquals(once?.copy(linkRef = "B"), bindings.find("B"))
         assertEquals(LinkBinding.empty("C").linkRef, "C")
+    }
+
+    @Test
+    fun `INV-AC-18230 a request stored under another tenant than the token and binding is refused`() {
+        request("REQ-1", tenant = "22222222-2222-2222-2222-222222222222")
+        issue("L1", "REQ-1")
+        refused(principal("L1"), "REQ-1")
     }
 
     @Test

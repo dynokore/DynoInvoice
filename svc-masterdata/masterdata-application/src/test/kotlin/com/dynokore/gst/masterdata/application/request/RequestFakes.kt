@@ -7,6 +7,7 @@ import com.dynokore.gst.masterdata.domain.counterparty.CounterpartyVersion
 import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
 import com.dynokore.gst.masterdata.domain.request.CounterpartyRequest
 import com.dynokore.gst.masterdata.domain.request.LinkBinding
+import com.dynokore.gst.masterdata.domain.request.RequestStatus
 import com.dynokore.platform.partyregistry.IdentifierScheme
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
@@ -38,7 +39,8 @@ internal class FakeRequests : CounterpartyRequests {
 
     override fun find(requestId: String): CounterpartyRequest? = all[requestId]
 
-    override fun openFor(party: PartyRef) = all.values.lastOrNull { it.party == party && it.status.name == "SENT" }
+    override fun openFor(party: PartyRef) =
+        all.values.lastOrNull { it.party == party && it.status == RequestStatus.SENT }
 
     override fun save(request: CounterpartyRequest) {
         all[request.requestId] = request
