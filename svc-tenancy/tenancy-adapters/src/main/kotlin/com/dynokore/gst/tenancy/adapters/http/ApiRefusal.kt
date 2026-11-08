@@ -8,6 +8,7 @@ import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import tools.jackson.databind.ObjectMapper
@@ -54,6 +55,15 @@ class ApiRefusalAdvice {
         problem.headers.forEach { (name, value) -> headers.add(name, value) }
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
     }
+
+    /**
+     * A body that is not the contract's JSON (a required property absent, a wrong type, an unknown name) is 400 SRT-001
+     * in the API-20 envelope; nothing of the body is echoed (API-22).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    @Suppress("UnusedParameter")
+    fun refuse(unreadable: HttpMessageNotReadableException): ResponseEntity<String> =
+        refuse(ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "the request body does not match the contract"))
 
     @ExceptionHandler(ConstraintRefusal::class)
     fun refuse(refusal: ConstraintRefusal): ResponseEntity<String> {

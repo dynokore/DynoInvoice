@@ -3,6 +3,11 @@ package com.dynokore.gst.tenancy.adapters.http
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.metering.Entitlement
 import com.dynokore.gst.tenancy.application.metering.Metering
+import com.dynokore.gst.tenancy.application.offboarding.OffboardOutcome
+import com.dynokore.gst.tenancy.application.offboarding.OffboardRequest
+import com.dynokore.gst.tenancy.application.offboarding.OffboardTenant
+import com.dynokore.gst.tenancy.application.offboarding.OffboardingCodes
+import com.dynokore.gst.tenancy.application.offboarding.OffboardingRecord
 import com.dynokore.gst.tenancy.application.profile.AppliedOperatingProfiles
 import com.dynokore.gst.tenancy.application.profile.AppliedProfile
 import com.dynokore.gst.tenancy.application.profile.AppliedProfileOutcome
@@ -23,14 +28,21 @@ import com.dynokore.gst.tenancy.contract.model.AppliedOperatingProfileRecord
 import com.dynokore.gst.tenancy.contract.model.CreateTenantRequest
 import com.dynokore.gst.tenancy.contract.model.EntitlementResponse
 import com.dynokore.gst.tenancy.contract.model.EntityUsage
+import com.dynokore.gst.tenancy.contract.model.OffboardTenantRequest
+import com.dynokore.gst.tenancy.contract.model.OffboardingRecordResponse
 import com.dynokore.gst.tenancy.contract.model.QuestionnaireAnswersRequest
 import com.dynokore.gst.tenancy.contract.model.QuestionnaireAnswersResponse
 import com.dynokore.gst.tenancy.contract.model.QuestionnaireRecommendation
 import com.dynokore.gst.tenancy.contract.model.RecordAppliedOperatingProfileRequest
 import com.dynokore.gst.tenancy.contract.model.RecordEntitlementRequest
+import com.dynokore.gst.tenancy.contract.model.RetentionCustodyHolder
+import com.dynokore.gst.tenancy.contract.model.TenantExportManifest
 import com.dynokore.gst.tenancy.contract.model.TenantResponse
+import com.dynokore.gst.tenancy.contract.model.UnsubmittedOverrideAcknowledgement
 import com.dynokore.gst.tenancy.contract.model.UsageCountersResponse
+import com.dynokore.gst.tenancy.domain.OffboardingScope
 import com.dynokore.gst.tenancy.domain.TenantRefs
+import com.dynokore.gst.tenancy.domain.UnsubmittedOverride
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -38,6 +50,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
+import com.dynokore.gst.tenancy.domain.RetentionCustodyHolder as DomainHolder
 
 /**
  * TPL-08. createTenant (scope platform, caller control-plane-svc): the tenant is recorded under the `tenantRef` sent,
@@ -58,6 +71,7 @@ open class TenantsController(
     private val tenants: TenantContext,
     private val caller: CallerSource,
     private val authority: TenantAuthority,
+    private val offboard: OffboardTenant,
 ) : TenantsApi {
     override fun createTenant(
         idempotencyKey: UUID,
@@ -102,6 +116,107 @@ open class TenantsController(
             }
         return ResponseEntity.status(HttpStatus.CREATED).body(response(stored))
     }
+
+    /**
+     * offboardTenant (INV-REQ-877, INV-REQ-956, INV-REQ-875): the use case decides; scope TENANT is refused 403 for
+     * every caller (INV-Q-8137) and the whole tenant is offboarded through closeTenant (INV-T-8179).
+     */
+    override fun offboardTenant(
+        tenantRef: String,
+        idempotencyKey: UUID,
+        offboardTenantRequest: OffboardTenantRequest,
+    ): ResponseEntity<OffboardingRecordResponse> {
+        val request = offboardTenantRequest
+        val holder = request.retentionCustodyHolder
+        val outcome =
+            offboard.byPerson(
+                tenantRef,
+                caller.actor(),
+                idempotencyKey.toString(),
+                OffboardRequest(
+                    scope = OffboardingScope.valueOf(request.scope.value),
+                    entityRef = request.entityRef,
+                    retentionCustodyHolder =
+                        DomainHolder(holder.name, holder.contactEmail, holder.contactMobile),
+                    secondConfirmationBy = request.secondConfirmationBy,
+                    unsubmittedOverride =
+                        request.unsubmittedOverride?.let { UnsubmittedOverride(it.acknowledgedBy, it.statement) },
+                    noticeWindowDays = request.noticeWindowDays,
+                    handoverStatementRef = request.handoverStatementRef,
+                ),
+            )
+        return when (outcome) {
+            is OffboardOutcome.Accepted -> {
+                ResponseEntity
+                    .status(
+                        HttpStatus.ACCEPTED,
+                    ).body(offboardingOf(outcome.record))
+            }
+
+            is OffboardOutcome.Replayed -> {
+                ResponseEntity
+                    .status(
+                        HttpStatus.ACCEPTED,
+                    ).body(offboardingOf(outcome.record))
+            }
+
+            is OffboardOutcome.Invalid -> {
+                invalid(outcome.reason)
+            }
+
+            is OffboardOutcome.Forbidden -> {
+                forbidden(outcome.reason)
+            }
+
+            OffboardOutcome.NotFound -> {
+                notFound()
+            }
+
+            is OffboardOutcome.Refused -> {
+                constraintRefused("the input ${outcome.input} is unavailable")
+            }
+
+            is OffboardOutcome.Conflict -> {
+                offboardingConflict(outcome)
+            }
+        }
+    }
+
+    private fun offboardingConflict(outcome: OffboardOutcome.Conflict): Nothing =
+        conflict(
+            when (outcome.code) {
+                OffboardingCodes.UNSUBMITTED_DOCUMENT -> TenancyErrorCode.UNSUBMITTED_DOCUMENTS_REFUSED
+                OffboardingCodes.CUSTODY_HOLDER -> TenancyErrorCode.CUSTODY_HOLDER_REFUSED
+                OffboardingCodes.RECORD_EXISTS -> TenancyErrorCode.OFFBOARDING_RECORD_EXISTS
+                else -> error("unknown offboarding refusal code ${outcome.code}")
+            },
+            outcome.reason,
+        )
+
+    private fun offboardingOf(record: OffboardingRecord): OffboardingRecordResponse =
+        OffboardingRecordResponse(
+            offboardingRef = record.offboardingRef,
+            tenantRef = record.tenantRef,
+            scope = OffboardingRecordResponse.Scope.valueOf(record.scope.name),
+            state = OffboardingRecordResponse.State.valueOf(record.state.name),
+            retentionCustodyHolder =
+                RetentionCustodyHolder(
+                    record.retentionCustodyHolder.name,
+                    record.retentionCustodyHolder.contactEmail,
+                    record.retentionCustodyHolder.contactMobile,
+                ),
+            export =
+                TenantExportManifest(
+                    record.export.exportRef,
+                    TenantExportManifest.State.valueOf(record.export.state.name),
+                    record.export.contents.map { TenantExportManifest.Contents.valueOf(it.name) },
+                ),
+            entityRef = record.entityRef,
+            unsubmittedOverride =
+                record.unsubmittedOverride?.let { UnsubmittedOverrideAcknowledgement(it.acknowledgedBy, it.statement) },
+            noticeWindowDays = record.noticeWindowDays,
+            handoverStatementRef = record.handoverStatementRef,
+        )
 
     private fun response(stored: TenantRecord) =
         TenantResponse(stored.ref, stored.legalName, stored.planRef, stored.dataRegion)
