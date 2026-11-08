@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.persistence
 
+import com.dynokore.gst.access.adapters.persistence.jooq.tables.records.InstallationRoleGrantRecord
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.INSTALLATION_ROLE_GRANT
 import org.jooq.DSLContext
 import java.time.OffsetDateTime
@@ -26,7 +27,7 @@ class JooqInstallationRoleGrants(
         dsl
             .selectFrom(INSTALLATION_ROLE_GRANT)
             .orderBy(INSTALLATION_ROLE_GRANT.GRANT_REF)
-            .fetch { row -> toRow(row.grantRef, row.subject, row.role, row.state, row.authorityVersion, row.updatedAt) }
+            .fetch { toRow(it) }
 
     /** The rows after [after] (exclusive; null: from the start), at most [limit], in grant reference order. */
     fun page(
@@ -45,7 +46,7 @@ class JooqInstallationRoleGrants(
                 ),
             ).orderBy(INSTALLATION_ROLE_GRANT.GRANT_REF)
             .limit(limit)
-            .fetch { row -> toRow(row.grantRef, row.subject, row.role, row.state, row.authorityVersion, row.updatedAt) }
+            .fetch { toRow(it) }
 
     /** Inserts the row, or sets state, version and time of the row with the same reference. */
     fun save(row: InstallationRoleGrantRow) {
@@ -69,21 +70,15 @@ class JooqInstallationRoleGrants(
     /** The next value of the authority sequence. */
     fun nextAuthorityVersion(): Long = dsl.nextval(AUTHORITY_VERSION_SEQ)
 
-    private fun toRow(
-        ref: String?,
-        subject: String?,
-        role: String?,
-        state: String?,
-        version: Long?,
-        at: OffsetDateTime?,
-    ) = InstallationRoleGrantRow(
-        ref.column("grant_ref"),
-        subject.column("subject"),
-        role.column("role"),
-        state.column("state") == ACTIVE,
-        version.column("authority_version"),
-        at.column("updated_at"),
-    )
+    private fun toRow(row: InstallationRoleGrantRecord) =
+        InstallationRoleGrantRow(
+            row.grantRef.column("grant_ref"),
+            row.subject.column("subject"),
+            row.role.column("role"),
+            row.state.column("state") == ACTIVE,
+            row.authorityVersion.column("authority_version"),
+            row.updatedAt.column("updated_at"),
+        )
 
     private companion object {
         const val ACTIVE = "ACTIVE"

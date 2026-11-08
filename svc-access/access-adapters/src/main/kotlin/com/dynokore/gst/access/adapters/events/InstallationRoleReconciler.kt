@@ -12,6 +12,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.security.MessageDigest
 import java.time.Clock
+import java.util.HexFormat
 
 /** The reference of the grant of one configured entry (INV-T-9235): deterministic and at most 64 characters. */
 object InstallationGrantRef {
@@ -24,7 +25,7 @@ object InstallationGrantRef {
         subject: String,
     ): String {
         val digest = MessageDigest.getInstance("SHA-256").digest("$role\u0000$subject".toByteArray(Charsets.UTF_8))
-        return PREFIX + digest.joinToString("") { "%02x".format(it) }.take(HEX_CHARS)
+        return PREFIX + HexFormat.of().formatHex(digest).take(HEX_CHARS)
     }
 }
 

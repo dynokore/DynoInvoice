@@ -160,6 +160,18 @@ class InstallationRoleGrantsTest {
     }
 
     @Test
+    fun `INV-AC-9212 two roles of one subject are two rows and two events`() {
+        reset()
+        val events = start("user:both" to "deployment.operator", "user:both" to "platform.engineer")
+        assertThat(events).hasSize(2)
+        assertThat(rows().keys).containsExactlyInAnyOrder(
+            InstallationGrantRef.of("deployment.operator", "user:both"),
+            InstallationGrantRef.of("platform.engineer", "user:both"),
+        )
+        assertThat(rows().values.map { it.first }).containsExactlyInAnyOrder("deployment.operator", "platform.engineer")
+    }
+
+    @Test
     fun `INV-AC-9212 an empty list with no rows writes nothing`() {
         reset()
         assertThat(start()).isEmpty()
@@ -195,11 +207,13 @@ class InstallationRoleGrantsTest {
         assertThat(InstallationGrantRef.of("platform.engineer", "user:eng-1"))
             .isEqualTo(
                 "inst-" +
-                    java.security.MessageDigest
-                        .getInstance("SHA-256")
-                        .digest("platform.engineer\u0000user:eng-1".toByteArray())
-                        .joinToString("") { "%02x".format(it) }
-                        .take(32),
+                    java.util.HexFormat
+                        .of()
+                        .formatHex(
+                            java.security.MessageDigest
+                                .getInstance("SHA-256")
+                                .digest("platform.engineer\u0000user:eng-1".toByteArray()),
+                        ).take(32),
             )
     }
 
@@ -407,7 +421,15 @@ class InstallationRoleGrantsTest {
                 assertThat(live.holdersAt(TenantId(UUID.randomUUID()), listed.second, ScopeLevel.INSTALLATION))
                     .containsExactlyInAnyOrder(listed.first, "user:other")
             }
-        // a start without the second entry: only that entry gets a REMOVED event and its row stays held for the replay
+        afterRemoval(form, listed, liveEvents)
+    }
+
+    /** A start without the second entry: only that entry gets a REMOVED event and its row stays held for the replay. */
+    private fun afterRemoval(
+        form: String,
+        listed: Pair<String, String>,
+        liveEvents: List<Envelope>,
+    ) {
         BoundaryFixture
             .runner(
                 catalogueMatrix = true,
