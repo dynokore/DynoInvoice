@@ -72,7 +72,8 @@ class RenditionResponsibilityHttpTest {
             BoundaryFixture.asSuperuser { c ->
                 c
                     .prepareStatement(
-                        "select a.state, a.renderer, a.attested_by, a.attested_at from tenancy.rendition_attestation a " +
+                        "select a.state, a.renderer, a.attested_by, a.attested_at " +
+                            "from tenancy.rendition_attestation a " +
                             "join tenancy.entity e on e.tenant_id = a.tenant_id and e.id = a.entity_id " +
                             "where e.ref = ? and a.document_class = ?",
                     ).use { st ->

@@ -29,22 +29,26 @@ class RenditionFindingChangedHandler(
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
         require(event.type == ConsumedRenditionEvents.TYPE) { "unexpected ${event.type}" }
-        val data =
-            try {
-                mapper.readTree(event.dataJson)
-            } catch (e: JacksonException) {
-                throw ContractViolation("the payload is not JSON", e)
-            }
+        val data = parse(event.dataJson)
         val entityRef = data.text("entityRef")
         val open = data["open"]?.takeIf { it.isBoolean }?.asBoolean() ?: throw ContractViolation("open is required")
-        val sequence =
-            data["sequence"]?.takeIf { it.isIntegralNumber && it.canConvertToLong() }?.asLong()?.takeIf { it >= 1 }
-                ?: throw ContractViolation("sequence is required and at least 1")
+        val sequence = data.sequence()
         return when (apply.handle(RenditionFindingChanged(entityRef, open, sequence))) {
             FindingResult.APPLIED -> HandleOutcome.APPLIED
             FindingResult.IGNORED -> HandleOutcome.IGNORED
         }
     }
+
+    private fun parse(text: String): JsonNode =
+        try {
+            mapper.readTree(text)
+        } catch (e: JacksonException) {
+            throw ContractViolation("the payload is not JSON", e)
+        }
+
+    private fun JsonNode.sequence(): Long =
+        this["sequence"]?.takeIf { it.isIntegralNumber && it.canConvertToLong() }?.asLong()?.takeIf { it >= 1 }
+            ?: throw ContractViolation("sequence is required and at least 1")
 
     private fun JsonNode.text(name: String): String =
         this[name]?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
