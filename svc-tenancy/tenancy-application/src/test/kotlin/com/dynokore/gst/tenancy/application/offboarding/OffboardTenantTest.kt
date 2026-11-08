@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test
 import java.lang.reflect.Proxy
 import java.util.UUID
 
-/** The offboardTenant use cases over in-memory ports (INV-AC-2056, INV-AC-8104, INV-AC-8177, INV-AC-1051). */
+/** The offboardTenant use cases over in-memory ports (INV-AC-2056, INV-AC-8104, INV-AC-8177,). */
 class OffboardTenantTest {
     private val tenantRef = "00000000-0000-0000-0000-0000000000a1"
     private val caller = "identity:USR-004"
@@ -187,24 +187,24 @@ class OffboardTenantTest {
         assertNull(store.rows.single().handoverStatementRef)
     }
 
-    // ---- unsubmitted documents (INV-AC-1051) ----
+    // ---- unsubmitted documents ----
 
     @Test
-    fun `unsubmitted gate: an unsubmitted in-scope document and no override is TNC-008 and nothing is recorded`() {
+    fun `unsubmitted gate - an unsubmitted in-scope document and no override is TNC-008 and nothing is recorded`() {
         unsubmitted = { 2 }
         conflict(person(entityRequest()), "TNC-008")
         assertEquals(0, exportCalls)
     }
 
     @Test
-    fun `unsubmitted gate: the same with an override succeeds and records the acknowledgement`() {
+    fun `unsubmitted gate - the same with an override succeeds and records the acknowledgement`() {
         unsubmitted = { 2 }
         val override = UnsubmittedOverride("identity:USR-004", "I acknowledge")
         assertEquals(override, accepted(person(entityRequest(override = override))).unsubmittedOverride)
     }
 
     @Test
-    fun `unsubmitted gate: an unreadable count is 422 POL-014 naming the input and nothing is stored`() {
+    fun `unsubmitted gate - an unreadable count is 422 POL-014 naming the input and nothing is stored`() {
         unsubmitted = { throw UnavailableInput("documents-count") }
         val refused = assertInstanceOf(OffboardOutcome.Refused::class.java, person(entityRequest()))
         assertEquals("documents-count", refused.input)
@@ -252,21 +252,21 @@ class OffboardTenantTest {
         assertTrue(failed.offboardingRef != second.offboardingRef)
     }
 
-    // ---- export (INV-AC-1905 manifest part) ----
+    // ---- export ----
 
     @Test
-    fun `export manifest: a READY manifest with all six members gives record state COMPLETED`() {
+    fun `export manifest - a READY manifest with all six members gives record state COMPLETED`() {
         assertEquals(OffboardingState.COMPLETED, accepted(person(entityRequest())).state)
     }
 
     @Test
-    fun `export manifest: a READY manifest with five members is not COMPLETED`() {
+    fun `export manifest - a READY manifest with five members is not COMPLETED`() {
         manifest = ExportManifest("EXP-1", ExportState.READY, ExportContent.entries.drop(1).toSet())
         assertTrue(accepted(person(entityRequest())).state != OffboardingState.COMPLETED)
     }
 
     @Test
-    fun `export manifest: a FAILED manifest leaves the entity open with a FAILED record`() {
+    fun `export manifest - a FAILED manifest leaves the entity open with a FAILED record`() {
         manifest = ExportManifest("EXP-1", ExportState.FAILED, emptySet())
         assertEquals(OffboardingState.FAILED, accepted(person(entityRequest())).state)
         assertNull(store.blocking(OffboardingScope.ENTITY, "E1"))

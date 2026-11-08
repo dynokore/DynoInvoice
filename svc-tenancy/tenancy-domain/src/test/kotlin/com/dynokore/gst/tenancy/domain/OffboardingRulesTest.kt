@@ -13,7 +13,7 @@ class OffboardingRulesTest {
     ) = ExportManifest("EXP-1", state, contents)
 
     @Test
-    fun `export manifest: READY with all six members is COMPLETED`() {
+    fun `export manifest - READY with all six members is COMPLETED`() {
         assertEquals(
             OffboardingState.COMPLETED,
             OffboardingRules.recordState(manifest(ExportState.READY, ExportContent.entries.toSet())),
@@ -21,13 +21,13 @@ class OffboardingRulesTest {
     }
 
     @Test
-    fun `export manifest: READY with five members is not COMPLETED`() {
+    fun `export manifest - READY with five members is not COMPLETED`() {
         val five = ExportContent.entries.drop(1).toSet()
         assertEquals(OffboardingState.REQUESTED, OffboardingRules.recordState(manifest(ExportState.READY, five)))
     }
 
     @Test
-    fun `export manifest: a FAILED manifest is FAILED even with six members`() {
+    fun `export manifest - a FAILED manifest is FAILED even with six members`() {
         assertEquals(
             OffboardingState.FAILED,
             OffboardingRules.recordState(manifest(ExportState.FAILED, ExportContent.entries.toSet())),
@@ -35,7 +35,7 @@ class OffboardingRulesTest {
     }
 
     @Test
-    fun `export manifest: a REQUESTED manifest with six members is not COMPLETED`() {
+    fun `export manifest - a REQUESTED manifest with six members is not COMPLETED`() {
         assertEquals(
             OffboardingState.REQUESTED,
             OffboardingRules.recordState(manifest(ExportState.REQUESTED, ExportContent.entries.toSet())),
