@@ -125,6 +125,7 @@ class ExemptPurchaseRouteTest {
             unused(),
             unused(),
             unused(),
+            authority,
             CallerSource { "user-1" },
         )
 

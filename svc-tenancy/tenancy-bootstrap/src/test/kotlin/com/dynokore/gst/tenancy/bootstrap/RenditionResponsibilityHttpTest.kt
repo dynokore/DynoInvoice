@@ -5,6 +5,8 @@ import com.dynokore.gst.tenancy.adapters.rendition.ConsumedRenditionEvents
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityRequest
 import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityResponse
+import com.dynokore.gst.tenancy.domain.ElectionPermissions
+import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -165,6 +167,7 @@ class RenditionResponsibilityHttpTest {
                 val env = Env(CertificationEnv(profile, log), log)
                 profile.withEntity { tenant, entity ->
                     env.people.caller = ATTESTER
+                    env.people.grant(ATTESTER, entity.entityRef, ElectionRoles.ENTITY_ADMIN)
                     block(env, tenant, entity)
                 }
             }
@@ -269,6 +272,41 @@ class RenditionResponsibilityHttpTest {
             env.finding(tenant, entity, open = true, sequence = 1)
             env.poll()
             assertThat(env.rowCount(entity)).isZero()
+        }
+    }
+
+    @Test
+    fun `probe a caller holding only entity-config confirm is 403 and no row is stored`() {
+        run { env, _, entity ->
+            env.people.grant(ATTESTER, entity.entityRef, ElectionRoles.TAX_APPROVER)
+            assertThat(
+                TestOperationRoles.holders(ElectionPermissions.MANAGE),
+            ).doesNotContain(ElectionRoles.TAX_APPROVER)
+            val answer = env.record(entity, "TAX_INVOICE")
+            assertThat(answer.status).isEqualTo(HttpStatus.FORBIDDEN.value())
+            assertThat(env.rowCount(entity)).isZero()
+        }
+    }
+
+    @Test
+    fun `probe a caller holding entity-config manage on another entity is 403 and no row is stored`() {
+        run { env, _, entity ->
+            env.people.grant(ATTESTER, entity.entityRef, ElectionRoles.TAX_APPROVER)
+            env.people.grant(ATTESTER, "OTHER-ENTITY", ElectionRoles.ENTITY_ADMIN)
+            val answer = env.record(entity, "TAX_INVOICE")
+            assertThat(answer.status).isEqualTo(HttpStatus.FORBIDDEN.value())
+            assertThat(env.rowCount(entity)).isZero()
+        }
+    }
+
+    @Test
+    fun `probe a caller with entity-config manage on the entity is 201, one row, and the key asked is the constant`() {
+        run { env, _, entity ->
+            val answer = env.record(entity, "TAX_INVOICE")
+            assertThat(answer.status).isEqualTo(HttpStatus.CREATED.value())
+            assertThat(env.rowCount(entity)).isEqualTo(1)
+            assertThat(env.people.asked).contains(ElectionPermissions.MANAGE)
+            assertThat(env.people.asked).doesNotContain("entity.admin")
         }
     }
 }

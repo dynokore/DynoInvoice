@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.adapters.http
 
 import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
 import com.dynokore.gst.tenancy.application.certification.CertifySandbox
+import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionOutcome
@@ -56,6 +57,7 @@ import com.dynokore.gst.tenancy.domain.CertificationOutcome
 import com.dynokore.gst.tenancy.domain.CodeRefusal
 import com.dynokore.gst.tenancy.domain.ElectionKeys
 import com.dynokore.gst.tenancy.domain.ElectionKind
+import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.IssuanceMode
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
@@ -89,6 +91,7 @@ open class EntitiesController(
     private val electionQueries: ElectionStatusQueries,
     private val certifySandbox: CertifySandbox,
     private val recordRendition: RecordRenditionResponsibility,
+    private val renditionAuthority: ActionAuthority,
     private val caller: CallerSource,
 ) : EntitiesApi {
     override fun createGroup(
@@ -440,11 +443,17 @@ open class EntitiesController(
         entityRef: String,
         idempotencyKey: UUID,
         renditionResponsibilityRequest: RenditionResponsibilityRequest,
-    ): ResponseEntity<RenditionResponsibilityResponse> =
-        when (
+    ): ResponseEntity<RenditionResponsibilityResponse> {
+        val actor = caller.actor()
+        // the permission key is decided per request by the authority replica before the use case runs; an
+        // exception or an absent or DEGRADED replica counts as not held (fail closed)
+        val holds =
+            runCatching { renditionAuthority.holds(actor, entityRef, ElectionPermissions.MANAGE) }.getOrDefault(false)
+        if (!holds) forbidden("${ElectionPermissions.MANAGE} is required")
+        return when (
             val outcome =
                 recordRendition.handle(
-                    caller.actor(),
+                    actor,
                     entityRef,
                     renditionResponsibilityRequest.documentClass,
                     renditionResponsibilityRequest.renderer.value,
@@ -473,6 +482,7 @@ open class EntitiesController(
                 invalid(outcome.reason)
             }
         }
+    }
 
     private fun pendingChange(change: PendingChange): PendingElectionChange {
         val rateSource = change.kind == ElectionKind.EXCHANGE_RATE_SOURCE
