@@ -78,6 +78,72 @@ class SendCounterpartyRequestTest {
         assertEquals(2, out.links.size)
     }
 
+    private fun bind(
+        link: String,
+        requestId: String,
+        invalidatedAt: java.time.Instant?,
+    ) = bindings.save(
+        com.dynokore.gst.masterdata.domain.request.LinkBinding
+            .empty(link)
+            .issued(TENANT, requestId, T0.plus(Duration.ofDays(30)))
+            .let { if (invalidatedAt != null) it.invalidated(invalidatedAt) else it },
+    )
+
+    @Test
+    fun `INV-AC-9600 the link is live one instant before expiry and not live at expiry`() {
+        send()
+        clock.now = T0.plus(Duration.ofDays(7)).minusNanos(1)
+        assertEquals(false, (send() as SendOutcome.Sent).emitted)
+        clock.now = T0.plus(Duration.ofDays(7))
+        assertEquals(true, (send() as SendOutcome.Sent).emitted)
+    }
+
+    @Test
+    fun `INV-AC-2683 an invalidation after the request instant re-issues`() {
+        val first = send() as SendOutcome.Sent
+        bind("L1", first.request.requestId, T0.plusSeconds(5))
+        clock.now = T0.plusSeconds(10)
+        assertEquals(true, (send() as SendOutcome.Sent).emitted)
+    }
+
+    @Test
+    fun `INV-AC-2683 an invalidation before a re-issue leaves the re-issued link live`() {
+        val first = send() as SendOutcome.Sent
+        bind("L1", first.request.requestId, T0.plusSeconds(5))
+        clock.now = T0.plusSeconds(10)
+        send()
+        clock.now = T0.plusSeconds(20)
+        assertEquals(false, (send() as SendOutcome.Sent).emitted)
+        assertEquals(2, out.links.size)
+    }
+
+    @Test
+    fun `INV-AC-2683 an invalidation exactly at lastRequestedAt does not count`() {
+        val first = send() as SendOutcome.Sent
+        bind("L1", first.request.requestId, T0)
+        clock.now = T0.plusSeconds(10)
+        assertEquals(false, (send() as SendOutcome.Sent).emitted)
+    }
+
+    @Test
+    fun `INV-AC-2683 a binding of another request invalidated after lastRequestedAt does not count`() {
+        send()
+        bind("LX", "REQ-OTHER", T0.plusSeconds(5))
+        clock.now = T0.plusSeconds(10)
+        assertEquals(false, (send() as SendOutcome.Sent).emitted)
+    }
+
+    @Test
+    fun `INV-AC-2683 two bindings of one request with only the older invalidated before the re-issue stay live`() {
+        val first = send() as SendOutcome.Sent
+        bind("L1", first.request.requestId, T0.plusSeconds(5))
+        clock.now = T0.plusSeconds(10)
+        send()
+        bind("L2", first.request.requestId, null)
+        clock.now = T0.plusSeconds(20)
+        assertEquals(false, (send() as SendOutcome.Sent).emitted)
+    }
+
     @Test
     fun `INV-AC-18231 SIGNED_LINK and BOTH send`() {
         listOf("SIGNED_LINK", "BOTH").forEach {

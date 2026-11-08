@@ -81,7 +81,9 @@ class SubmitCounterpartyDetails(
             }
             val verified = principal ?: return@inTransaction SubmitOutcome.Refused
             val request = stores.requests.find(requestId)
-            if (request == null || request.tenant != verified.tenant) return@inTransaction SubmitOutcome.Refused
+            if (request == null || request.tenant != verified.tenant || request.status == RequestStatus.ANSWERED) {
+                return@inTransaction SubmitOutcome.Refused
+            }
             val uen = details.uen?.trim().orEmpty()
             val name = details.legalName?.trim().orEmpty()
             val address = details.address

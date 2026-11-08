@@ -194,7 +194,7 @@ class SubmitCounterpartyDetailsTest {
     }
 
     @Test
-    fun `an accepted link with a missing required value stores nothing`() {
+    fun `INV-AC-18230 a missing or blank required value is Incomplete and stores nothing`() {
         request("REQ-1")
         issue("L1", "REQ-1")
         val before = state()
@@ -203,8 +203,40 @@ class SubmitCounterpartyDetailsTest {
             CounterpartyDetails("201954321B", " ", details.address),
             CounterpartyDetails("201954321B", "Acme", null),
             CounterpartyDetails("201954321B", "Acme", PostalAddress(" ", null, null)),
+            CounterpartyDetails("201954321B", "Acme", PostalAddress("", null, null)),
+            CounterpartyDetails("", "Acme", details.address),
+            CounterpartyDetails("  ", "Acme", details.address),
+            CounterpartyDetails("201954321B", "", details.address),
         ).forEach { assertEquals(SubmitOutcome.Incomplete, use.handle(principal("L1"), "REQ-1", it)) }
         assertEquals(before, state())
+    }
+
+    @Test
+    fun `INV-AC-18230 a second submit once ANSWERED is refused through the same and a second live link`() {
+        request("REQ-1")
+        issue("L1", "REQ-1")
+        issue("L2", "REQ-1")
+        use.handle(principal("L1"), "REQ-1", details) as SubmitOutcome.Accepted
+        val after = state()
+        val other = details.copy(legalName = "Other Name Pte Ltd")
+        assertEquals(SubmitOutcome.Refused, use.handle(principal("L1"), "REQ-1", other))
+        assertEquals(SubmitOutcome.Refused, use.handle(principal("L2"), "REQ-1", other))
+        assertEquals(after, state())
+        assertEquals(1, out.resolved.size)
+    }
+
+    @Test
+    fun `INV-AC-18230 a format-free UEN is accepted and a new SENT request after an ANSWERED one is accepted`() {
+        request("REQ-1")
+        issue("L1", "REQ-1")
+        use.handle(principal("L1"), "REQ-1", details) as SubmitOutcome.Accepted
+        request("REQ-2")
+        issue("L2", "REQ-2")
+        assertInstanceOf(
+            SubmitOutcome.Accepted::class.java,
+            use.handle(principal("L2"), "REQ-2", details.copy(uen = "x-1")),
+        )
+        assertEquals(2, out.resolved.size)
     }
 
     @Test
