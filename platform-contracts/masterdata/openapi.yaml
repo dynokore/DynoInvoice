@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.16.0
+  version: 1.17.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -860,6 +860,15 @@ paths:
         (INV-REQ-512).
 
 
+        Refusals (nothing is stored for a refused request): a source that is
+        not the elected one is refused `422` with MDM-012; a source that is
+        not approved is refused `422` with MDM-013; rows whose count differs
+        from `rowCount` are refused `400` with SRT-001 (as `rows` already
+        says). The `rejectedRows` of the `ImportRecord` carry MDM-014 (invalid
+        currency), MDM-015 (invalid rate) or SRT-008 (the same source, pair
+        and date written concurrently).
+
+
         Long command (INV-Q-3438 A, INV-Q-3466 A, API-17): an import
         finished within x-timeout returns `201` with `ImportResult`; one that
         is not returns `202` with `Location` and `Retry-After` pointing at
@@ -872,7 +881,7 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [MDM-012, MDM-013, MDM-014, MDM-015, SRT-001, SRT-008]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.2"]
       x-operation:
         kind: PERMISSION
@@ -2494,6 +2503,8 @@ components:
         currencyPairs:
           type: array
           items: { type: string, maxLength: 10 }
+          description: >-
+            A pair is written BASE/QUOTE with ISO 4217 codes: the BASE is the foreign currency and the QUOTE is SGD, and the rate is the number of SGD for 1 unit of the BASE, so USD/SGD is SGD per 1 USD.
         fileHash: { type: string, maxLength: 128 }
         rowCount: { type: integer, minimum: 0 }
         rows:
@@ -2518,7 +2529,9 @@ components:
           type: string
           format: decimal
           pattern: '^-?\d{1,17}(\.\d{1,8})?$'
-          description: Exchange rate as a decimal string, up to 8 places (API-12).
+          description: >-
+            Exchange rate as a decimal string, up to 8 places (API-12).
+            A pair is written BASE/QUOTE with ISO 4217 codes: the BASE is the foreign currency and the QUOTE is SGD, and the rate is the number of SGD for 1 unit of the BASE, so USD/SGD is SGD per 1 USD.
       required: [currency, date, rate]
     EnterRateRequest:
       type: object
