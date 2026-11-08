@@ -2,16 +2,15 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
-import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
 import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
 import com.dynokore.gst.rules.adapters.packs.RefusingRateSourcePort
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
-import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
+import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
@@ -23,14 +22,14 @@ import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DryRunDeltaPort
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.HolderCopyPort
-import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
-import com.dynokore.gst.rules.application.ListCursorKey
 import com.dynokore.gst.rules.application.MappingPackAuthoring
 import com.dynokore.gst.rules.application.MappingPackCollaborators
 import com.dynokore.gst.rules.application.PackActionAuthority
 import com.dynokore.gst.rules.application.PackApprovalDecisionPort
-import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.RateSourcePort
+import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
+import com.dynokore.gst.rules.application.ListCursorKey
+import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
@@ -61,7 +60,6 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
-import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -253,13 +251,7 @@ class RulesConfiguration {
     fun mappingPackStore(
         dsl: DSLContext,
         tenants: TenantContext,
-        engineVersion: EngineVersion,
-        clock: Clock,
-    ): JooqMappingPackStore = JooqMappingPackStore(dsl, tenants, engineVersion, clock)
-
-    /** The build's own version from the `BuildProperties` that `buildInfo()` generates (absent in a bare context). */
-    @Bean
-    fun engineVersion(build: ObjectProvider<BuildProperties>): EngineVersion = EngineVersion(build.ifAvailable)
+    ): JooqMappingPackStore = JooqMappingPackStore(dsl, tenants)
 
     @Bean
     fun dryRunDeltaPort(
@@ -268,7 +260,6 @@ class RulesConfiguration {
     ): DryRunDeltaPort = JooqDryRunDeltaPort(dsl, tenants)
 
     /** The code catalogue is the pack INV-T-4966 decodes: the reader resolves the ARMED version by date. */
-    @Suppress("LongParameterList") // the composition root names the seven collaborators of the use case (TPL-18)
     @Bean
     fun mappingPackAuthoring(
         store: JooqMappingPackStore,

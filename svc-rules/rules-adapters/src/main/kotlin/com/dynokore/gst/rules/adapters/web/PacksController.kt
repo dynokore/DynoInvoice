@@ -1,30 +1,23 @@
 package com.dynokore.gst.rules.adapters.web
 
 import com.dynokore.gst.catalogue.ErrorCode
-import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
-import com.dynokore.gst.rules.adapters.web.MappingPackMapping.activationOf
-import com.dynokore.gst.rules.adapters.web.MappingPackMapping.approvalOf
-import com.dynokore.gst.rules.adapters.web.MappingPackMapping.entryOf
-import com.dynokore.gst.rules.adapters.web.MappingPackMapping.problemBody
-import com.dynokore.gst.rules.adapters.web.MappingPackMapping.refusalOf
-import com.dynokore.gst.rules.adapters.web.MappingPackMapping.statusOf
 import com.dynokore.gst.rules.application.AcceptEntryCommand
 import com.dynokore.gst.rules.application.ActivateCommand
 import com.dynokore.gst.rules.application.ActivePacksOutcome
 import com.dynokore.gst.rules.application.DraftCommand
-import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.application.MapTaxCodeCommand
 import com.dynokore.gst.rules.application.MappingPackAuthoring
 import com.dynokore.gst.rules.application.MappingPackResult
 import com.dynokore.gst.rules.application.PackActionCommand
 import com.dynokore.gst.rules.application.RefusalReason
+import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.contract.api.MappingPacksApi
 import com.dynokore.gst.rules.contract.api.RegulatoryPacksApi
-import com.dynokore.gst.rules.contract.model.AcceptSourceClassEntryRequest
-import com.dynokore.gst.rules.contract.model.ActivateMappingPackRequest
 import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPack
 import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPackPage
+import com.dynokore.gst.rules.contract.model.AcceptSourceClassEntryRequest
+import com.dynokore.gst.rules.contract.model.ActivateMappingPackRequest
 import com.dynokore.gst.rules.contract.model.DraftMappingPackRequest
 import com.dynokore.gst.rules.contract.model.DryRunRequest
 import com.dynokore.gst.rules.contract.model.DryRunResult
@@ -33,16 +26,14 @@ import com.dynokore.gst.rules.contract.model.MappingEntry
 import com.dynokore.gst.rules.contract.model.MappingEntryPage
 import com.dynokore.gst.rules.contract.model.MappingPack
 import com.dynokore.gst.rules.contract.model.RulesDryRunStatus
-import com.dynokore.gst.rules.domain.pack.PackStatus
 import com.dynokore.gst.rules.domain.pack.SourceClass
-import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import org.springframework.http.HttpStatus
-import org.springframework.http.converter.HttpMessageNotReadableException
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
@@ -56,7 +47,6 @@ import java.util.UUID
  * Spring MVC refuses to start), and Kotlin requires it to restate those two operations. They are stated here as the
  * explicit 501 and nowhere else; the operations gate (operations.tsv) reads such a body as a stub.
  */
-@Suppress("TooManyFunctions") // one handler per operation of the two generated interfaces, 19 operations in all
 @RestController
 open class PacksController(
     private val listActive: ListActiveRegulatoryPacks,
@@ -64,7 +54,6 @@ open class PacksController(
     private val packs: JooqMappingPackStore,
     private val tenants: TenantContext,
     private val transactions: TransactionRunner,
-    private val engineVersion: EngineVersion,
 ) : MappingPacksApi,
     RegulatoryPacksApi {
     /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
@@ -109,14 +98,7 @@ open class PacksController(
         ResponseEntity
             .status(refusal.status)
             .header("Content-Type", "application/problem+json")
-            .body(problemBody(refusal, correlationId()))
-
-    /** A body that does not match the contract (an unknown enum value, malformed JSON) is SRT-001, nothing is stored. */
-    @ExceptionHandler(HttpMessageNotReadableException::class)
-    fun unreadable(e: HttpMessageNotReadableException): ResponseEntity<String> =
-        refuse(
-            checkNotNull(refusalOf(MappingPackResult.Refused(RefusalReason.INPUT_INVALID))).also { it.addSuppressed(e) },
-        )
+            .body(problemBody(refusal, CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()))
 
     override fun draftMappingPack(
         idempotencyKey: UUID,
@@ -124,22 +106,18 @@ open class PacksController(
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
             val label = draftMappingPackRequest.label
-            if (packs.labelTaken(label)) throw labelTaken()
+            if (packs.labelTaken(label)) throw conflictOf(RefusalReason.INPUT_INVALID)
             val packId = newPackId()
             val result =
-                try {
-                    authoring.draft(
-                        DraftCommand(
-                            actor(),
-                            draftMappingPackRequest.entityRef.orEmpty(),
-                            packId,
-                            tenants.current(),
-                            label,
-                        ),
-                    )
-                } catch (e: RuntimeException) {
-                    throw if (violatesLineageKey(e)) labelTaken().also { it.addSuppressed(e) } else e
-                }
+                authoring.draft(
+                    DraftCommand(
+                        actor(),
+                        draftMappingPackRequest.entityRef.orEmpty(),
+                        packId,
+                        tenants.current(),
+                        label,
+                    ),
+                )
             done(result)
             ResponseEntity.status(HttpStatus.CREATED).body(packAnswer(packId, withApprovals = false))
         }
@@ -220,7 +198,7 @@ open class PacksController(
         entityRef: String?,
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
-            repeatable(authoring.submit(PackActionCommand(actor(), entityRef.orEmpty(), packId)), PackStatus.SUBMITTED)
+            done(authoring.submit(PackActionCommand(actor(), entityRef.orEmpty(), packId)))
             ResponseEntity.ok(packAnswer(packId, withApprovals = false))
         }
 
@@ -230,7 +208,7 @@ open class PacksController(
         entityRef: String?,
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
-            repeatable(authoring.approve(PackActionCommand(actor(), entityRef.orEmpty(), packId)), PackStatus.APPROVED)
+            done(authoring.approve(PackActionCommand(actor(), entityRef.orEmpty(), packId)))
             ResponseEntity.ok(packAnswer(packId, withApprovals = true))
         }
 
@@ -241,9 +219,7 @@ open class PacksController(
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
             val request = activateMappingPackRequest
-            val minEngineVersion =
-                engineVersion.current() ?: throw unavailable("the engine version of this build is unknown")
-            repeatable(
+            done(
                 authoring.activate(
                     ActivateCommand(
                         actor(),
@@ -251,16 +227,12 @@ open class PacksController(
                         packId,
                         request.effectiveFrom,
                         null,
-                        minEngineVersion,
+                        DEFAULT_MIN_ENGINE_VERSION,
                     ),
                 ),
-                PackStatus.ARMED,
             )
             ResponseEntity.ok(packAnswer(packId, withApprovals = true, withActivation = true))
         }
-
-    private fun correlationId(): String =
-        CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
 
     private fun actor(): String = checkNotNull(tenants.currentActor()) { "no actor is bound" }
 
@@ -268,29 +240,8 @@ open class PacksController(
         refusalOf(result)?.let { throw it }
     }
 
-    /**
-     * A repeat of a command whose pack already stands in the status the command leads to is a 200 with the current
-     * state and stores nothing (contract `repeatKey`, INV-REQ-380). The use case checks the permission and the entity
-     * before the lifecycle, so a repeat without the permission is still refused, and any other status stays a conflict.
-     */
-    private fun repeatable(
-        result: MappingPackResult,
-        target: PackStatus,
-    ) {
-        val repeat =
-            result is MappingPackResult.Refused && result.reason == RefusalReason.LIFECYCLE && result.status == target
-        if (!repeat) done(result)
-    }
-
-    /** True when [failure] or a cause is the unique violation (SQLSTATE 23505) of the lineage key of the registry. */
-    private fun violatesLineageKey(failure: Throwable): Boolean =
-        generateSequence(failure) { it.cause }.any {
-            it is java.sql.SQLException &&
-                it.sqlState == UNIQUE_VIOLATION &&
-                it.message.orEmpty().contains(LINEAGE_KEY)
-        }
-
-    private fun conflictOf(reason: RefusalReason) = checkNotNull(refusalOf(MappingPackResult.Refused(reason)))
+    private fun conflictOf(reason: RefusalReason) =
+        checkNotNull(refusalOf(MappingPackResult.Refused(reason)))
 
     /** A request that names an entity other than the pack's is refused like a missing permission (contract text). */
     private fun sameEntity(
@@ -305,17 +256,14 @@ open class PacksController(
 
     private fun sourceClassOrRefuse(value: String): SourceClass =
         SourceClass.entries.firstOrNull { it.name == value }
-            ?: throw checkNotNull(refusalOf(MappingPackResult.Refused(RefusalReason.INPUT_INVALID)))
+            ?: throw conflictOf(RefusalReason.INPUT_INVALID)
 
     private fun entryAnswer(
         packId: String,
         entryId: String,
-    ): MappingEntry =
-        entryOf(
-            checkNotNull(packs.entry(packId, entryId)) {
-                "entry $entryId vanished inside its transaction"
-            },
-        )
+    ): MappingEntry {
+        return entryOf(checkNotNull(packs.entry(packId, entryId)) { "entry $entryId vanished inside its transaction" })
+    }
 
     private fun packAnswer(
         packId: String,
@@ -340,13 +288,7 @@ open class PacksController(
         )
     }
 
-    private fun newPackId(): String =
-        "MAP-" +
-            UUID
-                .randomUUID()
-                .toString()
-                .take(PACK_ID_HEX)
-                .uppercase()
+    private fun newPackId(): String = "MAP-" + UUID.randomUUID().toString().take(PACK_ID_HEX).uppercase()
 
     override fun dryRun(
         packRef: String,
@@ -360,7 +302,6 @@ open class PacksController(
     ): ResponseEntity<RulesDryRunStatus> = ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
 }
 
+private const val DEFAULT_MIN_ENGINE_VERSION = "1.0.0"
 private const val PACK_ID_HEX = 8
 private const val ARMED = "ARMED"
-private const val UNIQUE_VIOLATION = "23505"
-private const val LINEAGE_KEY = "pack_registry_lineage_key"

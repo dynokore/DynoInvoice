@@ -44,8 +44,8 @@ private const val REGISTER_ARGUMENTS = "uuid,text,text,text,text,date,date,text,
 
 private const val INSERT_TENANT_PACK =
     "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-        "effective_from, effective_to, min_engine_version, supersedes, registered_by, entity_ref) " +
-        "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', ?, ?::date, ?::date, '1.0.0', ?, 'tenancy-probe', ?) " +
+        "effective_from, effective_to, min_engine_version, supersedes, registered_by) " +
+        "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', ?, ?::date, ?::date, '1.0.0', ?, 'tenancy-probe') " +
         "returning id"
 
 private const val INSERT_ARTEFACT =
@@ -127,7 +127,6 @@ class RegistryPostgresIT(
         pack.from,
         pack.to,
         pack.supersedes,
-        if (pack.packType == "MAPPING") "E-1" else null,
     )
 
     private fun count(tenant: TenantId?): Long {
@@ -260,7 +259,6 @@ class RegistryPostgresIT(
                 "2026-01-01",
                 null,
                 null,
-                null,
             )
         }
         // the function refuses a tenant binding and works under the platform binding
@@ -305,6 +303,183 @@ class RegistryPostgresIT(
                 .map { it["column_name"] as String }
         val documentColumns = setOf("contents", "content", "manifest", "signature", "checksums", "artefact")
         names.none { it in documentColumns } shouldBe true
+    }
+
+    // ---- INV-T-4972 schema: the registry moves, the locked entries, the fixed delta, isolation, the grants ----
+
+    private val mappingStatuses =
+        listOf("DRAFT", "SUBMITTED", "APPROVED", "STAGED", "ACKNOWLEDGED", "ARMED", "SUPERSEDED", "ABORTED")
+    private val allowedMoves =
+        setOf(
+            "DRAFT" to "SUBMITTED",
+            "SUBMITTED" to "APPROVED",
+            "APPROVED" to "ARMED",
+            "ARMED" to "SUPERSEDED",
+            "ARMED" to "ABORTED",
+        )
+
+    @Test
+    fun `a tenant mapping row moves only along the allowed pairs and every other of the 56 pairs is refused`() {
+        var n = 0
+        for (from in mappingStatuses) {
+            for (to in mappingStatuses.filter { it != from }) {
+                val version = "mv-${n++}"
+                seed(tenantA, Seed("MAPPING", version, "2026-01-01", null, status = from))
+                val move = "update rules.pack_registry set status = '$to' where pack_version = '$version' returning id"
+                val current = "select id from rules.pack_registry where pack_version = '$version'"
+                if (from to to in allowedMoves) {
+                    value(tenantA, move) shouldBe value(tenantA, current)
+                } else {
+                    shouldThrow<Exception> { value(tenantA, move) }
+                    value(tenantA, "select status from rules.pack_registry where pack_version = '$version'") shouldBe from
+                }
+            }
+        }
+        n shouldBe 56
+    }
+
+    @Test
+    fun `effective_from null is refused for status ARMED and accepted for DRAFT`() {
+        val insert = INSERT_TENANT_PACK.replace("?::date, ?::date, '1.0.0'", "null, ?::date, '1.0.0'")
+        fun insertAs(
+            version: String,
+            status: String,
+        ) = value(
+            tenantA,
+            insert,
+            UUID.randomUUID().toString(),
+            tenantA.toString(),
+            "p",
+            "MAPPING",
+            version,
+            status,
+            null,
+            null,
+        )
+        insertAs("nf-draft", "DRAFT")
+        shouldThrow<Exception> { insertAs("nf-armed", "ARMED") }
+    }
+
+    private fun entryInsert(
+        tenant: TenantId,
+        version: String,
+        entry: String,
+    ) = value(
+        tenant,
+        "insert into rules.pack_entry_source (id, tenant_id, pack_type, pack_version, entry_id, source_class, " +
+            "internal_tax_code, iras_code) values (?::uuid, ?::uuid, 'MAPPING', ?, ?, 'PRIMARY', ?, 'SR') returning id",
+        UUID.randomUUID().toString(),
+        tenant.toString(),
+        version,
+        entry,
+        entry,
+    )
+
+    @Test
+    fun `the entries of a SUBMITTED pack change only in accepted and those of an APPROVED pack not at all`() {
+        seed(tenantA, Seed("MAPPING", "lk-1", "2026-01-01", null, status = "DRAFT"))
+        entryInsert(tenantA, "lk-1", "E1")
+        val entry = "pack_version = 'lk-1' and entry_id = 'E1'"
+        val entryId = "select id from rules.pack_entry_source where $entry"
+        value(tenantA, "update rules.pack_entry_source set iras_code = 'ZR' where $entry returning id") shouldBe
+            value(tenantA, entryId)
+        value(tenantA, "update rules.pack_registry set status = 'SUBMITTED' where pack_version = 'lk-1' returning id")
+        value(tenantA, "update rules.pack_entry_source set accepted = true where $entry returning id") shouldBe
+            value(tenantA, entryId)
+        shouldThrow<Exception> {
+            value(tenantA, "update rules.pack_entry_source set iras_code = 'SR' where $entry returning id")
+        }
+        shouldThrow<Exception> {
+            value(tenantA, "update rules.pack_entry_source set source_class = 'INFERRED' where $entry returning id")
+        }
+        shouldThrow<Exception> { entryInsert(tenantA, "lk-1", "E2") }
+        value(tenantA, "update rules.pack_registry set status = 'APPROVED' where pack_version = 'lk-1' returning id")
+        shouldThrow<Exception> {
+            value(tenantA, "update rules.pack_entry_source set accepted = false where $entry returning id")
+        }
+        shouldThrow<Exception> { entryInsert(tenantA, "lk-1", "E3") }
+    }
+
+    private fun deltaInsert(
+        tenant: TenantId,
+        version: String,
+        state: String,
+    ) = value(
+        tenant,
+        "insert into rules.dry_run_delta (id, tenant_id, pack_type, pack_version, state, started_by, completed_at, " +
+            "changed_count) values (?::uuid, ?::uuid, 'MAPPING', ?, ?, 'user-a', " +
+            "case when ? = 'COMPLETE' then clock_timestamp() end, case when ? = 'COMPLETE' then 3 end) returning id",
+        UUID.randomUUID().toString(),
+        tenant.toString(),
+        version,
+        state,
+        state,
+        state,
+    ).toString()
+
+    @Test
+    fun `a COMPLETE dry-run delta is never updated, a RUNNING one completes, and the state and counts agree`() {
+        val complete = deltaInsert(tenantA, "d-1", "COMPLETE")
+        shouldThrow<Exception> {
+            value(tenantA, "update rules.dry_run_delta set changed_count = 4 where id = ?::uuid returning id", complete)
+        }
+        val running = deltaInsert(tenantA, "d-2", "RUNNING")
+        value(
+            tenantA,
+            "update rules.dry_run_delta set state = 'COMPLETE', completed_at = clock_timestamp(), changed_count = 1 " +
+                "where id = ?::uuid returning id",
+            running,
+        ).toString() shouldBe running
+        shouldThrow<Exception> {
+            value(
+                tenantA,
+                "insert into rules.dry_run_delta (id, tenant_id, pack_type, pack_version, state, started_by) " +
+                    "values (?::uuid, ?::uuid, 'MAPPING', 'd-3', 'COMPLETE', 'user-a') returning id",
+                UUID.randomUUID().toString(),
+                tenantA.toString(),
+            )
+        }
+        deltaInsert(tenantA, "d-4", "SAMPLE_UNAVAILABLE")
+    }
+
+    /** A row bound to [bound] that names [owner]'s tenant id. */
+    private fun deltaForeign(
+        bound: TenantId,
+        owner: TenantId,
+    ) = value(
+        bound,
+        "insert into rules.dry_run_delta (id, tenant_id, pack_type, pack_version, state, started_by) " +
+            "values (?::uuid, ?::uuid, 'MAPPING', 'iso-3', 'RUNNING', 'user-a') returning id",
+        UUID.randomUUID().toString(),
+        owner.toString(),
+    )
+
+    @Test
+    fun `a second tenant sees none of the new rows and cannot insert a row for the first`() {
+        val delta = deltaInsert(tenantA, "iso-1", "COMPLETE")
+        value(tenantA, "select count(*) from rules.dry_run_delta where id = ?::uuid", delta) shouldBe 1L
+        value(tenantB, "select count(*) from rules.dry_run_delta where id = ?::uuid", delta) shouldBe 0L
+        shouldThrow<Exception> { deltaForeign(tenantB, tenantA) }
+        deltaInsert(tenantB, "iso-2", "COMPLETE") // the same call for its own tenant works: the refusal is specific
+    }
+
+    @Test
+    fun `the grants of the runtime login on the new tables are the answer's set and PUBLIC has none`() {
+        fun grants(table: String): Set<String> =
+            probe
+                .fetchRows(
+                    "select privilege_type as p from information_schema.role_table_grants " +
+                        "where table_schema = 'rules' and table_name = '$table' and grantee = 'rules_runtime'",
+                ).map { it["p"] as String }
+                .toSet()
+        grants("mapping_pack_approval") shouldBe setOf("SELECT", "INSERT")
+        grants("dry_run_delta") shouldBe setOf("SELECT", "INSERT", "UPDATE")
+        grants("mapping_entry_acceptance") shouldBe setOf("SELECT", "INSERT", "UPDATE")
+        probe.fetchRows(
+            "select table_name from information_schema.role_table_grants where table_schema = 'rules' " +
+                "and table_name in ('dry_run_delta', 'mapping_entry_acceptance', 'mapping_pack_approval') " +
+                "and grantee = 'PUBLIC'",
+        ) shouldBe emptyList()
     }
 
     private fun catalogTables(): List<Table> =
@@ -379,6 +554,45 @@ class RegistryPostgresIT(
                 "internal_tax_code",
                 "iras_code",
                 "scheme_tag",
+            )
+        columnsOf("mapping_entry_acceptance") shouldBe
+            setOf(
+                "tenant_id",
+                "pack_type",
+                "pack_version",
+                "entry_id",
+                "rationale",
+                "expires_on",
+                "accepted_by",
+                "accepted_at",
+                "accepted_iras_code",
+                "accepted_source_class",
+            )
+        columnsOf("mapping_pack_approval") shouldBe
+            setOf(
+                "tenant_id",
+                "pack_type",
+                "pack_version",
+                "approved_by",
+                "approved_at",
+                "dry_run_delta_id",
+                "sole_operator",
+                "sole_operator_ack_ref",
+                "option_key",
+                "outstanding_client_acknowledgement",
+                "outstanding_client_approval",
+            )
+        columnsOf("dry_run_delta") shouldBe
+            setOf(
+                "id",
+                "tenant_id",
+                "pack_type",
+                "pack_version",
+                "state",
+                "started_by",
+                "started_at",
+                "completed_at",
+                "changed_count",
             )
     }
 

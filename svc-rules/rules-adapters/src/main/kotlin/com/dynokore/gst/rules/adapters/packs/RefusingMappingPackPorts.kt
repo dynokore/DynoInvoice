@@ -10,10 +10,12 @@ import com.dynokore.gst.rules.application.RateSourcePort
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.LocalDate
 
-// The production defaults of the ports the mapping pack commands ask. Each refuses until the task that owns the real
-// adapter lands (fail closed, INV-Q-14647 A): a service never grants a permission, an approval, a rate-source answer
-// or a holder copy because a collaborator is missing. Each is registered `@ConditionalOnMissingBean`, so the real
-// adapter replaces it by being a bean of the port type.
+/**
+ * The production defaults of the ports the mapping pack commands ask. Each refuses until the task that owns the real
+ * adapter lands (fail closed, INV-Q-14647 A): a service never grants a permission, an approval, a rate-source answer
+ * or a holder copy because a collaborator is missing. Each is registered `@ConditionalOnMissingBean`, so the real
+ * adapter replaces it by being a bean of the port type.
+ */
 
 /** Holds no permission for anyone until the adapter over `AuthorityReplica.decide` lands (INV-Q-14652 A). */
 class RefusingPackActionAuthority : PackActionAuthority {

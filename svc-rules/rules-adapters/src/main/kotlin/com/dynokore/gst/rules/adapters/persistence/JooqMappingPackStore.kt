@@ -1,6 +1,5 @@
 package com.dynokore.gst.rules.adapters.persistence
 
-import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.MAPPING_ENTRY_ACCEPTANCE
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.MAPPING_PACK_APPROVAL
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_ENTRY_SOURCE
@@ -19,7 +18,6 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
-import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
@@ -46,17 +44,14 @@ data class MappingPackView(
 )
 
 /**
- * The mapping pack draft over `rules.pack_registry` and `rules.pack_entry_source` and the acceptance and approval
- * tables (INV-Q-14648 A), jOOQ only, on the open transaction of the command. The tenant comes from the signed binding
- * (row-level security does the rest) and the registering principal is the bound actor, so the stored author is the
- * user ID of the verified token (INV-Q-10647). Nothing draft is written to `rules.pack_artefact`.
+ * The mapping pack draft over `rules.pack_registry` and `rules.pack_entry_source` and the acceptance and approval tables
+ * (INV-Q-14648 A), jOOQ only, on the open transaction of the command. The tenant comes from the signed binding (row-level
+ * security does the rest) and the registering principal is the bound actor, so the stored author is the user ID of the
+ * verified token (INV-Q-10647). Nothing draft is written to `rules.pack_artefact`.
  */
-@Suppress("TooManyFunctions") // the store operations of the port plus the read model of the two queries
 class JooqMappingPackStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
-    private val engineVersion: EngineVersion,
-    private val clock: Clock,
 ) : MappingPackStore {
     private fun mine(packId: String): Condition =
         PACK_REGISTRY.PACK_ID
@@ -74,7 +69,10 @@ class JooqMappingPackStore(
                 .fetchOne(PACK_REGISTRY.PACK_VERSION),
         ) { "no mapping pack $packId for the bound tenant" }
 
-    private fun entryOf(version: String): Condition =
+    private fun entryOf(
+        packId: String,
+        version: String,
+    ): Condition =
         PACK_ENTRY_SOURCE.PACK_TYPE
             .eq(PACK_TYPE)
             .and(PACK_ENTRY_SOURCE.TENANT_ID.eq(tenants.current().value))
@@ -169,7 +167,7 @@ class JooqMappingPackStore(
         accepted: Boolean?,
     ): List<MappingEntryView> {
         val version = versionOf(packId)
-        var where = entryOf(version)
+        var where = entryOf(packId, version)
         after?.let { where = where.and(PACK_ENTRY_SOURCE.ENTRY_ID.gt(it)) }
         sourceClass?.let { where = where.and(PACK_ENTRY_SOURCE.SOURCE_CLASS.eq(it.name)) }
         accepted?.let { where = where.and(PACK_ENTRY_SOURCE.ACCEPTED.eq(it)) }
@@ -203,16 +201,15 @@ class JooqMappingPackStore(
         entryId: String,
     ): MappingEntryView? {
         val version = versionOf(packId)
-        return entryViewsWhere(entryOf(version).and(PACK_ENTRY_SOURCE.ENTRY_ID.eq(entryId)), 1).firstOrNull()
+        return entryViewsWhere(entryOf(packId, version).and(PACK_ENTRY_SOURCE.ENTRY_ID.eq(entryId)), 1).firstOrNull()
     }
 
     /** The header and the counts of `getMappingPack`; null when the tenant holds no such pack. */
     fun view(packId: String): MappingPackView? {
         val row = dsl.selectFrom(PACK_REGISTRY).where(mine(packId)).fetchOne() ?: return null
         val version = checkNotNull(row.packVersion)
-        val entries = entryOf(version)
+        val entries = entryOf(packId, version)
         val nonPrimary = entries.and(PACK_ENTRY_SOURCE.SOURCE_CLASS.ne(SourceClass.PRIMARY.name))
-
         fun count(condition: Condition): Int = dsl.fetchCount(PACK_ENTRY_SOURCE, condition)
         return MappingPackView(
             packId = packId,
@@ -225,27 +222,11 @@ class JooqMappingPackStore(
         )
     }
 
-    private fun unexpiredAcceptance(
-        version: String,
-        entryId: String,
-    ): Boolean =
-        dsl.fetchExists(
-            MAPPING_ENTRY_ACCEPTANCE,
-            MAPPING_ENTRY_ACCEPTANCE.PACK_TYPE
-                .eq(PACK_TYPE)
-                .and(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID.eq(tenants.current().value))
-                .and(MAPPING_ENTRY_ACCEPTANCE.PACK_VERSION.eq(version))
-                .and(MAPPING_ENTRY_ACCEPTANCE.ENTRY_ID.eq(entryId))
-                .and(MAPPING_ENTRY_ACCEPTANCE.EXPIRES_ON.gt(LocalDate.now(clock.withZone(ZoneOffset.UTC)))),
-        )
-
     override fun recordAcceptance(
         packId: String,
         acceptance: MappingAcceptanceRecord,
     ) {
         val version = versionOf(packId)
-        // a repeat while the acceptance of the entry has not expired stores nothing (contract repeatKey, INV-REQ-380)
-        if (unexpiredAcceptance(version, acceptance.entryId)) return
         dsl
             .insertInto(MAPPING_ENTRY_ACCEPTANCE)
             .set(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID, tenants.current().value)
@@ -273,7 +254,7 @@ class JooqMappingPackStore(
         dsl
             .update(PACK_ENTRY_SOURCE)
             .set(PACK_ENTRY_SOURCE.ACCEPTED, true)
-            .where(entryOf(version).and(PACK_ENTRY_SOURCE.ENTRY_ID.eq(acceptance.entryId)))
+            .where(entryOf(packId, version).and(PACK_ENTRY_SOURCE.ENTRY_ID.eq(acceptance.entryId)))
             .execute()
     }
 
@@ -345,10 +326,8 @@ class JooqMappingPackStore(
             .set(MAPPING_PACK_APPROVAL.SOLE_OPERATOR, approval.soleOperator)
             .set(MAPPING_PACK_APPROVAL.SOLE_OPERATOR_ACK_REF, approval.soleOperatorAckRef)
             .set(MAPPING_PACK_APPROVAL.OPTION_KEY, approval.option)
-            .set(
-                MAPPING_PACK_APPROVAL.OUTSTANDING_CLIENT_ACKNOWLEDGEMENT,
-                CLIENT_ACKNOWLEDGEMENT in approval.outstanding,
-            ).set(MAPPING_PACK_APPROVAL.OUTSTANDING_CLIENT_APPROVAL, CLIENT_APPROVAL in approval.outstanding)
+            .set(MAPPING_PACK_APPROVAL.OUTSTANDING_CLIENT_ACKNOWLEDGEMENT, CLIENT_ACKNOWLEDGEMENT in approval.outstanding)
+            .set(MAPPING_PACK_APPROVAL.OUTSTANDING_CLIENT_APPROVAL, CLIENT_APPROVAL in approval.outstanding)
             .execute()
         setStatus(packId, resultingStatus)
     }
@@ -357,11 +336,7 @@ class JooqMappingPackStore(
         packId: String,
         status: PackStatus,
     ) {
-        dsl
-            .update(PACK_REGISTRY)
-            .set(PACK_REGISTRY.STATUS, status.name)
-            .where(mine(packId))
-            .execute()
+        dsl.update(PACK_REGISTRY).set(PACK_REGISTRY.STATUS, status.name).where(mine(packId)).execute()
     }
 
     override fun recordActivation(
@@ -386,10 +361,7 @@ class JooqMappingPackStore(
         dsl
             .update(PACK_REGISTRY)
             .set(PACK_REGISTRY.STATUS, PackStatus.ARMED.name)
-            .set(
-                PACK_REGISTRY.MIN_ENGINE_VERSION,
-                checkNotNull(engineVersion.current()) { "no engine version at activation" },
-            ).set(PACK_REGISTRY.EFFECTIVE_FROM, activation.effectiveFrom)
+            .set(PACK_REGISTRY.EFFECTIVE_FROM, activation.effectiveFrom)
             .set(PACK_REGISTRY.EFFECTIVE_TO, activation.effectiveTo)
             .set(PACK_REGISTRY.SUPERSEDES, predecessor)
             .set(PACK_REGISTRY.ACTIVATED_BY, activation.activatedBy)

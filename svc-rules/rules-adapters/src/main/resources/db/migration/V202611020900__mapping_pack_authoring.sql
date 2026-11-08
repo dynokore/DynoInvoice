@@ -9,10 +9,7 @@ alter table rules.pack_registry add column label text null check (label is null 
 alter table rules.pack_registry add column activated_by text null check (activated_by is null or activated_by !~ '^\s*$|[[:cntrl:]]');
 alter table rules.pack_registry add column activated_at timestamptz null;
 -- the entity the draft belongs to: the permission of every command is checked against it (INV-Q-14652 A)
-alter table rules.pack_registry add column entity_ref text null;
-alter table rules.pack_registry add constraint pack_registry_entity_ref_mapping
-    check (pack_type <> 'MAPPING'
-        or (entity_ref is not null and entity_ref !~ '^\s*$|[[:cntrl:]]' and char_length(entity_ref) <= 64));
+alter table rules.pack_registry add column entity_ref text null check (entity_ref is null or (entity_ref !~ '^\s*$|[[:cntrl:]]' and char_length(entity_ref) <= 64));
 alter table rules.pack_registry add column content_changed_at timestamptz not null default clock_timestamp();
 alter table rules.pack_registry alter column effective_from drop not null;
 alter table rules.pack_registry add constraint pack_registry_effective_from_set
