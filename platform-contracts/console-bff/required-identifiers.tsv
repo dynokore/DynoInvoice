@@ -15,3 +15,8 @@ Exception.dueDate	schema_property	openapi.yaml	INV-REQ-940
 Exception.inputKey	schema_property	openapi.yaml	INV-REQ-940
 # INV-T-15840. Operation searchDocuments (INV-REQ-1037, INV-Q-15828).
 searchDocuments	operation	openapi.yaml	INV-REQ-1037
+# INV-T-15753. Deadline mode periods, period reference and rank on the exception read (INV-REQ-1019, INV-Q-15741).
+Exception.periodRef	schema_property	openapi.yaml	INV-REQ-1019
+Exception.rank	schema_property	openapi.yaml	INV-REQ-1019
+ExceptionPage.deadlinePeriods	schema_property	openapi.yaml	INV-REQ-1019
+DeadlinePeriod.hoursToFilingGate	schema_property	openapi.yaml	INV-REQ-1019

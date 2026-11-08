@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -87,6 +87,23 @@ paths:
         (FR-AH.21) — this operation makes none. Each item carries the
         grouping key (`code`, `remediationOwner`), so console-web groups the
         queue without a further call (INV-REQ-1184).
+
+
+        Deadline mode (INV-REQ-1019, INV-AC-15749) needs no switch from the
+        user. The ranking and `deadlinePeriods` are computed by console-bff
+        per read. A period is in deadline mode from the number of days before
+        its filing due date that the entity's VP-19 value says (default 3,
+        bounds 1 to 10, read from configuration, set by the permission key
+        `vp-19.set` through `AuthorityReplica.decide`, never a role name).
+        The items of periods in deadline mode come first; `rank` is then the
+        1-based position of the item in the order the page lists. The
+        auto-releasing groups are the items whose `disposition` equals
+        AUTO_RELEASE, and the client collapses them. `hoursToFilingGate`
+        counts whole hours, rounded down, from the moment of the read to the
+        due instant minus the safety margin of the calendar pack, and
+        `gatePassed` is true when that instant is not after the read.
+        `entityRef` and `periodRef` of a `DeadlinePeriod` identify the
+        readiness the header links to.
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
@@ -900,6 +917,16 @@ components:
           type: string
           format: uuid
           description: Present while the exception is deferred (INV-REQ-960); a deferral never makes the exception resolved.
+        periodRef:
+          type: string
+          maxLength: 40
+          description: The period the exception belongs to (INV-REQ-1019).
+        rank:
+          type: integer
+          minimum: 1
+          description: >-
+            Present exactly when the page is in deadline order: the 1-based
+            position of the item in the order the page lists (INV-REQ-1019).
         docVersion:
           type: integer
           minimum: 1
@@ -974,6 +1001,11 @@ components:
             $ref: '#/components/schemas/Exception'
         nextCursor:
           type: string
+        deadlinePeriods:
+          type: array
+          description: Periods in deadline mode; absent or empty when none is (INV-REQ-1019).
+          items:
+            $ref: '#/components/schemas/DeadlinePeriod'
       required: [items]
     DocumentSearchHit:
       type: object
@@ -1010,6 +1042,29 @@ components:
         nextCursor:
           type: string
       required: [items]
+    DeadlinePeriod:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        periodRef:
+          type: string
+          maxLength: 40
+        filingDueDate:
+          type: string
+          format: date
+        windowDays:
+          type: integer
+          minimum: 1
+        countOutstanding:
+          type: integer
+          minimum: 0
+        hoursToFilingGate:
+          type: integer
+          minimum: 0
+        gatePassed:
+          type: boolean
+      required: [entityRef, periodRef, filingDueDate, windowDays, countOutstanding, hoursToFilingGate, gatePassed]
     OverrideRequest:
       type: object
       properties:
