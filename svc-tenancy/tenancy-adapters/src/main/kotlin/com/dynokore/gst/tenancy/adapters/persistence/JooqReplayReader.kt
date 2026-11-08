@@ -227,13 +227,8 @@ class JooqReplayReader(
                     e.retired.column("retired"),
                     e.structureVersion.column("structure_version"),
                 )
-            ReplayNode(
-                NodeType.ENTITY,
-                entity.ref,
-                entity.ref,
-                entityNode(entity, profileOf(entity)),
-                greatest[entity.id],
-            )
+            val node = entityNode(entity, profileOf(entity))
+            ReplayNode(NodeType.ENTITY, entity.ref, entity.ref, node, greatest[entity.id])
         }
     }
 

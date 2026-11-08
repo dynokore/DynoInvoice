@@ -91,9 +91,9 @@ sealed interface ElectionOutcome {
  * INV-REQ-505, INV-REQ-1283 to INV-REQ-1286): each stores the election effective-dated with its actor through the
  * election store, after the checks of the rulings INV-Q-9692, INV-Q-9694, INV-Q-9698, INV-Q-9702, INV-Q-9704 and
  * INV-Q-9706. Nothing is defaulted. A change of an election already recorded is stored PENDING and takes effect
- * only when another person holding `election-change.approve` approves it (INV-Q-10105).
+ * only when another person holding `election-change.approve` approves it (INV-Q-10105). The exempt-purchase election
+ * (INV-REQ-369) is recorded through [ExemptPurchaseElections] and published here with the other profile entries.
  */
-// the ports, checks and profile publishes of the four operations
 @Suppress("LongParameterList", "TooManyFunctions", "LargeClass")
 class ElectionCommands(
     private val tx: TransactionRunner,
