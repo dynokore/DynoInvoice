@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.application.status.EntityProfileChange
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileEntry
+import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.gst.tenancy.domain.ElectionKeys
@@ -23,6 +24,31 @@ const val ISSUANCE_MODE_ATTRIBUTE = "issuanceMode"
 
 /** The profile attribute the elected rate source is published under on EntityProfileChanged (INV-Q-16533 A). */
 const val RATE_SOURCE_ATTRIBUTE = "exchangeRateSource"
+
+/** The profile attribute the exempt-purchase tax codes are published under (INV-REQ-369, INV-AC-18133). */
+const val EXEMPT_PURCHASE_CODES_ATTRIBUTE = "exemptPurchaseCodes"
+
+/** The profile attribute the recorded basis of the exempt-purchase election is published under. */
+const val EXEMPT_PURCHASE_BASIS_ATTRIBUTE = "exemptPurchaseBasis"
+
+/** The codes of one stored election as published: ascending by code unit, joined by a comma without space. */
+fun exemptPurchaseCodesValue(row: ExemptPurchaseElectionRow): String = row.taxCodes.sorted().joinToString(",")
+
+/** Every stored exempt-purchase election as two profile entries (codes and basis), each effective from its date. */
+fun exemptPurchaseEntries(rows: List<ExemptPurchaseElectionRow>): List<ProfileEntry> =
+    rows.flatMap {
+        listOf(
+            ProfileEntry(EXEMPT_PURCHASE_CODES_ATTRIBUTE, exemptPurchaseCodesValue(it), it.effectiveFrom),
+            ProfileEntry(EXEMPT_PURCHASE_BASIS_ATTRIBUTE, it.basis, it.effectiveFrom),
+        )
+    }
+
+/** The exempt-purchase entries of an entity's profile, for the structure read. */
+class ExemptPurchaseProfileExtras(
+    private val store: ExemptPurchaseElectionStore,
+) : ProfileExtras {
+    override fun entries(entityRef: String): List<ProfileEntry> = exemptPurchaseEntries(store.history(entityRef))
+}
 
 sealed interface ElectionOutcome {
     /** [repeated] is true when the same election was stored for the same date before and nothing was written. */
@@ -82,7 +108,42 @@ class ElectionCommands(
     private val changes: ElectionChangeStore,
     private val audit: ElectionAudit,
     private val tenants: TenantContext,
+    private val exemptPurchase: ExemptPurchaseElections,
+    private val exemptPurchases: ExemptPurchaseElectionStore,
 ) {
+    /**
+     * Records the exempt-purchase election (INV-REQ-369) and, when a row was written, publishes EntityProfileChanged
+     * with the codes and the basis in changedAttributes and node.profile in the same transaction. A repeat writes and
+     * publishes nothing.
+     */
+    fun recordExemptPurchase(
+        entityRef: String,
+        taxCodes: List<String>,
+        basis: String,
+        effectiveFrom: LocalDate,
+    ): ExemptPurchaseOutcome =
+        tx.inTransaction {
+            val before = exemptPurchases.history(entityRef)
+            val outcome = exemptPurchase.record(entityRef, taxCodes, basis, effectiveFrom)
+            if (outcome is ExemptPurchaseOutcome.Done && !outcome.repeated) {
+                val inForce = before.lastOrNull { it.effectiveFrom <= effectiveFrom }
+                publishProfile(
+                    tenants.current(),
+                    entityRef,
+                    listOf(
+                        ChangedAttribute(
+                            EXEMPT_PURCHASE_CODES_ATTRIBUTE,
+                            inForce?.let(::exemptPurchaseCodesValue),
+                            exemptPurchaseCodesValue(outcome.row),
+                        ),
+                        ChangedAttribute(EXEMPT_PURCHASE_BASIS_ATTRIBUTE, inForce?.basis, outcome.row.basis),
+                    ),
+                    effectiveFrom,
+                )
+            }
+            outcome
+        }
+
     /** Elects the Type 1A issuance mode from [effectiveFrom]; the second confirmation is required every time. */
     fun setIssuanceMode(
         tenant: TenantId,
@@ -431,10 +492,12 @@ class ElectionCommands(
     ) = publishProfile(
         tenant,
         entityRef,
-        ChangedAttribute(
-            ISSUANCE_MODE_ATTRIBUTE,
-            StatusTimeline.inForceOn(before, effectiveFrom)?.value,
-            mode.name,
+        listOf(
+            ChangedAttribute(
+                ISSUANCE_MODE_ATTRIBUTE,
+                StatusTimeline.inForceOn(before, effectiveFrom)?.value,
+                mode.name,
+            ),
         ),
         effectiveFrom,
     )
@@ -448,7 +511,9 @@ class ElectionCommands(
     ) = publishProfile(
         tenants.current(),
         entityRef,
-        ChangedAttribute(RATE_SOURCE_ATTRIBUTE, StatusTimeline.inForceOn(before, effectiveFrom)?.value, source),
+        listOf(
+            ChangedAttribute(RATE_SOURCE_ATTRIBUTE, StatusTimeline.inForceOn(before, effectiveFrom)?.value, source),
+        ),
         effectiveFrom,
     )
 
@@ -456,7 +521,7 @@ class ElectionCommands(
     private fun publishProfile(
         tenant: TenantId,
         entityRef: String,
-        changed: ChangedAttribute,
+        changed: List<ChangedAttribute>,
         effectiveFrom: LocalDate,
     ) {
         val entity = checkNotNull(structure.entity(entityRef))
@@ -466,13 +531,14 @@ class ElectionCommands(
             (
                 statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
                     electionEntries(entity.ref, ElectionKind.ISSUANCE_MODE, ISSUANCE_MODE_ATTRIBUTE) +
-                    electionEntries(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE, RATE_SOURCE_ATTRIBUTE)
+                    electionEntries(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE, RATE_SOURCE_ATTRIBUTE) +
+                    exemptPurchaseEntries(exemptPurchases.history(entity.ref))
             ).sortedBy { it.effectiveDate }
         publisher.publish(
             EntityProfileChange(
                 tenant.value,
                 entity.ref,
-                listOf(changed),
+                changed,
                 effectiveFrom,
                 entityNode(entity.copy(structureVersion = version), profile),
             ),

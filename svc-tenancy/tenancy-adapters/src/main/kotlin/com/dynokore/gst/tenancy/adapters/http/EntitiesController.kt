@@ -4,6 +4,7 @@ import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionOutcome
 import com.dynokore.gst.tenancy.application.election.ElectionRecord
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
+import com.dynokore.gst.tenancy.application.election.ExemptPurchaseOutcome
 import com.dynokore.gst.tenancy.application.election.PendingChange
 import com.dynokore.gst.tenancy.application.period.FilingFrequencyCommands
 import com.dynokore.gst.tenancy.application.status.AssessOutcome
@@ -43,6 +44,7 @@ import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
 import com.dynokore.gst.tenancy.domain.CodeRefusal
+import com.dynokore.gst.tenancy.domain.ElectionKeys
 import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.IssuanceMode
 import com.dynokore.gst.tenancy.domain.TenantRefs
@@ -240,12 +242,57 @@ open class EntitiesController(
         idempotencyKey: UUID,
         electionRequest: ElectionRequest,
     ): ResponseEntity<ElectionResponse> {
+        val exempt = electionRequest.election == ElectionKeys.EXEMPT_PURCHASE_CODES
+        if (exempt) return recordExemptPurchase(entityRef, electionRequest)
+        if (electionRequest.taxCodes != null || electionRequest.basis != null) {
+            invalid("taxCodes and basis are accepted only for ${ElectionKeys.EXEMPT_PURCHASE_CODES}")
+        }
         val outcome =
             electionCommands.recordElection(entityRef, electionRequest.election, electionRequest.effectiveFrom)
         val done = elected(outcome)
         return ResponseEntity
             .status(created(outcome))
             .body(ElectionResponse(entityRef, done.value, done.effectiveFrom))
+    }
+
+    /** The exempt-purchase election (INV-REQ-369): both properties are required; 201 for a record, 200 for a repeat. */
+    private fun recordExemptPurchase(
+        entityRef: String,
+        request: ElectionRequest,
+    ): ResponseEntity<ElectionResponse> {
+        val taxCodes = request.taxCodes ?: invalid("taxCodes is required for ${ElectionKeys.EXEMPT_PURCHASE_CODES}")
+        val basis = request.basis ?: invalid("basis is required for ${ElectionKeys.EXEMPT_PURCHASE_CODES}")
+        return when (
+            val outcome =
+                electionCommands.recordExemptPurchase(entityRef, taxCodes.toList(), basis, request.effectiveFrom)
+        ) {
+            is ExemptPurchaseOutcome.Done -> {
+                val row = outcome.row
+                ResponseEntity
+                    .status(if (outcome.repeated) HttpStatus.OK else HttpStatus.CREATED)
+                    .body(
+                        ElectionResponse(
+                            entityRef,
+                            ElectionKeys.EXEMPT_PURCHASE_CODES,
+                            row.effectiveFrom,
+                            row.taxCodes.toSet(),
+                            row.basis,
+                        ),
+                    )
+            }
+
+            ExemptPurchaseOutcome.NotFound -> {
+                notFound()
+            }
+
+            is ExemptPurchaseOutcome.Invalid -> {
+                invalid(outcome.reason)
+            }
+
+            is ExemptPurchaseOutcome.Forbidden -> {
+                forbidden(outcome.reason)
+            }
+        }
     }
 
     override fun electRateSource(

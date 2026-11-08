@@ -16,6 +16,7 @@ import com.dynokore.gst.tenancy.adapters.election.SchemeEventDependencies
 import com.dynokore.gst.tenancy.adapters.election.UnrecordedEntityFacts
 import com.dynokore.gst.tenancy.adapters.persistence.JooqAccessPointRouteStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqElectionChangeStore
+import com.dynokore.gst.tenancy.adapters.persistence.JooqExemptPurchaseElectionStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqScopePackStore
 import com.dynokore.gst.tenancy.application.election.AccessPointRouteStore
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
@@ -27,6 +28,9 @@ import com.dynokore.gst.tenancy.application.election.ElectionGate
 import com.dynokore.gst.tenancy.application.election.ElectionPolicyStore
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.election.EntityFactSource
+import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElectionStore
+import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElections
+import com.dynokore.gst.tenancy.application.election.ExemptPurchaseProfileExtras
 import com.dynokore.gst.tenancy.application.election.ScopePackStore
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
@@ -94,11 +98,44 @@ class ElectionUseCases {
         elections: ElectionPolicyStore,
         history: PolicyHistory,
         tenants: TenantContext,
+        exemptPurchases: ExemptPurchaseElectionStore,
     ): ProfileExtras {
         val issuance = IssuanceProfileExtras(elections)
         val schemes = GstSchemeProfileExtras(history, tenants)
-        return ProfileExtras { entityRef -> issuance.entries(entityRef) + schemes.entries(entityRef) }
+        val exempt = ExemptPurchaseProfileExtras(exemptPurchases)
+        return ProfileExtras { entityRef ->
+            issuance.entries(entityRef) + schemes.entries(entityRef) + exempt.entries(entityRef)
+        }
     }
+
+    @Bean
+    fun exemptPurchaseElectionStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): ExemptPurchaseElectionStore = JooqExemptPurchaseElectionStore(dsl, tenants)
+
+    @Bean
+    @Suppress("LongParameterList") // the ports of the one operation
+    fun exemptPurchaseElections(
+        tx: TransactionRunner,
+        structure: StructureStore,
+        store: ExemptPurchaseElectionStore,
+        authority: ActionAuthority,
+        caller: CallerSource,
+        audit: ElectionAudit,
+        tenants: TenantContext,
+        clock: ObjectProvider<Clock>,
+    ): ExemptPurchaseElections =
+        ExemptPurchaseElections(
+            tx,
+            structure,
+            store,
+            authority,
+            caller,
+            audit,
+            tenants,
+            clock.getIfAvailable(Clock::systemUTC),
+        )
 
     /** The collaborators of the scheme decorator, resolved at the first VP-53 write. */
     @Bean
@@ -169,6 +206,8 @@ class ElectionUseCases {
         changes: ElectionChangeStore,
         audit: ElectionAudit,
         tenants: TenantContext,
+        exemptPurchase: ExemptPurchaseElections,
+        exemptPurchases: ExemptPurchaseElectionStore,
     ): ElectionCommands =
         ElectionCommands(
             tx,
@@ -184,6 +223,8 @@ class ElectionUseCases {
             changes,
             audit,
             tenants,
+            exemptPurchase,
+            exemptPurchases,
         )
 
     @Bean

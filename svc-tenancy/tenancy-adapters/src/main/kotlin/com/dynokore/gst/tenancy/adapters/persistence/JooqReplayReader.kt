@@ -3,8 +3,10 @@ package com.dynokore.gst.tenancy.adapters.persistence
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.BUSINESS_UNIT
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY_STATUS
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.EXEMPT_PURCHASE_ELECTION
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT_GROUP
+import com.dynokore.gst.tenancy.application.election.exemptPurchaseEntries
 import com.dynokore.gst.tenancy.application.structure.BusinessUnitRecord
 import com.dynokore.gst.tenancy.application.structure.EntityRecord
 import com.dynokore.gst.tenancy.application.structure.GroupKind
@@ -92,6 +94,7 @@ class JooqReplayReader(
     tenants: TenantContext,
 ) : ReplayReader {
     private val statuses = JooqEntityStatusStore(dsl, tenants)
+    private val exemptPurchases = JooqExemptPurchaseElectionStore(dsl, tenants)
 
     override fun tenantIds(): List<TenantId> =
         dsl
@@ -192,7 +195,17 @@ class JooqReplayReader(
         limit: Int,
         withStatusOnly: Boolean,
     ): List<ReplayNode> {
-        val hasStatus = DSL.exists(DSL.selectOne().from(ENTITY_STATUS).where(ENTITY_STATUS.ENTITY_ID.eq(ENTITY.ID)))
+        val hasStatus =
+            DSL
+                .exists(DSL.selectOne().from(ENTITY_STATUS).where(ENTITY_STATUS.ENTITY_ID.eq(ENTITY.ID)))
+                .or(
+                    DSL.exists(
+                        DSL
+                            .selectOne()
+                            .from(EXEMPT_PURCHASE_ELECTION)
+                            .where(EXEMPT_PURCHASE_ELECTION.ENTITY_REF.eq(ENTITY.REF)),
+                    ),
+                )
         val rows =
             dsl
                 .select(ENTITY.asterisk(), TENANT_GROUP.REF)
@@ -225,7 +238,11 @@ class JooqReplayReader(
                     e.retired.column("retired"),
                     e.structureVersion.column("structure_version"),
                 )
-            val profile = statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) }
+            val profile =
+                (
+                    statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
+                        exemptPurchaseEntries(exemptPurchases.history(entity.ref))
+                ).sortedBy { it.effectiveDate }
             ReplayNode(NodeType.ENTITY, entity.ref, entity.ref, entityNode(entity, profile), greatest[entity.id])
         }
     }
