@@ -27,7 +27,8 @@ class PrincipalRevocationOutbox(
         principal: ServicePrincipal,
         nextVersion: () -> Long,
     ) {
-        // one principalRecord event for the principal (INV-Q-8972 A); a replica voids every grant record below its version
+        // one principalRecord event for the principal (INV-Q-8972 A): a replica voids every grant record below its
+        // version
         val context =
             EventContexts.forAggregate(TenantId.of(principal.tenant.value), EntityRef.TENANT_WIDE, principal.ref)
         outbox.append(

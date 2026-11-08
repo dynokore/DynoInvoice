@@ -33,8 +33,8 @@ class GrantRoleEffects(
 /**
  * `grantRole` (INV-REQ-864, INV-REQ-859): refuses a grant without a scope, with an unknown role or with an Operator
  * role (INV-Q-9069 A, before any lock or write); otherwise stores the
- * grant (a repeat of the same identity, role and scope returns the original), publishes one AuthorityChanged role-grant event
- * in the same transaction, and writes the audit entry (INV-REQ-861). The identity row is locked
+ * grant (a repeat of the same identity, role and scope returns the original), publishes one AuthorityChanged
+ * role-grant event in the same transaction, and writes the audit entry (INV-REQ-861). The identity row is locked
  * before the
  * authority versions are drawn, so versions per identity follow commit order (INV-API-3325).
  */

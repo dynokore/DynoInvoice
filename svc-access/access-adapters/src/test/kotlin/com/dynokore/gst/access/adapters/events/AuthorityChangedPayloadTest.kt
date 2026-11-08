@@ -64,20 +64,18 @@ class AuthorityChangedPayloadTest {
         level: ScopeLevel = ScopeLevel.ENTITY,
         state: RoleGrantState = RoleGrantState.ACTIVE,
         scopeRef: String = "ENT-1",
-        until: Instant? = Instant.parse("2027-09-30T23:59:59Z"),
         periods: Pair<LocalDate, LocalDate>? = null,
-        grantRef: String = "GRT-1",
         version: Long = 42,
     ) = RoleGrantChange(
         tenant = TenantRef(tenantValue),
         identity = IdentityRef("IDN-1"),
-        grantRef = GrantRef(grantRef),
+        grantRef = GrantRef("GRT-1"),
         role = Role.TAX_APPROVER,
         state = state,
         scopeLevel = level,
         scopeRef = scopeRef,
         validFrom = Instant.parse("2026-10-19T00:00:00Z"),
-        validUntil = until,
+        validUntil = Instant.parse("2027-09-30T23:59:59Z"),
         periodFrom = periods?.first,
         periodTo = periods?.second,
         authorityVersion = version,
@@ -106,7 +104,7 @@ class AuthorityChangedPayloadTest {
                 assertTrue(errors.isEmpty(), "${c.scopeLevel} $state $errors")
             }
         }
-        assertTrue(errors(change(until = null)).isEmpty())
+        assertTrue(errors(change().copy(validUntil = null)).isEmpty())
     }
 
     @Test
@@ -144,7 +142,7 @@ class AuthorityChangedPayloadTest {
         assertEquals("REMOVED", removed["roleGrantRecord"]["state"].asString())
         assertEquals("GRT-1", removed["roleGrantRecord"]["grantRef"].asString())
         assertEquals(43L, removed["authorityVersion"].asLong())
-        assertTrue(!outbox.payload(change(until = null))["roleGrantRecord"].has("validUntil"))
+        assertTrue(!outbox.payload(change().copy(validUntil = null))["roleGrantRecord"].has("validUntil"))
     }
 
     @Test

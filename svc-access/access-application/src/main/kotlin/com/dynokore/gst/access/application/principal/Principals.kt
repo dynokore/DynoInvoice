@@ -37,8 +37,8 @@ interface PrincipalRepository {
 }
 
 /**
- * Publishes AuthorityChanged with changeKind REVOCATION (INV-API-3325) in the command transaction: one principalRecord event
- * for the principal, at the next value of [nextVersion].
+ * Publishes AuthorityChanged with changeKind REVOCATION (INV-API-3325) in the command transaction: one principalRecord
+ * event for the principal, at the next value of [nextVersion].
  */
 interface PrincipalRevocationPublisher {
     fun publishRevoked(

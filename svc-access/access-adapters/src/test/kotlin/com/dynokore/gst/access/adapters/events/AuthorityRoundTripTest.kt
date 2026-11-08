@@ -48,9 +48,9 @@ import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Replica round trip (INV-Q-8972 A): the events this service publishes for a scripted sequence of ten changes, decoded by
- * the library's feed handler and fed to a fixture replica of service-runtime, give the answers the sequence implies. It
- * is the evidence that the writer and the reader agree.
+ * Replica round trip (INV-Q-8972 A): the events this service publishes for a scripted sequence of ten changes,
+ * decoded by the library's feed handler and fed to a fixture replica of service-runtime, give the answers the sequence
+ * implies. It is the evidence that the writer and the reader agree.
  */
 class AuthorityRoundTripTest {
     private val tenantValue = "0a000000-0000-4000-8000-00000000000a"
