@@ -83,9 +83,11 @@ class ReplayAuthorityTenantsTest {
     @Test
     fun `INV-AC-9051 the tenant list holds the tenants of grants, consents and principals and no other`() {
         val platform = UUID.fromString(PlatformGrantSeedFixture.PLATFORM)
-        val (t1, t2, t3, t4, t5) = List(5) { UUID.randomUUID() }
+        val ids = List(5) { UUID.randomUUID() }
+        val (t1, t2, t3) = ids
+        val t4 = ids[3]
+        val t5 = ids[4]
         BoundaryFixture.asSuperuser { c ->
-            listOf("role_grant", "consent", "service_principal").forEach { exec(c, "delete from access.$it") }
             grant(c, t1, "one")
             consent(c, t2)
             principal(c, t3)
@@ -96,17 +98,27 @@ class ReplayAuthorityTenantsTest {
             grant(c, platform, "seed")
             // t5 holds an identity-less nothing: no row in any of the three tables
         }
-        assertThat(listedAsRuntime()).containsExactlyInAnyOrder(t1, t2, t3, t4, platform).doesNotContain(t5)
+        val expected =
+            BoundaryFixture.asSuperuser { c ->
+                c.createStatement().use { st ->
+                    st
+                        .executeQuery(
+                            "select tenant_id from access.role_grant union select tenant_id from access.consent " +
+                                "union select tenant_id from access.service_principal",
+                        ).use { r ->
+                            generateSequence { if (r.next()) r.getObject(1, UUID::class.java) else null }.toSet()
+                        }
+                }
+            }
+        assertThat(expected).contains(t1, t2, t3, t4, platform).doesNotContain(t5)
+        assertThat(listedAsRuntime()).containsExactlyInAnyOrderElementsOf(expected)
         assertThat(listedAsRuntime().map { it.toString() }).isSorted() // ORDER BY of the function
         BoundaryFixture.runner().run { context ->
             context.startupFailure?.let { throw it }
             val source = context.getBean(ReplayStateSource::class.java)
-            val platform = context.getBean(PlatformTenantBinding::class.java)
-            val listed = platform.bindPlatform("svc:access-svc/job:replay") { source.tenants() }
-            assertThat(listed.map { it.value }).containsExactlyInAnyOrder(t1, t2, t3, t4)
-        }
-        BoundaryFixture.asSuperuser { c ->
-            listOf("role_grant", "consent", "service_principal").forEach { exec(c, "delete from access.$it") }
+            val platformBinding = context.getBean(PlatformTenantBinding::class.java)
+            val listed = platformBinding.bindPlatform("svc:access-svc/job:replay") { source.tenants() }
+            assertThat(listed.map { it.value }).containsExactlyInAnyOrderElementsOf(expected - platform)
         }
     }
 
@@ -149,6 +161,10 @@ class ReplayAuthorityTenantsTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `INV-AC-9051 the tenant list migration text passes the static check and each probe breaks one rule`() {
         assertThat(findings(shipped)).isEmpty()
         assertThat(findings(shipped.replace("pg_catalog, access, pg_temp", "public, pg_catalog")))
             .contains("search_path is not pg_catalog, access, pg_temp")

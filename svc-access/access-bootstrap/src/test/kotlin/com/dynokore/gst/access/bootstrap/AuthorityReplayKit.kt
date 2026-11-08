@@ -77,6 +77,36 @@ internal class AuthorityReplayKit(
         }
     }
 
+    /** A grant row of any level inserted straight into the table, with a stored version; returns its grant ref. */
+    fun insertGrant(
+        of: UUID,
+        level: String,
+        scopeRef: String,
+        period: Boolean = false,
+    ): String {
+        val ref = "GRT-" + UUID.randomUUID().toString().take(8)
+        val identity = "user:$ref"
+        val dates = if (period) "date '2026-01-01', date '2026-03-31'" else "null, null"
+        BoundaryFixture.asSuperuser { c ->
+            c.createStatement().use {
+                it.execute(
+                    "insert into access.identity (id, tenant_id, identity_ref, grantee_kind, created_at, created_by, " +
+                        "updated_at, updated_by, version) values (gen_random_uuid(), '$of', '$identity', 'STAFF', " +
+                        "now(), 's', now(), 's', 0)",
+                )
+                it.execute(
+                    "insert into access.role_grant (id, tenant_id, grant_ref, identity_ref, role, scope_level, " +
+                        "scope_ref, period_from, period_to, valid_from, status, grant_source, created_at, " +
+                        "created_by, updated_at, updated_by, version, authority_version) values " +
+                        "(gen_random_uuid(), '$of', '$ref', '$identity', 'auditor', '$level', '$scopeRef', $dates, " +
+                        "now(), 'ACTIVE', 'BY_HAND', now(), 's', now(), 's', 0, " +
+                        "nextval('access.authority_version_seq'))",
+                )
+            }
+        }
+        return ref
+    }
+
     fun grant(
         identity: String,
         role: Role,

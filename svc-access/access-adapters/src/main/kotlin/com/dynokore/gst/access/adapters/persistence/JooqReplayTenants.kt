@@ -7,8 +7,8 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 
 /**
- * The tenant list of the full sync of AuthorityChanged (INV-T-9061): calls `access.replay_authority_tenants()` (owned by
- * the NOLOGIN `access_sys`, executable by `access_runtime` only) in its own transaction, outside any tenant binding, as
+ * The tenant list of the full sync of AuthorityChanged (INV-T-9061): calls
+ * `access.replay_authority_tenants()` (owned by the NOLOGIN `access_sys`, executable by `access_runtime` only) in its own transaction, outside any tenant binding, as
  * [JooqIdpSyncClaim] calls its function. The platform tenant is dropped by the replay source, not here.
  */
 class JooqReplayTenants(
