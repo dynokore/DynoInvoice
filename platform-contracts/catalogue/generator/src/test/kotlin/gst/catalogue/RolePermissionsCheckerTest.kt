@@ -2244,4 +2244,48 @@ class RolePermissionsCheckerTest {
             f.delete()
         }
     }
+
+    private val mcr = "migration-cutover.record"
+    private val mcv = "migration-cutover.view"
+
+    @Test
+    fun `INV-AC-18809 the two migration-cutover keys carry the entity-config manage row and the stated cells`() {
+        assertEquals(permission(real, "entity-config.manage").row, permission(real, mcr).row)
+        assertEquals(permission(real, "entity-config.manage").row, permission(real, mcv).row)
+        assertEquals(PermissionKind.WRITE, permission(real, mcr).kind)
+        assertEquals(PermissionKind.READ, permission(real, mcv).kind)
+        fun cs(k: String) = permission(real, k).cells.map { Triple(it.role, it.form, it.allowance) }.toSet()
+        assertEquals(cs("entity-config.manage"), cs(mcr))
+        assertEquals(cs("election-change.list"), cs(mcv))
+    }
+
+    @Test
+    fun `INV-AC-18809 probe cells kind and row changed alone are each reported naming the key`() {
+        assertReported(cellAdd(mcv, "auditor", DeploymentForm.SAAS), "key $mcv")
+        assertReported(cellAdd(mcr, "tenant.admin", DeploymentForm.SAAS), "key $mcr")
+        listOf(mcr, mcv).forEach { k ->
+            assertReported(cellRemove(k, "entity.admin", DeploymentForm.PRIVATE), "role entity.admin key $k form PRIVATE")
+            assertReported(withPermission(k) { it.copy(row = it.row + " ") }, "key $k")
+        }
+        assertReported(withPermission(mcv) { it.copy(kind = PermissionKind.WRITE) }, "key $mcv")
+    }
+
+    @Test
+    fun `INV-AC-18809 probe renamed or removed migration-cutover keys are reported missing`() {
+        listOf("$mcr ", "migration-cutover.records", "Migration-cutover.record", "migration-cutover.views").forEach { name ->
+            val k = if (name.endsWith("views")) mcv else mcr
+            assertReported(withPermission(k) { it.copy(key = name) }, "key $k: missing")
+        }
+        listOf(mcr, mcv).forEach { k ->
+            assertReported(real.copy(permissions = real.permissions.filterNot { it.key == k }), "key $k: missing")
+        }
+    }
+
+    @Test
+    fun `INV-AC-18809 probe entity-config manage given the cells of migration-cutover view is reported`() {
+        assertReported(
+            withPermission("entity-config.manage") { p -> p.copy(cells = permission(real, mcv).cells) },
+            "role tenant.admin key entity-config.manage",
+        )
+    }
 }

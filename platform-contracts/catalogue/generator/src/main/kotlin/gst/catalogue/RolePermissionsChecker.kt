@@ -457,6 +457,9 @@ object RolePermissionsChecker {
             "elevation.request" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.support")),
             "diagnostic.invite" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
             "tenant-invitation.reissue" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "commercial.admin")),
+            "migration-cutover.record" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
+            "migration-cutover.view" to
+                Required(PermissionKind.READ, cells(permitted, both, "entity.admin", "tenant.admin", "tax.approver")),
             "licence.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "tenant-provisioning-request.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "questionnaire.answer" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
@@ -733,7 +736,7 @@ object RolePermissionsChecker {
         table.permissions.filter { it.key.startsWith("break-glass.") && it.key !in required }.forEach { p ->
             v += "key ${p.key}: not one of the break-glass keys the criteria require (INV-T-16106)."
         }
-        table.permissions.filter { it.key in setOf("election-change.approve", "election-change.withdraw", "election-change.list") }.forEach { p ->
+        table.permissions.filter { it.key in setOf("election-change.approve", "election-change.withdraw", "election-change.list", "migration-cutover.record", "migration-cutover.view") }.forEach { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123, INV-T-13530)."
         }
         val used = table.permissions.map { it.row }.toSet()

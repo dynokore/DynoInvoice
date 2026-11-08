@@ -650,4 +650,16 @@ class RolePermissionsTest {
         assertTrue(cells.isNotEmpty())
         cells.values.forEach { assertEquals(RoleAllowance.WITHIN_SCOPE, it) }
     }
+
+    @Test
+    fun `INV-AC-18809 migration-cutover keys have their kinds and holders in both forms`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("migration-cutover.record"))
+        assertEquals(PermissionKind.READ, RolePermissions.kind("migration-cutover.view"))
+        val view = setOf("entity.admin", "tenant.admin", "tax.approver")
+        both.forEach { f ->
+            val h = { k: String -> RolePermissions.cells(f).filter { (_, p) -> p[k] == y }.keys }
+            assertEquals(setOf("entity.admin"), h("migration-cutover.record"))
+            assertEquals(view, h("migration-cutover.view"))
+        }
+    }
 }
