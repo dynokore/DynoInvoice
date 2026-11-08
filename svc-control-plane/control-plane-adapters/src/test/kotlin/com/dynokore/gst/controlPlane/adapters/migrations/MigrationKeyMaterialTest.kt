@@ -92,7 +92,10 @@ internal object KeyMaterial {
     ): List<String> {
         val out = ArrayList<String>()
         if (PEM.containsMatchIn(sql)) out += "$file: PEM block"
-        LONG_BASE64.findAll(sql).filter { it.value != GENERATED_POLICY_NAME }.forEach { out += "$file: long base64-like run '${it.value.take(12)}...'" }
+        LONG_BASE64
+            .findAll(sql)
+            .filter { it.value != GENERATED_POLICY_NAME }
+            .forEach { out += "$file: long base64-like run '${it.value.take(12)}...'" }
         LONG_HEX.findAll(sql).forEach { out += "$file: long hex run '${it.value.take(12)}...'" }
         if (AWS.containsMatchIn(sql)) out += "$file: access key id"
         KEY_COLUMN.findAll(sql).map { it.groupValues[1] }.filter { !it.endsWith("_ref") }.forEach {
