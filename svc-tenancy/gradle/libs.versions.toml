@@ -5,7 +5,7 @@
 
 [versions]
 platformBuild = "0.23.3"
-platformLibsBom = "0.174.0"
+platformLibsBom = "0.175.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"
@@ -20,7 +20,7 @@ swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876, 3030c14b adds the INV-T-8269 marker rule and the recordEntitlement operation); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+f5021ccc"
+platformContractsBundle = "0.0.0-dev+6ea58301"
 # Explicit override of the catalogue platform-libs builds against (2.11.0 at line 82 of its gradle/libs.versions.toml):
 # the floor of RolePermissionsPinTest is 2.31.0 and no BOM release carries a catalogue at or above it (INV-T-12278).
 gstCatalogue = "2.31.0"
