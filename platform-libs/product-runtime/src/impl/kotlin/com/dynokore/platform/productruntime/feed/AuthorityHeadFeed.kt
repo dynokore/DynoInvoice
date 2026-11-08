@@ -18,12 +18,16 @@ class AuthorityHeadFeed(
     private val replica: AuthorityReplica,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
-        replica.observeHead(decode(event))
+        val head = decodeHead(event)
+        replica.observeHead(head.version, head.incarnation)
         return HandleOutcome.APPLIED
     }
 
     /** The authority version [event] reports; throws [ContractViolation] when it does not meet the contract. */
-    fun decode(event: Envelope): Long {
+    fun decode(event: Envelope): Long = decodeHead(event).version
+
+    /** The version and the incarnation (null when absent, read as 1 by the replica) [event] reports. */
+    fun decodeHead(event: Envelope): ObservedHead {
         if (event.type != PlatformEventCatalogue.AUTHORITY_HEAD_OBSERVED.eventType) {
             throw ContractViolation("the authority head feed takes no ${event.type}")
         }
@@ -34,6 +38,18 @@ class AuthorityHeadFeed(
                 "AuthorityHeadObserved ${event.id} carries authorityVersion $version, the contract 1 or more",
             )
         }
-        return version
+        val incarnation = payload.incarnation?.toLong()
+        if (incarnation != null && incarnation < 1) {
+            throw ContractViolation(
+                "AuthorityHeadObserved ${event.id} carries incarnation $incarnation, the contract 1 or more",
+            )
+        }
+        return ObservedHead(version, incarnation)
     }
+
+    /** The head of one heartbeat: [version] within [incarnation] (null when the payload has none). */
+    data class ObservedHead(
+        val version: Long,
+        val incarnation: Long?,
+    )
 }

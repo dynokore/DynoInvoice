@@ -52,7 +52,19 @@ class AuthorityFeedHandler(
                 ?: payload.grantRecord?.let { AuthorityRecord.LegacyGrant(it.entityRef) }
                 ?: payload.consentRecord?.let(::consentRecord)
                 ?: payload.principalRecord?.let { AuthorityRecord.PrincipalRecord(PrincipalState.of(it.state.value)) }
-        return AuthorityChanged(event.tenant, payload.principalRef, payload.authorityVersion.toLong(), record)
+        val incarnation = payload.incarnation?.toLong()
+        if (incarnation != null && incarnation < 1) {
+            throw ContractViolation(
+                "AuthorityChanged ${event.id} carries incarnation $incarnation, the contract 1 or more",
+            )
+        }
+        return AuthorityChanged(
+            event.tenant,
+            payload.principalRef,
+            payload.authorityVersion.toLong(),
+            record,
+            incarnation,
+        )
     }
 
     private fun roleGrantRecord(record: AuthorityChangedPayloadRoleGrantRecord): AuthorityRecord.RoleGrantRecord {
