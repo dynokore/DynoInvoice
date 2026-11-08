@@ -321,7 +321,8 @@ class OperationsTableTest {
         assertThat(
             verify(base.map { it.replace("operation\twithdrawElevationRequest\tINV-T-4941\tdone", unassignedDone) }),
         ).anyMatch { "done but no task" in it }
-        assertThat(verify(base.map { it.replace("\taccessAccessAlertRaised\tINV-T-4938\tdone", "\taccessAccessAlertRaised\tINV-T-4938\topen") }))
+        val alertDone = "\taccessAccessAlertRaised\tINV-T-4938\tdone"
+        assertThat(verify(base.map { it.replace(alertDone, "\taccessAccessAlertRaised\tINV-T-4938\topen") }))
             .anyMatch { "published by the code but not marked done" in it }
         val unpublished = "channel\taccessOperatorSessionKeysChanged\tINV-T-4154\tdone"
         assertThat(
