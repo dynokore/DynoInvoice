@@ -17,7 +17,7 @@ confirmPeriods	operation	INV-T-4929	done
 recordExtension	operation	INV-T-4930	done
 listPeriodRecords	operation	INV-T-4930	done
 goLive	operation	INV-T-4931	pending
-certifySandbox	operation	INV-T-4931	pending
+certifySandbox	operation	INV-T-4931	done
 suspendEntity	operation	INV-T-4931	pending
 deregisterEntity	operation	INV-T-4931	pending
 offboardTenant	operation	INV-T-4931	pending
@@ -55,5 +55,5 @@ withdrawElectionChange	operation	INV-T-15888	pending
 declineElectionChange	operation	INV-T-15888	pending
 listElectionChanges	operation	INV-T-15888	pending
 PeriodRecordsChanged	channel	INV-T-16564	pending
-CertificationStatusChanged	channel	INV-T-16409	pending
+CertificationStatusChanged	channel	INV-T-16409	done
 getCalendarPackDelta	operation	INV-T-16829	pending

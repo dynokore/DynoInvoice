@@ -26,8 +26,13 @@ object ConsumedCertificationEvents {
     const val IDENTITY_TRIPLE_CHANGED = "com.dynokore.gst.masterdata.IdentityTripleChanged.v1"
     const val IDENTITY_TRIPLE_CHANGED_TOPIC = "gst.masterdata.identity-triple-changed.v1"
 
+    const val MARK_REQUESTED_CONSUMER = "tenancy-svc-certification-mark-requested"
+    const val MARK_REQUESTED = "com.dynokore.gst.platform.CertificationMarkRequested.v1"
+    const val MARK_REQUESTED_TOPIC = "gst.platform.certification-mark-requested.v1"
+
     /** The topics this task adds, compared as a set by equality. */
-    val TOPICS: Set<String> = setOf(RULE_PACK_ACTIVATED_TOPIC, IDENTITY_TRIPLE_CHANGED_TOPIC)
+    val TOPICS: Set<String> =
+        setOf(RULE_PACK_ACTIVATED_TOPIC, IDENTITY_TRIPLE_CHANGED_TOPIC, MARK_REQUESTED_TOPIC)
 }
 
 private fun parse(
