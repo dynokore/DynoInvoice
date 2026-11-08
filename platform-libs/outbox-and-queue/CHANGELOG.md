@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.19.0] - 2026-11-08
+### Added
+- `com.dynokore.gst.tenancy.PlanLimitExceeded.v1` joins the closed exact-type set `Envelope.TENANT_WIDE_DOMAIN_EVENTS` beside `com.dynokore.gst.transport.AccessPointRouteChanged.v1`: it stays a domain event, is written with the real tenant and `EntityRef.TENANT_WIDE`, travels without `entityref`, and the platform tenant stays refused for it; every other domain type is still refused (delegated ruling of tooling/t4933-gap.md Round 11, option A; INV-REQ-1162, INV-AC-18064, INV-T-18067).
+
 ## [6.18.0] - 2026-11-07
 ### Added
 - `CertificationMarkRequested` joins the closed platform event class `Envelope.PLATFORM_EVENTS` (exact name), which now holds twenty-one platform events; `com.dynokore.gst.tenancy.CertificationMarkRequested.v1` stays a domain type refused under the platform tenant (INV-T-16409 design question option C, INV-REQ-1226, INV-AC-18180, INV-T-18183).

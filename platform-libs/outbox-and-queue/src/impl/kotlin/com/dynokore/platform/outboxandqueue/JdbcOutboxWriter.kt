@@ -120,8 +120,8 @@ class JdbcOutboxWriter(
                 )
             }
         }
-        // INV-Q-3165, INV-Q-15474: the tenant-wide entity is for platform event types and the one exact domain
-        // event AccessPointRouteChanged only (FR-K.3).
+        // INV-Q-3165, INV-Q-15474: the tenant-wide entity is for platform event types and the two exact domain
+        // events AccessPointRouteChanged and PlanLimitExceeded only (FR-K.3).
         if (context.entity.isTenantWide) {
             events.firstOrNull { !Envelope.allowsTenantWide(it.type) }?.let {
                 throw EmissionNotPermitted(service, it.type, "a domain event cannot carry the tenant-wide entity")

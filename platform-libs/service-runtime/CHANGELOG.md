@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.1.1] - 2026-11-08
+### Changed
+- Version step only (G-DVS, INV-T-18067): the published bytes change because the dependency `outbox-and-queue` steps to 6.19.0 (PlanLimitExceeded joins the tenant-wide domain events); no code change in this module.
+
 ## [13.1.0] - 2026-11-08
 ### Added
 - A PRODUCER span on `EventBinding.publish` and a CONSUMER span on `EventHandler.handle`, added by a `BeanPostProcessor` (`MessagingSpanPostProcessor`) that decorates every `EventBinding` and `EventHandler` bean, a service's own included (INV-T-17629, INV-Q-17607 A, INV-AC-17626). Each span carries exactly `messaging.system` (`gst-event-log`), `messaging.operation.type` (`publish` or `process`), `messaging.destination.name` (the envelope `type`) and `messaging.message.id` (the envelope `id`); a throwing handler or binding ends its span with ERROR status and the exception is rethrown unchanged. Present only when `gst.bindings.telemetry-export-otlp-endpoint` is set; otherwise the beans are not decorated. The contracts and outbox-and-queue are unchanged. A span export that fails after the application context started closing is counted in `gst_trace_export_failed_total`; its per-failure ERROR log is replaced by one WARN line `TRACE_EXPORT_FAILED suppressed=<n> during shutdown` per exporter (no failure is silent).

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.2] - 2026-11-08
+### Changed
+- Version step only (G-DVS, INV-T-18067): the published bytes change because the dependency `outbox-and-queue` steps to 6.19.0 (PlanLimitExceeded joins the tenant-wide domain events); no code change in this module.
+
 ## [6.0.1] - 2026-11-07
 ### Changed
 - Version step only (G-DVS, INV-T-18183): the published bytes change because the dependency `outbox-and-queue` stepped to 6.18.0 (CertificationMarkRequested joins the platform event class); no code change in this module.

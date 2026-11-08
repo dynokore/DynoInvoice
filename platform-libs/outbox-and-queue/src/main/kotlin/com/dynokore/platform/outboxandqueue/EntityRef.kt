@@ -37,7 +37,8 @@ value class EntityRef(
          * with a real tenant. Stored in the outbox's `entity_ref` (NOT NULL, forced RLS unchanged); a
          * platform event type leaves `entityref` out of the envelope and keeps `tenantid`, and a consumer
          * maps "tenantid present, entityref absent" back to it. A domain event cannot carry it (FR-K.3),
-         * except the exact type `com.dynokore.gst.transport.AccessPointRouteChanged.v1` (INV-Q-15474).
+         * except the exact types `com.dynokore.gst.transport.AccessPointRouteChanged.v1` (INV-Q-15474) and
+         * `com.dynokore.gst.tenancy.PlanLimitExceeded.v1` (delegated ruling of tooling/t4933-gap.md Round 11).
          */
         val TENANT_WIDE: EntityRef = EntityRef(TENANT_WIDE_VALUE)
     }
