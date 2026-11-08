@@ -55,8 +55,11 @@ class AcknowledgementRouteBoundaryTest {
         val harness: Harness,
         val port: Int,
     ) {
-        val authority: AuthorityReplica =
-            context.getBean(AuthorityReplica::class.java).also { it.onSnapshotComplete(0) }
+        val authority: AuthorityReplica = context.getBean(AuthorityReplica::class.java)
+
+        /** Completes the first snapshot: from now on the real replica decides locally (source LOCAL). */
+        fun makeCurrent() = authority.onSnapshotComplete(0)
+
         private var sequence = 0L
 
         /** Revokes the principal of [header] (a principal record of a higher authority version voids its grants). */
@@ -92,6 +95,7 @@ class AcknowledgementRouteBoundaryTest {
 
     private fun run(
         dir: Path,
+        current: Boolean = true,
         block: (Running) -> Unit,
     ) {
         TransportContext.secrets(dir)
@@ -118,7 +122,9 @@ class AcknowledgementRouteBoundaryTest {
                 .run("--server.port=0", "--management.server.port=0")
         try {
             val port = checkNotNull((context as WebServerApplicationContext).webServer).port
-            block(Running(context, Harness(context, primary, secondary), port))
+            val running = Running(context, Harness(context, primary, secondary), port)
+            if (current) running.makeCurrent()
+            block(running)
         } finally {
             context.close()
         }
@@ -412,6 +418,22 @@ class AcknowledgementRouteBoundaryTest {
         r.clear(first, user).status shouldBe 200
         r.storedRoute(tenant, first).shouldBeNull()
         r.published(tenant).size shouldBe 2
+    }
+
+    @Test
+    fun `INV-AC-9490 a replica that has received no authority version answers DEGRADED, refused 403, nothing recorded`(
+        @TempDir dir: Path,
+    ) = run(dir, current = false) { r ->
+        val (tenant, first, _) = r.connections()
+        val user = r.user(tenant)
+        r.elect(first, "POLLING", user).status shouldBe 403
+        r.clear(first, user).status shouldBe 403
+        r.storedRoute(tenant, first).shouldBeNull()
+        r.published(tenant).size shouldBe 0
+        // look-alike that must differ: the same caller on the same replica once it is current reaches the use case
+        r.makeCurrent()
+        r.elect(first, "POLLING", user).status shouldBe 200
+        r.storedRoute(tenant, first) shouldBe "POLLING"
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.TokenIssuerUnavailableException
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.DecisionSource
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.tenancykernel.TenantId
@@ -32,12 +33,14 @@ class RouteCaller(
     fun require(): RouteCommandCaller {
         val principal = principal()
         val tenant = principal.tenant
-        val granted =
-            tenant != null &&
+        val decision =
+            tenant?.let {
                 authority
                     .getIfAvailable()
-                    ?.decideTenant(tenant, Principal(principal.actor, PrincipalKind.HUMAN), SET_ROUTE_PERMISSION)
-                    ?.allowed == true
+                    ?.decideTenant(it, Principal(principal.actor, PrincipalKind.HUMAN), SET_ROUTE_PERMISSION)
+            }
+        // A degraded decision is never a grant: only allowed with source LOCAL permits.
+        val granted = decision != null && decision.allowed && decision.source == DecisionSource.LOCAL
         if (tenant == null || !granted) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         return RouteCommandCaller(tenant, principal.actor)
     }
