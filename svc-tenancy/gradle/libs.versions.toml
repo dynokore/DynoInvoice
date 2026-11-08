@@ -23,7 +23,8 @@ jsonSchemaValidator = "3.0.8"
 platformContractsBundle = "0.0.0-dev+6ea58301"
 # Explicit override of the catalogue platform-libs builds against (2.11.0 at line 82 of its gradle/libs.versions.toml):
 # the floor of RolePermissionsPinTest is 2.31.0 and no BOM release carries a catalogue at or above it (INV-T-12278).
-gstCatalogue = "2.31.0"
+# INV-T-18702: 2.44.0 carries the permission key sandbox-certification.record (added in 2.37.0), proved by SandboxCertificationRolesTest.
+gstCatalogue = "2.44.0"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }

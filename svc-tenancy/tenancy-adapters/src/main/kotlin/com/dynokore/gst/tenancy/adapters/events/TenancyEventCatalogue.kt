@@ -53,7 +53,7 @@ object TenancyEventCatalogue {
         val consumedDomain = consumedDomainEvents()
         val known =
             ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
-                ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED
+                ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
@@ -72,7 +72,7 @@ object TenancyEventCatalogue {
 
     /**
      * The events of other domains tenancy-svc consumes: ShortCodeUsed, PeriodFilingStatusChanged and
-     * IdentityTripleChanged.
+     * IdentityTripleChanged, and the internal CertificationMarkRequested.
      */
     private fun consumedDomainEvents() =
         listOf(
@@ -87,6 +87,14 @@ object TenancyEventCatalogue {
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED,
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED_TOPIC,
                 setOf("masterdata-svc"),
+                contentTopic = false,
+            ),
+            // internal event of the atomic NEW_TRAIN mark (INV-Q-18156): produced and consumed by tenancy-svc, not a
+            // channel of the tenancy contract
+            CatalogueEntry(
+                ConsumedCertificationEvents.MARK_REQUESTED,
+                ConsumedCertificationEvents.MARK_REQUESTED_TOPIC,
+                setOf(SERVICE),
                 contentTopic = false,
             ),
         )
