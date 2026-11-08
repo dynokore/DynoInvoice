@@ -1,6 +1,8 @@
 package com.dynokore.gst.rules.adapters.scope
 
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
+import com.dynokore.gst.rules.domain.scope.ExemptElection
+import com.dynokore.gst.rules.domain.scope.PartialExemptionFacts
 import com.dynokore.platform.serviceruntime.replica.Lookup
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -39,6 +41,36 @@ class ProfileScopeFacts(
         )
     }
 
+    /**
+     * The recorded partial-exemption status and exempt-purchase election of an entity in force on [date]
+     * (INV-REQ-382, INV-REQ-332). `partiallyExempt` is true only for the exact value `true`; any other value, a missing
+     * node, a missing entry or a future-dated entry is not partially exempt. The election needs a non-blank basis and
+     * codes joined by a comma with no blank member; otherwise there is none (fail closed). Codes are kept as written.
+     */
+    fun exemptionOf(
+        tenant: TenantId,
+        entityRef: String,
+        date: TransactionDate,
+    ): PartialExemptionFacts {
+        val node = nodeOf(tenant, entityRef) ?: return PartialExemptionFacts()
+        val codes = node.attribute(EXEMPT_PURCHASE_CODES, date.value)?.split(",").orEmpty()
+        val basis = node.attribute(EXEMPT_PURCHASE_BASIS, date.value)
+        val election = electionOf(codes, basis)
+        return PartialExemptionFacts(node.attribute(PARTIALLY_EXEMPT, date.value) == "true", election)
+    }
+
+    private fun electionOf(
+        codes: List<String>,
+        basis: String?,
+    ): ExemptElection? =
+        if (codes.isEmpty() || codes.any { it.isBlank() } ||
+            basis.isNullOrBlank()
+        ) {
+            null
+        } else {
+            ExemptElection(codes.toSet(), basis)
+        }
+
     private fun nodeOf(
         tenant: TenantId,
         entityRef: String,
@@ -66,6 +98,9 @@ class ProfileScopeFacts(
     companion object {
         const val OBLIGATION_START_DATE = "obligationStartDate"
         const val REGISTRATION_END_DATE = "registrationEndDate"
+        const val PARTIALLY_EXEMPT = "partiallyExempt"
+        const val EXEMPT_PURCHASE_CODES = "exemptPurchaseCodes"
+        const val EXEMPT_PURCHASE_BASIS = "exemptPurchaseBasis"
         private val BUDGET: Duration = Duration.ofSeconds(1)
     }
 }

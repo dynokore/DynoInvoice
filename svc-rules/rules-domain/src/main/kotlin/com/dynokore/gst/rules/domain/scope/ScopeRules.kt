@@ -42,9 +42,14 @@ class ScopeRules(
     /** Steps 3 to 7 for a coded line that is inside the window. */
     private fun decideCoded(
         f: ScopeFacts,
-        code: String,
+        mapped: String,
     ): ScopeOutcome {
+        val apportioned = PartialExemption.apportionedCode(f.direction, f.exemption)
+        val code = apportioned ?: mapped
         val lineVerdict = data.lineVerdicts[code]
+        val purchase = f.direction == ScopeDirection.PURCHASE
+        val partial = purchase && f.exemption.partiallyExempt
+        val exclusion = if (purchase) exclusionOf(f, mapped, partial) else null
         return when {
             // Step 3: intra-group treatment other than PASS_THROUGH or absent.
             f.sameGroup && data.intraGroupTreatment != PASS_THROUGH -> {
@@ -56,27 +61,96 @@ class ScopeRules(
                 plain(ScopeVerdict.EXCLUDED_TXN)
             }
 
-            // Step 4b: a code the data lacks.
+            // Steps 4a and 4b: a disallowed expense, and the purchases the recorded election names.
+            exclusion != null -> {
+                exclusion
+            }
+
+            // Step 4c: a code the data lacks.
             lineVerdict == null -> {
                 plain(ScopeVerdict.NOT_SUBMITTABLE)
             }
 
             else -> {
                 ScopeOutcome(
-                    overrideVerdict(f, code) ?: lineVerdict,
+                    overrideVerdict(f, code, partial) ?: lineVerdict,
                     f.sameGroup && lineVerdict == ScopeVerdict.IN_SCOPE,
+                    traceOf(partial, apportioned, mapped),
+                    apportioned,
                 )
             }
         }
     }
 
-    /** Step 5 (a purchase with no input tax claimed) and step 6 (OS under voluntary over-submission). */
+    /**
+     * Step 4a: a disallowed expense (BL) is out of scope for every entity (INV-REQ-367, INV-BR-1473). Step 4b: the
+     * recorded election excludes the purchases coded with the codes it names (INV-REQ-369), for a partially exempt
+     * entity only. Both name themselves in the decision trace.
+     */
+    private fun exclusionOf(
+        f: ScopeFacts,
+        mapped: String,
+        partial: Boolean,
+    ): ScopeOutcome? {
+        val election = f.exemption.election
+        return when {
+            mapped == PartialExemption.DISALLOWED -> {
+                val packed = data.lineVerdicts[mapped]
+                val verdict = if (packed == ScopeVerdict.EXCLUDED_TXN) packed else ScopeVerdict.OUT_OF_SCOPE
+                val entry = TraceEntry(PartialExemption.RULE_NON_REPORTABLE, mapOf("categoryCode" to mapped))
+                ScopeOutcome(verdict, false, listOf(entry))
+            }
+
+            partial && election != null && election.names(f.internalTaxCode, mapped) -> {
+                val codes = election.codes.sorted().joinToString(",")
+                ScopeOutcome(
+                    ScopeVerdict.OUT_OF_SCOPE,
+                    false,
+                    listOf(
+                        partialEntry(),
+                        TraceEntry(
+                            PartialExemption.RULE_EXEMPT_ELECTION,
+                            mapOf(
+                                "codes" to codes,
+                                "basis" to election.basis,
+                            ),
+                        ),
+                    ),
+                )
+            }
+
+            else -> {
+                null
+            }
+        }
+    }
+
+    private fun partialEntry() = TraceEntry(PartialExemption.RULE_PARTIAL_EXEMPTION, mapOf("partiallyExempt" to "true"))
+
+    private fun traceOf(
+        partial: Boolean,
+        apportioned: String?,
+        mapped: String,
+    ): List<TraceEntry> =
+        listOfNotNull(
+            if (partial) partialEntry() else null,
+            apportioned?.let {
+                TraceEntry(PartialExemption.RULE_APPORTIONMENT, mapOf("mappedCode" to mapped, "categoryCode" to it))
+            },
+        )
+
+    /**
+     * Step 5 (a purchase with no input tax claimed; not for a partially exempt entity, which submits it whether or
+     * not the tax is claimed, INV-REQ-367) and step 6 (OS under voluntary over-submission).
+     */
     private fun overrideVerdict(
         f: ScopeFacts,
         code: String,
+        partial: Boolean,
     ): ScopeVerdict? =
         when {
-            f.direction == ScopeDirection.PURCHASE &&
+            !partial &&
+                f.direction == ScopeDirection.PURCHASE &&
                 code in data.purchaseStandardRatedCodes &&
                 f.inputTaxClaimedNonZero == false -> {
                 if (f.voluntaryOverSubmission) ScopeVerdict.SUBMITTABLE else ScopeVerdict.OUT_OF_SCOPE

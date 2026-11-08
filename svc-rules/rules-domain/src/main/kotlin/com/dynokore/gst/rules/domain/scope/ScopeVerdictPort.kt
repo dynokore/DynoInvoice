@@ -17,6 +17,9 @@ data class ScopeFacts(
     /** The profile attributes `obligationStartDate` and `registrationEndDate` (INV-Q-16175). */
     val obligationStartDate: TransactionDate? = null,
     val registrationEndDate: TransactionDate? = null,
+    /** The internal tax code the business assigned; the election names it or the mapped IRAS code. */
+    val internalTaxCode: String? = null,
+    val exemption: PartialExemptionFacts = PartialExemptionFacts(),
 )
 
 /** Which side of the books the line is on. */
@@ -26,6 +29,10 @@ enum class ScopeDirection { SALE, PURCHASE }
 data class ScopeOutcome(
     val verdict: ScopeVerdict,
     val disregardedSupplyWarning: Boolean,
+    /** The rules that decided the line with their inputs; empty when only the general rule applied. */
+    val trace: List<TraceEntry> = emptyList(),
+    /** The category code of an apportioned claimable portion; null when the mapped code stands. */
+    val categoryCode: String? = null,
 )
 
 /** The scope rules, supplied from outside; the use case judges nothing and returns the answer as is. */
