@@ -2,7 +2,7 @@ package com.dynokore.gst.masterdata.application.connection
 
 import com.dynokore.gst.masterdata.domain.connection.ConnectionRecord
 import com.dynokore.gst.masterdata.domain.connection.ConnectionTestResult
-import com.dynokore.gst.masterdata.domain.connection.TestClass
+import com.dynokore.gst.masterdata.domain.connection.EnvironmentTag
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.platform.tenancykernel.TransactionRunner
 
@@ -12,7 +12,7 @@ interface ConnectionStore {
 
     fun findByServiceAndTag(
         externalService: String,
-        environmentTag: String,
+        environmentTag: EnvironmentTag,
     ): ConnectionRecord?
 
     fun save(record: ConnectionRecord)
@@ -21,7 +21,13 @@ interface ConnectionStore {
     fun nextRef(): String
 }
 
-/** Runs the test against the endpoint with the referenced credential through adapter-runtime (classified result). */
+/**
+ * Runs the test against the endpoint with the referenced credential through adapter-runtime.
+ *
+ * Contract: the port returns a classified [ConnectionTestResult] for EVERY outcome (success, unreachable,
+ * authentication refused, unexpected response); a network, DNS or authentication failure is a result, never an
+ * exception. An exception from this port is a defect and propagates unchanged.
+ */
 fun interface ConnectionTester {
     fun test(record: ConnectionRecord): ConnectionTestResult
 }
@@ -58,6 +64,9 @@ sealed interface CreateConnectionOutcome {
     ) : CreateConnectionOutcome
 
     data object Forbidden : CreateConnectionOutcome
+
+    /** The environment tag text is not exactly PRODUCTION or SANDBOX; nothing is stored. */
+    data object UnknownEnvironmentTag : CreateConnectionOutcome
 }
 
 /** INV-REQ-834: creates the record; a repeat of (externalService, environmentTag) returns the existing record. */
@@ -71,8 +80,11 @@ class CreateConnection(
             if (!permission.allows(command.caller)) {
                 CreateConnectionOutcome.Forbidden
             } else {
-                val existing = store.findByServiceAndTag(command.externalService, command.environmentTag)
-                if (existing != null) {
+                val tag = EnvironmentTag.parse(command.environmentTag)
+                val existing = tag?.let { store.findByServiceAndTag(command.externalService, it) }
+                if (tag == null) {
+                    CreateConnectionOutcome.UnknownEnvironmentTag
+                } else if (existing != null) {
                     CreateConnectionOutcome.Stored(existing, created = false)
                 } else {
                     val record =
@@ -81,7 +93,7 @@ class CreateConnection(
                             externalService = command.externalService,
                             endpoint = command.endpoint,
                             credentialRef = command.credentialRef,
-                            environmentTag = command.environmentTag,
+                            environmentTag = tag,
                             ownerService = command.ownerService,
                         )
                     store.save(record)
@@ -123,7 +135,7 @@ class GetConnection(
 data class TestConnectionCommand(
     val caller: PersonRef,
     val connectionRef: String,
-    /** The environment tag of the environment that asks for the test (a workspace or PRODUCTION). */
+    /** The text of the environment that asks for the test; parsed to [EnvironmentTag] after the permission check. */
     val callerEnvironment: String,
 )
 
@@ -136,13 +148,16 @@ sealed interface TestConnectionOutcome {
 
     data object Forbidden : TestConnectionOutcome
 
-    /** INV-REQ-1126: a workspace asked to use a PRODUCTION credential; refused before any call. */
-    data object ProductionCredentialRefused : TestConnectionOutcome
+    /** The caller environment text is not exactly PRODUCTION or SANDBOX; the port is not called. */
+    data object UnknownEnvironment : TestConnectionOutcome
+
+    /** INV-REQ-1126: the record's tag differs from the caller's environment; refused before any call. */
+    data object EnvironmentMismatchRefused : TestConnectionOutcome
 }
 
 /**
- * INV-REQ-835: runs the test through the adapter-runtime port and returns the classified result. Nothing is stored.
- * The port's failure is classified as UNREACHABLE with no detail; no raw error text is kept.
+ * INV-REQ-835: runs the test through the adapter-runtime port and returns its classified result unchanged. Nothing is
+ * stored. An exception thrown by the port is a defect: it propagates out of [handle] and is never mapped to a result.
  */
 class TestConnection(
     private val tx: TransactionRunner,
@@ -151,36 +166,34 @@ class TestConnection(
     private val permission: ConnectionTestPermission,
 ) {
     fun handle(command: TestConnectionCommand): TestConnectionOutcome {
-        var stop: TestConnectionOutcome? = null
-        val record =
+        val checked =
             tx.inTransaction {
                 if (!permission.allows(command.caller)) {
-                    stop = TestConnectionOutcome.Forbidden
-                    null
+                    TestConnectionOutcome.Forbidden to null
                 } else {
-                    store.find(command.connectionRef).also { if (it == null) stop = TestConnectionOutcome.Unknown }
+                    val callerEnvironment = EnvironmentTag.parse(command.callerEnvironment)
+                    val record = store.find(command.connectionRef)
+                    when {
+                        callerEnvironment == null -> {
+                            TestConnectionOutcome.UnknownEnvironment to null
+                        }
+
+                        record == null -> {
+                            TestConnectionOutcome.Unknown to null
+                        }
+
+                        record.environmentTag != callerEnvironment -> {
+                            TestConnectionOutcome.EnvironmentMismatchRefused to
+                                null
+                        }
+
+                        else -> {
+                            null to record
+                        }
+                    }
                 }
             }
-        return when {
-            record == null -> {
-                stop ?: TestConnectionOutcome.Unknown
-            }
-
-            record.environmentTag == ConnectionRecord.PRODUCTION &&
-                command.callerEnvironment != ConnectionRecord.PRODUCTION -> {
-                TestConnectionOutcome.ProductionCredentialRefused
-            }
-
-            else -> {
-                TestConnectionOutcome.Tested(classify(record))
-            }
-        }
+        val record = checked.second ?: return checked.first ?: TestConnectionOutcome.Unknown
+        return TestConnectionOutcome.Tested(tester.test(record))
     }
-
-    private fun classify(record: ConnectionRecord): ConnectionTestResult =
-        try {
-            tester.test(record)
-        } catch (_: Exception) {
-            ConnectionTestResult(TestClass.UNREACHABLE)
-        }
 }

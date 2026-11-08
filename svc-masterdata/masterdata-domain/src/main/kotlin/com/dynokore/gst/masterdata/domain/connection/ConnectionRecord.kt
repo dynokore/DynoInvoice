@@ -1,6 +1,22 @@
 package com.dynokore.gst.masterdata.domain.connection
 
 /**
+ * The closed environment tag of a connection record (INV-REQ-834, INV-REQ-1126); equal to the enum of
+ * `CreateConnectionRequest.environmentTag` and `ConnectionRecord.environmentTag` in masterdata/openapi.yaml.
+ * A workspace is the [SANDBOX] environment.
+ */
+enum class EnvironmentTag {
+    PRODUCTION,
+    SANDBOX,
+    ;
+
+    companion object {
+        /** Exact, case-sensitive match on the member name; null for any other text (no trimming, no case folding). */
+        fun parse(text: String): EnvironmentTag? = entries.firstOrNull { it.name == text }
+    }
+}
+
+/**
  * INV-REQ-834: the uniform connection record of one external service and environment. Exactly six properties: the
  * assigned [connectionRef] and the five content properties. [credentialRef] is the secret-store reference text; the
  * type has no property that can hold a secret value.
@@ -10,7 +26,7 @@ data class ConnectionRecord(
     val externalService: String,
     val endpoint: String,
     val credentialRef: String,
-    val environmentTag: String,
+    val environmentTag: EnvironmentTag,
     val ownerService: String,
 ) {
     init {
@@ -18,13 +34,7 @@ data class ConnectionRecord(
         require(externalService.isNotBlank()) { "an external service is required" }
         require(endpoint.isNotBlank()) { "an endpoint is required" }
         require(credentialRef.isNotBlank()) { "a credential reference is required" }
-        require(environmentTag.isNotBlank()) { "an environment tag is required" }
         require(ownerService.isNotBlank()) { "an owner service is required" }
-    }
-
-    companion object {
-        /** The environment tag a workspace must never use the credential of (INV-REQ-1126). */
-        const val PRODUCTION = "PRODUCTION"
     }
 }
 

@@ -28,4 +28,13 @@ class ConnectionRecordTest {
         assertThrows(IllegalArgumentException::class.java) { ConnectionTestResult(TestClass.SUCCESS, "a") }
         assertThrows(IllegalArgumentException::class.java) { ConnectionTestResult(TestClass.SUCCESS, "dns_failed") }
     }
+
+    @Test
+    fun `the environment tag has exactly the members PRODUCTION and SANDBOX and parses exactly`() {
+        assertEquals(listOf("PRODUCTION", "SANDBOX"), EnvironmentTag.entries.map { it.name })
+        assertEquals(EnvironmentTag.SANDBOX, EnvironmentTag.parse("SANDBOX"))
+        for (text in listOf("WORKSPACE", "sandbox", "SANDBOX ", "")) {
+            assertEquals(null, EnvironmentTag.parse(text))
+        }
+    }
 }
