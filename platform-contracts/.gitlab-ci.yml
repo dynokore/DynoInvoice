@@ -208,7 +208,6 @@ contract-rules:
     - gst_check spec-facts-ratchet gst_spec_facts_ratchet
     - gst_check error-code-catalogue-check python3 spectral/check-error-code-catalogue.py .
     - gst_check audited-operations-check python3 spectral/check-audited-operations.py .
-    - gst_check operation-permissions-check python3 spectral/check-operation-permissions.py .
     - gst_check flow-resumption-check python3 spectral/check-flow-resumption.py .
     - gst_check hold-release-kinds-check python3 spectral/check-hold-release-kinds.py .
     - gst_check forbidden-properties-check python3 spectral/check-forbidden-properties.py access/
@@ -283,6 +282,7 @@ invoice-docs-checks:
     - gst_check compensation-cost-check python3 spectral/check-compensation-cost.py .
     - gst_check break-glass-actions-check python3 spectral/check-break-glass-actions.py .
     - gst_check principal-also-check python3 spectral/check-principal-also.py .
+    - gst_check operation-permissions-check python3 spectral/check-operation-permissions.py .
     - gst_check machine-route-keys-check python3 spectral/check-machine-route-keys.py .
     - gst_check caller-auth-inv-ac-8259 python3 spectral/check-x-caller-auth.py .
     - gst_check x-timeout-check python3 spectral/check-timeouts.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
