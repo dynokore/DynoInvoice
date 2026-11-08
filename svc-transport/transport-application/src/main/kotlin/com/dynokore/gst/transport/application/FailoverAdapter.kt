@@ -3,32 +3,18 @@ package com.dynokore.gst.transport.application
 import com.dynokore.gst.transport.domain.AdapterId
 import com.dynokore.gst.transport.domain.EntityRef
 
-/** The entity is assigned to an adapter other than the one the failover names as the source. */
-class EntityNotOnAdapter(
-    entity: EntityRef,
-    adapter: AdapterId,
-) : IllegalStateException("entity $entity is not assigned to adapter $adapter")
-
 /**
- * `failoverAdapter` (INV-REQ-796): cuts one entity over from [from] to its second adapter [target]. Only the entity's
- * assignment changes: new despatches of the entity use [target], a version in flight stays on the adapter of its
- * first attempt ([SubmitPayload]), and no other entity and no submission state held by the caller is touched. A repeat
- * for an entity already on [target] is a no-op.
+ * `failoverAdapter` (INV-REQ-796): cuts the entity named by the request over to its second adapter [target]. The
+ * assignment itself is made by [SwitchEntityAdapter], the one place that assigns (INV-AC-846 cut-over): new despatches
+ * of the entity use [target], a version in flight stays on the adapter of its first attempt ([SubmitPayload]), and no
+ * other entity and no submission state held by the caller is touched. The call is idempotent; the entity comes from
+ * the request and is never inferred.
  */
 class FailoverAdapter(
-    private val adapters: AccessPointAdapters,
-    private val assignments: EntityAdapterAssignments,
+    private val switchEntityAdapter: SwitchEntityAdapter,
 ) {
     fun failover(
         entity: EntityRef,
-        from: AdapterId,
         target: AdapterId,
-    ): RouteOutcome {
-        listOf(from, target).firstOrNull { it !in adapters.ids() }?.let { throw AdapterNotRegistered(it.value) }
-        val current = assignments.adapterFor(entity)
-        if (current == target) return RouteOutcome.NO_OP
-        if (current != from) throw EntityNotOnAdapter(entity, from)
-        assignments.assign(entity, target)
-        return RouteOutcome.CHANGED
-    }
+    ) = switchEntityAdapter.switch(entity, target)
 }

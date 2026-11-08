@@ -78,7 +78,6 @@ class FailoverAdapterTest {
 
     private class Assignments : EntityAdapterAssignments {
         val map = mutableMapOf<EntityRef, AdapterId>()
-        var assigns = 0
 
         override fun adapterFor(entity: EntityRef) = map[entity]
 
@@ -86,7 +85,6 @@ class FailoverAdapterTest {
             entity: EntityRef,
             adapter: AdapterId,
         ) {
-            assigns++
             map[entity] = adapter
         }
     }
@@ -115,7 +113,15 @@ class FailoverAdapterTest {
 
     private fun stubState() = stub.mapValues { (_, v) -> v.map { it.first }.toList() }
 
-    private fun scenario(failover: () -> Unit): Triple<DocRef, DocRef, DocRef> {
+    /** What one run of the criterion observed, so the assertions can be applied to a faulty switch too. */
+    private class Observed(
+        val inFlight: DocRef,
+        val newE1: DocRef,
+        val newE2: DocRef,
+        val stubBefore: Map<EntityRef, List<DocRef>>,
+    )
+
+    private fun scenario(failover: () -> Unit): Observed {
         assignments.map[e1] = a.adapterId
         assignments.map[e2] = a.adapterId
         val inFlight = DocRef(UUID.randomUUID(), 1)
@@ -125,50 +131,64 @@ class FailoverAdapterTest {
         stub.getOrPut(e2) { mutableListOf() }
         val before = stubState()
         failover()
-        stubState() shouldBe before
         val newE1 = DocRef(UUID.randomUUID(), 1)
         val newE2 = DocRef(UUID.randomUUID(), 1)
         send(e1, newE1)
         send(e2, newE2)
         send(e1, inFlight) // the in-flight version completes
-        return Triple(inFlight, newE1, newE2)
+        return Observed(inFlight, newE1, newE2, before)
     }
 
-    @Test
-    fun `INV-AC-18634 failover of E1 moves only E1 new despatches and leaves the in-flight version on A`() {
-        val (inFlight, newE1, newE2) =
-            scenario { FailoverAdapter(registry, assignments).failover(e1, a.adapterId, b.adapterId) }
-        b.seen shouldContainExactly listOf(newE1.docUuid)
-        a.seen shouldContainExactly listOf(inFlight.docUuid, newE2.docUuid, inFlight.docUuid)
+    /** The assertions of INV-AC-18634; they must fail for a switch that also moves E2. */
+    private fun assertCriterion(o: Observed) {
+        b.seen shouldContainExactly listOf(o.newE1.docUuid)
+        a.seen shouldContainExactly listOf(o.inFlight.docUuid, o.newE2.docUuid, o.inFlight.docUuid)
         a.seen.intersect(b.seen.toSet()).isEmpty() shouldBe true
         assignments.map[e2] shouldBe a.adapterId
         assignments.map[e1] shouldBe b.adapterId
-        stubState().getValue(e1).toSet() shouldBe setOf(inFlight, newE1)
-        stubState().getValue(e2) shouldBe listOf(newE2)
+        // the stub state of the earlier docs is unchanged by the switch; only the new despatches were added
+        stubState().getValue(e1).toSet() shouldBe setOf(o.inFlight, o.newE1)
+        stubState().getValue(e2) shouldBe listOf(o.newE2)
+        o.stubBefore.getValue(e1) shouldBe listOf(o.inFlight)
+        o.stubBefore.getValue(e2) shouldBe emptyList()
+    }
+
+    private val failover = FailoverAdapter(SwitchEntityAdapter(registry, assignments))
+
+    @Test
+    fun `INV-AC-18634 failover of E1 moves only E1 new despatches and leaves the in-flight version on A`() {
+        assertCriterion(scenario { failover.failover(e1, b.adapterId) })
     }
 
     @Test
-    fun `INV-AC-18634 look-alike a switch that moves E2 as well is caught by the same assertions`() {
-        val (_, _, newE2) =
-            scenario {
-                FailoverAdapter(registry, assignments).failover(e1, a.adapterId, b.adapterId)
-                assignments.assign(e2, b.adapterId) // the defect
-            }
-        // the assertion of the criterion "the new despatch of E2 still goes through A" fails for this switch
-        (newE2.docUuid in a.seen) shouldBe false
-        assignments.map[e2] shouldBe b.adapterId
-        a.seen shouldNotContain newE2.docUuid
+    fun `INV-AC-18634 look-alike a switch that moves E2 as well fails the criterion assertions`() {
+        val faulty =
+            FailoverAdapter(
+                SwitchEntityAdapter(
+                    registry,
+                    object : EntityAdapterAssignments by assignments {
+                        override fun assign(
+                            entity: EntityRef,
+                            adapter: AdapterId,
+                        ) {
+                            assignments.assign(entity, adapter)
+                            assignments.assign(e2, adapter) // the defect: E2 moves with E1
+                        }
+                    },
+                ),
+            )
+        val observed = scenario { faulty.failover(e1, b.adapterId) }
+        shouldThrow<AssertionError> { assertCriterion(observed) }
+        a.seen shouldNotContain observed.newE2.docUuid
     }
 
     @Test
-    fun `a repeat for an entity already on the target is a no-op and a wrong source or unknown adapter is refused`() {
+    fun `a repeat is idempotent and an unregistered target is refused`() {
         assignments.map[e1] = a.adapterId
-        val failover = FailoverAdapter(registry, assignments)
-        failover.failover(e1, a.adapterId, b.adapterId) shouldBe RouteOutcome.CHANGED
-        failover.failover(e1, a.adapterId, b.adapterId) shouldBe RouteOutcome.NO_OP
-        assignments.assigns shouldBe 1
-        shouldThrow<EntityNotOnAdapter> { failover.failover(EntityRef("E3"), a.adapterId, b.adapterId) }
-        shouldThrow<AdapterNotRegistered> { failover.failover(e1, a.adapterId, AdapterId("A2")) }
+        failover.failover(e1, b.adapterId)
+        failover.failover(e1, b.adapterId)
+        assignments.map[e1] shouldBe b.adapterId
+        shouldThrow<AdapterNotRegistered> { failover.failover(e1, AdapterId("A2")) }
         assignments.map[e1] shouldBe b.adapterId
     }
 }

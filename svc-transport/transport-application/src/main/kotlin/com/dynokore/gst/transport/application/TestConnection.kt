@@ -66,11 +66,6 @@ fun interface ConnectionStatusEvents {
     )
 }
 
-/** The probe returned a detail that is not a code (`^[A-Z][A-Z0-9_-]{1,31}$`), or a detail on SUCCESS. */
-class InvalidProbeDetail(
-    reason: String,
-) : IllegalStateException(reason)
-
 data class ConnectionTestResult(
     val connectionRef: String,
     val classification: TestClass,
@@ -82,7 +77,11 @@ data class ConnectionTestResult(
 /**
  * `testConnection` (INV-REQ-835, INV-REQ-836 behavior 4): probes the AP, records the outcome in the breaker and
  * returns the class with `state` equal to the breaker state after the outcome. The state never comes from the class
- * alone. `ConnectionStatusChanged` is requested only where the state differs from the stored one.
+ * alone. `ConnectionStatusChanged` is requested only where the state differs from the stored one. A detail is a code
+ * only (INV-Q-2944): free text from the probe, or any detail on SUCCESS, is replaced by `UNKNOWN` / dropped, never
+ * surfaced and never fails the test. Every non-SUCCESS class counts as a breaker failure (INV-REQ-836 mapping).
+ * Saving the state and requesting the event are not one transaction here; the unit of work (outbox, as in
+ * `RouteChangeRecorder`) is part of the HTTP/persistence wiring of INV-T-18675.
  */
 class TestConnection(
     private val probe: ApProbe,
@@ -96,26 +95,18 @@ class TestConnection(
         connectionRef: String,
     ): ConnectionTestResult {
         val outcome = probe.probe(tenant, connectionRef)
-        validate(outcome)
         val success = outcome.classification == TestClass.SUCCESS
+        val detail = if (success) null else outcome.detail?.let { if (CODE.matches(it)) it else UNKNOWN_DETAIL }
         val state = breaker.record(connectionRef, success).state
         if (status.stored(tenant, connectionRef) != state) {
             status.save(tenant, connectionRef, state)
-            events.requestChanged(tenant, connectionRef, state, outcome.detail.takeUnless { success })
+            events.requestChanged(tenant, connectionRef, state, detail)
         }
-        return ConnectionTestResult(connectionRef, outcome.classification, outcome.detail, state, clock.instant())
-    }
-
-    private fun validate(outcome: ProbeOutcome) {
-        val detail = outcome.detail
-        if (outcome.classification == TestClass.SUCCESS) {
-            if (detail != null) throw InvalidProbeDetail("a SUCCESS result carries no detail")
-        } else if (detail != null && !CODE.matches(detail)) {
-            throw InvalidProbeDetail("detail is not a code")
-        }
+        return ConnectionTestResult(connectionRef, outcome.classification, detail, state, clock.instant())
     }
 
     private companion object {
         val CODE = Regex("^[A-Z][A-Z0-9_-]{1,31}$")
+        const val UNKNOWN_DETAIL = "UNKNOWN"
     }
 }

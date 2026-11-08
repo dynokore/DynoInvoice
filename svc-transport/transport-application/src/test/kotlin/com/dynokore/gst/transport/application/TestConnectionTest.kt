@@ -1,7 +1,6 @@
 package com.dynokore.gst.transport.application
 
 import com.dynokore.gst.transport.domain.TenantRef
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Clock
@@ -113,14 +112,11 @@ class TestConnectionTest {
     }
 
     @Test
-    fun `a detail that is not a code is refused and nothing is recorded`() {
-        shouldThrow<InvalidProbeDetail> {
-            uc(ProbeOutcome(TestClass.UNREACHABLE, "connection timed out"), BreakerState.OPEN).test(t, "C")
-        }
-        shouldThrow<InvalidProbeDetail> {
-            uc(ProbeOutcome(TestClass.SUCCESS, "OK-CODE"), BreakerState.CLOSED).test(t, "C")
-        }
-        recorded shouldBe emptyList()
-        events shouldBe emptyList()
+    fun `a detail that is not a code is replaced by UNKNOWN and a SUCCESS detail is dropped`() {
+        val free = uc(ProbeOutcome(TestClass.UNREACHABLE, "connection timed out"), BreakerState.OPEN).test(t, "C")
+        free.detail shouldBe "UNKNOWN"
+        events shouldBe listOf(ConnectionState.DOWN to "UNKNOWN")
+        uc(ProbeOutcome(TestClass.SUCCESS, "OK-CODE"), BreakerState.CLOSED).test(t, "C").detail shouldBe null
+        recorded shouldBe listOf(false, true)
     }
 }
