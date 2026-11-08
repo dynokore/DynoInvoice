@@ -327,6 +327,7 @@ armRegulatoryPack	operation	openapi.yaml	INV-REQ-2588
 importMappingSpreadsheet	operation	openapi.yaml	INV-REQ-2588
 evaluateDocument.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
 evaluatePreIssuanceDraft.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
+mapTaxCode.RUL-013	operation_error_code	openapi.yaml	INV-REQ-957
 supplyType	property	openapi.yaml	INV-Q-10703
 supplyTypeTotals	property	openapi.yaml	INV-Q-10703
 DryRunSupplyTypeTotal.supplyType	schema_property	openapi.yaml	INV-Q-10703
