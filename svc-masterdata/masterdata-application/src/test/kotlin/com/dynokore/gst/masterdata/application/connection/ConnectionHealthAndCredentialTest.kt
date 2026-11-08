@@ -14,6 +14,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -137,19 +138,19 @@ class ConnectionHealthAndCredentialTest {
                 ),
             )
         }
-    private val settings = HealthSettings(Duration.ofMinutes(5), failureThreshold = 3, openFor = Duration.ofSeconds(30))
+    private val settings =
+        HealthSettings(Duration.ofMinutes(5), failureThreshold = 3, openFor = Duration.ofSeconds(30), percentile = 95)
     private val calls = Calls()
     private val memory = Memory()
     private val published = mutableListOf<ConnectionStatusChanged>()
+    private val healthKeys = mutableListOf<String>()
+    private val ports = HealthPorts(records, calls)
     private val health =
-        GetConnectionHealth(
-            HealthTx,
-            HealthPorts(records, calls, memory),
-            { published += it },
-            { true },
-            settings,
-            clock,
-        )
+        GetConnectionHealth(HealthTx, ports, { _, key ->
+            healthKeys += key
+            true
+        }, settings, clock)
+    private val evaluator = EvaluateConnectionStatus(HealthTx, ports, memory, { published += it }, settings, clock)
 
     private fun call(
         secondsAfterStart: Long,
@@ -165,6 +166,7 @@ class ConnectionHealthAndCredentialTest {
 
     private fun at(seconds: Long): ConnectionHealthSnapshot {
         clock.now = t0.plusSeconds(seconds)
+        evaluator.handle("CON-1")
         val outcome = health.handle(caller, "CON-1")
         return ConnectionHealthSnapshot((outcome as GetConnectionHealthOutcome.Found).health)
     }
@@ -177,29 +179,87 @@ class ConnectionHealthAndCredentialTest {
     fun `INV-AC-18782 repeated failures open the breaker with figures and one status change is requested per change`() {
         call(1, true)
         assertEquals(ConnectionState.UP, at(2).h.state)
-        assertEquals(1, published.size)
+        assertEquals(0, published.size)
         call(3, false)
         call(4, false)
         assertEquals(BreakerState.CLOSED, at(5).h.breakerState)
-        assertEquals(1, published.size)
+        assertEquals(0, published.size)
         call(6, false)
         val open = at(7).h
         assertEquals(BreakerState.OPEN, open.breakerState)
         assertEquals(ConnectionState.DOWN, open.state)
         assertEquals(0.25, open.successRate)
-        assertEquals(Duration.ofMillis(250), open.latency)
+        assertEquals(300L, open.latencyMillis)
         assertEquals(t0.plusSeconds(6), open.lastFailure!!.at)
         assertEquals(TestClass.UNREACHABLE, open.lastFailure!!.failure.classification)
-        assertEquals(listOf(ConnectionState.UP, ConnectionState.DOWN), published.map { it.state })
+        assertEquals(listOf(ConnectionState.DOWN), published.map { it.state })
         at(8)
-        assertEquals(2, published.size)
+        assertEquals(1, published.size)
         assertEquals(ConnectionState.DEGRADED, at(40).h.state)
         call(41, true)
         assertEquals(ConnectionState.UP, at(42).h.state)
         assertEquals(
-            listOf(ConnectionState.UP, ConnectionState.DOWN, ConnectionState.DEGRADED, ConnectionState.UP),
+            listOf(ConnectionState.DOWN, ConnectionState.DEGRADED, ConnectionState.UP),
             published.map { it.state },
         )
+    }
+
+    @Test
+    fun `INV-AC-18782 the first evaluation in state DOWN requests 0 and records DOWN and a later UP requests 1`() {
+        call(1, false)
+        call(2, false)
+        call(3, false)
+        clock.now = t0.plusSeconds(4)
+        evaluator.handle("CON-1")
+        assertEquals(0, published.size)
+        assertEquals(ConnectionState.DOWN, memory.m["CON-1"])
+        evaluator.handle("CON-1")
+        assertEquals(0, published.size)
+        call(5, true)
+        clock.now = t0.plusSeconds(6)
+        evaluator.handle("CON-1")
+        assertEquals(listOf(ConnectionState.UP), published.map { it.state })
+        evaluator.handle("CON-1")
+        assertEquals(1, published.size)
+    }
+
+    @Test
+    fun `INV-AC-18782 a read while the state differs from the recorded one requests 0 and leaves memory unchanged`() {
+        call(1, true)
+        clock.now = t0.plusSeconds(2)
+        evaluator.handle("CON-1")
+        val before = memory.m.toMap()
+        call(3, false)
+        call(4, false)
+        call(5, false)
+        clock.now = t0.plusSeconds(6)
+        val found = health.handle(caller, "CON-1") as GetConnectionHealthOutcome.Found
+        assertEquals(ConnectionState.DOWN, found.health.state)
+        assertEquals(0, published.size)
+        assertEquals(before, memory.m)
+    }
+
+    @Test
+    fun `INV-AC-18782 an adapter that has not yet checked requests none and records no baseline`() {
+        clock.now = t0.plusSeconds(1)
+        evaluator.handle("CON-1")
+        assertTrue(published.isEmpty())
+        assertTrue(memory.m.isEmpty())
+    }
+
+    private fun latencyOf(vararg millis: Long): Long? {
+        millis.forEachIndexed { i, ms -> calls.all += CallRecord(t0.plusSeconds(i + 1L), Duration.ofMillis(ms)) }
+        return at(60).h.latencyMillis
+    }
+
+    @Test
+    fun `INV-AC-18782 latency is the 95th percentile by nearest rank and not the mean`() {
+        assertEquals(1000L, latencyOf(100, 200, 300, 400, 1000))
+    }
+
+    @Test
+    fun `INV-AC-18782 latency of the durations 1 to 20 ms is 19`() {
+        assertEquals(19L, latencyOf(*LongArray(20) { it + 1L }))
     }
 
     @Test
@@ -214,7 +274,7 @@ class ConnectionHealthAndCredentialTest {
     fun `INV-AC-18782 before the first call the figures are absent and no status change is requested`() {
         val h = at(1).h
         assertNull(h.successRate)
-        assertNull(h.latency)
+        assertNull(h.latencyMillis)
         assertTrue(published.isEmpty())
     }
 
@@ -228,24 +288,47 @@ class ConnectionHealthAndCredentialTest {
 
     @Test
     fun `INV-AC-18782 a caller without connection view permission learns nothing`() {
-        val denied =
-            GetConnectionHealth(
-                HealthTx,
-                HealthPorts(records, calls, memory),
-                { published += it },
-                { false },
-                settings,
-                clock,
-            )
+        call(1, true)
+        val denied = GetConnectionHealth(HealthTx, ports, { _, _ -> false }, settings, clock)
         assertEquals(GetConnectionHealthOutcome.Forbidden, denied.handle(caller, "CON-1"))
         assertEquals(GetConnectionHealthOutcome.Unknown, health.handle(caller, "CON-9"))
+        assertTrue(memory.m.isEmpty() && published.isEmpty())
+    }
+
+    @Test
+    fun `INV-AC-18782 the permission keys equal the contract strings and the health read asks exactly its key`() {
+        assertEquals("connection-health.view", GetConnectionHealth.PERMISSION_KEY)
+        assertEquals("connection-credential.rotate", RotateCredential.PERMISSION_KEY)
+        listOf(
+            "connection-health.views",
+            "connection.test",
+            "Connection-Health.View",
+            "connection-health.view ",
+        ).forEach {
+            assertNotEquals(it, GetConnectionHealth.PERMISSION_KEY)
+        }
+        health.handle(caller, "CON-1")
+        assertEquals(listOf("connection-health.view"), healthKeys)
+        rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "cred-new")
+        assertEquals(listOf("connection-credential.rotate"), rotateKeys)
     }
 
     private val secrets = Secrets(setOf("cred-new", "cred-newer"))
     private val states = States()
 
+    private val rotateKeys = mutableListOf<String>()
+
     private fun rotation(overlap: Duration?) =
-        RotateCredential(HealthTx, RotationPorts(records, states, secrets), { true }, RotationSettings(overlap), clock)
+        RotateCredential(
+            HealthTx,
+            RotationPorts(records, states, secrets),
+            { _, key ->
+                rotateKeys += key
+                true
+            },
+            RotationSettings(overlap),
+            clock,
+        )
 
     private val gate = CredentialGate(HealthTx, records, states, clock)
 
@@ -290,6 +373,21 @@ class ConnectionHealthAndCredentialTest {
     }
 
     @Test
+    fun `INV-AC-18782 rotations to A B A and B again perform four rotations and a retry of the last reads no secret`() {
+        val rotate = rotation(Duration.ofMinutes(10))
+        listOf("cred-new", "cred-newer", "cred-new", "cred-newer").forEachIndexed { i, ref ->
+            val out = rotate.handle(caller, "CON-1", ref) as RotateCredentialOutcome.Rotated
+            assertFalse(out.repeat, "rotation ${i + 1}")
+            assertEquals(i + 1, secrets.reads)
+        }
+        val end = states.find("CON-1")!!.overlapEnd
+        val retry = rotate.handle(caller, "CON-1", "cred-newer") as RotateCredentialOutcome.Rotated
+        assertTrue(retry.repeat)
+        assertEquals(4, secrets.reads)
+        assertEquals(end, states.find("CON-1")!!.overlapEnd)
+    }
+
+    @Test
     fun `INV-AC-18782 rotation is refused while the overlap is unset and when the replacement does not resolve`() {
         assertEquals(RotateCredentialOutcome.OverlapNotConfigured, rotation(null).handle(caller, "CON-1", "cred-new"))
         assertNull(states.find("CON-1"))
@@ -309,10 +407,8 @@ class ConnectionHealthAndCredentialTest {
         val denied =
             RotateCredential(
                 HealthTx,
-                records,
-                states,
-                secrets,
-                { false },
+                RotationPorts(records, states, secrets),
+                { _, _ -> false },
                 RotationSettings(Duration.ofMinutes(1)),
                 clock,
             )

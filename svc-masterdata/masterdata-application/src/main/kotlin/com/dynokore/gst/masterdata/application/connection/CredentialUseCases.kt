@@ -32,14 +32,14 @@ data class Rotated(
     val rotatedAt: Instant,
 )
 
-/** The current and previous credential reference of a connection, the overlap end, and the rotations already done. */
+/** The current and previous credential reference of a connection, the overlap end, and the last rotation. */
 data class CredentialState(
     val connectionRef: String,
     val currentRef: String,
     val previousRef: String?,
     val overlapEnd: Instant?,
     val rotatedAt: Instant?,
-    val done: Map<String, Rotated> = emptyMap(),
+    val last: Rotated? = null,
 )
 
 interface CredentialStateStore {
@@ -76,11 +76,22 @@ data class RotationPorts(
     val secrets: SecretStore,
 )
 
-/** The scoped permission `connection.configure` is reused for rotation (INV-Q-10027). */
+/** The permission port of rotation; the adapter asks `AuthorityReplica.decide` with [permissionKey]. */
+fun interface ConnectionCredentialRotatePermission {
+    fun allows(
+        caller: PersonRef,
+        permissionKey: String,
+    ): Boolean
+}
+
+/**
+ * INV-REQ-837. A request is a repeat only while its credential reference equals the current reference set by a
+ * recorded rotation; any other reference (the previous one included) is a new rotation.
+ */
 class RotateCredential(
     private val tx: TransactionRunner,
     private val ports: RotationPorts,
-    private val permission: ConnectionConfigurePermission,
+    private val permission: ConnectionCredentialRotatePermission,
     private val settings: RotationSettings,
     private val clock: Clock,
 ) {
@@ -90,13 +101,15 @@ class RotateCredential(
         credentialRef: String,
     ): RotateCredentialOutcome =
         tx.inTransaction {
-            if (!permission.allows(caller)) return@inTransaction RotateCredentialOutcome.Forbidden
+            if (!permission.allows(caller, PERMISSION_KEY)) return@inTransaction RotateCredentialOutcome.Forbidden
             val overlap = settings.overlap ?: return@inTransaction RotateCredentialOutcome.OverlapNotConfigured
             val record = ports.store.find(connectionRef) ?: return@inTransaction RotateCredentialOutcome.Unknown
             val state =
                 ports.states.find(connectionRef)
                     ?: CredentialState(connectionRef, record.credentialRef, null, null, null)
-            state.done[credentialRef]?.let { return@inTransaction RotateCredentialOutcome.Rotated(it, repeat = true) }
+            state.last?.takeIf { it.currentRef == credentialRef }?.let {
+                return@inTransaction RotateCredentialOutcome.Rotated(it, repeat = true)
+            }
             if (credentialRef == state.currentRef) return@inTransaction RotateCredentialOutcome.SameAsCurrent
             val value =
                 ports.secrets.read(credentialRef) ?: return@inTransaction RotateCredentialOutcome.ReplacementUnavailable
@@ -110,11 +123,16 @@ class RotateCredential(
                     state.currentRef,
                     rotated.overlapEnd,
                     now,
-                    state.done + (credentialRef to rotated),
+                    rotated,
                 ),
             )
             RotateCredentialOutcome.Rotated(rotated, repeat = false)
         }
+
+    companion object {
+        /** The `x-operation` permission of `rotateCredential` in platform-contracts masterdata/openapi.yaml. */
+        const val PERMISSION_KEY = "connection-credential.rotate"
+    }
 }
 
 /**

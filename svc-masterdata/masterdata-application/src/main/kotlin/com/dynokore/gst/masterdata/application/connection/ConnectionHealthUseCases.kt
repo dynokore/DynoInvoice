@@ -36,11 +36,10 @@ interface ConnectionStateMemory {
     )
 }
 
-/** The stores a health read uses. */
+/** The stores a health computation reads. */
 data class HealthPorts(
     val store: ConnectionStore,
     val calls: CallRecords,
-    val memory: ConnectionStateMemory,
 )
 
 /** The payload of `ConnectionStatusChanged`: connection, state, last failure (events.yaml). */
@@ -65,15 +64,35 @@ sealed interface GetConnectionHealthOutcome {
     data object Forbidden : GetConnectionHealthOutcome
 }
 
-/**
- * INV-REQ-836: health of one connection. Requests one [ConnectionStatusChanged] when the state differs from the one
- * last requested, and none when it is unchanged or the adapter has not yet checked (INV-Q-3718).
- */
+/** The permission port of the health read; the adapter asks `AuthorityReplica.decide` with [permissionKey]. */
+fun interface ConnectionHealthViewPermission {
+    fun allows(
+        caller: PersonRef,
+        permissionKey: String,
+    ): Boolean
+}
+
+private fun healthOf(
+    ports: HealthPorts,
+    settings: HealthSettings,
+    clock: Clock,
+    connectionRef: String,
+): ConnectionHealth {
+    val now = clock.instant()
+    return ConnectionHealth.compute(
+        connectionRef,
+        ports.calls.between(connectionRef, now.minus(settings.window), now),
+        ports.calls.lastFailure(connectionRef),
+        now,
+        settings,
+    )
+}
+
+/** INV-REQ-836: health of one connection. A query: it publishes nothing and writes nothing. */
 class GetConnectionHealth(
     private val tx: TransactionRunner,
     private val ports: HealthPorts,
-    private val publisher: ConnectionStatusPublisher,
-    private val permission: ConnectionViewPermission,
+    private val permission: ConnectionHealthViewPermission,
     private val settings: HealthSettings,
     private val clock: Clock,
 ) {
@@ -82,21 +101,43 @@ class GetConnectionHealth(
         connectionRef: String,
     ): GetConnectionHealthOutcome =
         tx.inTransaction {
-            if (!permission.allows(caller)) return@inTransaction GetConnectionHealthOutcome.Forbidden
+            if (!permission.allows(caller, PERMISSION_KEY)) return@inTransaction GetConnectionHealthOutcome.Forbidden
             if (ports.store.find(connectionRef) == null) return@inTransaction GetConnectionHealthOutcome.Unknown
-            val now = clock.instant()
-            val health =
-                ConnectionHealth.compute(
-                    connectionRef,
-                    ports.calls.between(connectionRef, now.minus(settings.window), now),
-                    ports.calls.lastFailure(connectionRef),
-                    now,
-                    settings,
-                )
-            if (ports.calls.hasAny(connectionRef) && ports.memory.lastRequested(connectionRef) != health.state) {
-                publisher.publish(ConnectionStatusChanged(connectionRef, health.state, health.lastFailure))
-                ports.memory.remember(connectionRef, health.state)
-            }
-            GetConnectionHealthOutcome.Found(health)
+            GetConnectionHealthOutcome.Found(healthOf(ports, settings, clock, connectionRef))
         }
+
+    companion object {
+        /** The `x-operation` permission of `getConnectionHealth` in platform-contracts masterdata/openapi.yaml. */
+        const val PERMISSION_KEY = "connection-health.view"
+    }
+}
+
+/**
+ * INV-REQ-836 behavior 4: called by the adapter recording path after each recorded call (wired by INV-T-18776). The
+ * first check of a connection sets the baseline and requests nothing; a later check with a different state requests
+ * one [ConnectionStatusChanged]. An adapter that has not yet checked (no recorded call) requests nothing (INV-Q-3718).
+ * The only code that calls [ConnectionStatusPublisher.publish] and [ConnectionStateMemory.remember].
+ */
+class EvaluateConnectionStatus(
+    private val tx: TransactionRunner,
+    private val ports: HealthPorts,
+    private val memory: ConnectionStateMemory,
+    private val publisher: ConnectionStatusPublisher,
+    private val settings: HealthSettings,
+    private val clock: Clock,
+) {
+    fun handle(connectionRef: String) {
+        tx.inTransaction {
+            if (ports.store.find(connectionRef) != null && ports.calls.hasAny(connectionRef)) {
+                val health = healthOf(ports, settings, clock, connectionRef)
+                val recorded = memory.lastRequested(connectionRef)
+                if (recorded != health.state) {
+                    if (recorded != null) {
+                        publisher.publish(ConnectionStatusChanged(connectionRef, health.state, health.lastFailure))
+                    }
+                    memory.remember(connectionRef, health.state)
+                }
+            }
+        }
+    }
 }

@@ -76,23 +76,29 @@ data class HealthSettings(
     val failureThreshold: Int,
     /** How long the breaker stays open after its last failure before it admits a probe (half-open). */
     val openFor: Duration,
+    /** The percentile of the call durations shown as latency, 1 to 100 (nearest rank). */
+    val percentile: Int,
 ) {
     init {
         require(!window.isNegative && !window.isZero) { "the window is positive" }
         require(failureThreshold >= 1) { "the failure threshold is at least 1" }
         require(!openFor.isNegative && !openFor.isZero) { "the open duration is positive" }
+        require(percentile in 1..MAX_PERCENTILE) { "the percentile is 1 to 100" }
     }
 }
 
+private const val MAX_PERCENTILE = 100
+
 /**
  * INV-REQ-836: the health of one connection computed from the calls of one observation window.
- * [successRate] and [latency] are null before the first recorded call of the window, never zero.
+ * [successRate] and [latencyMillis] are null before the first recorded call of the window, never zero.
  */
 data class ConnectionHealth(
     val connectionRef: String,
     val breakerState: BreakerState,
     val successRate: Double?,
-    val latency: Duration?,
+    /** The configured percentile, nearest rank, of the call durations in whole milliseconds. */
+    val latencyMillis: Long?,
     val measuredOver: Duration,
     val lastFailure: LastFailure?,
 ) {
@@ -128,8 +134,9 @@ data class ConnectionHealth(
                     }
                 }
             val rate = if (calls.isEmpty()) null else calls.count { it.succeeded }.toDouble() / calls.size
-            val latency =
-                if (calls.isEmpty()) null else Duration.ofNanos(calls.sumOf { it.latency.toNanos() } / calls.size)
+            val sorted = calls.map { it.latency.toMillis() }.sorted()
+            val rank = (settings.percentile * sorted.size + MAX_PERCENTILE - 1) / MAX_PERCENTILE
+            val latency = if (sorted.isEmpty()) null else sorted[rank - 1]
             return ConnectionHealth(connectionRef, breaker, rate, latency, settings.window, lastFailure)
         }
     }
