@@ -1,19 +1,24 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.ArchiveVolumeHandler
+import com.dynokore.gst.tenancy.adapters.events.PlanLimitExceededOutbox
 import com.dynokore.gst.tenancy.adapters.events.SubmissionAcknowledgedHandler
 import com.dynokore.gst.tenancy.adapters.events.TenancyEventCatalogue
 import com.dynokore.gst.tenancy.adapters.persistence.JooqMeteringStore
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
 import com.dynokore.gst.tenancy.application.metering.Metering
 import com.dynokore.gst.tenancy.application.metering.MeteringStore
 import com.dynokore.gst.tenancy.application.metering.PlanLimitPublisher
 import com.dynokore.platform.outboxandqueue.InboxConsumer
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 
 /**
@@ -27,6 +32,28 @@ class MeteringUseCases {
         dsl: DSLContext,
         tenants: TenantContext,
     ): MeteringStore = JooqMeteringStore(dsl, tenants)
+
+    /** Bound unless a test or another module binds its own; the tenant is the one bound to the caller's transaction. */
+    @Bean
+    @ConditionalOnMissingBean(PlanLimitPublisher::class)
+    fun planLimitPublisher(
+        outbox: OutboxWriter,
+        mapper: ObjectMapper,
+        tenants: TenantContext,
+        dsl: DSLContext,
+    ): PlanLimitPublisher =
+        PlanLimitExceededOutbox(outbox, mapper, tenants) { id ->
+            checkNotNull(
+                dsl
+                    .select(TENANT.REF)
+                    .from(TENANT)
+                    .where(TENANT.TENANT_ID.eq(id.value))
+                    .fetchOne()
+                    ?.value1(),
+            ) {
+                "tenant $id has no reference"
+            }
+        }
 
     @Bean
     fun metering(

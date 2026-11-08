@@ -28,6 +28,7 @@ object TenancyEventCatalogue {
     const val ARCHIVE_VOLUME_TOPIC = "gst.evidence.archive-volume-measured.v1"
     const val TENANT_WIDE_ARCHIVE_VOLUME_TYPE = "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
     const val TENANT_WIDE_ARCHIVE_VOLUME_TOPIC = "gst.platform.tenant-wide-archive-volume-measured.v1"
+    const val PLAN_LIMIT_EXCEEDED_TYPE = "com.dynokore.gst.tenancy.PlanLimitExceeded.v1"
     const val ASYNCAPI_RESOURCE = "gst/contracts/tenancy/asyncapi.yaml"
 
     /**
