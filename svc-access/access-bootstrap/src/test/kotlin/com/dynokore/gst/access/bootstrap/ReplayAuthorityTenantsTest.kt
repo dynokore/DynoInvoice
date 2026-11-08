@@ -7,6 +7,9 @@ import com.dynokore.gst.access.bootstrap.PlatformGrantSeedFixture.policyFindings
 import com.dynokore.platform.outboxandqueue.ReplayStateSource
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
@@ -118,7 +121,7 @@ class ReplayAuthorityTenantsTest {
             val source = context.getBean(ReplayStateSource::class.java)
             val platformBinding = context.getBean(PlatformTenantBinding::class.java)
             val listed = platformBinding.bindPlatform("svc:access-svc/job:replay") { source.tenants() }
-            assertThat(listed.map { it.value }).containsExactlyInAnyOrderElementsOf(expected - platform)
+            assertThat(listed.map { it.value }).containsExactlyInAnyOrderElementsOf(expected)
         }
     }
 
@@ -254,6 +257,33 @@ class ReplayAuthorityTenantsTest {
     fun `INV-AC-9051 the gate does not accept the allowed name used only in a comment`() {
         val renamed = shipped.replace("access.replay_authority_tenants()", "access.other_tenants()")
         assertThat(gate("-- replay_authority_tenants\n$renamed")).contains("a definer function was added")
+    }
+
+    @Test
+    fun `INV-AC-9212 a platform-bound page holds only the installation states and a tenant-bound page none`() {
+        val platform = UUID.fromString(PlatformGrantSeedFixture.PLATFORM)
+        val other = UUID.randomUUID()
+        BoundaryFixture.asSuperuser { c ->
+            exec(c, "delete from access.installation_role_grant")
+            grant(c, platform, "seed-platform")
+            grant(c, other, "seed-other")
+            exec(c, "update access.role_grant set authority_version = 1 where authority_version is null")
+        }
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val source = context.getBean(ReplayStateSource::class.java)
+            val tx = context.getBean(TransactionRunner::class.java)
+            val tenants = context.getBean(TenantContext::class.java)
+            val platformBinding = context.getBean(PlatformTenantBinding::class.java)
+            val fromPlatform =
+                platformBinding.bindPlatform("svc:access-svc/job:replay") { tx.inTransaction { source.page(null, null, 100) } }
+            assertThat(fromPlatform.items).hasSize(2) // the two configured entries; no role_grant row of the platform tenant
+            assertThat(fromPlatform.items.map { it.dataJson }).noneMatch { it.contains("seed-platform") }
+            assertThat(fromPlatform.items).allMatch { it.dataJson.contains("INSTALLATION") }
+            val fromTenant =
+                tenants.bind(TenantId(other), "svc:access-svc/job:replay") { tx.inTransaction { source.page(null, null, 100) } }
+            assertThat(fromTenant.items).isNotEmpty().noneMatch { it.dataJson.contains("INSTALLATION") }
+        }
     }
 
     @Test

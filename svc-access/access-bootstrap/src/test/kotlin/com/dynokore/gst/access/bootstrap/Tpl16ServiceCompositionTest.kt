@@ -30,7 +30,7 @@ class Tpl16ServiceCompositionTest {
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(AccessApplication::class.java)
             .withPropertyValues(
-                "spring.datasource.url=jdbc:postgresql://localhost:5432/access",
+                "spring.datasource.url=${BoundaryFixture.container.jdbcUrl}",
                 "spring.datasource.username=access_runtime",
                 "service-runtime.workload-identity.audience=access-svc",
                 "gst.service=access-svc",
@@ -42,7 +42,7 @@ class Tpl16ServiceCompositionTest {
                 "access.installation-roles=",
                 "management.server.port=8081",
                 *BoundaryFixture.TELEMETRY_EXPORT_PROPERTIES,
-                "gst.bindings.secret-store.mount-root=${TestSecrets.mount()}",
+                "gst.bindings.secret-store.mount-root=${BoundaryFixture.mount(null)}",
                 "service-runtime.datasource.credential=db/access_runtime",
             )
 
