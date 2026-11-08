@@ -10,8 +10,9 @@ trap 'rm -rf "$TMP"' EXIT
 failed=0
 
 fresh() { # name -> a copy of the inputs in $TMP/name
-  mkdir -p "$TMP/$1/spectral" "$TMP/$1/transport" "$TMP/$1/ingestion" "$TMP/$1/catalogue/role-permissions"
+  mkdir -p "$TMP/$1/spectral" "$TMP/$1/transport" "$TMP/$1/masterdata" "$TMP/$1/ingestion" "$TMP/$1/catalogue/role-permissions"
   cp transport/openapi.yaml "$TMP/$1/transport/"
+  cp masterdata/openapi.yaml "$TMP/$1/masterdata/"
   cp ingestion/openapi.yaml "$TMP/$1/ingestion/"
   cp spectral/operation-permissions.tsv "$TMP/$1/spectral/"
   cp catalogue/role-permissions/role-permissions.yaml "$TMP/$1/catalogue/role-permissions/"
@@ -40,7 +41,7 @@ probe() { # name, expected fragment, python code
 
 fresh clean
 out=$(python3 spectral/check-operation-permissions.py "$TMP/clean" 2>&1); rc=$?
-if [ $rc -ne 0 ] || [ "$out" != "operation-permissions-check: 4 rows" ]; then
+if [ $rc -ne 0 ] || [ "$out" != "operation-permissions-check: 11 rows" ]; then
   echo "gst-ci: FAIL — INV-AC-18673 clean tree: exit $rc, '$out'"; failed=1
 else echo "gst-ci: INV-AC-18673 clean tree passed as expected ($out)"; fi
 
@@ -52,7 +53,7 @@ probe role-property "transport failoverAdapter: (b) x-operation has a role prope
 probe row-removed "transport failoverAdapter: (d) x-operation carries a permission and the operation has no row" "v = v.replace('transport\tfailoverAdapter\tadapter.failover\n', '', 1)"
 probe row-unknown-operation "transport noSuchOperation: (a) 0 operations" "v += 'transport\tnoSuchOperation\tadapter.configure\n'"
 probe row-other-directory "ingestion rotateCredential: (a) 0 operations" "v += 'ingestion\trotateCredential\tap-credential.manage\n'"
-probe duplicate-row "operation-permissions.tsv: line 6 is a duplicate row for transport rotateCredential" "v += 'transport\trotateCredential\tap-credential.manage\n'"
+probe duplicate-row "operation-permissions.tsv: line 13 is a duplicate row for transport rotateCredential" "v += 'transport\trotateCredential\tap-credential.manage\n'"
 probe header-changed "operation-permissions.tsv: the header line must be directory	operationId	permission" "v = v.replace('directory\toperationId\tpermission', 'directory\toperation\tpermission', 1)"
 probe row-width "operation-permissions.tsv: line 2 has 2 fields, expected 3" "v = v.replace('transport\trotateCredential\tap-credential.manage', 'transport\trotateCredential', 1)"
 probe no-data-row "operation-permissions.tsv: the table has no data row" "v = 'directory\toperationId\tpermission\n'"
