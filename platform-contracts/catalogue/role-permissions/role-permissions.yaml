@@ -1306,3 +1306,53 @@ permissions:
     cells:
       - {role: tax.approver, form: SAAS, allowance: PERMITTED}
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: exchange-rate.import
+    kind: WRITE
+    row: "Import a rate file"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: exchange-rate.enter
+    kind: WRITE
+    row: "Enter a missing rate with evidence"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: connection.configure
+    kind: WRITE
+    row: "Configure an external connection record"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+  - key: connection.view
+    kind: READ
+    row: "Connection registry and health: Access Point, Check GST Register, directory, rate sources"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: connection.test
+    kind: READ
+    row: "Test a connection"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: connection-credential.rotate
+    kind: WRITE
+    row: "Rotate credentials with an overlap window"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+  - key: connection-health.view
+    kind: READ
+    row: "Connection registry and health: Access Point, Check GST Register, directory, rate sources"
+    cells:
+      - {role: integration.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: integration.engineer, form: PRIVATE, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
+      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}

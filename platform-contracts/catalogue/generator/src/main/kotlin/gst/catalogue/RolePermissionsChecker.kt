@@ -130,6 +130,12 @@ object RolePermissionsChecker {
             "View a tenant provisioning request",
             "Record onboarding questionnaire answers",
             "Preview the due dates a staged calendar pack would move",
+            "Import a rate file",
+            "Enter a missing rate with evidence",
+            "Configure an external connection record",
+            "Connection registry and health: Access Point, Check GST Register, directory, rate sources",
+            "Test a connection",
+            "Rotate credentials with an overlap window",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -220,6 +226,18 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the calendar pack delta read key (INV-T-16826, INV-Q-16810 C; key, label and holder are Inference), compared by equality. */
     val calendarPackDeltaPairs: Map<String, String> =
         mapOf("calendar-pack-delta.view" to "Preview the due dates a staged calendar pack would move")
+
+    /** The (key, row) pairs of the seven connection and exchange-rate keys (INV-T-18769, ruling on the answered design question of INV-T-4947; connection.configure and its label are Inference), compared by equality. */
+    val connectionPairs: Map<String, String> =
+        mapOf(
+            "exchange-rate.import" to "Import a rate file",
+            "exchange-rate.enter" to "Enter a missing rate with evidence",
+            "connection.configure" to "Configure an external connection record",
+            "connection.view" to "Connection registry and health: Access Point, Check GST Register, directory, rate sources",
+            "connection.test" to "Test a connection",
+            "connection-credential.rotate" to "Rotate credentials with an overlap window",
+            "connection-health.view" to "Connection registry and health: Access Point, Check GST Register, directory, rate sources",
+        )
 
     /** The (key, row) pair of the exception queue read key (INV-T-16573, INV-Q-15877 A), compared by equality. */
     val exceptionViewPairs: Map<String, String> =
@@ -443,6 +461,22 @@ object RolePermissionsChecker {
             "tenant-provisioning-request.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "questionnaire.answer" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "calendar-pack-delta.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver")),
+            "exchange-rate.import" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(permitted, privateForm, "deployment.operator")),
+            "exchange-rate.enter" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
+            "connection.configure" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
+            "connection.view" to
+                Required(
+                    PermissionKind.READ,
+                    cells(permitted, both, "integration.engineer") + cells(permitted, both, "tenant.admin") + cells(permitted, privateForm, "deployment.operator"),
+                ),
+            "connection.test" to Required(PermissionKind.READ, cells(permitted, both, "integration.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "connection-credential.rotate" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin") + cells(permitted, saasForm, "platform.engineer")),
+            "connection-health.view" to
+                Required(
+                    PermissionKind.READ,
+                    cells(permitted, both, "integration.engineer") + cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator"),
+                ),
             "break-glass.reseal" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
             "operator-session.open" to
                 Required(
@@ -681,6 +715,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in calendarPackDeltaPairs && (it.row in calendarPackDeltaPairs.values || it.key.startsWith("calendar-pack-delta")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${calendarPackDeltaPairs.keys.joinToString()}, which alone carry the calendar pack delta preview row (INV-T-16826)."
+        }
+        connectionPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${connectionPairs.keys.joinToString()}, INV-T-18769)."
+        }
+        table.permissions.filter { it.key !in connectionPairs && (it.row in connectionPairs.values || it.key.startsWith("connection") || it.key.startsWith("exchange-rate")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${connectionPairs.keys.joinToString()}, which alone carry the connection and exchange-rate rows (INV-T-18769)."
         }
         resealPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
