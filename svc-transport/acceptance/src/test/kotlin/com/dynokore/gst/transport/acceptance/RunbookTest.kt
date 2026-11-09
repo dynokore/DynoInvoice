@@ -64,13 +64,15 @@ class RunbookTest {
 
     // ---- runbook lint (INV-AC-18633, INV-AC-18635): pure functions over the runbook text, probed on altered copies
 
-    private val configuredSeconds = Regex("DEFAULT_TIMEOUT_SECONDS = ([0-9]+)L").find(properties)!!.groupValues[1].toLong()
+    private val configuredSeconds =
+        Regex("DEFAULT_TIMEOUT_SECONDS = ([0-9]+)L").find(properties)!!.groupValues[1].toLong()
 
     private fun lintSources(text: String): List<String> {
         val findings = mutableListOf<String>()
         val body = text.substringAfter("\n## Sources", "").substringBefore("\n## ")
         if (body.isBlank()) return listOf("section Sources is missing")
-        val rows = body.lines().filter { it.startsWith("| ") && !it.startsWith("| Source |") && !it.startsWith("| ---") }
+        val rows =
+            body.lines().filter { it.startsWith("| ") && !it.startsWith("| Source |") && !it.startsWith("| ---") }
         fun check(
             name: String,
             key: String,
@@ -106,16 +108,21 @@ class RunbookTest {
                 val value = latency.split('|')[2].trim()
                 val seconds = Regex("^([0-9]+) seconds").find(value)?.groupValues?.get(1)?.toLong()
                 if (seconds != configuredSeconds) {
-                    findings += "connection $name: latency value '$value' differs from configured $configuredSeconds seconds"
+                    findings +=
+                        "connection $name: latency value '$value' differs from configured $configuredSeconds seconds"
                 }
-                if (!value.contains("`provisional`")) findings += "connection $name: provisional marker missing on latency"
+                if (!value.contains("`provisional`")) {
+                    findings += "connection $name: provisional marker missing on latency"
+                }
             }
             if (protocol == null) {
                 findings += "connection $name: failure protocol row missing"
             } else {
                 val value = protocol.split('|')[2].trim()
                 if (!value.contains("transient failure")) findings += "connection $name: failure protocol value changed"
-                if (!value.contains("`provisional`")) findings += "connection $name: provisional marker missing on protocol"
+                if (!value.contains("`provisional`")) {
+                    findings += "connection $name: provisional marker missing on protocol"
+                }
             }
         }
         return findings
@@ -136,7 +143,7 @@ class RunbookTest {
     }
 
     @Test
-    fun `INV-AC-18633 the committed runbook cites both sources with a provisional version and the Access Point route`() {
+    fun `INV-AC-18633 the committed runbook cites both sources, provisional, and names the Access Point route`() {
         lintSources(runbook) shouldBe emptyList()
     }
 
@@ -172,19 +179,21 @@ class RunbookTest {
 
     @Test
     fun `INV-AC-18633 the route sentence removed fails naming the route`() {
-        val altered = mustChange(runbook, "Both documents are obtained through the Access Point, which already holds both.", "")
+        val altered =
+            mustChange(runbook, "Both documents are obtained through the Access Point, which already holds both.", "")
         lintSources(altered).single() shouldContain "route missing"
     }
 
     @Test
-    fun `INV-AC-18635 the committed runbook records latency and protocol per connection, provisional and equal to the configuration`() {
+    fun `INV-AC-18635 the committed runbook records latency and protocol per connection, provisional and equal`() {
         lintRecords(runbook) shouldBe emptyList()
     }
 
     @Test
     fun `INV-AC-18635 one latency row deleted fails naming the connection`() {
         val name = "certification-kit AP simulator (adapter `primary`)"
-        lintRecords(without("| Expected acknowledgement latency")) shouldBe listOf("connection $name: latency row missing")
+        lintRecords(without("| Expected acknowledgement latency")) shouldBe
+            listOf("connection $name: latency row missing")
     }
 
     @Test
@@ -199,5 +208,15 @@ class RunbookTest {
         val name = "certification-kit AP simulator (adapter `primary`)"
         val altered = mustChange(runbook, "| 25 seconds", "| 26 seconds")
         lintRecords(altered).single() shouldContain "connection $name: latency value '26 seconds"
+    }
+
+    @Test
+    fun `INV-AC-1667 the runbook cites R3 and the Technical Playbook by version through the Access Point`() {
+        lintSources(runbook) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-1852 the runbook records the acknowledgement latency and the failure protocol of each connection`() {
+        lintRecords(runbook) shouldBe emptyList()
     }
 }
