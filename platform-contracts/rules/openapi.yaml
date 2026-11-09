@@ -348,7 +348,7 @@ paths:
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-entity-ref: entityRef
-      x-error-codes: [RUL-001, RUL-013]
+      x-error-codes: [RUL-001, RUL-010, RUL-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-2.3, C-4]
       x-operation:
         role: tax.operator
@@ -389,6 +389,9 @@ paths:
           description: The pack is not in a state that accepts entries (SRT-008).
           $ref: '#/components/responses/Error'
         '422':
+          description: >-
+            The entry is refused at authoring (RUL-010) because its IRAS code is
+            namespaced (contains `:`); the entry is named and nothing is stored.
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
