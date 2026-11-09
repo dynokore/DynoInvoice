@@ -119,13 +119,12 @@ class ElectionModeChangeTest {
     private fun refuseApprovals(
         e: ElectionEnv,
         env: ProfileEnv,
-        tenant: TenantId,
         entity: EntityResponse,
         changeRef: String,
-        baseline: Int,
+        snapshot: () -> List<Any?>,
     ) {
         // the requester U1 and the holder of no approve permission U3 are refused; the look-alikes too
-        val unchanged = state(e, env, tenant, entity)
+        val unchanged = snapshot()
         e.people.asked.clear()
         assertThat(refused(e, entity, changeRef, ADMIN)).isEqualTo(403 to "SRT-004")
         // the exact permission key asked at the boundary, never a look-alike such as "election-change.approve "
@@ -136,11 +135,10 @@ class ElectionModeChangeTest {
         e.people.grantRole("identity:USR-034", "ENT-OTHER", "tax.approver")
         assertThat(refused(e, entity, changeRef, "identity:USR-034")).isEqualTo(403 to "SRT-004")
         assertThat(e.changeStates(entity)).containsExactly("PENDING")
-        assertThat(state(e, env, tenant, entity)).isEqualTo(unchanged)
+        assertThat(snapshot()).isEqualTo(unchanged)
         // the refused approvals add no `election-change.approved` entry and no approval event
         assertThat(e.changeAudits(entity, "election-change.approved")).isZero()
         assertThat(e.changeAudits(entity, "election-change.requested")).isEqualTo(1L)
-        assertThat(env.captured.envelopes.size - (baseline)).isEqualTo(1)
     }
 
     @Test
@@ -171,7 +169,8 @@ class ElectionModeChangeTest {
                 assertThat(env.captured.envelopes.size - (before[7] as Int)).isEqualTo(1)
                 assertThat(e.changeStates(entity)).containsExactly("PENDING")
 
-                refuseApprovals(e, env, tenant, entity, change.changeRef, before[7] as Int)
+                refuseApprovals(e, env, entity, change.changeRef) { state(e, env, tenant, entity) }
+                assertThat(env.captured.envelopes.size - (before[7] as Int)).isEqualTo(1)
                 assertThat(mode(e, entity, julyFirst.minusDays(1))).isEqualTo(CLAIMABLE)
                 assertThat(mode(e, entity, julyFirst.plusDays(1))).isEqualTo(CLAIMABLE)
             }
