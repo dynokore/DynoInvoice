@@ -21,8 +21,8 @@ import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneId
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.Locale
 import java.util.UUID
@@ -598,9 +598,7 @@ class ElectionChangeLifecycleTest {
         return asUser(u2) { commands.approveElectionChange("E1", change.changeRef) } to change
     }
 
-    private fun assertRefusedAndPending(
-        result: Pair<ElectionOutcome, PendingChange>,
-    ) {
+    private fun assertRefusedAndPending(result: Pair<ElectionOutcome, PendingChange>) {
         assertInstanceOf(ElectionOutcome.Refused::class.java, result.first)
         assertEquals("PENDING", changes.row(result.second.changeRef).state)
         assertEquals(beforeApproval, snapshot())

@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.application.election
 
+import com.dynokore.gst.tenancy.application.period.SINGAPORE
 import com.dynokore.gst.tenancy.application.status.ChangedAttribute
 import com.dynokore.gst.tenancy.application.status.EntityProfileChange
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
@@ -17,7 +18,6 @@ import com.dynokore.gst.tenancy.domain.StatusTimeline
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.dynokore.gst.tenancy.application.period.SINGAPORE
 import java.time.Clock
 import java.time.LocalDate
 
@@ -409,7 +409,9 @@ class ElectionCommands(
             val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
             val reader = caller.actor()
             if (!holds { authority.holds(reader, entity.ref, ElectionPermissions.LIST) }) {
-                return@inTransaction ElectionOutcome.Forbidden("$reader does not hold ${ElectionPermissions.LIST} for entity ${entity.ref}")
+                return@inTransaction ElectionOutcome.Forbidden(
+                    "$reader does not hold ${ElectionPermissions.LIST} for entity ${entity.ref}",
+                )
             }
             if (limit !in 1..MAX_LIST_LIMIT) {
                 return@inTransaction ElectionOutcome.Invalid("limit must be between 1 and $MAX_LIST_LIMIT")

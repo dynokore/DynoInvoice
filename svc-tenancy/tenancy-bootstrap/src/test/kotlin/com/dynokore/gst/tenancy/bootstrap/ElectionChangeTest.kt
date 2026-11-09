@@ -382,7 +382,9 @@ class ElectionChangeTest {
                 val past =
                     env.inTx {
                         val kind = ElectionKind.EXCHANGE_RATE_SOURCE
-                        store.request(entity.entityRef, kind, "BNM", "MONTHLY_AVERAGE", TODAY.minusDays(3), ADMIN)
+                        checkNotNull(
+                            store.request(entity.entityRef, kind, "BNM", "MONTHLY_AVERAGE", TODAY.minusDays(3), ADMIN),
+                        )
                     }
                 e.people.caller = APPROVER
                 assertThat(e.refusal { e.approve(entity, past.changeRef) }).isNotNull()

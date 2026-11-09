@@ -68,6 +68,7 @@ class ElectionsTest {
                 val later = TODAY.plusDays(7)
                 assertThat(first.reason).isEqualTo("VP-23 election by $ADMIN")
                 assertThat(e.pending { e.elect(entity, "ENTIRE_INVOICE", later) }.requestedBy).isEqualTo(ADMIN)
+                e.closePending(entity)
                 e.pending { e.elect(entity, "ENTIRE_INVOICE", TODAY) }
                 assertThat(e.history(entity, ElectionKind.APPORTIONMENT_MODE).map { it.value })
                     .containsExactly("CLAIMABLE_PORTION")
@@ -98,6 +99,7 @@ class ElectionsTest {
                 // a change is stored pending (202), never written
                 e.facts.set(entity.entityRef, "claimsInputTaxOnPostingBasis", FactAnswer.TRUE)
                 e.pending { e.elect(entity, posting, later) }
+                e.closePending(entity)
                 e.pending { e.elect(entity, posting, TODAY) }
                 assertThat(e.history(entity, ElectionKind.PURCHASE_DATE_BASIS).map { it.value })
                     .containsExactly("INVOICE_DATE")
