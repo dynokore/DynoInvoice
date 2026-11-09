@@ -288,6 +288,11 @@ class PartialExemptionBoundaryTest(
             it.rules() shouldBe emptyList()
             it.text("scopeVerdict") shouldBe OUT_OF_SCOPE
         }
+        // a missing node is no partially exempt status: the profile has no partiallyExempt entry at all
+        evaluate(entity(), "RE", extra = PURCHASE + UNCLAIMED).let {
+            it.rules() shouldBe emptyList()
+            it.text("scopeVerdict") shouldBe OUT_OF_SCOPE
+        }
         evaluate("pe-no-such-entity", "RE", extra = PURCHASE + UNCLAIMED).text("scopeVerdict") shouldBe "PRE_OBLIGATION"
     }
 
