@@ -75,7 +75,7 @@ class RateSourceBoundaryDoubles {
 
     @Bean
     fun packApprovalDecisionPort(): PackApprovalDecisionPort =
-        PackApprovalDecisionPort { _, _, _, _, _ -> PackApprovalDecision.Allow(false, null, "OPTION-1", emptySet()) }
+        PackApprovalDecisionPort { PackApprovalDecision.Allow(false, null, "OPTION-1", emptySet()) }
 
     @Bean
     fun holderCopyPort(): HolderCopyPort = HolderCopyPort { HolderCopyResult.Written }
