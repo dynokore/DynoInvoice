@@ -58,7 +58,7 @@ class ImportRatesTest {
     private var electedSource: String? = "MAS"
     private var approvedSources = setOf("MAS")
     private val events = mutableListOf<ReferenceRateLoaded>()
-    private val elected = ElectedRateSource { _, _ -> electedSource }
+    private val elected = ElectedRateSource { _, _ -> electedSource?.let { ElectedRate(it, "SPOT") } }
     private val approved = ApprovedRateSources { s, b, _ -> b == "SPOT" && s in approvedSources }
     private val importer = ImportRates(tx, store, elected, approved) { events += it }
 
@@ -66,7 +66,7 @@ class ImportRatesTest {
         source: String,
         rows: List<RateRow> = listOf(row(1, "USD", "1.35")),
         count: Int = rows.size,
-    ) = ImportRatesCommand("E1", source, "SPOT", day, "IMP-1", "hash", count, rows)
+    ) = ImportRatesCommand("E1", source, day, "IMP-1", "hash", count, rows)
 
     private fun row(
         n: Int,
@@ -188,5 +188,111 @@ class ImportRatesTest {
                 .handle(RegisterAndRatesQuestion(RegisterQuestion("E1", "201912345A"), "USD", day))
         assertEquals(REGISTER_UNAVAILABLE, out.register.status)
         assertEquals(RateLookup.Absent, out.rate)
+    }
+
+    // INV-AC-19334: point-in-time election and approval.
+    private val d10 = LocalDate.parse("2026-03-10")
+    private val d20 = LocalDate.parse("2026-03-20")
+    private val cut = LocalDate.parse("2026-03-15")
+
+    private fun rangeCmd(
+        source: String,
+        rows: List<RateRow>,
+        count: Int = rows.size,
+        from: LocalDate = d10,
+    ) = ImportRatesCommand("E1", source, from, "IMP-2", "hash", count, rows)
+
+    private fun importerWith(
+        el: (LocalDate) -> ElectedRate?,
+        ap: (String, String, LocalDate) -> Boolean = { _, _, _ -> true },
+    ) = ImportRates(tx, store, { _, d -> el(d) }, { s, b, d -> ap(s, b, d) }) { events += it }
+
+    private fun twoRows() = listOf(row(1, "USD", "1.35", d10), row(2, "EUR", "1.5", d20))
+
+    private fun assertNothing() {
+        assertEquals(0, all.size)
+        assertEquals(0, events.size)
+    }
+
+    @Test
+    fun `INV-AC-19334 source elected on one row date only is SourceNotElected`() {
+        val imp = importerWith({ d -> ElectedRate(if (d.isAfter(cut)) "MAS2" else "MAS", "DAILY") })
+        assertEquals(ImportRatesOutcome.SourceNotElected, imp.handle(rangeCmd("MAS", twoRows())))
+        assertNothing()
+    }
+
+    @Test
+    fun `INV-AC-19334 no election on one of two row dates is SourceNotElected`() {
+        val imp = importerWith({ d -> if (d == d20) null else ElectedRate("MAS", "DAILY") })
+        assertEquals(ImportRatesOutcome.SourceNotElected, imp.handle(rangeCmd("MAS", twoRows())))
+        assertNothing()
+    }
+
+    @Test
+    fun `INV-AC-19334 approval false after a date gives SourceNotApproved while earlier rows load`() {
+        val imp =
+            importerWith({ ElectedRate("MAS", "DAILY") }, { _, _, d -> !d.isAfter(cut) })
+        assertEquals(ImportRatesOutcome.SourceNotApproved, imp.handle(rangeCmd("MAS", twoRows())))
+        assertNothing()
+        val ok = imp.handle(rangeCmd("MAS", listOf(row(1, "USD", "1.35", d10), row(2, "EUR", "1.5", cut))))
+        assertEquals(2, (ok as ImportRatesOutcome.Loaded).stored)
+        assertEquals(1, events.size)
+    }
+
+    @Test
+    fun `INV-AC-19334 approval receives the basis of the election of each date`() {
+        val seen = mutableListOf<Triple<String, String, LocalDate>>()
+        val imp =
+            importerWith(
+                { d -> ElectedRate("MAS", if (d == d10) "DAILY" else "MONTHLY_AVERAGE") },
+                { s, b, d ->
+                    seen += Triple(s, b, d)
+                    true
+                },
+            )
+        imp.handle(rangeCmd("MAS", twoRows()))
+        assertEquals(
+            setOf(Triple("MAS", "DAILY", d10), Triple("MAS", "MONTHLY_AVERAGE", d20)),
+            seen.toSet(),
+        )
+        assertEquals(2, seen.size)
+    }
+
+    @Test
+    fun `INV-AC-19334 no rows is checked on rangeFrom`() {
+        val asked = mutableListOf<LocalDate>()
+        val imp =
+            importerWith({ d ->
+                asked += d
+                null
+            })
+        assertEquals(ImportRatesOutcome.SourceNotElected, imp.handle(rangeCmd("MAS", emptyList(), 0, d20)))
+        assertEquals(listOf(d20), asked)
+        assertNothing()
+    }
+
+    @Test
+    fun `INV-AC-19334 look-alike sources are SourceNotElected`() {
+        val imp = importerWith({ ElectedRate("MAS", "DAILY") })
+        for (lookAlike in listOf("MAS ", "mas")) {
+            assertEquals(ImportRatesOutcome.SourceNotElected, imp.handle(rangeCmd(lookAlike, twoRows())), lookAlike)
+        }
+        assertNothing()
+    }
+
+    @Test
+    fun `INV-AC-19334 row count differing after election and approval is RowCountMismatch`() {
+        val imp = importerWith({ ElectedRate("MAS", "DAILY") })
+        assertEquals(ImportRatesOutcome.RowCountMismatch, imp.handle(rangeCmd("MAS", twoRows(), 3)))
+        assertNothing()
+    }
+
+    @Test
+    fun `INV-AC-19334 all dates pass stores the records and publishes one event`() {
+        val imp = importerWith({ ElectedRate("MAS", "DAILY") })
+        val out = imp.handle(rangeCmd("MAS", twoRows()))
+        assertEquals(2, (out as ImportRatesOutcome.Loaded).stored)
+        assertEquals(2, all.size)
+        assertEquals(1, events.size)
     }
 }

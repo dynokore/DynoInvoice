@@ -6,12 +6,18 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.math.BigDecimal
 import java.time.LocalDate
 
-/** The rate source elected for an entity on a date; implemented by INV-T-18775. Null when none is elected. */
+/** The election in force on a date: the rate source and the basis it is elected for. */
+data class ElectedRate(
+    val source: String,
+    val basis: String,
+)
+
+/** The rate election of an entity on a date; implemented by INV-T-18775. Null when none is in force on that date. */
 fun interface ElectedRateSource {
     fun elected(
         entity: String,
         date: LocalDate,
-    ): String?
+    ): ElectedRate?
 }
 
 /** The approved rate sources for a basis on a date; implemented by INV-T-18775. */
@@ -58,8 +64,7 @@ data class RejectedRateRow(
 data class ImportRatesCommand(
     val entity: String,
     val source: String,
-    val basis: String,
-    val asOf: LocalDate,
+    val rangeFrom: LocalDate,
     val importId: String,
     val fileHash: String,
     val rowCount: Int,
@@ -96,10 +101,17 @@ class ImportRates(
     private val publisher: ReferenceRateLoadedPublisher,
 ) {
     fun handle(command: ImportRatesCommand): ImportRatesOutcome {
+        // Point-in-time: each distinct row date (the range start when there are no rows) is judged by its own election.
+        val dates =
+            command.rows
+                .map { it.date }
+                .distinct()
+                .ifEmpty { listOf(command.rangeFrom) }
+        val elections = dates.associateWith { elected.elected(command.entity, it) }
         val outcome =
-            if (elected.elected(command.entity, command.asOf) != command.source) {
+            if (elections.values.any { it == null || it.source != command.source }) {
                 ImportRatesOutcome.SourceNotElected
-            } else if (!approved.isApproved(command.source, command.basis, command.asOf)) {
+            } else if (elections.any { (date, election) -> !isApproved(command.source, election, date) }) {
                 ImportRatesOutcome.SourceNotApproved
             } else if (command.rows.size != command.rowCount) {
                 ImportRatesOutcome.RowCountMismatch
@@ -121,6 +133,12 @@ class ImportRates(
         }
         return ImportRatesOutcome.Loaded(stored.size, rejected)
     }
+
+    private fun isApproved(
+        source: String,
+        election: ElectedRate?,
+        date: LocalDate,
+    ) = election != null && approved.isApproved(source, election.basis, date)
 
     private fun load(command: ImportRatesCommand): Pair<List<ExchangeRate>, List<RejectedRateRow>> {
         val stored = mutableListOf<ExchangeRate>()

@@ -59,7 +59,7 @@ class GetRegisterAndRates(
     fun handle(question: RegisterAndRatesQuestion): RegisterAndRates {
         val answer = register.lookup(question.register)
         if (question.currency == HOME) return RegisterAndRates(answer, null)
-        val source = elected.elected(question.register.entity, question.transactionDate)
+        val source = elected.elected(question.register.entity, question.transactionDate)?.source
         val rate =
             source?.let { rates.find(it, question.currency, HOME, question.transactionDate) } ?: RateLookup.Absent
         return RegisterAndRates(answer, rate)
