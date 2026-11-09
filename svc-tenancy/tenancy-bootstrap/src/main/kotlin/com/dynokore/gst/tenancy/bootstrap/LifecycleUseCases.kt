@@ -15,7 +15,6 @@ import com.dynokore.gst.tenancy.application.lifecycle.UnboundTriggerCoverage
 import com.dynokore.gst.tenancy.application.lifecycle.UnsubmittedOverrideLog
 import com.dynokore.gst.tenancy.application.offboarding.UnsubmittedDocuments
 import com.dynokore.gst.tenancy.application.period.PeriodGeneration
-import com.dynokore.gst.tenancy.application.period.SINGAPORE
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
@@ -89,10 +88,7 @@ class LifecycleUseCases {
         publisher: EntityProfileChangePublisher,
         tenants: TenantContext,
         clock: ObjectProvider<Clock>,
-    ): SuspendEntity =
-        SuspendEntity(tx, structure, lifecycle, statuses, extras, publisher, tenants::current) {
-            today(clock)
-        }
+    ): SuspendEntity = SuspendEntity(tx, structure, lifecycle, statuses, extras, publisher, tenants::current) { today(clock) }
 
     @Bean
     @Suppress("LongParameterList") // one parameter per collaborator of the use case
@@ -122,7 +118,5 @@ class LifecycleUseCases {
             tenants::current,
         ) { today(clock) }
 
-    /** The business date is the Singapore calendar day (INV-Q-16113), not the UTC date. */
-    private fun today(clock: ObjectProvider<Clock>): LocalDate =
-        LocalDate.now(clock.getIfAvailable(Clock::systemUTC).withZone(SINGAPORE))
+    private fun today(clock: ObjectProvider<Clock>): LocalDate = LocalDate.now(clock.getIfAvailable(Clock::systemUTC))
 }
