@@ -1073,6 +1073,7 @@ components:
         holdCode:
           type: string
           enum: [ING-017, ING-024]
+          x-enum-varnames: [ING_017, ING_024]
           description: The MANUAL hold code to release; the two MANUAL codes of INV-Q-16154 A.
         note:
           type: string
@@ -1087,6 +1088,7 @@ components:
         holdCode:
           type: string
           enum: [ING-017, ING-024]
+          x-enum-varnames: [ING_017, ING_024]
         releasedBy:
           type: string
           description: The user ID of the verified caller.

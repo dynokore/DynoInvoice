@@ -264,9 +264,12 @@ rules:
       function: undefined
 
   # --- API-09: casing, extensible enums -----------------------------------------
-  # INV-T-6047 (owner ruling INV-Q-6109): an enum that maps an interface field or DTO property
-  # names its UPPER_SNAKE_CASE member in a sibling `x-enum-varnames`; its values are then the
-  # real camelCase property names. Three rules, one per condition, all named inv-api-09-enum-casing-*.
+  # API-09 (INV-T-6047, owner ruling INV-Q-6109; owner ruling 2026-11-09, INV-T-16541): the code name
+  # of every enum member is UPPER_SNAKE_CASE. An enum without `x-enum-varnames` uses its values as
+  # code names, so they must be UPPER_SNAKE_CASE. An enum whose values are not UPPER_SNAKE_CASE
+  # carries a sibling `x-enum-varnames` with the code names; the values beside `x-enum-varnames`
+  # are free-form (stable wire values, e.g. `ING-017` or "True"). Three rules, one per condition,
+  # all named inv-api-09-enum-casing-*.
   inv-api-09-enum-casing:
     description: API-09 — enum values are UPPER_SNAKE_CASE (an enum without a sibling x-enum-varnames).
     message: "enum value '{{value}}' must be UPPER_SNAKE_CASE (API-09) unless the enum has a sibling x-enum-varnames"
@@ -288,17 +291,6 @@ rules:
       function: pattern
       functionOptions:
         match: "^[A-Z][A-Z0-9_]*$"
-
-  inv-api-09-enum-casing-values:
-    description: API-09 — an enum with x-enum-varnames has camelCase property names as values.
-    message: "enum value '{{value}}' beside x-enum-varnames must be a camelCase property name (API-09)"
-    given: "$..[?(@.enum && @['x-enum-varnames'])].enum[*]"
-    severity: error
-    formats: ["oas3_1"]
-    then:
-      function: pattern
-      functionOptions:
-        match: "^[a-z][A-Za-z0-9]*$"
 
   inv-api-09-enum-casing-count:
     description: API-09 — an enum with x-enum-varnames has exactly one varname per value.
