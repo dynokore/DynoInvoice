@@ -34,6 +34,12 @@ object ElectionPermissions {
     const val MANAGE = "entity-config.manage"
     const val CONFIRM = "entity-config.confirm"
     const val APPROVE = "election-change.approve"
+
+    /** The permission for `withdrawElectionChange`. */
+    const val WITHDRAW = "election-change.withdraw"
+
+    /** The permission for `listElectionChanges`. */
+    const val LIST = "election-change.list"
 }
 
 object ElectionKeys {
