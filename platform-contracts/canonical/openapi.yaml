@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -381,6 +381,64 @@ paths:
                     preparedAt: "2026-04-02T08:00:00Z"
                     confirmedAt: "2026-04-03T09:30:00Z"
                     confirmedBy: "approver-01"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/canonical/documents/{docUuid}/release:
+    post:
+      operationId: releaseHeldDocument
+      summary: Release a document held with a MANUAL code, moving it to re-derivation
+      description: >-
+        The operation moves the document to re-derivation. It records the acting
+        user ID of the verified caller, never a request field (INV-Q-10647). A
+        release by the user who caused the hold, when a person's action caused
+        it, is refused. The service checks only the scoped permission
+        `held-document.release`, decided per request by `AuthorityReplica.decide`,
+        never a role name (INV-Q-10027). Refusals, in this order: not permitted
+        or same user 403 SRT-004; no document or no hold with that code on it
+        404 SRT-005; a request that does not match the schema 400 SRT-001. A
+        refusal changes nothing (INV-REQ-1315, INV-Q-16154 A).
+      tags: [documents]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->canonical-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1315]
+      x-operation:
+        permission: held-document.release
+        role: tax.approver
+        scope: entity
+        precondition: The document is held with a MANUAL code (ING-017 or ING-024).
+        reversibility: IRREVERSIBLE
+        repeatKey: "(docUuid, holdCode) — a repeat returns the recorded release unchanged."
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseHeldDocumentRequest'
+      responses:
+        '200':
+          description: The recorded release.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleasedDocument'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    holdCode: ING-017
+                    releasedBy: "approver-01"
+                    releasedAt: "2026-04-03T09:30:00Z"
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -1007,6 +1065,34 @@ components:
         nextCursor:
           type: string
       required: [items]
+    ReleaseHeldDocumentRequest:
+      type: object
+      additionalProperties: false
+      required: [holdCode]
+      properties:
+        holdCode:
+          type: string
+          enum: [ING-017, ING-024]
+          description: The MANUAL hold code to release; the two MANUAL codes of INV-Q-16154 A.
+        note:
+          type: string
+          maxLength: 500
+    ReleasedDocument:
+      type: object
+      required: [docUuid, holdCode, releasedBy, releasedAt]
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        holdCode:
+          type: string
+          enum: [ING-017, ING-024]
+        releasedBy:
+          type: string
+          description: The user ID of the verified caller.
+        releasedAt:
+          type: string
+          format: date-time
   responses:
     Error:
       description: Error (API-20 envelope)

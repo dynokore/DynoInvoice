@@ -136,3 +136,9 @@ schemas/canonical-version-created-payload.schema.json	canonicalDocument.document
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.invoiceNote	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.identityTriple	IDENTIFYING
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.supplyType	NONE
+openapi.yaml	ReleaseHeldDocumentRequest.holdCode	NONE
+openapi.yaml	ReleaseHeldDocumentRequest.note	NONE
+openapi.yaml	ReleasedDocument.docUuid	NONE
+openapi.yaml	ReleasedDocument.holdCode	NONE
+openapi.yaml	ReleasedDocument.releasedBy	IDENTIFYING
+openapi.yaml	ReleasedDocument.releasedAt	NONE

@@ -194,3 +194,10 @@ sourceDocumentRef	property	openapi.yaml	INV-REQ-646
 RecordDocumentRequest.sourceDocumentRef	schema_property	openapi.yaml	INV-REQ-646
 DocumentVersion.sourceDocumentRef	schema_property	openapi.yaml	INV-REQ-646
 sourceDocumentRef	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-646
+releaseHeldDocument	operation	openapi.yaml	INV-REQ-1315
+ReleaseHeldDocumentRequest.holdCode	schema_property	openapi.yaml	INV-REQ-1315
+ReleaseHeldDocumentRequest.note	schema_property	openapi.yaml	INV-REQ-1315
+ReleasedDocument.holdCode	schema_property	openapi.yaml	INV-REQ-1315
+ReleasedDocument.releasedBy	schema_property	openapi.yaml	INV-REQ-1315
+ReleaseHeldDocumentRequest.holdCode.ING-017	schema_enum_value	openapi.yaml	INV-REQ-1315
+ReleaseHeldDocumentRequest.holdCode.ING-024	schema_enum_value	openapi.yaml	INV-REQ-1315
