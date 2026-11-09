@@ -75,6 +75,8 @@ class SubmissionStoreListColumnsDbTest {
         insert(b, docB, SubmissionKind.TYPE_3) shouldBe 1
         column(a, docA, "submission_type") shouldBe "TYPE_1B"
         column(a, docA, "submitted_at") shouldBe null
+        asTenant(a) { store.markSent(TenantId(a), docA, 1, 1) }
+        column(a, docA, "submitted_at") shouldBe null
         val first = Instant.parse("2026-11-10T01:02:03Z")
         val second = Instant.parse("2026-11-10T05:06:07Z")
         asTenant(a) { store.recordAccepted(TenantId(a), docA, 1, first) }
