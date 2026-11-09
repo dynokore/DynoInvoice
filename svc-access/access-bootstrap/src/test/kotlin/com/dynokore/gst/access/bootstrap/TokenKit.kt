@@ -5,7 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.access.adapters.http.AuthoriseController
 import com.dynokore.gst.access.adapters.http.GatewayCaller
-import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.authorise.AuthoriseGate
 import com.dynokore.gst.access.application.authorise.AuthorisePlatform
 import com.dynokore.gst.access.application.authorise.MachineAuthorise
 import com.dynokore.gst.access.application.keys.RevocationList
@@ -36,7 +36,7 @@ class TokenKit(
     /** The gateway-side controller of getVerificationKeys and getRevocationList (the direct call carries no token). */
     val keys: AuthoriseController =
         AuthoriseController(
-            context.getBean(Authorise::class.java),
+            context.getBean(AuthoriseGate::class.java),
             context.getBean(AuthorisePlatform::class.java),
             context.getBean(MachineAuthorise::class.java),
             context.getBean(VerificationKeys::class.java),

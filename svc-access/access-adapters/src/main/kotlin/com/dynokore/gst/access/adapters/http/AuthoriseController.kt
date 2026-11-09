@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.http
 
-import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.authorise.AuthoriseGate
+import com.dynokore.gst.access.application.authorise.AuthoriseOutcome
 import com.dynokore.gst.access.application.authorise.AuthorisePlatform
 import com.dynokore.gst.access.application.authorise.MachineAuthorise
 import com.dynokore.gst.access.application.authorise.MachineDecision
@@ -33,7 +34,7 @@ import java.util.Base64
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
 // template)
 open class AuthoriseController(
-    private val authorise: Authorise,
+    private val authorise: AuthoriseGate,
     private val platform: AuthorisePlatform,
     private val machine: MachineAuthorise,
     private val keys: VerificationKeys,
@@ -86,11 +87,30 @@ open class AuthoriseController(
         val principal = runCatching { IdentityRef(principalRef) }.getOrNull()
         val asked = runCatching { Permission(permission) }.getOrNull()
         return when {
-            target == null && !onPlatform -> Decision.Deny(BAD_SCOPE)
-            principal == null -> Decision.Deny(BAD_PRINCIPAL)
-            asked == null -> Decision.Deny(BAD_PERMISSION)
-            onPlatform -> platform.handle(principal, asked)
-            else -> authorise.handle(principal, asked, checkNotNull(target))
+            target == null && !onPlatform -> {
+                Decision.Deny(BAD_SCOPE)
+            }
+
+            principal == null -> {
+                Decision.Deny(BAD_PRINCIPAL)
+            }
+
+            asked == null -> {
+                Decision.Deny(BAD_PERMISSION)
+            }
+
+            onPlatform -> {
+                platform.handle(principal, asked)
+            }
+
+            else -> {
+                when (val outcome = authorise.handle(principal, asked, checkNotNull(target))) {
+                    is AuthoriseOutcome.Decided -> outcome.decision
+
+                    // no snapshot of the structure yet: nothing is decided, never a DENY (INV-AC-9089, INV-Q-17134 A)
+                    AuthoriseOutcome.NotReady -> throw ApiRefusal(ClosedErrorCode.SERVICE_NOT_READY)
+                }
+            }
         }
     }
 

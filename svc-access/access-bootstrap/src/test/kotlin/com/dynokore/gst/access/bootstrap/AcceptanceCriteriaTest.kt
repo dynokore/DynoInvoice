@@ -21,6 +21,7 @@ import com.dynokore.gst.access.domain.grant.Target
 import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.role.Role
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -326,7 +327,7 @@ class AcceptanceCriteriaTest {
                 AuthorityReplica(env.clock, env.context.getBean(OperationRoleMap::class.java), fallback = null)
             // the start-up sync of a service whose replica is current
             replica.onSnapshotComplete(0)
-            val feed = env.context.getBean(AuthorityFeedHandler::class.java)
+            val feed = env.context.getBean("authorityFeedHandler", EventHandler::class.java)
             val feedRequest =
                 AuthorizationRequest(tenantA, Principal("IDN-R", PrincipalKind.HUMAN), "ENT-R", "doc.view.content")
 

@@ -38,6 +38,7 @@ import com.dynokore.platform.outboxandqueue.StagedOutboxRow
 import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.SqlIdentifier
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -48,6 +49,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -56,6 +58,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.utility.MountableFile
 import java.nio.file.Files
@@ -174,6 +177,21 @@ class BoundaryTestConfiguration {
 
     @Bean
     fun capturedEvents(): CapturedEvents = CapturedEvents()
+
+    /**
+     * The structure replica of these contexts holds its snapshot from the start, as a service whose full sync is done
+     * (INV-AC-9089); a test of the cold start sets `access.test.cold-structure=true` to leave it empty.
+     */
+    @Bean
+    fun structureSnapshot(
+        structure: StructureReplica,
+        environment: Environment,
+    ): SmartInitializingSingleton =
+        SmartInitializingSingleton {
+            if (!environment.getProperty("access.test.cold-structure", Boolean::class.java, false)) {
+                structure.onSnapshotComplete(0)
+            }
+        }
 
     /** The break-glass tests unlock with the identity provider unavailable (INV-T-11575); see [UnavailableIdp]. */
     @Bean

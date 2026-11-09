@@ -10,6 +10,7 @@ import com.dynokore.gst.access.application.breakglass.BreakGlassSessions
 import com.dynokore.gst.access.application.breakglass.ReportBreakGlassActionUseCase
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
@@ -21,6 +22,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.micrometer.core.instrument.MeterRegistry
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -87,12 +89,13 @@ class BreakGlassReportFeed {
         useCase: ReportBreakGlassActionUseCase,
         mapper: ObjectMapper,
         tenants: TenantContext,
-    ) = BreakGlassActionReportedHandler(
-        useCase,
-        mapper,
-        tenants,
-        AccessEventCatalogue.producersOf(BreakGlassActionReportedHandler.TYPE),
-    )
+    ): EventHandler =
+        BreakGlassActionReportedHandler(
+            useCase,
+            mapper,
+            tenants,
+            AccessEventCatalogue.producersOf(BreakGlassActionReportedHandler.TYPE),
+        )
 
     @Bean
     @Primary
@@ -104,7 +107,7 @@ class BreakGlassReportFeed {
         scope: TenantScope,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-        handler: BreakGlassActionReportedHandler,
+        @Qualifier("breakGlassActionReportedHandler") handler: EventHandler,
     ): JdbcInboxConsumer =
         JdbcInboxConsumer(
             ConsumerSubscription(CONSUMER, TOPIC, SCHEMA),
