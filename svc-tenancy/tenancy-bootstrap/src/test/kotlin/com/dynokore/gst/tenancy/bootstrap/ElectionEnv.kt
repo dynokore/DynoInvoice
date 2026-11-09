@@ -109,6 +109,7 @@ internal class ElectionEnv(
         changeRef: String,
     ) = env.api.approveElectionChange(entity.entityRef, changeRef, UUID.randomUUID())
 
+    /** The states of the entity's election changes, oldest first, read as the superuser. */
     /**
      * Closes the PENDING changes of the entity as DECLINED by SQL, so the next request is not refused as a second
      * pending change (INV-AC-13527); the withdraw and decline routes belong to INV-T-15888.
@@ -126,7 +127,6 @@ internal class ElectionEnv(
         }
     }
 
-    /** The states of the entity's election changes, oldest first, read as the superuser. */
     fun changeStates(entity: EntityResponse): List<String> =
         BoundaryFixture.asSuperuser { c ->
             c
