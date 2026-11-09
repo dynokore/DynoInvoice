@@ -395,10 +395,16 @@ class SetPolicyDecisionTest {
             val noOption =
                 """{"scopeLevel":"INSTALLATION","selected":[],"effectiveDate":"$TODAY","reason":"because"}"""
             val empty = e.post("VP-52", caller, noOption)
-            // config-resolver rejects an empty selection (400 POL-012) and an option outside the
-            // catalogue row (422 POL-011) before the ValueConstraints port (done-when names 422 POL-014).
+            // Published VP-52 ruling: an empty selection and both options at once are 400 POL-012 (config-resolver
+            // checks the selection shape before the ValueConstraints port); an unknown option is 422 POL-011.
             assertThat(empty.status).describedAs(empty.contentAsString).isEqualTo(BAD_REQUEST)
             assertThat(empty.contentAsString).contains("POL-012")
+            val both =
+                """{"scopeLevel":"INSTALLATION","selected":[{"option":"CUSTOMER_KUBERNETES"},""" +
+                    """{"option":"SUPPLIED_APPLIANCE"}],"effectiveDate":"$TODAY","reason":"because"}"""
+            val twoAtOnce = e.post("VP-52", caller, both)
+            assertThat(twoAtOnce.status).describedAs(twoAtOnce.contentAsString).isEqualTo(BAD_REQUEST)
+            assertThat(twoAtOnce.contentAsString).contains("POL-012")
             e.env.withGroup(1) { _, _, _ ->
                 // VP-52 has no default: nothing stored means the read still reports "must be elected".
                 assertThatThrownBy {
