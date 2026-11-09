@@ -46,13 +46,11 @@ case "$out" in "machine-route-keys-check: "*" routes keyed") [ $rc -eq 0 ] && ec
   *) echo "gst-ci: FAIL — INV-AC-13563 clean tree: exit $rc, '$out'"; failed=1;; esac
 
 # route <-> key rows
-fresh portfolio-in-both
-mutate portfolio-in-both $R "t += '$PORT_ROUTE'"
-mutate portfolio-in-both $K "t += '$PORT_KEY'"
-# INV-T-18352: no openapi operation carries x-principal for get /v1/portfolio on main, so the (e) comparison now names it
-expect portfolio-in-both "get /v1/portfolio: (e) no operation with this method and path carries x-principal"
-probe route-without-key "get /v1/portfolio: (a) route has no row" $R "t += '$PORT_ROUTE'"
-probe key-without-route "get /v1/portfolio: (a) key row has no route" $K "t += '$PORT_KEY'"
+# INV-T-13557 made get /v1/portfolio a real route in both tables (and getPortfolio carries x-principal), so the probes
+# now break the real rows instead of adding absent ones
+probe portfolio-in-both "get /v1/portfolio: (e) no operation with this method and path carries x-principal" console-bff/openapi.yaml "i = t.index('operationId: getPortfolio'); j = t.index('      x-principal: reporting\\n', i); t = t[:j] + t[j + len('      x-principal: reporting\\n'):]"
+probe route-without-key "get /v1/portfolio: (a) route has no row" $K "t = t.replace('$PORT_KEY', '', 1)"
+probe key-without-route "get /v1/portfolio: (a) key row has no route" $R "t = t.replace('$PORT_ROUTE', '', 1)"
 probe key-removed "post /v1/aggregates: (a) route has no row" $K "t = t.replace('post\t/v1/aggregates\t', 'post\t/v1/aggregates-x\t', 1)"
 probe duplicate-key-row "(a) duplicate row in machine-route-keys.tsv" $K "t += 'get\t/v1/exceptions\texception.view\tmachine.status.read\tperson\n'"
 # decided_by
@@ -88,13 +86,11 @@ probe compliance-metrics-as-person "get /v1/compliance-metrics: (d) person row, 
 # portfolio: any permission_also fails
 for also in machine.status.read machine.certification.ingest; do
   fresh "portfolio-also-$also"
-  mutate "portfolio-also-$also" $R "t += '$PORT_ROUTE'"
-  mutate "portfolio-also-$also" $K "t += 'get\t/v1/portfolio\tperiod-readiness.view\t$also\tperson\n'"
+  mutate "portfolio-also-$also" $K "t = t.replace('$PORT_KEY', 'get\t/v1/portfolio\tperiod-readiness.view\t$also\tperson\n', 1)"
   expect "portfolio-also-$also" "get /v1/portfolio: (d) permission_also"
 done
 fresh portfolio-machine-key
-mutate portfolio-machine-key $R "t += '$PORT_ROUTE'"
-mutate portfolio-machine-key $K "t += 'get\t/v1/portfolio\tmachine.status.read\t-\tperson\n'"
+mutate portfolio-machine-key $K "t = t.replace('$PORT_KEY', 'get\t/v1/portfolio\tmachine.status.read\t-\tperson\n', 1)"
 expect portfolio-machine-key "get /v1/portfolio: (d) person row permission 'machine.status.read' starts with"
 # look-alike: same file name in another directory (the real key table is absent from route-scopes/)
 fresh other-directory
