@@ -4,6 +4,8 @@ import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
 import com.dynokore.gst.tenancy.adapters.http.ConstraintRefusal
 import com.dynokore.gst.tenancy.adapters.http.TenancyRefusal
 import com.dynokore.gst.tenancy.application.lifecycle.TriggerCoverage
+import com.dynokore.gst.tenancy.application.offboarding.ExportOrder
+import com.dynokore.gst.tenancy.application.offboarding.TenantExport
 import com.dynokore.gst.tenancy.application.offboarding.UnavailableInput
 import com.dynokore.gst.tenancy.application.offboarding.UnsubmittedDocuments
 import com.dynokore.gst.tenancy.contract.model.DeregisterEntityRequest
@@ -13,10 +15,14 @@ import com.dynokore.gst.tenancy.contract.model.SuspendEntityRequest
 import com.dynokore.gst.tenancy.contract.model.UnsubmittedOverrideAcknowledgement
 import com.dynokore.gst.tenancy.domain.CertificationOutcome
 import com.dynokore.gst.tenancy.domain.ElectionRoles
+import com.dynokore.gst.tenancy.domain.ExportContent
+import com.dynokore.gst.tenancy.domain.ExportManifest
+import com.dynokore.gst.tenancy.domain.ExportState
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.gst.tenancy.domain.GoLiveGate
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.config.BeanDefinitionCustomizer
@@ -64,17 +70,40 @@ internal class Lab(
     val people: TestPeople = e.people
 }
 
+/**
+ * A clock that moves one millisecond on every reading, so that two records written in one test never share a
+ * `recorded_at` (the latest certification is ordered by it; a tie fell to a random id and made INV-AC-1064 flaky).
+ */
+internal class TickingClock(
+    start: Instant,
+) : Clock() {
+    private val next =
+        java.util.concurrent.atomic
+            .AtomicLong(start.toEpochMilli())
+
+    override fun getZone(): ZoneId = ZoneOffset.UTC
+
+    override fun withZone(zone: ZoneId): Clock = Clock.fixed(instant(), zone)
+
+    override fun instant(): Instant = Instant.ofEpochMilli(next.getAndIncrement())
+}
+
 internal fun primaryBean() = BeanDefinitionCustomizer { it.isPrimary = true }
 
 internal fun lifecycleRun(block: (Lab) -> Unit) {
     val log = TopicLog()
     val ports = Ports()
-    val clock = Clock.fixed(Instant.now(), ZoneOffset.UTC)
+    val clock = TickingClock(Instant.now())
     BoundaryFixture
         .runner()
         .withBean(Clock::class.java, { clock }, primaryBean())
         .withBean(EventLogReader::class.java, { log })
         .withBean(TriggerCoverage::class.java, { TriggerCoverage { ports.uncovered } }, primaryBean())
+        .withBean(TenantExport::class.java, {
+            TenantExport { order: ExportOrder ->
+                ExportManifest("EXP-${order.offboardingRef}", ExportState.READY, ExportContent.entries)
+            }
+        }, primaryBean())
         .withBean(UnsubmittedDocuments::class.java, {
             UnsubmittedDocuments {
                 _,
@@ -140,7 +169,11 @@ internal fun callDeregister(
 internal fun lifecycleReady(
     l: Lab,
     entity: EntityResponse,
+    openTenant: Boolean = true,
 ) {
+    // INV-Q-8097 B: goLive needs an OPEN tenant. The row is set directly so that these fixtures need not nest the
+    // platform binding of openTenant inside the tenant binding they run in; INV-AC-8139 calls openTenant itself.
+    if (openTenant) setTenantState(l.env.tenants.current(), "OPEN")
     l.elections.usualPeople(entity)
     l.elections.mode(entity, com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest.Mode.RELAY)
     l.elections.elect(entity, "INVOICE_DATE")
@@ -149,6 +182,29 @@ internal fun lifecycleReady(
     l.e.passed(entity)
     l.people.caller = ADMIN
 }
+
+/** Writes the stored tenant state text directly as the database owner (fixtures and look-alike probes only). */
+internal fun setTenantState(
+    tenant: TenantId,
+    state: String,
+) = BoundaryFixture.asSuperuser { c ->
+    c.prepareStatement("update tenancy.tenant set state = ? where tenant_id = ?").use { s ->
+        s.setString(1, state)
+        s.setObject(2, tenant.value)
+        s.executeUpdate()
+    }
+}
+
+internal fun storedTenantState(tenant: TenantId): String =
+    BoundaryFixture.asSuperuser { c ->
+        c.prepareStatement("select state from tenancy.tenant where tenant_id = ?").use { s ->
+            s.setObject(1, tenant.value)
+            s.executeQuery().use {
+                it.next()
+                it.getString(1)
+            }
+        }
+    }
 
 internal fun storedState(entity: EntityResponse): String =
     BoundaryFixture.asSuperuser { c ->
