@@ -7,6 +7,9 @@ import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
+import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
@@ -85,6 +88,26 @@ class PrincipalAcceptanceTest {
     @Test
     fun `INV-AC-8614 six types are created with exactly one type each and the five legacy members are refused`() =
         run { context, controller ->
+            // a certification principal needs a SANDBOX tenant (INV-T-11816, INV-Q-16901)
+            context
+                .getBean(StructureReplica::class.java)
+                .accept(
+                    OrganisationStructureChanged(
+                        tenant,
+                        "TEN-1",
+                        StructureChange.CREATED,
+                        StructureNode(
+                            StructureNodeKind.TENANT,
+                            null,
+                            false,
+                            "tenant",
+                            null,
+                            emptyList(),
+                            1,
+                            StructureEnvironment.SANDBOX,
+                        ),
+                    ),
+                )
             sixTypes.forEach { wire ->
                 val created = create(context, controller, CreatePrincipalRequest.PrincipalType.valueOf(wire))
                 assertThat(created.principalType).isEqualTo(wire)
