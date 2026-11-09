@@ -39,6 +39,7 @@ class JooqSubmissionStore(
             .set(Submission.SUBMISSION_.PAYLOAD_SHA256, version.payloadSha256)
             .set(Submission.SUBMISSION_.ENTITY_REF, version.entityRef)
             .set(Submission.SUBMISSION_.TRANSACTION_DATE, version.transactionDate)
+            .set(Submission.SUBMISSION_.SUBMISSION_TYPE, version.submissionType.name)
             .onConflict(Submission.SUBMISSION_.DOC_UUID, Submission.SUBMISSION_.VERSION)
             .doNothing()
             .execute()
@@ -191,6 +192,7 @@ class JooqSubmissionStore(
             dsl
                 .update(s)
                 .set(s.ACK_TIMER_STARTED_AT, DSL.coalesce(s.ACK_TIMER_STARTED_AT, at.atOffset(ZoneOffset.UTC)))
+                .set(s.SUBMITTED_AT, DSL.coalesce(s.SUBMITTED_AT, at.atOffset(ZoneOffset.UTC)))
                 .set(s.RETRY_FAILURES, 0)
                 .setNull(s.RETRY_FIRST_FAILURE_AT)
                 .where(s.TENANT_ID.eq(tenant.value))

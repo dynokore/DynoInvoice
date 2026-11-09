@@ -35,11 +35,20 @@ class PayloadReadyHandler(
         if (actual != declared) {
             throw ContractViolation("PayloadReady $docUuid version $version: payloadSha256 differs from the bytes")
         }
+        val submissionType = SubmissionTypeCode.fromWire(data.submissionType)
         val tenant = tenants.current()
         val inserted =
             store.insertReady(
                 tenant,
-                NewReadySubmission(docUuid, version, event.entity.value, event.transactionDate, bytes, declared),
+                NewReadySubmission(
+                    docUuid,
+                    version,
+                    event.entity.value,
+                    event.transactionDate,
+                    bytes,
+                    declared,
+                    submissionType,
+                ),
             )
         if (inserted == 0) {
             if (store.storedPayloadSha256(tenant, docUuid, version) != declared) {

@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.queue
 
+import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Instant
@@ -173,6 +174,7 @@ class NewAttempt(
 )
 
 /** The `submission` row a `PayloadReady` creates: state `READY`, the decoded bytes and their hash. */
+@Suppress("LongParameterList")
 class NewReadySubmission(
     val docUuid: String,
     val version: Int,
@@ -180,6 +182,7 @@ class NewReadySubmission(
     val transactionDate: LocalDate?,
     val payloadBytes: ByteArray,
     val payloadSha256: String,
+    val submissionType: SubmissionKind,
 )
 
 /** The values a `Retry` decision writes. */
