@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -306,6 +306,68 @@ paths:
                     state: "OVERRIDDEN"
                     reason: "Confirmed with customer: register lookup unavailable, manually verified"
                     overriddenAt: "2026-04-01T02:00:00Z"
+        default:
+          $ref: '#/components/responses/Error'
+  /bff/exceptions/{id}/override-preview:
+    get:
+      operationId: getOverridePreview
+      summary: Preview the authority, approval rule and consequence of an override
+      description: >-
+        People, through console-bff only. Answers, before `overrideException`
+        is called, what the override dialogue shows (INV-REQ-943): the
+        requesting user's authority, the approval rule that applies, and the
+        plain-language consequence. It changes no state and writes no audit
+        entry. It is offered only for an exception whose disposition is
+        OVERRIDABLE and answers 409 otherwise (INV-REQ-1023: no override
+        affordance on a TERMINAL error).
+
+
+        The requesting user's authority is the permission key of the owning
+        service's override operation together with the decision of
+        `AuthorityReplica.decide` for it, never a role name. The texts
+        `willTransmit` and `residualRisk` are supplied by the owning service
+        in the routed read, and console-bff relays them unchanged.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s for an operation making at most one downstream
+        call (x-timeout 3000): the one routed read.
+      tags: [exceptions]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: [SRT-004, SRT-005]
+      x-requirements: [INV-REQ-943]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The authority, approval rule and consequence of overriding this exception.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverridePreview'
+              examples:
+                default:
+                  value:
+                    exceptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    docUuid: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    docVersion: 1
+                    code: "MDM-003"
+                    requesterAuthority:
+                      permissionKey: "validation.override"
+                      decision: "ALLOW"
+                    approvalRule:
+                      kind: "ONE_APPROVER"
+                    willTransmit: "The invoice is transmitted with the buyer tax code as entered."
+                    residualRisk: "The buyer register was not checked, so the receiving authority may reject the invoice."
+        '409':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /bff/entities/{entityRef}/audit-pack-exports:
@@ -1088,6 +1150,48 @@ components:
           type: string
           format: date-time
       required: [exceptionId, state, reason, overriddenAt]
+    OverridePreview:
+      type: object
+      properties:
+        exceptionId:
+          type: string
+          format: uuid
+        docUuid:
+          type: string
+          format: uuid
+        docVersion:
+          type: integer
+          minimum: 1
+        code:
+          type: string
+        requesterAuthority:
+          type: object
+          properties:
+            permissionKey:
+              type: string
+              pattern: '^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$'
+            decision:
+              type: string
+              enum: [ALLOW, DENY]
+              x-extensible-enum: true
+          required: [permissionKey, decision]
+        approvalRule:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum: [ONE_APPROVER, SECOND_APPROVER]
+              x-extensible-enum: true
+          required: [kind]
+        willTransmit:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        residualRisk:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required: [exceptionId, docUuid, docVersion, code, requesterAuthority, approvalRule, willTransmit, residualRisk]
     CreateAuditPackExportRequest:
       type: object
       properties:

@@ -20,3 +20,11 @@ Exception.periodRef	schema_property	openapi.yaml	INV-REQ-1019
 Exception.rank	schema_property	openapi.yaml	INV-REQ-1019
 ExceptionPage.deadlinePeriods	schema_property	openapi.yaml	INV-REQ-1019
 DeadlinePeriod.hoursToFilingGate	schema_property	openapi.yaml	INV-REQ-1019
+# INV-T-14243. Override preview: authority, approval rule and consequence before an override (INV-REQ-943, INV-Q-14217).
+getOverridePreview	operation	openapi.yaml	INV-REQ-943
+OverridePreview.requesterAuthority	schema_property	openapi.yaml	INV-REQ-943
+OverridePreview.approvalRule	schema_property	openapi.yaml	INV-REQ-943
+OverridePreview.willTransmit	schema_property	openapi.yaml	INV-REQ-943
+OverridePreview.residualRisk	schema_property	openapi.yaml	INV-REQ-943
+getOverridePreview.SRT-004	operation_error_code	openapi.yaml	INV-REQ-943
+getOverridePreview.SRT-005	operation_error_code	openapi.yaml	INV-REQ-943
