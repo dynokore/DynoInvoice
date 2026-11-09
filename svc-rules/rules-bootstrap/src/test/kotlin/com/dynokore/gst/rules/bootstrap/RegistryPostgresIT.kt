@@ -57,6 +57,20 @@ private const val INSERT_ARTEFACT =
 private const val REGISTER_KERNEL_PACK =
     "select rules.register_platform_pack(?::uuid, ?, ?, ?, ?::date, null, '1.0.0', ?::jsonb, ?::jsonb, ?, ?::jsonb, ?)"
 
+/** One entry of the "Triggers" array of EXPLAIN (ANALYZE, FORMAT JSON): the trigger name and its Calls. */
+private val TRIGGER_CALLS = Regex("""\{[^{}]*"Trigger Name":\s*"([^"]+)"[^{}]*"Calls":\s*(\d+)[^{}]*\}""")
+
+/** The six statement-level entry triggers of rules.pack_entry_source (INV-T-19509). */
+private val ENTRY_TRIGGERS =
+    setOf(
+        "pack_entry_source_frozen_ins",
+        "pack_entry_source_frozen_upd",
+        "pack_entry_source_frozen_del",
+        "pack_entry_source_locked_ins",
+        "pack_entry_source_locked_upd",
+        "pack_entry_source_locked_del",
+    )
+
 /** The two metadata tables rules-svc owns, the holder copy beside them, and the tables of the libraries and Flyway. */
 private val REGISTRY_TABLES = SchemaInspection.REGISTRY_TABLES
 private val HOLDER_TABLES = setOf(SchemaInspection.HOLDER)
@@ -420,7 +434,7 @@ class RegistryPostgresIT(
                 "where not t.tgisinternal and c.relnamespace = 'rules'::regnamespace and c.relname = "
         names(triggers + "'pack_registry'") shouldBe
             setOf("pack_registry_registered_by_insert", "pack_registry_frozen_update", "pack_registry_mapping_moves")
-        names(triggers + "'pack_entry_source'") shouldBe setOf("pack_entry_source_frozen", "pack_entry_source_locked")
+        names(triggers + "'pack_entry_source'") shouldBe ENTRY_TRIGGERS
         names(triggers + "'dry_run_delta'") shouldBe setOf("dry_run_delta_complete_fixed")
         // the nine-parameter function of INV-T-4965 and the kernel's twelve-parameter one share a name
         names(
@@ -537,6 +551,232 @@ class RegistryPostgresIT(
         seenByA.contains("tenant-b-v") shouldBe false
         // no valid binding: no row, not even a platform row
         probe.unbound { fetchValue("select count(*) from rules.pack_artefact") } shouldBe 0L
+    }
+
+    companion object {
+        @DynamicPropertySource
+        @JvmStatic
+        fun props(registry: DynamicPropertyRegistry) = PostgresRules.register(registry)
+
+        private val pg get() = PostgresRules.pg
+    }
+}
+
+/**
+ * The entry triggers of rules.pack_entry_source run once per statement (INV-T-19509, INV-AC-19511): the same database
+ * as [RegistryPostgresIT], the runtime login for the statements and the owning role for the delete.
+ */
+@SpringBootTest(classes = [RulesApplication::class])
+class RegistryEntryTriggerIT {
+    private val probe: TenancyProbe = TenancyProbe.connect(pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
+    private val tenantA = TenantId(UUID.randomUUID())
+
+    private fun names(sql: String): Set<String> = probe.fetchRows(sql).map { it["n"] as String }.toSet()
+
+    private fun value(
+        tenant: TenantId,
+        sql: String,
+        vararg binds: Any?,
+    ): Any? = probe.inTenant(tenant) { fetchValue(sql, *binds) }
+
+    private fun seed(
+        tenant: TenantId,
+        version: String,
+    ) = value(
+        tenant,
+        INSERT_TENANT_PACK,
+        UUID.randomUUID().toString(),
+        tenant.toString(),
+        "MAPPING-pack",
+        "MAPPING",
+        version,
+        "DRAFT",
+        "2026-01-01",
+        null,
+        null,
+        "E-1",
+    )
+
+    private class RolledBack : RuntimeException()
+
+    /** Statement inserting [rows] mapping entries (pack version to count) and returning the number stored. */
+    private fun insertEntries(
+        tenant: TenantId,
+        vararg rows: Pair<String, Int>,
+    ): String =
+        "insert into rules.pack_entry_source (id, tenant_id, pack_type, pack_version, entry_id, source_class, " +
+            "internal_tax_code, iras_code) " +
+            rows.joinToString(" union all ") { (version, n) ->
+                "select gen_random_uuid(), '$tenant'::uuid, 'MAPPING', '$version', 'N' || g, 'PRIMARY', " +
+                    "'N' || g, 'SR' from generate_series(1, $n) g"
+            }
+
+    private fun countOf(
+        tenant: TenantId,
+        statement: String,
+    ): Any? = value(tenant, "with s as ($statement returning id) select count(*) from s")
+
+    /** A mapping pack with three entries, moved through SUBMITTED and APPROVED to [status] the way the pack moves. */
+    private fun entryPack(
+        tenant: TenantId,
+        version: String,
+        status: String,
+    ) {
+        seed(tenant, version)
+        countOf(tenant, insertEntries(tenant, version to 3)) shouldBe 3L
+        listOf("SUBMITTED", "APPROVED", "ARMED").takeWhile { status != "DRAFT" }.forEach { step ->
+            val move = "update rules.pack_registry set status = '$step' where pack_version = ? returning id"
+            value(tenant, move, version)
+            if (step == status) return
+        }
+    }
+
+    private fun entryContent(tenant: TenantId): String =
+        value(
+            tenant,
+            "select coalesce(string_agg(t::text, '|' order by t.id), '') from rules.pack_entry_source t",
+        ) as String
+
+    /** The statement is refused with 42501 and the table reads the same before and after. */
+    private fun refused(
+        tenant: TenantId,
+        statement: String,
+    ) {
+        val before = entryContent(tenant)
+        val failure = shouldThrow<Exception> { countOf(tenant, statement) }
+        generateSequence<Throwable>(failure) { it.cause }
+            .filterIsInstance<java.sql.SQLException>()
+            .first()
+            .sqlState shouldBe "42501"
+        entryContent(tenant) shouldBe before
+    }
+
+    private fun explainInsert(statement: String): Map<String, Long> {
+        var calls: Map<String, Long> = emptyMap()
+        try {
+            probe.inTenant(tenantA) {
+                val plan = fetchValue("explain (analyze, format json) $statement").toString()
+                calls =
+                    TRIGGER_CALLS
+                        .findAll(plan)
+                        .associate { it.groupValues[1] to it.groupValues[2].toLong() }
+                throw RolledBack()
+            }
+        } catch (_: RolledBack) {
+        }
+        return calls
+    }
+
+    @Test
+    fun `INV-AC-19511 one insert of 5000 entries calls each of the two insert triggers once`() {
+        seed(tenantA, "big")
+        val calls = explainInsert(insertEntries(tenantA, "big" to 5000))
+        calls.filterKeys { it.startsWith("pack_entry_source_") } shouldBe
+            mapOf("pack_entry_source_frozen_ins" to 1L, "pack_entry_source_locked_ins" to 1L)
+        calls.filterKeys { !it.startsWith("RI_ConstraintTrigger") }.keys shouldBe
+            setOf("pack_entry_source_frozen_ins", "pack_entry_source_locked_ins")
+    }
+
+    @Test
+    fun `INV-AC-19511 a three-row insert into a SUBMITTED, an APPROVED or an ARMED pack is refused`() {
+        entryPack(tenantA, "sub", "SUBMITTED")
+        entryPack(tenantA, "apr", "APPROVED")
+        entryPack(tenantA, "arm", "ARMED")
+        listOf("sub", "apr", "arm").forEach { refused(tenantA, insertEntries(tenantA, it to 3).replace("'N'", "'M'")) }
+    }
+
+    @Test
+    fun `INV-AC-19511 one statement for two draft rows and one approved row is refused whole`() {
+        entryPack(tenantA, "dr", "DRAFT")
+        entryPack(tenantA, "apr", "APPROVED")
+        refused(tenantA, insertEntries(tenantA, "dr" to 2, "apr" to 1).replace("'N'", "'M'"))
+        value(tenantA, "select count(*) from rules.pack_entry_source where pack_version = 'dr'") shouldBe 3L
+    }
+
+    @Test
+    fun `INV-AC-19511 the same inserts into a DRAFT pack are accepted`() {
+        entryPack(tenantA, "dr", "DRAFT")
+        countOf(tenantA, insertEntries(tenantA, "dr" to 3).replace("'N'", "'M'")) shouldBe 3L
+        value(tenantA, "select count(*) from rules.pack_entry_source where pack_version = 'dr'") shouldBe 6L
+    }
+
+    @Test
+    fun `INV-AC-19511 a three-row update of a SUBMITTED pack changes only the accepted flag`() {
+        entryPack(tenantA, "sub", "SUBMITTED")
+        val update = "update rules.pack_entry_source set {set} where pack_version = 'sub'"
+        refused(tenantA, update.replace("{set}", "iras_code = 'ZR'"))
+        refused(tenantA, update.replace("{set}", "source_class = 'INFERRED'"))
+        refused(tenantA, update.replace("{set}", "accepted = true, scheme_tag = 'x'"))
+        countOf(tenantA, update.replace("{set}", "accepted = true")) shouldBe 3L
+        value(tenantA, "select count(*) from rules.pack_entry_source where accepted") shouldBe 3L
+    }
+
+    @Test
+    fun `INV-AC-19511 an update that changes the id of one row of a SUBMITTED pack is refused`() {
+        entryPack(tenantA, "sub", "SUBMITTED")
+        refused(
+            tenantA,
+            "update rules.pack_entry_source set id = gen_random_uuid(), accepted = true " +
+                "where pack_version = 'sub' and entry_id = 'N1'",
+        )
+    }
+
+    @Test
+    fun `INV-AC-19511 an update of an APPROVED or ARMED pack is refused`() {
+        entryPack(tenantA, "apr", "APPROVED")
+        entryPack(tenantA, "arm", "ARMED")
+        listOf("apr", "arm").forEach {
+            refused(tenantA, "update rules.pack_entry_source set accepted = true where pack_version = '$it'")
+        }
+    }
+
+    @Test
+    fun `INV-AC-19511 a three-row delete is refused from an APPROVED pack and accepted from a DRAFT pack`() {
+        entryPack(tenantA, "apr", "APPROVED")
+        entryPack(tenantA, "dr", "DRAFT")
+        // no application role holds a DELETE right or policy: the owning role adds a delete policy inside a transaction
+        // that is always rolled back, so the schema is unchanged; the triggers fire for its delete as for any other
+        val owner = TenancyProbe.connect(pg.jdbcUrl, "rules_migrate", "rules_migrate_pw")
+
+        fun delete(version: String): Any? {
+            var deleted: Any? = null
+            try {
+                owner.inTenant(tenantA) {
+                    fetchValue("create policy probe_delete on rules.pack_entry_source for delete using (true)")
+                    deleted =
+                        fetchValue(
+                            "with d as (delete from rules.pack_entry_source where pack_version = '$version' " +
+                                "returning id) select count(*) from d",
+                        )
+                    throw RolledBack()
+                }
+            } catch (_: RolledBack) {
+            }
+            return deleted
+        }
+        val before = entryContent(tenantA)
+        val failure = shouldThrow<Exception> { delete("apr") }
+        generateSequence<Throwable>(failure) { it.cause }
+            .filterIsInstance<java.sql.SQLException>()
+            .first()
+            .sqlState shouldBe "42501"
+        entryContent(tenantA) shouldBe before
+        delete("dr") shouldBe 3L
+        entryContent(tenantA) shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-19511 the six entry triggers are statement-level and keep the predecessors' properties`() {
+        names(
+            "select t.tgname as n from pg_trigger t where not t.tgisinternal " +
+                "and t.tgrelid = 'rules.pack_entry_source'::regclass and (t.tgtype & 3) = 0 " +
+                "and (t.tgnewtable is not null or t.tgoldtable is not null)",
+        ) shouldBe ENTRY_TRIGGERS
+        names(
+            "select p.proname as n from pg_proc p where p.pronamespace = 'rules'::regnamespace " +
+                "and p.proname like 'pack_entry_source_%' and not p.prosecdef and p.proconfig is not null " +
+                "and has_function_privilege('public', p.oid, 'execute') = false",
+        ) shouldBe ENTRY_TRIGGERS
     }
 
     companion object {
