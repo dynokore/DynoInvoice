@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.FilingFrequencyChangedOutbox
+import com.dynokore.gst.tenancy.adapters.events.PeriodRecordsChangedOutbox
 import com.dynokore.gst.tenancy.adapters.persistence.JooqCalendarPackSource
 import com.dynokore.gst.tenancy.adapters.persistence.JooqFrequencyHistoryStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqPeriodRecordStore
@@ -18,6 +19,7 @@ import com.dynokore.gst.tenancy.application.period.PeriodAccess
 import com.dynokore.gst.tenancy.application.period.PeriodGeneration
 import com.dynokore.gst.tenancy.application.period.PeriodPlanner
 import com.dynokore.gst.tenancy.application.period.PeriodRecordStore
+import com.dynokore.gst.tenancy.application.period.PeriodRecordsChangePublisher
 import com.dynokore.gst.tenancy.application.period.PeriodStores
 import com.dynokore.gst.tenancy.application.period.ProposalStore
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
@@ -41,6 +43,7 @@ import tools.jackson.databind.ObjectMapper
  * operations are refused 403 SRT-004. Start-up succeeds either way.
  */
 @Configuration(proxyBeanMethods = false)
+@Suppress("TooManyFunctions") // one bean method per collaborator of the period use cases, as in ElectionUseCases
 class PeriodUseCases {
     @Bean
     fun frequencyHistoryStore(
@@ -74,6 +77,13 @@ class PeriodUseCases {
     ): FilingFrequencyChangePublisher = FilingFrequencyChangedOutbox(outbox, mapper, tenants)
 
     @Bean
+    fun periodRecordsChangePublisher(
+        outbox: OutboxWriter,
+        mapper: ObjectMapper,
+        tenants: TenantContext,
+    ): PeriodRecordsChangePublisher = PeriodRecordsChangedOutbox(outbox, mapper, tenants)
+
+    @Bean
     fun periodStores(
         history: FrequencyHistoryStore,
         proposals: ProposalStore,
@@ -88,13 +98,15 @@ class PeriodUseCases {
     ): PeriodPlanner = PeriodPlanner(statuses, selectedCalendarSource(sources), rules)
 
     @Bean
+    @Suppress("LongParameterList") // one parameter per collaborator of the use case
     fun periodGeneration(
         tx: TransactionRunner,
         structure: StructureStore,
         planner: PeriodPlanner,
         history: FrequencyHistoryStore,
         periods: PeriodRecordStore,
-    ): PeriodGeneration = PeriodGeneration(tx, structure, planner, history, periods)
+        changes: PeriodRecordsChangePublisher,
+    ): PeriodGeneration = PeriodGeneration(tx, structure, planner, history, periods, changes)
 
     @Bean
     @Suppress("LongParameterList") // one provider per collaborator of the use case, as in ElectionUseCases
@@ -114,13 +126,15 @@ class PeriodUseCases {
     ): PeriodAccess = PeriodAccess(authority, caller)
 
     @Bean
+    @Suppress("LongParameterList") // one parameter per collaborator of the use case
     fun confirmPeriods(
         tx: TransactionRunner,
         structure: StructureStore,
         access: PeriodAccess,
         stores: PeriodStores,
         publisher: FilingFrequencyChangePublisher,
-    ): ConfirmPeriods = ConfirmPeriods(tx, structure, access, stores, publisher)
+        changes: PeriodRecordsChangePublisher,
+    ): ConfirmPeriods = ConfirmPeriods(tx, structure, access, stores, publisher, changes)
 }
 
 /** The fixture adapter of a test profile, when there is one, takes precedence over the replica source. */

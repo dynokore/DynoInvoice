@@ -13,5 +13,6 @@ object PublishedChannels {
             PeriodEventsOutbox.EXTENDED_CHANNEL,
             PeriodEventsOutbox.DUE_DATE_CHANGED_CHANNEL,
             CertificationStatusChangedOutbox.CHANNEL,
+            PeriodRecordsChangedOutbox.CHANNEL,
         )
 }
