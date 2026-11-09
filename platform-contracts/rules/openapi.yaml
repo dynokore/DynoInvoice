@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.24.0
+  version: 1.25.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -419,12 +419,24 @@ paths:
         a spreadsheet holds at most 5,000 rows (API-49). A spreadsheet over
         the cap is refused whole with `413` (API-20 envelope) before it is
         parsed, and no draft pack is created (INV-AC-3484).
+
+
+        The caller reads the file and sends the mapped rows with the SHA-256
+        `fileHash` of the file (API-49). A request with more than 5,000 rows is
+        refused whole with `413` before any row is validated. The service
+        refuses with `400` SRT-001 and stores nothing a request without `rows`,
+        without `entityRef` or with `rowCount` not equal to the number of rows
+        (`rows`, `rowCount` and `entityRef` are optional in the schema only so
+        that the change stays additive, API-03). `entityRef` is the entity the
+        caller acts for; rules-svc passes it to the permission decision
+        (`AuthorityReplica.decide`).
       tags: [mapping-packs]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-error-codes: [RUL-006]
+      x-entity-ref: entityRef
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10"]
       x-operation:
         role: tax.operator
@@ -442,7 +454,7 @@ paths:
               $ref: '#/components/schemas/ImportMappingSpreadsheetRequest'
             examples:
               default:
-                value: { fileHash: "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31", fileName: "mapping-2026.xlsx" }
+                value: { fileHash: "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31", fileName: "mapping-2026.xlsx", entityRef: "ENT-001", rowCount: 1, rows: [{ internalTaxCode: "SALES-STD", irasCode: "SR", sourceClass: "PRIMARY" }] }
       responses:
         '201':
           description: The draft, with any rows that failed reported.
@@ -457,6 +469,101 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-packs/{packId}/export:
+    get:
+      operationId: exportMappingPack
+      summary: Export a mapping pack as a spreadsheet file
+      description: >-
+        Query to console-bff (SCR-12.2, INV-REQ-831 b1). The file is RFC 4180
+        CSV in UTF-8 and holds one line per entry of the pack. Its first line is
+        exactly `internalTaxCode,description,irasCode,rate,sourceClass,citation`;
+        the six names equal the property names of `MappingSpreadsheetRow`, so
+        that the caller maps the file back to rows for `importMappingSpreadsheet`.
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`). An unknown pack or
+        another entity's pack answers 404 SRT-005 by the default response.
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-831]
+      parameters:
+        - name: entityRef
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+          example: "MAP-0042"
+      responses:
+        '200':
+          description: >-
+            The mapping spreadsheet file, header line
+            `internalTaxCode,description,irasCode,rate,sourceClass,citation`,
+            one line per entry of the pack.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+              example: "internalTaxCode,description,irasCode,rate,sourceClass,citation\nSALES-STD,Standard-rated sales,SR,9,PRIMARY,IRAS e-Tax Guide\n"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/rules/mapping-imports:
+    get:
+      operationId: listMappingImportRecords
+      summary: List the import records of a mapping spreadsheet by file hash, a page at a time
+      description: >-
+        Query to console-bff (SCR-12.2, INV-REQ-833 b1, b2). Answers the
+        import records of the tenant whose `fileHash` equals the given value,
+        newest first. `limit` and `cursor` page the list as
+        `listMappingPackEntries` does; `nextCursor` is absent on the last page.
+        `entityRef` is the entity the caller acts for; rules-svc passes it to
+        the permission decision (`AuthorityReplica.decide`).
+      tags: [mapping-packs]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-833]
+      parameters:
+        - name: fileHash
+          in: query
+          required: true
+          schema: { type: string, maxLength: 128 }
+        - name: entityRef
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of import records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingImportRecordPage'
+              examples:
+                default:
+                  value: { items: [{ importId: "IMP-0007", importedAt: "2026-11-09T02:15:00Z", actorRef: "usr-118", fileHash: "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31", fileName: "mapping-2026.xlsx", rowCount: 12, dryRunResult: "CLEAN", appliedCount: 12, packId: "MAP-0043" }] }
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/mapping-packs/{packId}/entries/{entryId}/source-class-acceptance:
@@ -1779,6 +1886,11 @@ components:
           description: >-
             Optional scheme tag of the entry, drafted and signed off with it (INV-REQ-2444 b1, b2).
             The scenario pack lists which tags are handled (b3).
+        importRef:
+          type: string
+          maxLength: 40
+          readOnly: true
+          description: The `importId` of the import record that created the entry (INV-REQ-833 b2).
       required: [entryId, internalTaxCode, irasCode, sourceClass]
     ImportMappingSpreadsheetRequest:
       type: object
@@ -1789,7 +1901,116 @@ components:
         fileName:
           type: string
           maxLength: 200
+        rows:
+          type: array
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/MappingSpreadsheetRow'
+          description: >-
+            The rows the caller mapped from the file, at most 5,000 (API-49). Required by the service,
+            optional in the schema only so that the change stays additive (API-03).
+        rowCount:
+          type: integer
+          minimum: 0
+          description: >-
+            The number of rows of the file; the service refuses a value not equal to the number of `rows`
+            with 400 SRT-001.
+        entityRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: >-
+            The entity the caller acts for. rules-svc passes it to the permission decision; an absent value is refused,
+            and for an existing pack a value different from the pack's `entityRef` is refused with 403 SRT-004
+            (producer-enforced, not by the schema).
       required: [fileHash, fileName]
+    MappingSpreadsheetRow:
+      type: object
+      description: >-
+        One row of the mapping spreadsheet, named as the columns of `exportMappingPack`. `description` and `rate`
+        are informational and are dropped when the file is imported; `citation` is the entry's `sourceReference`.
+      properties:
+        internalTaxCode:
+          type: string
+          maxLength: 40
+        description:
+          type: string
+          maxLength: 200
+        irasCode:
+          type: string
+          maxLength: 10
+        rate:
+          type: string
+          maxLength: 16
+          pattern: '^(NA|[0-9]{1,3}(\.[0-9]{1,4})?)$'
+          description: A decimal string or the literal NA.
+        sourceClass:
+          type: string
+          enum: [PRIMARY, SECONDARY, INFERRED]
+          x-extensible-enum: true
+        citation:
+          type: string
+          maxLength: 500
+      required: [internalTaxCode, irasCode, sourceClass]
+    MappingImportRecordPage:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/MappingImportRecord'
+        nextCursor:
+          type: string
+          maxLength: 200
+          description: Absent on the last page.
+      required: [items]
+    MappingImportRecord:
+      type: object
+      properties:
+        importId:
+          type: string
+          maxLength: 40
+        importedAt:
+          type: string
+          format: date-time
+        actorRef:
+          type: string
+          maxLength: 64
+          description: The importing principal's user ID, filled by the server from the token.
+        fileHash:
+          type: string
+          maxLength: 128
+        fileName:
+          type: string
+          maxLength: 200
+        rowCount:
+          type: integer
+          minimum: 0
+        dryRunResult:
+          type: string
+          enum: [CLEAN, REJECTED]
+          x-extensible-enum: true
+        appliedCount:
+          type: integer
+          minimum: 0
+        rejectedRows:
+          type: array
+          maxItems: 5000
+          items:
+            type: object
+            properties:
+              row:
+                type: integer
+                minimum: 1
+              code:
+                type: string
+                maxLength: 10
+        packId:
+          type: string
+          maxLength: 40
+          description: Present only when a draft was created.
+      required: [importId, importedAt, actorRef, fileHash, fileName, rowCount, dryRunResult, appliedCount]
     AcceptSourceClassEntryRequest:
       type: object
       properties:

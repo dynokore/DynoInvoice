@@ -10,6 +10,7 @@ tenancy	POST	/internal/v1/tenancy/business-units	entityRef
 transport	PUT	/internal/v1/transport/connections/{connectionRef}/entities	entityRefs
 rules	POST	/internal/v1/rules/mapping-packs	entityRef
 rules	POST	/internal/v1/rules/mapping-packs/{packId}/entries	entityRef
+rules	POST	/internal/v1/rules/mapping-packs/import	entityRef
 rules	POST	/internal/v1/rules/mapping-packs/{packId}/entries/{entryId}/source-class-acceptance	entityRef
 rules	POST	/internal/v1/rules/mapping-packs/{packId}/activation	entityRef
 masterdata	POST	/internal/v1/masterdata/gap-reports	entityRef
