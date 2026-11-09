@@ -40,13 +40,17 @@ import tools.jackson.databind.ObjectMapper
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** The four mutating use cases of the principal operations, injected into [PrincipalsController] as one. */
+/**
+ * The four mutating use cases of the principal operations and the environment reader of the certification check,
+ * injected into [PrincipalsController] as one.
+ */
 @Component
 class PrincipalOperations(
     val create: CreatePrincipalUseCase,
     val rotate: RotatePrincipalUseCase,
     val revoke: RevokePrincipalUseCase,
     val withdraw: WithdrawCredentialUseCase,
+    val environments: TenantEnvironments,
 )
 
 /**
@@ -67,8 +71,8 @@ open class PrincipalsController(
     private val manager: GrantManagerCheck,
     private val gateway: GatewayCaller,
     private val mapper: ObjectMapper,
-    private val environments: TenantEnvironments,
 ) : PrincipalsApi {
+    private val environments = useCases.environments
     private val create = useCases.create
     private val rotate = useCases.rotate
     private val revoke = useCases.revoke

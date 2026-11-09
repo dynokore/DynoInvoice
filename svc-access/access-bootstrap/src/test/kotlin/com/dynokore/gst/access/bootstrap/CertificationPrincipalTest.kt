@@ -145,15 +145,15 @@ class CertificationPrincipalTest {
                     lookups++
                     TenantEnvironment.SANDBOX
                 }
+            val real = kit.context.getBean(PrincipalOperations::class.java)
             val controller =
                 PrincipalsController(
-                    kit.context.getBean(PrincipalOperations::class.java),
+                    PrincipalOperations(real.create, real.rotate, real.revoke, real.withdraw, reader),
                     kit.context.getBean(GatewayTokenIssuance::class.java),
                     kit.tenants,
                     GrantManagerCheck.DENY_ALL,
                     GatewayCaller { true },
                     JsonMapper.builder().build(),
-                    reader,
                 )
             kit.assertRefusedWithNoRows { kit.call(certification, controller = controller) }
             assertThat(lookups).isZero()

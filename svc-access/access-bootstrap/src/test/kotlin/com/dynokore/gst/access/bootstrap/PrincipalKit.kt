@@ -6,7 +6,6 @@ import com.dynokore.gst.access.adapters.http.GatewayTokenIssuance
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.http.PrincipalOperations
 import com.dynokore.gst.access.adapters.http.PrincipalsController
-import com.dynokore.gst.access.application.token.TenantEnvironments
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalRequest
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse
 import com.dynokore.gst.access.contract.model.CreatePrincipalRequest
@@ -64,7 +63,6 @@ class PrincipalKit(
             context.getBean(GrantManagerCheck::class.java),
             GatewayCaller { true },
             mapper,
-            context.getBean(TenantEnvironments::class.java),
         )
 
     init {
@@ -184,7 +182,8 @@ class PrincipalKit(
     fun secretRowCount(): Int =
         asAdmin {
             context.getBean(TransactionRunner::class.java).inTransaction {
-                context.getBean(DSLContext::class.java).fetchCount(DSL.table(DSL.name("access", "principal_credential")))
+                val table = DSL.table(DSL.name("access", "principal_credential"))
+                context.getBean(DSLContext::class.java).fetchCount(table)
             }
         }
 
