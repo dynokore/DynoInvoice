@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.22.0
+  version: 1.23.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -382,6 +382,12 @@ paths:
               examples:
                 default:
                   value: { entryId: "ENT-9", internalTaxCode: "SR-STD", irasCode: "SR", sourceClass: "PRIMARY" }
+        '404':
+          description: The pack or entry does not exist for this entity (SRT-005).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The pack is not in a state that accepts entries (SRT-008).
+          $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
         default:
@@ -493,7 +499,8 @@ paths:
                 value: { rationale: "Confirmed against the customer's own ledger", expiresOn: "2027-03-20" }
       responses:
         '200':
-          description: The entry's acceptance.
+          description: >-
+            The entry's acceptance. A repeat of the command for a state already reached answers 200 with the current state and changes nothing, whatever the Idempotency-Key ((packId, entryId) — no-op if already accepted).
           content:
             application/json:
               schema:
@@ -501,6 +508,12 @@ paths:
               examples:
                 default:
                   value: { entryId: "ENT-9", internalTaxCode: "SR-STD", irasCode: "SR", sourceClass: "SECONDARY", accepted: true }
+        '404':
+          description: The pack or entry does not exist for this entity (SRT-005).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The pack is not in a state that accepts an acceptance, or the entry is already PRIMARY (SRT-008).
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/mapping-packs/{packId}/submissions:
@@ -541,7 +554,8 @@ paths:
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
-          description: The pack, now locked and awaiting approval.
+          description: >-
+            The pack, now locked and awaiting approval. A repeat of the command for a state already reached answers 200 with the current state and changes nothing, whatever the Idempotency-Key (packId — no-op if already submitted).
           content:
             application/json:
               schema:
@@ -549,6 +563,12 @@ paths:
               examples:
                 default:
                   value: { packId: "MAP-0042", status: "SUBMITTED" }
+        '404':
+          description: The pack or entry does not exist for this entity (SRT-005).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The pack is not a draft, or its dry-run delta is missing (SRT-008).
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/mapping-packs/{packId}/approval:
@@ -600,7 +620,8 @@ paths:
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
-          description: The pack's signed approval.
+          description: >-
+            The pack's signed approval. A repeat of the command for a state already reached answers 200 with the current state and changes nothing, whatever the Idempotency-Key (packId — no-op if already approved).
           content:
             application/json:
               schema:
@@ -608,6 +629,18 @@ paths:
               examples:
                 default:
                   value: { packId: "MAP-0042", status: "APPROVED" }
+        '404':
+          description: The pack or entry does not exist for this entity (SRT-005).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The pack is not awaiting approval, or a dry-run delta is missing, or an accepted PRIMARY entry conflicts (SRT-008).
+          $ref: '#/components/responses/Error'
+        '422':
+          description: Sign-off or a code check is refused (RUL-006, RUL-007, RUL-009, RUL-010).
+          $ref: '#/components/responses/Error'
+        '503':
+          description: A dependency is unavailable (SRT-013). Nothing is decided or changed; the caller retries later.
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/mapping-packs/{packId}/activation:
@@ -635,7 +668,7 @@ paths:
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
       x-entity-ref: entityRef
-      x-error-codes: []
+      x-error-codes: [RUL-006, RUL-009, RUL-010]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.4]
       x-operation:
         role: tax.approver
@@ -660,7 +693,8 @@ paths:
                 value: { effectiveFrom: "2026-04-01" }
       responses:
         '200':
-          description: The pack, now active from its effective date.
+          description: >-
+            The pack, now active from its effective date. A repeat of the command for a state already reached answers 200 with the current state and changes nothing, whatever the Idempotency-Key (packId — no-op if already active).
           content:
             application/json:
               schema:
@@ -668,6 +702,18 @@ paths:
               examples:
                 default:
                   value: { packId: "MAP-0042", status: "ACTIVE", effectiveFrom: "2026-04-01" }
+        '404':
+          description: The pack or entry does not exist for this entity (SRT-005).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The pack is not approved, or its lifecycle does not allow activation (SRT-008).
+          $ref: '#/components/responses/Error'
+        '422':
+          description: A code check at activation is refused (RUL-006, RUL-009, RUL-010).
+          $ref: '#/components/responses/Error'
+        '503':
+          description: A dependency is unavailable (SRT-013). Nothing is decided or changed; the caller retries later.
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/regulatory-packs/import:
