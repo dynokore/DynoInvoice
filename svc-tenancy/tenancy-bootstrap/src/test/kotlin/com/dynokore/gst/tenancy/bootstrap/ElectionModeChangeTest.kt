@@ -116,6 +116,33 @@ class ElectionModeChangeTest {
         return e.refusal { e.approve(entity, changeRef) }
     }
 
+    private fun refuseApprovals(
+        e: ElectionEnv,
+        env: ProfileEnv,
+        tenant: TenantId,
+        entity: EntityResponse,
+        changeRef: String,
+        baseline: Int,
+    ) {
+        // the requester U1 and the holder of no approve permission U3 are refused; the look-alikes too
+        val unchanged = state(e, env, tenant, entity)
+        e.people.asked.clear()
+        assertThat(refused(e, entity, changeRef, ADMIN)).isEqualTo(403 to "SRT-004")
+        // the exact permission key asked at the boundary, never a look-alike such as "election-change.approve "
+        assertThat(e.people.asked).contains(ElectionPermissions.APPROVE)
+        assertThat(e.people.asked).doesNotContain(ElectionPermissions.APPROVE + " ")
+        assertThat(refused(e, entity, changeRef, NO_PERMISSION_U3)).isEqualTo(403 to "SRT-004")
+        assertThat(refused(e, entity, changeRef, "$APPROVER ")).isEqualTo(403 to "SRT-004")
+        e.people.grantRole("identity:USR-034", "ENT-OTHER", "tax.approver")
+        assertThat(refused(e, entity, changeRef, "identity:USR-034")).isEqualTo(403 to "SRT-004")
+        assertThat(e.changeStates(entity)).containsExactly("PENDING")
+        assertThat(state(e, env, tenant, entity)).isEqualTo(unchanged)
+        // the refused approvals add no `election-change.approved` entry and no approval event
+        assertThat(e.changeAudits(entity, "election-change.approved")).isZero()
+        assertThat(e.changeAudits(entity, "election-change.requested")).isEqualTo(1L)
+        assertThat(env.captured.envelopes.size - (baseline)).isEqualTo(1)
+    }
+
     @Test
     fun `INV-AC-394 a mode change is 202 pending and changes nothing, an approval without permission is 403`() {
         run { e, env ->
@@ -144,23 +171,7 @@ class ElectionModeChangeTest {
                 assertThat(env.captured.envelopes.size - (before[7] as Int)).isEqualTo(1)
                 assertThat(e.changeStates(entity)).containsExactly("PENDING")
 
-                // the requester U1 and the holder of no approve permission U3 are refused; the look-alikes too
-                val unchanged = state(e, env, tenant, entity)
-                e.people.asked.clear()
-                assertThat(refused(e, entity, change.changeRef, ADMIN)).isEqualTo(403 to "SRT-004")
-                // the exact permission key asked at the boundary, never a look-alike such as "election-change.approve "
-                assertThat(e.people.asked).contains(ElectionPermissions.APPROVE)
-                assertThat(e.people.asked).doesNotContain(ElectionPermissions.APPROVE + " ")
-                assertThat(refused(e, entity, change.changeRef, NO_PERMISSION_U3)).isEqualTo(403 to "SRT-004")
-                assertThat(refused(e, entity, change.changeRef, "$APPROVER ")).isEqualTo(403 to "SRT-004")
-                e.people.grantRole("identity:USR-034", "ENT-OTHER", "tax.approver")
-                assertThat(refused(e, entity, change.changeRef, "identity:USR-034")).isEqualTo(403 to "SRT-004")
-                assertThat(e.changeStates(entity)).containsExactly("PENDING")
-                assertThat(state(e, env, tenant, entity)).isEqualTo(unchanged)
-                // the refused approvals add no `election-change.approved` entry and no approval event
-                assertThat(e.changeAudits(entity, "election-change.approved")).isZero()
-                assertThat(e.changeAudits(entity, "election-change.requested")).isEqualTo(1L)
-                assertThat(env.captured.envelopes.size - (before[7] as Int)).isEqualTo(1)
+                refuseApprovals(e, env, tenant, entity, change.changeRef, before[7] as Int)
                 assertThat(mode(e, entity, julyFirst.minusDays(1))).isEqualTo(CLAIMABLE)
                 assertThat(mode(e, entity, julyFirst.plusDays(1))).isEqualTo(CLAIMABLE)
             }
