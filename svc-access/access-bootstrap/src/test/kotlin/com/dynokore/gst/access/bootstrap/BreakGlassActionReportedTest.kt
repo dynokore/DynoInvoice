@@ -329,10 +329,10 @@ class BreakGlassActionReportedTest {
                 ),
             ).hasSize(1)
             assertThat(
-                context.getBeansOfType(
-                    com.dynokore.gst.access.adapters.events.BreakGlassActionReportedHandler::class.java,
-                ),
-            ).hasSize(1)
+                context
+                    .getBeansOfType(com.dynokore.platform.outboxandqueue.EventHandler::class.java)
+                    .keys,
+            ).contains("breakGlassActionReportedHandler")
             assertThat(
                 context.getBeansOfType(
                     com.dynokore.gst.access.application.breakglass.BreakGlassReportObserver::class.java,
