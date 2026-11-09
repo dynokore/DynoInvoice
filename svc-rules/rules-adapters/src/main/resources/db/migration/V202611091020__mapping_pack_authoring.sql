@@ -1,4 +1,4 @@
--- V202611020900__mapping_pack_authoring.sql (INV-T-4972; INV-Q-14648 A, INV-Q-14646 A, INV-Q-14650 A).
+-- V202611091020__mapping_pack_authoring.sql (INV-T-4972; INV-Q-14648 A, INV-Q-14646 A, INV-Q-14650 A).
 -- Storage of a tenant mapping pack draft and its sign-off. Expand only: V1 and V3 are untouched, rules.pack_artefact is
 -- not changed (it is written only at activation, by the holder-copy port).
 -- Run as rules_migrate. The user IDs stored here are user IDs, never role names (INV-Q-10647).
