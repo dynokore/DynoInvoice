@@ -164,7 +164,7 @@ class EntityDeregisterHttpTest {
     }
 
     @Test
-    fun `INV-AC-1051 probe deregisterEntity with an unsubmitted document and no override is 409 TNC-008 and changes nothing`() {
+    fun `INV-AC-1051 probe deregisterEntity with an unsubmitted document and no override is 409 TNC-008`() {
         lifecycleRun { l ->
             l.env.withEntity { _, entity ->
                 lifecycleReady(l, entity)

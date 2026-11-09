@@ -541,7 +541,13 @@ open class EntitiesController(
         val outcome =
             tx.inTransaction {
                 suspendUseCase.handle(entityRef).also {
-                    if (it is LifecycleOutcome.Done) lifecycleAudit.suspended(actor, entityRef, suspendEntityRequest.reason)
+                    if (it is LifecycleOutcome.Done) {
+                        lifecycleAudit.suspended(
+                            actor,
+                            entityRef,
+                            suspendEntityRequest.reason,
+                        )
+                    }
                 }
             }
         return lifecycleResult(outcome)
