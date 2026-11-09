@@ -19,6 +19,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
+import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
@@ -55,6 +56,7 @@ class JooqMappingPackStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
     private val engineVersion: EngineVersion,
+    private val clock: Clock,
 ) : MappingPackStore {
     private fun mine(packId: String): Condition =
         PACK_REGISTRY.PACK_ID
@@ -234,7 +236,7 @@ class JooqMappingPackStore(
                 .and(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID.eq(tenants.current().value))
                 .and(MAPPING_ENTRY_ACCEPTANCE.PACK_VERSION.eq(version))
                 .and(MAPPING_ENTRY_ACCEPTANCE.ENTRY_ID.eq(entryId))
-                .and(MAPPING_ENTRY_ACCEPTANCE.EXPIRES_ON.gt(LocalDate.now(ZoneOffset.UTC))),
+                .and(MAPPING_ENTRY_ACCEPTANCE.EXPIRES_ON.gt(LocalDate.now(clock.withZone(ZoneOffset.UTC)))),
         )
 
     override fun recordAcceptance(

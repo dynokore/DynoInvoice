@@ -254,7 +254,8 @@ class RulesConfiguration {
         dsl: DSLContext,
         tenants: TenantContext,
         engineVersion: EngineVersion,
-    ): JooqMappingPackStore = JooqMappingPackStore(dsl, tenants, engineVersion)
+        clock: Clock,
+    ): JooqMappingPackStore = JooqMappingPackStore(dsl, tenants, engineVersion, clock)
 
     /** The build's own version from the `BuildProperties` that `buildInfo()` generates (absent in a bare context). */
     @Bean

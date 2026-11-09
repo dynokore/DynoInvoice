@@ -28,18 +28,31 @@ class MappingRefusal(
 ) : RuntimeException("$code: $title")
 
 private const val UNPROCESSABLE = 422
-private const val UNAVAILABLE = 503
 private const val CONFLICT = 409
-private const val NOT_READY = "SRT-013"
 private const val HEX = 16
 private const val UNICODE_WIDTH = 4
 
-/**
- * 503 SRT-013 (the service is not ready to decide; nothing is decided or changed, the caller retries later). The
- * code comes from the pinned contract text; the catalogue version this service pins predates the row, so the code
- * is stated here and the envelope carries no severity.
- */
-fun unavailable(detail: String) = MappingRefusal(UNAVAILABLE, NOT_READY, "A dependency is unavailable", detail)
+/** 503 SRT-013 (the service is not ready to decide; nothing is decided or changed, the caller retries later). */
+fun unavailable(detail: String) =
+    ClosedErrorCode.SERVICE_NOT_READY.let {
+        MappingRefusal(
+            it.httpStatus,
+            it.code,
+            "A dependency is unavailable",
+            detail,
+        )
+    }
+
+/** 409 SRT-008: the tenant already holds a mapping version with this label; nothing is stored. */
+fun labelTaken() =
+    ClosedErrorCode.STALE_AGGREGATE.let {
+        MappingRefusal(
+            it.httpStatus,
+            it.code,
+            "Conflict with the recorded state",
+            "a mapping version with this label already exists",
+        )
+    }
 
 /** The mapping of use case results and stored rows to the contract types and to the API-20 refusal envelope. */
 object MappingPackMapping {
@@ -160,6 +173,7 @@ object MappingPackMapping {
             option = approval.option,
         )
 
+    /** True exactly when at least one approval row has sole_operator true (INV-REQ-992). */
     fun activationOf(approvals: List<MappingApproval>): MappingPackActivation =
         MappingPackActivation(noDistinctApprover = approvals.any { it.soleOperator })
 

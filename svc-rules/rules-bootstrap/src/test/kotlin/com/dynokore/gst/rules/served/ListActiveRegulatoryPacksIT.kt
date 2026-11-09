@@ -119,8 +119,8 @@ class ListActiveRegulatoryPacksIT(
     private fun seed(row: Row) =
         sql(
             "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-                "effective_from, effective_to, min_engine_version, registered_by) " +
-                "values (?::uuid, ?::uuid, ?, ?, ?, ?, ?, '2026-04-01'::date, ?::date, ?, 'seed')",
+                "effective_from, effective_to, min_engine_version, registered_by, entity_ref) " +
+                "values (?::uuid, ?::uuid, ?, ?, ?, ?, ?, '2026-04-01'::date, ?::date, ?, 'seed', ?)",
             UUID.randomUUID(),
             row.tenant,
             "${row.type}-${row.version}",
@@ -130,6 +130,7 @@ class ListActiveRegulatoryPacksIT(
             row.status,
             row.to,
             row.minEngine,
+            if (row.type == "MAPPING") "E-1" else null,
         )
 
     private fun regulatory(
