@@ -78,7 +78,7 @@ private fun mode(
     on: LocalDate,
 ) = e.status(entity, on).elections.single { it.kind == ElectionKind.APPORTIONMENT_MODE }.value
 
-/** The audit entries of the entity that name the change (as stored: text of the event data), read as the superuser. */
+/** The audit entries of the entity that name the change (event data as text), read as the superuser. */
 private fun changeAuditData(
     entity: EntityResponse,
     action: String,
@@ -112,7 +112,7 @@ class ElectionModeChangeTest {
     }
 
     @Test
-    fun `INV-AC-394 a mode change is 202 pending, changes nothing and an approval without the permission is 403 SRT-004`() {
+    fun `INV-AC-394 a mode change is 202 pending and changes nothing, an approval without permission is 403`() {
         run { e, env ->
             env.withEntity { tenant, entity ->
                 ready(e, tenant, entity)
