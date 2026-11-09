@@ -73,6 +73,7 @@ class RunbookTest {
         if (body.isBlank()) return listOf("section Sources is missing")
         val rows =
             body.lines().filter { it.startsWith("| ") && !it.startsWith("| Source |") && !it.startsWith("| ---") }
+
         fun check(
             name: String,
             key: String,
@@ -82,9 +83,17 @@ class RunbookTest {
                 findings += "source missing: $name"
                 return
             }
-            val version = r.split('|').getOrNull(2)?.trim().orEmpty()
-            if (version.isEmpty()) findings += "version missing: $name"
-            else if (!version.contains("`provisional`")) findings += "provisional marker missing on version: $name"
+            val version =
+                r
+                    .split('|')
+                    .getOrNull(2)
+                    ?.trim()
+                    .orEmpty()
+            if (version.isEmpty()) {
+                findings += "version missing: $name"
+            } else if (!version.contains("`provisional`")) {
+                findings += "provisional marker missing on version: $name"
+            }
         }
         check("Invoice Data Submission API Interface Specs (R3)", "Invoice Data Submission API Interface Specs")
         check("InvoiceNow Technical Playbook", "InvoiceNow Technical Playbook")
@@ -99,14 +108,24 @@ class RunbookTest {
         val sections = text.split(Regex("(?m)^## ")).filter { it.startsWith("Connection: ") }
         if (sections.isEmpty()) return listOf("no connection section")
         for (s in sections) {
-            val name = s.lineSequence().first().removePrefix("Connection: ").trim()
+            val name =
+                s
+                    .lineSequence()
+                    .first()
+                    .removePrefix("Connection: ")
+                    .trim()
             val latency = s.lines().firstOrNull { it.startsWith("| Expected acknowledgement latency |") }
             val protocol = s.lines().firstOrNull { it.startsWith("| Failure-management protocol |") }
             if (latency == null) {
                 findings += "connection $name: latency row missing"
             } else {
                 val value = latency.split('|')[2].trim()
-                val seconds = Regex("^([0-9]+) seconds").find(value)?.groupValues?.get(1)?.toLong()
+                val seconds =
+                    Regex("^([0-9]+) seconds")
+                        .find(value)
+                        ?.groupValues
+                        ?.get(1)
+                        ?.toLong()
                 if (seconds != configuredSeconds) {
                     findings +=
                         "connection $name: latency value '$value' differs from configured $configuredSeconds seconds"
