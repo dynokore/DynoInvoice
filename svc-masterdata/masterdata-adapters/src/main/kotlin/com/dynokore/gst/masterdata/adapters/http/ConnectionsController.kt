@@ -20,7 +20,6 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
-import java.net.URI
 import java.time.Clock
 import java.time.ZoneOffset
 import java.util.UUID
@@ -53,7 +52,7 @@ open class ConnectionsController(
                 CreateConnectionCommand(
                     caller = caller(),
                     externalService = createConnectionRequest.externalService.value,
-                    endpoint = createConnectionRequest.endpoint.toString(),
+                    endpoint = createConnectionRequest.endpoint,
                     credentialRef = createConnectionRequest.credentialRef,
                     environmentTag = createConnectionRequest.environmentTag.value,
                     ownerService = createConnectionRequest.ownerService,
@@ -141,7 +140,7 @@ open class ConnectionsController(
         ConnectionRecord(
             connectionRef = record.connectionRef,
             externalService = ConnectionRecord.ExternalService.forValue(record.externalService),
-            endpoint = URI.create(record.endpoint),
+            endpoint = record.endpoint,
             credentialRef = record.credentialRef,
             environmentTag = ConnectionRecord.EnvironmentTag.forValue(record.environmentTag.name),
             ownerService = record.ownerService,

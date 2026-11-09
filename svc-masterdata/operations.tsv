@@ -30,8 +30,8 @@ operation	exportGapReport	INV-T-4944	done
 channel	masterdataMasterDataResolved	INV-T-4943	done
 channel	masterdataReferenceRateLoaded	INV-T-4947	open
 channel	masterdataSignedLinkRequested	INV-T-4945	open
-channel	accessSignedLinkIssued	INV-T-4945	open
-channel	accessSignedLinkInvalidated	INV-T-4945	open
+channel	accessSignedLinkIssued	INV-T-18221	open
+channel	accessSignedLinkInvalidated	INV-T-18221	open
 channel	masterdataIdentityTripleCorrected	INV-T-8017	done
 channel	masterdataIdentityTripleChanged	INV-T-17823	done
 channel	masterdataExampleHappened	PLACEHOLDER	open
