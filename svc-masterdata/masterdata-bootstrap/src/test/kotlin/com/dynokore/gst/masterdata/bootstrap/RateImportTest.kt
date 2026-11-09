@@ -4,6 +4,7 @@ import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.masterdata.adapters.events.ReferenceRateLoadedOutbox
 import com.dynokore.gst.masterdata.adapters.rate.ApprovedSource
 import com.dynokore.gst.masterdata.adapters.rate.ScopePackStore
+import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.PolicySource
@@ -63,6 +64,24 @@ private class ElectionReaderProcessor(
     ): Any = if (bean is PolicyReader && bean !is ElectionReader) ElectionReader(bean, elections) else bean
 }
 
+/** Records every permission question put to the `TenantPermission` bean, then delegates unchanged. */
+private class PermissionRecorder(
+    private val asked: MutableList<Pair<String, String>>,
+) : BeanPostProcessor {
+    override fun postProcessAfterInitialization(
+        bean: Any,
+        beanName: String,
+    ): Any =
+        if (bean is TenantPermission) {
+            TenantPermission { person, key ->
+                asked.add(person to key)
+                bean.holds(person, key)
+            }
+        } else {
+            bean
+        }
+}
+
 /**
  * INV-T-18775 at the service boundary: `importRates` and `getRegisterAndRates` over the real context, real PostgreSQL,
  * the election read through `PolicyReader` and the approved sources replicated into the scope pack tables.
@@ -71,6 +90,7 @@ private class ElectionReaderProcessor(
 class RateImportTest {
     private val elections = ConcurrentHashMap<String, NavigableMap<LocalDate, Pair<String, String>>>()
     private val mapper = JsonMapper.builder().build()
+    private val asked: MutableList<Pair<String, String>> = java.util.concurrent.CopyOnWriteArrayList()
     private val now = Instant.parse("2026-01-01T00:00:00Z")
 
     private data class Answer(
@@ -84,7 +104,9 @@ class RateImportTest {
     private fun run(block: (RegistryEnv) -> Unit) =
         runRegistry(
             customize = {
-                it.withBean(ElectionReaderProcessor::class.java, { ElectionReaderProcessor(elections) })
+                it
+                    .withBean(ElectionReaderProcessor::class.java, { ElectionReaderProcessor(elections) })
+                    .withBean(PermissionRecorder::class.java, { PermissionRecorder(asked) })
             },
         ) { env -> block(env) }
 
@@ -330,5 +352,39 @@ class RateImportTest {
                 ),
             ).isEqualByComparingTo("1.35")
             assertThat(mapper.readTree(found.body).has("register")).isTrue()
+        }
+
+    @Test
+    fun `INV-AC-8626 a caller holding only the look-alike key exchange-rate imports is refused 403 SRT-004`() =
+        run { env ->
+            val d0 = env.businessDate()
+            val entity = env.entity()
+            env.elect(entity, "MAS", "DAILY", d0)
+            env.approve(d0, "MAS")
+            val request = body("MAS", d0, d0.plusDays(1) to "1.35", entity = entity)
+            val refused = env.post(request, actor = TestPermissions.LOOKALIKE_IMPORTER)
+            assertThat(refused.status).isEqualTo(403)
+            assertThat(refused.code).isEqualTo(ErrorCode.SRT_004.code)
+            assertThat(env.rateRows("MAS")).isZero()
+            assertThat(env.loadedEvents()).isZero()
+            assertThat(asked).containsExactly(TestPermissions.LOOKALIKE_IMPORTER to "exchange-rate.import")
+            asked.clear()
+            // the same request by a holder of the exact key is accepted, so the refusal above is the key and not the body
+            assertThat(env.post(request).status).isEqualTo(201)
+            assertThat(asked).containsExactly(OPERATOR to "exchange-rate.import")
+        }
+
+    @Test
+    fun `INV-AC-8626 getRegisterAndRates puts no permission question to the replica`() =
+        run { env ->
+            val d0 = env.businessDate()
+            val entity = env.entity()
+            env.elect(entity, "MAS", "DAILY", d0)
+            env.approve(d0, "MAS")
+            asked.clear()
+            val query = "counterpartyUen=${Simulators.UEN_REGISTERED}&currency=USD&transactionDate=${d0.plusDays(1)}"
+            assertThat(env.get(query, actor = "IDN-NOBODY", entityRef = entity).status).isEqualTo(200)
+            assertThat(env.get(query, entityRef = entity).status).isEqualTo(200)
+            assertThat(asked).isEmpty()
         }
 }
