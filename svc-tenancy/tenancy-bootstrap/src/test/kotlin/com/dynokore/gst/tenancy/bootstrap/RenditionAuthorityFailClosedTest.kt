@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.adapters.http.ApiRefusal
 import com.dynokore.gst.tenancy.adapters.http.EntitiesController
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
+import com.dynokore.gst.tenancy.contract.model.RecordMigrationCutoverRequest
 import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityRequest
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -14,6 +15,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Clock
+import java.time.LocalDate
 import java.util.UUID
 
 private const val CALLER = "identity:USR-R1"
@@ -44,7 +46,16 @@ class RenditionAuthorityFailClosedTest {
         return T::class.java.cast((field.get(null) as sun.misc.Unsafe).allocateInstance(T::class.java))
     }
 
-    private fun refused(authority: ActionAuthority): ClosedErrorCode {
+    private fun refused(
+        authority: ActionAuthority,
+        call: (EntitiesController) -> Unit = { controller ->
+            controller.recordRenditionResponsibility(
+                "E1",
+                UUID.randomUUID(),
+                RenditionResponsibilityRequest("TAX_INVOICE", RenditionResponsibilityRequest.Renderer.SELF, CALLER),
+            )
+        },
+    ): ClosedErrorCode {
         val controller =
             EntitiesController(
                 unused(),
@@ -62,13 +73,7 @@ class RenditionAuthorityFailClosedTest {
                 unused(),
                 CallerSource { CALLER },
             )
-        return assertThrows<ApiRefusal> {
-            controller.recordRenditionResponsibility(
-                "E1",
-                UUID.randomUUID(),
-                RenditionResponsibilityRequest("TAX_INVOICE", RenditionResponsibilityRequest.Renderer.SELF, CALLER),
-            )
-        }.code
+        return assertThrows<ApiRefusal> { call(controller) }.code
     }
 
     @Test
@@ -95,5 +100,29 @@ class RenditionAuthorityFailClosedTest {
                 },
             ),
         ).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+    }
+
+    private val recordCutover: (EntitiesController) -> Unit = {
+        it.recordMigrationCutover(
+            "E1",
+            UUID.randomUUID(),
+            RecordMigrationCutoverRequest(LocalDate.of(2026, 10, 1), "LegacyPeppolProvider", null, null),
+        )
+    }
+    private val getCutover: (EntitiesController) -> Unit = { it.getMigrationCutover("E1") }
+
+    @Test
+    fun `INV-AC-2107 recordMigrationCutover and getMigrationCutover with an absent replica are 403`() {
+        listOf(recordCutover, getCutover).forEach {
+            assertThat(refused(ReplicaActionAuthority(null, tenants), it)).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+        }
+    }
+
+    @Test
+    fun `INV-AC-2107 recordMigrationCutover and getMigrationCutover with a DEGRADED replica are 403`() {
+        val degraded = AuthorityReplica(Clock.systemUTC(), TestOperationRoles.map)
+        listOf(recordCutover, getCutover).forEach {
+            assertThat(refused(ReplicaActionAuthority(degraded, tenants), it)).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+        }
     }
 }

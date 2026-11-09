@@ -14,6 +14,8 @@ import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SpecificationVersion
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.config.YamlMapFactoryBean
+import org.springframework.core.io.ByteArrayResource
 import org.springframework.http.HttpStatus
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
@@ -40,6 +42,22 @@ class MigrationCutoverTest {
                     ),
                 ) { "the payload schema is not on the classpath" }.use { it.readBytes().toString(Charsets.UTF_8) },
             )
+
+    /** The `x-operation.permission` of [operationId] in the pinned contract document (a classpath resource). */
+    private fun pinnedPermission(operationId: String): String {
+        val factory = YamlMapFactoryBean()
+        factory.setResources(
+            ByteArrayResource(
+                checkNotNull(javaClass.classLoader.getResourceAsStream("gst/contracts/tenancy/openapi.yaml")) {
+                    "the tenancy-contract module has no gst/contracts/tenancy/openapi.yaml"
+                }.use { it.readAllBytes() },
+            ),
+        )
+        val paths = checkNotNull(factory.getObject())["paths"] as Map<*, *>
+        val operations = paths.values.flatMap { (it as Map<*, *>).values }.filterIsInstance<Map<*, *>>()
+        val operation = operations.single { it["operationId"] == operationId }
+        return (operation["x-operation"] as Map<*, *>)["permission"] as String
+    }
 
     private fun run(block: (ProfileEnv) -> Unit) {
         BoundaryFixture.runner().run { context ->
@@ -210,7 +228,7 @@ class MigrationCutoverTest {
                 val asked = env.people().asked
                 asked.clear()
                 assertThat(code { env.record(entity) }).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
-                assertThat(asked).containsExactly("migration-cutover.record")
+                assertThat(asked).containsExactly(pinnedPermission("recordMigrationCutover"))
                 assertThat(storedRows(entity)).isEmpty()
                 assertThat(outboxCount(entity)).isZero()
                 assertThat(code { env.api.getMigrationCutover(entity.entityRef) }).isEqualTo(ClosedErrorCode.NOT_FOUND)
@@ -228,7 +246,7 @@ class MigrationCutoverTest {
                 asked.clear()
                 assertThat(code { env.api.getMigrationCutover(entity.entityRef) })
                     .isEqualTo(ClosedErrorCode.ACCESS_DENIED)
-                assertThat(asked).containsExactly("migration-cutover.view")
+                assertThat(asked).containsExactly(pinnedPermission("getMigrationCutover"))
             }
             env.withEntity { _, entity ->
                 env.permit(entity, "entity-config.manage")
