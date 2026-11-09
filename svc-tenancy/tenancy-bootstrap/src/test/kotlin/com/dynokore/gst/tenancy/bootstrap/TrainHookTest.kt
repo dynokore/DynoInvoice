@@ -117,7 +117,7 @@ class TrainHookTest {
     }
 
     @Test
-    fun `INV-AC-18066 the look-alike member trainVersions in the plural is rejected or ignored with zero marks`() {
+    fun `INV-AC-18066 a report whose member trainVersions in the plural differs is rejected or ignored with zero marks`() {
         run { t ->
             withThree(t) { a, _, _ ->
                 t.facts("2026.10", "2026.10")
