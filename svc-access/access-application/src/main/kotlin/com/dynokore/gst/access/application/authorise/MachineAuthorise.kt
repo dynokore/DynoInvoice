@@ -27,6 +27,8 @@ class MachineAuthorise(
     private val principals: PrincipalRepository,
     private val directory: EntityDirectory,
 ) {
+    // `permission` stays in the call contract; the replica decides the type set (INV-T-13569)
+    @Suppress("UnusedParameter")
     fun handle(
         principalRef: String,
         permission: String,

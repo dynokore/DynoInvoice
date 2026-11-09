@@ -86,7 +86,7 @@ class MachinePermissionTest {
         }
 
     @Test
-    fun `INV-AC-1779 and INV-AC-8615 a reporting principal asking drain run is not refused here`() =
+    fun `INV-AC-13561 and INV-AC-1779 a reporting principal asking drain is not refused here`() =
         PrincipalKit.run { kit ->
             val reporting = kit.create("REPORTING", scope = "entity:ENT-1")
             assertThat(kit.decide(reporting.principalRef, "machine.drain.run", "entity:ENT-1")).isEqualTo("ALLOW")
@@ -145,6 +145,17 @@ class MachinePermissionTest {
         assertThat(reason(principal(PrincipalType.REPORTING, "entity:E-001"))).isNull()
         assertThat(reason(principal(PrincipalType.MONITORING, "installation"), "submissions.read")).isNull()
     }
+
+    @Test
+    fun `INV-AC-1945 and INV-AC-8619 a monitoring principal reads metrics and health, tenant data is the replica`() =
+        PrincipalKit.run { kit ->
+            val monitoring = kit.create("MONITORING", scope = "installation")
+            assertThat(kit.decide(monitoring.principalRef, "metrics.read", "entity:ENT-1")).isEqualTo("ALLOW")
+            assertThat(kit.decide(monitoring.principalRef, "health.read", "entity:ENT-1")).isEqualTo("ALLOW")
+            // the set test is the replica's (INV-T-13569): this class no longer refuses a key outside the set
+            assertThat(kit.decide(monitoring.principalRef, "submissions.read", "entity:ENT-1")).isEqualTo("ALLOW")
+            assertThat(kit.decide("PRN-0000000000000000", "metrics.read", "entity:ENT-1")).isEqualTo("DENY")
+        }
 
     @Test
     fun `a monitoring principal has the scope installation and nothing else, an ingest principal never has it`() =
