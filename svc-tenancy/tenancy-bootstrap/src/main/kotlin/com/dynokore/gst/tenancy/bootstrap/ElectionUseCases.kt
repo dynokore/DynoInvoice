@@ -202,6 +202,7 @@ class ElectionUseCases {
         tenants: TenantContext,
         exemptPurchase: ExemptPurchaseElections,
         exemptPurchases: ExemptPurchaseElectionStore,
+        clock: ObjectProvider<Clock>,
     ): ElectionCommands =
         ElectionCommands(
             tx,
@@ -219,6 +220,7 @@ class ElectionUseCases {
             tenants,
             exemptPurchase,
             exemptPurchases,
+            clock.getIfAvailable(Clock::systemUTC),
         )
 
     @Bean

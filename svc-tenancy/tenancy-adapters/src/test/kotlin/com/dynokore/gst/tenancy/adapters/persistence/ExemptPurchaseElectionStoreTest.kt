@@ -178,6 +178,7 @@ class ExemptPurchaseElectionStoreTest {
                 clock,
             ),
             store,
+            clock,
         )
     }
 

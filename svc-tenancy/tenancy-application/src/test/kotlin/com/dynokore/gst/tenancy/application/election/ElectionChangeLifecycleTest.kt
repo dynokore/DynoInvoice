@@ -21,8 +21,10 @@ import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -100,6 +102,17 @@ class ElectionChangeLifecycleTest {
             override fun insert(row: ExemptPurchaseElectionRow) = error("not used")
         }
 
+    /** A clock that reads [now] and reports [zone], so a test moves the instant and the zone. */
+    private var zone: ZoneId = ZoneOffset.UTC
+    private val movingClock =
+        object : Clock() {
+            override fun getZone(): ZoneId = zone
+
+            override fun withZone(zone: ZoneId): Clock = fixed(now, zone)
+
+            override fun instant(): Instant = now
+        }
+
     private val commands =
         ElectionCommands(
             Direct,
@@ -130,6 +143,7 @@ class ElectionChangeLifecycleTest {
                 Clock.fixed(start, ZoneOffset.UTC),
             ),
             exempt,
+            movingClock,
         )
 
     private fun facts() =
@@ -360,7 +374,7 @@ class ElectionChangeLifecycleTest {
     @Test
     fun `INV-AC-13527 a change 400 days old is still pending, listed and approvable`() {
         elected()
-        val change = pendingOf(requestPosting())
+        val change = pendingOf(requestPosting(LocalDate.of(2028, 1, 1)))
         now = now.plus(Duration.ofDays(400))
         assertEquals(listOf(change.changeRef), listed(u2).items.map { it.changeRef })
         assertEquals("PENDING", changes.row(change.changeRef).state)
@@ -568,6 +582,106 @@ class ElectionChangeLifecycleTest {
         assertFalse(audit.entries.single().contains("entity.admin") || audit.entries.single().contains("tax.approver"))
     }
 
+    // ---- past effective date (INV-AC-13527) ----
+
+    private var beforeApproval: Triple<*, *, *>? = null
+
+    private fun approvalOn(
+        instant: String,
+        effectiveFrom: LocalDate,
+    ): Pair<ElectionOutcome, PendingChange> {
+        elected()
+        val change = pendingOf(requestPosting(effectiveFrom))
+        now = Instant.parse(instant)
+        audit.entries.clear()
+        beforeApproval = snapshot()
+        return asUser(u2) { commands.approveElectionChange("E1", change.changeRef) } to change
+    }
+
+    private fun assertRefusedAndPending(
+        result: Pair<ElectionOutcome, PendingChange>,
+    ) {
+        assertInstanceOf(ElectionOutcome.Refused::class.java, result.first)
+        assertEquals("PENDING", changes.row(result.second.changeRef).state)
+        assertEquals(beforeApproval, snapshot())
+        assertTrue(published.isEmpty())
+        assertTrue(audit.entries.isEmpty())
+    }
+
+    @Test
+    fun `INV-AC-13527 an approval with an effective date of yesterday is refused and the change stays pending`() {
+        val result = approvalOn("2026-11-07T01:00:00Z", LocalDate.of(2026, 11, 6))
+        assertRefusedAndPending(result)
+    }
+
+    @Test
+    fun `INV-AC-13527 an approval with an effective date of today is accepted`() {
+        assertInstanceOf(
+            ElectionOutcome.Approved::class.java,
+            approvalOn("2026-11-07T01:00:00Z", LocalDate.of(2026, 11, 7)).first,
+        )
+    }
+
+    @Test
+    fun `INV-AC-13527 an approval with an effective date of tomorrow is accepted`() {
+        assertInstanceOf(
+            ElectionOutcome.Approved::class.java,
+            approvalOn("2026-11-07T01:00:00Z", LocalDate.of(2026, 11, 8)).first,
+        )
+    }
+
+    @Test
+    fun `INV-AC-13527 at 15 59 59 UTC it is still 30 June in Singapore, 30 June is accepted`() {
+        assertInstanceOf(
+            ElectionOutcome.Approved::class.java,
+            approvalOn("2026-06-30T15:59:59Z", LocalDate.of(2026, 6, 30)).first,
+        )
+    }
+
+    @Test
+    fun `INV-AC-13527 at 15 59 59 UTC it is still 30 June in Singapore, 29 June is refused`() {
+        assertRefusedAndPending(approvalOn("2026-06-30T15:59:59Z", LocalDate.of(2026, 6, 29)))
+    }
+
+    @Test
+    fun `INV-AC-13527 at 16 00 00 UTC it is 1 July in Singapore, 1 July is accepted`() {
+        assertInstanceOf(
+            ElectionOutcome.Approved::class.java,
+            approvalOn("2026-06-30T16:00:00Z", LocalDate.of(2026, 7, 1)).first,
+        )
+    }
+
+    @Test
+    fun `INV-AC-13527 at 16 00 00 UTC it is 1 July in Singapore, 30 June is refused`() {
+        assertRefusedAndPending(approvalOn("2026-06-30T16:00:00Z", LocalDate.of(2026, 6, 30)))
+    }
+
+    private fun refusedInZone(clockZone: ZoneId) {
+        zone = clockZone
+        assertRefusedAndPending(approvalOn("2026-06-30T16:00:00Z", LocalDate.of(2026, 6, 30)))
+    }
+
+    @Test
+    fun `INV-AC-13527 the date is taken in Singapore, a clock in UTC refuses 30 June at 16 00 UTC`() =
+        refusedInZone(ZoneOffset.UTC)
+
+    @Test
+    fun `INV-AC-13527 the date is taken in Singapore, a clock in Los Angeles gives the same result`() =
+        refusedInZone(ZoneId.of("America/Los_Angeles"))
+
+    @Test
+    fun `INV-AC-13527 the date is taken in Singapore, a clock in Singapore gives the same result`() =
+        refusedInZone(ZoneId.of("Asia/Singapore"))
+
+    @Test
+    fun `INV-AC-13527 a new submission after a refused approval is 409 until the old change is closed`() {
+        val result = approvalOn("2026-11-07T01:00:00Z", LocalDate.of(2026, 11, 6))
+        assertInstanceOf(ElectionOutcome.Refused::class.java, result.first)
+        assertInstanceOf(ElectionOutcome.Conflict::class.java, requestPosting(LocalDate.of(2026, 12, 1)))
+        asUser(u1) { commands.withdrawElectionChange("E1", result.second.changeRef) }
+        assertInstanceOf(ElectionOutcome.Pending::class.java, requestPosting(LocalDate.of(2026, 12, 1)))
+    }
+
     // ---- the acceptance scenario INV-AC-13527 ----
 
     @Test
@@ -585,6 +699,9 @@ class ElectionChangeLifecycleTest {
         now = now.plus(Duration.ofDays(400))
         val list3 = listed(u2).items.map { it.changeRef }
         asUser(u2) { commands.declineElectionChange("E1", c.changeRef) }
+        val approvalOfD = asUser(u2) { commands.approveElectionChange("E1", d.changeRef) }
+        assertInstanceOf(ElectionOutcome.Refused::class.java, approvalOfD)
+        assertEquals("PENDING", changes.row(d.changeRef).state)
         assertEquals(listOf(c.changeRef), list1)
         assertEquals(setOf(c.changeRef, d.changeRef), list2.toSet())
         assertEquals(list2, list3)
@@ -636,6 +753,8 @@ class ElectionChangeLifecycleTest {
         val rows = mutableListOf<Row>()
         private var seq = 0
 
+        private fun ref() = "CHG-%03d".format(Locale.ROOT, seq)
+
         fun row(ref: String) = rows.single { it.changeRef == ref }
 
         fun insertPending(
@@ -647,7 +766,7 @@ class ElectionChangeLifecycleTest {
         ): PendingChange {
             seq += 1
             val change =
-                PendingChange("CHG-%03d".format(java.util.Locale.ROOT, seq), entityRef, kind, value, null, LocalDate.of(2026, 12, 1), by, at)
+                PendingChange(ref(), entityRef, kind, value, null, LocalDate.of(2026, 12, 1), by, at)
             rows += Row(change, "PENDING")
             return change
         }
@@ -669,7 +788,7 @@ class ElectionChangeLifecycleTest {
             seq += 1
             val change =
                 PendingChange(
-                    "CHG-%03d".format(java.util.Locale.ROOT, seq),
+                    ref(),
                     entityRef,
                     kind,
                     value,

@@ -17,6 +17,8 @@ import com.dynokore.gst.tenancy.domain.StatusTimeline
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import com.dynokore.gst.tenancy.application.period.SINGAPORE
+import java.time.Clock
 import java.time.LocalDate
 
 /** The largest page of the list of pending changes. */
@@ -134,6 +136,7 @@ class ElectionCommands(
     private val tenants: TenantContext,
     private val exemptPurchase: ExemptPurchaseElections,
     private val exemptPurchases: ExemptPurchaseElectionStore,
+    private val clock: Clock,
 ) {
     /**
      * Records the exempt-purchase election (INV-REQ-369) and, when a row was written, publishes EntityProfileChanged
@@ -309,6 +312,12 @@ class ElectionCommands(
             if (change.requestedBy == approver) {
                 return@inTransaction ElectionOutcome.Forbidden("the approver must be a person other than the requester")
             }
+            val today = LocalDate.now(clock.withZone(SINGAPORE))
+            if (change.effectiveFrom < today) {
+                return@inTransaction ElectionOutcome.Refused(
+                    "the effective date ${change.effectiveFrom} is before the current date $today; submit a new change",
+                )
+            }
             valueRefusal(change)?.let { return@inTransaction it }
             val rateHistory = elections.history(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE)
             store(
@@ -343,9 +352,9 @@ class ElectionCommands(
         tx.inTransaction {
             val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
             val requester = caller.actor()
-            if (!holds { authority.holds(requester, entity.ref, WITHDRAW) }) {
+            if (!holds { authority.holds(requester, entity.ref, ElectionPermissions.WITHDRAW) }) {
                 return@inTransaction ElectionOutcome.Forbidden(
-                    "$requester does not hold $WITHDRAW for entity ${entity.ref}",
+                    "$requester does not hold ${ElectionPermissions.WITHDRAW} for entity ${entity.ref}",
                 )
             }
             val change = changes.pending(entity.ref, changeRef) ?: return@inTransaction ElectionOutcome.NotFound
@@ -399,8 +408,8 @@ class ElectionCommands(
         tx.inTransaction {
             val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
             val reader = caller.actor()
-            if (!holds { authority.holds(reader, entity.ref, LIST) }) {
-                return@inTransaction ElectionOutcome.Forbidden("$reader does not hold $LIST for entity ${entity.ref}")
+            if (!holds { authority.holds(reader, entity.ref, ElectionPermissions.LIST) }) {
+                return@inTransaction ElectionOutcome.Forbidden("$reader does not hold ${ElectionPermissions.LIST} for entity ${entity.ref}")
             }
             if (limit !in 1..MAX_LIST_LIMIT) {
                 return@inTransaction ElectionOutcome.Invalid("limit must be between 1 and $MAX_LIST_LIMIT")
@@ -663,10 +672,4 @@ class ElectionCommands(
         elections
             .history(entityRef, kind)
             .map { ProfileEntry(attribute, it.value, it.effectiveFrom) }
-
-    private companion object {
-        /** The permission keys of the withdrawal and the list (owner answers INV-Q-10113, INV-Q-10119). */
-        const val WITHDRAW = "election-change.withdraw"
-        const val LIST = "election-change.list"
-    }
 }

@@ -104,6 +104,7 @@ class ExemptPurchaseRouteTest {
             tenants,
             ExemptPurchaseElections(Direct, structure, store, authority, { "user-1" }, idle(), tenants, clock),
             store,
+            clock,
         )
 
     /** The collaborators the route never touches are allocated without a constructor: a call on them would fail. */

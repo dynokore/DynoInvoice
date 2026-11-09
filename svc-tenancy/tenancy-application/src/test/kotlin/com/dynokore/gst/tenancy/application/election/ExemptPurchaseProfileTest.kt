@@ -83,6 +83,7 @@ class ExemptPurchaseProfileTest {
             tenants,
             ExemptPurchaseElections(Direct, structure, store, authority, { "user-1" }, idle(), tenants, clock),
             store,
+            clock,
         )
 
     private fun record(codes: List<String> = listOf("TX-N33", "TX-ESS")) =
