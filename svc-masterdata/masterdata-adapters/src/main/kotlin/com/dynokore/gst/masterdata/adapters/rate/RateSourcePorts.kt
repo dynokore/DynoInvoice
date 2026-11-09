@@ -5,9 +5,11 @@ import com.dynokore.gst.masterdata.application.rate.ElectedRateSource
 import com.dynokore.platform.configresolver.ElectionRequired
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.SelectedOption
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.LocalDate
 
@@ -32,26 +34,28 @@ class PolicyElectedRateSource(
         entity: String,
         date: LocalDate,
     ): Pair<String, String>? {
-        val option =
-            try {
-                tx.inTransaction {
-                    policy
-                        .resolve(
-                            ELECTION,
-                            PolicyScope.entity(tenants.current(), entity),
-                            date,
-                        ).selected
-                        .singleOrNull()
-                }
-            } catch (_: ElectionRequired) {
-                null
-            } ?: return null
-        if (option.key != APPROVED_SOURCE) return null
-        val value = option.valueJson?.let { mapper.readTree(it) } ?: return null
-        val source = value["source"]?.takeIf { it.isString }?.asString()?.takeIf { it.isNotEmpty() }
-        val basis = value["basis"]?.takeIf { it.isString }?.asString()?.takeIf { it.isNotEmpty() }
+        val option = resolved(entity, date)?.takeIf { it.key == APPROVED_SOURCE }
+        val value = option?.valueJson?.let { mapper.readTree(it) }
+        val source = value?.text("source")
+        val basis = value?.text("basis")
         return if (source != null && basis != null) source to basis else null
     }
+
+    private fun JsonNode.text(name: String): String? =
+        this[name]?.takeIf { it.isString }?.asString()?.takeIf { it.isNotEmpty() }
+
+    private fun resolved(
+        entity: String,
+        date: LocalDate,
+    ): SelectedOption? =
+        try {
+            tx.inTransaction {
+                val scope = PolicyScope.entity(tenants.current(), entity)
+                policy.resolve(ELECTION, scope, date).selected.singleOrNull()
+            }
+        } catch (_: ElectionRequired) {
+            null
+        }
 
     companion object {
         /** VP-24: the exchange rate source an entity elects (FR-AG.11), entity scope. */
@@ -63,8 +67,8 @@ class PolicyElectedRateSource(
 }
 
 /**
- * [ApprovedRateSources] over the scope pack replica: approved exactly when a scope pack version active on the date lists
- * the source (equality) with the basis. No active pack gives no approval.
+ * [ApprovedRateSources] over the scope pack replica: approved exactly when a scope pack version active on the date
+ * lists the source (equality) with the basis. No active pack gives no approval.
  */
 class ReplicaApprovedRateSources(
     private val packs: ScopePackStore,
