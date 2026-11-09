@@ -200,6 +200,22 @@ class TenantOpenGoLiveTest {
         runCatching { l.env.tenantsApi.openTenant(ref, UUID.randomUUID(), OpenTenantRequest("SCH-1")) }
             .exceptionOrNull() as TenancyRefusal
 
+    private fun assertRendersTnc012(refusal: TenancyRefusal) {
+        // the pinned library carries the code
+        assertThat(refusal.code).isEqualTo(TenancyErrorCode.TENANT_NOT_OPENABLE)
+        assertThat(refusal.code.code).isEqualTo("TNC-012")
+        assertThat(refusal.code.httpStatus).isEqualTo(409)
+        val problem = Problems.renderTenancy(refusal.code, "corr-19380", refusal.detail)
+        assertThat(problem.status).isEqualTo(409)
+        assertThat(problem.body).contains("\"https://errors.invoice.internal/TNC-012\"")
+        assertThat(problem.body).contains("TNC-012")
+        // look-alikes: neither TNC-004 nor TNC-010 renders as the refusal
+        assertThat(problem.body).doesNotContain("TNC-004").doesNotContain("TNC-010")
+        assertThat(TenancyErrorCode.STATUS_RECORD_CONFLICT.code).isEqualTo("TNC-004")
+        assertThat(Problems.renderTenancy(TenancyErrorCode.STATUS_RECORD_CONFLICT, "c", null).body)
+            .doesNotContain("TNC-012")
+    }
+
     @Test
     fun `INV-AC-19380 openTenant for a CLOSED tenant answers 409 TNC-012 and changes nothing`() {
         lifecycleRun { l ->
@@ -229,19 +245,7 @@ class TenantOpenGoLiveTest {
             val events = rowCount("tenancy.outbox")
             val refusal = refusalOfOpen(l, ref)
 
-            // the pinned library carries the code
-            assertThat(refusal.code).isEqualTo(TenancyErrorCode.TENANT_NOT_OPENABLE)
-            assertThat(refusal.code.code).isEqualTo("TNC-012")
-            assertThat(refusal.code.httpStatus).isEqualTo(409)
-            val problem = Problems.renderTenancy(refusal.code, "corr-19380", refusal.detail)
-            assertThat(problem.status).isEqualTo(409)
-            assertThat(problem.body).contains("\"https://errors.invoice.internal/TNC-012\"")
-            assertThat(problem.body).contains("TNC-012")
-            // look-alikes: neither TNC-004 nor TNC-010 renders as the refusal
-            assertThat(problem.body).doesNotContain("TNC-004").doesNotContain("TNC-010")
-            assertThat(TenancyErrorCode.STATUS_RECORD_CONFLICT.code).isEqualTo("TNC-004")
-            assertThat(Problems.renderTenancy(TenancyErrorCode.STATUS_RECORD_CONFLICT, "c", null).body)
-                .doesNotContain("TNC-012")
+            assertRendersTnc012(refusal)
 
             // nothing changed: state, rows and events
             assertThat(storedTenantState(id)).isEqualTo("CLOSED")
