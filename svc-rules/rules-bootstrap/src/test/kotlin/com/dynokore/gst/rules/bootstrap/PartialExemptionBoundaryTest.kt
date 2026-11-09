@@ -302,7 +302,7 @@ class PartialExemptionBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-1645 without the election a partially exempt TX-N33 purchase is IN_SCOPE, look-alikes exclude nothing`() {
+    fun `INV-AC-1645 without the election a partially exempt TX-N33 purchase is IN_SCOPE`() {
         evaluate(entity(exempt), "N33").let {
             it.text("scopeVerdict") shouldBe IN_SCOPE
             it.rules() shouldBe listOf(PartialExemption.RULE_PARTIAL_EXEMPTION)
