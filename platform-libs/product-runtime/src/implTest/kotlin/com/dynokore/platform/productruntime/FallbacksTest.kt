@@ -2,6 +2,7 @@ package com.dynokore.platform.productruntime
 
 import com.dynokore.gst.productRuntimeAccessClient.adapters.clients.api.AuthoriseApi
 import com.dynokore.gst.productRuntimeTenancyClient.adapters.clients.api.EntitiesApi
+import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.productruntime.Fixtures.CLOCK
 import com.dynokore.platform.productruntime.Fixtures.TENANT
 import com.dynokore.platform.productruntime.fallback.AccessAuthorityFallback
@@ -15,6 +16,7 @@ import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
 import com.dynokore.platform.serviceruntime.replica.StructureKey
 import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.resilience.Deadline
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
@@ -116,17 +118,17 @@ class FallbacksTest {
     }
 
     @Test
-    fun `the access fallback asks authorise for the principal, the action and the entity`() {
+    fun `INV-AC-19208 the access fallback asks authorise for the principal, the action and the entity`() {
         server
             .expect(
                 requestTo(
-                    "http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.read&scope=E-001",
+                    "http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.read&scope=entity:E-001",
                 ),
             ).andRespond(withSuccess("""{"decision":"ALLOW","role":"tax.approver"}""", MediaType.APPLICATION_JSON))
         server
             .expect(
                 requestTo(
-                    "http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.void&scope=E-001",
+                    "http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.void&scope=entity:E-001",
                 ),
             ).andRespond(withSuccess("""{"decision":"DENY"}""", MediaType.APPLICATION_JSON))
         val fallback = AccessAuthorityFallback(AuthoriseApi(builder.build()))
@@ -136,5 +138,46 @@ class FallbacksTest {
         fallback.fetch(AuthorizationRequest(TENANT, principal, "E-001", "document.void"), deadline) shouldBe
             FallbackResult.Found(AuthorityVerdict(false))
         server.verify()
+    }
+
+    private fun request(
+        entityRef: String,
+        level: ScopeLevel = ScopeLevel.ENTITY,
+    ) = AuthorizationRequest(TENANT, Principal("P-1", PrincipalKind.HUMAN), entityRef, "document.read", level = level)
+
+    @Test
+    fun `INV-AC-19208 a blank entityRef returns Unavailable and sends no request`() {
+        val fallback = AccessAuthorityFallback(AuthoriseApi(builder.build()))
+        fallback.fetch(request(""), deadline) shouldBe FallbackResult.Unavailable
+        fallback.fetch(request("  "), deadline) shouldBe FallbackResult.Unavailable
+        server.verify()
+    }
+
+    @Test
+    fun `INV-AC-19208 every level other than ENTITY returns Unavailable and sends no request`() {
+        val fallback = AccessAuthorityFallback(AuthoriseApi(builder.build()))
+        listOf(
+            ScopeLevel.TENANT,
+            ScopeLevel.GROUP,
+            ScopeLevel.INSTALLATION,
+            ScopeLevel.FEED,
+            ScopeLevel.AP_CONNECTION,
+            ScopeLevel.CLIENT_ENTITY,
+        ).forEach { level ->
+            fallback.fetch(request("E-001", level), deadline) shouldBe FallbackResult.Unavailable
+        }
+        server.verify()
+    }
+
+    @Test
+    fun `INV-AC-19208 a mock expecting the bare scope is not met`() {
+        server
+            .expect(
+                requestTo(
+                    "http://svc/internal/v1/access/authorise?principalRef=P-1&permission=document.read&scope=E-001",
+                ),
+            ).andRespond(withSuccess("""{"decision":"ALLOW"}""", MediaType.APPLICATION_JSON))
+        val fallback = AccessAuthorityFallback(AuthoriseApi(builder.build()))
+        shouldThrow<AssertionError> { fallback.fetch(request("E-001"), deadline) }
     }
 }

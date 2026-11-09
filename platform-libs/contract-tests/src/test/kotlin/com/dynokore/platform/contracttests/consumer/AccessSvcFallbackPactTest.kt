@@ -55,10 +55,10 @@ class AccessSvcFallbackPactTest {
     ): V4Pact =
         builder
             .given(state)
-            .uponReceiving("authorise P-1 for $permission on E-001")
+            .uponReceiving("authorise P-1 for $permission on entity:E-001")
             .path(PATH)
             .method("GET")
-            .query("principalRef=P-1&permission=$permission&scope=E-001")
+            .query("principalRef=P-1&permission=$permission&scope=entity:E-001")
             .willRespondWith()
             .status(200)
             .headers(mapOf("Content-Type" to "application/json"))
