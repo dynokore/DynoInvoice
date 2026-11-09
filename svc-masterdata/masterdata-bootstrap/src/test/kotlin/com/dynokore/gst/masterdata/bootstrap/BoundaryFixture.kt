@@ -69,6 +69,7 @@ object TestPermissions {
             MasterdataPermissions.COUNTERPARTY_IMPORT_RUN,
             MasterdataPermissions.MASTERDATA_EXCEPTION_RESOLVE,
             OperationPermissionKeys.EXCHANGE_RATE_ENTER,
+            OperationPermissionKeys.EXCHANGE_RATE_IMPORT,
             OperationPermissionKeys.CONNECTION_CONFIGURE,
             OperationPermissionKeys.CONNECTION_VIEW,
             OperationPermissionKeys.CONNECTION_TEST,
@@ -77,7 +78,15 @@ object TestPermissions {
     /** A second person holding the same keys, for the criteria that compare a starter with another principal. */
     const val OTHER_OPERATOR = "IDN-OPERATOR-2"
 
-    fun keysOf(person: String): Set<String> = if (person == OPERATOR || person == OTHER_OPERATOR) all else emptySet()
+    /** A person holding only the look-alike key `exchange-rate.imports` (plural). */
+    const val LOOKALIKE_IMPORTER = "IDN-LOOKALIKE-IMPORTER"
+
+    fun keysOf(person: String): Set<String> =
+        when (person) {
+            OPERATOR, OTHER_OPERATOR -> all
+            LOOKALIKE_IMPORTER -> setOf("exchange-rate.imports")
+            else -> emptySet()
+        }
 }
 
 /**

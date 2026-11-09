@@ -1,6 +1,7 @@
 package com.dynokore.gst.masterdata.adapters.rate
 
 import com.dynokore.gst.masterdata.application.rate.ApprovedRateSources
+import com.dynokore.gst.masterdata.application.rate.ElectedRate
 import com.dynokore.gst.masterdata.application.rate.ElectedRateSource
 import com.dynokore.platform.configresolver.ElectionRequired
 import com.dynokore.platform.configresolver.PolicyReader
@@ -27,18 +28,12 @@ class PolicyElectedRateSource(
     override fun elected(
         entity: String,
         date: LocalDate,
-    ): String? = election(entity, date)?.first
-
-    /** The elected (source, basis) of [entity] on [date], or null. */
-    fun election(
-        entity: String,
-        date: LocalDate,
-    ): Pair<String, String>? {
+    ): ElectedRate? {
         val option = resolved(entity, date)?.takeIf { it.key == APPROVED_SOURCE }
         val value = option?.valueJson?.let { mapper.readTree(it) }
         val source = value?.text("source")
         val basis = value?.text("basis")
-        return if (source != null && basis != null) source to basis else null
+        return if (source != null && basis != null) ElectedRate(source, basis) else null
     }
 
     private fun JsonNode.text(name: String): String? =

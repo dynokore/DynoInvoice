@@ -8,6 +8,7 @@ package com.dynokore.gst.masterdata.adapters.permission
  */
 object OperationPermissionKeys {
     const val EXCHANGE_RATE_ENTER = "exchange-rate.enter"
+    const val EXCHANGE_RATE_IMPORT = "exchange-rate.import"
     const val CONNECTION_CONFIGURE = "connection.configure"
     const val CONNECTION_VIEW = "connection.view"
     const val CONNECTION_TEST = "connection.test"

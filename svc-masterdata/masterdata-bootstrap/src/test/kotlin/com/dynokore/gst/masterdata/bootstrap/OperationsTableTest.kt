@@ -79,7 +79,7 @@ class OperationsTableTest {
             "operation" to "getCounterpartyHistory" to "INV-T-4943",
             "operation" to "recordIngestedCounterparty" to "INV-T-4943",
             "operation" to "getImportRecord" to "INV-T-4944",
-            "operation" to "getRegisterAndRates" to "INV-T-4947",
+            "operation" to "getRegisterAndRates" to "INV-T-18775",
             "channel" to "masterdataMasterDataResolved" to "INV-T-4943",
             "operation" to "confirmIdentityTripleChange" to "INV-T-4942",
             "channel" to "masterdataExampleHappened" to "PLACEHOLDER",
@@ -180,12 +180,13 @@ class OperationsTableTest {
     }
 
     @Test
-    fun `INV-AC-16047 PublishedChannels lists exactly the three published channel names`() {
+    fun `INV-AC-16047 PublishedChannels lists exactly the four published channel names`() {
         assertThat(PublishedChannels.ALL).isEqualTo(
             setOf(
                 "masterdataMasterDataResolved",
                 "masterdataIdentityTripleCorrected",
                 "masterdataIdentityTripleChanged",
+                "masterdataReferenceRateLoaded",
             ),
         )
         assertThat(PublishedChannels.ALL).contains(IdentityTripleChangedOutbox.CHANNEL)
@@ -195,8 +196,8 @@ class OperationsTableTest {
     @Test
     fun `INV-AC-16047 probe - PublishedChannels ALL with a fourth name fails the gate`() {
         assertThat(verify(table)).isEmpty()
-        assertThat(verify(table, published = PublishedChannels.ALL + "masterdataReferenceRateLoaded"))
-            .containsExactly("channel masterdataReferenceRateLoaded: published by the code but not marked done")
+        assertThat(verify(table, published = PublishedChannels.ALL + "masterdataSignedLinkRequested"))
+            .containsExactly("channel masterdataSignedLinkRequested: published by the code but not marked done")
         val reopened =
             table.map {
                 if (it.startsWith("channel\tmasterdataIdentityTripleCorrected\t")) {
@@ -228,14 +229,20 @@ class OperationsTableTest {
                 "masterdataMasterDataResolved",
                 "masterdataIdentityTripleCorrected",
                 "masterdataIdentityTripleChanged",
+                "masterdataReferenceRateLoaded",
             )
-        assertThat(verify(base, published = published + "masterdataReferenceRateLoaded"))
-            .containsExactly("channel masterdataReferenceRateLoaded: published by the code but not marked done")
+        assertThat(verify(base, published = published + "masterdataSignedLinkRequested"))
+            .containsExactly("channel masterdataSignedLinkRequested: published by the code but not marked done")
         val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
         assertThat(
             verify(
                 base.map { if (it.startsWith("channel\tmasterdataMasterDataResolved")) unpublished else it },
-                published = setOf("masterdataIdentityTripleCorrected", "masterdataIdentityTripleChanged"),
+                published =
+                    setOf(
+                        "masterdataIdentityTripleCorrected",
+                        "masterdataIdentityTripleChanged",
+                        "masterdataReferenceRateLoaded",
+                    ),
             ),
         ).containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
     }
@@ -248,8 +255,8 @@ class OperationsTableTest {
         assertThat(verify(base)).isEmpty()
 
         fun replaced(row: String) = verify(base.map { if (it == real) row else it })
-        assertThat(replaced("channel\tmasterdataReferenceRateLoaded\tPLACEHOLDER\topen"))
-            .anyMatch { "masterdataReferenceRateLoaded: PLACEHOLDER is accepted only for" in it }
+        assertThat(replaced("channel\tmasterdataSignedLinkRequested\tPLACEHOLDER\topen"))
+            .anyMatch { "masterdataSignedLinkRequested: PLACEHOLDER is accepted only for" in it }
         assertThat(verify(base + "operation\tgetImportRecord\tPLACEHOLDER\topen"))
             .anyMatch { "operation getImportRecord: PLACEHOLDER is accepted only for" in it }
         val relabelled =

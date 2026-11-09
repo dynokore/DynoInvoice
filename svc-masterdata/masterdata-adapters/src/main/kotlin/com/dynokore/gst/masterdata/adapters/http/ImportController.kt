@@ -24,6 +24,7 @@ import com.dynokore.gst.masterdata.contract.model.EnterRateRequest
 import com.dynokore.gst.masterdata.contract.model.ErrorEnvelope
 import com.dynokore.gst.masterdata.contract.model.ExchangeRate
 import com.dynokore.gst.masterdata.contract.model.ImportCounterpartiesRequest
+import com.dynokore.gst.masterdata.contract.model.ImportRatesRequest
 import com.dynokore.gst.masterdata.contract.model.ImportRecord
 import com.dynokore.gst.masterdata.contract.model.ImportResult
 import com.dynokore.gst.masterdata.contract.model.OperationState
@@ -58,7 +59,13 @@ open class ImportController(
     private val tenants: TenantContext,
     private val mapper: ObjectMapper,
     private val rates: ManualRateEntry,
+    private val rateImport: RateImport,
 ) : ImportApi {
+    override fun importRates(
+        idempotencyKey: UUID,
+        importRatesRequest: ImportRatesRequest,
+    ): ResponseEntity<ImportResult> = rateImport.handle(importRatesRequest)
+
     override fun enterRate(
         idempotencyKey: UUID,
         enterRateRequest: EnterRateRequest,
