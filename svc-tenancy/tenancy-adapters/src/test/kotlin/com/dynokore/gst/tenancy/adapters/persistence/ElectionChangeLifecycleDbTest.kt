@@ -28,7 +28,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 
 /**
- * The lifecycle of an election change over PostgreSQL with forced row-level security (INV-AC-13527, INV-AC-1511):
+ * The lifecycle of an election change over PostgreSQL with forced row-level security (INV-AC-13527, INV-AC-13527):
  * withdraw and decline close a PENDING change once, the list holds the PENDING changes of one entity and tenant in
  * order, a partial unique index allows one PENDING change per entity and variation point, and two threads submitting
  * at once store exactly one.
@@ -125,7 +125,7 @@ class ElectionChangeLifecycleDbTest {
     }
 
     @Test
-    fun `INV-AC-1511 withdraw and decline close the change once with the closer and the time`() {
+    fun `INV-AC-13527 withdraw and decline close the change once with the closer and the time`() {
         val t = TenantId(UUID.randomUUID())
         val e = "e-${UUID.randomUUID()}"
         val first = inTenant(t) { it.ask(e) }.shouldNotBeNull()
@@ -148,7 +148,7 @@ class ElectionChangeLifecycleDbTest {
     }
 
     @Test
-    fun `INV-AC-1511 a change of another tenant or entity cannot be closed or seen`() {
+    fun `INV-AC-13527 a change of another tenant or entity cannot be closed or seen`() {
         val t = TenantId(UUID.randomUUID())
         val other = TenantId(UUID.randomUUID())
         val e = "e-${UUID.randomUUID()}"

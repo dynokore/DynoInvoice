@@ -29,7 +29,7 @@ import java.util.UUID
 
 /**
  * The lifecycle of a pending election change at the level of [ElectionCommands] with in-memory ports (INV-AC-13527,
- * INV-AC-1511): withdraw, decline, list, never expires, one pending change per entity and variation point, audit.
+ * INV-AC-13527): withdraw, decline, list, never expires, one pending change per entity and variation point, audit.
  */
 @Suppress("LargeClass", "TooManyFunctions")
 class ElectionChangeLifecycleTest {
@@ -208,7 +208,7 @@ class ElectionChangeLifecycleTest {
     // ---- withdraw ----
 
     @Test
-    fun `INV-AC-1511 the requester withdraws the change, the election and the events stay as they were`() {
+    fun `INV-AC-13527 the requester withdraws the change, the election and the events stay as they were`() {
         elected()
         val change = pendingOf(requestSource())
         audit.entries.clear()
@@ -224,7 +224,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 the approver who is not the requester cannot withdraw`() {
+    fun `INV-AC-13527 the approver who is not the requester cannot withdraw`() {
         elected()
         val change = pendingOf(requestSource())
         grant(u2, "E1", "election-change.withdraw")
@@ -232,7 +232,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 a caller with a trailing space is not the requester`() {
+    fun `INV-AC-13527 a caller with a trailing space is not the requester`() {
         elected()
         val change = pendingOf(requestSource())
         grant("$u1 ", "E1", "election-change.withdraw")
@@ -240,7 +240,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 approve without withdraw cannot withdraw, grants only`() {
+    fun `INV-AC-13527 approve without withdraw cannot withdraw, grants only`() {
         elected()
         val change = pendingOf(requestSource())
         grants.removeIf { it.first == u1 && it.third == "election-change.withdraw" }
@@ -249,7 +249,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 a grant on another entity does not allow a withdrawal`() {
+    fun `INV-AC-13527 a grant on another entity does not allow a withdrawal`() {
         elected()
         val change = pendingOf(requestSource())
         grants.removeIf { it.first == u1 && it.third == "election-change.withdraw" }
@@ -258,7 +258,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 an expired or revoked grant is a missing grant`() {
+    fun `INV-AC-13527 an expired or revoked grant is a missing grant`() {
         elected()
         val change = pendingOf(requestSource())
         grants.clear()
@@ -266,7 +266,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 an unavailable replica fails closed`() {
+    fun `INV-AC-13527 an unavailable replica fails closed`() {
         elected()
         val change = pendingOf(requestSource())
         authorityDown = true
@@ -276,7 +276,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 the action text with a trailing space is not the withdraw permission`() {
+    fun `INV-AC-13527 the action text with a trailing space is not the withdraw permission`() {
         elected()
         val change = pendingOf(requestSource())
         grants.removeIf { it.first == u1 && it.third == "election-change.withdraw" }
@@ -285,7 +285,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 an unknown change, another entity's change and a decided change are not found`() {
+    fun `INV-AC-13527 an unknown change, another entity's change and a decided change are not found`() {
         elected()
         grantAll("E2")
         val change = pendingOf(requestSource())
@@ -300,7 +300,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 a withdrawal replayed is 404 and writes one audit entry`() {
+    fun `INV-AC-13527 a withdrawal replayed is 404 and writes one audit entry`() {
         elected()
         val change = pendingOf(requestSource())
         audit.entries.clear()
@@ -326,7 +326,7 @@ class ElectionChangeLifecycleTest {
     // ---- decline ----
 
     @Test
-    fun `INV-AC-1511 another person holding approve declines, nothing is written to the election`() {
+    fun `INV-AC-13527 another person holding approve declines, nothing is written to the election`() {
         elected()
         val change = pendingOf(requestSource())
         audit.entries.clear()
@@ -344,7 +344,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 the requester cannot decline the own change`() {
+    fun `INV-AC-13527 the requester cannot decline the own change`() {
         elected()
         val change = pendingOf(requestSource())
         grant(u1, "E1", "election-change.approve")
@@ -352,7 +352,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 a holder of entity-config confirm only cannot decline`() {
+    fun `INV-AC-13527 a holder of entity-config confirm only cannot decline`() {
         elected()
         val change = pendingOf(requestSource())
         grant("identity:USR-003", "E1", "entity-config.confirm", "entity-config.manage")
@@ -360,7 +360,7 @@ class ElectionChangeLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1511 a decline replayed is 404 and writes one audit entry`() {
+    fun `INV-AC-13527 a decline replayed is 404 and writes one audit entry`() {
         elected()
         val change = pendingOf(requestSource())
         audit.entries.clear()
@@ -569,7 +569,7 @@ class ElectionChangeLifecycleTest {
     // ---- audit ----
 
     @Test
-    fun `INV-AC-1511 a refused call writes no audit entry and no entry stores a role`() {
+    fun `INV-AC-13527 a refused call writes no audit entry and no entry stores a role`() {
         elected()
         val change = pendingOf(requestSource())
         audit.entries.clear()
