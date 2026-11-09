@@ -376,16 +376,26 @@ private fun holdForAcknowledgement(
     if (answer == MappingAcknowledgement.NotRecorded) {
         stop(MappingPackResult.Forbidden(ErrorCode.SRT_004, "the client's acknowledgement is outstanding"))
     }
-    if (answer == MappingAcknowledgement.Unavailable) stopRefused(RefusalReason.DECISION_UNAVAILABLE)
+    if (answer == MappingAcknowledgement.Unavailable) {
+        stopRefused(RefusalReason.DECISION_UNAVAILABLE, names = listOf("mapping-acknowledgement"))
+    }
 }
 
 /** True for a recorded false or nothing recorded; false for a recorded true and in the SaaS form. */
 private fun noDistinctApprover(ports: MappingPackCollaborators): Boolean {
     if (!ports.privateForm) return false
     return when (val fact = ports.installationFacts.read()) {
-        is InstallationApproverFact.Recorded -> !fact.distinctTaxApprover
-        InstallationApproverFact.NotRecorded -> true
-        InstallationApproverFact.Unavailable -> stopRefused(RefusalReason.DECISION_UNAVAILABLE)
+        is InstallationApproverFact.Recorded -> {
+            !fact.distinctTaxApprover
+        }
+
+        InstallationApproverFact.NotRecorded -> {
+            true
+        }
+
+        InstallationApproverFact.Unavailable -> {
+            stopRefused(RefusalReason.DECISION_UNAVAILABLE, names = listOf("installation-approver-fact"))
+        }
     }
 }
 

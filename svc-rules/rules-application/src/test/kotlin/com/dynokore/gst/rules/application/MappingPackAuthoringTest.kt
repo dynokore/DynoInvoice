@@ -693,9 +693,25 @@ class MappingPackAuthorFactsTest {
     fun `INV-AC-19524 an Unavailable installation fact refuses the activation and stores nothing`() {
         val e = armedEnv(true, InstallationApproverFact.Unavailable)
         val before = e.store.state()
-        e.activate() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE)
+        e.activate() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE, names = listOf("installation-approver-fact"))
         e.store.state() shouldBe before
         e.holderRequests.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-19524 each Unavailable names its own source and swapped names do not match`() {
+        val e = armedEnv(true, InstallationApproverFact.Unavailable)
+        val fact = e.activate()
+        (fact == Refused(RefusalReason.DECISION_UNAVAILABLE, names = listOf("mapping-acknowledgement"))) shouldBe false
+        fact.shouldBeInstanceOf<Refused>().names shouldBe listOf("installation-approver-fact")
+        val f = Env().submitted()
+        f.decision = PackApprovalDecision.Allow(false, null, "A", setOf("CLIENT_ACKNOWLEDGEMENT"))
+        f.approve()
+        f.ack = MappingAcknowledgement.Unavailable
+        val ack = f.activate()
+        (ack == Refused(RefusalReason.DECISION_UNAVAILABLE, names = listOf("installation-approver-fact"))) shouldBe
+            false
+        ack.shouldBeInstanceOf<Refused>().names shouldBe listOf("mapping-acknowledgement")
     }
 
     @Test
@@ -723,7 +739,7 @@ class MappingPackAuthorFactsTest {
             .getValue("P1")
             .status shouldBe PackStatus.APPROVED
         e.ack = MappingAcknowledgement.Unavailable
-        e.activate() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE)
+        e.activate() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE, names = listOf("mapping-acknowledgement"))
         e.store.state() shouldBe before
         e.ack = MappingAcknowledgement.Recorded
         e.activate() shouldBe Done(PackStatus.ARMED)
