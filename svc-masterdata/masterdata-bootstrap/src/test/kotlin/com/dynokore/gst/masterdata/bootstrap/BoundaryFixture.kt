@@ -78,12 +78,15 @@ object TestPermissions {
     /** A second person holding the same keys, for the criteria that compare a starter with another principal. */
     const val OTHER_OPERATOR = "IDN-OPERATOR-2"
 
-    /** A person holding only the look-alike key `exchange-rate.imports` (plural), which is not `exchange-rate.import`. */
+    /** A person holding only the look-alike key `exchange-rate.imports` (plural). */
     const val LOOKALIKE_IMPORTER = "IDN-LOOKALIKE-IMPORTER"
+
+    /** The look-alike of [OPERATOR] with a trailing space; it holds the same keys, so only the actor equality differs. */
+    const val LOOKALIKE_OPERATOR = "IDN-OPERATOR "
 
     fun keysOf(person: String): Set<String> =
         when (person) {
-            OPERATOR, OTHER_OPERATOR -> all
+            OPERATOR, OTHER_OPERATOR, LOOKALIKE_OPERATOR -> all
             LOOKALIKE_IMPORTER -> setOf("exchange-rate.imports")
             else -> emptySet()
         }

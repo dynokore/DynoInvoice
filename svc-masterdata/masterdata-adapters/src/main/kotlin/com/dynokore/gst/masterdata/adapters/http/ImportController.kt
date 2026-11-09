@@ -149,6 +149,8 @@ open class ImportController(
     }
 
     override fun getImportRecord(importId: String): ResponseEntity<ImportRecord> {
+        // a rate import of the caller first (its own permission); otherwise the counterparty path runs unchanged
+        rateImport.readRecord(importId)?.let { return it }
         val actor = allowed()
         val record = readImport.handle(importId, actor) ?: throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
         return ResponseEntity.ok(importRecord(record))

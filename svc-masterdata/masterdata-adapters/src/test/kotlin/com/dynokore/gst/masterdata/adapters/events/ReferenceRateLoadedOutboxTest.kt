@@ -27,7 +27,7 @@ class ReferenceRateLoadedOutboxTest {
         } as T
 
     private val outbox =
-        ReferenceRateLoadedOutbox(stub(), JsonMapper.builder().build(), stub(), stub(), RateImportEntity())
+        ReferenceRateLoadedOutbox(stub(), JsonMapper.builder().build(), stub(), stub(), stub())
 
     @Test
     fun `INV-AC-8626 the payload validates against the ReferenceRateLoaded schema with source, pairs, range`() {

@@ -11,10 +11,12 @@ import org.springframework.http.HttpStatus
  * [ErrorCode] (CS-14), never a string typed here.
  */
 object RateWireCodes {
-    /** The refusal of an outcome that stored nothing, or null for [ImportRatesOutcome.Loaded]. */
+    /** The refusal of an outcome that stored nothing, or null for [ImportRatesOutcome.Loaded] and [ImportRatesOutcome.Running]. */
     fun refusal(outcome: ImportRatesOutcome): CatalogueRefusal? =
         when (outcome) {
-            is ImportRatesOutcome.Loaded -> {
+            is ImportRatesOutcome.Loaded,
+            is ImportRatesOutcome.Running,
+            -> {
                 null
             }
 

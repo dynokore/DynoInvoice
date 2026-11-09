@@ -23,6 +23,7 @@ import com.dynokore.gst.masterdata.application.imports.ImportEvidence
 import com.dynokore.gst.masterdata.application.imports.ImportStore
 import com.dynokore.gst.masterdata.application.imports.ReadDryRun
 import com.dynokore.gst.masterdata.application.imports.ReadImportRecord
+import com.dynokore.gst.masterdata.application.rate.RateImportStore
 import com.dynokore.gst.masterdata.application.registry.LookupGstRegister
 import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
@@ -162,6 +163,7 @@ class GapReportUseCases {
         gapReports: GapReportStore,
         dryRuns: DryRunStore,
         imports: ImportStore,
+        rateImports: RateImportStore,
         source: StaleRecordTenantSource,
         tenants: TenantContext,
         principal: WorkloadPrincipal,
@@ -173,7 +175,12 @@ class GapReportUseCases {
         source,
         tenants,
         principal.value,
-        listOf(gapReports::failRunningBefore, dryRuns::failRunningBefore, imports::failRunningBefore),
+        listOf(
+            gapReports::failRunningBefore,
+            dryRuns::failRunningBefore,
+            imports::failRunningBefore,
+            rateImports::failRunningBefore,
+        ),
     )
 
     @Bean
