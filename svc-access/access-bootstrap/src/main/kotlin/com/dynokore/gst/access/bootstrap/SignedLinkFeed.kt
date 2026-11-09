@@ -6,14 +6,12 @@ import com.dynokore.gst.access.adapters.events.SignedLinkRequestedHandler
 import com.dynokore.gst.access.application.link.IssueSignedLinkUseCase
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
-import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancyjooq.TenancyJooq
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.context.annotation.Bean
@@ -38,7 +36,7 @@ class SignedLinkFeed {
         useCase: IssueSignedLinkUseCase,
         messages: OutboxLinkMessages,
         mapper: ObjectMapper,
-    ): EventHandler = SignedLinkRequestedHandler(useCase, messages, mapper, AccessEventCatalogue.signedLinkProducers())
+    ) = SignedLinkRequestedHandler(useCase, messages, mapper, AccessEventCatalogue.signedLinkProducers())
 
     @Bean
     @ConditionalOnBean(EventLogReader::class, TenantScope::class, RebuildRequiredSink::class)
@@ -49,7 +47,7 @@ class SignedLinkFeed {
         scope: TenantScope,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-        @Qualifier("signedLinkRequestedHandler") handler: EventHandler,
+        handler: SignedLinkRequestedHandler,
     ): JdbcInboxConsumer =
         JdbcInboxConsumer(
             ConsumerSubscription(CONSUMER, SignedLinkRequestedHandler.TOPIC, SCHEMA),

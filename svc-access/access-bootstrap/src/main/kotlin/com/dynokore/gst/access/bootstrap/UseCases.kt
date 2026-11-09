@@ -10,9 +10,11 @@ import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
 import com.dynokore.gst.access.adapters.structure.ReplicaEntityDirectory
 import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.authorise.AuthoriseGate
 import com.dynokore.gst.access.application.authorise.AuthorisePlatform
 import com.dynokore.gst.access.application.authorise.OperatorOverlay
 import com.dynokore.gst.access.application.authorise.PlatformRead
+import com.dynokore.gst.access.application.authorise.StructureReadiness
 import com.dynokore.gst.access.application.consent.AgentScope
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.EntityDirectory
@@ -104,6 +106,15 @@ class UseCases {
         clock,
         operators,
     )
+
+    @Bean
+    fun structureReadiness(structure: StructureReplica): StructureReadiness = StructureReadiness(structure::isSynced)
+
+    @Bean
+    fun authoriseGate(
+        readiness: StructureReadiness,
+        authorise: Authorise,
+    ) = AuthoriseGate(readiness, authorise)
 
     @Bean
     fun authorisePlatform(
