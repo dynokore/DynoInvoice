@@ -6,7 +6,7 @@ Versioned, signed, effective-dated rule artefacts; activation fence, and the fen
 | --- | --- |
 | Layer | L1 (SDS §18.9) |
 | Embedded by | `rules-svc`; the pack holders `payload-svc`, `tenancy-svc`, `reconciliation-svc` and `notification-svc`; `control-plane-svc` |
-| Part used | `rules-svc`: feed and import client, registry, fence, resolution, evaluation, dry run. Pack holders: verify, compile, hold, acknowledge. `control-plane-svc`: bundle format and signing |
+| Part used | `rules-svc`: feed and import client, registry, fence, resolution, evaluation (package `com.dynokore.platform.rulepackkernel.evaluation`: pure rule evaluation, INV-REQ-775), dry run. Pack holders: verify, compile, hold, acknowledge. `control-plane-svc`: bundle format and signing |
 | Uses | tenancy-kernel, crypto (CS-53) |
 | Wave | Wave 1: Contracts, harness and platform (SDS §25.1) |
 

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-09
+### Added
+- Package `com.dynokore.platform.rulepackkernel.evaluation` (INV-T-9785, INV-Q-8719 A, INV-REQ-775): the pure evaluation extracted from rules-svc: `EvaluationInputs`, `Rule`, `RuleResult`, `AppliedPack`, `Evaluation`, `EvaluationOutcome` and `Evaluator`, which applies an ordered list of rules to explicit inputs and the applied pack versions (no clock, store, network or Spring type). Fired rules with different verdict strings give `EvaluationOutcome.Conflict` (rule ids ascending, no verdict; INV-Q-19135 B); a new variant is source-incompatible for an exhaustive `when` in a consumer. `RuleDocumentEvaluator(Evaluator, List<AppliedPack>) : DocumentEvaluator` with `TAXABLE_VALUE_KEY`, `GST_VALUE_KEY`, `NoRuleFiredException` and `RuleConflictException` (INV-Q-19131 C, INV-Q-19133 A; the amounts are the ones the document states). Additive. `PackBinding` and `InFlightEvaluation` stay in rules-svc.
+
 ## [4.1.3] - 2026-11-04
 ### Changed
 - Metadata-only change (CI-FAST, G-DVS): depends on `tenancy-kernel 4.2.1` and `tenancy-jooq 1.4.4`, whose versions step; no production code change.

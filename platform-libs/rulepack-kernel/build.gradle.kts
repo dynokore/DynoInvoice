@@ -99,6 +99,7 @@ dependencies {
     testImplementation(libs.kotest.property)
     testImplementation(libs.kotlinx.coroutinesTest)
     testRuntimeOnly(libs.junit.platformLauncher)
+    testImplementation(libs.platform.konsistRules) // the evaluation package's purity architecture test (TPL-14) only
 
     // Real PostgreSQL only, in every environment including tests (STK-14, STK-15;
     // H2 is banned outright, banned-dependencies.yaml) — proves PackRegistryMigration's
