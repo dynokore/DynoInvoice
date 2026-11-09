@@ -1173,7 +1173,7 @@ class MappingPackDefaultsTest(
         context.getBean(PackActionAuthority::class.java)::class.java shouldBe RefusingPackActionAuthority::class.java
         context.getBean(PackApprovalDecisionPort::class.java)::class.java shouldBe
             RefusingPackApprovalDecisionPort::class.java
-        // INV-T-16546: with a StructureReplica bean the default is the replica port (RateSourceBlockBoundaryTest)
+        // INV-T-16546: with a StructureReplica bean the rate-source default is the replica port (see RateSourceBlockBoundaryTest)
         context.getBean(RateSourcePort::class.java)::class.java shouldBe ReplicaRateSourcePort::class.java
         context.getBean(HolderCopyPort::class.java)::class.java shouldBe RefusingHolderCopyPort::class.java
     }
