@@ -218,3 +218,5 @@ testConnection.MDM-018	operation_error_code	openapi.yaml	INV-REQ-835
 enterRate.SRT-008	operation_error_code	openapi.yaml	INV-REQ-1010
 receiveSignedLinkIssued	asyncapi_operation	asyncapi.yaml	INV-REQ-901
 receiveSignedLinkInvalidated	asyncapi_operation	asyncapi.yaml	INV-REQ-901
+ImportRatesRequest.entityRef	schema_property	openapi.yaml	INV-REQ-957
+entityRef	query_parameter	openapi.yaml	INV-REQ-469

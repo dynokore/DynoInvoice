@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.19.0
+  version: 1.20.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -168,10 +168,13 @@ paths:
         that rule belongs to payload-svc (masterdata-svc `must_not`). A
         register outage returns REGISTER_UNAVAILABLE rather than blocking
         issuance (FR-E.7); a missing rate is reported and left for
-        payload-svc to hold (PAY-013).
+        payload-svc to hold (PAY-013). A service-to-service lookup on the
+        sync edge payload-svc->masterdata-svc: no person permission is
+        decided; the elected source is that of the named entity.
       tags: [register-and-rates]
       x-principal: ingest
       x-caller-auth: end-user
+      x-entity-ref: entityRef
       x-timeout: 1000
       x-sync-edge: payload-svc->masterdata-svc
       x-error-codes: [MDM-007]
@@ -189,6 +192,17 @@ paths:
           in: query
           required: true
           schema: { type: string, format: date }
+        - name: entityRef
+          in: query
+          required: false
+          schema: { type: string, maxLength: 40 }
+          description: >-
+            The entity the caller acts for. Optional in the schema only to keep
+            the change additive (API-03): the service refuses a request without
+            it, or with a blank one, with `400` SRT-001 and changes nothing; an
+            entity outside the principal's entity set is refused `403` SRT-004
+            before the handler runs (API-24). The elected source is the
+            election of that entity.
       responses:
         '200':
           description: The register facts and, where the currency is not SGD, the elected-source exchange rate.
@@ -879,6 +893,7 @@ paths:
       tags: [import]
       x-principal: filing-workflow
       x-caller-auth: end-user
+      x-entity-ref: entityRef
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
       x-error-codes: [MDM-012, MDM-013, MDM-014, MDM-015, SRT-001, SRT-008]
@@ -900,7 +915,7 @@ paths:
               $ref: '#/components/schemas/ImportRatesRequest'
             examples:
               default:
-                value: { source: "MAS", dateRange: { from: "2026-03-01", to: "2026-03-31" }, currencyPairs: ["USD/SGD"] }
+                value: { source: "MAS", dateRange: { from: "2026-03-01", to: "2026-03-31" }, currencyPairs: ["USD/SGD"], entityRef: "E-001" }
       responses:
         '201':
           description: The rates, stored.
@@ -2526,6 +2541,16 @@ components:
           items: { type: string, maxLength: 10 }
           description: >-
             A pair is written BASE/QUOTE with ISO 4217 codes: the BASE is the foreign currency and the QUOTE is SGD, and the rate is the number of SGD for 1 unit of the BASE, so USD/SGD is SGD per 1 USD.
+        entityRef:
+          type: string
+          maxLength: 40
+          description: >-
+            The entity the caller acts for. Optional in the schema only to keep
+            the change additive (API-03): the service refuses a request without
+            it, or with a blank one, with `400` SRT-001 and changes nothing; an
+            entity outside the principal's entity set is refused `403` SRT-004
+            before the handler runs (API-24). The elected source is the
+            election of that entity.
         fileHash: { type: string, maxLength: 128 }
         rowCount: { type: integer, minimum: 0 }
         rows:
