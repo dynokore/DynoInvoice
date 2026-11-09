@@ -122,13 +122,23 @@ class RunbookTest {
 
     private fun lintConnection(section: String): List<String> {
         val findings = mutableListOf<String>()
-        val name = section.lineSequence().first().removePrefix("Connection: ").trim()
+        val name =
+            section
+                .lineSequence()
+                .first()
+                .removePrefix("Connection: ")
+                .trim()
         val latency = rowValue(section, "Expected acknowledgement latency")
         val protocol = rowValue(section, "Failure-management protocol")
         if (latency == null) {
             findings += "connection $name: latency row missing"
         } else {
-            val seconds = Regex("^([0-9]+) seconds").find(latency)?.groupValues?.get(1)?.toLong()
+            val seconds =
+                Regex("^([0-9]+) seconds")
+                    .find(latency)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toLong()
             if (seconds != configuredSeconds) {
                 findings +=
                     "connection $name: latency value '$latency' differs from configured $configuredSeconds seconds"
