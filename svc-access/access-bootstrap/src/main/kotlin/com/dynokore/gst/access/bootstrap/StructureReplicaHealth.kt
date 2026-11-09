@@ -1,5 +1,8 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.application.authorise.Authorise
+import com.dynokore.gst.access.application.authorise.AuthoriseGate
+import com.dynokore.gst.access.application.authorise.StructureReadiness
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import org.springframework.boot.health.contributor.Health
 import org.springframework.boot.health.contributor.HealthIndicator
@@ -20,6 +23,15 @@ class StructureReplicaHealthIndicator(
 @Configuration(proxyBeanMethods = false)
 class StructureReplicaHealthConfiguration {
     /** Bean name `structureReplica` is the health component name. */
+    @Bean
+    fun structureReadiness(structure: StructureReplica): StructureReadiness = StructureReadiness(structure::isSynced)
+
+    @Bean
+    fun authoriseGate(
+        readiness: StructureReadiness,
+        authorise: Authorise,
+    ) = AuthoriseGate(readiness, authorise)
+
     @Bean
     fun structureReplicaHealthIndicator(structure: StructureReplica): HealthIndicator =
         StructureReplicaHealthIndicator(structure)

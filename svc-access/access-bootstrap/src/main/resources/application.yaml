@@ -34,7 +34,7 @@ management:
     status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
     group:
       live.include: livenessState
-      ready.include: readinessState,vault,db,eventLoops,structureReplica   # own schema, event loops and vault only (FR-AH.17)
+      ready.include: readinessState,vault,db,eventLoops,structureReplica   # own schema, event loops, vault and the structure replica snapshot (FR-AH.17, INV-Q-9081)
 logging.structured.format.console: ecs             # STK-35
 gst:
   service: access-svc

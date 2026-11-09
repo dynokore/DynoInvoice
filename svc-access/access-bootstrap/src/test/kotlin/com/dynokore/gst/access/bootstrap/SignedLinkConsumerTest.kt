@@ -253,7 +253,10 @@ class SignedLinkConsumerTest {
         run { env ->
             val tenants = context(env).getBean(TenantContext::class.java)
             val tx = context(env).getBean(TransactionRunner::class.java)
-            val handler = context(env).getBean(SignedLinkRequestedHandler::class.java)
+            val handler =
+                context(
+                    env,
+                ).getBean("signedLinkRequestedHandler", com.dynokore.platform.outboxandqueue.EventHandler::class.java)
             val failure =
                 runCatching {
                     tenants.bind(env.tenant, "system:test") {
@@ -305,7 +308,10 @@ class SignedLinkConsumerTest {
         run { env ->
             val tenants = context(env).getBean(TenantContext::class.java)
             val tx = context(env).getBean(TransactionRunner::class.java)
-            val handler = context(env).getBean(SignedLinkRequestedHandler::class.java)
+            val handler =
+                context(
+                    env,
+                ).getBean("signedLinkRequestedHandler", com.dynokore.platform.outboxandqueue.EventHandler::class.java)
 
             fun handle(source: String) =
                 runCatching {
