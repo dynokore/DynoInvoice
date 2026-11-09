@@ -1,9 +1,12 @@
 package com.dynokore.gst.masterdata.application.rate
 
+import com.dynokore.gst.masterdata.application.gapreport.LongOutcome
+import com.dynokore.gst.masterdata.application.gapreport.LongRunner
 import com.dynokore.gst.masterdata.domain.rate.ExchangeRate
 import com.dynokore.gst.masterdata.domain.rate.Provenance
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.math.BigDecimal
+import java.time.Clock
 import java.time.LocalDate
 
 /** The election in force on a date: the rate source and the basis it is elected for. */
@@ -63,8 +66,11 @@ data class RejectedRateRow(
 
 data class ImportRatesCommand(
     val entity: String,
+    /** The token's principal, never a request field. */
+    val actor: String,
     val source: String,
     val rangeFrom: LocalDate,
+    val rangeTo: LocalDate,
     val importId: String,
     val fileHash: String,
     val rowCount: Int,
@@ -75,6 +81,12 @@ sealed interface ImportRatesOutcome {
     data class Loaded(
         val stored: Int,
         val rejected: List<RejectedRateRow>,
+        val record: RateImportRecord,
+    ) : ImportRatesOutcome
+
+    /** The work outlasted the wait; [record] is the RUNNING record the caller reads later. */
+    data class Running(
+        val record: RateImportRecord,
     ) : ImportRatesOutcome
 
     /** No source is elected, or the request source is not exactly the elected one. Nothing stored. */
@@ -93,12 +105,16 @@ sealed interface ImportRatesOutcome {
  * refused. A row with an invalid rate (or currency) is listed as rejected and the others are stored (the rule of
  * the counterparty import). One `ReferenceRateLoaded` is requested per load that stored records, after the commit.
  */
+@Suppress("LongParameterList") // the ports of one use case
 class ImportRates(
     private val tx: TransactionRunner,
     private val store: RateStore,
     private val elected: ElectedRateSource,
     private val approved: ApprovedRateSources,
     private val publisher: ReferenceRateLoadedPublisher,
+    private val imports: RateImportStore,
+    private val clock: Clock,
+    private val runner: LongRunner,
 ) {
     fun handle(command: ImportRatesCommand): ImportRatesOutcome {
         // Point-in-time: each distinct row date (the range start when there are no rows) is judged by its own election.
@@ -119,19 +135,69 @@ class ImportRates(
                 null
             }
         if (outcome != null) return outcome
-        val (stored, rejected) = tx.inTransaction { load(command) }
-        if (stored.isNotEmpty()) {
-            publisher.publish(
-                ReferenceRateLoaded(
-                    command.source,
-                    stored.map { "${it.baseCurrency}/${it.quoteCurrency}" }.toSortedSet(),
-                    stored.minOf { it.date },
-                    stored.maxOf { it.date },
-                    command.importId,
-                ),
-            )
+        val running = tx.inTransaction { startRecord(command) }
+        val done = runner.run { work(command) }
+        return when (done) {
+            is LongOutcome.StillRunning -> {
+                ImportRatesOutcome.Running(running)
+            }
+
+            is LongOutcome.Finished -> {
+                val record = checkNotNull(tx.inTransaction { imports.find(command.importId) })
+                ImportRatesOutcome.Loaded(done.value.first, done.value.second, record)
+            }
         }
-        return ImportRatesOutcome.Loaded(stored.size, rejected)
+    }
+
+    private fun startRecord(command: ImportRatesCommand) =
+        imports.insertRunning(
+            command.importId,
+            command.entity,
+            command.actor,
+            command.source,
+            command.rangeFrom,
+            command.rangeTo,
+        )
+
+    /** The load and its record finish in one transaction; a throw marks the record FAILED and propagates. */
+    private fun work(command: ImportRatesCommand): Pair<Int, List<RejectedRateRow>> {
+        val (stored, rejected) =
+            try {
+                tx.inTransaction {
+                    val result = load(command)
+                    imports.finish(
+                        command.importId,
+                        clock.instant(),
+                        result.first.size,
+                        result.second.size,
+                        result.second,
+                    )
+                    result
+                }
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
+                tx.inTransaction { imports.fail(command.importId) }
+                throw e
+            }
+        publishLoaded(command, stored)
+        return stored.size to rejected
+    }
+
+    private fun publishLoaded(
+        command: ImportRatesCommand,
+        stored: List<ExchangeRate>,
+    ) {
+        if (stored.isEmpty()) return
+        publisher.publish(
+            ReferenceRateLoaded(
+                command.source,
+                stored.map { "${it.baseCurrency}/${it.quoteCurrency}" }.toSortedSet(),
+                stored.minOf { it.date },
+                stored.maxOf { it.date },
+                command.importId,
+            ),
+        )
     }
 
     private fun isApproved(

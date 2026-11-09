@@ -11,7 +11,10 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 class ImportRatesTest {
     private val day = LocalDate.parse("2026-11-03")
@@ -60,13 +63,16 @@ class ImportRatesTest {
     private val events = mutableListOf<ReferenceRateLoaded>()
     private val elected = ElectedRateSource { _, _ -> electedSource?.let { ElectedRate(it, "SPOT") } }
     private val approved = ApprovedRateSources { s, b, _ -> b == "SPOT" && s in approvedSources }
-    private val importer = ImportRates(tx, store, elected, approved) { events += it }
+    private val imports = FakeRateImportStore()
+    private val clock = Clock.fixed(Instant.parse("2026-11-09T01:00:00Z"), ZoneOffset.UTC)
+    private val runner = directRunner()
+    private val importer = ImportRates(tx, store, elected, approved, { events += it }, imports, clock, runner)
 
     private fun cmd(
         source: String,
         rows: List<RateRow> = listOf(row(1, "USD", "1.35")),
         count: Int = rows.size,
-    ) = ImportRatesCommand("E1", source, day, "IMP-1", "hash", count, rows)
+    ) = ImportRatesCommand("E1", "IDN-0001", source, day, day, "IMP-1", "hash", count, rows)
 
     private fun row(
         n: Int,
@@ -158,7 +164,16 @@ class ImportRatesTest {
             }
         val rows = listOf(row(1, "USD", "1.35"), row(2, "EUR", "1.5"))
         val out =
-            ImportRates(tx, conflicting, elected, approved) { events += it }.handle(cmd("MAS", rows))
+            ImportRates(
+                tx,
+                conflicting,
+                elected,
+                approved,
+                { events += it },
+                imports,
+                clock,
+                runner,
+            ).handle(cmd("MAS", rows))
                 as ImportRatesOutcome.Loaded
         assertEquals(1, out.stored)
         assertEquals(listOf(RateRowRejection.REVISION_CONFLICT), out.rejected.map { it.reason })
@@ -200,12 +215,12 @@ class ImportRatesTest {
         rows: List<RateRow>,
         count: Int = rows.size,
         from: LocalDate = d10,
-    ) = ImportRatesCommand("E1", source, from, "IMP-2", "hash", count, rows)
+    ) = ImportRatesCommand("E1", "IDN-0001", source, from, d20, "IMP-2", "hash", count, rows)
 
     private fun importerWith(
         el: (LocalDate) -> ElectedRate?,
         ap: (String, String, LocalDate) -> Boolean = { _, _, _ -> true },
-    ) = ImportRates(tx, store, { _, d -> el(d) }, { s, b, d -> ap(s, b, d) }) { events += it }
+    ) = ImportRates(tx, store, { _, d -> el(d) }, { s, b, d -> ap(s, b, d) }, { events += it }, imports, clock, runner)
 
     private fun twoRows() = listOf(row(1, "USD", "1.35", d10), row(2, "EUR", "1.5", d20))
 
