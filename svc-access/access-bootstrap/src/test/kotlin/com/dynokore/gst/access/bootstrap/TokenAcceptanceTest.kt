@@ -2,6 +2,7 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.application.token.AccessTokenClaims
 import com.dynokore.gst.access.application.token.AccessTokenSigner
+import com.dynokore.gst.access.contract.model.IssueAccessTokenResponse
 import com.dynokore.gst.access.contract.model.IssueAccessTokenResponse.Decision
 import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.gst.access.domain.principal.PrincipalType
@@ -442,6 +443,35 @@ class TokenAcceptanceTest {
                 java.nio.file.Files
                     .readString(mounted.resolve("access/token-signing-key")),
             )
+}
+
+/** INV-AC-13560, INV-REQ-584: the claim `principal_type` in the signed token, one case per type. */
+class TokenPrincipalTypeAcceptanceTest {
+    private fun run(block: (TokenKit) -> Unit) {
+        BoundaryFixture.deleteVerificationKeys()
+        val key = TestSecrets.newSigningKey()
+        val mounted = BoundaryFixture.mount(key)
+        BoundaryFixture.runner(mounted = mounted).run { context ->
+            context.startupFailure?.let { throw it }
+            val tokens = TokenKit(PrincipalKit(context), mounted, context.getBean(SignerCalls::class.java))
+            try {
+                block(tokens)
+            } finally {
+                tokens.close()
+            }
+        }
+    }
+
+    private fun claimsOf(token: String): Map<String, Any?> = SignedJWT.parse(token).jwtClaimsSet.claims
+
+    private fun TokenKit.fresh(
+        type: String,
+        scope: String,
+    ): IssueAccessTokenResponse {
+        val key = kit.newKey("client-key-" + java.util.UUID.randomUUID())
+        val created = kit.create(type, scope = scope, method = PrincipalKit.JWT, key = key)
+        return issue(created.principalRef, kit.proof(key, created.principalRef))
+    }
 
     private val typeNames =
         mapOf(
@@ -466,7 +496,7 @@ class TokenAcceptanceTest {
                     "MONITORING" -> "installation"
                     else -> "tenant:${t.kit.tenant}"
                 }
-            val issued = t.fresh(t.principal(type, scope))
+            val issued = t.fresh(type, scope)
             assertThat(issued.decision).isEqualTo(Decision.ISSUED)
             val claims = claimsOf(issued.accessToken!!)
             assertThat(claims.keys).contains("principal_type").doesNotContain("principal-type", "principalType")
@@ -528,7 +558,10 @@ class TokenAcceptanceTest {
     @Test
     fun `INV-AC-13560 sign refuses claims without principalType and returns no token`() =
         run { t ->
-            val session = t.kit.context.getBean(AccessTokenSigner::class.java).open()
+            val session =
+                t.kit.context
+                    .getBean(AccessTokenSigner::class.java)
+                    .open()
             val now = Instant.parse("2026-11-09T00:00:00Z")
             val base =
                 AccessTokenClaims(
