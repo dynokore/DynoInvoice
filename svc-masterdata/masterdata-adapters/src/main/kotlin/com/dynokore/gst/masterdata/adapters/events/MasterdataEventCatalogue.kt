@@ -1,5 +1,6 @@
 package com.dynokore.gst.masterdata.adapters.events
 
+import com.dynokore.gst.masterdata.adapters.rate.ConsumedRatePackEvents
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
@@ -15,6 +16,7 @@ import org.yaml.snakeyaml.Yaml
  */
 object MasterdataEventCatalogue {
     const val SERVICE = "masterdata-svc"
+    private const val RULES_SERVICE = "rules-svc"
     const val ASYNCAPI_RESOURCE = "gst/contracts/masterdata/asyncapi.yaml"
 
     /**
@@ -44,7 +46,11 @@ object MasterdataEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        val seen = (ownTypes + consumed.map { it.eventType })
+        val packs =
+            ConsumedRatePackEvents.SUBSCRIPTIONS
+                .filterKeys { it !in ownTypes && consumed.none { entry -> entry.eventType == it } }
+                .map { (type, topic) -> CatalogueEntry(type, topic, setOf(RULES_SERVICE), contentTopic = false) }
+        val seen = (ownTypes + consumed.map { it.eventType } + packs.map { it.eventType })
         val platform =
             PlatformEventCatalogue.ALL
                 .filter { it.topic != null && it.eventType !in seen }
@@ -56,7 +62,7 @@ object MasterdataEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + platform)
+        return EventCatalogue(own + consumed + packs + platform)
     }
 
     /** A channel message is either inline or a `$ref` to `#/components/messages/<name>`. */
