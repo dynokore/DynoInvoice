@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.18.0
+  version: 1.19.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -1136,7 +1136,8 @@ paths:
         `evidenceRef` (INV-REQ-512). Answers `409` with SRT-008 when a
         concurrent save of the same source, currency pair and date loses
         the unique-key race (the service assigns the revision; the caller
-        may retry).
+        may retry). Manual rates are tenant reference data: the permission
+        is decided at tenant scope, like importRates.
       tags: [import]
       x-principal: filing-workflow
       x-caller-auth: end-user
@@ -1147,7 +1148,7 @@ paths:
       x-operation:
         kind: PERMISSION
         permission: exchange-rate.enter
-        scope: entity
+        scope: tenant
         precondition: "Gap raised as PAY-013; evidence attached."
         reversibility: COMPENSABLE
         repeatKey: "(currency, date, source) — a repeat supersedes with a new rate."
