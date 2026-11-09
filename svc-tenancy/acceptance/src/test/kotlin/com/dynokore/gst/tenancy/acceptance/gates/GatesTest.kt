@@ -368,4 +368,51 @@ class GatesTest {
         AcKeyGate.testNames(listOf(File(root, "m"))).map { it.second }.sorted() shouldBe
             listOf("INV-AC-1 real", "INV-AC-2 integration")
     }
+
+    @Test
+    fun `INV-AC-16822 the operations table lists getCalendarPackDelta against its task and the gate fails closed`() {
+        val root = File(checkNotNull(System.getProperty("gst.repo.root")) { "gst.repo.root is unset" })
+        val contract = File(checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is unset" })
+        val adapters = File(root, "tenancy-adapters/src/main").walkTopDown().filter { it.isFile }.toList()
+        val skipped = setOf("build", ".git", ".gradle", ".gradle-cache")
+        val tests =
+            root
+                .walkTopDown()
+                .onEnter { it.name !in skipped }
+                .filter { it.isFile && it.extension == "kt" }
+                .filter { "/src/test/" in it.path || "/src/integrationTest/" in it.path }
+                .toList()
+        val spec = File(contract, "openapi.yaml").readText()
+        val async = File(contract, "asyncapi.yaml").readText()
+        val table = File(root, OperationsGate.NAME).readText()
+        val code =
+            OperationsGate.Code(
+                OperationsGate.overrides(adapters),
+                OperationsGate.stubs(adapters),
+                OperationsGate.classNames(tests),
+            )
+
+        fun run(t: String) = OperationsGate.check(spec, async, t, code)
+
+        val name = "getCalendarPackDelta"
+        val row = "$name\toperation\tINV-T-16829\tpending\n"
+        table.split("\n").count { it.startsWith("$name\t") } shouldBe 1
+        (row in table) shouldBe true
+        run(table).shouldBeEmpty()
+
+        val probes =
+            mapOf(
+                "row removed" to table.replace(row, ""),
+                "row twice" to table.replace(row, row + row),
+                "task cell INV-T-16828" to table.replace(row, row.replace("INV-T-16829", "INV-T-16828")),
+                "kind channel" to table.replace(row, row.replace("\toperation\t", "\tchannel\t")),
+                "name getCalendarPackDeltas" to table.replace(row, row.replace(name, name + "s")),
+                "state done while 501" to table.replace(row, row.replace("pending", "done")),
+            )
+        for ((probe, copy) in probes) {
+            (copy != table) shouldBe true
+            val findings = run(copy)
+            check(findings.any { name in it.subject }) { "probe '$probe' gave no finding naming $name: $findings" }
+        }
+    }
 }
