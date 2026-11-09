@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.lifecycle.AuditLogLifecycleAudit
 import com.dynokore.gst.tenancy.adapters.persistence.JooqEntityLifecycleStore
 import com.dynokore.gst.tenancy.application.certification.CertificationStore
 import com.dynokore.gst.tenancy.application.confirmation.SecondConfirmation
@@ -20,6 +21,7 @@ import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureStore
+import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -43,6 +45,12 @@ class LifecycleUseCases {
         dsl: DSLContext,
         tenants: TenantContext,
     ): JooqEntityLifecycleStore = JooqEntityLifecycleStore(dsl, tenants)
+
+    @Bean
+    fun auditLogLifecycleAudit(
+        writer: AuditWriter,
+        tenants: TenantContext,
+    ): AuditLogLifecycleAudit = AuditLogLifecycleAudit(writer, tenants)
 
     @Bean
     @ConditionalOnMissingBean(TriggerCoverage::class)

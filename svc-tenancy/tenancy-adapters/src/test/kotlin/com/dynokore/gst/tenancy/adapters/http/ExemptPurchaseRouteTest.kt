@@ -109,6 +109,13 @@ class ExemptPurchaseRouteTest {
 
     /** The collaborators the route never touches are allocated without a constructor: a call on them would fail. */
     private inline fun <reified T : Any> unused(): T {
+        if (T::class.java.isInterface) {
+            return T::class.java.cast(
+                java.lang.reflect.Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, _, _ ->
+                    error("an unused collaborator was called")
+                },
+            )
+        }
         val field = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
         field.isAccessible = true
         return T::class.java.cast((field.get(null) as sun.misc.Unsafe).allocateInstance(T::class.java))
@@ -130,6 +137,8 @@ class ExemptPurchaseRouteTest {
             unused(),
             unused(),
             CallerSource { "user-1" },
+            unused(),
+            unused(),
             unused(),
             unused(),
             unused(),

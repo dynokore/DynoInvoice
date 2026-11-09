@@ -52,7 +52,9 @@ class EntityDeregisterHttpTest {
                 assertThat(change[0]["attribute"].asString()).isEqualTo("lifecycleState")
                 assertThat(change[0]["newValue"].asString()).isEqualTo("SUSPENDED")
                 assertThat(l.e.rows(entity)).isEqualTo(certifications)
-                assertThat(outboxRows(entity, "%").size - profileEventRows(entity).size).isEqualTo(others)
+                // the one new row besides the profile change is the audit entry of the suspension
+                assertThat(outboxRows(entity, "%").size - profileEventRows(entity).size).isEqualTo(others + 1)
+                assertThat(auditRows(entity, "entity.suspended").size).isEqualTo(1)
                 assertThat(structureEventRows(entity).size).isEqualTo(structure)
             }
         }
@@ -61,7 +63,108 @@ class EntityDeregisterHttpTest {
     // ---- deregisterEntity ----
 
     @Test
-    fun `INV-AC-1051 probe deregisterEntity with an unsubmitted document and no override is 409 TNC-008 and changes nothing`() {
+    fun `probe suspendEntity writes one audit entry with actor, action, scope and reason`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity)
+                assertThat(callGoLive(l.env, entity).status).isEqualTo(200)
+                assertThat(callSuspendWith(l.env, entity, "maintenance").status).isEqualTo(200)
+                val rows = auditRows(entity, "entity.suspended")
+                assertThat(rows.size).isEqualTo(1)
+                val text = rows[0].toString()
+                assertThat(text).contains("\"$ADMIN\"", "\"entity.suspended\"", "\"${entity.entityRef}\"")
+                assertThat(text).contains("\"maintenance\"")
+            }
+        }
+    }
+
+    @Test
+    fun `probe suspendEntity stores the reason as given, not trimmed or case-folded`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity)
+                assertThat(callSuspendWith(l.env, entity, "maintenance").status).isEqualTo(200)
+                val text = auditRows(entity, "entity.suspended").single().toString()
+                assertThat(text).contains("\"maintenance\"")
+                assertThat(text).doesNotContain("\"maintenance \"").doesNotContain("\"Maintenance\"")
+            }
+        }
+    }
+
+    @Test
+    fun `probe suspendEntity refused with 403 writes no audit entry and keeps the state`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity)
+                assertThat(callGoLive(l.env, entity).status).isEqualTo(200)
+                l.people.caller = FINANCE_CALLER
+                l.people.grant(FINANCE_CALLER, entity.entityRef, LIFECYCLE_FINANCE_VIEWER)
+                val answer = callSuspendWith(l.env, entity, "maintenance")
+                assertThat(listOf(answer.status, answer.code)).isEqualTo(listOf(403, "SRT-004"))
+                assertThat(storedState(entity)).isEqualTo("LIVE")
+                assertThat(auditRows(entity, "entity.suspended")).isEmpty()
+            }
+        }
+    }
+
+    @Test
+    fun `probe suspendEntity of an unknown entity is 404 and writes no audit entry`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity)
+                val unknown = entity.copy(entityRef = "ENT-NOSUCH")
+                l.people.grant(ADMIN, unknown.entityRef, ElectionRoles.ENTITY_ADMIN)
+                val answer = callSuspendWith(l.env, unknown, "maintenance")
+                assertThat(answer.status).isEqualTo(404)
+                assertThat(auditRows(unknown, "entity.suspended")).isEmpty()
+                assertThat(auditRows(entity, "entity.suspended")).isEmpty()
+            }
+        }
+    }
+
+    @Test
+    fun `probe suspendEntity and deregisterEntity by a caller holding only election-change list are 403`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity)
+                assertThat(callGoLive(l.env, entity).status).isEqualTo(200)
+                l.people.caller = FINANCE_CALLER
+                l.people.grantPermission(FINANCE_CALLER, entity.entityRef, "election-change.list")
+                val suspended = callSuspendWith(l.env, entity, "maintenance")
+                val deregistered = callDeregister(l.env, entity)
+                assertThat(listOf(suspended.status, deregistered.status)).isEqualTo(listOf(403, 403))
+                assertThat(storedState(entity)).isEqualTo("LIVE")
+            }
+        }
+    }
+
+    @Test
+    fun `probe deregisterEntity by a caller without entity-config manage is 403 and keeps the state`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity)
+                l.people.caller = FINANCE_CALLER
+                l.people.grant(FINANCE_CALLER, entity.entityRef, LIFECYCLE_FINANCE_VIEWER)
+                val answer = callDeregister(l.env, entity)
+                assertThat(listOf(answer.status, answer.code)).isEqualTo(listOf(403, "SRT-004"))
+                assertThat(storedState(entity)).isNotEqualTo("DEREGISTERED")
+            }
+        }
+    }
+
+    @Test
+    fun `probe suspendEntity by a caller who holds entity-config manage is accepted`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity)
+                assertThat(callSuspendWith(l.env, entity, "maintenance").status).isEqualTo(200)
+                assertThat(storedState(entity)).isEqualTo("SUSPENDED")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-1051 probe deregisterEntity with an unsubmitted document and no override is 409 TNC-008`() {
         lifecycleRun { l ->
             l.env.withEntity { _, entity ->
                 lifecycleReady(l, entity)
@@ -94,7 +197,7 @@ class EntityDeregisterHttpTest {
                 assertThat(storedState(entity)).isEqualTo("DEREGISTERED")
                 assertThat(
                     overrideRows(entity),
-                ).isEqualTo(listOf(listOf(ADMIN, "two drafts are abandoned", TODAY.toString())))
+                ).isEqualTo(listOf(listOf(ADMIN, "two drafts are abandoned", l.today.toString())))
                 assertThat(profileEventRows(entity).size - rows).isEqualTo(1)
                 assertThat(structureEventRows(entity).size).isEqualTo(structure)
             }
@@ -118,7 +221,7 @@ class EntityDeregisterHttpTest {
                     .isEqualTo(listOf("registrationEndDate", "2026-08-15"))
                 assertThat(listOf(changes[1]["attribute"].asString(), changes[1]["newValue"].asString()))
                     .isEqualTo(listOf("lifecycleState", "DEREGISTERED"))
-                assertThat(event["effectiveDate"].asString()).isEqualTo(TODAY.toString())
+                assertThat(event["effectiveDate"].asString()).isEqualTo(l.today.toString())
                 val profile =
                     event["node"]["profile"].values().filter {
                         it["attribute"].asString() ==
@@ -165,5 +268,9 @@ class EntityDeregisterHttpTest {
                 assertThat(overrideRows(entity)).isEmpty()
             }
         }
+    }
+
+    private companion object {
+        const val FINANCE_CALLER = "identity:USR-020"
     }
 }
