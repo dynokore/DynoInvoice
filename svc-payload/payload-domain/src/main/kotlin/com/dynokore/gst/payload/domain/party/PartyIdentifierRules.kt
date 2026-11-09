@@ -26,6 +26,8 @@ data class PartyIdentifierInput(
 /** Why no party identifiers are resolved. */
 enum class RefusalReason {
     IDENTITY_TRIPLE_ABSENT,
+    DOCUMENT_NUMBER_ABSENT,
+    DOCUMENT_DATE_ABSENT,
 }
 
 /** The result of the party identifier rules; no member carries a document. */

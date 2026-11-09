@@ -3,6 +3,7 @@ package com.dynokore.gst.payload.adapters.projection
 import com.dynokore.gst.payload.domain.Direction
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
+import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
 import com.dynokore.gst.payload.domain.party.IdentityTriple
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyInput
@@ -26,6 +27,7 @@ class PartyProjectionTest {
         val found = registry.find(BuilderKey(SpecificationFamily.PINT_SG, code)) as BuilderLookup.Found
         return found.builder.build(
             PartyIdentifierInput(buyer, supplier, identity),
+            DocumentHeaderInput("INV-2026-0042", java.time.LocalDate.of(2026, 11, 3)),
             Direction.SALE,
             SpecificationFamily.PINT_SG,
             SubmissionType.TYPE_2,

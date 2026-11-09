@@ -3,6 +3,7 @@ package com.dynokore.gst.payload.adapters.projection
 import com.dynokore.gst.payload.domain.Direction
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
+import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
 import com.dynokore.gst.payload.domain.party.IdentityTriple
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyInput
@@ -22,6 +23,7 @@ class CustomizationProfileProjectionTest {
     private val triple = IdentityTriple("0195:201912345A", "201912345A", "M2-1234567-8")
     private val input =
         PartyIdentifierInput(PartyInput("SG_UEN", "201888888A"), PartyInput("0195", "SSC-CENTRE-9"), triple)
+    private val header = DocumentHeaderInput("INV-2026-0042", java.time.LocalDate.of(2026, 11, 3))
     private val bisType2 =
         "urn:cen.eu:en16931:2017#conformant#urn:fdc:peppol.eu:2017:poacc:billing:LocalTaxInvoice:sg:1.0"
 
@@ -34,7 +36,7 @@ class CustomizationProfileProjectionTest {
     ): BuildResult =
         (registry.find(BuilderKey(SpecificationFamily.PINT_SG, code)) as BuilderLookup.Found)
             .builder
-            .build(party, direction, family, type)
+            .build(party, header, direction, family, type)
 
     private fun texts(
         xml: String,
@@ -45,17 +47,14 @@ class CustomizationProfileProjectionTest {
         return (0 until nodes.length).map { nodes.item(it).textContent }
     }
 
-    // The gate over the applying rows except IBT-001 and IBT-002, which no builder writes (INV-T-18187 removes this).
+    // The gate over all applying rows.
     private fun gate(
         xml: String,
         code: String,
         rows: List<GateRow> = applying(code),
     ) = TableConformanceGate.check(xml, code, rows)
 
-    private fun applying(code: String) =
-        TableConformanceGate.applyingRows(fixture, code, "PINT-SG-1.0").filter {
-            it.businessTermId !in listOf("IBT-001", "IBT-002")
-        }
+    private fun applying(code: String) = TableConformanceGate.applyingRows(fixture, code, "PINT-SG-1.0")
 
     private fun assertIds(
         family: SpecificationFamily,

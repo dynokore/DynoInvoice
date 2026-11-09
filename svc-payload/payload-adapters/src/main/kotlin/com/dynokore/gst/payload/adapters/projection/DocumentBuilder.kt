@@ -3,6 +3,7 @@ package com.dynokore.gst.payload.adapters.projection
 import com.dynokore.gst.payload.domain.Direction
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
+import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.RefusalReason
 
@@ -39,6 +40,7 @@ interface DocumentBuilder {
 
     fun build(
         input: PartyIdentifierInput,
+        header: DocumentHeaderInput,
         direction: Direction,
         family: SpecificationFamily,
         submissionType: SubmissionType,

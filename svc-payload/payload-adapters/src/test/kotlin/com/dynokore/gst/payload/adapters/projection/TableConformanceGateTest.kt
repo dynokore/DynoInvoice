@@ -3,16 +3,15 @@ package com.dynokore.gst.payload.adapters.projection
 import com.dynokore.gst.payload.domain.Direction
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
+import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
 import com.dynokore.gst.payload.domain.party.IdentityTriple
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyInput
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-
-/** Fixture terms that apply to 380 and 381 but are not written by the builders here; INV-T-18187 removes this. */
-private val UNWRITTEN_TERMS = listOf("IBT-001", "IBT-002")
 
 /** INV-T-7178: the table conformance gate over the fixture pack and the probes that must make it fail. */
 class TableConformanceGateTest {
@@ -22,7 +21,7 @@ class TableConformanceGateTest {
         )
     private val spec = "PINT-SG-1.0"
     private val registry = DocumentBuilderRegistry.standard()
-    private val partyTerms = setOf("IBT-023", "IBT-024", "IBT-030", "IBT-031", "IBT-047")
+    private val partyTerms = setOf("IBT-001", "IBT-002", "IBT-023", "IBT-024", "IBT-030", "IBT-031", "IBT-047")
     private val input =
         PartyIdentifierInput(
             PartyInput("SG_UEN", "201888888A"),
@@ -38,6 +37,7 @@ class TableConformanceGateTest {
                 ) as BuilderLookup.Found
             ).builder.build(
                 input,
+                DocumentHeaderInput("INV-2026-0042", java.time.LocalDate.of(2026, 11, 3)),
                 Direction.SALE,
                 SpecificationFamily.PINT_SG,
                 SubmissionType.TYPE_2,
@@ -46,39 +46,43 @@ class TableConformanceGateTest {
 
     private fun rows(code: String) = TableConformanceGate.applyingRows(fixture, code, spec)
 
-    // Applying rows without the UNWRITTEN_TERMS rows (coverage-gap ruling): the terms the builders write.
-    private fun partyRows(code: String) = rows(code).filter { it.businessTermId !in UNWRITTEN_TERMS }
-
     private fun failures(
         code: String,
-        rows: List<GateRow> = partyRows(code),
+        rows: List<GateRow> = rows(code),
         xml: String = xml(code),
     ) = TableConformanceGate.check(xml, code, rows)
 
-    private fun row(id: String) = partyRows("380").first { it.businessTermId == id }
+    private fun row(id: String) = rows("380").first { it.businessTermId == id }
 
     private fun starts(
         code: String,
         rule: String,
         vararg rows: GateRow,
-    ) = failures(code, partyRows(code) + rows).any { it.startsWith("($rule)") }
+    ) = failures(code, rows(code) + rows).any { it.startsWith("($rule)") }
 
     @Test
-    fun `INV-AC-1503 ConformanceGate passes for 380 and 381 over the party rows`() {
+    fun `INV-AC-1503 INV-AC-18186 ConformanceGate passes for 380 and 381 over all applying rows`() {
         for (code in listOf("380", "381")) {
-            rows(code).map { it.businessTermId }.filter { it !in UNWRITTEN_TERMS }.toSet() shouldBe partyTerms
-            val applying = rows(code).map { it.businessTermId }.toSet()
-            UNWRITTEN_TERMS.all { it in applying } shouldBe true
+            rows(code).map { it.businessTermId }.toSet() shouldBe partyTerms
             failures(code) shouldBe emptyList()
         }
     }
 
     @Test
-    fun `ConformanceGate rule a fails over all applying rows naming IBT-001 and IBT-002`() {
-        UNWRITTEN_TERMS shouldBe listOf("IBT-001", "IBT-002")
+    fun `INV-AC-18186 ConformanceGate rule a fails naming IBT-001 when cbc ID is removed`() {
         for (code in listOf("380", "381")) {
-            val fails = failures(code, rows(code)).filter { it.startsWith("(a)") }
-            UNWRITTEN_TERMS.forEach { t -> fails.any { t in it } shouldBe true }
+            val cut = xml(code).replace(Regex("<cbc:ID>[^<]*</cbc:ID>"), "").replace(Regex("<ID>[^<]*</ID>"), "")
+            cut shouldNotBe xml(code)
+            failures(code, xml = cut).any { it.startsWith("(a)") && "IBT-001" in it } shouldBe true
+        }
+    }
+
+    @Test
+    fun `INV-AC-18186 ConformanceGate rule a fails naming IBT-002 when cbc IssueDate is removed`() {
+        for (code in listOf("380", "381")) {
+            val cut = xml(code).replace(Regex("<[A-Za-z0-9]*:?IssueDate>[^<]*</[A-Za-z0-9]*:?IssueDate>"), "")
+            cut shouldNotBe xml(code)
+            failures(code, xml = cut).any { it.startsWith("(a)") && "IBT-002" in it } shouldBe true
         }
     }
 
@@ -91,7 +95,7 @@ class TableConformanceGateTest {
     @Test
     fun `ConformanceGate rule a fails on a look-alike path`() {
         val rows =
-            partyRows("380").map {
+            rows("380").map {
                 if (it.businessTermId ==
                     "IBT-047"
                 ) {
@@ -107,7 +111,7 @@ class TableConformanceGateTest {
     fun `ConformanceGate rule b fails on a written leaf whose row is removed`() {
         failures(
             "380",
-            partyRows("380").filter { it.businessTermId != "IBT-031" },
+            rows("380").filter { it.businessTermId != "IBT-031" },
         ).any { "selected by 0 rows" in it } shouldBe
             true
     }
