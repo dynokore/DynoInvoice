@@ -1,12 +1,15 @@
 package com.dynokore.gst.rules.served
 
+import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.bootstrap.PostgresRules
 import com.dynokore.gst.rules.bootstrap.RulesApplication
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.VariationPointKey
+import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -16,6 +19,7 @@ import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
 import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -33,7 +37,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
@@ -58,6 +61,7 @@ class PolicySettingDecisionsIT(
     @Autowired private val clock: MovableClock,
     @Autowired private val reader: PolicyReader,
     @Autowired private val scope: TenantScope,
+    @Autowired private val catalogue: EventCatalogue,
 ) {
     companion object {
         @JvmStatic
@@ -76,9 +80,15 @@ class PolicySettingDecisionsIT(
         private val epoch = AtomicLong(1)
     }
 
+    private val probe: TenancyProbe =
+        TenancyProbe.connect(
+            PostgresRules.pg.jdbcUrl,
+            "rules_runtime",
+            "rules_runtime_pw",
+        )
     private val http = HttpClient.newHttpClient()
     private val tenant = TenantId(UUID.randomUUID())
-    private val today = LocalDate.now(ZoneOffset.UTC)
+    private val today: LocalDate = LocalDate.now(clock)
 
     @BeforeEach
     fun freshReplica() {
@@ -293,5 +303,29 @@ class PolicySettingDecisionsIT(
         stored() shouldBe SET_OPTION
         stored(TenantId(UUID.randomUUID())) shouldBe DEFAULT_OPTION
         first.body() shouldNotContain "SRT-004"
+    }
+
+    @Test
+    fun `the event catalogue lists the three pack events and the two platform events of setPolicy and nothing else`() {
+        val platform =
+            setOf(
+                PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType,
+                PlatformEventCatalogue.POLICY_CHANGED.eventType,
+            )
+        catalogue.entries().map { it.eventType }.toSet() shouldBe RulesEventCatalogue.TOPICS.keys + platform
+        catalogue.entries().size shouldBe RulesEventCatalogue.TOPICS.size + 2
+    }
+
+    @Test
+    fun `a permitted setPolicy answers 200 and the outbox holds one AuditEntryRecorded and one PolicyChanged row`() {
+        grant("u-outbox", "tax.approver")
+        post("u-outbox").statusCode() shouldBe 200
+
+        fun rows(type: String): Long =
+            probe.inTenant(tenant) {
+                fetchValue("select count(*) from rules.outbox where type = ?", type)
+            } as Long
+        rows(PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType) shouldBe 1L
+        rows(PlatformEventCatalogue.POLICY_CHANGED.eventType) shouldBe 1L
     }
 }
