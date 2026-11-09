@@ -23,7 +23,6 @@ import com.dynokore.gst.access.application.principal.RevocationListWriter
 import com.dynokore.gst.access.application.principal.RevokePrincipalUseCase
 import com.dynokore.gst.access.application.principal.RotatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.WithdrawCredentialUseCase
-import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyWriter
 import com.dynokore.platform.outboxandqueue.OutboxWriter
