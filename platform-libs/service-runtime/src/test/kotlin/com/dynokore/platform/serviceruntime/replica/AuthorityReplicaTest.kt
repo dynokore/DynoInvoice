@@ -4,6 +4,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
+import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
 import java.time.LocalDate
 
@@ -13,6 +14,7 @@ import java.time.LocalDate
  * on its own key; an action is decided from the roles the fixture [TEST_ROLES] lists for it.
  * INV-Q-3339, INV-AC-1911: entity-plus-period grants.
  */
+@Suppress("LargeClass") // one fixture shared by the grant, lag and machine-type cases (CS-50)
 class AuthorityReplicaTest {
     private val clock = MutableClock()
     private val access =
@@ -328,11 +330,15 @@ class AuthorityReplicaTest {
 
     @Test
     fun `a machine request with no marked operation is denied when the replica is stale and access-svc is down`() {
-        grantTo(1)
-        feed.drop()
+        // The type is listed for the action, so the request reaches the degraded answer (INV-AC-13561).
+        val listed =
+            AuthorityReplica(clock, { mapOf("machine.filing-workflow" to CellAllowance.PERMITTED) }, fallback = access)
+        val listedFeed = FakeFeed(listed)
+        listedFeed.publish(AuthorityChanged(TENANT_A, "p1", 1, roleGrantRecord("g1", grant)))
+        listedFeed.drop()
         clock.advance(Duration.ofSeconds(30))
         access.answer = { FallbackResult.Unavailable }
-        decide(PrincipalKind.MACHINE) shouldBe
+        listed.decide(request(PrincipalKind.MACHINE), deadline(clock)) shouldBe
             AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
     }
 
@@ -362,5 +368,122 @@ class AuthorityReplicaTest {
         clock.advance(Duration.ofMillis(1))
         decide(PrincipalKind.HUMAN).source shouldBe DecisionSource.FALLBACK
         access.calls shouldBe 1
+    }
+
+    // INV-AC-13561: a MACHINE request is decided from the token type and the map; roles below are test data.
+    private val machineRoles =
+        OperationRoleMap { key ->
+            when (key) {
+                "machine.drain.run" -> {
+                    mapOf(
+                        "machine.filing-workflow" to CellAllowance.PERMITTED,
+                        "machine.monitoring" to CellAllowance.PERMITTED,
+                    )
+                }
+
+                "machine.submissions.read" -> {
+                    mapOf(
+                        "machine.reporting" to CellAllowance.PERMITTED,
+                        "machine.filing-workflow" to CellAllowance.PERMITTED,
+                    )
+                }
+
+                else -> {
+                    emptyMap()
+                }
+            }
+        }
+
+    private fun machineReplica(current: Boolean): AuthorityReplica {
+        val r =
+            AuthorityReplica(
+                clock,
+                machineRoles,
+                fallback =
+                    FakeFallback<AuthorizationRequest, AuthorityVerdict> {
+                        FallbackResult.Unavailable
+                    },
+            )
+        val f = FakeFeed(r)
+        f.publish(AuthorityChanged(TENANT_A, "other", 1, null))
+        f.heartbeat(1)
+        f.snapshotComplete(1)
+        if (!current) {
+            f.drop()
+            clock.advance(Duration.ofSeconds(30))
+        }
+        return r
+    }
+
+    private fun machine(
+        type: String?,
+        action: String,
+        current: Boolean,
+        entity: String = "E-001",
+    ): AuthorityDecision {
+        val r = machineReplica(current)
+        val principal =
+            if (type == null) {
+                Principal("m1", PrincipalKind.HUMAN)
+            } else {
+                Principal.machine("m1", TENANT_A, MachineEntityCoverage.Entity("E-001"), type)
+            }
+        return r.decide(AuthorizationRequest(TENANT_A, principal, entity, action), deadline(clock))
+    }
+
+    private val granted = AuthorityDecision(true, DecisionSource.LOCAL, DecisionReason.GRANTED)
+    private val noGrant = AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.NO_GRANT)
+
+    @Test
+    fun `INV-AC-13561 filing-workflow is granted for its covered entity and denied for another`() {
+        machine("filing-workflow", "machine.drain.run", true) shouldBe granted
+        machine("filing-workflow", "machine.drain.run", true, "E-002") shouldBe noGrant
+    }
+
+    @Test
+    fun `INV-AC-13561 reporting is NO_GRANT on drain with the replica current and stale`() {
+        machine("reporting", "machine.drain.run", true) shouldBe noGrant
+        machine("reporting", "machine.drain.run", false) shouldBe noGrant
+    }
+
+    @Test
+    fun `INV-AC-13561 ingest is NO_GRANT on submissions read`() {
+        machine("ingest", "machine.submissions.read", true) shouldBe noGrant
+    }
+
+    @Test
+    fun `INV-AC-13561 any listed role is enough`() {
+        machine("monitoring", "machine.drain.run", true) shouldBe granted
+        machine("reporting", "machine.submissions.read", true) shouldBe granted
+    }
+
+    @Test
+    fun `INV-AC-13561 a listed role beyond the lag bound keeps the degraded answer`() {
+        // no degraded-allow table: the existing degraded path answers, never a local grant
+        machine("filing-workflow", "machine.drain.run", false) shouldBe
+            AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["sandbox-runner", "Filing-Workflow", "filing-workflow ", "", "machine.filing-workflow"])
+    fun `INV-AC-13561 an unlisted or look-alike type is NO_GRANT`(type: String) {
+        machine(type, "machine.drain.run", true) shouldBe noGrant
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["machine.filing-workflow", "machine.drain.run ", "Machine.drain.run"])
+    fun `INV-AC-13561 an action that is a role name or has a stray character is NO_GRANT`(action: String) {
+        machine("filing-workflow", action, true) shouldBe noGrant
+    }
+
+    @Test
+    fun `INV-AC-13561 a decision has the properties allowed, source and reason only`() {
+        AuthorityDecision::class.java.declaredFields
+            .filter {
+                !it.isSynthetic &&
+                    !java.lang.reflect.Modifier
+                        .isStatic(it.modifiers)
+            }.map { it.name }
+            .toSet() shouldBe setOf("allowed", "source", "reason")
     }
 }

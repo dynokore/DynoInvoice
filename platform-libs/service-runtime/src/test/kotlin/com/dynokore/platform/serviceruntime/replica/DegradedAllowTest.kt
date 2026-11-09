@@ -14,12 +14,16 @@ class DegradedAllowTest {
     private val allowed = AuthorityDecision(true, DecisionSource.DEGRADED, DecisionReason.MACHINE_FLOW_CONTINUES)
     private val denied = AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
     private val seen = mutableListOf<DegradedAllow>()
+    private val machineRoles =
+        OperationRoleMap { key ->
+            if (key == "ingest") mapOf("machine.filing-workflow" to CellAllowance.PERMITTED) else emptyMap()
+        }
     private val table = DegradedAllowTable(setOf("POST" to "/v1/transactions", "GET" to "/v1/batches/{batchId}"))
 
     private fun replica(
         marked: DegradedAllowTable = table,
         entityOfTenant: (TenantId, String) -> Boolean = { _, _ -> false },
-    ) = AuthorityReplica(clock, TEST_ROLES, degradedAllow = marked, entityOfTenant = entityOfTenant, observer = {
+    ) = AuthorityReplica(clock, machineRoles, degradedAllow = marked, entityOfTenant = entityOfTenant, observer = {
         seen +=
             it
     })
@@ -91,7 +95,14 @@ class DegradedAllowTest {
     @Test
     fun `an empty table denies every machine case`() {
         ask(replica = replica(DegradedAllowTable.EMPTY)) shouldBe denied
-        ask(replica = AuthorityReplica(clock, TEST_ROLES)) shouldBe denied
+        ask(replica = AuthorityReplica(clock, machineRoles)) shouldBe denied
+    }
+
+    @Test
+    fun `a filing-workflow token for an action its type is not listed for is NO_GRANT, never MACHINE_FLOW_CONTINUES`() {
+        val unlisted = AuthorityReplica(clock, TEST_ROLES, degradedAllow = table)
+        ask(replica = unlisted) shouldBe AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.NO_GRANT)
+        seen.size shouldBe 0
     }
 
     @Test

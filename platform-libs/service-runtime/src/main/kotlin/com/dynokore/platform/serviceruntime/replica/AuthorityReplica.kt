@@ -528,8 +528,33 @@ class AuthorityReplica(
         request: AuthorizationRequest,
         deadline: Deadline,
     ): AuthorityDecision {
-        if (tracker.lag().isWithin(lagBound)) return decideLocally(request, deadline)
-        return when (val answer = fallback?.fetch(request, deadline) ?: FallbackResult.Unavailable) {
+        val machine = request.principal.kind == PrincipalKind.MACHINE
+        // The token type is checked first, before any access-svc call and before degraded(): a type the map does not
+        // list for the action is denied whatever the replica state (INV-AC-13561, INV-Q-10649 C).
+        return when {
+            machine && !machineTypeListed(request.principal, request.action) -> {
+                AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.NO_GRANT)
+            }
+
+            !tracker.lag().isWithin(lagBound) -> {
+                decideBeyondBound(request, deadline)
+            }
+
+            machine -> {
+                local(machineCovered(request))
+            }
+
+            else -> {
+                decideLocally(request, deadline)
+            }
+        }
+    }
+
+    private fun decideBeyondBound(
+        request: AuthorizationRequest,
+        deadline: Deadline,
+    ): AuthorityDecision =
+        when (val answer = fallback?.fetch(request, deadline) ?: FallbackResult.Unavailable) {
             is FallbackResult.Found -> {
                 AuthorityDecision(
                     answer.value.allowed,
@@ -546,7 +571,6 @@ class AuthorityReplica(
                 degraded(request)
             }
         }
-    }
 
     /**
      * Decides an operation that names no entity: permitted only on a TENANT-scope grant of a role the
@@ -653,6 +677,26 @@ class AuthorityReplica(
         tenant: TenantId,
         principalId: String,
     ): Set<String> = roleBook.heldEntities(tenant, principalId)
+
+    /**
+     * The role a MACHINE request is checked as is `machine.` plus the token's type, compared by equality; any role the
+     * [operationRoles] lists for [action] is enough. No role name is written in code (ARC-16).
+     */
+    private fun machineTypeListed(
+        principal: Principal,
+        action: String,
+    ): Boolean {
+        val type = principal.machineType ?: return false
+        return operationRoles.rolesFor(action).containsKey(MACHINE_ROLE_PREFIX + type)
+    }
+
+    /** A listed type is granted for the token's own tenant and an entity its coverage covers, else NO_GRANT. */
+    private fun machineCovered(request: AuthorizationRequest): DecisionReason {
+        val principal = request.principal
+        val covered =
+            principal.tenant == request.tenant && principal.coversEntity(request.entityRef, entityOfTenant)
+        return if (covered) DecisionReason.GRANTED else DecisionReason.NO_GRANT
+    }
 
     private fun local(reason: DecisionReason): AuthorityDecision {
         val allowed = reason == DecisionReason.GRANTED
@@ -786,6 +830,7 @@ class AuthorityReplica(
         /** INV-REQ-1201: lag at most one second is decided locally. */
         val DEFAULT_LAG_BOUND: Duration = Duration.ofSeconds(1)
 
+        private const val MACHINE_ROLE_PREFIX = "machine."
         private val LOG: System.Logger = System.getLogger(AuthorityReplica::class.java.name)
     }
 }

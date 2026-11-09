@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.3.2] - 2026-11-09
+### Changed
+- `AuthorityReplica.decide` checks a MACHINE request first: `machine.` plus the token's `machineType` must be listed by the `OperationRoleMap` for the action, else NO_GRANT before any access-svc call and before the degraded answer; a listed type within the lag bound is decided locally from tenant and entity coverage (INV-T-13569, INV-AC-13561).
+
 ## [13.3.1] - 2026-11-09
 ### Fixed
 - The impl runtime classpath and the published impl POM exclude the redundant `aopalliance:aopalliance` that `micrometer-tracing 1.7.1` pulls in through `micrometer-tracing-bridge-otel`; the `org.aopalliance` interfaces stay available from `spring-aop` (INV-T-19009, INV-AC-19004; breakdown `tooling/aopalliance-licence-gap.md`).

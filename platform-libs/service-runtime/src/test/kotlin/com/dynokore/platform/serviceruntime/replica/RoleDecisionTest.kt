@@ -227,7 +227,33 @@ class RoleDecisionTest {
         val worker = Principal.machine("worker-1", TENANT_A, MachineEntityCoverage.Tenant(tenantRef), "filing-workflow")
         grant("approver", principal = "worker-1")
         decide(principal = Principal("user-1", PrincipalKind.HUMAN)) shouldBe noGrant
-        decide(principal = worker) shouldBe granted
+        // No machine role listed for approve: refused whatever role it holds.
+        decide(principal = worker) shouldBe noGrant
+        // machine.filing-workflow listed and the entity resolved: granted.
+        val listed =
+            AuthorityReplica(
+                clock,
+                { key ->
+                    if (key ==
+                        "approve"
+                    ) {
+                        mapOf("machine.filing-workflow" to CellAllowance.PERMITTED)
+                    } else {
+                        emptyMap()
+                    }
+                },
+                entityOfTenant = { t, e -> t == TENANT_A && e == "e1" },
+            )
+        val listedFeed = FakeFeed(listed)
+        listedFeed.publish(
+            AuthorityChanged(
+                TENANT_A,
+                "worker-1",
+                1,
+                roleGrantRecord("g1", RoleGrant("approver", GrantScope.ENTITY, "e1", from)),
+            ),
+        )
+        listed.decide(AuthorizationRequest(TENANT_A, worker, "e1", "approve"), deadline(clock)) shouldBe granted
     }
 
     @Test

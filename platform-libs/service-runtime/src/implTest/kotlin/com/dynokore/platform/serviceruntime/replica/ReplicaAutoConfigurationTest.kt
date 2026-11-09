@@ -27,7 +27,7 @@ class ReplicaAutoConfigurationTest {
     lateinit var dir: Path
 
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
-    private val contextRunner =
+    private val standInRunner =
         ApplicationContextRunner()
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withBindingKey()
@@ -37,6 +37,16 @@ class ReplicaAutoConfigurationTest {
                     L1CompositionAutoConfiguration::class.java,
                 ),
             ).withPropertyValues("service-runtime.workload-identity.audience=canonical-svc")
+
+    // A map local to this class: the machine type `ingest` is listed for the action `ingest` only (INV-AC-13561).
+    private val ingestOnly =
+        OperationRoleMap { action ->
+            if (action == "ingest") mapOf("machine.ingest" to CellAllowance.PERMITTED) else emptyMap()
+        }
+
+    // withBindingKey registers an empty map under the same bean name; this one replaces it for the cases below.
+    private val contextRunner =
+        standInRunner.withAllowBeanDefinitionOverriding(true).withBean(OperationRoleMap::class.java, { ingestOnly })
 
     @Test
     fun `the policy replica waits for every configured policy topic`() {
@@ -144,6 +154,14 @@ class ReplicaAutoConfigurationTest {
                 .getBean(MeterRegistry::class.java)
                 .find(MicrometerDegradedAllowObserver.METER_NAME)
                 .counter() shouldBe null
+        }
+    }
+
+    @Test
+    fun `a machine type the stand-in map does not list is NO_GRANT, never MACHINE_FLOW_CONTINUES`() {
+        standInRunner.run { context ->
+            degradedAsk(context.getBean(AuthorityReplica::class.java), MachineEntityCoverage.Entity("E1")) shouldBe
+                AuthorityDecision(false, DecisionSource.LOCAL, DecisionReason.NO_GRANT)
         }
     }
 
