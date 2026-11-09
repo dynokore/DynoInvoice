@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.34.0
+  version: 1.35.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -2842,7 +2842,7 @@ paths:
         Sets the tenant from SCHEDULED to OPEN. Called by control-plane-svc at the go-live time of
         the approved schedule, which it names in the request (scheduleRef). An opening is applied once:
         a repeat for a tenant that is already OPEN returns it unchanged. A CLOSED tenant is refused
-        with 409. Until a tenant is OPEN, goLive of its entities is refused.
+        with 409 and the code TNC-012. Until a tenant is OPEN, goLive of its entities is refused.
       tags:
       - tenants
       x-principal: filing-workflow
@@ -2851,7 +2851,8 @@ paths:
       x-requirements:
       - FR-AC.1
       - FR-Q.16
-      x-error-codes: []
+      x-error-codes:
+      - TNC-012
       x-sync-edge: control-plane-svc->tenancy-svc
       x-operation:
         role: control-plane-svc

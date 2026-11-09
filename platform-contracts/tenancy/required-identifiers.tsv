@@ -222,3 +222,4 @@ CalendarPackDeltaResponse.nextCursor	schema_property	openapi.yaml	INV-REQ-88
 CalendarPackDeltaItem.periodRef	schema_property	openapi.yaml	INV-REQ-88
 CalendarPackDeltaItem.oldFilingDueDate	schema_property	openapi.yaml	INV-REQ-88
 CalendarPackDeltaItem.newFilingDueDate	schema_property	openapi.yaml	INV-REQ-88
+openTenant.TNC-012	operation_error_code	openapi.yaml	INV-REQ-8100
