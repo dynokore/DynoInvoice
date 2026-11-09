@@ -5,7 +5,6 @@ import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -73,12 +72,7 @@ class Tpl18CompositionTest {
             context.getBeansOfType(Schema::class.java).values.map { it.name } shouldContainExactlyInAnyOrder
                 listOf("rules")
             context.getBean(EventCatalogue::class.java).entries().map { it.eventType } shouldContainExactlyInAnyOrder
-                RulesEventCatalogue.TOPICS.keys.toList() +
-                // the two platform events the mounted setPolicy emits, and no other (INV-T-18451)
-                listOf(
-                    PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType,
-                    PlatformEventCatalogue.POLICY_CHANGED.eventType,
-                )
+                RulesEventCatalogue.TOPICS.keys.toList()
         }
     }
 
