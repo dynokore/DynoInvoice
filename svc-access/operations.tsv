@@ -40,6 +40,8 @@ channel	accessAuthorityChanged	UNASSIGNED	open
 channel	accessOperatorSessionKeysChanged	INV-T-4154	open
 channel	accessAccessAlertRaised	INV-T-4938	done
 channel	accessMessageRequested	INV-T-4940	done
+channel	accessSignedLinkIssued	INV-T-18219	done
+channel	accessSignedLinkInvalidated	INV-T-18219	done
 channel	accessExampleHappened	UNASSIGNED	open
 operation	provisionFirstAdministrator	INV-T-8226	done
 operation	provisionInstallationFirstAdministrator	INV-T-8226	done

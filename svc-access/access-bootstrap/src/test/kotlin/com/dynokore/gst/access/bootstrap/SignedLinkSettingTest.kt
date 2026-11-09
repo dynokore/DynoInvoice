@@ -103,10 +103,12 @@ class SignedLinkSettingTest {
             connection
                 .prepareStatement(
                     "insert into access.signed_link (id, tenant_id, link_ref, purpose, client_ref, consent_ref, " +
+                        "subject_reference, " +
                         "alert_entity, recipient_email, expires_at, passcode_digest, status, wrong_entries, source, " +
                         "created_at, created_by, updated_at, updated_by, version) " +
                         "values (?, ?, ?, 'CONFIRM_FILING', 'CLI-A', " +
-                        "'CNS-1', 'CLI-A', 'signatory@client.example', ?, ?, 'ACTIVE', 0, 'CALL', now(), 'test', " +
+                        "'CNS-1', 'REQ-1', 'CLI-A', 'signatory@client.example', ?, ?, 'ACTIVE', 0, 'CALL', now(), " +
+                        "'test', " +
                         "now(), " +
                         "'test', 0)",
                 ).use { statement ->
