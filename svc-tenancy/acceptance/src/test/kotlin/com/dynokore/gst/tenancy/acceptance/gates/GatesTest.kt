@@ -396,10 +396,8 @@ class GatesTest {
 
         val name = "getCalendarPackDelta"
         val row = "$name\toperation\tINV-T-16829\tpending\n"
-        table.split("\n").count { it.startsWith("$name\t") } shouldBe 1
-        (row in table) shouldBe true
+        table.split("\n").count { it == row.trimEnd() } shouldBe 1
         run(table).shouldBeEmpty()
-
         val probes =
             mapOf(
                 "row removed" to table.replace(row, ""),
