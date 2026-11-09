@@ -40,8 +40,8 @@ class TenancyErrorCodeTest {
         }.filter { it.code.startsWith("TNC-") }
 
     @Test
-    fun `the codes equal the 11 TNC rows of the pinned catalogue snapshot, in order`() {
-        rows.size shouldBe 11
+    fun `the codes equal the 12 TNC rows of the pinned catalogue snapshot, in order`() {
+        rows.size shouldBe 12
         TenancyErrorCode.entries.map { it.code } shouldBe rows.map { it.code }
     }
 
@@ -103,5 +103,27 @@ class TenancyErrorCodeTest {
         contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
         body.get("code").asString() shouldBe "TNC-011"
         body.get("type").asString() shouldBe "https://errors.invoice.internal/TNC-011"
+    }
+
+    @Test
+    fun `INV-AC-19378 TENANT_NOT_OPENABLE is the catalogue row TNC-012 and renders as a 409 envelope`() {
+        val row = rows.single { it.code == "TNC-012" }
+        row.severity shouldBe "BLOCK"
+        row.disposition shouldBe "TERMINAL"
+        row.owner shouldBe "Platform"
+        row.condition.contains("HTTP 409") shouldBe true
+        val entry = TenancyErrorCode.TENANT_NOT_OPENABLE
+        entry.code shouldBe "TNC-012"
+        entry.httpStatus shouldBe 409
+        entry.title shouldBe "Tenant open refused"
+        entry.title shouldBe row.condition.substringBefore(": ")
+        entry.owner shouldBe TenancyErrorCode.Owner.PLATFORM
+        entry.owner.text shouldBe row.owner
+        val response = Problems.renderTenancy(entry, "corr-1")
+        response.status shouldBe 409
+        val body = mapper.readTree(response.body)
+        contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+        body.get("code").asString() shouldBe "TNC-012"
+        body.get("type").asString() shouldBe "https://errors.invoice.internal/TNC-012"
     }
 }

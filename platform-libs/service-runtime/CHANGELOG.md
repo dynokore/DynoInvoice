@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.4.0] - 2026-11-10
+### Added
+- `TenancyErrorCode.TENANT_NOT_OPENABLE` (TNC-012, HTTP 409, title "Tenant open refused", owner Platform), and the catalogue snapshot re-vendored from platform-contracts aae38a55 with the row TNC-012 (INV-T-19383, INV-AC-19378).
+
 ## [13.3.2] - 2026-11-09
 ### Changed
 - `AuthorityReplica.decide` checks a MACHINE request first: `machine.` plus the token's `machineType` must be listed by the `OperationRoleMap` for the action, else NO_GRANT before any access-svc call and before the degraded answer; a listed type within the lag bound is decided locally from tenant and entity coverage (INV-T-13569, INV-AC-13561).

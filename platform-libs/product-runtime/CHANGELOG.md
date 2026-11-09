@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.16.5] - 2026-11-10
+### Changed
+- Metadata-only release (G-DVS): depends on `service-runtime 13.4.0`, whose published module metadata changed; no code change (INV-T-19383).
+
 ## [2.16.4] - 2026-11-09
 ### Fixed
 - `AccessAuthorityFallback` (INV-T-19209) sends the scope `entity:<entityRef>` that the access contract defines (it sent the bare reference, which access-svc answers DENY `BAD_SCOPE`), and makes no call, returning `Unavailable`, for a blank entityRef and for every level other than ENTITY.
