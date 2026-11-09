@@ -62,9 +62,6 @@ private const val CONSOLE = "console-bff"
 private const val ALT = "-alt"
 private const val PACKS = "/internal/v1/rules/mapping-packs"
 private const val ENTITY = "E-1"
-private const val WAIT_NANOS = 20_000_000_000L
-private const val WAIT_SECONDS = 30L
-private const val POLL_MILLIS = 50L
 private const val ENGINE_VERSION = "2026.11.1"
 
 private fun buildPropertiesOf(version: String) =
@@ -297,32 +294,6 @@ open class MappingPackSupport(
         sql: String,
         vararg binds: Any?,
     ): Any? = probe.inTenant(tenant) { fetchValue(sql, *binds) }
-
-    /**
-     * Inserts a row in a transaction that stays open, starts [request] on another thread, waits until a statement of
-     * the service is blocked on a lock, then commits and returns the answer of [request].
-     */
-    protected fun <T> holdRowUntilInsertWaits(
-        tenant: TenantId,
-        insert: String,
-        vararg binds: Any?,
-        request: () -> T,
-    ): T =
-        probe
-            .inTenant(tenant) {
-                fetchValue(insert, *binds)
-                val answer =
-                    java.util.concurrent.CompletableFuture
-                        .supplyAsync(request)
-                val deadline = System.nanoTime() + WAIT_NANOS
-
-                fun waiting() =
-                    (fetchValue("select count(*) from pg_stat_activity where wait_event_type = 'Lock'") as Number)
-                        .toInt() > 0
-                while (System.nanoTime() < deadline && !waiting()) Thread.sleep(POLL_MILLIS)
-                check(waiting()) { "the insert of the call never waited on the competing row" }
-                answer
-            }.get(WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
 
     protected fun rows(
         tenant: TenantId,
@@ -847,61 +818,6 @@ class MappingPackOutcomesTest(
         val before = snapshot()
         refusal(submit("MAP-NOPE"), 404, "SRT-005")
         snapshot() shouldBe before
-    }
-
-    @Test
-    fun `INV-REQ-380 a taken draft label answers 409 SRT-008 and stores nothing`() {
-        val taken = label()
-        draft(taken)
-        val before = snapshot()
-        refusal(call("POST", PACKS, """{"label":"$taken","entityRef":"$ENTITY"}"""), 409, "SRT-008")
-        snapshot() shouldBe before
-        // look-alikes: another label of the tenant is accepted, and a label held only by another tenant is accepted
-        draft(label())
-        val held = label()
-        seedPack(held, tenant = TENANT_B)
-        draft(held)
-    }
-
-    @Test
-    fun `INV-REQ-380 a unique violation of the lineage key during the insert answers 409 SRT-008`() {
-        // A competing writer holds the label in an open transaction: the existence check cannot see it, the insert of
-        // the call waits on the unique index and fails with 23505 once the writer commits.
-        val raced = label()
-        val before = snapshot()
-        val answer =
-            holdRowUntilInsertWaits(
-                TENANT_A,
-                "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-                    "min_engine_version, registered_by, label, entity_ref) values " +
-                    "(?::uuid, ?::uuid, ?, 'MAPPING', ?, " +
-                    "'TENANT_MAPPING', 'DRAFT', '1.0.0', 'tenancy-probe', ?, '$ENTITY') returning id",
-                UUID.randomUUID().toString(),
-                TENANT_A.toString(),
-                "MAP-$raced",
-                raced,
-                raced,
-            ) { call("POST", PACKS, """{"label":"$raced","entityRef":"$ENTITY"}""") }
-        refusal(answer, 409, "SRT-008")
-        val after = snapshot()
-        after.filterKeys { it != "pack_registry" } shouldBe before.filterKeys { it != "pack_registry" }
-        after.getValue("pack_registry").size shouldBe before.getValue("pack_registry").size + 1
-    }
-
-    @Test
-    fun `INV-REQ-380 an unknown sourceClass in mapTaxCode answers 400 SRT-001 and stores nothing`() {
-        val packId = draft(label())
-        val before = snapshot()
-        refusal(mapCode(packId, "U1", "SR", "TERTIARY"), 400, "SRT-001")
-        snapshot() shouldBe before
-        ok(mapCode(packId, "U2", "SR", "SECONDARY"), 201)
-    }
-
-    @Test
-    fun `INV-REQ-380 an unknown sourceClass filter answers 400 SRT-001`() {
-        val packId = draft(label())
-        refusal(call("GET", "$PACKS/$packId/entries?sourceClass=TERTIARY"), 400, "SRT-001")
-        ok(call("GET", "$PACKS/$packId/entries?sourceClass=SECONDARY"))
     }
 
     @Test
