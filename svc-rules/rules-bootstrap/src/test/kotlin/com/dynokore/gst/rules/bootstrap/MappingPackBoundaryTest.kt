@@ -3,7 +3,7 @@ package com.dynokore.gst.rules.bootstrap
 import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
 import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
-import com.dynokore.gst.rules.adapters.packs.RefusingRateSourcePort
+import com.dynokore.gst.rules.adapters.packs.ReplicaRateSourcePort
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.application.HolderCopyPort
 import com.dynokore.gst.rules.application.HolderCopyRequest
@@ -1169,11 +1169,12 @@ class MappingPackDefaultsTest(
     @org.springframework.boot.test.web.server.LocalServerPort port: Int,
 ) : MappingPackSupport(port) {
     @Test
-    fun `the four defaults are the refusing classes`() {
+    fun `the three defaults are the refusing classes and the rate-source default is the replica port`() {
         context.getBean(PackActionAuthority::class.java)::class.java shouldBe RefusingPackActionAuthority::class.java
         context.getBean(PackApprovalDecisionPort::class.java)::class.java shouldBe
             RefusingPackApprovalDecisionPort::class.java
-        context.getBean(RateSourcePort::class.java)::class.java shouldBe RefusingRateSourcePort::class.java
+        // INV-T-16546: with a StructureReplica bean the default is the replica port (RateSourceBlockBoundaryTest)
+        context.getBean(RateSourcePort::class.java)::class.java shouldBe ReplicaRateSourcePort::class.java
         context.getBean(HolderCopyPort::class.java)::class.java shouldBe RefusingHolderCopyPort::class.java
     }
 

@@ -10,6 +10,7 @@ import com.dynokore.gst.rules.adapters.packs.RefusingMappingAcknowledgementPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
 import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
 import com.dynokore.gst.rules.adapters.packs.RefusingRateSourcePort
+import com.dynokore.gst.rules.adapters.packs.ReplicaRateSourcePort
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
@@ -36,6 +37,7 @@ import com.dynokore.gst.rules.application.PackApprovalDecisionPort
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.RateSourcePort
 import com.dynokore.gst.rules.domain.resolution.PackResolver
+import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -245,10 +247,23 @@ class RulesConfiguration {
     @ConditionalOnMissingBean(PackApprovalDecisionPort::class)
     fun packApprovalDecisionPort(): PackApprovalDecisionPort = RefusingPackApprovalDecisionPort()
 
-    /** Answers null until INV-T-16546 replaces it (INV-Q-14651 A, INV-Q-16533 A). */
+    /**
+     * The rate-source block over the structure replica and the SCOPE pack in force (INV-T-16546; INV-Q-14651 A,
+     * INV-Q-16533 A). Without a [StructureReplica] bean the refusing class answers null (INV-T-4972).
+     */
     @Bean
     @ConditionalOnMissingBean(RateSourcePort::class)
-    fun rateSourcePort(): RateSourcePort = RefusingRateSourcePort()
+    fun rateSourcePort(
+        structure: ObjectProvider<StructureReplica>,
+        dsl: DSLContext,
+        registry: PersistedPackRegistry,
+    ): RateSourcePort {
+        val replica = structure.ifAvailable ?: return RefusingRateSourcePort()
+        val lookup = ArmedPackLookup(dsl)
+        return ReplicaRateSourcePort(replica) { tenant, asOf ->
+            lookup.resolve(PackTypes.SCOPE, tenant, asOf)?.let { registry.artefactOf(it)?.contents }
+        }
+    }
 
     /** Answers Unavailable until INV-T-16544 replaces it (INV-Q-14650 A, INV-Q-16531 A). */
     @Bean
