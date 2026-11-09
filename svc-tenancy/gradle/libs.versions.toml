@@ -5,7 +5,7 @@
 
 [versions]
 platformBuild = "0.23.4"
-platformLibsBom = "0.181.0"
+platformLibsBom = "0.183.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"
