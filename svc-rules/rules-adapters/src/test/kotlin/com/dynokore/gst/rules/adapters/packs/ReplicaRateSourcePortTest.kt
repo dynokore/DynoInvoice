@@ -32,29 +32,38 @@ class ReplicaRateSourcePortTest {
 
     private val standard = pack("RS-I" to "INFERRED", "RS-P" to "PRIMARY", "RS-S" to "SECONDARY", "RS-J" to "INFERRED")
 
+    private inner class Election(
+        val ref: String,
+        val value: String?,
+        val on: LocalDate = day,
+        val owner: TenantId = tenant,
+        val retired: Boolean = false,
+        val attribute: String = ReplicaRateSourcePort.ATTRIBUTE,
+    ) {
+        var kind = StructureNodeKind.ENTITY
+    }
+
     private fun elect(
         ref: String,
         value: String?,
-        on: LocalDate = day,
-        owner: TenantId = tenant,
-        retired: Boolean = false,
-        attribute: String = ReplicaRateSourcePort.ATTRIBUTE,
-        kind: StructureNodeKind = StructureNodeKind.ENTITY,
-    ) = replica.accept(
-        EntityProfileChanged(
-            owner,
-            ref,
-            StructureNode(
-                kind,
-                null,
-                retired,
-                "E",
-                ref,
-                listOfNotNull(value?.let { ProfileEntry(attribute, it, on) }),
-                1,
+    ) = elect(Election(ref, value))
+
+    private fun elect(e: Election) =
+        replica.accept(
+            EntityProfileChanged(
+                e.owner,
+                e.ref,
+                StructureNode(
+                    e.kind,
+                    null,
+                    e.retired,
+                    "E",
+                    e.ref,
+                    listOfNotNull(e.value?.let { ProfileEntry(e.attribute, it, e.on) }),
+                    1,
+                ),
             ),
-        ),
-    )
+        )
 
     private fun port(
         contents: String? = standard,
@@ -102,34 +111,34 @@ class ReplicaRateSourcePortTest {
 
     @Test
     fun `an election whose effective date is after asOf is not counted`() {
-        elect("E1", "RS-I", on = day.plusDays(1))
+        elect(Election("E1", "RS-I", on = day.plusDays(1)))
         blocking() shouldBe emptyList()
         blocking(day.plusDays(1)) shouldBe listOf("RS-I")
     }
 
     @Test
     fun `the entity of another tenant is not counted`() {
-        elect("E1", "RS-I", owner = other)
+        elect(Election("E1", "RS-I", owner = other))
         blocking() shouldBe emptyList()
         blocking(who = other) shouldBe listOf("RS-I")
     }
 
     @Test
     fun `a retired entity node is not counted`() {
-        elect("E1", "RS-I", retired = true)
+        elect(Election("E1", "RS-I", retired = true))
         blocking() shouldBe emptyList()
     }
 
     @Test
     fun `a node that is not an entity is not counted`() {
-        elect("U1", "RS-I", kind = StructureNodeKind.BUSINESS_UNIT)
+        elect(Election("U1", "RS-I").also { it.kind = StructureNodeKind.BUSINESS_UNIT })
         blocking() shouldBe emptyList()
     }
 
     @Test
     fun `the attribute name exchangeRateSources is not read`() {
-        elect("E1", "RS-I", attribute = "exchangeRateSources")
-        elect("E2", "RS-I", attribute = "ExchangeRateSource")
+        elect(Election("E1", "RS-I", attribute = "exchangeRateSources"))
+        elect(Election("E2", "RS-I", attribute = "ExchangeRateSource"))
         blocking() shouldBe emptyList()
     }
 

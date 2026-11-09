@@ -20,7 +20,8 @@ fun interface ScopePackInForce {
  * pack in force lists as INFERRED. A tenant with no election gets the empty set. No acceptance is read, because none
  * can be recorded (owner question INV-CS-16528): every elected INFERRED source counts as unaccepted. Null when the
  * answer cannot be given: the replica is not synced, no scope pack is in force, or its contents do not decode.
- * A retired node and a node of another kind are ignored, as svc-aggregation's StructureCodeLookup ignores a retired one.
+ * A retired node and a node of another kind are ignored, as svc-aggregation's StructureCodeLookup ignores a
+ * retired one.
  */
 class ReplicaRateSourcePort(
     private val structure: StructureReplica,
@@ -30,22 +31,27 @@ class ReplicaRateSourcePort(
         tenant: TenantId,
         asOf: LocalDate,
     ): List<String>? {
-        if (!structure.isSynced()) return null
-        val contents = scopePack.contents(tenant, asOf) ?: return null
-        val listed = ScopePackRateSources.decode(contents) ?: return null
-        val elected =
-            structure.replica
-                .heldWhere { it.tenant == tenant }
-                .values
-                .filter { it.kind == StructureNodeKind.ENTITY && !it.retired }
-                .mapNotNull { it.attribute(ATTRIBUTE, asOf) }
-                .toSet()
+        val listed =
+            (if (structure.isSynced()) scopePack.contents(tenant, asOf) else null)?.let(ScopePackRateSources::decode)
+                ?: return null
+        val elected = electedBy(tenant, asOf)
         return listed
             .filter { (id, sourceClass) ->
                 sourceClass == INFERRED && id in elected
             }.map { it.first }
             .distinct()
     }
+
+    private fun electedBy(
+        tenant: TenantId,
+        asOf: LocalDate,
+    ): Set<String> =
+        structure.replica
+            .heldWhere { it.tenant == tenant }
+            .values
+            .filter { it.kind == StructureNodeKind.ENTITY && !it.retired }
+            .mapNotNull { it.attribute(ATTRIBUTE, asOf) }
+            .toSet()
 
     companion object {
         const val ATTRIBUTE = "exchangeRateSource"
