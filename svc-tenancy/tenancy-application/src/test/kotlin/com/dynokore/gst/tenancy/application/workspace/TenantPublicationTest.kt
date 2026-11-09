@@ -71,7 +71,10 @@ class TenantPublicationTest {
         }
 
     private fun opening(vararg states: String): Pair<InMemoryWorkspaceStore, OpenTenant> {
-        val rows = states.mapIndexed { i, s -> TenantRecord(TenantRefs.idOf("t$i"), "t$i", "L", "p", "c-$i", state = s) }
+        val rows =
+            states.mapIndexed { i, s ->
+                TenantRecord(TenantRefs.idOf("t$i").value, "t$i", "L", "p", "c-$i", state = s)
+            }
         val ports = InMemoryWorkspaceStore(context, *rows.toTypedArray())
         return ports to OpenTenant(Platform, DirectTransactions, ports, "tenancy-svc")
     }
