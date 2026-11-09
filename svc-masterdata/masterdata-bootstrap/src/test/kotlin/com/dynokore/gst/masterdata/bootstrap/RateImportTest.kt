@@ -106,7 +106,7 @@ private class DelayedStore(
 }
 
 /** The shared fixture of the rate import boundary tests. */
-internal abstract class RateImportHarness {
+internal open class RateImportHarness {
     protected val elections = ConcurrentHashMap<String, NavigableMap<LocalDate, Pair<String, String>>>()
     protected val mapper = JsonMapper.builder().build()
     protected val asked: MutableList<Pair<String, String>> = java.util.concurrent.CopyOnWriteArrayList()
