@@ -19,7 +19,9 @@ import com.dynokore.gst.tenancy.application.questionnaire.QuestionnaireRecommend
 import com.dynokore.gst.tenancy.application.questionnaire.Recommendation
 import com.dynokore.gst.tenancy.application.questionnaire.RecordEntityFacts
 import com.dynokore.gst.tenancy.application.tenant.CreateTenant
+import com.dynokore.gst.tenancy.application.tenant.OpenTenant
 import com.dynokore.gst.tenancy.application.tenant.TenantCreation
+import com.dynokore.gst.tenancy.application.tenant.TenantOpening
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.TenantRefused
 import com.dynokore.gst.tenancy.application.workspace.TenantAuthority
@@ -30,6 +32,7 @@ import com.dynokore.gst.tenancy.contract.model.EntitlementResponse
 import com.dynokore.gst.tenancy.contract.model.EntityUsage
 import com.dynokore.gst.tenancy.contract.model.OffboardTenantRequest
 import com.dynokore.gst.tenancy.contract.model.OffboardingRecordResponse
+import com.dynokore.gst.tenancy.contract.model.OpenTenantRequest
 import com.dynokore.gst.tenancy.contract.model.QuestionnaireAnswersRequest
 import com.dynokore.gst.tenancy.contract.model.QuestionnaireAnswersResponse
 import com.dynokore.gst.tenancy.contract.model.QuestionnaireRecommendation
@@ -38,6 +41,7 @@ import com.dynokore.gst.tenancy.contract.model.RecordEntitlementRequest
 import com.dynokore.gst.tenancy.contract.model.RetentionCustodyHolder
 import com.dynokore.gst.tenancy.contract.model.TenantExportManifest
 import com.dynokore.gst.tenancy.contract.model.TenantResponse
+import com.dynokore.gst.tenancy.contract.model.TenantStateResponse
 import com.dynokore.gst.tenancy.contract.model.UnsubmittedOverrideAcknowledgement
 import com.dynokore.gst.tenancy.contract.model.UsageCountersResponse
 import com.dynokore.gst.tenancy.domain.OffboardingScope
@@ -72,6 +76,7 @@ open class TenantsController(
     private val caller: CallerSource,
     private val authority: TenantAuthority,
     private val offboard: OffboardTenant,
+    private val openTenant: OpenTenant,
 ) : TenantsApi {
     override fun createTenant(
         idempotencyKey: UUID,
@@ -224,6 +229,26 @@ open class TenantsController(
             noticeWindowDays = record.noticeWindowDays,
             handoverStatementRef = record.handoverStatementRef,
         )
+
+    /**
+     * openTenant (scope platform, caller control-plane-svc; INV-REQ-8100, INV-Q-8097 B): SCHEDULED becomes OPEN, a
+     * repeat for an OPEN tenant answers OPEN and writes nothing, a CLOSED tenant is refused 409 and nothing changes.
+     * Only the tenant of the path is touched.
+     */
+    override fun openTenant(
+        tenantRef: String,
+        idempotencyKey: UUID,
+        openTenantRequest: OpenTenantRequest,
+    ): ResponseEntity<TenantStateResponse> =
+        when (val outcome = openTenant.handle(tenantRef)) {
+            is TenantOpening.Opened -> ResponseEntity.ok(stateOf(outcome.tenant))
+            is TenantOpening.Repeated -> ResponseEntity.ok(stateOf(outcome.tenant))
+            is TenantOpening.Refused -> conflict(TenancyErrorCode.TENANT_NOT_OPENABLE, "the tenant is closed and cannot be opened")
+            TenantOpening.Missing -> notFound()
+        }
+
+    private fun stateOf(tenant: TenantRecord) =
+        TenantStateResponse(tenant.ref, TenantStateResponse.State.valueOf(tenant.state))
 
     private fun response(stored: TenantRecord) =
         TenantResponse(stored.ref, stored.legalName, stored.planRef, stored.dataRegion)
