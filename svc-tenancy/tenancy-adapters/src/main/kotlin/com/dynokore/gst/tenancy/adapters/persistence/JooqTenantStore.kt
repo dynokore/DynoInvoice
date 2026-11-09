@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.adapters.persistence
 
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
 import com.dynokore.gst.tenancy.application.tenant.TenantCreation
+import com.dynokore.gst.tenancy.application.tenant.TenantOpening
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.TenantRefused
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchival
@@ -59,6 +60,21 @@ class JooqTenantStore(
 
     override fun current(): TenantRecord? = dsl.selectFrom(TENANT).fetchOne()?.let(::tenantRecordOf)
 
+    override fun open(ref: String): TenantOpening {
+        val json = callWorkspaceFunction("open_tenant", ref)
+        return when (val outcome = json.get("outcome").asString()) {
+            "opened" -> TenantOpening.Opened(record(json))
+            "repeat" -> TenantOpening.Repeated(record(json))
+            "refused" -> TenantOpening.Refused(record(json))
+            "missing" -> TenantOpening.Missing
+            else -> error("open_tenant answered the unknown outcome $outcome")
+        }
+    }
+
+    override fun close() {
+        dsl.select(DSL.function(DSL.name("tenancy", "close_tenant"), SQLDataType.JSONB)).fetchSingle()
+    }
+
     override fun workspace(ref: String): TenantRecord? {
         val json = callWorkspaceFunction("workspace_state", ref)
         return if (json.get("outcome").asString() == "found") record(json) else null
@@ -105,6 +121,7 @@ class JooqTenantStore(
                 ?.asString()
                 ?.let(UUID::fromString),
             json.get("workspaceName").takeUnless { it.isNull }?.asString(),
+            json.get("state").asString(),
         )
 
     /** SQLSTATE 22023 (an argument is refused) and 42501 (the binding is refused) are the function's two refusals. */
@@ -143,4 +160,5 @@ internal fun tenantRecordOf(it: TenantRow): TenantRecord =
         Environment.valueOf(it.environment.column("environment")),
         it.pairedProductionTenantId,
         it.workspaceName,
+        it.state.column("state"),
     )

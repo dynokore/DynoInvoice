@@ -24,6 +24,10 @@ class TenantNodeEnvironmentTest {
                 override fun create(tenant: TenantRecord) = error("not used")
 
                 override fun current() = row
+
+                override fun open(ref: String) = error("not used")
+
+                override fun close() = error("not used")
             }
         return StructureQueries(
             DirectTransactions,

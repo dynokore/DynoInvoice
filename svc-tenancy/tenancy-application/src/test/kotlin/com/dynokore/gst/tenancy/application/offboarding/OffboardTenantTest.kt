@@ -3,8 +3,10 @@ package com.dynokore.gst.tenancy.application.offboarding
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.structure.EntityRecord
 import com.dynokore.gst.tenancy.application.structure.StructureStore
+import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.workspace.DirectTransactions
 import com.dynokore.gst.tenancy.application.workspace.InMemoryTenantContext
+import com.dynokore.gst.tenancy.application.workspace.InMemoryWorkspaceStore
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ExportContent
 import com.dynokore.gst.tenancy.domain.ExportManifest
@@ -12,6 +14,7 @@ import com.dynokore.gst.tenancy.domain.ExportState
 import com.dynokore.gst.tenancy.domain.OffboardingScope
 import com.dynokore.gst.tenancy.domain.OffboardingState
 import com.dynokore.gst.tenancy.domain.RetentionCustodyHolder
+import com.dynokore.gst.tenancy.domain.TenantState
 import com.dynokore.gst.tenancy.domain.UnsubmittedOverride
 import com.dynokore.platform.tenancykernel.TenantId
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -92,8 +95,23 @@ class OffboardTenantTest {
         }
     private val tenants = InMemoryTenantContext(TenantId(UUID.fromString(tenantRef)))
 
+    private val tenantStore =
+        InMemoryWorkspaceStore(
+            tenants,
+            TenantRecord(UUID.fromString(tenantRef), "TEN-A1", "Legal", "PLAN", "C-1", state = TenantState.OPEN.name),
+        )
+
     private fun useCase() =
-        OffboardTenant(DirectTransactions, structure, store, { _, _ -> unsubmitted() }, port, authority, tenants)
+        OffboardTenant(
+            DirectTransactions,
+            structure,
+            store,
+            { _, _ -> unsubmitted() },
+            port,
+            authority,
+            tenants,
+            tenantStore,
+        )
 
     private fun entityRequest(
         secondBy: String? = "identity:USR-0040",
@@ -359,6 +377,28 @@ class OffboardTenantTest {
         assertEquals(OffboardingState.COMPLETED, record.state)
         assertEquals(1, store.rows.size)
         assertTrue(authorityCalls.isEmpty())
+    }
+
+    @Test
+    fun `INV-AC-19391 a COMPLETED whole-tenant offboarding closes the tenant`() {
+        accepted(useCase().forWholeTenant(tenantRef, "k1", tenantRequest()))
+        assertEquals(TenantState.CLOSED.name, tenantStore.current()?.state)
+    }
+
+    @Test
+    fun `INV-AC-19391 a FAILED whole-tenant offboarding leaves the tenant OPEN`() {
+        manifest = ExportManifest("EXP-1", ExportState.FAILED, emptyList())
+        assertEquals(
+            OffboardingState.FAILED,
+            accepted(useCase().forWholeTenant(tenantRef, "k1", tenantRequest())).state,
+        )
+        assertEquals(TenantState.OPEN.name, tenantStore.current()?.state)
+    }
+
+    @Test
+    fun `INV-AC-19391 a COMPLETED offboarding with scope ENTITY leaves the tenant OPEN`() {
+        assertEquals(OffboardingState.COMPLETED, accepted(person(entityRequest())).state)
+        assertEquals(TenantState.OPEN.name, tenantStore.current()?.state)
     }
 
     @Test

@@ -19,12 +19,14 @@ import com.dynokore.gst.tenancy.application.structure.ProfileEntry
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureStore
 import com.dynokore.gst.tenancy.application.structure.entityNode
+import com.dynokore.gst.tenancy.application.tenant.TenantStates
 import com.dynokore.gst.tenancy.domain.GoLiveFacts
 import com.dynokore.gst.tenancy.domain.GoLiveGate
 import com.dynokore.gst.tenancy.domain.LifecycleAttributes
 import com.dynokore.gst.tenancy.domain.LifecycleRules
 import com.dynokore.gst.tenancy.domain.LifecycleState
 import com.dynokore.gst.tenancy.domain.OffboardingScope
+import com.dynokore.gst.tenancy.domain.TenantState
 import com.dynokore.gst.tenancy.domain.UnsubmittedOverride
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -155,6 +157,7 @@ class GoLive internal constructor(
     private val elections: ElectionGate,
     private val writer: LifecycleWriter,
     private val today: () -> LocalDate,
+    private val tenantStates: TenantStates,
 ) {
     @Suppress("LongParameterList")
     constructor(
@@ -170,6 +173,7 @@ class GoLive internal constructor(
         publisher: EntityProfileChangePublisher,
         tenant: () -> TenantId,
         today: () -> LocalDate,
+        tenantStates: TenantStates,
     ) : this(
         tx,
         structure,
@@ -179,6 +183,7 @@ class GoLive internal constructor(
         elections,
         LifecycleWriter(structure, lifecycle, statuses, extras, publisher, tenant),
         today,
+        tenantStates,
     )
 
     fun handle(
@@ -241,6 +246,7 @@ class GoLive internal constructor(
             latest?.failedScenarios.orEmpty(),
             outstanding,
             coverageUnknown = unavailable != null,
+            tenantOpen = tenantStates.current() == TenantState.OPEN.name,
         )
     }
 }

@@ -4,6 +4,7 @@ import com.dynokore.gst.tenancy.application.confirmation.ConfirmationVerdict
 import com.dynokore.gst.tenancy.application.confirmation.SecondConfirmation
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.structure.StructureStore
+import com.dynokore.gst.tenancy.application.tenant.TenantStore
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.ExportManifest
 import com.dynokore.gst.tenancy.domain.OffboardingRules
@@ -149,6 +150,7 @@ class OffboardTenant(
     private val export: TenantExport,
     private val authority: ActionAuthority,
     private val tenants: TenantContext,
+    private val tenantStore: TenantStore,
 ) {
     private val confirmation = SecondConfirmation(authority)
 
@@ -308,6 +310,8 @@ class OffboardTenant(
                 request.secondConfirmationBy.takeIf { request.scope == OffboardingScope.ENTITY },
             )
         store.insert(record)
+        // INV-Q-8097 B: a COMPLETED record of scope TENANT closes the tenant; ENTITY and FAILED records leave it as is.
+        if (record.scope == OffboardingScope.TENANT && record.state == OffboardingState.COMPLETED) tenantStore.close()
         return OffboardOutcome.Accepted(record)
     }
 

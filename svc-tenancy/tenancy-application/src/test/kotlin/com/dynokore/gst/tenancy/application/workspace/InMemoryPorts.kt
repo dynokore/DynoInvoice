@@ -1,11 +1,13 @@
 package com.dynokore.gst.tenancy.application.workspace
 
 import com.dynokore.gst.tenancy.application.tenant.TenantCreation
+import com.dynokore.gst.tenancy.application.tenant.TenantOpening
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchival
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchived
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceStore
 import com.dynokore.gst.tenancy.domain.SampleRow
+import com.dynokore.gst.tenancy.domain.TenantState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -44,6 +46,21 @@ class InMemoryWorkspaceStore(
     }
 
     override fun current(): TenantRecord? = rows.firstOrNull { it.tenantId == context.tenant.value }
+
+    override fun open(ref: String): TenantOpening {
+        val i = rows.indexOfFirst { it.ref == ref }
+        return when {
+            i < 0 -> TenantOpening.Missing
+            rows[i].state == TenantState.OPEN.name -> TenantOpening.Repeated(rows[i])
+            rows[i].state != TenantState.SCHEDULED.name -> TenantOpening.Refused(rows[i])
+            else -> TenantOpening.Opened(rows[i].copy(state = TenantState.OPEN.name).also { rows[i] = it })
+        }
+    }
+
+    override fun close() {
+        val i = rows.indexOfFirst { it.tenantId == context.tenant.value }
+        if (i >= 0) rows[i] = rows[i].copy(state = TenantState.CLOSED.name)
+    }
 
     override fun workspace(ref: String): TenantRecord? =
         rows.firstOrNull { it.ref == ref && it.pairedProductionTenant == context.tenant.value }

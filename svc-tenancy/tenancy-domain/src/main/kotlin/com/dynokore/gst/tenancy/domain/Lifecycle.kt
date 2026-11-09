@@ -22,15 +22,22 @@ data class GoLiveFacts(
     val outstandingElections: List<String>,
     /** True when the coverage port could not answer: the item is unmet and named as unknown. */
     val coverageUnknown: Boolean = false,
+    /** True only when the stored tenant state equals OPEN (INV-Q-8097 B); any other value is unmet. */
+    val tenantOpen: Boolean = false,
 )
+
+/** The stored states of a tenant, in order (INV-REQ-8100, owner answer INV-Q-8097 B). */
+enum class TenantState { SCHEDULED, OPEN, CLOSED }
 
 /** The go-live gate: every unmet item is named (INV-REQ-987, INV-Q-16403). */
 object GoLiveGate {
     const val COVERAGE_UNKNOWN = "trigger coverage unknown"
+    const val TENANT_NOT_OPEN = "tenant not open"
 
     /** One text per unmet item, in the order coverage, certification, elections; empty when go-live is allowed. */
     fun unmet(facts: GoLiveFacts): List<String> =
         buildList {
+            if (!facts.tenantOpen) add(TENANT_NOT_OPEN)
             if (facts.coverageUnknown) add(COVERAGE_UNKNOWN)
             if (facts.uncoveredTriggers.isNotEmpty()) {
                 add("trigger coverage incomplete: ${facts.uncoveredTriggers.joinToString(", ")}")

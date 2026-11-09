@@ -21,7 +21,11 @@ import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
 import com.dynokore.gst.tenancy.application.structure.StructureStore
+import com.dynokore.gst.tenancy.application.tenant.OpenTenant
+import com.dynokore.gst.tenancy.application.tenant.TenantStates
+import com.dynokore.gst.tenancy.application.tenant.TenantStore
 import com.dynokore.platform.auditlog.AuditWriter
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -70,6 +74,7 @@ class LifecycleUseCases {
         extras: ProfileExtras,
         publisher: EntityProfileChangePublisher,
         tenants: TenantContext,
+        tenantStore: TenantStore,
         clock: ObjectProvider<Clock>,
     ): GoLive =
         GoLive(
@@ -84,7 +89,16 @@ class LifecycleUseCases {
             extras,
             publisher,
             tenants::current,
-        ) { today(clock) }
+            { today(clock) },
+            TenantStates { tenantStore.current()?.state },
+        )
+
+    @Bean
+    fun openTenant(
+        tenants: TenantContext,
+        tx: TransactionRunner,
+        store: TenantStore,
+    ): OpenTenant = OpenTenant(tenants as PlatformTenantBinding, tx, store, "tenancy-svc")
 
     @Bean
     @Suppress("LongParameterList") // one parameter per collaborator of the use case

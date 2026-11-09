@@ -6,12 +6,15 @@ import com.dynokore.gst.tenancy.application.structure.StructureChange
 import com.dynokore.gst.tenancy.application.structure.StructureChangePublisher
 import com.dynokore.gst.tenancy.application.structure.tenantNode
 import com.dynokore.gst.tenancy.application.tenant.CreateTenant
+import com.dynokore.gst.tenancy.application.tenant.OpenTenant
 import com.dynokore.gst.tenancy.application.tenant.TenantCreation
+import com.dynokore.gst.tenancy.application.tenant.TenantOpening
 import com.dynokore.gst.tenancy.application.tenant.TenantRecord
 import com.dynokore.gst.tenancy.application.tenant.TenantStore
 import com.dynokore.gst.tenancy.application.tenant.WorkspaceArchival
 import com.dynokore.gst.tenancy.domain.Environment
 import com.dynokore.gst.tenancy.domain.TenantRefs
+import com.dynokore.gst.tenancy.domain.TenantState
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -61,7 +64,49 @@ class TenantPublicationTest {
             }
 
             override fun current(): TenantRecord? = null
+
+            override fun open(ref: String): TenantOpening = error("not used")
+
+            override fun close() = error("not used")
         }
+
+    private fun opening(vararg states: String): Pair<InMemoryWorkspaceStore, OpenTenant> {
+        val rows = states.mapIndexed { i, s -> TenantRecord(TenantRefs.idOf("t$i"), "t$i", "L", "p", "c-$i", state = s) }
+        val ports = InMemoryWorkspaceStore(context, *rows.toTypedArray())
+        return ports to OpenTenant(Platform, DirectTransactions, ports, "tenancy-svc")
+    }
+
+    @Test
+    fun `INV-AC-19391 OpenTenant answers Opened and stores OPEN for a SCHEDULED tenant`() {
+        val (ports, open) = opening("SCHEDULED")
+        val answer = open.handle("t0")
+        assertTrue(answer is TenantOpening.Opened && answer.tenant.state == "OPEN", answer.toString())
+        assertEquals("OPEN", ports.rows[0].state)
+    }
+
+    @Test
+    fun `INV-AC-19391 OpenTenant answers Repeated for an OPEN tenant and writes nothing`() {
+        val (ports, open) = opening("OPEN")
+        val before = ports.rows.toList()
+        assertTrue(open.handle("t0") is TenantOpening.Repeated)
+        assertEquals(before, ports.rows)
+    }
+
+    @Test
+    fun `INV-AC-19391 OpenTenant refuses a CLOSED tenant and any other stored text and leaves the state`() {
+        for (text in listOf("CLOSED", "OPENED", "open", "")) {
+            val (ports, open) = opening(text)
+            assertTrue(open.handle("t0") is TenantOpening.Refused, text)
+            assertEquals(text, ports.rows[0].state)
+        }
+    }
+
+    @Test
+    fun `INV-AC-19391 OpenTenant answers Missing for an unknown ref`() {
+        val (ports, open) = opening("SCHEDULED")
+        assertEquals(TenantOpening.Missing, open.handle("nope"))
+        assertEquals("SCHEDULED", ports.rows[0].state)
+    }
 
     @Test
     fun `INV-AC-15381 createTenant publishes one CREATED TENANT event and a repeat or conflict none`() {

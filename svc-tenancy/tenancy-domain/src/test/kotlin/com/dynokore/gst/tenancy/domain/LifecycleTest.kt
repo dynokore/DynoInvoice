@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 
 /** The pure rules of the lifecycle changes. */
 class LifecycleTest {
-    private val met = GoLiveFacts(emptyList(), CertificationOutcome.PASSED, emptyList(), emptyList())
+    private val met = GoLiveFacts(emptyList(), CertificationOutcome.PASSED, emptyList(), emptyList(), tenantOpen = true)
 
     @Test
     fun `go-live gate with every item met names nothing`() {
@@ -15,10 +15,24 @@ class LifecycleTest {
     }
 
     @Test
+    fun `INV-AC-19391 go-live gate names tenant not open first and beside the other items`() {
+        assertEquals(listOf(GoLiveGate.TENANT_NOT_OPEN), GoLiveGate.unmet(met.copy(tenantOpen = false)))
+        val both = GoLiveGate.unmet(met.copy(tenantOpen = false, uncoveredTriggers = listOf("T1")))
+        assertEquals(2, both.size)
+        assertEquals("tenant not open", both[0])
+    }
+
+    @Test
     fun `go-live gate names each unmet item`() {
         val unmet =
             GoLiveGate.unmet(
-                GoLiveFacts(listOf("T1"), CertificationOutcome.FAILED, listOf("s1", "s2"), listOf("ISSUANCE_MODE")),
+                GoLiveFacts(
+                    listOf("T1"),
+                    CertificationOutcome.FAILED,
+                    listOf("s1", "s2"),
+                    listOf("ISSUANCE_MODE"),
+                    tenantOpen = true,
+                ),
             )
         assertEquals(3, unmet.size)
         assertTrue(unmet[0].contains("T1"))

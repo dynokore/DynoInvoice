@@ -9,6 +9,7 @@ import com.dynokore.gst.tenancy.application.offboarding.UnavailableInput
 import com.dynokore.gst.tenancy.application.offboarding.UnboundTenantExport
 import com.dynokore.gst.tenancy.application.offboarding.UnsubmittedDocuments
 import com.dynokore.gst.tenancy.application.structure.StructureStore
+import com.dynokore.gst.tenancy.application.tenant.TenantStore
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -55,7 +56,8 @@ class OffboardingUseCases {
         export: TenantExport,
         authority: ActionAuthority,
         tenants: TenantContext,
-    ): OffboardTenant = OffboardTenant(tx, structure, store, documents, export, authority, tenants)
+        tenantStore: TenantStore,
+    ): OffboardTenant = OffboardTenant(tx, structure, store, documents, export, authority, tenants, tenantStore)
 
     private companion object {
         const val EXPORT_INPUT = "tenant-export"

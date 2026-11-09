@@ -43,6 +43,7 @@ import java.util.UUID
 @Suppress("LargeClass", "TooManyFunctions")
 class EntityLifecycleTest {
     private val today = LocalDate.of(2026, 11, 9)
+    private var tenantState: String? = "OPEN"
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000a1"))
     private val caller = "identity:USR-004"
     private val entity =
@@ -173,6 +174,7 @@ class EntityLifecycleTest {
             publisher,
             { tenant },
             { today },
+            { tenantState },
         )
 
     private fun suspend() =
@@ -263,6 +265,19 @@ class EntityLifecycleTest {
         elected -= ElectionKind.ISSUANCE_MODE
         val detail = refused(live())
         listOf("T1", "sandbox certification", "ISSUANCE_MODE").forEach { assertTrue(detail.contains(it), detail) }
+    }
+
+    @Test
+    fun `INV-AC-19391 goLive of a tenant that is not OPEN is refused naming tenant not open`() {
+        certify(CertificationOutcome.PASSED)
+        for (state in listOf("SCHEDULED", "CLOSED", "OPENED", "open", null)) {
+            tenantState = state
+            assertTrue(refused(live()).contains("tenant not open"), "state $state")
+        }
+        coverage = TriggerCoverage { listOf("T1") }
+        val detail = refused(live())
+        listOf("tenant not open", "T1").forEach { assertTrue(detail.contains(it), detail) }
+        assertUntouched()
     }
 
     @Test
