@@ -101,10 +101,7 @@ class ElectionReplayTest {
                         { e.rate(entity, "BNM", monthly, TODAY.plusDays(5)) },
                         { e.elect(entity, "POSTING_DATE", TODAY.plusDays(3)) },
                     )
-                changes.forEach { call ->
-                    e.closePending(entity)
-                    e.pending(call)
-                }
+                changes.forEach { call -> e.pending(call) }
                 assertThat(
                     listOf("VP-22", "VP-23", "VP-24").map { versions(env, tenant, entity, it) },
                 ).isEqualTo(before)
