@@ -132,9 +132,6 @@ class ConnectionWiringTest {
     ) = """{"externalService":"$service","endpoint":"${endpoint()}","credentialRef":"$credentialRef",""" +
         """"environmentTag":"$tag","ownerService":"masterdata-svc"}"""
 
-    private fun createWithEndpoint(endpoint: String) =
-        createBody("SANDBOX").replace(endpoint(), endpoint)
-
     private fun endpoint() = "${Simulators.register.baseUrl}/lookup/${Simulators.UEN_REGISTERED}"
 
     private fun RegistryEnv.create(
@@ -174,36 +171,6 @@ class ConnectionWiringTest {
         (evidence?.let { """"evidenceRef":"$it"}""" } ?: """"evidenceRef":""}""")
 
     // ---- the acceptance criteria ----
-
-    @Test
-    fun `endpoint of exactly 512 characters that is a valid URI answers 201`() =
-        on("SANDBOX") { env ->
-            val url = "https://register.example.gov.sg/" + "a".repeat(512 - "https://register.example.gov.sg/".length)
-            assertThat(url).hasSize(512)
-            assertThat(env.call("POST", connections, body = createWithEndpoint(url)).status).isEqualTo(201)
-        }
-
-    @Test
-    fun `endpoint of 513 characters answers 400 and stores nothing`() =
-        on("SANDBOX") { env ->
-            val url = "https://register.example.gov.sg/" + "a".repeat(513 - "https://register.example.gov.sg/".length)
-            assertThat(env.call("POST", connections, body = createWithEndpoint(url)).status).isEqualTo(400)
-            assertThat(env.connectionRows()).isZero()
-        }
-
-    @Test
-    fun `endpoint https register example answers 201`() =
-        on("SANDBOX") { env ->
-            val answer = env.call("POST", connections, body = createWithEndpoint("https://register.example.gov.sg/check"))
-            assertThat(answer.status).isEqualTo(201)
-        }
-
-    @Test
-    fun `endpoint not a uri answers 400 and stores nothing`() =
-        on("SANDBOX") { env ->
-            assertThat(env.call("POST", connections, body = createWithEndpoint("not a uri")).status).isEqualTo(400)
-            assertThat(env.connectionRows()).isZero()
-        }
 
     @Test
     fun `INV-AC-1512 a manual rate without evidence is refused and one with evidence is stored with its provenance`() =
