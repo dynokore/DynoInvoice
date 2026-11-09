@@ -5,6 +5,8 @@ import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
+import com.dynokore.gst.rules.adapters.packs.RefusingInstallationApproverFactPort
+import com.dynokore.gst.rules.adapters.packs.RefusingMappingAcknowledgementPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
 import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
 import com.dynokore.gst.rules.adapters.packs.RefusingRateSourcePort
@@ -23,8 +25,10 @@ import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DryRunDeltaPort
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.HolderCopyPort
+import com.dynokore.gst.rules.application.InstallationApproverFactPort
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.application.ListCursorKey
+import com.dynokore.gst.rules.application.MappingAcknowledgementPort
 import com.dynokore.gst.rules.application.MappingPackAuthoring
 import com.dynokore.gst.rules.application.MappingPackCollaborators
 import com.dynokore.gst.rules.application.PackActionAuthority
@@ -46,6 +50,8 @@ import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
+import com.dynokore.platform.serviceruntime.binding.DeploymentForm
+import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
@@ -249,6 +255,16 @@ class RulesConfiguration {
     @ConditionalOnMissingBean(HolderCopyPort::class)
     fun holderCopyPort(): HolderCopyPort = RefusingHolderCopyPort()
 
+    /** Answers Unavailable until the access-svc client replaces it. */
+    @Bean
+    @ConditionalOnMissingBean(InstallationApproverFactPort::class)
+    fun installationApproverFactPort(): InstallationApproverFactPort = RefusingInstallationApproverFactPort()
+
+    /** Answers Unavailable until its adapter replaces it. */
+    @Bean
+    @ConditionalOnMissingBean(MappingAcknowledgementPort::class)
+    fun mappingAcknowledgementPort(): MappingAcknowledgementPort = RefusingMappingAcknowledgementPort()
+
     @Bean
     fun mappingPackStore(
         dsl: DSLContext,
@@ -268,7 +284,7 @@ class RulesConfiguration {
     ): DryRunDeltaPort = JooqDryRunDeltaPort(dsl, tenants)
 
     /** The code catalogue is the pack INV-T-4966 decodes: the reader resolves the ARMED version by date. */
-    @Suppress("LongParameterList") // the composition root names the seven collaborators of the use case (TPL-18)
+    @Suppress("LongParameterList") // the composition root names the collaborators of the use case (TPL-18)
     @Bean
     fun mappingPackAuthoring(
         store: JooqMappingPackStore,
@@ -278,10 +294,24 @@ class RulesConfiguration {
         catalogues: PackContentsReader,
         rateSources: RateSourcePort,
         holderCopies: HolderCopyPort,
+        installationFacts: InstallationApproverFactPort,
+        acknowledgements: MappingAcknowledgementPort,
+        gst: GstProperties,
         clock: Clock,
     ): MappingPackAuthoring =
         MappingPackAuthoring(
-            MappingPackCollaborators(store, authority, deltas, decisions, catalogues, rateSources, holderCopies),
+            MappingPackCollaborators(
+                store,
+                authority,
+                deltas,
+                decisions,
+                catalogues,
+                rateSources,
+                holderCopies,
+                installationFacts,
+                acknowledgements,
+                gst.form == DeploymentForm.PRIVATE,
+            ),
             clock,
         )
 }

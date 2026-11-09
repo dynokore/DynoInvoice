@@ -154,9 +154,11 @@ class MappingAllowingPortsWithoutBuild {
 
     @Bean
     fun packApprovalDecisionPort(): PackApprovalDecisionPort =
-        PackApprovalDecisionPort { _, _, _, _, _ ->
+        PackApprovalDecisionPort { request ->
             if (MappingPortProbe.decisionUnavailable) {
                 PackApprovalDecision.Unavailable
+            } else if (request.authorRef == request.approverRef) {
+                PackApprovalDecision.Deny("SOLE")
             } else {
                 PackApprovalDecision.Allow(false, null, "OPTION-1", emptySet())
             }

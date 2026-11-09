@@ -125,13 +125,20 @@ private class Env {
     var delta: String? = "delta-1"
     var decision: PackApprovalDecision = PackApprovalDecision.Allow(false, null, "A", emptySet())
     val decideArgs = mutableListOf<List<String>>()
+    val requests = mutableListOf<PackApprovalRequest>()
+    var privateForm = false
+    var fact: InstallationApproverFact = InstallationApproverFact.NotRecorded
+    val factCalls = mutableListOf<String>()
+    var ack: MappingAcknowledgement = MappingAcknowledgement.NotRecorded
+    var ackAnswer: ((String, String) -> MappingAcknowledgement)? = null
+    val ackCalls = mutableListOf<Pair<String, String>>()
     val catalogueByDate = mutableMapOf<LocalDate, CodeCatalogue>()
     var catalogue: CodeCatalogue? = catalogueOf("SR", "ZR")
     var rate: List<String>? = emptyList()
     var holder: HolderCopyResult = HolderCopyResult.Written
     val holderRequests = mutableListOf<HolderCopyRequest>()
 
-    val authoring =
+    val authoring by lazy {
         MappingPackAuthoring(
             MappingPackCollaborators(
                 store,
@@ -145,9 +152,10 @@ private class Env {
                     calls += "delta"
                     delta
                 },
-                { _, _, _, _, prior ->
+                { request ->
                     calls += "decide"
-                    decideArgs += prior
+                    decideArgs += request.priorApproverRef
+                    requests += request
                     decision
                 },
                 { _, date: TransactionDate ->
@@ -163,9 +171,19 @@ private class Env {
                     holderRequests += request
                     holder
                 },
+                {
+                    factCalls += "fact"
+                    fact
+                },
+                { version, client ->
+                    ackCalls += version to client
+                    ackAnswer?.invoke(version, client) ?: ack
+                },
+                privateForm,
             ),
             CLOCK,
         )
+    }
 
     fun draft(
         id: String = "P1",
@@ -422,16 +440,21 @@ class MappingPackAuthoringTest {
     }
 
     @Test
-    fun `INV-REQ-380 approve step 3 the author cannot approve, a case variant or trailing space is another user`() {
+    fun `INV-REQ-380 approve step 3 the author is not refused locally, the port gets authorRef and approverRef`() {
         val e = Env().submitted()
         val before = e.store.state()
         e.calls.clear()
+        e.decision = PackApprovalDecision.Deny("SOLE")
         e.approve(actor = "author-1").shouldBeInstanceOf<Forbidden>().code shouldBe ErrorCode.SRT_004
-        e.calls shouldBe listOf("authority")
+        e.requests.single().let { it.authorRef shouldBe it.approverRef }
         e.store.state() shouldBe before
+        e.decision = PackApprovalDecision.Allow(false, null, "A", emptySet())
         e.approve(actor = "AUTHOR-1") shouldBe Done(PackStatus.APPROVED)
+        e.requests.last().authorRef shouldBe "author-1"
+        e.requests.last().approverRef shouldBe "AUTHOR-1"
         val f = Env().submitted()
         f.approve(actor = "author-1 ") shouldBe Done(PackStatus.APPROVED)
+        f.requests.single().approverRef shouldBe "author-1 "
     }
 
     @Test
@@ -529,41 +552,6 @@ class MappingPackAuthoringTest {
     }
 
     @Test
-    fun `INV-REQ-380 approve step 8 Deny is Forbidden, Unavailable is refused and Allow records one approval`() {
-        val e = Env().submitted()
-        val before = e.store.state()
-        e.decision = PackApprovalDecision.Deny("SOLE")
-        val f = e.approve().shouldBeInstanceOf<Forbidden>()
-        f.code shouldBe ErrorCode.SRT_004
-        f.detail.contains("approver-1") shouldBe false
-        f.detail.contains("author-1") shouldBe false
-        e.decision = PackApprovalDecision.Unavailable
-        e.approve() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE)
-        e.store.state() shouldBe before
-        e.decision = PackApprovalDecision.Allow(true, "ack-1", "B", setOf("CLIENT_APPROVAL"))
-        e.approve() shouldBe Done(PackStatus.SUBMITTED)
-        e.decideArgs.last() shouldBe emptyList()
-        e.store.apps["P1"] shouldBe
-            listOf(
-                MappingApproval(
-                    "approver-1",
-                    CLOCK.instant(),
-                    "delta-1",
-                    true,
-                    "ack-1",
-                    "B",
-                    setOf("CLIENT_APPROVAL"),
-                ),
-            )
-        e.decision = PackApprovalDecision.Allow(false, null, "A", emptySet())
-        e.approve(actor = "approver-2") shouldBe Done(PackStatus.APPROVED)
-        e.decideArgs.last() shouldBe listOf("approver-1")
-        e.store.apps
-            .getValue("P1")
-            .size shouldBe 2
-    }
-
-    @Test
     fun `INV-REQ-380 activate needs APPROVED, the code check of effectiveFrom and a written holder copy`() {
         val e = Env().submitted()
         e.activate() shouldBe Refused(RefusalReason.LIFECYCLE, status = PackStatus.SUBMITTED)
@@ -631,5 +619,176 @@ class MappingPackAuthoringTest {
         } finally {
             tmp.deleteRecursively()
         }
+    }
+}
+
+class MappingPackAuthorFactsTest {
+    @Test
+    fun `INV-AC-19524 approve by the author sends one request, authorRef and approverRef both the author`() {
+        val e = Env().submitted()
+        e.decision = PackApprovalDecision.Allow(true, "ack-1", "B", emptySet())
+        e.approve(actor = "author-1") shouldBe Done(PackStatus.APPROVED)
+        e.requests shouldBe
+            listOf(PackApprovalRequest("E-001", "P1", "v1", "author-1", "author-1", emptyList()))
+        e.store.apps
+            .getValue("P1")
+            .single()
+            .soleOperator shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-19524 a DENY is Forbidden SRT-004 naming no person and the store is equal before and after`() {
+        val e = Env().submitted()
+        val before = e.store.state()
+        e.decision = PackApprovalDecision.Deny("SOLE")
+        val f = e.approve(actor = "author-1").shouldBeInstanceOf<Forbidden>()
+        f.code shouldBe ErrorCode.SRT_004
+        f.detail.contains("author-1") shouldBe false
+        e.requests.size shouldBe 1
+        e.store.state() shouldBe before
+        e.decision = PackApprovalDecision.Unavailable
+        e.approve(actor = "author-1") shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE)
+        e.store.state() shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-19524 an ALLOW with CLIENT_APPROVAL outstanding keeps SUBMITTED and one without becomes APPROVED`() {
+        val e = Env().submitted()
+        e.decision = PackApprovalDecision.Allow(false, null, "A", setOf("CLIENT_APPROVAL"))
+        e.approve(actor = "author-1") shouldBe Done(PackStatus.SUBMITTED)
+        e.decision = PackApprovalDecision.Allow(false, null, "A", setOf("CLIENT_ACKNOWLEDGEMENT"))
+        e.approve(actor = "author-1") shouldBe Done(PackStatus.APPROVED)
+    }
+
+    private fun armedEnv(
+        private: Boolean,
+        fact: InstallationApproverFact,
+    ): Env {
+        val e = Env()
+        e.privateForm = private
+        e.fact = fact
+        e.submitted()
+        e.approve()
+        return e
+    }
+
+    @Test
+    fun `INV-AC-19524 the activation fact is true for recorded false and nothing recorded, false for recorded true`() {
+        val d1 = armedEnv(true, InstallationApproverFact.Recorded(false))
+        d1.activate() shouldBe Done(PackStatus.ARMED)
+        val d1b = armedEnv(true, InstallationApproverFact.NotRecorded)
+        d1b.activate() shouldBe Done(PackStatus.ARMED)
+        val d2 = armedEnv(true, InstallationApproverFact.Recorded(true))
+        d2.activate() shouldBe Done(PackStatus.ARMED)
+        listOf(d1, d1b, d2).map { it.factCalls.size } shouldBe listOf(1, 1, 1)
+        listOf(d1, d1b, d2).map {
+            it.store.acts
+                .getValue("P1")
+                .noDistinctApprover
+        } shouldBe
+            listOf(true, true, false)
+    }
+
+    @Test
+    fun `INV-AC-19524 an Unavailable installation fact refuses the activation and stores nothing`() {
+        val e = armedEnv(true, InstallationApproverFact.Unavailable)
+        val before = e.store.state()
+        e.activate() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE)
+        e.store.state() shouldBe before
+        e.holderRequests.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-19524 in the SaaS form the fact port is not asked and the fact is false`() {
+        val e = armedEnv(false, InstallationApproverFact.Recorded(false))
+        e.activate() shouldBe Done(PackStatus.ARMED)
+        e.factCalls.size shouldBe 0
+        e.store.acts
+            .getValue("P1")
+            .noDistinctApprover shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-19524 an outstanding CLIENT_ACKNOWLEDGEMENT with none recorded is Forbidden SRT-004`() {
+        val e = Env().submitted()
+        e.decision = PackApprovalDecision.Allow(false, null, "A", setOf("CLIENT_ACKNOWLEDGEMENT"))
+        e.approve() shouldBe Done(PackStatus.APPROVED)
+        val before = e.store.state()
+        val f = e.activate().shouldBeInstanceOf<Forbidden>()
+        f.code shouldBe ErrorCode.SRT_004
+        f.detail shouldBe "the client's acknowledgement is outstanding"
+        e.ackCalls shouldBe listOf("v1" to "E-001")
+        e.store.state() shouldBe before
+        e.store.packs
+            .getValue("P1")
+            .status shouldBe PackStatus.APPROVED
+        e.ack = MappingAcknowledgement.Unavailable
+        e.activate() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE)
+        e.store.state() shouldBe before
+        e.ack = MappingAcknowledgement.Recorded
+        e.activate() shouldBe Done(PackStatus.ARMED)
+    }
+
+    @Test
+    fun `INV-AC-19524 the acknowledgement port is not asked when nothing is outstanding`() {
+        val e = Env().submitted()
+        e.approve()
+        e.activate() shouldBe Done(PackStatus.ARMED)
+        e.ackCalls.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-19524 an acknowledgement of the look-alike version 2026-30 does not release version 2026-3`() {
+        val e = Env()
+        e.authoring.draft(DraftCommand("author-1", "E-001", "P2", TENANT, "2026.3"))
+        e.map("A", "SR", id = "P2")
+        e.submit("P2")
+        e.decision = PackApprovalDecision.Allow(false, null, "A", setOf("CLIENT_ACKNOWLEDGEMENT"))
+        e.approve(id = "P2") shouldBe Done(PackStatus.APPROVED)
+        val acknowledged = setOf("2026.30" to "E-001")
+        e.ackAnswer = { version, client ->
+            if ((version to client) in acknowledged) {
+                MappingAcknowledgement.Recorded
+            } else {
+                MappingAcknowledgement.NotRecorded
+            }
+        }
+        e.activate(id = "P2").shouldBeInstanceOf<Forbidden>().code shouldBe ErrorCode.SRT_004
+        e.ackCalls shouldBe listOf("2026.3" to "E-001")
+    }
+
+    @Test
+    fun `INV-REQ-380 approve step 8 Deny is Forbidden, Unavailable is refused and Allow records one approval`() {
+        val e = Env().submitted()
+        val before = e.store.state()
+        e.decision = PackApprovalDecision.Deny("SOLE")
+        val f = e.approve().shouldBeInstanceOf<Forbidden>()
+        f.code shouldBe ErrorCode.SRT_004
+        f.detail.contains("approver-1") shouldBe false
+        f.detail.contains("author-1") shouldBe false
+        e.decision = PackApprovalDecision.Unavailable
+        e.approve() shouldBe Refused(RefusalReason.DECISION_UNAVAILABLE)
+        e.store.state() shouldBe before
+        e.decision = PackApprovalDecision.Allow(true, "ack-1", "B", setOf("CLIENT_APPROVAL"))
+        e.approve() shouldBe Done(PackStatus.SUBMITTED)
+        e.decideArgs.last() shouldBe emptyList()
+        e.store.apps["P1"] shouldBe
+            listOf(
+                MappingApproval(
+                    "approver-1",
+                    CLOCK.instant(),
+                    "delta-1",
+                    true,
+                    "ack-1",
+                    "B",
+                    setOf("CLIENT_APPROVAL"),
+                ),
+            )
+        e.decision = PackApprovalDecision.Allow(false, null, "A", emptySet())
+        e.approve(actor = "approver-2") shouldBe Done(PackStatus.APPROVED)
+        e.decideArgs.last() shouldBe listOf("approver-1")
+        e.store.apps
+            .getValue("P1")
+            .size shouldBe 2
     }
 }

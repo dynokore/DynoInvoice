@@ -43,6 +43,8 @@ data class MappingActivation(
     val effectiveTo: LocalDate?,
     val activatedBy: String,
     val at: Instant,
+    /** True when no distinct tax approver is recorded for the installation; always false in the SaaS form. */
+    val noDistinctApprover: Boolean,
 )
 
 /** The draft store. A call that throws or refuses leaves nothing behind; each write is atomic in the adapter. */
@@ -124,15 +126,54 @@ sealed interface PackApprovalDecision {
     data object Unavailable : PackApprovalDecision
 }
 
+/** What the approval decision is asked about: one request per approve attempt (INV-REQ-995, NIST SP 800-162). */
+data class PackApprovalRequest(
+    val entityRef: String,
+    val packId: String,
+    /** The version label of the pack. */
+    val packVersion: String,
+    /** The author's user ID, as stored. */
+    val authorRef: String,
+    /** The acting user's user ID. */
+    val approverRef: String,
+    val priorApproverRef: List<String>,
+)
+
 /** The approval decision asked of access-svc through a port whose production default refuses (INV-Q-14647 A). */
 fun interface PackApprovalDecisionPort {
-    fun decide(
-        actor: String,
-        entityRef: String,
-        packId: String,
-        deltaId: String,
-        priorApproverRef: List<String>,
-    ): PackApprovalDecision
+    fun decide(request: PackApprovalRequest): PackApprovalDecision
+}
+
+/** The installation fact of a private deployment: whether a distinct tax approver is recorded. */
+sealed interface InstallationApproverFact {
+    data class Recorded(
+        val distinctTaxApprover: Boolean,
+    ) : InstallationApproverFact
+
+    data object NotRecorded : InstallationApproverFact
+
+    data object Unavailable : InstallationApproverFact
+}
+
+/** Reads the installation approver fact; the production default refuses (Unavailable). */
+fun interface InstallationApproverFactPort {
+    fun read(): InstallationApproverFact
+}
+
+sealed interface MappingAcknowledgement {
+    data object Recorded : MappingAcknowledgement
+
+    data object NotRecorded : MappingAcknowledgement
+
+    data object Unavailable : MappingAcknowledgement
+}
+
+/** Reads the client's acknowledgement of one pack version label for one client (entity); matched by equality. */
+fun interface MappingAcknowledgementPort {
+    fun read(
+        packVersion: String,
+        clientRef: String,
+    ): MappingAcknowledgement
 }
 
 /**

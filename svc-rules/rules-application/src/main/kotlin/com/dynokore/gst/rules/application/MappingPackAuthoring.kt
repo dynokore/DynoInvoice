@@ -107,6 +107,10 @@ data class MappingPackCollaborators(
     val catalogues: CodeCataloguePort,
     val rateSources: RateSourcePort,
     val holderCopies: HolderCopyPort,
+    val installationFacts: InstallationApproverFactPort,
+    val acknowledgements: MappingAcknowledgementPort,
+    /** True in the private deployment form; the SaaS form never asks the installation fact port. */
+    val privateForm: Boolean,
 )
 
 /** Thrown inside a command to stop it with a typed result; caught at the command boundary, never escapes. */
@@ -250,15 +254,21 @@ class MappingPackAuthoring(
             needs(command.actor, command.entityRef, MappingPackPermissions.APPROVE)
             val pack = packOf(command.packId, command.entityRef)
             lifecycle(pack, MappingCommand.APPROVE)
-            if (command.actor == pack.authorUserId) {
-                stop(MappingPackResult.Forbidden(ErrorCode.SRT_004, "the action is not permitted"))
-            }
             val deltaId =
                 ports.deltas.qualifying(PACK_TYPE, pack.label) ?: stopRefused(RefusalReason.NO_DRY_RUN_DELTA)
             val asOf = today()
             checkSignOff(pack, command.packId, asOf)
             val prior = store.approvals(command.packId).map { it.approverUserId }
-            val decision = ports.decisions.decide(command.actor, command.entityRef, command.packId, deltaId, prior)
+            val request =
+                PackApprovalRequest(
+                    command.entityRef,
+                    command.packId,
+                    pack.label,
+                    pack.authorUserId,
+                    command.actor,
+                    prior,
+                )
+            val decision = ports.decisions.decide(request)
             record(command, decision, deltaId)
         }
 
@@ -320,9 +330,11 @@ class MappingPackAuthoring(
             if (command.minEngineVersion.isBlank() || (to != null && !to.isAfter(command.effectiveFrom))) {
                 stopRefused(RefusalReason.INPUT_INVALID)
             }
+            holdForAcknowledgement(ports, pack)
             val entries = entriesOf(store, command.packId)
             val catalogue = ports.catalogues.catalogueAt(pack.tenant, TransactionDate(command.effectiveFrom))
             stopOnFindings(codeFindings(entries, catalogue))
+            val noDistinctApprover = noDistinctApprover(ports)
             val request =
                 HolderCopyRequest(
                     pack.tenant,
@@ -337,7 +349,8 @@ class MappingPackAuthoring(
             if (ports.holderCopies.write(request) != HolderCopyResult.Written) {
                 stopRefused(RefusalReason.HOLDER_COPY_UNAVAILABLE)
             }
-            val activation = MappingActivation(command.effectiveFrom, to, command.actor, clock.instant())
+            val activation =
+                MappingActivation(command.effectiveFrom, to, command.actor, clock.instant(), noDistinctApprover)
             store.recordActivation(command.packId, activation)
             MappingPackResult.Done(PackStatus.ARMED)
         }
@@ -345,9 +358,34 @@ class MappingPackAuthoring(
     companion object {
         const val PACK_TYPE = "MAPPING"
         const val CLIENT_APPROVAL = "CLIENT_APPROVAL"
+        const val CLIENT_ACKNOWLEDGEMENT = "CLIENT_ACKNOWLEDGEMENT"
         private const val MAX_LABEL = 200
         private const val MAX_ENTITY_REF = 64
         private const val MAX_ENTRY_ID = 40
+    }
+}
+
+/** The client's acknowledgement is asked only when the latest approval lists it as outstanding. */
+private fun holdForAcknowledgement(
+    ports: MappingPackCollaborators,
+    pack: MappingPackDraft,
+) {
+    val latest = ports.store.approvals(pack.packId).lastOrNull() ?: return
+    if (MappingPackAuthoring.CLIENT_ACKNOWLEDGEMENT !in latest.outstanding) return
+    val answer = ports.acknowledgements.read(pack.label, pack.entityRef)
+    if (answer == MappingAcknowledgement.NotRecorded) {
+        stop(MappingPackResult.Forbidden(ErrorCode.SRT_004, "the client's acknowledgement is outstanding"))
+    }
+    if (answer == MappingAcknowledgement.Unavailable) stopRefused(RefusalReason.DECISION_UNAVAILABLE)
+}
+
+/** True for a recorded false or nothing recorded; false for a recorded true and in the SaaS form. */
+private fun noDistinctApprover(ports: MappingPackCollaborators): Boolean {
+    if (!ports.privateForm) return false
+    return when (val fact = ports.installationFacts.read()) {
+        is InstallationApproverFact.Recorded -> !fact.distinctTaxApprover
+        InstallationApproverFact.NotRecorded -> true
+        InstallationApproverFact.Unavailable -> stopRefused(RefusalReason.DECISION_UNAVAILABLE)
     }
 }
 

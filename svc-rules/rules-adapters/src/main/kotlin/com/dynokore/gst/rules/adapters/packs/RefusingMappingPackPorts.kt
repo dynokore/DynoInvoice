@@ -3,9 +3,14 @@ package com.dynokore.gst.rules.adapters.packs
 import com.dynokore.gst.rules.application.HolderCopyPort
 import com.dynokore.gst.rules.application.HolderCopyRequest
 import com.dynokore.gst.rules.application.HolderCopyResult
+import com.dynokore.gst.rules.application.InstallationApproverFact
+import com.dynokore.gst.rules.application.InstallationApproverFactPort
+import com.dynokore.gst.rules.application.MappingAcknowledgement
+import com.dynokore.gst.rules.application.MappingAcknowledgementPort
 import com.dynokore.gst.rules.application.PackActionAuthority
 import com.dynokore.gst.rules.application.PackApprovalDecision
 import com.dynokore.gst.rules.application.PackApprovalDecisionPort
+import com.dynokore.gst.rules.application.PackApprovalRequest
 import com.dynokore.gst.rules.application.RateSourcePort
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.LocalDate
@@ -26,13 +31,20 @@ class RefusingPackActionAuthority : PackActionAuthority {
 
 /** Cannot ask access-svc until INV-T-10700 replaces it. */
 class RefusingPackApprovalDecisionPort : PackApprovalDecisionPort {
-    override fun decide(
-        actor: String,
-        entityRef: String,
-        packId: String,
-        deltaId: String,
-        priorApproverRef: List<String>,
-    ): PackApprovalDecision = PackApprovalDecision.Unavailable
+    override fun decide(request: PackApprovalRequest): PackApprovalDecision = PackApprovalDecision.Unavailable
+}
+
+/** Cannot read the installation fact until the access-svc client lands; refuses (fail closed). */
+class RefusingInstallationApproverFactPort : InstallationApproverFactPort {
+    override fun read(): InstallationApproverFact = InstallationApproverFact.Unavailable
+}
+
+/** Cannot read the client's acknowledgement until its adapter lands; refuses (fail closed). */
+class RefusingMappingAcknowledgementPort : MappingAcknowledgementPort {
+    override fun read(
+        packVersion: String,
+        clientRef: String,
+    ): MappingAcknowledgement = MappingAcknowledgement.Unavailable
 }
 
 /** Cannot read the approved rate sources until INV-T-16546 replaces it (INV-Q-14651 A, INV-Q-16533 A). */
