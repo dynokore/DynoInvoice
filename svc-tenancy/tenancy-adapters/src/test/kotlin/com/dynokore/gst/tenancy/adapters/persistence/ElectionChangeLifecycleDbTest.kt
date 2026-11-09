@@ -90,7 +90,8 @@ class ElectionChangeLifecycleDbTest {
                     it.execute(
                         "insert into tenancy.election_change (tenant_id, change_ref, entity_ref, variation_point, " +
                             "requested_value, effective_from, requested_by, requested_at, state) " +
-                            "values (?, 'CHG-SQL', ?, 'VP-22', 'INVOICE_DATE', date '2026-12-01', 'u', now(), 'PENDING')",
+                            "values (?, 'CHG-SQL', ?, 'VP-22', 'INVOICE_DATE', date '2026-12-01', 'u', now(), " +
+                            "'PENDING')",
                         t.value,
                         e,
                     )
@@ -139,7 +140,8 @@ class ElectionChangeLifecycleDbTest {
         Db.superuser {
             it
                 .fetch(
-                    "select closed_by, closed_at is not null from tenancy.election_change where entity_ref = ? order by requested_at",
+                    "select closed_by, closed_at is not null from tenancy.election_change " +
+                        "where entity_ref = ? order by requested_at",
                     e,
                 ).map { r -> r.get(0, String::class.java) to r.get(1, Boolean::class.java) }
         } shouldContainExactly listOf("identity:USR-001" to true, "identity:USR-002" to true)

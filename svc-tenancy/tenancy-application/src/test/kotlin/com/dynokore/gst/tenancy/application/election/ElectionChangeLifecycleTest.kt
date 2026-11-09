@@ -23,6 +23,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -636,6 +637,8 @@ class ElectionChangeLifecycleTest {
         val rows = mutableListOf<Row>()
         private var seq = 0
 
+        private fun ref() = "CHG-%03d".format(Locale.ROOT, seq)
+
         fun row(ref: String) = rows.single { it.changeRef == ref }
 
         fun insertPending(
@@ -647,7 +650,7 @@ class ElectionChangeLifecycleTest {
         ): PendingChange {
             seq += 1
             val change =
-                PendingChange("CHG-%03d".format(seq), entityRef, kind, value, null, LocalDate.of(2026, 12, 1), by, at)
+                PendingChange(ref(), entityRef, kind, value, null, LocalDate.of(2026, 12, 1), by, at)
             rows += Row(change, "PENDING")
             return change
         }
@@ -669,7 +672,7 @@ class ElectionChangeLifecycleTest {
             seq += 1
             val change =
                 PendingChange(
-                    "CHG-%03d".format(seq),
+                    ref(),
                     entityRef,
                     kind,
                     value,
