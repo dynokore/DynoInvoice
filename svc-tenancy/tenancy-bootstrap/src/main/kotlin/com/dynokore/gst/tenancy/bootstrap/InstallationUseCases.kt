@@ -174,7 +174,7 @@ class InstallationUseCases {
         tx: TransactionRunner,
         facts: InstallationFactRepository,
         publisher: InstallationStatusPublisher,
-        trainChanged: ObjectProvider<ReleaseTrainChanged>,
+        trainChanged: ReleaseTrainChanged,
         clock: ObjectProvider<Clock>,
     ): InstallationHealth =
         InstallationHealth(
@@ -182,7 +182,7 @@ class InstallationUseCases {
             tx,
             facts,
             publisher,
-            trainChanged.getIfAvailable { ReleaseTrainChanged { } },
+            trainChanged,
             { clock.getIfAvailable(Clock::systemUTC).instant() },
             "tenancy-svc",
         )
