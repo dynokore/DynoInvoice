@@ -28,3 +28,28 @@ OverridePreview.willTransmit	schema_property	openapi.yaml	INV-REQ-943
 OverridePreview.residualRisk	schema_property	openapi.yaml	INV-REQ-943
 getOverridePreview.SRT-004	operation_error_code	openapi.yaml	INV-REQ-943
 getOverridePreview.SRT-005	operation_error_code	openapi.yaml	INV-REQ-943
+# INV-T-13557. Operation getPortfolio and its schemas (INV-REQ-904, INV-Q-13373 A). The svc-console-bff composition task owns the rest.
+getPortfolio	operation	openapi.yaml	INV-REQ-904
+# Schema names PortfolioPage, PortfolioRow, PortfolioCell, PortfolioReadiness are carried by the scoped rows below.
+PortfolioPage.items	schema_property	openapi.yaml	INV-REQ-904
+PortfolioPage.nextCursor	schema_property	openapi.yaml	INV-REQ-904
+PortfolioRow.entityRef	schema_property	openapi.yaml	INV-REQ-904
+PortfolioRow.nearestDueDate	schema_property	openapi.yaml	INV-REQ-904
+PortfolioRow.cells	schema_property	openapi.yaml	INV-REQ-904
+PortfolioCell.periodRef	schema_property	openapi.yaml	INV-REQ-904
+PortfolioCell.periodState	schema_property	openapi.yaml	INV-REQ-904
+PortfolioCell.dueDate	schema_property	openapi.yaml	INV-REQ-904
+PortfolioCell.filingDate	schema_property	openapi.yaml	INV-REQ-904
+PortfolioCell.extensionGranted	schema_property	openapi.yaml	INV-REQ-904
+PortfolioCell.readiness	schema_property	openapi.yaml	INV-REQ-904
+PortfolioReadiness.kind	schema_property	openapi.yaml	INV-REQ-904
+PortfolioReadiness.blockedCount	schema_property	openapi.yaml	INV-REQ-904
+PortfolioCell.periodState.open	schema_enum_value	openapi.yaml	INV-REQ-904
+PortfolioCell.periodState.due	schema_enum_value	openapi.yaml	INV-REQ-904
+PortfolioCell.periodState.filed	schema_enum_value	openapi.yaml	INV-REQ-904
+PortfolioCell.periodState.late	schema_enum_value	openapi.yaml	INV-REQ-904
+PortfolioReadiness.kind.READY	schema_enum_value	openapi.yaml	INV-REQ-904
+PortfolioReadiness.kind.BLOCKED	schema_enum_value	openapi.yaml	INV-REQ-904
+PortfolioReadiness.kind.UNABLE_TO_DETERMINE	schema_enum_value	openapi.yaml	INV-REQ-904
+limit	query_parameter	openapi.yaml	INV-REQ-904
+cursor	query_parameter	openapi.yaml	INV-REQ-904

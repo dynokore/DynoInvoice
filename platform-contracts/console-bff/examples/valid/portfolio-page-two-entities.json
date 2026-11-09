@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "entityRef": "E-001",
+      "nearestDueDate": "2026-11-30",
+      "cells": [
+        {"periodRef": "2026-Q2", "periodState": "late", "dueDate": "2026-07-31", "filingDate": "2026-08-04", "extensionGranted": false},
+        {"periodRef": "2026-Q3", "periodState": "due", "dueDate": "2026-11-30", "extensionGranted": false, "readiness": {"kind": "BLOCKED", "blockedCount": 3}}
+      ]
+    },
+    {
+      "entityRef": "E-002",
+      "nearestDueDate": "2027-02-28",
+      "cells": [
+        {"periodRef": "2026-Q4", "periodState": "open", "extensionGranted": true}
+      ]
+    }
+  ],
+  "nextCursor": null
+}

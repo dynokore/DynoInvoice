@@ -17,6 +17,7 @@ get	/v1/entities/{entityRef}/periods/{periodRef}/submissions/reconciliation	mach
 get	/v1/entities/{entityRef}/periods/{periodRef}/submissions/summary	machine.status.read	-	machine
 get	/v1/exceptions	exception.view	machine.status.read	person
 post	/v1/issuances	machine.ingestion.channels.write	machine.certification.ingest	machine
+get	/v1/portfolio	period-readiness.view	-	person
 post	/v1/pre-issuance-checks	machine.ingestion.channels.write	machine.certification.ingest	machine
 post	/v1/transactions	machine.ingestion.channels.write	machine.certification.ingest	machine
 get	/v1/transactions/{docUuid}	machine.status.read	-	machine

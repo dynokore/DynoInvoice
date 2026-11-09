@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -19,7 +19,9 @@ info:
     the two `/bff/…` operations (browser-session only, CSRF-checked,
     API-26), matching 04-api-standards.md §15's resource-catalogue rows
     exactly — no operation here is invented beyond what that catalogue
-    lists (INV-T-2902, T14b scope decision below).
+    lists (INV-T-2902, T14b scope decision below), except `getPortfolio`
+    (`GET /v1/portfolio`), the one operation added by owner answer
+    INV-Q-13373 option A (INV-REQ-904, INV-T-13557).
 
 
     Scope note for the reviewer: services.yaml's console-bff `provides`
@@ -35,7 +37,7 @@ info:
     (INV-NOTE-7 §7 SCR-32.3: a master-data change plus evidence annotation
     — it writes to evidence-svc's privacy case, one of this task's three
     sibling services, so it belongs in scope by the same test). console-bff's
-    other capabilities — the portfolio read model, the document search
+    other capabilities — the document search
     index, job/connection status views, the signed-link pages, and the
     orchestrated multi-service flows (configuration export/promotion,
     support bundle assembly, backfill) — are NOT implemented here: none of
@@ -43,7 +45,9 @@ info:
     evidence/reconciliation/notification, and services.yaml's generic
     "console API" phrase does not by itself license inventing their
     concrete shapes (T13b review correction: list as an architecture gap,
-    do not add unlisted operations). Flagged here as an architecture gap
+    do not add unlisted operations; `getPortfolio` is the one operation
+    added since, INV-Q-13373 A, and the portfolio read model's other
+    capabilities stay listed gaps). Flagged here as an architecture gap
     for the coordinator to schedule as its own task(s) and to add to
     services.yaml/04-api-standards.md §15 explicitly. No catalogue error
     code exists yet for console-bff (model/architecture/error-codes.yaml
@@ -55,6 +59,8 @@ servers:
   - url: 'https://api.invoice.internal'
     description: Placeholder — the gateway routes only the operations of a published train (API-26).
 tags:
+  - name: portfolio
+    description: The portfolio read model, one row per entity and one cell per open period (INV-REQ-904, SCR-08.1).
   - name: exceptions
     description: The exception read model and its override route (FR-AF.2, FR-7.10, §19.7).
   - name: evidence
@@ -183,6 +189,77 @@ paths:
                         taxableAmount: "100.00"
                         severity: "BLOCK"
                         inputKey: "internalTaxCode=SR-STD"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/portfolio:
+    get:
+      operationId: getPortfolio
+      summary: List the portfolio, one row per entity with one cell per open period
+      description: >-
+        The portfolio view (INV-REQ-904, FR-AF.26, SCR-08.1): one row per
+        entity or client in the caller's grant scope, rows sorted by the
+        nearest due date, and one cell per open period. Each cell holds the
+        period state of INV-REQ-85 (`open`, `due`, `filed` or `late`), the
+        extension-granted flag and, for a `filed` or `late` period that
+        has been filed, the filing date. A `due` cell adds the readiness
+        verdict (READY, BLOCKED with a count, or UNABLE_TO_DETERMINE). The
+        rule "readiness is present exactly when periodState is due" is
+        enforced in the PortfolioCell schema (if/then/else). There is no
+        aggregate score, percentage or rating (INV-REQ-1030).
+
+
+        Permission: access is decided per request by
+        `AuthorityReplica.decide` on the key `period-readiness.view`. Rows
+        are limited to the entities in the caller's grant scope; an empty
+        scope gives 200 with no items. The operation carries that one
+        permission key and no other.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s for an operation making at most one downstream
+        call (x-timeout 3000); this operation is served from the portfolio
+        read model.
+      tags: [portfolio]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-904]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of portfolio rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - entityRef: "E-001"
+                        nearestDueDate: "2026-11-30"
+                        cells:
+                          - periodRef: "2026-Q3"
+                            periodState: "due"
+                            dueDate: "2026-11-30"
+                            extensionGranted: false
+                            readiness:
+                              kind: "BLOCKED"
+                              blockedCount: 3
+                    nextCursor: "eyJvZmZzZXQiOjEwMH0"
         default:
           $ref: '#/components/responses/Error'
   /bff/exceptions/{exceptionId}/decision-trace:
@@ -1127,6 +1204,83 @@ components:
         gatePassed:
           type: boolean
       required: [entityRef, periodRef, filingDueDate, windowDays, countOutstanding, hoursToFilingGate, gatePassed]
+    PortfolioPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioRow'
+        nextCursor:
+          type:
+            - string
+            - 'null'
+      required: [items]
+    PortfolioRow:
+      type: object
+      additionalProperties: false
+      description: One entity or client with one cell per open period; rows sort by nearestDueDate (INV-REQ-904).
+      properties:
+        entityRef:
+          type: string
+          maxLength: 40
+        nearestDueDate:
+          type: string
+          format: date
+        cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioCell'
+      required: [entityRef, cells]
+    PortfolioCell:
+      type: object
+      additionalProperties: false
+      description: >-
+        The period state of INV-REQ-85 for one open period. `readiness` is
+        present exactly when `periodState` is `due`: it is required for a due
+        cell and forbidden for any other state. No score, percentage or
+        rating exists (INV-REQ-1030).
+      properties:
+        periodRef:
+          type: string
+          maxLength: 40
+        periodState:
+          type: string
+          enum: [open, due, filed, late]
+          x-enum-varnames: [OPEN, DUE, FILED, LATE]
+        dueDate:
+          type: string
+          format: date
+        filingDate:
+          type: string
+          format: date
+        extensionGranted:
+          type: boolean
+        readiness:
+          $ref: '#/components/schemas/PortfolioReadiness'
+      required: [periodRef, periodState, extensionGranted]
+      if:
+        properties:
+          periodState:
+            const: due
+        required: [periodState]
+      then:
+        required: [readiness]
+      else:
+        not:
+          required: [readiness]
+    PortfolioReadiness:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [READY, BLOCKED, UNABLE_TO_DETERMINE]
+        blockedCount:
+          type: integer
+          minimum: 0
+      required: [kind]
     OverrideRequest:
       type: object
       properties:

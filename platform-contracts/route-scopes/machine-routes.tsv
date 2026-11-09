@@ -17,6 +17,7 @@ get	/v1/entities/{entityRef}/periods/{periodRef}/submissions/reconciliation	repo
 get	/v1/entities/{entityRef}/periods/{periodRef}/submissions/summary	reporting	-
 get	/v1/exceptions	reporting	-
 post	/v1/issuances	ingest	certification
+get	/v1/portfolio	reporting	-
 post	/v1/pre-issuance-checks	ingest	certification
 post	/v1/transactions	ingest	certification
 get	/v1/transactions/{docUuid}	reporting	-
