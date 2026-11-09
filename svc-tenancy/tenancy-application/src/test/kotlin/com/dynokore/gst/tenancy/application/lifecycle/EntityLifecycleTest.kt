@@ -225,6 +225,17 @@ class EntityLifecycleTest {
     }
 
     @Test
+    fun `goLive with the coverage port unbound still names the certification and election items`() {
+        coverage = UnboundTriggerCoverage()
+        elected -= ElectionKind.ISSUANCE_MODE
+        val detail = refused(live())
+        listOf("trigger coverage unknown", "sandbox certification", "ISSUANCE_MODE").forEach {
+            assertTrue(detail.contains(it), detail)
+        }
+        assertUntouched()
+    }
+
+    @Test
     fun `goLive with no certification record is refused naming the sandbox certification`() {
         assertTrue(refused(live()).contains("sandbox certification"))
         assertUntouched()

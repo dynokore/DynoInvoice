@@ -20,6 +20,8 @@ data class GoLiveFacts(
     val failedScenarios: List<String>,
     /** The names of the required elections not yet recorded. */
     val outstandingElections: List<String>,
+    /** True when the coverage port could not answer: the item is unmet and named as unknown. */
+    val coverageUnknown: Boolean = false,
 )
 
 /** The go-live gate: every unmet item is named (INV-REQ-987, INV-Q-16403). */
@@ -29,6 +31,7 @@ object GoLiveGate {
     /** One text per unmet item, in the order coverage, certification, elections; empty when go-live is allowed. */
     fun unmet(facts: GoLiveFacts): List<String> =
         buildList {
+            if (facts.coverageUnknown) add(COVERAGE_UNKNOWN)
             if (facts.uncoveredTriggers.isNotEmpty()) {
                 add("trigger coverage incomplete: ${facts.uncoveredTriggers.joinToString(", ")}")
             }

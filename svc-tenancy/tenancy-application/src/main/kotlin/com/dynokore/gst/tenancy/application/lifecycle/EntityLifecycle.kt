@@ -212,37 +212,36 @@ class GoLive internal constructor(
     private fun gateAndWrite(entity: EntityRecord): LifecycleOutcome {
         val on = today()
         val uncovered = runCatching { coverage.uncovered(entity.ref) }
-        val unavailable = uncovered.exceptionOrNull() as? UnavailableInput
         val decision = elections.check(entity.ref, on)
-        return when {
-            unavailable != null -> {
-                LifecycleOutcome.Refused(unavailable.input)
-            }
-
-            decision == ElectionGateDecision.EntityNotFound -> {
-                LifecycleOutcome.NotFound
-            }
-
-            else -> {
-                val unmet = GoLiveGate.unmet(facts(entity, uncovered.getOrThrow(), decision))
-                if (unmet.isEmpty()) {
-                    writer.write(entity, LifecycleState.LIVE, on)
-                    LifecycleOutcome.Done(entity.ref, LifecycleState.LIVE)
-                } else {
-                    LifecycleOutcome.Refused(unmet.joinToString("; "))
-                }
+        return if (decision == ElectionGateDecision.EntityNotFound) {
+            LifecycleOutcome.NotFound
+        } else {
+            val unmet = GoLiveGate.unmet(facts(entity, uncovered, decision))
+            if (unmet.isEmpty()) {
+                writer.write(entity, LifecycleState.LIVE, on)
+                LifecycleOutcome.Done(entity.ref, LifecycleState.LIVE)
+            } else {
+                LifecycleOutcome.Refused(unmet.joinToString("; "))
             }
         }
     }
 
     private fun facts(
         entity: EntityRecord,
-        uncovered: List<String>,
+        uncovered: Result<List<String>>,
         decision: ElectionGateDecision,
     ): GoLiveFacts {
         val latest = certifications.latest(entity.ref)
         val outstanding = (decision as? ElectionGateDecision.Refused)?.outstanding.orEmpty().map { it.name }
-        return GoLiveFacts(uncovered, latest?.outcome, latest?.failedScenarios.orEmpty(), outstanding)
+        val unavailable = uncovered.exceptionOrNull()
+        if (unavailable != null && unavailable !is UnavailableInput) throw unavailable
+        return GoLiveFacts(
+            uncovered.getOrDefault(emptyList()),
+            latest?.outcome,
+            latest?.failedScenarios.orEmpty(),
+            outstanding,
+            coverageUnknown = unavailable != null,
+        )
     }
 }
 
