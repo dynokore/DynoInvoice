@@ -39,7 +39,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
-/** goLive, suspendEntity and deregisterEntity over in-memory ports (INV-AC-1064, INV-AC-1051, INV-AC-1980). */
+/** goLive, suspendEntity and deregisterEntity over in-memory ports (INV-AC-1064). */
 @Suppress("LargeClass", "TooManyFunctions")
 class EntityLifecycleTest {
     private val today = LocalDate.of(2026, 11, 9)
@@ -314,7 +314,7 @@ class EntityLifecycleTest {
     // ---- suspend ----
 
     @Test
-    fun `INV-AC-1980 suspendEntity sets SUSPENDED answers SUSPENDED and leaves earlier submissions untouched`() {
+    fun `suspendEntity sets SUSPENDED answers SUSPENDED and leaves earlier submissions untouched`() {
         current = current.copy(lifecycleState = "LIVE")
         val done = assertInstanceOf(LifecycleOutcome.Done::class.java, suspend().handle("E1"))
         assertEquals(LifecycleState.SUSPENDED, done.state)
@@ -327,7 +327,7 @@ class EntityLifecycleTest {
     // ---- deregister ----
 
     @Test
-    fun `INV-AC-1051 deregisterEntity with an unsubmitted document and no override is refused TNC-008`() {
+    fun `deregisterEntity with an unsubmitted document and no override is refused TNC-008`() {
         unsubmitted = UnsubmittedDocuments { _, _ -> 3 }
         val outcome = deregister().handle("E1", LocalDate.of(2026, 8, 15), null)
         assertEquals("TNC-008", assertInstanceOf(LifecycleOutcome.Conflict::class.java, outcome).code)
@@ -336,7 +336,7 @@ class EntityLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-1051 deregisterEntity with unsubmittedOverride records it and sets DEREGISTERED`() {
+    fun `deregisterEntity with unsubmittedOverride records it and sets DEREGISTERED`() {
         unsubmitted = UnsubmittedDocuments { _, _ -> 3 }
         val ack = UnsubmittedOverride(caller, "accepted")
         val outcome = deregister().handle("E1", LocalDate.of(2026, 8, 15), ack)
