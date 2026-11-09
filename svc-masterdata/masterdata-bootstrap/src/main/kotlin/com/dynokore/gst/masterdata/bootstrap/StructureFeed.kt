@@ -4,6 +4,7 @@ import com.dynokore.gst.masterdata.adapters.events.StructureNodeFeedHandler
 import com.dynokore.gst.masterdata.application.counterparty.ApplyStructureNode
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
@@ -11,6 +12,7 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.tenancyjooq.TenancyJooq
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -40,7 +42,7 @@ class StructureFeed {
     fun structureNodeFeedHandler(
         apply: ApplyStructureNode,
         mapper: ObjectMapper,
-    ) = StructureNodeFeedHandler(apply, mapper)
+    ): EventHandler = StructureNodeFeedHandler(apply, mapper)
 
     @Bean
     @Primary
@@ -52,7 +54,7 @@ class StructureFeed {
         scope: TenantScope,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-        handler: StructureNodeFeedHandler,
+        @Qualifier("structureNodeFeedHandler") handler: EventHandler,
     ): JdbcInboxConsumer =
         consumer(
             ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED_TOPIC,
@@ -73,7 +75,7 @@ class StructureFeed {
         scope: TenantScope,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-        handler: StructureNodeFeedHandler,
+        @Qualifier("structureNodeFeedHandler") handler: EventHandler,
     ): JdbcInboxConsumer =
         consumer(
             ProductEventTypes.ENTITY_PROFILE_CHANGED_TOPIC,
@@ -93,7 +95,7 @@ class StructureFeed {
         scope: TenantScope,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-        handler: StructureNodeFeedHandler,
+        handler: EventHandler,
     ) = JdbcInboxConsumer(
         ConsumerSubscription("masterdata-svc", topic, SCHEMA),
         catalogue,

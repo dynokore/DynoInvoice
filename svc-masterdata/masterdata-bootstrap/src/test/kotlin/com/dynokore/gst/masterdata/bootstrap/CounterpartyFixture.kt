@@ -1,6 +1,5 @@
 package com.dynokore.gst.masterdata.bootstrap
 
-import com.dynokore.gst.masterdata.adapters.events.StructureNodeFeedHandler
 import com.dynokore.gst.masterdata.adapters.http.IdentityTriplesController
 import com.dynokore.gst.masterdata.application.counterparty.RecordCommand
 import com.dynokore.gst.masterdata.application.counterparty.RecordCounterparty
@@ -25,6 +24,7 @@ import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.Envelope
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.partyregistry.IdentifierScheme
 import com.dynokore.platform.productruntime.ProductEventTypes
@@ -66,7 +66,7 @@ internal class CounterpartyEnv(
     val resolution: ResolutionApi = context.getBean(ResolutionApi::class.java)
     val remediation: RemediationApi = context.getBean(RemediationApi::class.java)
     val record: RecordCounterparty = context.getBean(RecordCounterparty::class.java)
-    val feed: StructureNodeFeedHandler = context.getBean(StructureNodeFeedHandler::class.java)
+    val feed: EventHandler = context.getBean("structureNodeFeedHandler", EventHandler::class.java)
     val captured: CapturedEvents = context.getBean(CapturedEvents::class.java)
     val tenant = TenantId(UUID.randomUUID())
 
