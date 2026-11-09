@@ -99,7 +99,7 @@ open class EvaluationController(
             val withClassification =
                 classifiedResult?.let { trace.orEmpty() + (CLASSIFICATION to classificationTrace(it.entry)) } ?: trace
             val versions = versionsApplied(tenant, date) + listOfNotNull(classifiedResult?.version)
-            answer(outcome, answered, result, versions, withClassification, classifiedResult)
+            answer(outcome, answered, result, versions, withClassification, classified)
         }
     }
 
@@ -115,6 +115,9 @@ open class EvaluationController(
             val entry: ClassificationTraceEntry,
             val version: PackVersionApplied,
         ) : Classified
+
+        /** An asserted NOT_A_BILL whose complete key selects no row stays NOT_A_BILL (INV-Q-14802 A). */
+        data object AssertedNotABill : Classified
 
         /** [scopeVersion] is the scope pack version in force when one was; the refusal never invents one. */
         data class Refused(
@@ -154,6 +157,7 @@ open class EvaluationController(
         }
     }
 
+    @Suppress("UnusedParameter") // tenant and date serve the fail-closed branch of a mixed-sign hold
     private fun classifiedOf(
         classification: Classification,
         tenant: TenantId,
@@ -169,10 +173,10 @@ open class EvaluationController(
                 )
             }
 
-            // an asserted NOT_A_BILL that no row settles is not classified by a row: RUL-012, like any other no-row key
+            // an asserted NOT_A_BILL that no row contradicts stays NOT_A_BILL, never submitted (INV-Q-14802 A)
             is Classification.NotABill -> {
                 classification.trace?.let { done(it.documentFunction, it.documentTypeCode, classification, it) }
-                    ?: Classified.Refused(ErrorCode.RUL_012, scopeVersionAt(tenant, date))
+                    ?: Classified.AssertedNotABill
             }
 
             is Classification.HeldMixedSign -> {
@@ -339,8 +343,9 @@ open class EvaluationController(
         result: DocumentCodingResult,
         versions: List<PackVersionApplied>,
         trace: Map<String, Any>?,
-        classified: Classified.Done?,
+        classified: Classified?,
     ): EvaluationResult {
+        val fields = fieldsOf(classified)
         val scope = EvaluationResult.ScopeVerdict.valueOf(outcome.verdict.name)
         val warning = if (outcome.disregardedSupplyWarning) true else null
         return when (coding) {
@@ -352,10 +357,10 @@ open class EvaluationController(
                     code = coding.code.code,
                     disregardedSupplyWarning = warning,
                     decisionTrace = trace,
-                    documentFunction = classified?.let { EvaluationResult.DocumentFunction.valueOf(it.function.name) },
-                    documentTypeCode = classified?.typeCode,
-                    signNormalised = classified?.signNormalised,
-                    cancellation = classified?.cancellation?.takeIf { it },
+                    documentFunction = fields?.function,
+                    documentTypeCode = fields?.typeCode,
+                    signNormalised = fields?.signNormalised,
+                    cancellation = fields?.cancellation?.takeIf { it },
                 )
             }
 
@@ -369,10 +374,10 @@ open class EvaluationController(
                     disregardedSupplyWarning = warning,
                     decisionTrace = trace,
                     packVersionsApplied = versions,
-                    documentFunction = classified?.let { EvaluationResult.DocumentFunction.valueOf(it.function.name) },
-                    documentTypeCode = classified?.typeCode,
-                    signNormalised = classified?.signNormalised,
-                    cancellation = classified?.cancellation?.takeIf { it },
+                    documentFunction = fields?.function,
+                    documentTypeCode = fields?.typeCode,
+                    signNormalised = fields?.signNormalised,
+                    cancellation = fields?.cancellation?.takeIf { it },
                     selfBillingAssignment =
                         coding.selfBillingAssignment?.let {
                             EvaluationResultSelfBillingAssignment(
@@ -384,6 +389,34 @@ open class EvaluationController(
             }
         }
     }
+
+    /** The four classification fields of the answer; null when none is answered. */
+    private data class Fields(
+        val function: EvaluationResult.DocumentFunction,
+        val typeCode: String?,
+        val signNormalised: Boolean?,
+        val cancellation: Boolean?,
+    )
+
+    private fun fieldsOf(classified: Classified?): Fields? =
+        when (classified) {
+            is Classified.Done -> {
+                Fields(
+                    EvaluationResult.DocumentFunction.valueOf(classified.function.name),
+                    classified.typeCode,
+                    classified.signNormalised,
+                    classified.cancellation,
+                )
+            }
+
+            Classified.AssertedNotABill -> {
+                Fields(EvaluationResult.DocumentFunction.NOT_A_BILL, null, null, null)
+            }
+
+            else -> {
+                null
+            }
+        }
 
     private companion object {
         const val LINE_ID = "1"

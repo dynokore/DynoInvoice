@@ -299,6 +299,18 @@ class ClassificationBoundaryTest(
     }
 
     @Test
+    fun `INV-AC-14810 an asserted NOT_A_BILL with no row stays NOT_A_BILL with no table result`() {
+        both(request(NEGATIVE_INVOICE, function = "NOT_A_BILL", sign = "POSITIVE")).forEach {
+            it.text("documentFunction") shouldBe "NOT_A_BILL"
+            listOf("documentTypeCode", "signNormalised", "cancellation").forEach { name -> it.has(name) shouldBe false }
+            it.get("decisionTrace")?.has("classification") ?: false shouldBe false
+            it.version("SCOPE") shouldBe null
+            it.text("code") shouldBe null
+            it.text("categoryCode") shouldBe "SR" // coding and the scope verdict run as for a NOT_A_BILL row
+        }
+    }
+
+    @Test
     fun `INV-AC-14810 a request with no documentFunction is not classified and adds no scope pack item`() {
         both(request(null)).forEach {
             listOf("documentFunction", "documentTypeCode", "signNormalised", "cancellation").forEach { name ->
@@ -321,9 +333,10 @@ class ClassificationBoundaryTest(
             request(NEGATIVE_INVOICE, kind = "invoice"), // the other case
             request(NEGATIVE_INVOICE, function = "ADJUSTMENT"), // the same kind, another upstream function
             request(NEGATIVE_INVOICE, sign = "ZERO"), // the same kind, another line sign
-            request(NEGATIVE_INVOICE, sign = "POSITIVE").replace("BILL_FOR_PAYMENT", "NOT_A_BILL"),
             request(NEGATIVE_INVOICE, kind = null), // a function without a kind
             request(NEGATIVE_INVOICE, sign = null), // a function without a sign
+            request(NOT_A_BILL_ROW, kind = null), // NOT_A_BILL without a kind: the key is incomplete, fail closed
+            request(NOT_A_BILL_ROW, sign = null), // NOT_A_BILL without a sign
         ).forEach { json ->
             both(json).forEach {
                 it.shouldBeRefusedWith("RUL-012")
