@@ -118,7 +118,6 @@ class ElectionModeChangeTest {
 
     private fun refuseApprovals(
         e: ElectionEnv,
-        env: ProfileEnv,
         entity: EntityResponse,
         changeRef: String,
         snapshot: () -> List<Any?>,
@@ -169,7 +168,7 @@ class ElectionModeChangeTest {
                 assertThat(env.captured.envelopes.size - (before[7] as Int)).isEqualTo(1)
                 assertThat(e.changeStates(entity)).containsExactly("PENDING")
 
-                refuseApprovals(e, env, entity, change.changeRef) { state(e, env, tenant, entity) }
+                refuseApprovals(e, entity, change.changeRef) { state(e, env, tenant, entity) }
                 assertThat(env.captured.envelopes.size - (before[7] as Int)).isEqualTo(1)
                 assertThat(mode(e, entity, julyFirst.minusDays(1))).isEqualTo(CLAIMABLE)
                 assertThat(mode(e, entity, julyFirst.plusDays(1))).isEqualTo(CLAIMABLE)
