@@ -50,6 +50,7 @@ import com.dynokore.gst.rules.domain.scope.ScopeVerdict as DomainScopeVerdict
  * Open, because Spring proxies a controller.
  */
 @RestController
+@Suppress("TooManyFunctions", "LongParameterList") // one pure evaluation; each collaborator is a port of it
 open class EvaluationController(
     private val evaluate: EvaluateDocument,
     private val packs: PackContentsReader,
@@ -127,6 +128,7 @@ open class EvaluationController(
      * document's, INV-Q-14414 A). A `documentFunction` without `documentKind` or `lineSign` selects no row (fail
      * closed, INV-Q-14800 A). A key with no row is RUL-012 and no scope pack in force is RUL-002 (INV-Q-14802 A).
      */
+    @Suppress("ReturnCount") // the three guard answers read in order: no input, no key part, the table
     private fun classificationOf(
         request: EvaluateDocumentRequest,
         tenant: TenantId,
@@ -159,7 +161,12 @@ open class EvaluationController(
     ): Classified =
         when (classification) {
             is Classification.InvoiceData -> {
-                done(classification.documentFunction, classification.documentTypeCode, classification, classification.trace)
+                done(
+                    classification.documentFunction,
+                    classification.documentTypeCode,
+                    classification,
+                    classification.trace,
+                )
             }
 
             // an asserted NOT_A_BILL that no row settles is not classified by a row: RUL-012, like any other no-row key
@@ -192,7 +199,12 @@ open class EvaluationController(
         tenant: TenantId,
         date: TransactionDate,
     ): PackVersionApplied? =
-        packs.versionAt(PackTypes.SCOPE, tenant, date)?.let { PackVersionApplied(PackTypes.SCOPE.value, it.version.value) }
+        packs
+            .versionAt(
+                PackTypes.SCOPE,
+                tenant,
+                date,
+            )?.let { PackVersionApplied(PackTypes.SCOPE.value, it.version.value) }
 
     private fun classificationTrace(entry: ClassificationTraceEntry): Map<String, Any> =
         mapOf(
@@ -212,7 +224,14 @@ open class EvaluationController(
         val (outcome, answered) = scopeOutcomeOf(request, tenant, date, coding)
         val versions = versionsApplied(tenant, date) + listOfNotNull(refused.scopeVersion)
         val trace = ScopeRequestFacts.traceWith(null, outcome)
-        return answer(outcome, answered, DocumentCodingResult.Refused(refused.code, PackTypes.SCOPE, date), versions, trace, null)
+        return answer(
+            outcome,
+            answered,
+            DocumentCodingResult.Refused(refused.code, PackTypes.SCOPE, date),
+            versions,
+            trace,
+            null,
+        )
     }
 
     /**
@@ -313,6 +332,7 @@ open class EvaluationController(
             packs.versionAt(type, tenant, date)?.let { PackVersionApplied(type.value, it.version.value) }
         }
 
+    @Suppress("LongParameterList", "LongMethod") // the answer is assembled from the parts of one evaluation
     private fun answer(
         outcome: ScopeOutcome,
         coding: LineCoding,

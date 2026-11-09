@@ -69,9 +69,11 @@ private data class Row(
     val key get() = "$upstream/$kind/$sign"
 
     fun json() =
-        """{"upstreamFunction":"$upstream","upstreamKind":"$kind","signOfTotal":"$sign","documentFunction":"$function",""" +
-            (code?.let { """"documentTypeCode":"$it",""" } ?: "") +
-            """"signNormalised":$normalised,"cancellation":$cancellation,"sourceClass":"PRIMARY","sourceReference":"t"}"""
+        """{"upstreamFunction":"$upstream","upstreamKind":"$kind","signOfTotal":"$sign",""" +
+            """"documentFunction":"$function",""" +
+            code?.let { """"documentTypeCode":"$it",""" }.orEmpty() +
+            """"signNormalised":$normalised,"cancellation":$cancellation,""" +
+            """"sourceClass":"PRIMARY","sourceReference":"t"}"""
 }
 
 private val NEGATIVE_INVOICE = Row("BILL_FOR_PAYMENT", "INVOICE", "NEGATIVE", "ADJUSTMENT", "381", true)
@@ -104,7 +106,8 @@ private object ClPacks {
 
     val scope =
         """{"classificationTable":[${ROWS.joinToString(",") { it.json() }}],"lineScopeRules":[""" +
-            """{"categoryCode":"SR","lineVerdict":"IN_SCOPE","sourceClass":"PRIMARY","sourceReference":"invented"}],""" +
+            """{"categoryCode":"SR","lineVerdict":"IN_SCOPE","sourceClass":"PRIMARY",""" +
+            """"sourceReference":"invented"}],""" +
             """"intraGroupRule":{"treatment":"PASS_THROUGH","sourceClass":"INFERRED","sourceReference":"t"}}"""
 
     val packs =
@@ -180,6 +183,7 @@ class ClassificationBoundaryTest(
         )
     }
 
+    @Suppress("LongParameterList") // the parts of one request body, each overridable by a look-alike case
     private fun request(
         row: Row?,
         date: String = CL_DAY,
@@ -189,9 +193,9 @@ class ClassificationBoundaryTest(
         code: String = "STD",
         extra: String = "",
     ) = """{"entityRef":"$CL_ENTITY","transactionDate":"$date","internalTaxCode":"$code"""" +
-        (function?.let { ""","documentFunction":"$it"""" } ?: "") +
-        (kind?.let { ""","documentKind":"$it"""" } ?: "") +
-        (sign?.let { ""","lineSign":"$it"""" } ?: "") + extra + "}"
+        function?.let { ""","documentFunction":"$it"""" }.orEmpty() +
+        kind?.let { ""","documentKind":"$it"""" }.orEmpty() +
+        sign?.let { ""","lineSign":"$it"""" }.orEmpty() + extra + "}"
 
     private fun post(
         path: String,
@@ -245,7 +249,7 @@ class ClassificationBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-14810 INV-AC-1717 a negative-total invoice row gives 381 with signNormalised true on both operations`() {
+    fun `INV-AC-14810 INV-AC-1717 a negative-total invoice row gives 381 with signNormalised true`() {
         both(request(NEGATIVE_INVOICE)).forEach {
             it.shouldBeResultOf(NEGATIVE_INVOICE)
             it.text("documentTypeCode") shouldBe "381"
@@ -309,7 +313,8 @@ class ClassificationBoundaryTest(
 
     @Test
     fun `INV-AC-14810 look-alike keys select no row and are answered RUL-012 with no type code`() {
-        val unmapped = post(CL_PATH_DOCUMENT, request(null, code = "NO-SUCH-CODE")) // another refused line, for the verdict
+        // another refused line (an unmapped code), whose scope verdict the classification refusals must equal
+        val unmapped = post(CL_PATH_DOCUMENT, request(null, code = "NO-SUCH-CODE"))
         listOf(
             request(NEGATIVE_INVOICE, kind = "INVOICE "), // trailing blank
             request(NEGATIVE_INVOICE, kind = "INVOICE2"), // a longer name
@@ -357,6 +362,7 @@ class ClassificationBoundaryTest(
     @Test
     fun `INV-AC-14810 a refused classification stores nothing`() {
         val owner = TenancyProbe.connect(PostgresRules.pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
+
         fun snapshot() =
             owner
                 .fetchRows(
