@@ -1,6 +1,5 @@
 package com.dynokore.gst.tenancy.adapters.http
 
-import com.dynokore.gst.tenancy.adapters.lifecycle.AuditLogLifecycleAudit
 import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
 import com.dynokore.gst.tenancy.application.certification.CertifySandbox
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
@@ -81,7 +80,6 @@ import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
-import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -117,8 +115,6 @@ open class EntitiesController(
     private val goLiveUseCase: GoLive,
     private val suspendUseCase: SuspendEntity,
     private val deregisterUseCase: DeregisterEntity,
-    private val tx: TransactionRunner,
-    private val lifecycleAudit: AuditLogLifecycleAudit,
 ) : EntitiesApi {
     override fun createGroup(
         idempotencyKey: UUID,
@@ -537,20 +533,8 @@ open class EntitiesController(
         idempotencyKey: UUID,
         suspendEntityRequest: SuspendEntityRequest,
     ): ResponseEntity<EntityResponse> {
-        val actor = lifecycleActor(entityRef)
-        val outcome =
-            tx.inTransaction {
-                suspendUseCase.handle(entityRef).also {
-                    if (it is LifecycleOutcome.Done) {
-                        lifecycleAudit.suspended(
-                            actor,
-                            entityRef,
-                            suspendEntityRequest.reason,
-                        )
-                    }
-                }
-            }
-        return lifecycleResult(outcome)
+        lifecycleActor(entityRef)
+        return lifecycleResult(suspendUseCase.handle(entityRef))
     }
 
     /** deregisterEntity (INV-REQ-956 b1, INV-Q-16387): 409 TNC-008 for an unsubmitted document without an override. */

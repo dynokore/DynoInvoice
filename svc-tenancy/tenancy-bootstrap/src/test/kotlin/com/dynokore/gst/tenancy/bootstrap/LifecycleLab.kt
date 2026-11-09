@@ -203,28 +203,3 @@ internal fun lifecycleRegistered(
     period.change(entity, Freq.QUARTERLY, "2026-01-01")
     l.people.caller = ADMIN
 }
-
-/** The audit entries of the entity (the audit-log events staged in the outbox) whose action is [action]. */
-internal fun auditRows(
-    entity: EntityResponse,
-    action: String,
-): List<JsonNode> =
-    BoundaryFixture.asSuperuser { c ->
-        c
-            .prepareStatement(
-                "select data::text from tenancy.outbox where topic = 'gst.platform.audit-entry-recorded.v1' " +
-                    "and entity_ref = ? and data::text like ? order by seq",
-            ).use { s ->
-                s.setString(1, entity.entityRef)
-                s.setString(2, "%$action%")
-                s.executeQuery().use { rs ->
-                    generateSequence { if (rs.next()) json.readTree(rs.getString(1)) else null }.toList()
-                }
-            }
-    }
-
-internal fun callSuspendWith(
-    env: ProfileEnv,
-    entity: EntityResponse,
-    reason: String,
-) = lifecycleCall { env.api.suspendEntity(entity.entityRef, UUID.randomUUID(), SuspendEntityRequest(reason)) }
