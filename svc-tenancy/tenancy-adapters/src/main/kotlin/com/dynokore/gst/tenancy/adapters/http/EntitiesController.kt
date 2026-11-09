@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.application.certification.CertifyOutcome
 import com.dynokore.gst.tenancy.application.certification.CertifySandbox
 import com.dynokore.gst.tenancy.application.election.ActionAuthority
 import com.dynokore.gst.tenancy.application.election.CallerSource
+import com.dynokore.gst.tenancy.application.election.ClosedChange
 import com.dynokore.gst.tenancy.application.election.ElectionCommands
 import com.dynokore.gst.tenancy.application.election.ElectionOutcome
 import com.dynokore.gst.tenancy.application.election.ElectionRecord
@@ -44,6 +45,7 @@ import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.DeregisterEntityRequest
 import com.dynokore.gst.tenancy.contract.model.ElectionChangeApproved
+import com.dynokore.gst.tenancy.contract.model.ElectionChangeClosed
 import com.dynokore.gst.tenancy.contract.model.ElectionRequest
 import com.dynokore.gst.tenancy.contract.model.ElectionResponse
 import com.dynokore.gst.tenancy.contract.model.ElectionStatusResponse
@@ -57,6 +59,7 @@ import com.dynokore.gst.tenancy.contract.model.IssuanceModeResponse
 import com.dynokore.gst.tenancy.contract.model.MigrationCutoverRecord
 import com.dynokore.gst.tenancy.contract.model.MoveBusinessUnitRequest
 import com.dynokore.gst.tenancy.contract.model.PendingElectionChange
+import com.dynokore.gst.tenancy.contract.model.PendingElectionChangeList
 import com.dynokore.gst.tenancy.contract.model.PhaseAssessmentResponse
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionResponse
@@ -379,6 +382,73 @@ open class EntitiesController(
                 refused(outcome)
             }
         }
+
+    override fun withdrawElectionChange(
+        entityRef: String,
+        changeRef: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<ElectionChangeClosed> =
+        when (val outcome = electionCommands.withdrawElectionChange(entityRef, changeRef)) {
+            is ElectionOutcome.Withdrawn -> {
+                ResponseEntity.ok(
+                    closedChange(outcome.closure, ElectionChangeClosed.Outcome.WITHDRAWN),
+                )
+            }
+
+            else -> {
+                refused(outcome)
+            }
+        }
+
+    override fun declineElectionChange(
+        entityRef: String,
+        changeRef: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<ElectionChangeClosed> =
+        when (val outcome = electionCommands.declineElectionChange(entityRef, changeRef)) {
+            is ElectionOutcome.Declined -> {
+                ResponseEntity.ok(
+                    closedChange(outcome.closure, ElectionChangeClosed.Outcome.DECLINED),
+                )
+            }
+
+            else -> {
+                refused(outcome)
+            }
+        }
+
+    override fun listElectionChanges(
+        entityRef: String,
+        limit: Int,
+        cursor: String?,
+    ): ResponseEntity<PendingElectionChangeList> =
+        when (val outcome = electionCommands.listElectionChanges(entityRef, limit, cursor)) {
+            is ElectionOutcome.Listed -> {
+                ResponseEntity.ok(
+                    PendingElectionChangeList(
+                        items = outcome.page.items.map { pendingChange(it) },
+                        nextCursor = outcome.page.next,
+                    ),
+                )
+            }
+
+            else -> {
+                refused(outcome)
+            }
+        }
+
+    private fun closedChange(
+        closure: ClosedChange,
+        outcome: ElectionChangeClosed.Outcome,
+    ): ElectionChangeClosed =
+        ElectionChangeClosed(
+            changeRef = closure.change.changeRef,
+            entityRef = closure.change.entityRef,
+            outcome = outcome,
+            requestedBy = closure.change.requestedBy,
+            closedBy = closure.closedBy,
+            closedAt = closure.closedAt.atOffset(ZoneOffset.UTC),
+        )
 
     override fun getElectionStatus(
         entityRef: String,
