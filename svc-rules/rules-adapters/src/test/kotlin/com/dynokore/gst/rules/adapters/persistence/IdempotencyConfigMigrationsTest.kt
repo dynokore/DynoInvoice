@@ -36,12 +36,14 @@ class IdempotencyConfigMigrationsTest {
     }
 
     @Test
-    fun `both versions are above the highest earlier migration and the idempotency file sorts first`() {
-        val idempotency = version(idempotencyFile.single().name)
-        val config = version(configFile.single().name)
-        (idempotency > PREVIOUS_HIGHEST) shouldBe true
-        (config > PREVIOUS_HIGHEST) shouldBe true
-        (idempotency < config) shouldBe true
+    fun `both versions are above the highest earlier migration`() {
+        (version(idempotencyFile.single().name) > PREVIOUS_HIGHEST) shouldBe true
+        (version(configFile.single().name) > PREVIOUS_HIGHEST) shouldBe true
+    }
+
+    @Test
+    fun `the idempotency file sorts before the config-resolver file`() {
+        (version(idempotencyFile.single().name) < version(configFile.single().name)) shouldBe true
     }
 
     /** The comparison text: leading `--` lines dropped, the rest trimmed. */
