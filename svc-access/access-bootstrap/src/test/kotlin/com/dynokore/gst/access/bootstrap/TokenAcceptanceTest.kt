@@ -525,28 +525,34 @@ class TokenPrincipalTypeAcceptanceTest {
         )
 
     @Test
-    fun `INV-AC-13560 ingest token carries principal_type ingest`() =
+    fun `INV-AC-13560 ingest token carries principal_type ingest`() {
         assertThat(principalTypeIssued("INGEST")).isEqualTo("ingest")
+    }
 
     @Test
-    fun `INV-AC-13560 filing workflow token carries principal_type filing-workflow`() =
+    fun `INV-AC-13560 filing workflow token carries principal_type filing-workflow`() {
         assertThat(principalTypeIssued("FILING_WORKFLOW")).isEqualTo("filing-workflow")
+    }
 
     @Test
-    fun `INV-AC-13560 ap callback token carries principal_type ap-callback`() =
+    fun `INV-AC-13560 ap callback token carries principal_type ap-callback`() {
         assertThat(principalTypeIssued("AP_CALLBACK")).isEqualTo("ap-callback")
+    }
 
     @Test
-    fun `INV-AC-13560 reporting token carries principal_type reporting`() =
+    fun `INV-AC-13560 reporting token carries principal_type reporting`() {
         assertThat(principalTypeIssued("REPORTING")).isEqualTo("reporting")
+    }
 
     @Test
-    fun `INV-AC-13560 monitoring token carries principal_type monitoring`() =
+    fun `INV-AC-13560 monitoring token carries principal_type monitoring`() {
         assertThat(principalTypeIssued("MONITORING")).isEqualTo("monitoring")
+    }
 
     @Test
-    fun `INV-AC-13560 certification token carries principal_type certification`() =
+    fun `INV-AC-13560 certification token carries principal_type certification`() {
         assertThat(principalTypeIssued("CERTIFICATION")).isEqualTo("certification")
+    }
 
     @Test
     fun `INV-AC-13560 the look-alike names are none of the six`() {
