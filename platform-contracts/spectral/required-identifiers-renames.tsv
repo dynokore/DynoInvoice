@@ -7,3 +7,5 @@ control-plane/required-identifiers.tsv	GateRunResponse.recordedByRole	schema_pro
 # only if the head holds no row with that triple and the element is really absent from <dir>/<old_file> at the head (kind
 # operation: no operationId equal to old_identifier). The map is read from the base commit. RETIRED in only some of the three
 # cells, a duplicate line for one table and old triple, or an unruled line is a finding.
+access/required-identifiers.tsv	issueSignatoryLink	operation	openapi.yaml	RETIRED	RETIRED	RETIRED	INV-Q-17416
+access/required-identifiers.tsv	recipientMobile	property	openapi.yaml	RETIRED	RETIRED	RETIRED	INV-Q-17416
