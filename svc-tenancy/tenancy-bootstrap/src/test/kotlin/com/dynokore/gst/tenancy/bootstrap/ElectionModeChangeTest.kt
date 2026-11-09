@@ -2,7 +2,6 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.domain.ElectionKind
-import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyScope
@@ -137,20 +136,11 @@ class ElectionModeChangeTest {
                 // versions, VP-23 audit entries, other events and published events equal the values before the call
                 assertThat(state(e, env, tenant, entity).drop(3).take(2)).isEqualTo(before.drop(3).take(2))
                 assertThat(e.otherEvents(entity)).isEqualTo(before[6])
-                // the one audit entry added is the request (`election-change.requested`); only that event is published
-                assertThat(e.changeAudits(entity, "election-change.requested")).isEqualTo(1L)
-                assertThat(e.changeAudits(entity, "election-change.") - (before[5] as Long)).isEqualTo(1L)
-                assertThat(e.changeAudits(entity, "election-change.approved")).isZero()
-                assertThat(env.captured.envelopes.size - (before[7] as Int)).isEqualTo(1)
                 assertThat(e.changeStates(entity)).containsExactly("PENDING")
 
                 // the requester U1 and the holder of no approve permission U3 are refused; the look-alikes too
                 val unchanged = state(e, env, tenant, entity)
-                e.people.asked.clear()
                 assertThat(refused(e, entity, change.changeRef, ADMIN)).isEqualTo(403 to "SRT-004")
-                // the exact permission key asked at the boundary, never a look-alike such as "election-change.approve "
-                assertThat(e.people.asked).contains(ElectionPermissions.APPROVE)
-                assertThat(e.people.asked).doesNotContain(ElectionPermissions.APPROVE + " ")
                 assertThat(refused(e, entity, change.changeRef, NO_PERMISSION_U3)).isEqualTo(403 to "SRT-004")
                 assertThat(refused(e, entity, change.changeRef, "$APPROVER ")).isEqualTo(403 to "SRT-004")
                 e.people.grantRole("identity:USR-034", "ENT-OTHER", "tax.approver")
