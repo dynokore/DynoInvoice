@@ -225,6 +225,9 @@ paths:
       x-timeout: 3000
       x-error-codes: []
       x-requirements: [INV-REQ-904]
+      x-operation:
+        kind: PERMISSION
+        permission: period-readiness.view
       parameters:
         - name: limit
           in: query
@@ -1213,9 +1216,8 @@ components:
           items:
             $ref: '#/components/schemas/PortfolioRow'
         nextCursor:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: Absent on the last page (API-18).
       required: [items]
     PortfolioRow:
       type: object
