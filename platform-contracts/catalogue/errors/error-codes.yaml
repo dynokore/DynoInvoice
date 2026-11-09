@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 03bf5b6ed7232362ceb836094380637c1934b66a (2026-11-09), the merge of invoice-docs INV-T-18946 adding MDM-016 to MDM-018, the connection error codes (INV-T-18947, coordinator ruling of breakdown tooling/gap18774-gap.md);
+# pinned at commit 92ad97b4853360b6fef30cef44c6ed5ea4cd6cb0 (2026-11-09), the merge of invoice-docs INV-T-19381 adding TNC-012, tenant open refused (INV-T-19382, coordinator ruling of breakdown tooling/gap8142-gap.md);
+# previously pinned at 03bf5b6ed7232362ceb836094380637c1934b66a (2026-11-09), the merge of invoice-docs INV-T-18946 adding MDM-016 to MDM-018, the connection error codes (INV-T-18947, coordinator ruling of breakdown tooling/gap18774-gap.md);
 # previously pinned at 692c582333cf6f650694b24eb100b448946bc347 (2026-11-09), the merge of invoice-docs INV-T-18915 adding MDM-012 to MDM-015, the rate import error codes (INV-T-18916, coordinator ruling of breakdown tooling/gap18772-gap.md);
 # previously pinned at a387243fb0b03d0c27b08d77eb936e6e785f8c7b (2026-11-08), the merge of invoice-docs INV-T-18812 adding TNC-011 (INV-T-18813, coordinator ruling of breakdown tooling/tenancy-cutover-gap.md);
 # previously pinned at baecd0f87a9069b093da85710352e349ad25beba (2026-11-08), the merge of invoice-docs INV-T-18371 adding MDM-011 (INV-T-18372, coordinator ruling option A of tooling/gap18217-gap.md);
@@ -1011,6 +1012,11 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+- code: TNC-012
+  condition: "Tenant open refused: the tenant is CLOSED, so openTenant cannot set it to OPEN; the tenant stays CLOSED and nothing is changed (HTTP 409; INV-REQ-8100, INV-Q-8097)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
 - code: ING-022
   condition: "Aggregate number cannot be built: the number would exceed 64 characters, or the entity or business unit has no registered short code of 1 to 10 characters A-Z 0-9 in the structure; nothing is stored (HTTP 422; INV-REQ-436, INV-REQ-850 b7, INV-Q-11264)"
   severity: BLOCK
