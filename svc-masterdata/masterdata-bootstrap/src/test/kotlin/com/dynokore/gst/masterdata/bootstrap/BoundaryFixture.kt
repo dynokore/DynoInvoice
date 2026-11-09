@@ -81,7 +81,7 @@ object TestPermissions {
     /** A person holding only the look-alike key `exchange-rate.imports` (plural). */
     const val LOOKALIKE_IMPORTER = "IDN-LOOKALIKE-IMPORTER"
 
-    /** The look-alike of [OPERATOR] with a trailing space; it holds the same keys, so only the actor equality differs. */
+    /** The look-alike of [OPERATOR] with a trailing space; same keys, so only the actor equality differs. */
     const val LOOKALIKE_OPERATOR = "IDN-OPERATOR "
 
     fun keysOf(person: String): Set<String> =

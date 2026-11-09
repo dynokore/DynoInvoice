@@ -62,23 +62,7 @@ class RateImport(
         val entityRef =
             request.entityRef?.trim()?.takeIf { it.isNotEmpty() }
                 ?: throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "entityRef is required")
-        val rows =
-            request.rows.orEmpty().mapIndexed { index, row ->
-                RateRow(index + 1, row.currency, QUOTE_CURRENCY, row.date, row.rate.toPlainString())
-            }
-        val importId = "IMP-" + UUID.randomUUID()
-        val command =
-            ImportRatesCommand(
-                entity = entityRef,
-                actor = actor,
-                source = request.source,
-                rangeFrom = request.dateRange.from,
-                rangeTo = request.dateRange.to,
-                importId = importId,
-                fileHash = request.fileHash.orEmpty(),
-                rowCount = request.rowCount ?: rows.size,
-                rows = rows,
-            )
+        val command = command(request, actor, entityRef)
         val outcome =
             try {
                 import.handle(command)
@@ -88,6 +72,14 @@ class RateImport(
                 // the record is FAILED; the caller gets the API-20 envelope, no detail (API-22)
                 throw ApiRefusal(ClosedErrorCode.INTERNAL_ERROR)
             }
+        return answer(command.importId, outcome)
+    }
+
+    @Suppress("ThrowsCount") // each outcome is one distinct API answer or refusal
+    private fun answer(
+        importId: String,
+        outcome: ImportRatesOutcome,
+    ): ResponseEntity<ImportResult> {
         RateWireCodes.refusal(outcome)?.let { throw it }
         return when (outcome) {
             is ImportRatesOutcome.Loaded -> {
@@ -112,6 +104,28 @@ class RateImport(
                 error("refusal outcome without a wire code")
             }
         }
+    }
+
+    private fun command(
+        request: ImportRatesRequest,
+        actor: String,
+        entityRef: String,
+    ): ImportRatesCommand {
+        val rows =
+            request.rows.orEmpty().mapIndexed { index, row ->
+                RateRow(index + 1, row.currency, QUOTE_CURRENCY, row.date, row.rate.toPlainString())
+            }
+        return ImportRatesCommand(
+            entity = entityRef,
+            actor = actor,
+            source = request.source,
+            rangeFrom = request.dateRange.from,
+            rangeTo = request.dateRange.to,
+            importId = "IMP-" + UUID.randomUUID(),
+            fileHash = request.fileHash.orEmpty(),
+            rowCount = request.rowCount ?: rows.size,
+            rows = rows,
+        )
     }
 
     private fun importRecord(record: RateImportRecord): ImportRecord =

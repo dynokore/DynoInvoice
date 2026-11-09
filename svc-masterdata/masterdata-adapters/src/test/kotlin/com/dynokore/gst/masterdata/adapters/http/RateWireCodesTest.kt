@@ -1,10 +1,14 @@
 package com.dynokore.gst.masterdata.adapters.http
 
 import com.dynokore.gst.catalogue.ErrorCode
+import com.dynokore.gst.masterdata.application.gapreport.RecordState
 import com.dynokore.gst.masterdata.application.rate.ImportRatesOutcome
+import com.dynokore.gst.masterdata.application.rate.RateImportRecord
 import com.dynokore.gst.masterdata.application.rate.RateRowRejection
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import java.time.Instant
+import java.time.LocalDate
 
 /** INV-T-18775 wire codes: each of the six pairs, the pinned catalogue, and the look-alike. */
 class RateWireCodesTest {
@@ -28,9 +32,27 @@ class RateWireCodesTest {
         assertThat(refused(ImportRatesOutcome.RowCountMismatch).status).isEqualTo(400)
     }
 
+    private fun record() =
+        RateImportRecord(
+            "IMP-1",
+            "E1",
+            "IDN-A",
+            "MAS",
+            LocalDate.parse("2026-03-01"),
+            LocalDate.parse("2026-03-31"),
+            RecordState.RUNNING,
+            Instant.parse("2026-03-01T00:00:00Z"),
+            null,
+            null,
+            null,
+            null,
+            null,
+        )
+
     @Test
-    fun `a loaded outcome is no refusal`() {
-        assertThat(RateWireCodes.refusal(ImportRatesOutcome.Loaded(0, emptyList()))).isNull()
+    fun `a loaded or running outcome is no refusal`() {
+        assertThat(RateWireCodes.refusal(ImportRatesOutcome.Loaded(0, emptyList(), record()))).isNull()
+        assertThat(RateWireCodes.refusal(ImportRatesOutcome.Running(record()))).isNull()
     }
 
     @Test

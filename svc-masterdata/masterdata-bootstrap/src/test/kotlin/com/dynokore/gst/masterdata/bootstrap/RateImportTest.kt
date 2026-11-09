@@ -105,19 +105,15 @@ private class DelayedStore(
     }
 }
 
-/**
- * INV-T-18775 at the service boundary: `importRates` and `getRegisterAndRates` over the real context, real PostgreSQL,
- * the election read through `PolicyReader` and the approved sources replicated into the scope pack tables.
- * INV-REQ-506.
- */
-class RateImportTest {
-    private val elections = ConcurrentHashMap<String, NavigableMap<LocalDate, Pair<String, String>>>()
-    private val mapper = JsonMapper.builder().build()
-    private val asked: MutableList<Pair<String, String>> = java.util.concurrent.CopyOnWriteArrayList()
-    private val now = Instant.parse("2026-01-01T00:00:00Z")
-    private val saveDelays = ConcurrentHashMap<String, Long>()
+/** The shared fixture of the rate import boundary tests. */
+internal abstract class RateImportHarness {
+    protected val elections = ConcurrentHashMap<String, NavigableMap<LocalDate, Pair<String, String>>>()
+    protected val mapper = JsonMapper.builder().build()
+    protected val asked: MutableList<Pair<String, String>> = java.util.concurrent.CopyOnWriteArrayList()
+    protected val now = Instant.parse("2026-01-01T00:00:00Z")
+    protected val saveDelays = ConcurrentHashMap<String, Long>()
 
-    private data class Answer(
+    protected data class Answer(
         val status: Int,
         val body: String,
     ) {
@@ -125,7 +121,7 @@ class RateImportTest {
         val code: String? get() = node.get("code")?.asString()
     }
 
-    private fun run(block: (RegistryEnv) -> Unit) =
+    protected fun run(block: (RegistryEnv) -> Unit) =
         runRegistry(
             customize = {
                 it
@@ -136,7 +132,7 @@ class RateImportTest {
         ) { env -> block(env) }
 
     /** Elects [source] with [basis] for [entity] from [from]: the replica answer VP-24 gives (entity scope). */
-    private fun RegistryEnv.elect(
+    protected fun RegistryEnv.elect(
         entity: String,
         source: String,
         basis: String,
@@ -146,7 +142,7 @@ class RateImportTest {
     }
 
     /** The scope pack that approves [sources] with the basis `DAILY` from [from]. */
-    private fun RegistryEnv.approve(
+    protected fun RegistryEnv.approve(
         from: LocalDate,
         vararg sources: String,
     ) = ce.inTenant {
@@ -157,7 +153,7 @@ class RateImportTest {
         }
     }
 
-    private fun RegistryEnv.post(
+    protected fun RegistryEnv.post(
         body: String,
         actor: String = OPERATOR,
     ): Answer =
@@ -177,7 +173,40 @@ class RateImportTest {
             Answer(response.status, response.contentAsString)
         }
 
-    private fun RegistryEnv.record(
+    protected fun RegistryEnv.awaitDone(id: String): String {
+        val deadline =
+            System.nanoTime() +
+                java.time.Duration
+                    .ofSeconds(WAIT_SECONDS)
+                    .toNanos()
+        var state = "RUNNING"
+        while (state == "RUNNING" && System.nanoTime() < deadline) {
+            Thread.sleep(POLL_MILLIS)
+            state =
+                record(id)
+                    .first.node
+                    .get("state")
+                    .asString()
+        }
+        return state
+    }
+
+    protected fun RegistryEnv.postRaw(body: String) =
+        ce.inTenant(OPERATOR) {
+            MockMvcBuilders
+                .webAppContextSetup(context.sourceApplicationContext as WebApplicationContext)
+                .build()
+                .perform(
+                    MockMvcRequestBuilders
+                        .post("/internal/v1/masterdata/exchange-rates/import")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body),
+                ).andReturn()
+                .response
+        }
+
+    protected fun RegistryEnv.record(
         importId: String,
         actor: String = OPERATOR,
     ): Pair<Answer, String?> =
@@ -192,10 +221,10 @@ class RateImportTest {
             Answer(response.status, response.contentAsString) to response.getHeader("Location")
         }
 
-    private fun RegistryEnv.importRecords() =
+    protected fun RegistryEnv.importRecords() =
         count("select count(*) from masterdata.rate_import where tenant_id = '{tenant}'::uuid")
 
-    private fun RegistryEnv.get(
+    protected fun RegistryEnv.get(
         query: String,
         actor: String = OPERATOR,
         entityRef: String? = null,
@@ -214,7 +243,7 @@ class RateImportTest {
             Answer(response.status, response.contentAsString)
         }
 
-    private fun body(
+    protected fun body(
         source: String,
         from: LocalDate,
         vararg rows: Pair<LocalDate, String>,
@@ -227,12 +256,25 @@ class RateImportTest {
             """"currencyPairs":["USD/SGD"],"rowCount":${rows.size},"rows":[$rowJson]$entityPart}"""
     }
 
-    private fun RegistryEnv.rateRows(source: String): Int =
+    protected fun RegistryEnv.rateRows(source: String): Int =
         count("select count(*) from masterdata.exchange_rate where tenant_id = '{tenant}'::uuid and source = '$source'")
 
-    private fun RegistryEnv.loadedEvents() =
+    protected fun RegistryEnv.loadedEvents() =
         ce.captured.envelopes.count { it.tenant == ce.tenant && it.type == ReferenceRateLoadedOutbox.EVENT_TYPE }
 
+    protected companion object {
+        const val LATE_MILLIS = 3500L
+        const val WAIT_SECONDS = 20L
+        const val POLL_MILLIS = 250L
+    }
+}
+
+/**
+ * INV-T-18775 at the service boundary: `importRates` and `getRegisterAndRates` over the real context, real PostgreSQL,
+ * the election read through `PolicyReader` and the approved sources replicated into the scope pack tables.
+ * INV-REQ-506.
+ */
+internal class RateImportTest : RateImportHarness() {
     @Test
     fun `INV-AC-8626 the elected approved source loads and publishes once, the unlisted source stores nothing`() =
         run { env ->
@@ -430,118 +472,4 @@ class RateImportTest {
             assertThat(env.get(query, entityRef = entity).status).isEqualTo(200)
             assertThat(asked).isEmpty()
         }
-
-    @Test
-    fun `INV-AC-8626 a load with one invalid rate is 201 and its record lists the rejected row with MDM-015`() =
-        run { env ->
-            val d0 = env.businessDate()
-            val entity = env.entity()
-            env.elect(entity, "MAS", "DAILY", d0)
-            env.approve(d0, "MAS")
-            val loaded = env.post(body("MAS", d0, d0.plusDays(1) to "0", d0.plusDays(2) to "1.36", entity = entity))
-            assertThat(loaded.status).describedAs(loaded.body).isEqualTo(201)
-            val importId = loaded.node.get("importId").asString()
-            val (read, _) = env.record(importId)
-            assertThat(read.status).describedAs(read.body).isEqualTo(200)
-            assertThat(read.node.get("importKind").asString()).isEqualTo("RATES")
-            assertThat(read.node.get("state").asString()).isEqualTo("SUCCEEDED")
-            assertThat(read.node.get("source").asString()).isEqualTo("MAS")
-            assertThat(
-                read.node
-                    .get("result")
-                    .get("appliedCount")
-                    .asInt(),
-            ).isEqualTo(1)
-            assertThat(
-                read.node
-                    .get("result")
-                    .get("failedCount")
-                    .asInt(),
-            ).isEqualTo(1)
-            val rejected = read.node.get("rejectedRows")
-            assertThat(rejected.size()).isEqualTo(1)
-            assertThat(rejected.get(0).get("row").asInt()).isEqualTo(1)
-            assertThat(rejected.get(0).get("code").asString()).isEqualTo(ErrorCode.MDM_015.code)
-            // a second caller, even the look-alike principal holding the same keys, finds no such record
-            assertThat(env.record(importId, TestPermissions.LOOKALIKE_OPERATOR).first.status).isEqualTo(404)
-            assertThat(env.record(importId, TestPermissions.OTHER_OPERATOR).first.status).isEqualTo(404)
-        }
-
-    @Test
-    fun `INV-AC-8626 a refused import or a caller without exchange-rate import leaves 0 rate import records`() =
-        run { env ->
-            val d0 = env.businessDate()
-            val entity = env.entity()
-            env.elect(entity, "MAS", "DAILY", d0)
-            env.approve(d0, "MAS")
-            val refused = env.post(body("MAS2", d0, d0.plusDays(1) to "1.35", entity = entity))
-            assertThat(refused.code).isEqualTo(ErrorCode.MDM_012.code)
-            val denied = env.post(body("MAS", d0, d0.plusDays(1) to "1.35", entity = entity), actor = "IDN-NOBODY")
-            assertThat(denied.status).isEqualTo(403)
-            assertThat(env.importRecords()).isZero()
-        }
-
-    @Test
-    fun `INV-AC-8626 a load held beyond the wait answers 202 with Location, Retry-After and the RUNNING record`() =
-        run { env ->
-            val d0 = env.businessDate()
-            val entity = env.entity()
-            env.elect(entity, "MAS", "DAILY", d0)
-            env.approve(d0, "MAS")
-            saveDelays["MAS"] = LATE_MILLIS
-            val response =
-                env.ce.inTenant(OPERATOR) {
-                    MockMvcBuilders
-                        .webAppContextSetup(env.context.sourceApplicationContext as WebApplicationContext)
-                        .build()
-                        .perform(
-                            MockMvcRequestBuilders
-                                .post("/internal/v1/masterdata/exchange-rates/import")
-                                .header("Idempotency-Key", UUID.randomUUID().toString())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(body("MAS", d0, d0.plusDays(1) to "1.35", entity = entity)),
-                        ).andReturn()
-                        .response
-                }
-            assertThat(response.status).describedAs(response.contentAsString).isEqualTo(202)
-            val location = checkNotNull(response.getHeader("Location"))
-            assertThat(location).startsWith("/internal/v1/masterdata/imports/IMP-")
-            assertThat(response.getHeader("Retry-After")).isNotBlank()
-            val running = mapper.readTree(response.contentAsString)
-            assertThat(running.get("importKind").asString()).isEqualTo("RATES")
-            assertThat(running.get("state").asString()).isEqualTo("RUNNING")
-            assertThat(running.get("source").asString()).isEqualTo("MAS")
-            assertThat(running.get("dateRange").get("from").asString()).isEqualTo(d0.toString())
-            val id = location.substringAfterLast('/')
-            assertThat(
-                env
-                    .record(id)
-                    .first.node
-                    .get("state")
-                    .asString(),
-            ).isEqualTo("RUNNING")
-            val deadline =
-                System.nanoTime() +
-                    java.time.Duration
-                        .ofSeconds(WAIT_SECONDS)
-                        .toNanos()
-            var state = "RUNNING"
-            while (state == "RUNNING" && System.nanoTime() < deadline) {
-                Thread.sleep(POLL_MILLIS)
-                state =
-                    env
-                        .record(id)
-                        .first.node
-                        .get("state")
-                        .asString()
-            }
-            assertThat(state).isEqualTo("SUCCEEDED")
-            assertThat(env.rateRows("MAS")).isEqualTo(1)
-        }
-
-    private companion object {
-        const val LATE_MILLIS = 3500L
-        const val WAIT_SECONDS = 20L
-        const val POLL_MILLIS = 250L
-    }
 }
