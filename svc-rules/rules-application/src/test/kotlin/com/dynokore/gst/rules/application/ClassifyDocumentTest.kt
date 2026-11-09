@@ -11,11 +11,11 @@ import com.dynokore.gst.rules.domain.classification.JournalClassification
 import com.dynokore.gst.rules.domain.classification.JournalPosting
 import com.dynokore.gst.rules.domain.classification.SignOfTotal
 import com.dynokore.gst.rules.domain.classification.SubmissionMethod
-import com.dynokore.gst.rules.domain.resolution.AppliedPack
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.rulepackkernel.PackId
 import com.dynokore.platform.rulepackkernel.PackVersionLabel
+import com.dynokore.platform.rulepackkernel.evaluation.AppliedPack
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test

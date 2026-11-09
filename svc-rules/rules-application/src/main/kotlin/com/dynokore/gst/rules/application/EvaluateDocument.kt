@@ -2,10 +2,6 @@ package com.dynokore.gst.rules.application
 
 import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.domain.coding.LineCoding
-import com.dynokore.gst.rules.domain.evaluation.Evaluation
-import com.dynokore.gst.rules.domain.evaluation.EvaluationInputs
-import com.dynokore.gst.rules.domain.evaluation.EvaluationOutcome
-import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.evaluation.InFlightEvaluation
 import com.dynokore.gst.rules.domain.resolution.PackResolution
 import com.dynokore.gst.rules.domain.resolution.PackResolver
@@ -16,6 +12,10 @@ import com.dynokore.gst.rules.domain.scope.ScopeOutcome
 import com.dynokore.gst.rules.domain.scope.ScopeVerdict
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.rulepackkernel.PackType
+import com.dynokore.platform.rulepackkernel.evaluation.Evaluation
+import com.dynokore.platform.rulepackkernel.evaluation.EvaluationInputs
+import com.dynokore.platform.rulepackkernel.evaluation.EvaluationOutcome
+import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.tenancykernel.TenantId
 
 /** The request of one evaluation: whose packs, which dates and the explicit inputs (INV-REQ-770, INV-REQ-775). */
@@ -33,6 +33,14 @@ sealed interface EvaluateResult {
 
     /** No rule fired for the inputs: no verdict, so no trace; what that means is the specialised evaluation's. */
     data object NoRuleFired : EvaluateResult
+
+    /**
+     * Two rules fired with different verdicts (INV-Q-19135 B): there is no verdict and no trace, and the document is
+     * neither coded nor given a default. [ruleIds] are the library's, unchanged.
+     */
+    data class Conflict(
+        val ruleIds: List<String>,
+    ) : EvaluateResult
 
     /** No pack was effective on the date: RUL-002 (INV-REQ-1089), and nothing was evaluated against another pack. */
     data class Refused(
@@ -87,6 +95,7 @@ class EvaluateDocument(
                 when (val outcome = InFlightEvaluation(resolution.binding, command.inputs).complete(evaluator)) {
                     is EvaluationOutcome.Decided -> EvaluateResult.Decided(outcome.evaluation)
                     EvaluationOutcome.NoRuleFired -> EvaluateResult.NoRuleFired
+                    is EvaluationOutcome.Conflict -> EvaluateResult.Conflict(outcome.ruleIds)
                 }
             }
         }

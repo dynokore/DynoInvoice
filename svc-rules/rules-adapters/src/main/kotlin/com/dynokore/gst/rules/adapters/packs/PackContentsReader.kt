@@ -8,13 +8,13 @@ import com.dynokore.gst.rules.domain.classification.ClassificationTable
 import com.dynokore.gst.rules.domain.coding.CodeCatalogue
 import com.dynokore.gst.rules.domain.coding.MappingEntry
 import com.dynokore.gst.rules.domain.coding.ScenarioData
-import com.dynokore.gst.rules.domain.resolution.AppliedPack
 import com.dynokore.gst.rules.domain.resolution.PackLookup
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.rulepackkernel.PackArtefact
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.rulepackkernel.PackVersion
+import com.dynokore.platform.rulepackkernel.evaluation.AppliedPack
 import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper

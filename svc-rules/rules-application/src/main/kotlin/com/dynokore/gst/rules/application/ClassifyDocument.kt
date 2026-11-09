@@ -9,10 +9,10 @@ import com.dynokore.gst.rules.domain.classification.DocumentFunction
 import com.dynokore.gst.rules.domain.classification.JournalClassification
 import com.dynokore.gst.rules.domain.classification.JournalPosting
 import com.dynokore.gst.rules.domain.classification.SignOfTotal
-import com.dynokore.gst.rules.domain.resolution.AppliedPack
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.rulepackkernel.PackType
+import com.dynokore.platform.rulepackkernel.evaluation.AppliedPack
 import com.dynokore.platform.tenancykernel.TenantId
 
 /** Read port for the classification table of the scope pack in force on the date; null when none is effective. */

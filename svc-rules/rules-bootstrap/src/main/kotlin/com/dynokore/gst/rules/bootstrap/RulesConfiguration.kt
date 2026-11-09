@@ -16,7 +16,6 @@ import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.application.ListCursorKey
 import com.dynokore.gst.rules.application.PackEventEmitter
-import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
@@ -30,6 +29,7 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
+import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica

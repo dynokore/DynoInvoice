@@ -1,8 +1,8 @@
 package com.dynokore.gst.rules.domain.classification
 
 import com.dynokore.gst.catalogue.ErrorCode
-import com.dynokore.gst.rules.domain.resolution.AppliedPack
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
+import com.dynokore.platform.rulepackkernel.evaluation.AppliedPack
 import java.math.BigDecimal
 
 /**

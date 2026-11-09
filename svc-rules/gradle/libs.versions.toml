@@ -13,6 +13,8 @@ platformLibsBom = "0.175.0"
 # generates from (INV-T-4911 settled the rules contract at 206f60b3).
 gstCatalogue = "2.21.0"
 platformContractsBundle = "0.0.0-dev+0fc8d662"
+# rulepack-kernel with the evaluation package (INV-T-9785, INV-Q-8719 A); the BOM names an older one, a direct version wins.
+rulepackKernel = "4.2.0"
 springBoot = "4.1.1"
 junit = "6.1.3"
 postgresql = "42.7.14"
@@ -36,8 +38,8 @@ platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
 platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
 platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue-api" }
 platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
-platform-rulepackKernel-api = { module = "com.dynokore.platform:rulepack-kernel-api" }
-platform-rulepackKernel-impl = { module = "com.dynokore.platform:rulepack-kernel" }
+platform-rulepackKernel-api = { module = "com.dynokore.platform:rulepack-kernel-api", version.ref = "rulepackKernel" }
+platform-rulepackKernel-impl = { module = "com.dynokore.platform:rulepack-kernel", version.ref = "rulepackKernel" }
 platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
 platform-auditLog-impl = { module = "com.dynokore.platform:audit-log" }
 platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }

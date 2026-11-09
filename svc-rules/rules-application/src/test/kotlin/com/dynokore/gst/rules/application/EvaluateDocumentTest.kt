@@ -9,10 +9,6 @@ import com.dynokore.gst.rules.domain.coding.MappingEntry
 import com.dynokore.gst.rules.domain.coding.ScenarioData
 import com.dynokore.gst.rules.domain.coding.SelfBillingAssignment
 import com.dynokore.gst.rules.domain.coding.SubmissionType
-import com.dynokore.gst.rules.domain.evaluation.EvaluationInputs
-import com.dynokore.gst.rules.domain.evaluation.Evaluator
-import com.dynokore.gst.rules.domain.evaluation.Rule
-import com.dynokore.gst.rules.domain.evaluation.RuleResult
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.ResolutionDates
@@ -23,6 +19,12 @@ import com.dynokore.platform.rulepackkernel.PackManifest
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.rulepackkernel.PackVersion
 import com.dynokore.platform.rulepackkernel.PackVersionLabel
+import com.dynokore.platform.rulepackkernel.evaluation.AppliedPack
+import com.dynokore.platform.rulepackkernel.evaluation.EvaluationInputs
+import com.dynokore.platform.rulepackkernel.evaluation.EvaluationOutcome
+import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
+import com.dynokore.platform.rulepackkernel.evaluation.Rule
+import com.dynokore.platform.rulepackkernel.evaluation.RuleResult
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
@@ -127,5 +129,57 @@ class EvaluateDocumentTest {
             .single()
             .tax shouldBe BigDecimal("9.00")
         seen shouldBe listOf(date)
+    }
+
+    private class FixedRule(
+        override val ruleId: String,
+        private val verdict: String,
+    ) : Rule {
+        override val packType: PackType = PackTypes.SCOPE
+
+        override fun evaluate(inputs: EvaluationInputs) = RuleResult(verdict)
+    }
+
+    private fun scopeUseCase(
+        first: String,
+        second: String,
+    ): Pair<EvaluateDocument, Evaluator> {
+        val registry = InMemoryPackRegistry()
+        registry.register(
+            PackVersion(
+                PackManifest(
+                    PackId("scope-pack"),
+                    PackTypes.SCOPE,
+                    PackVersionLabel("s1"),
+                    LocalDate.of(2026, 1, 1),
+                    null,
+                    "1.0.0",
+                ),
+            ),
+        )
+        val evaluator = Evaluator(listOf(FixedRule("S-1", first), FixedRule("S-2", second)))
+        return EvaluateDocument(PackResolver(registry), evaluator, listOf(PackTypes.SCOPE)) to evaluator
+    }
+
+    @Test
+    fun `INV-AC-19148 two rules firing with different verdicts give Conflict with the library rule ids, not Decided`() {
+        val (uc, evaluator) = scopeUseCase("IN_SCOPE", "OUT_OF_SCOPE")
+        val result = uc.handle(command(LocalDate.of(2026, 3, 1)))
+        val applied = listOf(AppliedPack(PackTypes.SCOPE, PackId("scope-pack"), PackVersionLabel("s1")))
+        val library =
+            evaluator
+                .evaluate(applied, command(LocalDate.of(2026, 3, 1)).inputs)
+                .shouldBeInstanceOf<EvaluationOutcome.Conflict>()
+        result.shouldBeInstanceOf<EvaluateResult.Conflict>().ruleIds shouldBe library.ruleIds
+        result.ruleIds shouldBe listOf("S-1", "S-2")
+    }
+
+    @Test
+    fun `INV-AC-19148 two rules that fire with the same verdict give Decided with that verdict`() {
+        val (uc, _) = scopeUseCase("IN_SCOPE", "IN_SCOPE")
+        uc
+            .handle(command(LocalDate.of(2026, 3, 1)))
+            .shouldBeInstanceOf<EvaluateResult.Decided>()
+            .evaluation.verdict shouldBe "IN_SCOPE"
     }
 }

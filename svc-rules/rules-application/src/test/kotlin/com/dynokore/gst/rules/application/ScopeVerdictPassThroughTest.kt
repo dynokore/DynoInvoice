@@ -2,7 +2,6 @@ package com.dynokore.gst.rules.application
 
 import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.domain.coding.LineCoding
-import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.gst.rules.domain.scope.ScopeFacts
@@ -10,6 +9,7 @@ import com.dynokore.gst.rules.domain.scope.ScopeOutcome
 import com.dynokore.gst.rules.domain.scope.ScopeVerdict
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.rulepackkernel.InMemoryPackRegistry
+import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test

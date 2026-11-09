@@ -1,17 +1,17 @@
 package com.dynokore.gst.rules.domain
 
-import com.dynokore.gst.rules.domain.evaluation.EvaluationInputs
-import com.dynokore.gst.rules.domain.evaluation.EvaluationOutcome
-import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.evaluation.InFlightEvaluation
-import com.dynokore.gst.rules.domain.evaluation.Rule
-import com.dynokore.gst.rules.domain.evaluation.RuleResult
 import com.dynokore.gst.rules.domain.resolution.PackResolution
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.ResolutionDates
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.rulepackkernel.PackType
+import com.dynokore.platform.rulepackkernel.evaluation.EvaluationInputs
+import com.dynokore.platform.rulepackkernel.evaluation.EvaluationOutcome
+import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
+import com.dynokore.platform.rulepackkernel.evaluation.Rule
+import com.dynokore.platform.rulepackkernel.evaluation.RuleResult
 import com.dynokore.platform.rulepackkernel.trace.BusinessRule
 import com.dynokore.platform.rulepackkernel.trace.BusinessTermCatalogue
 import com.dynokore.platform.rulepackkernel.trace.BusinessTermRenderer
@@ -42,10 +42,10 @@ class EvaluationTest {
     @Test
     fun `INV-AC-1728 repeated evaluation with the same inputs and pack version yields the same verdict and trace`() {
         val binding = bindingAt(registryOf(version(PackTypes.SCOPE, "2026.3", LocalDate.of(2026, 1, 1))))
-        val first = evaluator.evaluate(binding, inputs)
+        val first = evaluator.evaluate(binding.applied, inputs)
         // a second run, as if on another day: the evaluator takes no clock, no store and no other service
         val reordered = EvaluationInputs.of(mapOf("entityRef" to "E-001", "internalTaxCode" to "SR-STD"))
-        val second = evaluator.evaluate(binding, reordered)
+        val second = evaluator.evaluate(binding.applied, reordered)
         second shouldBe first
         first.shouldBeInstanceOf<EvaluationOutcome.Decided>().evaluation.verdict shouldBe "IN_SCOPE"
     }
@@ -55,7 +55,7 @@ class EvaluationTest {
         val binding = bindingAt(registryOf(version(PackTypes.SCOPE, "2026.3", LocalDate.of(2026, 1, 1))))
         val trace =
             evaluator
-                .evaluate(binding, inputs)
+                .evaluate(binding.applied, inputs)
                 .shouldBeInstanceOf<EvaluationOutcome.Decided>()
                 .evaluation.trace
         val step = trace.steps.single()
@@ -106,7 +106,7 @@ class EvaluationTest {
     @Test
     fun `no rule firing is no verdict and no trace`() {
         val binding = bindingAt(registryOf(version(PackTypes.SCOPE, "2026.3", LocalDate.of(2026, 1, 1))))
-        evaluator.evaluate(binding, EvaluationInputs.of(mapOf("internalTaxCode" to "ZR"))) shouldBe
+        evaluator.evaluate(binding.applied, EvaluationInputs.of(mapOf("internalTaxCode" to "ZR"))) shouldBe
             EvaluationOutcome.NoRuleFired
     }
 }

@@ -8,7 +8,6 @@ import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
-import com.dynokore.gst.rules.domain.evaluation.Evaluator
 import com.dynokore.gst.rules.domain.resolution.PackLookup
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
@@ -19,6 +18,7 @@ import com.dynokore.platform.rulepackkernel.PackManifest
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.rulepackkernel.PackVersion
 import com.dynokore.platform.rulepackkernel.PackVersionLabel
+import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.serviceruntime.replica.EntityProfileChanged
 import com.dynokore.platform.serviceruntime.replica.PolicyChanged
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica

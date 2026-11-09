@@ -5,14 +5,8 @@ import com.dynokore.platform.rulepackkernel.PackId
 import com.dynokore.platform.rulepackkernel.PackRegistry
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.rulepackkernel.PackVersionLabel
+import com.dynokore.platform.rulepackkernel.evaluation.AppliedPack
 import com.dynokore.platform.tenancykernel.TenantId
-
-/** One pack version an evaluation applied; the caller records it on the document version (INV-REQ-771). */
-data class AppliedPack(
-    val packType: PackType,
-    val packId: PackId,
-    val version: PackVersionLabel,
-)
 
 /**
  * The pack versions an evaluation is bound to (INV-REQ-1167): resolved once, at the start, by the document's dates.
