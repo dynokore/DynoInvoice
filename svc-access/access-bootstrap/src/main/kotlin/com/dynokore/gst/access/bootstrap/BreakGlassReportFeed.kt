@@ -22,10 +22,10 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.micrometer.core.instrument.MeterRegistry
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
 import tools.jackson.databind.ObjectMapper
