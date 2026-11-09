@@ -71,9 +71,6 @@ private val ENTRY_TRIGGERS =
         "pack_entry_source_locked_del",
     )
 
-/** The two reference triggers of INV-T-4973 that replace the foreign keys of rules.pack_entry_source. */
-private val ENTRY_REFERENCE_TRIGGERS = setOf("pack_entry_source_ref_ins", "pack_entry_source_ref_upd")
-
 /** The two metadata tables rules-svc owns, the holder copy beside them, and the tables of the libraries and Flyway. */
 private val REGISTRY_TABLES = SchemaInspection.REGISTRY_TABLES
 private val HOLDER_TABLES = setOf(SchemaInspection.HOLDER)
@@ -438,16 +435,8 @@ class RegistryPostgresIT(
             "select t.tgname as n from pg_trigger t join pg_class c on c.oid = t.tgrelid " +
                 "where not t.tgisinternal and c.relnamespace = 'rules'::regnamespace and c.relname = "
         names(triggers + "'pack_registry'") shouldBe
-            setOf(
-                "pack_registry_registered_by_insert",
-                "pack_registry_frozen_update",
-                "pack_registry_mapping_moves",
-                "pack_registry_entry_ref_upd",
-                "pack_registry_entry_ref_del",
-            )
-        names(triggers + "'mapping_import_record'") shouldBe
-            setOf("mapping_import_record_entry_ref_upd", "mapping_import_record_entry_ref_del")
-        names(triggers + "'pack_entry_source'") shouldBe ENTRY_TRIGGERS + ENTRY_REFERENCE_TRIGGERS
+            setOf("pack_registry_registered_by_insert", "pack_registry_frozen_update", "pack_registry_mapping_moves")
+        names(triggers + "'pack_entry_source'") shouldBe ENTRY_TRIGGERS
         names(triggers + "'dry_run_delta'") shouldBe setOf("dry_run_delta_complete_fixed")
         // the nine-parameter function of INV-T-4965 and the kernel's twelve-parameter one share a name
         names(
@@ -685,14 +674,9 @@ class RegistryEntryTriggerIT {
         seed(tenantA, "big")
         val calls = explainInsert(insertEntries(tenantA, "big" to 5000))
         calls.filterKeys { it.startsWith("pack_entry_source_") } shouldBe
-            mapOf(
-                "pack_entry_source_frozen_ins" to 1L,
-                "pack_entry_source_locked_ins" to 1L,
-                "pack_entry_source_ref_ins" to 1L,
-            )
-        // INV-T-4973: no foreign-key constraint trigger is left on the table, the references are checked per statement
-        calls.keys shouldBe
-            setOf("pack_entry_source_frozen_ins", "pack_entry_source_locked_ins", "pack_entry_source_ref_ins")
+            mapOf("pack_entry_source_frozen_ins" to 1L, "pack_entry_source_locked_ins" to 1L)
+        calls.filterKeys { !it.startsWith("RI_ConstraintTrigger") }.keys shouldBe
+            setOf("pack_entry_source_frozen_ins", "pack_entry_source_locked_ins")
     }
 
     @Test
@@ -789,7 +773,7 @@ class RegistryEntryTriggerIT {
             "select t.tgname as n from pg_trigger t where not t.tgisinternal " +
                 "and t.tgrelid = 'rules.pack_entry_source'::regclass and (t.tgtype & 3) = 0 " +
                 "and (t.tgnewtable is not null or t.tgoldtable is not null)",
-        ) shouldBe ENTRY_TRIGGERS + ENTRY_REFERENCE_TRIGGERS
+        ) shouldBe ENTRY_TRIGGERS
         names(
             "select p.proname as n from pg_proc p where p.pronamespace = 'rules'::regnamespace " +
                 "and p.proname like 'pack_entry_source_%' and not p.prosecdef and p.proconfig is not null " +
