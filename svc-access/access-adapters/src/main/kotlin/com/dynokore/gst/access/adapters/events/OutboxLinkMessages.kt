@@ -2,6 +2,7 @@ package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.application.link.LinkMessages
 import com.dynokore.gst.access.application.link.MessageRequest
+import com.dynokore.gst.access.domain.link.SignedLink
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -21,6 +22,8 @@ class OutboxLinkMessages(
     private val tenants: TenantContext,
     private val mapper: ObjectMapper,
 ) : LinkMessages {
+    private val signedLinkEvents = SignedLinkEventOutbox(outbox, tenants, mapper)
+
     private val entity = ThreadLocal<EntityRef?>()
 
     /** Runs [block] with every message it requests filed under [under]; the scope ends with the call. */
@@ -36,6 +39,9 @@ class OutboxLinkMessages(
             if (outer == null) entity.remove() else entity.set(outer)
         }
     }
+
+    /** `SignedLinkIssued` in the transaction that stores the link (accessSignedLinkIssued). */
+    override fun issued(link: SignedLink) = signedLinkEvents.issued(link)
 
     override fun request(message: MessageRequest) {
         val under = checkNotNull(entity.get()) { "a message is requested inside filedUnder, under an entity" }

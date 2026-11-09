@@ -74,6 +74,8 @@ class LinkKit(
     val alerts = mutableListOf<Pair<String, String>>()
     val audits = mutableListOf<GrantAuditEntry>()
     val messages = mutableListOf<MessageRequest>()
+    val issuedLinks = mutableListOf<SignedLink>()
+    val invalidated = mutableListOf<Pair<SignedLink, LinkInvalidationReason>>()
     val reads = mutableListOf<String>()
     var setting = LinkPasscodeSetting.DEFAULT
     var smsBound = false
@@ -143,12 +145,29 @@ class LinkKit(
             sealer,
             settings,
             { smsBound },
-            { messages += it },
+            object : LinkMessages {
+                override fun request(message: MessageRequest) {
+                    messages += message
+                }
+
+                override fun issued(link: SignedLink) {
+                    issuedLinks += link
+                }
+            },
             audit,
             systemActor,
             clock,
         )
-    val verify = VerifySignatoryLinkUseCase(tx, links, digests, settings, accessAlerts, clock)
+    val verify =
+        VerifySignatoryLinkUseCase(
+            tx,
+            links,
+            digests,
+            settings,
+            accessAlerts,
+            { link, reason -> invalidated += link to reason },
+            clock,
+        )
 
     // consents, grants-free decision, evidence
     val consents = mutableMapOf<String, Consent>()

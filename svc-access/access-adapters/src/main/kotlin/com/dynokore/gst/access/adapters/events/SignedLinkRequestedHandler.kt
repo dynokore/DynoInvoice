@@ -21,8 +21,9 @@ import com.dynokore.platform.outboxandqueue.EntityRef as EnvelopeEntity
  * to the expiry; the alert entity of the link is the entity of the envelope. The CloudEvents id of the delivery is
  * the origin
  * event id, so a redelivery stores no second link and requests no second message (the topic is at-least-once). The
- * `source` of the event is not a sender: the sender of the messages is the system. A payload without a usable expiry or
- * recipient e-mail is a [ContractViolation] (poison): no link and no message.
+ * `source` of the event is not a sender: the sender of the messages is the system. A payload without a usable
+ * subjectReference (1 to 40 characters, the limit of the published event schemas), expiry or recipient e-mail is a
+ * [ContractViolation] (poison): no link and no message.
  */
 class SignedLinkRequestedHandler(
     private val useCase: IssueSignedLinkUseCase,
@@ -39,7 +40,7 @@ class SignedLinkRequestedHandler(
         val command =
             IssueLinkCommand(
                 purpose = payload.text("purpose", MAX_PURPOSE),
-                subject = payload.optionalText("subjectReference", MAX_SUBJECT),
+                subject = payload.text("subjectReference", MAX_SUBJECT),
                 email = recipient.text("email", MAX_EMAIL),
                 mobile = recipient.optionalText("mobileNumber", MAX_MOBILE),
                 expiresAt = payload.expiry(),
@@ -90,7 +91,7 @@ class SignedLinkRequestedHandler(
         const val TOPIC = "gst.masterdata.signed-link-requested.v1"
 
         private const val MAX_PURPOSE = 64
-        private const val MAX_SUBJECT = 256
+        private const val MAX_SUBJECT = 40
         private const val MAX_EMAIL = 254
         private const val MAX_MOBILE = 32
         private const val MAX_EVENT_ID = 128

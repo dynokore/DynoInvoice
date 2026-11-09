@@ -82,4 +82,18 @@ class AccessEventCatalogueProducersTest {
             )
         for (d in bad) assertThrows(IllegalStateException::class.java) { AccessEventCatalogue.signedLinkProducers(d) }
     }
+
+    @Test
+    fun `INV-AC-18218 the catalogue lists both signed-link events, produced by access-svc`() {
+        val catalogue = AccessEventCatalogue.load()
+        listOf(
+            SignedLinkEventOutbox.ISSUED_TYPE to "gst.access.signed-link-issued.v1",
+            SignedLinkEventOutbox.INVALIDATED_TYPE to "gst.access.signed-link-invalidated.v1",
+        ).forEach { (type, topic) ->
+            val entry = checkNotNull(catalogue.find(type)) { "$type is not in the catalogue" }
+            assertEquals(topic, entry.topic)
+            assertEquals(setOf(AccessEventCatalogue.SERVICE), entry.producers)
+        }
+        assertEquals(null, catalogue.find("com.dynokore.gst.access.SignedLinkInvalidated.v2"))
+    }
 }

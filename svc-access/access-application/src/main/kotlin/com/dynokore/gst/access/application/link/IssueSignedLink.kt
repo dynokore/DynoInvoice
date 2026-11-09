@@ -38,9 +38,15 @@ data class MessageRequest(
 
 enum class MessageChannel { EMAIL, SMS }
 
-/** Appends `MessageRequested` to the outbox in the transaction of the caller (accessMessageRequested). */
-fun interface LinkMessages {
+/**
+ * Appends `MessageRequested` and `SignedLinkIssued` to the outbox in the transaction of the caller
+ * (accessMessageRequested, accessSignedLinkIssued).
+ */
+interface LinkMessages {
     fun request(message: MessageRequest)
+
+    /** Appends `SignedLinkIssued` for the stored [link]; it carries the link reference, never a secret. */
+    fun issued(link: SignedLink)
 }
 
 /** The value of the property `access.signed-link.sms-gateway-bound`; an absent property is false (INV-Q-17203 A). */
@@ -168,7 +174,9 @@ class IssueSignedLinkUseCase(
             val alertEntity = requireNotNull(command.client ?: command.envelopeEntity)
             val ref = secrets.newRef()
             val passcode = secrets.newPasscode()
-            links.insert(newLink(command, ref, alertEntity, digests.digestOf(ref, passcode)))
+            val link = newLink(command, ref, alertEntity, digests.digestOf(ref, passcode))
+            links.insert(link)
+            messages.issued(link)
             requestMessages(command, ref, passcode)
             audit.record(
                 GrantAuditEntry(

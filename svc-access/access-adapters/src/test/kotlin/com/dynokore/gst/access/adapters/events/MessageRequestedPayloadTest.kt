@@ -60,7 +60,7 @@ class MessageRequestedPayloadTest {
         messages.filedUnder(EntityRef("ENT-1")) {
             messages.request(MessageRequest("signed-link", "a@example.sg", MessageChannel.EMAIL, "LNK-1", null))
             messages.request(
-                MessageRequest("signed-link-passcode", "a@example.sg", MessageChannel.EMAIL, null, "sealed"),
+                MessageRequest("signed-link-passcode", "a@example.sg", MessageChannel.EMAIL, null, SEALED),
             )
         }
 
@@ -71,7 +71,7 @@ class MessageRequestedPayloadTest {
         assertTrue(appended.all { it.type == OutboxLinkMessages.EVENT_TYPE })
         appended.forEach { assertTrue(schema.validate(it.dataJson, InputFormat.JSON).isEmpty(), it.dataJson) }
         assertTrue(appended[0].dataJson.contains("\"linkReference\":\"LNK-1\""))
-        assertTrue(appended[1].dataJson.contains("\"sealedPasscode\":\"sealed\""))
+        assertTrue(appended[1].dataJson.contains("\"sealedPasscode\":\"$SEALED\""))
     }
 
     @Test
@@ -80,5 +80,10 @@ class MessageRequestedPayloadTest {
         val node = JsonMapper.builder().build().readTree(appended[0].dataJson) as tools.jackson.databind.node.ObjectNode
         node.remove("template")
         assertTrue(schema.validate(node.toString(), InputFormat.JSON).isNotEmpty())
+    }
+
+    private companion object {
+        /** The form of the contract since INV-T-17210: `v1.<16 hex>.<512 base64url characters>`. */
+        val SEALED = "v1." + "0123456789abcdef" + "." + "A".repeat(512)
     }
 }

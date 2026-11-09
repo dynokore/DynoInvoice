@@ -71,6 +71,17 @@ fun interface LinkPasscodeSettings {
     fun current(): LinkPasscodeSetting
 }
 
+/** Why a link stopped being usable before its expiry; the values of the contract enum this build emits. */
+enum class LinkInvalidationReason { ATTEMPTS_EXHAUSTED, }
+
+/** Appends `SignedLinkInvalidated` to the outbox in the transaction of the caller (accessSignedLinkInvalidated). */
+fun interface LinkInvalidations {
+    fun invalidated(
+        link: SignedLink,
+        reason: LinkInvalidationReason,
+    )
+}
+
 sealed interface VerifyLinkOutcome {
     /** The passcode matched: the verified session of the link is open. */
     data class Verified(
@@ -99,16 +110,18 @@ sealed interface VerifyLinkOutcome {
 /**
  * `verifySignatoryLink` (INV-REQ-899, INV-REQ-2758, INV-AC-2765): checks an entry of the one-time passcode against the
  * link. The link row is locked first, so concurrent entries are counted one by one. A wrong entry is stored and
- * answered; the entry that reaches the VP-75 limit invalidates the link and raises ACC-004 to the sender in the same
- * transaction; after that even the correct passcode is refused. A correct entry opens the verified session (the
- * `verified_at` of the record); no token is issued.
+ * answered; the entry that reaches the VP-75 limit invalidates the link, appends SignedLinkInvalidated and raises
+ * ACC-004 to the sender in the same transaction; after that even the correct passcode is refused. A correct entry
+ * opens the verified session (the `verified_at` of the record); no token is issued.
  */
+@Suppress("LongParameterList") // one collaborator per port
 class VerifySignatoryLinkUseCase(
     private val tx: TransactionRunner,
     private val links: SignedLinks,
     private val digests: PasscodeDigests,
     private val settings: LinkPasscodeSettings,
     private val alerts: AccessAlerts,
+    private val invalidations: LinkInvalidations,
     private val clock: Clock,
 ) {
     fun handle(
@@ -133,6 +146,7 @@ class VerifySignatoryLinkUseCase(
 
                 is LinkEntry.Invalidated -> {
                     links.update(link, entry.link)
+                    invalidations.invalidated(entry.link, LinkInvalidationReason.ATTEMPTS_EXHAUSTED)
                     raiseToSender(entry.link)
                     VerifyLinkOutcome.Invalidated(ref, entry.link.wrongEntries)
                 }

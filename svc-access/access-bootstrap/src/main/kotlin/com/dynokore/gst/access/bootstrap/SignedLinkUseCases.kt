@@ -3,11 +3,13 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.events.AccessAlertOutbox
 import com.dynokore.gst.access.adapters.events.AlertEntity
 import com.dynokore.gst.access.adapters.events.ScopeAlertEntity
+import com.dynokore.gst.access.adapters.events.SignedLinkEventOutbox
 import com.dynokore.gst.access.adapters.link.Sha256PasscodeDigests
 import com.dynokore.gst.access.adapters.link.VariationPointLinkSettings
 import com.dynokore.gst.access.adapters.persistence.JooqLinkTenants
 import com.dynokore.gst.access.adapters.persistence.JooqSignedLinks
 import com.dynokore.gst.access.application.alert.AccessAlerts
+import com.dynokore.gst.access.application.link.LinkInvalidations
 import com.dynokore.gst.access.application.link.LinkPasscodeSettings
 import com.dynokore.gst.access.application.link.LinkTenants
 import com.dynokore.gst.access.application.link.PasscodeDigests
@@ -62,6 +64,14 @@ class SignedLinkUseCases {
         entity: AlertEntity,
     ): AccessAlerts = AccessAlertOutbox(outbox, tenants, mapper, entity)
 
+    /** SignedLinkInvalidated in the command transaction of the verify path (INV-AC-18218). */
+    @Bean
+    fun linkInvalidations(
+        outbox: OutboxWriter,
+        tenants: TenantContext,
+        mapper: ObjectMapper,
+    ): LinkInvalidations = SignedLinkEventOutbox(outbox, tenants, mapper)
+
     @Suppress("LongParameterList") // one collaborator per port of the use case
     @Bean
     fun verifySignatoryLinkUseCase(
@@ -70,6 +80,7 @@ class SignedLinkUseCases {
         digests: PasscodeDigests,
         settings: LinkPasscodeSettings,
         alerts: AccessAlerts,
+        invalidations: LinkInvalidations,
         clock: Clock,
-    ) = VerifySignatoryLinkUseCase(tx, links, digests, settings, alerts, clock)
+    ) = VerifySignatoryLinkUseCase(tx, links, digests, settings, alerts, invalidations, clock)
 }
