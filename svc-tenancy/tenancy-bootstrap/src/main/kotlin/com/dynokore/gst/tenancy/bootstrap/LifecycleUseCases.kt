@@ -88,7 +88,10 @@ class LifecycleUseCases {
         publisher: EntityProfileChangePublisher,
         tenants: TenantContext,
         clock: ObjectProvider<Clock>,
-    ): SuspendEntity = SuspendEntity(tx, structure, lifecycle, statuses, extras, publisher, tenants::current) { today(clock) }
+    ): SuspendEntity =
+        SuspendEntity(tx, structure, lifecycle, statuses, extras, publisher, tenants::current) {
+            today(clock)
+        }
 
     @Bean
     @Suppress("LongParameterList") // one parameter per collaborator of the use case
