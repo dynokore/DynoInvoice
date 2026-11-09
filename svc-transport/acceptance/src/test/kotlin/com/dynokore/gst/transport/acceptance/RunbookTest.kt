@@ -104,44 +104,45 @@ class RunbookTest {
     }
 
     private fun lintRecords(text: String): List<String> {
-        val findings = mutableListOf<String>()
         val sections = text.split(Regex("(?m)^## ")).filter { it.startsWith("Connection: ") }
         if (sections.isEmpty()) return listOf("no connection section")
-        for (s in sections) {
-            val name =
-                s
-                    .lineSequence()
-                    .first()
-                    .removePrefix("Connection: ")
-                    .trim()
-            val latency = s.lines().firstOrNull { it.startsWith("| Expected acknowledgement latency |") }
-            val protocol = s.lines().firstOrNull { it.startsWith("| Failure-management protocol |") }
-            if (latency == null) {
-                findings += "connection $name: latency row missing"
-            } else {
-                val value = latency.split('|')[2].trim()
-                val seconds =
-                    Regex("^([0-9]+) seconds")
-                        .find(value)
-                        ?.groupValues
-                        ?.get(1)
-                        ?.toLong()
-                if (seconds != configuredSeconds) {
-                    findings +=
-                        "connection $name: latency value '$value' differs from configured $configuredSeconds seconds"
-                }
-                if (!value.contains("`provisional`")) {
-                    findings += "connection $name: provisional marker missing on latency"
-                }
+        return sections.flatMap { lintConnection(it) }
+    }
+
+    private fun rowValue(
+        section: String,
+        item: String,
+    ): String? =
+        section
+            .lines()
+            .firstOrNull { it.startsWith("| $item |") }
+            ?.split('|')
+            ?.get(2)
+            ?.trim()
+
+    private fun lintConnection(section: String): List<String> {
+        val findings = mutableListOf<String>()
+        val name = section.lineSequence().first().removePrefix("Connection: ").trim()
+        val latency = rowValue(section, "Expected acknowledgement latency")
+        val protocol = rowValue(section, "Failure-management protocol")
+        if (latency == null) {
+            findings += "connection $name: latency row missing"
+        } else {
+            val seconds = Regex("^([0-9]+) seconds").find(latency)?.groupValues?.get(1)?.toLong()
+            if (seconds != configuredSeconds) {
+                findings +=
+                    "connection $name: latency value '$latency' differs from configured $configuredSeconds seconds"
             }
-            if (protocol == null) {
-                findings += "connection $name: failure protocol row missing"
-            } else {
-                val value = protocol.split('|')[2].trim()
-                if (!value.contains("transient failure")) findings += "connection $name: failure protocol value changed"
-                if (!value.contains("`provisional`")) {
-                    findings += "connection $name: provisional marker missing on protocol"
-                }
+            if (!latency.contains("`provisional`")) {
+                findings += "connection $name: provisional marker missing on latency"
+            }
+        }
+        if (protocol == null) {
+            findings += "connection $name: failure protocol row missing"
+        } else {
+            if (!protocol.contains("transient failure")) findings += "connection $name: failure protocol value changed"
+            if (!protocol.contains("`provisional`")) {
+                findings += "connection $name: provisional marker missing on protocol"
             }
         }
         return findings
