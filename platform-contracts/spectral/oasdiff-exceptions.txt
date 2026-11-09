@@ -81,3 +81,5 @@ POST /internal/v1/tenancy/entities/{entityRef}/certifications the `failedScenari
 POST /internal/v1/masterdata/counterparties/{counterpartyRef}/requests request body became required
 # INV-Q-18654 A (INV-T-18670, breakdown tooling/gap4983b-gap.md; Coordinator ruling, delegated, owner 2026-10-14) on INV-Q-3569's reasoning (no train is published, no consumer of failoverAdapter is deployed): FailoverAdapterRequest gains the required entityRef.
 POST /internal/v1/transport/adapters/{adapterRef}/failovers added the new required request property `entityRef`
+# INV-Q-17416 B, INV-Q-17427 A (INV-T-17437) on INV-Q-3569's reasoning (pattern only): issueSignatoryLink is removed from the access contract (1.25.0 to 2.0.0, a major step, API-03); the link is issued only on SignedLinkRequested (DR-11). No train is published (platform-release manifest/trains/ holds only its README) and no consumer of the operation is deployed.
+POST /internal/v1/access/signatory-links api path removed without deprecation

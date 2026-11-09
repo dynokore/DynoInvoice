@@ -25,7 +25,6 @@ submitInvoiceData	property	openapi.yaml	INV-REQ-912
 fileGstReturn	property	openapi.yaml	INV-REQ-912
 mappingApproval	property	openapi.yaml	INV-REQ-912
 withdrawConsent	operation	openapi.yaml	INV-REQ-955
-recipientMobile	property	openapi.yaml	INV-REQ-2762
 handoverStatementRef	property	openapi.yaml	INV-REQ-955
 wrongEntryCount	property	openapi.yaml	INV-REQ-2762
 invalidated	property	openapi.yaml	INV-REQ-2762
@@ -37,7 +36,6 @@ createPrincipal	operation	openapi.yaml	INV-REQ-2588
 decideElevation	operation	openapi.yaml	INV-REQ-2588
 grantRole	operation	openapi.yaml	INV-REQ-2588
 inviteDiagnostics	operation	openapi.yaml	INV-REQ-2588
-issueSignatoryLink	operation	openapi.yaml	INV-REQ-2588
 mapIdpGroup	operation	openapi.yaml	INV-REQ-2588
 recordSoleOperator	operation	openapi.yaml	INV-REQ-2588
 requestElevation	operation	openapi.yaml	INV-REQ-2588

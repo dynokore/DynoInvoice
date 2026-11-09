@@ -5,7 +5,6 @@ grantRole	grantRole	access	-
 inviteDiagnostics	inviteDiagnostics	access	-
 inviteExternalIdentity	grantRole	access	EXTERNAL
 inviteUser	grantRole	access	STAFF
-issueSignatoryLink	issueSignatoryLink	access	-
 managePrincipal	createPrincipal	access	-
 managePrincipal	revokePrincipal	access	-
 managePrincipal	rotatePrincipal	access	-

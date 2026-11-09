@@ -44,7 +44,7 @@ expect_fail() { # name, finding (whole line)
 P='audited-operations.tsv: '
 mkroot pass "$BASE"; expect_pass pass
 out=$(python3 "$CHECK" "$T/pass" 2>&1); [ $? -ne 0 ] && printf '%s\n' "$out" | grep -Fxq 'audited-operations.tsv: audited operation '"'"'acknowledgeMapping'"'"' has no line' \
-  && echo "gst-ci: self-test built-in names failed as expected" || { echo "gst-ci: FAIL — the built-in 69 names did not reject the small root"; failed=1; }
+  && echo "gst-ci: self-test built-in names failed as expected" || { echo "gst-ci: FAIL — the built-in 68 names did not reject the small root"; failed=1; }
 # a case is the base table with one sed edit; the second argument is the sed script
 mut() { n=$1; mkroot "$n" "$BASE"; sed -i "$2" "$T/$n/catalogue/audited-operations.tsv"; }
 mut header '1s/listedName/listedname/';               expect_fail header "${P}the header differs from listedName, operationId, service, discriminator"
