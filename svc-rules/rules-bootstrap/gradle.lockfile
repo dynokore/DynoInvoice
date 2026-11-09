@@ -2,7 +2,6 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :rules-bootstrap:dependencies --write-locks
-aopalliance:aopalliance:1.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=compileClasspath,testCompileClasspath
 ch.qos.logback:logback-classic:1.5.38=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 ch.qos.logback:logback-core:1.5.38=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
@@ -17,13 +16,13 @@ com.dynokore.platform:crypto-api:1.1.1=compileClasspath,productionRuntimeClasspa
 com.dynokore.platform:crypto:1.1.1=productionRuntimeClasspath,runtimeClasspath,testRuntimeClasspath
 com.dynokore.platform:outbox-and-queue-api:6.19.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:outbox-and-queue:6.19.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:platform-libs-bom:0.182.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:product-runtime-api:2.16.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:product-runtime:2.16.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:platform-libs-bom:0.183.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:product-runtime-api:2.16.2=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:product-runtime:2.16.2=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:rulepack-kernel-api:4.2.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:rulepack-kernel:4.2.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:service-runtime-api:13.3.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:service-runtime:13.3.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:service-runtime-api:13.3.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:service-runtime:13.3.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-jooq-api:1.4.4=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-jooq:1.4.4=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-kernel-api:4.2.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath

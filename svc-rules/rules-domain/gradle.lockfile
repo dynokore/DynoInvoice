@@ -5,7 +5,7 @@
 com.dynokore.gst:gst-catalogue:2.34.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:crypto-api:1.1.1=testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:crypto:1.1.1=testRuntimeClasspath
-com.dynokore.platform:platform-libs-bom:0.182.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:platform-libs-bom:0.183.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:rulepack-kernel-api:4.2.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:rulepack-kernel:4.2.0=testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-kernel-api:4.2.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath

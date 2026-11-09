@@ -2,7 +2,6 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :rules-adapters:dependencies --write-locks
-aopalliance:aopalliance:1.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=compileClasspath,testCompileClasspath
 ch.qos.logback:logback-classic:1.5.38=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 ch.qos.logback:logback-core:1.5.38=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
@@ -13,11 +12,11 @@ com.dynokore.platform:crypto-api:1.1.1=compileClasspath,runtimeClasspath,testCom
 com.dynokore.platform:crypto:1.1.1=runtimeClasspath,testRuntimeClasspath
 com.dynokore.platform:outbox-and-queue-api:6.19.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:outbox-and-queue:6.19.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:platform-libs-bom:0.182.0=bindingKernel,compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:platform-libs-bom:0.183.0=bindingKernel,compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:rulepack-kernel-api:4.2.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:rulepack-kernel:4.2.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:service-runtime-api:13.3.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:service-runtime:13.3.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:service-runtime-api:13.3.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:service-runtime:13.3.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-jooq-api:1.4.4=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-jooq:1.4.4=runtimeClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-kernel-api:4.2.1=bindingKernel,compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
