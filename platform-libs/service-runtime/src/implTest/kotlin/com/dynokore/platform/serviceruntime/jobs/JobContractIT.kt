@@ -29,6 +29,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -352,5 +353,68 @@ class JobContractIT : JobContractBase() {
         event["tenant_id"] shouldBe TENANT_A.value
         event["entity_ref"] shouldBe EntityRef.TENANT_WIDE.value
         event["data"].toString() shouldContain """"status": "SUCCEEDED""""
+    }
+
+    private fun registeredEvents(
+        h: JobsHarness,
+        vararg names: String,
+    ) = h
+        .rows("submission.outbox", "type" to JobPayloads.JOB_REGISTERED)
+        .map { it["data"] as String }
+        .filter { data -> names.any { data.contains(""""job": "$it"""") } }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-AC-15937 a job in zone UTC announces its next firing at 2026-11-02T02-00-00Z`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(AC_15937_NOW))
+        replica.runtime.register(job("ac15937-utc", scope = JobEntityScope.PLATFORM, cron = AC_15937_CRON)) { }
+
+        replica.runtime.announce()
+
+        registeredEvents(h, "ac15937-utc").single() shouldContain """"nextRunAt": "2026-11-02T02:00:00Z""""
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-AC-15937 a job in zone Asia-Singapore announces its next firing in that zone`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(AC_15937_NOW))
+        val def = job("ac15937-sgt", scope = JobEntityScope.PLATFORM, cron = AC_15937_CRON)
+        replica.runtime.register(def.copy(schedule = JobSchedule(AC_15937_CRON, ZoneId.of("Asia/Singapore")))) { }
+
+        replica.runtime.announce()
+
+        registeredEvents(h, "ac15937-sgt").single() shouldContain """"nextRunAt": "2026-11-02T18:00:00Z""""
+    }
+
+    @ParameterizedTest(name = "{displayName}[{0}]")
+    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    fun `INV-AC-15937 two jobs announce two events whose other six fields equal the job definition`(image: String) {
+        val h = harness(image)
+        val replica = h.replica("svc-1", MutableClock(AC_15937_NOW))
+        val utc = job("ac15937-two-a", scope = JobEntityScope.PLATFORM, cron = AC_15937_CRON)
+        val sgt = utc.copy(name = "ac15937-two-b", schedule = JobSchedule(AC_15937_CRON, ZoneId.of("Asia/Singapore")))
+        listOf(utc, sgt).forEach { replica.runtime.register(it) { } }
+
+        replica.runtime.announce()
+
+        val events = registeredEvents(h, utc.name, sgt.name)
+        events shouldHaveSize 2
+        listOf(utc, sgt).forEach { def ->
+            val data = events.single { it.contains(""""job": "${def.name}"""") }
+            listOf(
+                """"ownerService": "${def.ownerService}"""",
+                """"entityScope": "${def.entityScope.name}"""",
+                """"schedule": "${def.schedule.cron}"""",
+                """"criticality": "${def.criticality.name}"""",
+                """"tolerance": "${def.tolerance}"""",
+            ).forEach { data shouldContain it }
+        }
+    }
+
+    private companion object {
+        const val AC_15937_CRON = "0 0 2 * * *"
+        val AC_15937_NOW: Instant = Instant.parse("2026-11-02T01:00:00Z")
     }
 }

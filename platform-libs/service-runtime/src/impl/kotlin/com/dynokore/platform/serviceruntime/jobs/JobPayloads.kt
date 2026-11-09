@@ -37,7 +37,10 @@ object JobPayloads {
         return mapper.writeValueAsString(node)
     }
 
-    fun jobRegistered(job: JobDefinition): String {
+    fun jobRegistered(
+        job: JobDefinition,
+        nextRunAt: Instant,
+    ): String {
         val node = mapper.createObjectNode()
         node.put("job", job.name)
         node.put("ownerService", job.ownerService)
@@ -45,6 +48,7 @@ object JobPayloads {
         node.put("schedule", job.schedule.cron)
         node.put("criticality", job.criticality.name)
         node.put("tolerance", job.tolerance.toString())
+        node.put("nextRunAt", nextRunAt.toString())
         return mapper.writeValueAsString(node)
     }
 

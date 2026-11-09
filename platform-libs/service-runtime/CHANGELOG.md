@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.5.0] - 2026-11-10
+### Added
+- `JobRegistered` carries `nextRunAt`, the job's next firing after the announcement computed from its own cron and zone; `JobPayloads.jobRegistered(job, nextRunAt)` and `JobRecords.announceRegistered(registered, now)` take it with no default, and a schedule that never fires fails the announcement (INV-T-15941, INV-AC-15937).
+
 ## [13.4.0] - 2026-11-10
 ### Added
 - `TenancyErrorCode.TENANT_NOT_OPENABLE` (TNC-012, HTTP 409, title "Tenant open refused", owner Platform), and the catalogue snapshot re-vendored from platform-contracts aae38a55 with the row TNC-012 (INV-T-19383, INV-AC-19378).

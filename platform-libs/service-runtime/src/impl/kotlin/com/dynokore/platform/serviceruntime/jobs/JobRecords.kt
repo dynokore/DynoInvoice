@@ -36,14 +36,18 @@ internal class JobRecords(
     private val audit: AuditWriter,
 ) {
     /** `JobRegistered` once per registered job, as the service's workload principal (INV-REQ-854 b1, INV-Q-4268). */
-    fun announceRegistered(registered: Collection<RegisteredJob>) {
+    fun announceRegistered(
+        registered: Collection<RegisteredJob>,
+        now: Instant,
+    ) {
         val correlation = CorrelationId("job-registration:${UUID.randomUUID()}")
         // start-up is background work: the service's workload principal (INV-REQ-854 b1, INV-Q-4268)
         scope.bindWorkload(TenantId.PLATFORM) {
             scope.transactions.inTransaction {
                 outbox.append(
                     registered.sortedBy { it.job.name }.map {
-                        OutboundEvent(JobPayloads.JOB_REGISTERED, JobPayloads.jobRegistered(it.job))
+                        // the next firing in the job's own zone; a schedule that never fires fails the announcement
+                        OutboundEvent(JobPayloads.JOB_REGISTERED, JobPayloads.jobRegistered(it.job, it.ticks.next(now)))
                     },
                     context(JobTarget.Whole, "$service/jobs", correlation, CausationId(correlation.value)),
                 )

@@ -140,7 +140,7 @@ class JobRuntime(
      */
     fun announce() {
         checkRetention()
-        core.records.announceRegistered(jobs.values)
+        core.records.announceRegistered(jobs.values, clock.instant())
     }
 
     /**
