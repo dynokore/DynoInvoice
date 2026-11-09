@@ -12,7 +12,9 @@ import com.dynokore.gst.access.application.principal.RotatePrincipalOutcome
 import com.dynokore.gst.access.application.principal.RotatePrincipalUseCase
 import com.dynokore.gst.access.application.principal.WithdrawCredentialOutcome
 import com.dynokore.gst.access.application.principal.WithdrawCredentialUseCase
+import com.dynokore.gst.access.application.token.CertificationPolicy
 import com.dynokore.gst.access.application.token.SigningKeyUnavailable
+import com.dynokore.gst.access.application.token.TenantEnvironments
 import com.dynokore.gst.access.contract.api.PrincipalsApi
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalRequest
 import com.dynokore.gst.access.contract.model.AuthenticatePrincipalResponse
@@ -65,6 +67,7 @@ open class PrincipalsController(
     private val manager: GrantManagerCheck,
     private val gateway: GatewayCaller,
     private val mapper: ObjectMapper,
+    private val environments: TenantEnvironments,
 ) : PrincipalsApi {
     private val create = useCases.create
     private val rotate = useCases.rotate
@@ -94,6 +97,8 @@ open class PrincipalsController(
             PrincipalType.ofContract(createPrincipalRequest.principalType.value)
                 ?: GrantRequests.invalid("principalType is not one of the six issuable types")
         requireScope(type, createPrincipalRequest.scope, tenant)
+        // INV-Q-9032 A, INV-Q-11811 A: a certification principal exists only in a SANDBOX tenant (fails closed)
+        if (!CertificationPolicy.permits(type, environments.of(tenant))) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val outcome =
             create.handle(
                 actor = checkNotNull(tenants.currentActor()) { "no actor is bound" },

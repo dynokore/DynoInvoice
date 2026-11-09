@@ -90,7 +90,16 @@ class TenantEnvironmentIssuanceTest {
 
     private fun claimsOf(token: String): Map<String, Any?> = SignedJWT.parse(token).jwtClaimsSet.claims
 
-    private fun TokenKit.certification() = principal("CERTIFICATION", "tenant:${kit.tenant}")
+    /**
+     * createPrincipal refuses a certification principal outside a SANDBOX tenant (INV-T-11816, INV-Q-16901), so the
+     * principal is created while a SANDBOX TENANT node is held; the node is then retired, which reads as no node.
+     */
+    private fun TokenKit.certification(): Subject {
+        tenantNode(StructureEnvironment.SANDBOX)
+        val subject = principal("CERTIFICATION", "tenant:${kit.tenant}")
+        node(kit.tenant, "TEN-1", StructureNodeKind.TENANT, StructureEnvironment.SANDBOX, retired = true)
+        return subject
+    }
 
     private fun TokenKit.assertRefusedUnknown(subject: Subject) {
         val before = calls.signs.get()
@@ -108,8 +117,9 @@ class TenantEnvironmentIssuanceTest {
     fun `INV-AC-9149 a certification principal of a SANDBOX tenant is ISSUED with the claim environment SANDBOX`() =
         run { t ->
             t.kit.clock.freeze()
+            val certification = t.certification()
             t.tenantNode(StructureEnvironment.SANDBOX)
-            val issued = t.fresh(t.certification())
+            val issued = t.fresh(certification)
             assertThat(issued.decision).isEqualTo(Decision.ISSUED)
             val claims = claimsOf(issued.accessToken!!)
             assertThat(claims["environment"]).isEqualTo("SANDBOX")
@@ -148,8 +158,9 @@ class TenantEnvironmentIssuanceTest {
             t.kit.clock.freeze()
             val other = TenantId(UUID.randomUUID())
             t.tenantNode(StructureEnvironment.SANDBOX, "TEN-OTHER", other)
+            val certification = t.certification()
             t.tenantNode(StructureEnvironment.PRODUCTION, "TEN-1")
-            t.assertRefusedUnknown(t.certification())
+            t.assertRefusedUnknown(certification)
             assertThat(t.environmentOf()).isEqualTo(TenantEnvironment.PRODUCTION)
             assertThat(t.environmentOf(other)).isEqualTo(TenantEnvironment.SANDBOX)
         }
@@ -158,9 +169,10 @@ class TenantEnvironmentIssuanceTest {
     fun `INV-AC-9149 probe a node of kind ENTITY that carries SANDBOX is ignored`() =
         run { t ->
             t.kit.clock.freeze()
+            val certification = t.certification()
             t.node(t.kit.tenant, t.kit.tenant.toString(), StructureNodeKind.ENTITY, StructureEnvironment.SANDBOX)
             assertThat(t.environmentOf()).isNull()
-            t.assertRefusedUnknown(t.certification())
+            t.assertRefusedUnknown(certification)
         }
 
     @Test
@@ -222,7 +234,7 @@ class TenantEnvironmentIssuanceTest {
                     StructureEnvironment.SANDBOX to StructureEnvironment.SANDBOX,
                 )
             pairs.forEach { (first, second) ->
-                t.tenantNode(first, "TEN-A")
+                t.tenantNode(first, "TEN-1")
                 t.tenantNode(second, "TEN-B")
                 assertThatThrownBy { t.environmentOf() }
                     .isInstanceOf(IllegalStateException::class.java)
