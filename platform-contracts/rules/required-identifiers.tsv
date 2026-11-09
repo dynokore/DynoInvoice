@@ -325,6 +325,7 @@ acceptSourceClassEntry	operation	openapi.yaml	INV-REQ-2588
 activateMappingPack	operation	openapi.yaml	INV-REQ-2588
 armRegulatoryPack	operation	openapi.yaml	INV-REQ-2588
 importMappingSpreadsheet	operation	openapi.yaml	INV-REQ-2588
+importMappingSpreadsheet.SRT-014	operation_error_code	openapi.yaml	INV-REQ-957
 evaluateDocument.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
 evaluatePreIssuanceDraft.RUL-001	operation_error_code	openapi.yaml	INV-REQ-364
 mapTaxCode.RUL-010	operation_error_code	openapi.yaml	INV-REQ-957

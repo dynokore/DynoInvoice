@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.25.0
+  version: 1.26.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -417,8 +417,9 @@ paths:
 
         Synchronous, within console-bff's 2 s (INV-Q-3480, INV-REQ-831 b5):
         a spreadsheet holds at most 5,000 rows (API-49). A spreadsheet over
-        the cap is refused whole with `413` (API-20 envelope) before it is
-        parsed, and no draft pack is created (INV-AC-3484).
+        the cap is refused whole with `413` (API-20 envelope) that carries the code
+        SRT-014, before it is parsed, and no draft pack is created
+        (INV-AC-3484).
 
 
         The caller reads the file and sends the mapped rows with the SHA-256
@@ -435,7 +436,7 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
-      x-error-codes: [RUL-006]
+      x-error-codes: [RUL-006, SRT-014]
       x-entity-ref: entityRef
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§35.10"]
       x-operation:
