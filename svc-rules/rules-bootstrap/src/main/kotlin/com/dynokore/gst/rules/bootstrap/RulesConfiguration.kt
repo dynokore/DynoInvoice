@@ -29,6 +29,7 @@ import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductEventTypes
 import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.serviceruntime.binding.SecretRef
@@ -58,9 +59,24 @@ class RulesConfiguration {
     @Bean
     fun rulesSchema(): Schema = Rules.RULES
 
-    /** The event types catalogued for rules; the emission guard refuses any other (INV-AC-1869). */
+    /**
+     * The event types catalogued for rules; the emission guard refuses any other (INV-AC-1869). Besides the three pack
+     * events, the two platform events the mounted setPolicy emits in its transaction: the audit entry and the policy
+     * change (INV-T-18451); no other platform event is listed.
+     */
     @Bean
-    fun eventCatalogue(): EventCatalogue = RulesEventCatalogue.catalogue()
+    fun eventCatalogue(): EventCatalogue =
+        EventCatalogue(
+            RulesEventCatalogue.entries() +
+                listOf(PlatformEventCatalogue.AUDIT_ENTRY_RECORDED, PlatformEventCatalogue.POLICY_CHANGED).map {
+                    CatalogueEntry(
+                        it.eventType,
+                        checkNotNull(it.topic),
+                        setOf(CatalogueEntry.EVERY_SERVICE),
+                        contentTopic = false,
+                    )
+                },
+        )
 
     @Bean
     fun packEventEmitter(writer: OutboxWriter): PackEventEmitter = OutboxPackEventEmitter(writer)

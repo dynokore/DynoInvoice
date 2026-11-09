@@ -75,6 +75,12 @@ private val LIBRARY_TABLES =
         "consumer_source_seen",
         "outbox_claim_v",
         "event_dead_letter_triage_v",
+        // config-resolver and service-runtime tables of the setPolicy mount (INV-T-18451)
+        "idempotency_key",
+        "config_setting",
+        "config_resolved_value",
+        "config_relaxation_acknowledgement",
+        "config_installation_setting",
     )
 
 /**

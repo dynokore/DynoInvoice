@@ -46,6 +46,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.platform.configResolver.impl) // ConfigSchema, compared by the migration test (TPL-12)
     testImplementation(libs.jsonSchemaValidator) // the AsyncAPI payload schemas of every published channel
     testImplementation(libs.snakeyaml) // asyncapi.yaml of the pinned contract
     testRuntimeOnly(libs.junit.platformLauncher)

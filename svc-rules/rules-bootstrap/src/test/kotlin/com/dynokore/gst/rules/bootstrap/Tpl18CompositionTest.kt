@@ -5,6 +5,7 @@ import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -53,6 +54,7 @@ class Tpl18CompositionTest {
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",
                 "inv.tenancy.reference-tables=rules.pack_registry,rules.pack_entry_source",
+                "inv.tenancy.platform-scoped-tables=rules.write_installation_setting,rules.config_purge_tenant",
                 "spring.datasource.url=jdbc:postgresql://localhost:1/rules",
                 "spring.datasource.username=rules_runtime",
                 "service-runtime.pool.profile=minimal",
@@ -71,7 +73,12 @@ class Tpl18CompositionTest {
             context.getBeansOfType(Schema::class.java).values.map { it.name } shouldContainExactlyInAnyOrder
                 listOf("rules")
             context.getBean(EventCatalogue::class.java).entries().map { it.eventType } shouldContainExactlyInAnyOrder
-                RulesEventCatalogue.TOPICS.keys.toList()
+                RulesEventCatalogue.TOPICS.keys.toList() +
+                // the two platform events the mounted setPolicy emits, and no other (INV-T-18451)
+                listOf(
+                    PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType,
+                    PlatformEventCatalogue.POLICY_CHANGED.eventType,
+                )
         }
     }
 
@@ -87,6 +94,7 @@ class Tpl18CompositionTest {
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",
                 "inv.tenancy.reference-tables=rules.pack_registry,rules.pack_entry_source",
+                "inv.tenancy.platform-scoped-tables=rules.write_installation_setting,rules.config_purge_tenant",
                 "spring.datasource.url=jdbc:postgresql://localhost:1/rules",
                 "spring.datasource.username=rules_runtime",
                 "service-runtime.pool.profile=minimal",

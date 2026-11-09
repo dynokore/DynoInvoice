@@ -43,6 +43,7 @@ class ScopeBeanContextTest {
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",
                 "inv.tenancy.reference-tables=rules.pack_registry,rules.pack_entry_source,rules.pack_artefact",
+                "inv.tenancy.platform-scoped-tables=rules.write_installation_setting,rules.config_purge_tenant",
                 "spring.datasource.url=jdbc:postgresql://localhost:1/rules",
                 "spring.datasource.username=rules_runtime",
                 "service-runtime.pool.profile=minimal",

@@ -22,16 +22,17 @@ object RulesEventCatalogue {
             PACK_CURRENCY_CHANGED to "gst.rules.pack-currency-changed.v1",
         )
 
-    fun catalogue(): EventCatalogue =
-        EventCatalogue(
-            TOPICS.map { (type, topic) ->
-                CatalogueEntry(
-                    eventType = type,
-                    topic = topic,
-                    producers = setOf(SERVICE),
-                    contentTopic = false,
-                    retainedWhileResolvable = type == RULE_PACK_STAGED,
-                )
-            },
-        )
+    /** The catalogue entries of the three events rules publishes. */
+    fun entries(): List<CatalogueEntry> =
+        TOPICS.map { (type, topic) ->
+            CatalogueEntry(
+                eventType = type,
+                topic = topic,
+                producers = setOf(SERVICE),
+                contentTopic = false,
+                retainedWhileResolvable = type == RULE_PACK_STAGED,
+            )
+        }
+
+    fun catalogue(): EventCatalogue = EventCatalogue(entries())
 }
