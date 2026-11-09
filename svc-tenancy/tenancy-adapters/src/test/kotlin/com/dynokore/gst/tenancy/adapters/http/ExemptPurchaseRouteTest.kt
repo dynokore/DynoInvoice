@@ -130,6 +130,9 @@ class ExemptPurchaseRouteTest {
             unused(),
             unused(),
             CallerSource { "user-1" },
+            unused(),
+            unused(),
+            unused(),
         )
 
     private fun request(

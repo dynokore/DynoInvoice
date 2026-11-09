@@ -72,6 +72,9 @@ class RenditionAuthorityFailClosedTest {
                 unused(),
                 unused(),
                 CallerSource { CALLER },
+                unused(),
+                unused(),
+                unused(),
             )
         return assertThrows<ApiRefusal> { call(controller) }.code
     }

@@ -16,10 +16,10 @@ changeFilingFrequency	operation	INV-T-4929	done
 confirmPeriods	operation	INV-T-4929	done
 recordExtension	operation	INV-T-4930	done
 listPeriodRecords	operation	INV-T-4930	done
-goLive	operation	INV-T-4931	pending
+goLive	operation	INV-T-4931	done
 certifySandbox	operation	INV-T-4931	done
-suspendEntity	operation	INV-T-4931	pending
-deregisterEntity	operation	INV-T-4931	pending
+suspendEntity	operation	INV-T-4931	done
+deregisterEntity	operation	INV-T-4931	done
 offboardTenant	operation	INV-T-4931	done
 recordRenditionResponsibility	operation	INV-T-4931	done
 createWorkspace	operation	INV-T-4932	done

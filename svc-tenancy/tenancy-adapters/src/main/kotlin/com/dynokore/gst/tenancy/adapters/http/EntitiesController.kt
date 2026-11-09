@@ -10,6 +10,10 @@ import com.dynokore.gst.tenancy.application.election.ElectionRecord
 import com.dynokore.gst.tenancy.application.election.ElectionStatusQueries
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseOutcome
 import com.dynokore.gst.tenancy.application.election.PendingChange
+import com.dynokore.gst.tenancy.application.lifecycle.DeregisterEntity
+import com.dynokore.gst.tenancy.application.lifecycle.GoLive
+import com.dynokore.gst.tenancy.application.lifecycle.LifecycleOutcome
+import com.dynokore.gst.tenancy.application.lifecycle.SuspendEntity
 import com.dynokore.gst.tenancy.application.migration.GetMigrationCutover
 import com.dynokore.gst.tenancy.application.migration.MigrationCutover
 import com.dynokore.gst.tenancy.application.migration.MigrationCutoverOutcome
@@ -37,6 +41,7 @@ import com.dynokore.gst.tenancy.contract.model.CertificationResponse
 import com.dynokore.gst.tenancy.contract.model.CertifySandboxRequest
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
+import com.dynokore.gst.tenancy.contract.model.DeregisterEntityRequest
 import com.dynokore.gst.tenancy.contract.model.ElectionChangeApproved
 import com.dynokore.gst.tenancy.contract.model.ElectionRequest
 import com.dynokore.gst.tenancy.contract.model.ElectionResponse
@@ -45,6 +50,7 @@ import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.EntityStatusResponse
 import com.dynokore.gst.tenancy.contract.model.FilingFrequencyChangeRequest
 import com.dynokore.gst.tenancy.contract.model.FilingFrequencyResponse
+import com.dynokore.gst.tenancy.contract.model.GoLiveRequest
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
 import com.dynokore.gst.tenancy.contract.model.IssuanceModeResponse
 import com.dynokore.gst.tenancy.contract.model.MigrationCutoverRecord
@@ -60,6 +66,7 @@ import com.dynokore.gst.tenancy.contract.model.RenditionResponsibilityResponse
 import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.contract.model.StructureNode
+import com.dynokore.gst.tenancy.contract.model.SuspendEntityRequest
 import com.dynokore.gst.tenancy.contract.model.UpdateBusinessUnitRequest
 import com.dynokore.gst.tenancy.domain.CertificationOutcome
 import com.dynokore.gst.tenancy.domain.CodeRefusal
@@ -68,6 +75,7 @@ import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.ElectionPermissions
 import com.dynokore.gst.tenancy.domain.IssuanceMode
 import com.dynokore.gst.tenancy.domain.TenantRefs
+import com.dynokore.gst.tenancy.domain.UnsubmittedOverride
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -104,6 +112,9 @@ open class EntitiesController(
     private val recordCutover: RecordMigrationCutover,
     private val getCutover: GetMigrationCutover,
     private val caller: CallerSource,
+    private val goLiveUseCase: GoLive,
+    private val suspendUseCase: SuspendEntity,
+    private val deregisterUseCase: DeregisterEntity,
 ) : EntitiesApi {
     override fun createGroup(
         idempotencyKey: UUID,
@@ -502,6 +513,83 @@ open class EntitiesController(
             }
         }
     }
+
+    /**
+     * goLive (INV-REQ-987, INV-REQ-963, INV-REQ-875): the caller holds `entity-config.manage` (decided per request by
+     * the authority replica, fail closed); the use case decides the second confirmation and the gate.
+     */
+    override fun goLive(
+        entityRef: String,
+        idempotencyKey: UUID,
+        goLiveRequest: GoLiveRequest,
+    ): ResponseEntity<EntityResponse> {
+        val actor = lifecycleActor(entityRef)
+        return lifecycleResult(goLiveUseCase.handle(actor, entityRef, goLiveRequest.secondConfirmationBy))
+    }
+
+    /** suspendEntity (INV-REQ-963 b2): stops future submission, retracts nothing. */
+    override fun suspendEntity(
+        entityRef: String,
+        idempotencyKey: UUID,
+        suspendEntityRequest: SuspendEntityRequest,
+    ): ResponseEntity<EntityResponse> {
+        lifecycleActor(entityRef)
+        return lifecycleResult(suspendUseCase.handle(entityRef))
+    }
+
+    /** deregisterEntity (INV-REQ-956 b1, INV-Q-16387): 409 TNC-008 for an unsubmitted document without an override. */
+    override fun deregisterEntity(
+        entityRef: String,
+        idempotencyKey: UUID,
+        deregisterEntityRequest: DeregisterEntityRequest,
+    ): ResponseEntity<EntityResponse> {
+        lifecycleActor(entityRef)
+        return lifecycleResult(
+            deregisterUseCase.handle(
+                entityRef,
+                deregisterEntityRequest.registrationEndDate,
+                deregisterEntityRequest.unsubmittedOverride?.let {
+                    UnsubmittedOverride(it.acknowledgedBy, it.statement)
+                },
+            ),
+        )
+    }
+
+    /** The authenticated caller, once the replica says it holds the permission to manage the entity's lifecycle. */
+    private fun lifecycleActor(entityRef: String): String {
+        val actor = caller.actor()
+        val holds =
+            runCatching { renditionAuthority.holds(actor, entityRef, ElectionPermissions.MANAGE) }.getOrDefault(false)
+        if (!holds) forbidden("${ElectionPermissions.MANAGE} is required")
+        return actor
+    }
+
+    private fun lifecycleResult(outcome: LifecycleOutcome): ResponseEntity<EntityResponse> =
+        when (outcome) {
+            is LifecycleOutcome.Done -> {
+                ResponseEntity.ok(viewResponse(queries.node(outcome.entityRef) ?: notFound()))
+            }
+
+            is LifecycleOutcome.Invalid -> {
+                invalid(outcome.reason)
+            }
+
+            is LifecycleOutcome.Forbidden -> {
+                forbidden(outcome.reason)
+            }
+
+            LifecycleOutcome.NotFound -> {
+                notFound()
+            }
+
+            is LifecycleOutcome.Conflict -> {
+                conflict(TenancyErrorCode.UNSUBMITTED_DOCUMENTS_REFUSED, outcome.reason)
+            }
+
+            is LifecycleOutcome.Refused -> {
+                constraintRefused(outcome.detail)
+            }
+        }
 
     /**
      * recordMigrationCutover (INV-REQ-1109, INV-Q-6232 A): 201 first record, 200 exact repeat, 409 TNC-011 another
