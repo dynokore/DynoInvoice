@@ -1,5 +1,9 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.calendar.CalendarPackDecoder
+import com.dynokore.gst.tenancy.adapters.calendar.CalendarPackStagedHandler
+import com.dynokore.gst.tenancy.application.period.CalendarPackReplica
+import com.dynokore.gst.tenancy.application.period.PackActivationRecompute
 import com.dynokore.gst.tenancy.syncedge.EntityFactsIdentity
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
@@ -10,15 +14,25 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import tools.jackson.databind.ObjectMapper
 import java.nio.file.Path
 
 /**
  * getCalendarPackDelta over HTTP through the filter chain of service-runtime (INV-T-16829; INV-AC-16824): the missing
- * required parameter is observed at the boundary, not assumed from the framework. The 400 body of an absent
- * parameter is the framework default (status, error, path), not the API-20 envelope: reported as a gap.
+ * required parameter is observed at the boundary, not assumed from the framework. Only the status is asserted for a
+ * binding failure: its body is the framework default until the shared advice of INV-T-19581 is pinned (ruling).
  */
 class PackDeltaHttpTest {
     private val http = HttpClient.newHttpClient()
+
+    private val staged =
+        "{\"packIdentifier\":\"sg-calendar\",\"packType\":\"calendar\",\"version\":\"2026.2\"," +
+            "\"effectiveFrom\":\"2026-10-01\",\"minEngineVersion\":\"1.0.0\"," +
+            "\"artefact\":{\"manifest\":{},\"checksums\":{},\"signature\":\"s\",\"contents\":" +
+            "{\"windows\":{\"QUARTERLY\":[{\"start\":\"2026-01-01\",\"end\":\"2026-03-31\",\"returnForm\":\"F5\"}]}," +
+            "\"finalReturnForm\":\"F8\",\"dueRules\":{\"F5\":{\"monthsAfterEnd\":1,\"endOfMonth\":true," +
+            "\"daysAfterEnd\":0},\"F8\":{\"monthsAfterEnd\":3,\"endOfMonth\":true,\"daysAfterEnd\":0}}," +
+            "\"weekend\":[\"SATURDAY\",\"SUNDAY\"],\"holidays\":[]}}}"
 
     private fun get(
         dir: Path,
@@ -38,6 +52,17 @@ class PackDeltaHttpTest {
             ).use { context ->
                 val env = ProfileEnv(context)
                 env.withEntity { tenant, entity ->
+                    PeriodEnv(env).actAs(entity, "tax.approver")
+                    val handler =
+                        CalendarPackStagedHandler(
+                            context.getBean(CalendarPackReplica::class.java),
+                            ObjectMapper(),
+                            context.getBean(CalendarPackDecoder::class.java),
+                            effects = context.getBean(PackActivationRecompute::class.java),
+                        )
+                    env.inTenant(tenant) {
+                        env.inTx { handler.handle(testEnvelope(CalendarPackStagedHandler.STAGED, tenant, staged)) }
+                    }
                     EntityFactsIdentity.principal =
                         EndUserPrincipal("user-a", tenant, setOf(EntityRef(entity.entityRef)))
                     val port = context.environment.getProperty("local.server.port")
@@ -59,20 +84,31 @@ class PackDeltaHttpTest {
     }
 
     @Test
-    fun `INV-AC-16824 a request without packIdentifier is 400 over HTTP and discloses no period`(
+    fun `INV-AC-16824 a request without packIdentifier is 400 over HTTP`(
         @TempDir dir: Path,
     ) {
-        val refused = get(dir, "?version=1")
-        assertThat(refused.statusCode()).describedAs(refused.body()).isEqualTo(400)
-        assertThat(refused.body()).doesNotContain("periodRef")
+        assertThat(get(dir, "?version=2026.2").statusCode()).isEqualTo(400)
     }
 
     @Test
-    fun `INV-AC-16824 a request without version is 400 over HTTP and discloses no period`(
+    fun `INV-AC-16824 a request without version is 400 over HTTP`(
         @TempDir dir: Path,
     ) {
-        val refused = get(dir, "?packIdentifier=P1")
-        assertThat(refused.statusCode()).describedAs(refused.body()).isEqualTo(400)
-        assertThat(refused.body()).doesNotContain("periodRef")
+        assertThat(get(dir, "?packIdentifier=sg-calendar").statusCode()).isEqualTo(400)
+    }
+
+    @Test
+    fun `INV-AC-16824 a request with a blank packIdentifier is 400 over HTTP`(
+        @TempDir dir: Path,
+    ) {
+        assertThat(get(dir, "?packIdentifier=&version=2026.2").statusCode()).isEqualTo(400)
+    }
+
+    @Test
+    fun `INV-AC-16824 control, the same request with packIdentifier and version present is 200`(
+        @TempDir dir: Path,
+    ) {
+        val answer = get(dir, "?packIdentifier=sg-calendar&version=2026.2")
+        assertThat(answer.statusCode()).describedAs(answer.body()).isEqualTo(200)
     }
 }
