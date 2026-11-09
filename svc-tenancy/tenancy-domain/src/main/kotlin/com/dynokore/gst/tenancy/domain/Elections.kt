@@ -19,12 +19,6 @@ enum class FactAnswer { TRUE, FALSE, NOT_RECORDED }
 /** The option keys of VP-25 (INV-REQ-1286). */
 enum class IssuanceMode { RELAY, OBSERVE, NONE }
 
-/** The roles the election rules name (INV-REQ-323, INV-REQ-505, INV-Q-9704 A). */
-object ElectionRoles {
-    const val ENTITY_ADMIN = "entity.admin"
-    const val TAX_APPROVER = "tax.approver"
-}
-
 /**
  * The permissions the election operations ask the authority replica for (rulings INV-Q-9706, INV-Q-10025). Which
  * roles hold a key is decided by the catalogue (catalogue/role-permissions/role-permissions.yaml); no domain or
