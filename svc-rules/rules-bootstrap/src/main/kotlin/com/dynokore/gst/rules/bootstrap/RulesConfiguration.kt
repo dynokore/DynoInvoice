@@ -21,6 +21,7 @@ import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
@@ -28,7 +29,6 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.ProductEventTypes
-import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
@@ -42,6 +42,7 @@ import org.jooq.DSLContext
 import org.jooq.Schema
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
@@ -144,7 +145,7 @@ class RulesConfiguration {
         scope: TenantScope,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-        handler: StructureFeedHandler,
+        @Qualifier("structureFeedHandler") handler: EventHandler,
     ): JdbcInboxConsumer =
         JdbcInboxConsumer(
             ConsumerSubscription(RulesEventCatalogue.SERVICE, ProductEventTypes.ENTITY_PROFILE_CHANGED_TOPIC, SCHEMA),
