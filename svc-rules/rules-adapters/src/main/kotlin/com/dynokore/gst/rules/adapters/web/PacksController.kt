@@ -9,7 +9,6 @@ import com.dynokore.gst.rules.adapters.web.MappingPackMapping.entryOf
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.problemBody
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.refusalOf
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.statusOf
-import com.dynokore.gst.rules.adapters.web.MappingPackMapping.unavailable
 import com.dynokore.gst.rules.application.AcceptEntryCommand
 import com.dynokore.gst.rules.application.ActivateCommand
 import com.dynokore.gst.rules.application.ActivePacksOutcome
@@ -42,6 +41,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
@@ -111,24 +111,36 @@ open class PacksController(
             .header("Content-Type", "application/problem+json")
             .body(problemBody(refusal, correlationId()))
 
+    /** A body that does not match the contract (unknown enum value, malformed JSON) is SRT-001; nothing is stored. */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun unreadable(e: HttpMessageNotReadableException): ResponseEntity<String> =
+        refuse(
+            checkNotNull(
+                refusalOf(MappingPackResult.Refused(RefusalReason.INPUT_INVALID)),
+            ).also { it.addSuppressed(e) },
+        )
+
     override fun draftMappingPack(
         idempotencyKey: UUID,
         draftMappingPackRequest: DraftMappingPackRequest,
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
             val label = draftMappingPackRequest.label
-            if (packs.labelTaken(label)) throw conflictOf(RefusalReason.INPUT_INVALID)
+            if (packs.labelTaken(label)) throw labelTaken()
             val packId = newPackId()
+            // The driver error is wrapped by either translator; the test is SQLSTATE 23505 plus the key name.
             val result =
-                authoring.draft(
-                    DraftCommand(
-                        actor(),
-                        draftMappingPackRequest.entityRef.orEmpty(),
-                        packId,
-                        tenants.current(),
-                        label,
-                    ),
-                )
+                runCatching {
+                    authoring.draft(
+                        DraftCommand(
+                            actor(),
+                            draftMappingPackRequest.entityRef.orEmpty(),
+                            packId,
+                            tenants.current(),
+                            label,
+                        ),
+                    )
+                }.getOrElse { throw lineageKeyOr(it) }
             done(result)
             ResponseEntity.status(HttpStatus.CREATED).body(packAnswer(packId, withApprovals = false))
         }
@@ -230,7 +242,8 @@ open class PacksController(
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
             val request = activateMappingPackRequest
-            val minEngineVersion = engineVersion.current() ?: throw unavailable("the engine version of this build is unknown")
+            val minEngineVersion =
+                engineVersion.current() ?: throw unavailable("the engine version of this build is unknown")
             repeatable(
                 authoring.activate(
                     ActivateCommand(
@@ -265,11 +278,21 @@ open class PacksController(
         result: MappingPackResult,
         target: PackStatus,
     ) {
-        val repeat = result is MappingPackResult.Refused && result.reason == RefusalReason.LIFECYCLE && result.status == target
+        val repeat =
+            result is MappingPackResult.Refused && result.reason == RefusalReason.LIFECYCLE && result.status == target
         if (!repeat) done(result)
     }
 
-    private fun conflictOf(reason: RefusalReason) = checkNotNull(refusalOf(MappingPackResult.Refused(reason)))
+    /** True when [failure] or a cause is the unique violation (SQLSTATE 23505) of the lineage key of the registry. */
+    private fun lineageKeyOr(e: Throwable): Throwable =
+        if (violatesLineageKey(e)) labelTaken().also { it.addSuppressed(e) } else e
+
+    private fun violatesLineageKey(failure: Throwable): Boolean =
+        generateSequence(failure) { it.cause }.any {
+            it is java.sql.SQLException &&
+                it.sqlState == UNIQUE_VIOLATION &&
+                it.message.orEmpty().contains(LINEAGE_KEY)
+        }
 
     /** A request that names an entity other than the pack's is refused like a missing permission (contract text). */
     private fun sameEntity(
@@ -284,7 +307,7 @@ open class PacksController(
 
     private fun sourceClassOrRefuse(value: String): SourceClass =
         SourceClass.entries.firstOrNull { it.name == value }
-            ?: throw conflictOf(RefusalReason.INPUT_INVALID)
+            ?: throw checkNotNull(refusalOf(MappingPackResult.Refused(RefusalReason.INPUT_INVALID)))
 
     private fun entryAnswer(
         packId: String,
@@ -341,3 +364,5 @@ open class PacksController(
 
 private const val PACK_ID_HEX = 8
 private const val ARMED = "ARMED"
+private const val UNIQUE_VIOLATION = "23505"
+private const val LINEAGE_KEY = "pack_registry_lineage_key"

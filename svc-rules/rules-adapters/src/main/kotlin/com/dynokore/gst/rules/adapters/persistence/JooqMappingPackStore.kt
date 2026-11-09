@@ -19,6 +19,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
+import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
@@ -55,6 +56,7 @@ class JooqMappingPackStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
     private val engineVersion: EngineVersion,
+    private val clock: Clock,
 ) : MappingPackStore {
     private fun mine(packId: String): Condition =
         PACK_REGISTRY.PACK_ID
@@ -223,23 +225,27 @@ class JooqMappingPackStore(
         )
     }
 
+    private fun unexpiredAcceptance(
+        version: String,
+        entryId: String,
+    ): Boolean =
+        dsl.fetchExists(
+            MAPPING_ENTRY_ACCEPTANCE,
+            MAPPING_ENTRY_ACCEPTANCE.PACK_TYPE
+                .eq(PACK_TYPE)
+                .and(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID.eq(tenants.current().value))
+                .and(MAPPING_ENTRY_ACCEPTANCE.PACK_VERSION.eq(version))
+                .and(MAPPING_ENTRY_ACCEPTANCE.ENTRY_ID.eq(entryId))
+                .and(MAPPING_ENTRY_ACCEPTANCE.EXPIRES_ON.gt(LocalDate.now(clock.withZone(ZoneOffset.UTC)))),
+        )
+
     override fun recordAcceptance(
         packId: String,
         acceptance: MappingAcceptanceRecord,
     ) {
         val version = versionOf(packId)
         // a repeat while the acceptance of the entry has not expired stores nothing (contract repeatKey, INV-REQ-380)
-        val unexpired =
-            dsl.fetchExists(
-                MAPPING_ENTRY_ACCEPTANCE,
-                MAPPING_ENTRY_ACCEPTANCE.PACK_TYPE
-                    .eq(PACK_TYPE)
-                    .and(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID.eq(tenants.current().value))
-                    .and(MAPPING_ENTRY_ACCEPTANCE.PACK_VERSION.eq(version))
-                    .and(MAPPING_ENTRY_ACCEPTANCE.ENTRY_ID.eq(acceptance.entryId))
-                    .and(MAPPING_ENTRY_ACCEPTANCE.EXPIRES_ON.gt(LocalDate.now(ZoneOffset.UTC))),
-            )
-        if (unexpired) return
+        if (unexpiredAcceptance(version, acceptance.entryId)) return
         dsl
             .insertInto(MAPPING_ENTRY_ACCEPTANCE)
             .set(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID, tenants.current().value)
@@ -380,8 +386,10 @@ class JooqMappingPackStore(
         dsl
             .update(PACK_REGISTRY)
             .set(PACK_REGISTRY.STATUS, PackStatus.ARMED.name)
-            .set(PACK_REGISTRY.MIN_ENGINE_VERSION, checkNotNull(engineVersion.current()) { "no engine version at activation" })
-            .set(PACK_REGISTRY.EFFECTIVE_FROM, activation.effectiveFrom)
+            .set(
+                PACK_REGISTRY.MIN_ENGINE_VERSION,
+                checkNotNull(engineVersion.current()) { "no engine version at activation" },
+            ).set(PACK_REGISTRY.EFFECTIVE_FROM, activation.effectiveFrom)
             .set(PACK_REGISTRY.EFFECTIVE_TO, activation.effectiveTo)
             .set(PACK_REGISTRY.SUPERSEDES, predecessor)
             .set(PACK_REGISTRY.ACTIVATED_BY, activation.activatedBy)
