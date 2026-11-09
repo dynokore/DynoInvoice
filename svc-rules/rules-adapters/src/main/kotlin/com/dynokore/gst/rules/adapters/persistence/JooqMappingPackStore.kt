@@ -1,5 +1,6 @@
 package com.dynokore.gst.rules.adapters.persistence
 
+import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.MAPPING_ENTRY_ACCEPTANCE
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.MAPPING_PACK_APPROVAL
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_ENTRY_SOURCE
@@ -53,6 +54,7 @@ data class MappingPackView(
 class JooqMappingPackStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
+    private val engineVersion: EngineVersion,
 ) : MappingPackStore {
     private fun mine(packId: String): Condition =
         PACK_REGISTRY.PACK_ID
@@ -226,6 +228,18 @@ class JooqMappingPackStore(
         acceptance: MappingAcceptanceRecord,
     ) {
         val version = versionOf(packId)
+        // a repeat while the acceptance of the entry has not expired stores nothing (contract repeatKey, INV-REQ-380)
+        val unexpired =
+            dsl.fetchExists(
+                MAPPING_ENTRY_ACCEPTANCE,
+                MAPPING_ENTRY_ACCEPTANCE.PACK_TYPE
+                    .eq(PACK_TYPE)
+                    .and(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID.eq(tenants.current().value))
+                    .and(MAPPING_ENTRY_ACCEPTANCE.PACK_VERSION.eq(version))
+                    .and(MAPPING_ENTRY_ACCEPTANCE.ENTRY_ID.eq(acceptance.entryId))
+                    .and(MAPPING_ENTRY_ACCEPTANCE.EXPIRES_ON.gt(LocalDate.now(ZoneOffset.UTC))),
+            )
+        if (unexpired) return
         dsl
             .insertInto(MAPPING_ENTRY_ACCEPTANCE)
             .set(MAPPING_ENTRY_ACCEPTANCE.TENANT_ID, tenants.current().value)
@@ -366,6 +380,7 @@ class JooqMappingPackStore(
         dsl
             .update(PACK_REGISTRY)
             .set(PACK_REGISTRY.STATUS, PackStatus.ARMED.name)
+            .set(PACK_REGISTRY.MIN_ENGINE_VERSION, checkNotNull(engineVersion.current()) { "no engine version at activation" })
             .set(PACK_REGISTRY.EFFECTIVE_FROM, activation.effectiveFrom)
             .set(PACK_REGISTRY.EFFECTIVE_TO, activation.effectiveTo)
             .set(PACK_REGISTRY.SUPERSEDES, predecessor)

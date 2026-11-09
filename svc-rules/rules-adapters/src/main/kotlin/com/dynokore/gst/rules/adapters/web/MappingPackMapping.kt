@@ -30,6 +30,7 @@ class MappingRefusal(
 private const val UNPROCESSABLE = 422
 private const val UNAVAILABLE = 503
 private const val CONFLICT = 409
+private const val NOT_READY = "SRT-013"
 private const val HEX = 16
 private const val UNICODE_WIDTH = 4
 
@@ -92,15 +93,17 @@ object MappingPackMapping {
             RefusalReason.DECISION_UNAVAILABLE,
             RefusalReason.HOLDER_COPY_UNAVAILABLE,
             -> {
-                MappingRefusal(
-                    UNAVAILABLE,
-                    ClosedErrorCode.INTERNAL_ERROR.code,
-                    "A dependency is unavailable",
-                    "the command is retryable once the dependency answers",
-                )
+                unavailable("the command is retryable once the dependency answers")
             }
         }
     }
+
+    /**
+     * 503 SRT-013 (the service is not ready to decide; nothing is decided or changed, the caller retries later). The
+     * code comes from the pinned contract text; the catalogue version this service pins predates the row, so the code
+     * is stated here and the envelope carries no severity.
+     */
+    fun unavailable(detail: String) = MappingRefusal(UNAVAILABLE, NOT_READY, "A dependency is unavailable", detail)
 
     private fun conflict(detail: String) =
         MappingRefusal(CONFLICT, ClosedErrorCode.STALE_AGGREGATE.code, "Conflict with the recorded state", detail)

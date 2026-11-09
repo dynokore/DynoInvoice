@@ -1,6 +1,7 @@
 package com.dynokore.gst.rules.adapters.web
 
 import com.dynokore.gst.catalogue.ErrorCode
+import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.activationOf
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.approvalOf
@@ -8,6 +9,7 @@ import com.dynokore.gst.rules.adapters.web.MappingPackMapping.entryOf
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.problemBody
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.refusalOf
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.statusOf
+import com.dynokore.gst.rules.adapters.web.MappingPackMapping.unavailable
 import com.dynokore.gst.rules.application.AcceptEntryCommand
 import com.dynokore.gst.rules.application.ActivateCommand
 import com.dynokore.gst.rules.application.ActivePacksOutcome
@@ -32,6 +34,7 @@ import com.dynokore.gst.rules.contract.model.MappingEntry
 import com.dynokore.gst.rules.contract.model.MappingEntryPage
 import com.dynokore.gst.rules.contract.model.MappingPack
 import com.dynokore.gst.rules.contract.model.RulesDryRunStatus
+import com.dynokore.gst.rules.domain.pack.PackStatus
 import com.dynokore.gst.rules.domain.pack.SourceClass
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
@@ -61,6 +64,7 @@ open class PacksController(
     private val packs: JooqMappingPackStore,
     private val tenants: TenantContext,
     private val transactions: TransactionRunner,
+    private val engineVersion: EngineVersion,
 ) : MappingPacksApi,
     RegulatoryPacksApi {
     /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
@@ -205,7 +209,7 @@ open class PacksController(
         entityRef: String?,
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
-            done(authoring.submit(PackActionCommand(actor(), entityRef.orEmpty(), packId)))
+            repeatable(authoring.submit(PackActionCommand(actor(), entityRef.orEmpty(), packId)), PackStatus.SUBMITTED)
             ResponseEntity.ok(packAnswer(packId, withApprovals = false))
         }
 
@@ -215,7 +219,7 @@ open class PacksController(
         entityRef: String?,
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
-            done(authoring.approve(PackActionCommand(actor(), entityRef.orEmpty(), packId)))
+            repeatable(authoring.approve(PackActionCommand(actor(), entityRef.orEmpty(), packId)), PackStatus.APPROVED)
             ResponseEntity.ok(packAnswer(packId, withApprovals = true))
         }
 
@@ -226,7 +230,8 @@ open class PacksController(
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
             val request = activateMappingPackRequest
-            done(
+            val minEngineVersion = engineVersion.current() ?: throw unavailable("the engine version of this build is unknown")
+            repeatable(
                 authoring.activate(
                     ActivateCommand(
                         actor(),
@@ -234,9 +239,10 @@ open class PacksController(
                         packId,
                         request.effectiveFrom,
                         null,
-                        DEFAULT_MIN_ENGINE_VERSION,
+                        minEngineVersion,
                     ),
                 ),
+                PackStatus.ARMED,
             )
             ResponseEntity.ok(packAnswer(packId, withApprovals = true, withActivation = true))
         }
@@ -248,6 +254,19 @@ open class PacksController(
 
     private fun done(result: MappingPackResult) {
         refusalOf(result)?.let { throw it }
+    }
+
+    /**
+     * A repeat of a command whose pack already stands in the status the command leads to is a 200 with the current
+     * state and stores nothing (contract `repeatKey`, INV-REQ-380). The use case checks the permission and the entity
+     * before the lifecycle, so a repeat without the permission is still refused, and any other status stays a conflict.
+     */
+    private fun repeatable(
+        result: MappingPackResult,
+        target: PackStatus,
+    ) {
+        val repeat = result is MappingPackResult.Refused && result.reason == RefusalReason.LIFECYCLE && result.status == target
+        if (!repeat) done(result)
     }
 
     private fun conflictOf(reason: RefusalReason) = checkNotNull(refusalOf(MappingPackResult.Refused(reason)))
@@ -320,6 +339,5 @@ open class PacksController(
     ): ResponseEntity<RulesDryRunStatus> = ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
 }
 
-private const val DEFAULT_MIN_ENGINE_VERSION = "1.0.0"
 private const val PACK_ID_HEX = 8
 private const val ARMED = "ARMED"
