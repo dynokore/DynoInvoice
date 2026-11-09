@@ -1,11 +1,20 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.application.token.AccessTokenClaims
+import com.dynokore.gst.access.application.token.AccessTokenSigner
 import com.dynokore.gst.access.contract.model.IssueAccessTokenResponse.Decision
 import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.gst.access.domain.principal.PrincipalType
+import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
+import com.dynokore.platform.serviceruntime.replica.StructureChange
+import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantId
 import com.nimbusds.jwt.SignedJWT
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
 import java.nio.file.Path
@@ -433,4 +442,109 @@ class TokenAcceptanceTest {
                 java.nio.file.Files
                     .readString(mounted.resolve("access/token-signing-key")),
             )
+
+    private val typeNames =
+        mapOf(
+            "INGEST" to "ingest",
+            "FILING_WORKFLOW" to "filing-workflow",
+            "AP_CALLBACK" to "ap-callback",
+            "REPORTING" to "reporting",
+            "MONITORING" to "monitoring",
+            "CERTIFICATION" to "certification",
+        )
+
+    /** The claim `principal_type` of an issued token (INV-AC-13560, INV-REQ-584), read from the decoded payload. */
+    private fun principalTypeIssued(type: String): String? {
+        var result: String? = null
+        run { t ->
+            t.kit.clock.freeze()
+            t.kit.entity("ENT-1")
+            if (type == "CERTIFICATION") t.sandboxTenant()
+            val scope =
+                when (type) {
+                    "INGEST" -> "entity:ENT-1"
+                    "MONITORING" -> "installation"
+                    else -> "tenant:${t.kit.tenant}"
+                }
+            val issued = t.fresh(t.principal(type, scope))
+            assertThat(issued.decision).isEqualTo(Decision.ISSUED)
+            val claims = claimsOf(issued.accessToken!!)
+            assertThat(claims.keys).contains("principal_type").doesNotContain("principal-type", "principalType")
+            result = claims["principal_type"] as String?
+        }
+        return result
+    }
+
+    private fun TokenKit.sandboxTenant() =
+        kit.context.getBean(StructureReplica::class.java).accept(
+            OrganisationStructureChanged(
+                kit.tenant,
+                "TEN-1",
+                StructureChange.CREATED,
+                StructureNode(
+                    StructureNodeKind.TENANT,
+                    null,
+                    false,
+                    "node",
+                    null,
+                    emptyList(),
+                    1L,
+                    StructureEnvironment.SANDBOX,
+                ),
+            ),
+        )
+
+    @Test
+    fun `INV-AC-13560 ingest token carries principal_type ingest`() =
+        assertThat(principalTypeIssued("INGEST")).isEqualTo("ingest")
+
+    @Test
+    fun `INV-AC-13560 filing workflow token carries principal_type filing-workflow`() =
+        assertThat(principalTypeIssued("FILING_WORKFLOW")).isEqualTo("filing-workflow")
+
+    @Test
+    fun `INV-AC-13560 ap callback token carries principal_type ap-callback`() =
+        assertThat(principalTypeIssued("AP_CALLBACK")).isEqualTo("ap-callback")
+
+    @Test
+    fun `INV-AC-13560 reporting token carries principal_type reporting`() =
+        assertThat(principalTypeIssued("REPORTING")).isEqualTo("reporting")
+
+    @Test
+    fun `INV-AC-13560 monitoring token carries principal_type monitoring`() =
+        assertThat(principalTypeIssued("MONITORING")).isEqualTo("monitoring")
+
+    @Test
+    fun `INV-AC-13560 certification token carries principal_type certification`() =
+        assertThat(principalTypeIssued("CERTIFICATION")).isEqualTo("certification")
+
+    @Test
+    fun `INV-AC-13560 the look-alike names are none of the six`() {
+        listOf("sandbox-runner", "Filing-Workflow", "filing-workflow ", "").forEach {
+            assertThat(typeNames.values).describedAs(it).doesNotContain(it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-13560 sign refuses claims without principalType and returns no token`() =
+        run { t ->
+            val session = t.kit.context.getBean(AccessTokenSigner::class.java).open()
+            val now = Instant.parse("2026-11-09T00:00:00Z")
+            val base =
+                AccessTokenClaims(
+                    TestSecrets.TOKEN_ISSUER,
+                    "PRN-1",
+                    TestSecrets.TOKEN_AUDIENCE,
+                    "ingest",
+                    "entity:ENT-1",
+                    setOf("control-totals.write"),
+                    "TEN-1",
+                    now,
+                    now.plusSeconds(60),
+                    "jti-1",
+                )
+            assertThatThrownBy { session.sign(base) }.isInstanceOf(IllegalArgumentException::class.java)
+            assertThat(claimsOf(session.sign(base.copy(principalType = "ingest")))["principal_type"])
+                .isEqualTo("ingest")
+        }
 }

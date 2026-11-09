@@ -62,6 +62,9 @@ private class NimbusSigningSession(
     override val publicKey: String = Base64.getEncoder().encodeToString(der)
 
     override fun sign(claims: AccessTokenClaims): String {
+        // fail closed (INV-REQ-584, ASVS V4.1): a machine token without its type is never signed, no inference
+        val principalType =
+            requireNotNull(claims.principalType) { "a machine access token needs the claim principal_type" }
         val set =
             JWTClaimsSet
                 .Builder()
@@ -74,6 +77,7 @@ private class NimbusSigningSession(
                 .claim("client_id", claims.subject)
                 .claim("scope", claims.scope)
                 .claim("principal_scope", claims.principalScope)
+                .claim("principal_type", principalType)
                 .claim("permissions", claims.permissions.sorted())
                 .apply {
                     claims.tenantId?.let { tenant ->
