@@ -11,6 +11,7 @@ import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
 import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.application.ActivePackReader
+import com.dynokore.gst.rules.application.ClassifyDocument
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
@@ -118,6 +119,10 @@ class RulesConfiguration {
             // the one ScopeVerdictPort bean; a second bean fails the start of the context (NoUniqueBeanDefinition)
             scopeVerdicts.getIfAvailable(),
         )
+
+    /** Classification by function under the scope pack classification table in force on the date (INV-REQ-658). */
+    @Bean
+    fun classifyDocument(reader: PackContentsReader): ClassifyDocument = ClassifyDocument(reader)
 
     /**
      * The runtime offers no [RebuildRequiredSink] bean, and the entity-profile consumer below is created only when one

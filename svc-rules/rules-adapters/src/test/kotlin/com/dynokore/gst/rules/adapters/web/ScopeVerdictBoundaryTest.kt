@@ -7,6 +7,7 @@ import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
 import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.application.DocumentCoder
+import com.dynokore.gst.rules.application.ClassifyDocument
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
@@ -179,6 +180,7 @@ class ScopeVerdictBoundaryTest {
                 tx,
                 ProfileScopeFacts(structure, clock),
                 VoluntaryOverSubmission(policy),
+                ClassifyDocument(reader),
             )
         return Fixture(controller, structure, policy)
     }
