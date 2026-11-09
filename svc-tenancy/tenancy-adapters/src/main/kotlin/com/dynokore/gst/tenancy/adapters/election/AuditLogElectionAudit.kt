@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.adapters.election
 
 import com.dynokore.gst.tenancy.adapters.events.EventContexts
 import com.dynokore.gst.tenancy.application.election.ApprovedChange
+import com.dynokore.gst.tenancy.application.election.ClosedChange
 import com.dynokore.gst.tenancy.application.election.ElectionAudit
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseAuditRecord
 import com.dynokore.gst.tenancy.application.election.PendingChange
@@ -45,6 +46,36 @@ class AuditLogElectionAudit(
         )
     }
 
+    override fun withdrawn(closure: ClosedChange) {
+        val change = closure.change
+        record(
+            AuditEntry(
+                actor = closure.closedBy,
+                action = WITHDRAWN,
+                scope = change.entityRef,
+                reason =
+                    "${change.kind.variationPoint} change ${change.changeRef} to ${describe(change)} withdrawn by " +
+                        "its requester ${change.requestedBy}",
+            ),
+            change.entityRef,
+        )
+    }
+
+    override fun declined(closure: ClosedChange) {
+        val change = closure.change
+        record(
+            AuditEntry(
+                actor = closure.closedBy,
+                action = DECLINED,
+                scope = change.entityRef,
+                reason =
+                    "${change.kind.variationPoint} change ${change.changeRef} to ${describe(change)} declined by " +
+                        "${closure.closedBy}, requested by ${change.requestedBy}",
+            ),
+            change.entityRef,
+        )
+    }
+
     override fun exemptPurchaseRecorded(record: ExemptPurchaseAuditRecord) {
         record(
             AuditEntry(
@@ -72,6 +103,8 @@ class AuditLogElectionAudit(
     companion object {
         const val REQUESTED = "election-change.requested"
         const val APPROVED = "election-change.approved"
+        const val WITHDRAWN = "election-change.withdrawn"
+        const val DECLINED = "election-change.declined"
         const val EXEMPT_PURCHASE_RECORDED = "election.exempt-purchase.recorded"
     }
 }

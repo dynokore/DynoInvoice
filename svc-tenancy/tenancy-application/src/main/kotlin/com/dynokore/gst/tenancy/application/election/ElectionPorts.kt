@@ -40,9 +40,25 @@ data class ApprovedChange(
     val approvedAt: Instant,
 )
 
+/** A change that was closed without taking effect: withdrawn by its requester or declined by another person. */
+data class ClosedChange(
+    val change: PendingChange,
+    val closedBy: String,
+    val closedAt: Instant,
+)
+
+/** One page of the PENDING changes of an entity; [next] is the opaque token of the following page, else null. */
+data class PendingChangePage(
+    val items: List<PendingChange>,
+    val next: String?,
+)
+
 /** The pending changes of the elections of the bound tenant (table `election_change`, forced RLS). */
 interface ElectionChangeStore {
-    /** Stores a PENDING change of [kind] requested by [requestedBy]. */
+    /**
+     * Stores a PENDING change of [kind] requested by [requestedBy]; null, and nothing stored, when the entity already
+     * has a PENDING change for the same variation point (owner answer INV-Q-10117, option A).
+     */
     @Suppress("LongParameterList") // one request with its requester
     fun request(
         entityRef: String,
@@ -51,7 +67,7 @@ interface ElectionChangeStore {
         basis: String?,
         effectiveFrom: LocalDate,
         requestedBy: String,
-    ): PendingChange
+    ): PendingChange?
 
     /** The change of this entity and tenant that is still PENDING, else null (unknown, other entity or decided). */
     fun pending(
@@ -65,6 +81,32 @@ interface ElectionChangeStore {
         changeRef: String,
         approvedBy: String,
     ): ApprovedChange?
+
+    /** Sets PENDING to WITHDRAWN; null when the change is no longer PENDING (already decided). */
+    fun withdraw(
+        entityRef: String,
+        changeRef: String,
+        closedBy: String,
+    ): ClosedChange?
+
+    /** Sets PENDING to DECLINED; null when the change is no longer PENDING (already decided). */
+    fun decline(
+        entityRef: String,
+        changeRef: String,
+        closedBy: String,
+    ): ClosedChange?
+
+    /**
+     * The PENDING changes of the entity, ordered by `requestedAt` then `changeRef`, at most [limit] items after the
+     * position [after] (the [PendingChangePage.next] token of the previous page, null for the first page).
+     *
+     * @throws IllegalArgumentException when [after] is not a token this store issued.
+     */
+    fun list(
+        entityRef: String,
+        limit: Int,
+        after: String?,
+    ): PendingChangePage
 }
 
 /**
@@ -77,6 +119,12 @@ interface ElectionAudit {
 
     /** "approved": names the approver and the requester. */
     fun approved(approval: ApprovedChange)
+
+    /** "withdrawn": names the user ID of the requester who withdrew and the change. */
+    fun withdrawn(closure: ClosedChange)
+
+    /** "declined": names the user ID of the decliner and of the requester. */
+    fun declined(closure: ClosedChange)
 
     /** "exempt-purchase recorded": names the acting user ID and the codes of the INV-REQ-369 election. */
     fun exemptPurchaseRecorded(record: ExemptPurchaseAuditRecord)

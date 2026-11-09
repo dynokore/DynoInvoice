@@ -19,6 +19,9 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.LocalDate
 
+/** The largest page of the list of pending changes. */
+const val MAX_LIST_LIMIT = 200
+
 /** The profile attribute the issuance mode is published under on EntityProfileChanged (INV-Q-4993 B). */
 const val ISSUANCE_MODE_ATTRIBUTE = "issuanceMode"
 
@@ -65,6 +68,26 @@ sealed interface ElectionOutcome {
     /** 200: the pending change was approved and the election is in force from its effective date. */
     data class Approved(
         val approval: ApprovedChange,
+    ) : ElectionOutcome
+
+    /** 200: the requester withdrew the PENDING change; nothing was written to the election. */
+    data class Withdrawn(
+        val closure: ClosedChange,
+    ) : ElectionOutcome
+
+    /** 200: another person declined the PENDING change; nothing was written to the election. */
+    data class Declined(
+        val closure: ClosedChange,
+    ) : ElectionOutcome
+
+    /** 200: the PENDING changes of one entity, one page. */
+    data class Listed(
+        val page: PendingChangePage,
+    ) : ElectionOutcome
+
+    /** 409: the entity already has a PENDING change for this variation point; nothing is stored. */
+    data class Conflict(
+        val reason: String,
     ) : ElectionOutcome
 
     /** 404 SRT-005: no such entity, or no PENDING change of that reference on it. */
@@ -308,6 +331,87 @@ class ElectionCommands(
             ElectionOutcome.Approved(approval)
         }
 
+    /**
+     * Withdraws a PENDING change (owner answer INV-Q-10113, option A): the caller holds `election-change.withdraw` on
+     * the entity and is the requester, compared by equality of the identity string. Nothing reaches the policy writer
+     * and no event is published.
+     */
+    fun withdrawElectionChange(
+        entityRef: String,
+        changeRef: String,
+    ): ElectionOutcome =
+        tx.inTransaction {
+            val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
+            val requester = caller.actor()
+            if (!holds { authority.holds(requester, entity.ref, WITHDRAW) }) {
+                return@inTransaction ElectionOutcome.Forbidden(
+                    "$requester does not hold $WITHDRAW for entity ${entity.ref}",
+                )
+            }
+            val change = changes.pending(entity.ref, changeRef) ?: return@inTransaction ElectionOutcome.NotFound
+            if (change.requestedBy != requester) {
+                return@inTransaction ElectionOutcome.Forbidden("only the requester may withdraw the change")
+            }
+            val closure =
+                changes.withdraw(entity.ref, change.changeRef, requester)
+                    ?: return@inTransaction ElectionOutcome.NotFound
+            audit.withdrawn(closure)
+            ElectionOutcome.Withdrawn(closure)
+        }
+
+    /**
+     * Declines a PENDING change (owner answer INV-Q-10115, option A): the requester holds `election-change.approve` and
+     * differs from the requester (INV-Q-9704). Nothing is written to the election.
+     */
+    fun declineElectionChange(
+        entityRef: String,
+        changeRef: String,
+    ): ElectionOutcome =
+        tx.inTransaction {
+            val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
+            val decliner = caller.actor()
+            if (!holds { authority.holds(decliner, entity.ref, ElectionPermissions.APPROVE) }) {
+                return@inTransaction ElectionOutcome.Forbidden(
+                    "$decliner does not hold ${ElectionPermissions.APPROVE} for entity ${entity.ref}",
+                )
+            }
+            val change = changes.pending(entity.ref, changeRef) ?: return@inTransaction ElectionOutcome.NotFound
+            if (change.requestedBy == decliner) {
+                return@inTransaction ElectionOutcome.Forbidden("the decliner must be a person other than the requester")
+            }
+            val closure =
+                changes.decline(entity.ref, change.changeRef, decliner)
+                    ?: return@inTransaction ElectionOutcome.NotFound
+            audit.declined(closure)
+            ElectionOutcome.Declined(closure)
+        }
+
+    /**
+     * Lists the PENDING changes of the entity (owner answer INV-Q-10119, option A: a list operation only): the caller
+     * holds `election-change.list` on the entity. A [limit] outside 1..[MAX_LIST_LIMIT] or an unknown [after] token is
+     * 400 SRT-001.
+     */
+    fun listElectionChanges(
+        entityRef: String,
+        limit: Int,
+        after: String?,
+    ): ElectionOutcome =
+        tx.inTransaction {
+            val entity = structure.entity(entityRef) ?: return@inTransaction ElectionOutcome.NotFound
+            val reader = caller.actor()
+            if (!holds { authority.holds(reader, entity.ref, LIST) }) {
+                return@inTransaction ElectionOutcome.Forbidden("$reader does not hold $LIST for entity ${entity.ref}")
+            }
+            if (limit !in 1..MAX_LIST_LIMIT) {
+                return@inTransaction ElectionOutcome.Invalid("limit must be between 1 and $MAX_LIST_LIMIT")
+            }
+            try {
+                ElectionOutcome.Listed(changes.list(entity.ref, limit, after))
+            } catch (_: IllegalArgumentException) {
+                ElectionOutcome.Invalid("after is not a page token of this list")
+            }
+        }
+
     /** The value checks of the original request, run again at approval time (INV-REQ-1283, INV-REQ-504). */
     private fun valueRefusal(change: PendingChange): ElectionOutcome.Refused? =
         when {
@@ -334,7 +438,12 @@ class ElectionCommands(
         effectiveFrom: LocalDate,
         actor: String,
     ): ElectionOutcome {
-        val change = changes.request(entityRef, kind, value, basis, effectiveFrom, actor)
+        val change =
+            changes.request(entityRef, kind, value, basis, effectiveFrom, actor)
+                ?: return ElectionOutcome.Conflict(
+                    "entity $entityRef already has a PENDING ${kind.variationPoint} change; " +
+                        "approve, withdraw or decline it first",
+                )
         audit.requested(change)
         return ElectionOutcome.Pending(change)
     }
@@ -554,4 +663,10 @@ class ElectionCommands(
         elections
             .history(entityRef, kind)
             .map { ProfileEntry(attribute, it.value, it.effectiveFrom) }
+
+    private companion object {
+        /** The permission keys of the withdrawal and the list (owner answers INV-Q-10113, INV-Q-10119). */
+        const val WITHDRAW = "election-change.withdraw"
+        const val LIST = "election-change.list"
+    }
 }

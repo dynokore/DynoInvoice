@@ -200,6 +200,10 @@ class ExemptPurchaseElectionsTest {
 
         override fun approved(approval: ApprovedChange) = error("not used")
 
+        override fun withdrawn(closure: ClosedChange) = error("not used")
+
+        override fun declined(closure: ClosedChange) = error("not used")
+
         override fun exemptPurchaseRecorded(record: ExemptPurchaseAuditRecord) {
             entries += record
         }
