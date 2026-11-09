@@ -66,6 +66,7 @@ tasks.test {
     useJUnitPlatform()
     filter { excludeTestsMatching("*Gate") } // the two repository gates have their own tasks below
     jvmArgs("-Duser.timezone=UTC") // CS-41
+    systemProperty("gst.repo.root", rootDir.absolutePath)
 }
 
 // ---- the two repository gates (INV-T-4965), each its own `check` task that fails closed ----
