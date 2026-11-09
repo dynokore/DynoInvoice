@@ -28,6 +28,32 @@ class PeriodRecordsChangedPayloadSchemaTest {
     private fun errors(payload: ObjectNode) = schema.validate(payload.toString(), InputFormat.JSON)
 
     @Test
+    fun `the stored row equals the full expected tree with entityRef, a numeric version and ISO dates`() {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val p = PeriodEnv(ProfileEnv(context))
+            p.env.withEntity { _, entity ->
+                p.register(entity, "2026-01-01")
+                p.change(entity, Freq.QUARTERLY, "2026-01-01")
+                val payload = JsonMapper.builder().build().readTree(PeriodRecordsRows.of(entity.entityRef).single())
+                assertThat(payload["version"].isIntegralNumber).isTrue()
+                val expected = JsonMapper.builder().build().createObjectNode()
+                expected.put("entityRef", entity.entityRef)
+                expected.put("version", payload["version"].asInt())
+                val periods = expected.putArray("periods")
+                p.records(entity).forEach {
+                    periods
+                        .addObject()
+                        .put("periodRef", it.periodRef)
+                        .put("periodStart", it.start.toString())
+                        .put("periodEnd", it.end.toString())
+                }
+                assertThat(payload).isEqualTo(expected)
+            }
+        }
+    }
+
+    @Test
     fun `the mapped payload validates and a payload without version, with version 0 or without periodEnd fails`() {
         BoundaryFixture.runner().run { context ->
             context.startupFailure?.let { throw it }
