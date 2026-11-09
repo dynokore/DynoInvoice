@@ -241,10 +241,24 @@ open class TenantsController(
         openTenantRequest: OpenTenantRequest,
     ): ResponseEntity<TenantStateResponse> =
         when (val outcome = openTenant.handle(tenantRef)) {
-            is TenantOpening.Opened -> ResponseEntity.ok(stateOf(outcome.tenant))
-            is TenantOpening.Repeated -> ResponseEntity.ok(stateOf(outcome.tenant))
-            is TenantOpening.Refused -> conflict(TenancyErrorCode.TENANT_NOT_OPENABLE, "the tenant is closed and cannot be opened")
-            TenantOpening.Missing -> notFound()
+            is TenantOpening.Opened -> {
+                ResponseEntity.ok(stateOf(outcome.tenant))
+            }
+
+            is TenantOpening.Repeated -> {
+                ResponseEntity.ok(stateOf(outcome.tenant))
+            }
+
+            is TenantOpening.Refused -> {
+                conflict(
+                    TenancyErrorCode.TENANT_NOT_OPENABLE,
+                    "the tenant is closed and cannot be opened",
+                )
+            }
+
+            TenantOpening.Missing -> {
+                notFound()
+            }
         }
 
     private fun stateOf(tenant: TenantRecord) =
