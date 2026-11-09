@@ -365,8 +365,7 @@ class CertifySandboxTest {
     @Test
     fun `the published channel set gains exactly CertificationStatusChanged`() {
         assertThat(PublishedChannels.ALL).contains(CertificationStatusChangedOutbox.CHANNEL)
-        val gained = setOf("CertificationStatusChanged", "PeriodRecordsChanged")
-        assertThat(PublishedChannels.ALL - gained).containsExactlyInAnyOrder(
+        assertThat(PublishedChannels.ALL - setOf("CertificationStatusChanged")).containsExactlyInAnyOrder(
             "OrganisationStructureChanged",
             "EntityProfileChanged",
             "FilingFrequencyChanged",
