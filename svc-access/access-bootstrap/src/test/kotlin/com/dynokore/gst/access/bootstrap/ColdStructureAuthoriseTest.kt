@@ -143,9 +143,10 @@ class ColdStructureAuthoriseTest {
                     .baseUrl("http://access")
                     .build()
             val fallback = AccessAuthorityFallback(AuthoriseApi(client))
-            // the bare entity reference: the shipped library adds the `entity:` prefix itself (INV-T-19209)
+            // the entity ref carries the contract's `entity:` form: the fallback sends the request's entityRef as the
+            // scope unchanged, and a bare ref is answered DENY BAD_SCOPE before any structure read
             val human = Principal(caller, PrincipalKind.HUMAN)
-            val request = AuthorizationRequest(tenant, human, "ENT-LIVE", "pack.approve")
+            val request = AuthorizationRequest(tenant, human, "entity:ENT-LIVE", "pack.approve")
             val deadline = Deadline.after(Duration.ofSeconds(1), context.getBean(Clock::class.java))
             // the edge policy of service-runtime turns any failure of the call into Unavailable, so the replica
             // applies its degraded rule (a human action is denied, a machine action allowed)
