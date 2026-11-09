@@ -44,8 +44,8 @@ private const val REGISTER_ARGUMENTS = "uuid,text,text,text,text,date,date,text,
 
 private const val INSERT_TENANT_PACK =
     "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
-        "effective_from, effective_to, min_engine_version, supersedes, registered_by) " +
-        "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', ?, ?::date, ?::date, '1.0.0', ?, 'tenancy-probe') " +
+        "effective_from, effective_to, min_engine_version, supersedes, registered_by, entity_ref) " +
+        "values (?::uuid, ?::uuid, ?, ?, ?, 'TENANT_MAPPING', ?, ?::date, ?::date, '1.0.0', ?, 'tenancy-probe', ?) " +
         "returning id"
 
 private const val INSERT_ARTEFACT =
@@ -127,6 +127,7 @@ class RegistryPostgresIT(
         pack.from,
         pack.to,
         pack.supersedes,
+        if (pack.packType == "MAPPING") "E-1" else null,
     )
 
     private fun count(tenant: TenantId?): Long {
@@ -259,6 +260,7 @@ class RegistryPostgresIT(
                 "2026-01-01",
                 null,
                 null,
+                null,
             )
         }
         // the function refuses a tenant binding and works under the platform binding
@@ -358,6 +360,11 @@ class RegistryPostgresIT(
                 "supersedes",
                 "registered_by",
                 "registered_at",
+                "label",
+                "entity_ref",
+                "activated_by",
+                "activated_at",
+                "content_changed_at",
             )
         columnsOf("pack_entry_source") shouldBe
             setOf(
@@ -369,6 +376,9 @@ class RegistryPostgresIT(
                 "source_class",
                 "source_citation",
                 "accepted",
+                "internal_tax_code",
+                "iras_code",
+                "scheme_tag",
             )
     }
 
@@ -384,6 +394,16 @@ class RegistryPostgresIT(
                 "pack_registry_platform_select",
                 "pack_registry_platform_advance",
             )
+        names(policies + "'dry_run_delta'") shouldBe
+            setOf("dry_run_delta_tenant_read", "dry_run_delta_tenant_insert", "dry_run_delta_tenant_update")
+        names(policies + "'mapping_entry_acceptance'") shouldBe
+            setOf(
+                "mapping_entry_acceptance_tenant_read",
+                "mapping_entry_acceptance_tenant_insert",
+                "mapping_entry_acceptance_tenant_update",
+            )
+        names(policies + "'mapping_pack_approval'") shouldBe
+            setOf("mapping_pack_approval_tenant_read", "mapping_pack_approval_tenant_insert")
         names(policies + "'pack_entry_source'") shouldBe
             setOf(
                 "pack_entry_source_tenant_read",
@@ -399,8 +419,9 @@ class RegistryPostgresIT(
             "select t.tgname as n from pg_trigger t join pg_class c on c.oid = t.tgrelid " +
                 "where not t.tgisinternal and c.relnamespace = 'rules'::regnamespace and c.relname = "
         names(triggers + "'pack_registry'") shouldBe
-            setOf("pack_registry_registered_by_insert", "pack_registry_frozen_update")
-        names(triggers + "'pack_entry_source'") shouldBe setOf("pack_entry_source_frozen")
+            setOf("pack_registry_registered_by_insert", "pack_registry_frozen_update", "pack_registry_mapping_moves")
+        names(triggers + "'pack_entry_source'") shouldBe setOf("pack_entry_source_frozen", "pack_entry_source_locked")
+        names(triggers + "'dry_run_delta'") shouldBe setOf("dry_run_delta_complete_fixed")
         // the nine-parameter function of INV-T-4965 and the kernel's twelve-parameter one share a name
         names(
             "select array_to_string(proargtypes::regtype[], ',') as n from pg_proc " +

@@ -2,9 +2,16 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
+import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
+import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
+import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
+import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
+import com.dynokore.gst.rules.adapters.packs.RefusingRateSourcePort
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
+import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
+import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
@@ -13,10 +20,17 @@ import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.application.ActivePackReader
 import com.dynokore.gst.rules.application.ClassifyDocument
 import com.dynokore.gst.rules.application.DocumentCoder
+import com.dynokore.gst.rules.application.DryRunDeltaPort
 import com.dynokore.gst.rules.application.EvaluateDocument
+import com.dynokore.gst.rules.application.HolderCopyPort
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.application.ListCursorKey
+import com.dynokore.gst.rules.application.MappingPackAuthoring
+import com.dynokore.gst.rules.application.MappingPackCollaborators
+import com.dynokore.gst.rules.application.PackActionAuthority
+import com.dynokore.gst.rules.application.PackApprovalDecisionPort
 import com.dynokore.gst.rules.application.PackEventEmitter
+import com.dynokore.gst.rules.application.RateSourcePort
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
@@ -47,6 +61,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -211,4 +226,62 @@ class RulesConfiguration {
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
         const val SCHEMA = "rules"
     }
+
+    // ---- mapping pack authoring and sign-off (INV-T-4972; INV-Q-14646 to INV-Q-14652) ----
+
+    /** Holds no permission until the adapter over `AuthorityReplica.decide` lands (INV-Q-14652 A). */
+    @Bean
+    @ConditionalOnMissingBean(PackActionAuthority::class)
+    fun packActionAuthority(): PackActionAuthority = RefusingPackActionAuthority()
+
+    /** Cannot ask access-svc until INV-T-10700 replaces it (INV-Q-14647 A). */
+    @Bean
+    @ConditionalOnMissingBean(PackApprovalDecisionPort::class)
+    fun packApprovalDecisionPort(): PackApprovalDecisionPort = RefusingPackApprovalDecisionPort()
+
+    /** Answers null until INV-T-16546 replaces it (INV-Q-14651 A, INV-Q-16533 A). */
+    @Bean
+    @ConditionalOnMissingBean(RateSourcePort::class)
+    fun rateSourcePort(): RateSourcePort = RefusingRateSourcePort()
+
+    /** Answers Unavailable until INV-T-16544 replaces it (INV-Q-14650 A, INV-Q-16531 A). */
+    @Bean
+    @ConditionalOnMissingBean(HolderCopyPort::class)
+    fun holderCopyPort(): HolderCopyPort = RefusingHolderCopyPort()
+
+    @Bean
+    fun mappingPackStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+        engineVersion: EngineVersion,
+        clock: Clock,
+    ): JooqMappingPackStore = JooqMappingPackStore(dsl, tenants, engineVersion, clock)
+
+    /** The build's own version from the `BuildProperties` that `buildInfo()` generates (absent in a bare context). */
+    @Bean
+    fun engineVersion(build: ObjectProvider<BuildProperties>): EngineVersion = EngineVersion(build.ifAvailable)
+
+    @Bean
+    fun dryRunDeltaPort(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): DryRunDeltaPort = JooqDryRunDeltaPort(dsl, tenants)
+
+    /** The code catalogue is the pack INV-T-4966 decodes: the reader resolves the ARMED version by date. */
+    @Suppress("LongParameterList") // the composition root names the seven collaborators of the use case (TPL-18)
+    @Bean
+    fun mappingPackAuthoring(
+        store: JooqMappingPackStore,
+        authority: PackActionAuthority,
+        deltas: DryRunDeltaPort,
+        decisions: PackApprovalDecisionPort,
+        catalogues: PackContentsReader,
+        rateSources: RateSourcePort,
+        holderCopies: HolderCopyPort,
+        clock: Clock,
+    ): MappingPackAuthoring =
+        MappingPackAuthoring(
+            MappingPackCollaborators(store, authority, deltas, decisions, catalogues, rateSources, holderCopies),
+            clock,
+        )
 }

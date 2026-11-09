@@ -32,8 +32,18 @@ internal object SchemaInspection {
     const val RUNTIME = "rules_runtime"
     const val SYS = "rules_sys"
 
-    /** The metadata tables of V1: registry and activation state only, no document-shaped column. */
-    val REGISTRY_TABLES = setOf("pack_registry", "pack_entry_source")
+    /**
+     * The metadata tables: registry and activation state, the entries, the acceptances, the approvals and the dry-run
+     * deltas of a mapping pack (V1 and INV-Q-14648 A, INV-Q-14646 A), all relational, no document-shaped column.
+     */
+    val REGISTRY_TABLES =
+        setOf(
+            "pack_registry",
+            "pack_entry_source",
+            "mapping_entry_acceptance",
+            "mapping_pack_approval",
+            "dry_run_delta",
+        )
 
     /** The columns of the kernel's registry table (`PackRegistryMigration.ddl`), `pack_version` and not `version`. */
     val HOLDER_COLUMNS =

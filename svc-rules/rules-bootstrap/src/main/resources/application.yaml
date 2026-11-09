@@ -17,6 +17,7 @@ spring:
     user: rules_migrate                             # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
 service-runtime:
   modules.schema: rules
+  idempotency.schema: rules                         # API-15 store of the mapping pack commands (INV-T-4972)
   pool:
     runs-reprocessing: true                         # rules-svc runs pack-activation reprocessing (INV-Q-4485)
     # No profile and no lane budget here (INV-Q-4496): the chart supplies the lanes or the installation profile.

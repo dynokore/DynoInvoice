@@ -5,13 +5,21 @@ import com.dynokore.gst.rules.bootstrap.SchemaInspection.Grant
 import com.dynokore.gst.rules.bootstrap.SchemaInspection.Table
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
 /** The probes of INV-AC-2182's inspection: each look-alike or violation must produce a finding. */
 class SchemaInspectionTest {
     private val libraries = setOf("outbox")
     private val holder = Table("rules", "pack_artefact")
-    private val registry = listOf(Table("rules", "pack_registry"), Table("rules", "pack_entry_source"))
+    private val registry =
+        listOf(
+            Table("rules", "pack_registry"),
+            Table("rules", "pack_entry_source"),
+            Table("rules", "mapping_entry_acceptance"),
+            Table("rules", "mapping_pack_approval"),
+            Table("rules", "dry_run_delta"),
+        )
     private val holderColumns = SchemaInspection.HOLDER_COLUMNS.map { Column(holder, it, "text") }
     private val good = registry + holder + Table("rules", "outbox")
 
@@ -55,6 +63,48 @@ class SchemaInspectionTest {
             findings(columns = holderColumns + Column(registry.last(), "extra", type)).shouldNotBeEmpty()
         }
         findings(columns = holderColumns.map { it.copy(type = "jsonb") }).shouldBeEmpty()
+    }
+
+    @Test
+    fun `the registry tables are exactly the five names`() {
+        SchemaInspection.REGISTRY_TABLES shouldBe
+            setOf(
+                "pack_registry",
+                "pack_entry_source",
+                "mapping_entry_acceptance",
+                "mapping_pack_approval",
+                "dry_run_delta",
+            )
+    }
+
+    @Test
+    fun `probe - an unclassified look-alike of a new table fails`() {
+        findings(good + Table("rules", "mapping_entry_acceptances")).shouldNotBeEmpty()
+        findings(good + Table("rules", "dry_run_deltas")).shouldNotBeEmpty()
+        findings(good + Table("rules", "mapping_pack_approvals")).shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `probe - a jsonb column on dry_run_delta and a bytea column on mapping_pack_approval fail`() {
+        findings(columns = holderColumns + Column(Table("rules", "dry_run_delta"), "per_document", "jsonb"))
+            .shouldNotBeEmpty()
+        findings(columns = holderColumns + Column(Table("rules", "mapping_pack_approval"), "signature", "bytea"))
+            .shouldNotBeEmpty()
+        findings(columns = holderColumns + Column(Table("rules", "mapping_entry_acceptance"), "doc", "json"))
+            .shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `probe - the same table name in another schema is not classified`() {
+        findings(good + Table("other", "dry_run_delta")).shouldBeEmpty() // another schema is not this inspection's
+        findings(good.filter { it.name != "dry_run_delta" } + Table("other", "dry_run_delta")).shouldBeEmpty()
+        findings(good + Table("rules", "dry_run_delta_other")).shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `probe - the holder copy is unchanged by the new tables`() {
+        findings(columns = holderColumns.filter { it.name != "contents" }).shouldNotBeEmpty()
+        findings(columns = holderColumns).shouldBeEmpty()
     }
 
     private val runtime = listOf(Grant("rules_runtime", "INSERT"), Grant("rules_runtime", "SELECT"))

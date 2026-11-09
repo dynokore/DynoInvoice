@@ -5,6 +5,7 @@ plugins {
 }
 
 springBoot { mainClass.set("com.dynokore.gst.rules.bootstrap.RulesApplicationKt") }
+springBoot { buildInfo() }
 
 dependencies {
     implementation(platform(libs.platform.bom))
