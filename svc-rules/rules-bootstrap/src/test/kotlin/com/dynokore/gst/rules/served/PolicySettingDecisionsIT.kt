@@ -3,6 +3,7 @@ package com.dynokore.gst.rules.served
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.bootstrap.PostgresRules
 import com.dynokore.gst.rules.bootstrap.RulesApplication
+import com.dynokore.platform.configresolver.BusinessDate
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.ScopeLevel
@@ -88,7 +89,9 @@ class PolicySettingDecisionsIT(
         )
     private val http = HttpClient.newHttpClient()
     private val tenant = TenantId(UUID.randomUUID())
-    private val today: LocalDate = LocalDate.now(clock)
+
+    // The writer refuses a TENANT value dated before the business date, which is the Asia/Singapore date, not UTC.
+    private val today: LocalDate = BusinessDate.today(clock)
 
     @BeforeEach
     fun freshReplica() {
