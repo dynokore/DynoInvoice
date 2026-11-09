@@ -174,7 +174,6 @@ paths:
       tags: [register-and-rates]
       x-principal: ingest
       x-caller-auth: end-user
-      x-entity-ref: entityRef
       x-timeout: 1000
       x-sync-edge: payload-svc->masterdata-svc
       x-error-codes: [MDM-007]
@@ -199,10 +198,8 @@ paths:
           description: >-
             The entity the caller acts for. Optional in the schema only to keep
             the change additive (API-03): the service refuses a request without
-            it, or with a blank one, with `400` SRT-001 and changes nothing; an
-            entity outside the principal's entity set is refused `403` SRT-004
-            before the handler runs (API-24). The elected source is the
-            election of that entity.
+            it, or with a blank one, with `400` SRT-001 and changes nothing. The
+            elected source is the election of that entity.
       responses:
         '200':
           description: The register facts and, where the currency is not SGD, the elected-source exchange rate.
