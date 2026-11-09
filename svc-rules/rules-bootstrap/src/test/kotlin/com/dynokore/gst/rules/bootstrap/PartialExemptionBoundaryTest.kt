@@ -1,8 +1,8 @@
 package com.dynokore.gst.rules.bootstrap
 
+import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.domain.scope.PartialExemption
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
-import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.platform.serviceruntime.replica.EntityProfileChanged
 import com.dynokore.platform.serviceruntime.replica.ProfileEntry
 import com.dynokore.platform.serviceruntime.replica.StructureNode
@@ -164,8 +164,11 @@ class PartialExemptionBoundaryTest(
         also: List<ProfileEntry> = emptyList(),
     ): String {
         val ref = "pe-entity-${entityCounter.incrementAndGet()}"
-        record(ref, listOf(ProfileEntry("obligationStartDate", PE_FROM, LocalDate.parse(PE_FROM))) + also +
-            entries.map { ProfileEntry(it.first, it.second, LocalDate.parse(effective)) })
+        record(
+            ref,
+            listOf(ProfileEntry("obligationStartDate", PE_FROM, LocalDate.parse(PE_FROM))) + also +
+                entries.map { ProfileEntry(it.first, it.second, LocalDate.parse(effective)) },
+        )
         return ref
     }
 
@@ -316,10 +319,16 @@ class PartialExemptionBoundaryTest(
         entity(exempt, "exemptPurchaseCodes" to "TX-N33", "exemptPurchaseBasis" to "b")
         evaluate(entity(exempt), "N33").text("scopeVerdict") shouldBe IN_SCOPE
         // an election dated after the transaction date
-        val late = entity(exempt, effective = PE_FROM, also = listOf(
-            ProfileEntry("exemptPurchaseCodes", "TX-N33", LocalDate.parse("2027-03-02")),
-            ProfileEntry("exemptPurchaseBasis", "b", LocalDate.parse("2027-03-02")),
-        ))
+        val late =
+            entity(
+                exempt,
+                effective = PE_FROM,
+                also =
+                    listOf(
+                        ProfileEntry("exemptPurchaseCodes", "TX-N33", LocalDate.parse("2027-03-02")),
+                        ProfileEntry("exemptPurchaseBasis", "b", LocalDate.parse("2027-03-02")),
+                    ),
+            )
         evaluate(late, "N33").let {
             it.text("scopeVerdict") shouldBe IN_SCOPE
             it.rules() shouldBe listOf(PartialExemption.RULE_PARTIAL_EXEMPTION)
