@@ -2,6 +2,7 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.GroupResponse
+import com.dynokore.platform.configresolver.ElectionRequired
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
@@ -17,6 +18,7 @@ import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.boot.web.servlet.ServletRegistrationBean
 import org.springframework.mock.web.MockHttpServletRequest
@@ -370,12 +372,40 @@ class SetPolicyDecisionTest {
                 for (person in listOf("tenantLevel", "alike")) {
                     e.post("VP-52", e.caller(person, null), body).refusedSrt004()
                 }
-                // The decision passes for the operator: the answer is not the SRT-004 refusal. The value stage
-                // (ImplementationDateConstraints) refuses every key but VP-51 with POL-014, so nothing is stored;
-                // that is reported as a gap in the merge request and is not asserted here.
                 val answer = e.post("VP-52", e.caller("operator", null), body)
-                assertThat(answer.status).isNotEqualTo(denied)
-                assertThat(answer.contentAsString).doesNotContain("SRT-004")
+                assertThat(answer.status).describedAs(answer.contentAsString).isEqualTo(200)
+                assertThat(
+                    e.chosen(VariationPointKey("VP-52"), PolicyScope.installation()),
+                ).isEqualTo("CUSTOMER_KUBERNETES")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-8923 VP-52 refuses every value but CUSTOMER_KUBERNETES and stores nothing`() {
+        run("PRIVATE") { e ->
+            e.synced()
+            e.role("operator", TenantId.PLATFORM, "deployment.operator", GrantScope.INSTALLATION, null)
+            val caller = e.caller("operator", null)
+            for (option in listOf("SUPPLIED_APPLIANCE", "customer_kubernetes", "CUSTOMER_KUBERNETES2")) {
+                val answer = e.post("VP-52", caller, e.body("INSTALLATION", null, null, option))
+                assertThat(answer.status).describedAs(answer.contentAsString).isEqualTo(UNPROCESSABLE)
+                assertThat(answer.contentAsString).describedAs(option).contains("POL-011")
+            }
+            val noOption =
+                """{"scopeLevel":"INSTALLATION","selected":[],"effectiveDate":"$TODAY","reason":"because"}"""
+            val empty = e.post("VP-52", caller, noOption)
+            // config-resolver rejects an empty selection (400 POL-012) and an option outside the
+            // catalogue row (422 POL-011) before the ValueConstraints port (done-when names 422 POL-014).
+            assertThat(empty.status).describedAs(empty.contentAsString).isEqualTo(BAD_REQUEST)
+            assertThat(empty.contentAsString).contains("POL-012")
+            e.env.withGroup(1) { _, _, _ ->
+                // VP-52 has no default: nothing stored means the read still reports "must be elected".
+                assertThatThrownBy {
+                    e.env.inTx {
+                        e.env.reader.resolve(VariationPointKey("VP-52"), PolicyScope.installation(), TODAY)
+                    }
+                }.isInstanceOf(ElectionRequired::class.java)
             }
         }
     }
@@ -400,5 +430,7 @@ class SetPolicyDecisionTest {
 
     private companion object {
         const val LAG_WAIT_MS = 1_300L
+        const val UNPROCESSABLE = 422
+        const val BAD_REQUEST = 400
     }
 }
