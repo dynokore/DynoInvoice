@@ -67,7 +67,7 @@ class HolderSigningOtherPorts {
 
     @Bean
     fun packApprovalDecisionPort(): PackApprovalDecisionPort =
-        PackApprovalDecisionPort { _ -> PackApprovalDecision.Allow(false, null, "OPTION-1", emptySet()) }
+        PackApprovalDecisionPort { _, _, _, _, _ -> PackApprovalDecision.Allow(false, null, "OPTION-1", emptySet()) }
 
     @Bean
     fun rateSourcePort(): RateSourcePort = RateSourcePort { _, _ -> emptyList() }
@@ -256,8 +256,9 @@ class HolderCopySigningBoundaryTest(
         }
         val verified =
             verifier
-                .verify(artefact, TrustAnchors(listOf(TrustAnchor(id.label, id.certificateDer))))
+                .verify(artefact, TrustAnchors(listOf(TrustAnchor("any-name", id.certificateDer))))
                 .shouldBeInstanceOf<PackVerificationOutcome.Verified>()
+        verified.trustedAnchorLabel shouldBe "any-name"
         with(verified.manifest) {
             packId.value shouldBe request.packId
             packType.value shouldBe "MAPPING"
@@ -268,7 +269,6 @@ class HolderCopySigningBoundaryTest(
         }
         val row = artefactRows(request.packId).single()
         row["trusted_anchor"] shouldBe id.label
-        verified.trustedAnchorLabel shouldBe row["trusted_anchor"]
         row["registered_by"] shouldBe B_USER
     }
 
@@ -322,11 +322,9 @@ class HolderCopySigningBoundaryTest(
                     request(packId, label, null).copy(minEngineVersion = ENGINE, effectiveTo = null),
                 ),
             )
-        val verified =
-            verifier
-                .verify(read, TrustAnchors(listOf(TrustAnchor(id.label, id.certificateDer))))
-                .shouldBeInstanceOf<PackVerificationOutcome.Verified>()
-        verified.trustedAnchorLabel shouldBe row["trusted_anchor"]
+        verifier
+            .verify(read, TrustAnchors(listOf(TrustAnchor(id.label, id.certificateDer))))
+            .shouldBeInstanceOf<PackVerificationOutcome.Verified>()
     }
 
     @Test

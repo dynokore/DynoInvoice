@@ -1169,7 +1169,7 @@ class MappingPackDefaultsTest(
     @org.springframework.boot.test.web.server.LocalServerPort port: Int,
 ) : MappingPackSupport(port) {
     @Test
-    fun `the refusing defaults, the replica rate source and the service key holder copy are the beans`() {
+    fun `the three defaults are the refusing classes, the rate-source default is the replica port and the holder copy is the service key writer`() {
         context.getBean(PackActionAuthority::class.java)::class.java shouldBe RefusingPackActionAuthority::class.java
         context.getBean(PackApprovalDecisionPort::class.java)::class.java shouldBe
             RefusingPackApprovalDecisionPort::class.java
