@@ -23,11 +23,6 @@ import org.springframework.beans.factory.config.BeanDefinitionCustomizer
 import org.springframework.http.ResponseEntity
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
-import java.time.Clock
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.UUID
 
 internal const val LIFECYCLE_CALLER = "identity:USR-004"
@@ -56,11 +51,7 @@ internal class Lab(
     val e: CertificationEnv,
     val elections: ElectionEnv,
     val ports: Ports,
-    val clock: Clock,
 ) {
-    /** The business date the use cases take from this same clock (the Singapore calendar day, INV-Q-16113). */
-    val today: LocalDate get() = LocalDate.now(clock.withZone(ZoneId.of("Asia/Singapore")))
-
     val people: TestPeople = e.people
 }
 
@@ -69,10 +60,8 @@ internal fun primaryBean() = BeanDefinitionCustomizer { it.isPrimary = true }
 internal fun lifecycleRun(block: (Lab) -> Unit) {
     val log = TopicLog()
     val ports = Ports()
-    val clock = Clock.fixed(Instant.now(), ZoneOffset.UTC)
     BoundaryFixture
         .runner()
-        .withBean(Clock::class.java, { clock }, primaryBean())
         .withBean(EventLogReader::class.java, { log })
         .withBean(TriggerCoverage::class.java, { TriggerCoverage { ports.uncovered } }, primaryBean())
         .withBean(UnsubmittedDocuments::class.java, {
@@ -86,7 +75,7 @@ internal fun lifecycleRun(block: (Lab) -> Unit) {
         .run { context ->
             context.startupFailure?.let { throw it }
             val env = ProfileEnv(context)
-            block(Lab(env, CertificationEnv(env, log), ElectionEnv(env), ports, clock))
+            block(Lab(env, CertificationEnv(env, log), ElectionEnv(env), ports))
         }
 }
 

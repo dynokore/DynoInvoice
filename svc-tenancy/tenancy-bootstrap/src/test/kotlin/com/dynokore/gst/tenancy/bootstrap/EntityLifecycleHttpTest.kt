@@ -144,7 +144,7 @@ class EntityLifecycleHttpTest {
                 assertThat(change.size()).isEqualTo(1)
                 assertThat(change[0]["attribute"].asString()).isEqualTo("lifecycleState")
                 assertThat(change[0]["newValue"].asString()).isEqualTo("LIVE")
-                assertThat(rows.last()["effectiveDate"].asString()).isEqualTo(l.today.toString())
+                assertThat(rows.last()["effectiveDate"].asString()).isEqualTo(TODAY.toString())
             }
         }
     }

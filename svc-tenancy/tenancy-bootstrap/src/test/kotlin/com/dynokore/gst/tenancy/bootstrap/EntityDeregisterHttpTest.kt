@@ -164,7 +164,7 @@ class EntityDeregisterHttpTest {
     }
 
     @Test
-    fun `INV-AC-1051 probe deregisterEntity with an unsubmitted document and no override is 409 TNC-008`() {
+    fun `INV-AC-1051 probe deregisterEntity with an unsubmitted document and no override is 409 TNC-008 and changes nothing`() {
         lifecycleRun { l ->
             l.env.withEntity { _, entity ->
                 lifecycleReady(l, entity)
@@ -197,7 +197,7 @@ class EntityDeregisterHttpTest {
                 assertThat(storedState(entity)).isEqualTo("DEREGISTERED")
                 assertThat(
                     overrideRows(entity),
-                ).isEqualTo(listOf(listOf(ADMIN, "two drafts are abandoned", l.today.toString())))
+                ).isEqualTo(listOf(listOf(ADMIN, "two drafts are abandoned", TODAY.toString())))
                 assertThat(profileEventRows(entity).size - rows).isEqualTo(1)
                 assertThat(structureEventRows(entity).size).isEqualTo(structure)
             }
@@ -221,7 +221,7 @@ class EntityDeregisterHttpTest {
                     .isEqualTo(listOf("registrationEndDate", "2026-08-15"))
                 assertThat(listOf(changes[1]["attribute"].asString(), changes[1]["newValue"].asString()))
                     .isEqualTo(listOf("lifecycleState", "DEREGISTERED"))
-                assertThat(event["effectiveDate"].asString()).isEqualTo(l.today.toString())
+                assertThat(event["effectiveDate"].asString()).isEqualTo(TODAY.toString())
                 val profile =
                     event["node"]["profile"].values().filter {
                         it["attribute"].asString() ==
