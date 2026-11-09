@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.3.1] - 2026-11-09
+### Fixed
+- The impl runtime classpath and the published impl POM exclude the redundant `aopalliance:aopalliance` that `micrometer-tracing 1.7.1` pulls in through `micrometer-tracing-bridge-otel`; the `org.aopalliance` interfaces stay available from `spring-aop` (INV-T-19009, INV-AC-19004; breakdown `tooling/aopalliance-licence-gap.md`).
+
 ## [13.3.0] - 2026-11-08
 ### Added
 - `TenancyErrorCode.MIGRATION_CUTOVER_CONFLICT` (TNC-011, 409, "Migration cutover refused", owner `entity.admin`) and the re-vendored catalogue snapshot at platform-contracts 4d014290 (INV-T-18814, INV-AC-18808).

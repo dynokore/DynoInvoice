@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.16.2] - 2026-11-09
+### Changed
+- Depends on `service-runtime` 13.3.1, whose impl POM now excludes the redundant `aopalliance:aopalliance` (INV-T-19009); no code change.
+
 ## [2.16.1] - 2026-11-08
 ### Changed
 - Metadata-only release (INV-T-18814, G-DVS): depends on `service-runtime 13.3.0`, whose published module metadata changed; no code change.

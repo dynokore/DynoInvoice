@@ -268,10 +268,22 @@ subprojects {
 // reached through a listed dependency. `-PimplPomFault=<module>` leaves that module's impl POM as the bare
 // `artifact(implJar)` one: the negative test the CI job `impl-poms` runs, which must fail with "verifyImplPoms:".
 // Never set it anywhere else.
+// Exclusions: an exclude rule declared on an external module dependency of the impl runtime classpath whose group and
+// name equal a listed dependency's is published as an `<exclusion>` under that `<dependency>` (INV-T-19009); never from a
+// list typed here. A rule with an absent group or module fails the build (`implPom: `): a wildcard is never published.
 val implPomFault: String? = providers.gradleProperty("implPomFault").orNull
 
 /** One `<dependency>` of an impl POM. */
-data class ImplPomDependency(val group: String, val artifact: String, val version: String, val scope: String) {
+data class ImplPomDependency(
+    val group: String,
+    val artifact: String,
+    val version: String,
+    val scope: String,
+    val exclusions: Set<String> = emptySet(),
+) {
+    /** The dependency without its exclusions, which `verifyImplPoms` compares separately. */
+    fun bare() = copy(exclusions = emptySet())
+
     val key get() = "$group:$artifact"
 
     override fun toString() = "$group:$artifact:$version ($scope)"
@@ -609,9 +621,30 @@ fun implPomDependencies(module: Project, implJarFile: File): List<ImplPomDepende
     if (problems.isNotEmpty()) {
         throw GradleException("implPom: ${module.path} (INV-T-4356):\n" + problems.joinToString("\n") { "  - $it" })
     }
-    return candidates.values.map {
-        ImplPomDependency(it.group, it.artifact, it.version, if (it.key() in compileScoped) "compile" else "runtime")
-    }.sortedBy { it.key }
+    val exclusionProblems = mutableListOf<String>()
+    val declared =
+        runtime.allDependencies.withType<ModuleDependency>().filter { it !is ProjectDependency && it !is FileCollectionDependency }
+    fun exclusionsOf(c: Candidate): Set<String> =
+        declared.filter { it.group == c.group && it.name == c.artifact }.flatMap { dep ->
+            dep.excludeRules.mapNotNull { rule ->
+                if (rule.group.isNullOrBlank() || rule.module.isNullOrBlank()) {
+                    exclusionProblems += "${c.key()} has an exclude rule with an absent group or module (group=${rule.group}, module=${rule.module})"
+                    null
+                } else {
+                    "${rule.group}:${rule.module}"
+                }
+            }
+        }.toSortedSet()
+    val result =
+        candidates.values.map {
+            ImplPomDependency(
+                it.group, it.artifact, it.version, if (it.key() in compileScoped) "compile" else "runtime", exclusionsOf(it),
+            )
+        }.sortedBy { it.key }
+    if (exclusionProblems.isNotEmpty()) {
+        throw GradleException("implPom: ${module.path} (INV-T-19009):\n" + exclusionProblems.joinToString("\n") { "  - $it" })
+    }
+    return result
 }
 
 subprojects {
@@ -633,6 +666,15 @@ subprojects {
                             appendNode("artifactId", it.artifact)
                             appendNode("version", it.version)
                             appendNode("scope", it.scope)
+                            if (it.exclusions.isNotEmpty()) {
+                                val ex = appendNode("exclusions")
+                                it.exclusions.sorted().forEach { e ->
+                                    ex.appendNode("exclusion").apply {
+                                        appendNode("groupId", e.substringBefore(':'))
+                                        appendNode("artifactId", e.substringAfter(':'))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -661,7 +703,15 @@ subprojects {
                             (0 until document.getElementsByTagNameNS("*", "dependency").length).map { n ->
                                 val e = document.getElementsByTagNameNS("*", "dependency").item(n) as org.w3c.dom.Element
                                 fun text(tag: String) = e.getElementsByTagNameNS("*", tag).item(0)?.textContent?.trim().orEmpty()
-                                ImplPomDependency(text("groupId"), text("artifactId"), text("version"), text("scope").ifEmpty { "compile" })
+                                val exclusions =
+                                    (0 until e.getElementsByTagNameNS("*", "exclusion").length).map { x ->
+                                        val ex = e.getElementsByTagNameNS("*", "exclusion").item(x) as org.w3c.dom.Element
+                                        fun part(tag: String) = ex.getElementsByTagNameNS("*", tag).item(0)?.textContent?.trim().orEmpty()
+                                        "${part("groupId")}:${part("artifactId")}"
+                                    }.toSet()
+                                ImplPomDependency(
+                                    text("groupId"), text("artifactId"), text("version"), text("scope").ifEmpty { "compile" }, exclusions,
+                                )
                             }
                         val expected = dependenciesOfImpl
                         val problems = mutableListOf<String>()
@@ -669,8 +719,18 @@ subprojects {
                         if (api == null || api.version != ownApi.version) {
                             problems += "lacks its own ${ownApi.groupId}:${ownApi.artifactId}:${ownApi.version} (found ${api ?: "none"})"
                         }
-                        (expected - listed.toSet()).forEach { problems += "lacks $it" }
-                        (listed - expected.toSet()).forEach { problems += "declares $it, which is not on the impl runtime classpath" }
+                        (expected.map { it.bare() } - listed.map { it.bare() }.toSet()).forEach { problems += "lacks $it" }
+                        (listed.map { it.bare() } - expected.map { it.bare() }.toSet()).forEach {
+                            problems += "declares $it, which is not on the impl runtime classpath"
+                        }
+                        val expectedByKey = expected.associateBy { it.key }
+                        listed.forEach { l ->
+                            val want = expectedByKey[l.key]?.exclusions ?: return@forEach
+                            (want - l.exclusions).sorted().forEach { problems += "lacks exclusion $it on ${l.key}" }
+                            (l.exclusions - want).sorted().forEach {
+                                problems += "declares exclusion $it on ${l.key}, which the impl runtime classpath does not declare"
+                            }
+                        }
                         // Every external module of the impl runtime classpath is listed or reached through a listed one.
                         val runtime = module.configurations.getByName(implSourceSet.runtimeClasspathConfigurationName)
                         val listedKeys = listed.map { it.key }.toSet()

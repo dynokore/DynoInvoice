@@ -27,6 +27,7 @@
 
 import gst.build.Layer
 import gst.build.contracts.GenerateOperationListTask
+import org.gradle.api.artifacts.MinimalExternalModuleDependency
 
 plugins {
     id("gst.library")
@@ -189,7 +190,15 @@ dependencies {
     // in the impl half and its tests; versions from the Spring Boot BOM. No code uses them yet.
     listOf("implRuntimeOnly", "implTestRuntimeOnly").forEach { config ->
         add(config, platform(libs.springBoot.dependencies))
-        add(config, libs.micrometer.tracingBridgeOtel)
+        // INV-T-19009: micrometer-tracing pulls the standalone aopalliance:aopalliance 1.0 (POM licence "Public Domain",
+        // refused by the STK-66 linked-class licence check); spring-aop ships the org.aopalliance interfaces, so the jar is
+        // redundant. The exclusion is published in the impl POM. See tooling/aopalliance-licence-gap.md.
+        addProvider<MinimalExternalModuleDependency, MinimalExternalModuleDependency>(
+            config,
+            libs.micrometer.tracingBridgeOtel,
+        ) {
+            exclude(group = "aopalliance", module = "aopalliance")
+        }
     }
     // INV-T-17628 (INV-Q-17752 A): the API, SDK and OTLP exporter are compiled against by service-runtime/src/impl/.../tracing.
     add("implTestRuntimeOnly", libs.opentelemetry.exporterOtlp)
@@ -329,6 +338,17 @@ val implTestTask =
                 .asFile.path,
         )
         systemProperty("gst.bindings.telemetry-export-otlp-endpoint", "http://telemetry-export.invalid:4318")
+        // INV-T-19009: AopallianceExcludedTest reads the generated impl POM (the task is registered by the root build file).
+        dependsOn("generatePomFileForImplPublication")
+        doFirst {
+            systemProperty(
+                "gst.test.service-runtime-impl-pom",
+                tasks
+                    .named<GenerateMavenPom>("generatePomFileForImplPublication")
+                    .get()
+                    .destination.path,
+            )
+        }
     }
 
 tasks.named("check") {
