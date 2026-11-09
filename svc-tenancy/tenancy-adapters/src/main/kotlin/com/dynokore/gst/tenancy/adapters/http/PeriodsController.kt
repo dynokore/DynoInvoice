@@ -3,15 +3,19 @@ package com.dynokore.gst.tenancy.adapters.http
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.period.ConfirmPeriods
 import com.dynokore.gst.tenancy.application.period.ListPeriodRecords
+import com.dynokore.gst.tenancy.application.period.PackDeltaPreview
 import com.dynokore.gst.tenancy.application.period.PagePosition
+import com.dynokore.gst.tenancy.application.period.PeriodAccess
 import com.dynokore.gst.tenancy.application.period.RecordExtension
 import com.dynokore.gst.tenancy.application.period.SINGAPORE
 import com.dynokore.gst.tenancy.contract.api.PeriodsApi
+import com.dynokore.gst.tenancy.contract.model.CalendarPackDeltaResponse
 import com.dynokore.gst.tenancy.contract.model.ConfirmPeriodRequest
 import com.dynokore.gst.tenancy.contract.model.PeriodExtensionRequest
 import com.dynokore.gst.tenancy.contract.model.PeriodExtensionResponse
 import com.dynokore.gst.tenancy.contract.model.PeriodRecordListResponse
 import com.dynokore.gst.tenancy.contract.model.PeriodResponse
+import com.dynokore.gst.tenancy.domain.PeriodPermissions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -26,6 +30,7 @@ import java.util.UUID
  * a PUT of a period is a route that does not exist and is refused by the framework (INV-REQ-81).
  */
 @RestController
+@Suppress("LongParameterList") // one parameter per collaborator of the period operations
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin)
 open class PeriodsController(
     private val confirmPeriods: ConfirmPeriods,
@@ -34,6 +39,9 @@ open class PeriodsController(
     private val cursors: PeriodListCursor,
     private val caller: CallerSource,
     private val clock: ObjectProvider<Clock>,
+    private val access: PeriodAccess,
+    private val packDelta: PackDeltaPreview,
+    private val packCursors: PackDeltaCursor,
 ) : PeriodsApi {
     override fun confirmPeriods(
         entityRef: String,
@@ -72,6 +80,29 @@ open class PeriodsController(
         return ResponseEntity.ok(
             periodListOf(outcome) { last ->
                 cursors.issue(entityRef, user, PagePosition(last.start, last.periodRef), now.instant())
+            },
+        )
+    }
+
+    override fun getCalendarPackDelta(
+        entityRef: String,
+        packIdentifier: String,
+        version: String,
+        limit: Int,
+        cursor: String?,
+    ): ResponseEntity<CalendarPackDeltaResponse> {
+        if (limit < 1 || limit > MAX_LIMIT) invalid("limit is between 1 and $MAX_LIMIT")
+        access.denial(entityRef, PeriodPermissions.PACK_DELTA_VIEW)?.let { forbidden(it) }
+        if (packIdentifier.isBlank()) invalid("packIdentifier is required")
+        if (version.isBlank()) invalid("version is required")
+        val now = clock.getIfAvailable(Clock::systemUTC).instant()
+        val user = caller.actor()
+        val scope = PackDeltaScope(entityRef, user, packIdentifier, version)
+        val after = cursor?.let { packCursors.open(it, scope, now) }
+        val page = packDelta.deltaPage(entityRef, packIdentifier, version, limit, after) ?: notFound()
+        return ResponseEntity.ok(
+            packDeltaOf(entityRef, packIdentifier, version, page) { last ->
+                packCursors.issue(scope, last, now)
             },
         )
     }

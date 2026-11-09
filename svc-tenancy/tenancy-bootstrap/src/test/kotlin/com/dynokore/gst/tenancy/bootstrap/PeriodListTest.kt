@@ -1,12 +1,15 @@
 package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.calendar.PeriodFilingStatusHandler
+import com.dynokore.gst.tenancy.adapters.http.PackDeltaCursor
 import com.dynokore.gst.tenancy.adapters.http.PeriodListCursor
 import com.dynokore.gst.tenancy.adapters.http.PeriodsController
 import com.dynokore.gst.tenancy.application.election.CallerSource
 import com.dynokore.gst.tenancy.application.period.ConfirmPeriods
 import com.dynokore.gst.tenancy.application.period.FilingFactStore
 import com.dynokore.gst.tenancy.application.period.ListPeriodRecords
+import com.dynokore.gst.tenancy.application.period.PackDeltaPreview
+import com.dynokore.gst.tenancy.application.period.PeriodAccess
 import com.dynokore.gst.tenancy.application.period.RecordExtension
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
 import com.dynokore.gst.tenancy.contract.model.PeriodRecord
@@ -55,6 +58,9 @@ class PeriodListTest {
             c.getBean(PeriodListCursor::class.java),
             c.getBean(CallerSource::class.java),
             clock.getBeanProvider(Clock::class.java),
+            c.getBean(PeriodAccess::class.java),
+            c.getBean(PackDeltaPreview::class.java),
+            c.getBean(PackDeltaCursor::class.java),
         )
     }
 

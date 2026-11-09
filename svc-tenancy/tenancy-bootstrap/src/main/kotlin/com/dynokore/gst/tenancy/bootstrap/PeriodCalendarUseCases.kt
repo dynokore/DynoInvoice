@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.adapters.calendar.ConsumedPeriodEvents
 import com.dynokore.gst.tenancy.adapters.calendar.NonBusinessDayPolicyHandler
 import com.dynokore.gst.tenancy.adapters.calendar.PeriodFilingStatusHandler
 import com.dynokore.gst.tenancy.adapters.events.PeriodEventsOutbox
+import com.dynokore.gst.tenancy.adapters.http.PackDeltaCursor
 import com.dynokore.gst.tenancy.adapters.http.PeriodListCursor
 import com.dynokore.gst.tenancy.adapters.persistence.JooqFilingFactStore
 import com.dynokore.gst.tenancy.adapters.persistence.JooqPeriodExtensionStore
@@ -50,6 +51,10 @@ class PeriodCalendarUseCases {
     /** The cursor of `listPeriodRecords` (INV-Q-16673): the key is read through the secret store at every use. */
     @Bean
     fun periodListCursor(secrets: SecretStore): PeriodListCursor = PeriodListCursor(secrets)
+
+    /** The cursor of `getCalendarPackDelta` (INV-Q-16810 C): the same secrets, its own layout label. */
+    @Bean
+    fun packDeltaCursor(secrets: SecretStore): PackDeltaCursor = PackDeltaCursor(secrets)
 
     @Bean
     fun periodExtensionStore(

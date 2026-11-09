@@ -233,6 +233,10 @@ class TestPeople :
                 roles.any { it in EXTENDING }
             }
 
+            PeriodPermissions.PACK_DELTA_VIEW -> {
+                roles.any { it in PACK_DELTA_VIEWING }
+            }
+
             ElectionPermissions.APPROVE -> {
                 approvals.holds(
                     person,
@@ -262,6 +266,16 @@ class TestPeople :
                     RolePermissions
                         .cells(form)
                         .filterValues { it[PeriodPermissions.EXTENSION_RECORD] == RoleAllowance.PERMITTED }
+                        .keys
+                }.toSet()
+
+        /** The roles the catalogue permits `calendar-pack-delta.view`, read through RolePermissions (INV-T-16829). */
+        val PACK_DELTA_VIEWING: Set<String> =
+            DeploymentForm.entries
+                .flatMap { form ->
+                    RolePermissions
+                        .cells(form)
+                        .filterValues { it[PeriodPermissions.PACK_DELTA_VIEW] == RoleAllowance.PERMITTED }
                         .keys
                 }.toSet()
         val PERIOD_CONFIRMING = setOf(ElectionRoles.ENTITY_ADMIN, ElectionRoles.TAX_APPROVER)

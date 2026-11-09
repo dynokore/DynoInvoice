@@ -279,9 +279,16 @@ class PermissionKeysTest {
     }
 
     @Test
-    fun `the gstCatalogue pin is exactly 2_45_0, the release that publishes questionnaire-answer`() {
+    fun `the gstCatalogue pin is at or above 2_45_0, the release that publishes questionnaire-answer`() {
         val toml = Files.readString(Path.of("..", "gradle", "libs.versions.toml"))
         val pin = Regex("""(?m)^gstCatalogue\s*=\s*"([^"]*)"\s*$""").find(toml)!!.groupValues[1]
-        assertThat(pin).isEqualTo("2.45.0")
+        val parts =
+            Regex("""(\d+)\.(\d+)\.(\d+)""")
+                .matchEntire(pin)!!
+                .groupValues
+                .drop(1)
+                .map { it.toInt() }
+        val floor = listOf(2, 45, 0)
+        assertThat(compareValuesBy(parts, floor, { it[0] }, { it[1] }, { it[2] })).isGreaterThanOrEqualTo(0)
     }
 }

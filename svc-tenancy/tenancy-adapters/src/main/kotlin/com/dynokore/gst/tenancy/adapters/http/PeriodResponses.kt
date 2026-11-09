@@ -11,8 +11,11 @@ import com.dynokore.gst.tenancy.application.period.ExtensionTarget
 import com.dynokore.gst.tenancy.application.period.FrequencyOutcome
 import com.dynokore.gst.tenancy.application.period.FrequencyRequest
 import com.dynokore.gst.tenancy.application.period.FrequencyView
+import com.dynokore.gst.tenancy.application.period.PackDeltaPage
 import com.dynokore.gst.tenancy.application.period.PeriodListOutcome
 import com.dynokore.gst.tenancy.application.period.PeriodRecordView
+import com.dynokore.gst.tenancy.contract.model.CalendarPackDeltaItem
+import com.dynokore.gst.tenancy.contract.model.CalendarPackDeltaResponse
 import com.dynokore.gst.tenancy.contract.model.ConfirmPeriodRequest
 import com.dynokore.gst.tenancy.contract.model.FilingFrequencyChangeRequest
 import com.dynokore.gst.tenancy.contract.model.FilingFrequencyResponse
@@ -160,3 +163,19 @@ internal fun periodListOf(
             notFound()
         }
     }
+
+/** The page of the dry-run delta as the contract publishes it; `nextCursor` only when another page follows. */
+internal fun packDeltaOf(
+    entityRef: String,
+    packIdentifier: String,
+    version: String,
+    page: PackDeltaPage,
+    nextCursor: (String) -> String,
+): CalendarPackDeltaResponse =
+    CalendarPackDeltaResponse(
+        entityRef,
+        packIdentifier,
+        version,
+        page.items.map { CalendarPackDeltaItem(it.periodRef, it.oldFilingDueDate, it.newFilingDueDate) },
+        if (page.more) nextCursor(page.items.last().periodRef) else null,
+    )

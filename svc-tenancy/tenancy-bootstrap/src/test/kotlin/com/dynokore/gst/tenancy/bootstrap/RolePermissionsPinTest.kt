@@ -4,6 +4,7 @@ import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.gst.catalogue.PermissionKind
 import com.dynokore.gst.catalogue.RoleAllowance
 import com.dynokore.gst.catalogue.RolePermissions
+import com.dynokore.gst.tenancy.domain.PeriodPermissions
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.nio.file.Files
@@ -91,6 +92,13 @@ class RolePermissionsPinTest {
         DeploymentForm.entries.forEach { form ->
             assertThat(holders(form, confirm)).isNotEqualTo(without)
         }
+    }
+
+    @Test
+    fun `PACK_DELTA_VIEW equals calendar-pack-delta_view and a look-alike is not equal`() {
+        assertThat(PeriodPermissions.PACK_DELTA_VIEW).isEqualTo("calendar-pack-delta.view")
+        assertThat(PeriodPermissions.PACK_DELTA_VIEW).isNotEqualTo("calendar-pack-deltas.view")
+        assertThat(PeriodPermissions.PACK_DELTA_VIEW).isNotEqualTo("calendar-pack-delta.view ")
     }
 
     private fun pinOf(toml: String): String? =
