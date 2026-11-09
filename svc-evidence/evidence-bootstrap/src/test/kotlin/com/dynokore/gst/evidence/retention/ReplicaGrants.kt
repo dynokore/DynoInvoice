@@ -27,7 +27,7 @@ class ReplicaGrants(
         replica.observeHead(version.get())
     }
 
-    /** The feed is gone for longer than the lag bound: the replica is stale, the decision is the fallback's or DEGRADED. */
+    /** The feed is gone beyond the lag bound: the replica is stale, so the fallback or DEGRADED decides. */
     fun stale() {
         replica.onDisconnected()
         Thread.sleep(replica.lagBound.toMillis() + MARGIN_MS)
