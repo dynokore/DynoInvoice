@@ -126,3 +126,5 @@ NEW_TRAIN	enum_value	schemas/certification-mark-requested-payload.schema.json	IN
 connection	property	schemas/connection-credential-expiry-reminder-requested-payload.schema.json	INV-REQ-837
 expiresAt	property	schemas/connection-credential-expiry-reminder-requested-payload.schema.json	INV-REQ-837
 offsetDays	property	schemas/connection-credential-expiry-reminder-requested-payload.schema.json	INV-REQ-837
+periodRef	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-REQ-686
+docUuid	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-REQ-772

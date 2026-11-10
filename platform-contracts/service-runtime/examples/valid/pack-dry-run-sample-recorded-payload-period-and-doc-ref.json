@@ -1,0 +1,28 @@
+{
+  "dryRunId": "dry-0001",
+  "pageNumber": 1,
+  "lastPage": true,
+  "documents": [
+    {
+      "entityRef": "ent-001",
+      "transactionDate": "2026-08-14",
+      "internalTaxCode": "SR-STD",
+      "documentFunction": "BILL_FOR_PAYMENT",
+      "taxableValue": "1000.00",
+      "gstValue": "90.00",
+      "periodRef": "2026-08",
+      "docUuid": "6f1c2b9e-3a4d-4c5e-8f70-1a2b3c4d5e6f"
+    },
+    {
+      "entityRef": "ent-001",
+      "transactionDate": "2026-09-02",
+      "internalTaxCode": "SR-STD",
+      "documentFunction": "ADJUSTMENT",
+      "taxableValue": "-250.50",
+      "gstValue": "-22.55",
+      "precedingDocumentDate": "2026-08-14",
+      "periodRef": "2026-09",
+      "docUuid": "0b7d9e21-5c3a-4f18-9a6b-7e8d9c0b1a2f"
+    }
+  ]
+}
