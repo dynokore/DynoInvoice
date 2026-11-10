@@ -43,6 +43,7 @@ inv.tenancy.platform-scoped-tables:                 # INV-ADR-3968 item 4a: the 
   - controlplane.accreditation_task
   - controlplane.accreditation_step_pending
   - controlplane.first_invitation_reissue
+  - controlplane.tenant_schedule
   - controlplane.write_installation_setting         # config-resolver's table-valued functions (ConfigSchema.ddl) are generated as tables
   - controlplane.config_purge_tenant                # without a tenant column; they read the signed binding themselves
 control-plane:
@@ -73,5 +74,8 @@ gst:
     backoff-cap: PT1H
     max-attempts: 10                                # the row is EXHAUSTED at this many failed attempts
     batch-size: 50
+  jobs.tenant-schedule-opening.cron: "0 * * * * *"   # TenantScheduleOpeningJob (INV-T-8143): every minute, six-field cron (TPL-09)
+  jobs.tenant-schedule-opening.tolerance: PT10M     # how late a run may start before the job runtime reports it missed
+  tenant-schedule-opening.batch-size: 50            # schedules one run opens at most
   jobs.pack-stage.cron: "0 */10 * * * *"            # PackStageJob (INV-Q-8725): every ten minutes, six-field cron (TPL-09)
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

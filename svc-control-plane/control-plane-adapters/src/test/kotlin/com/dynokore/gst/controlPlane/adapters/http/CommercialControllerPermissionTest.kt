@@ -14,6 +14,11 @@ import com.dynokore.gst.controlPlane.application.commercial.RecordQualification
 import com.dynokore.gst.controlPlane.application.commercial.ReissueFirstAdministratorInvitation
 import com.dynokore.gst.controlPlane.application.pack.OperatorRoles
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
+import com.dynokore.gst.controlPlane.application.schedule.ApproveTenantSchedule
+import com.dynokore.gst.controlPlane.application.schedule.CancelTenantSchedule
+import com.dynokore.gst.controlPlane.application.schedule.ChangeTenantSchedule
+import com.dynokore.gst.controlPlane.application.schedule.GetTenantSchedule
+import com.dynokore.gst.controlPlane.application.schedule.SetTenantSchedule
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
 import com.dynokore.gst.controlPlane.domain.commercial.Licence
 import com.dynokore.gst.controlPlane.domain.commercial.PlanRef
@@ -130,6 +135,23 @@ class CommercialControllerPermissionTest {
             ) { CommercialRef("x") },
             GetLicence(licences()),
             ReissueFirstAdministratorInvitation(stub(), stub(), delivery, permissions),
+            scheduleEndpoint(),
+        )
+    }
+
+    /** The schedule operations are not under test here; the endpoint is composed from stubs. */
+    private fun scheduleEndpoint(): TenantScheduleEndpoint {
+        val clock = java.time.Clock.systemUTC()
+        return TenantScheduleEndpoint(
+            stub(),
+            stub(),
+            stub(),
+            stub(),
+            SetTenantSchedule(stub(), stub(), clock) { "SCH-x" },
+            ApproveTenantSchedule(stub(), stub(), clock),
+            ChangeTenantSchedule(stub(), stub(), clock),
+            CancelTenantSchedule(stub(), stub()),
+            GetTenantSchedule(stub(), stub()),
         )
     }
 

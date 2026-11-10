@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
+import com.dynokore.gst.controlPlane.adapters.http.TenantScheduleEndpoint
 import com.dynokore.gst.controlPlane.adapters.stage.PackStage
 import com.dynokore.gst.controlPlane.application.accreditation.OpenAccreditationTask
 import com.dynokore.gst.controlPlane.application.commercial.GetLicence
@@ -146,12 +147,15 @@ class CompositionTest {
             val job = context.getBean(PackStageJob::class.java)
             job.definition.name shouldBe PackStageJob.NAME
             job.definition.ownerService shouldBe "control-plane-svc"
+            context.getBean(TenantScheduleOpeningJob::class.java).definition.name shouldBe "tenant-schedule-opening"
+            context.getBean(TenantScheduleEndpoint::class.java).shouldNotBeNull()
             context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
             context
                 .getBean(JobRuntime::class.java)
                 .registered()
                 .map { it.name }
-                .toSet() shouldBe setOf("idempotency-key-purge", "pack-stage", "accreditation-step-retry")
+                .toSet() shouldBe
+                setOf("idempotency-key-purge", "pack-stage", "accreditation-step-retry", "tenant-schedule-opening")
         }
     }
 }

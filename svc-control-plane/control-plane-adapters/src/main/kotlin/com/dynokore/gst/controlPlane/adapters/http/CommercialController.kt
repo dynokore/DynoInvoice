@@ -19,6 +19,8 @@ import com.dynokore.gst.controlPlane.application.commercial.ReissueResult
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.contract.api.CommercialApi
+import com.dynokore.gst.controlPlane.contract.model.ApproveTenantScheduleRequest
+import com.dynokore.gst.controlPlane.contract.model.ChangeTenantScheduleRequest
 import com.dynokore.gst.controlPlane.contract.model.FirstInvitationReissueResponse
 import com.dynokore.gst.controlPlane.contract.model.IssueLicenceRequest
 import com.dynokore.gst.controlPlane.contract.model.LicenceIssueResponse
@@ -28,7 +30,9 @@ import com.dynokore.gst.controlPlane.contract.model.PlanResponse
 import com.dynokore.gst.controlPlane.contract.model.ProvisionTenantRequest
 import com.dynokore.gst.controlPlane.contract.model.QualificationResponse
 import com.dynokore.gst.controlPlane.contract.model.RecordQualificationRequest
+import com.dynokore.gst.controlPlane.contract.model.SetTenantScheduleRequest
 import com.dynokore.gst.controlPlane.contract.model.TenantProvisioningResponse
+import com.dynokore.gst.controlPlane.contract.model.TenantScheduleResponse
 import com.dynokore.gst.controlPlane.domain.commercial.CommercialRef
 import com.dynokore.gst.controlPlane.domain.commercial.Entitlements
 import com.dynokore.gst.controlPlane.domain.commercial.Licence
@@ -58,7 +62,8 @@ import java.util.UUID
 /**
  * The commercial operations (INV-REQ-906 b1, INV-REQ-1306, TPL-08): managePlan,
  * recordQualification, issueLicence, getLicence, provisionTenant, getTenantProvisioningRequest and
- * requestFirstAdministratorInvitationReissue. The other
+ * requestFirstAdministratorInvitationReissue, and the five tenant schedule operations (delegated to
+ * [TenantScheduleEndpoint], INV-T-8143). The other
  * operations of the commercial tag are not overridden here, so the generated interface answers 501 for them;
  * `operations.tsv` lists each under its own state. The caller is the verified token's `sub`, never a request
  * field (API-24).
@@ -78,6 +83,7 @@ class CommercialController(
     private val issueLicence: IssueLicence,
     private val getLicence: GetLicence,
     private val reissue: ReissueFirstAdministratorInvitation,
+    private val schedule: TenantScheduleEndpoint,
 ) : CommercialApi {
     override fun managePlan(
         idempotencyKey: UUID,
@@ -231,6 +237,32 @@ class CommercialController(
         val found = platform.bindPlatform(actor) { transactions.inTransaction { getLicence.get(ref) } }
         return ResponseEntity.ok(licenceOf(found ?: problem(ClosedErrorCode.NOT_FOUND, caller.correlationId)))
     }
+
+    override fun setTenantSchedule(
+        tenantRef: String,
+        idempotencyKey: UUID,
+        setTenantScheduleRequest: SetTenantScheduleRequest,
+    ): ResponseEntity<TenantScheduleResponse> = schedule.set(tenantRef, idempotencyKey, setTenantScheduleRequest)
+
+    override fun getTenantSchedule(tenantRef: String): ResponseEntity<TenantScheduleResponse> = schedule.get(tenantRef)
+
+    override fun approveTenantSchedule(
+        tenantRef: String,
+        idempotencyKey: UUID,
+        approveTenantScheduleRequest: ApproveTenantScheduleRequest,
+    ): ResponseEntity<TenantScheduleResponse> =
+        schedule.approve(tenantRef, idempotencyKey, approveTenantScheduleRequest)
+
+    override fun changeTenantSchedule(
+        tenantRef: String,
+        idempotencyKey: UUID,
+        changeTenantScheduleRequest: ChangeTenantScheduleRequest,
+    ): ResponseEntity<TenantScheduleResponse> = schedule.change(tenantRef, idempotencyKey, changeTenantScheduleRequest)
+
+    override fun cancelTenantSchedule(
+        tenantRef: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<TenantScheduleResponse> = schedule.cancel(tenantRef, idempotencyKey)
 
     /** The read is decided by the operation's own permission key (deny by default), never by a role name. */
     private fun requireKey(

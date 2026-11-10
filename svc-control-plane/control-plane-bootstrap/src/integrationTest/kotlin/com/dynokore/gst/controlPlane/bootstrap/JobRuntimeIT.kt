@@ -129,7 +129,7 @@ class JobRuntimeIT {
     ) {
         withRuntime(mount) { runtime ->
             runtime.registered().map { it.name }.sorted() shouldContainExactly
-                listOf("accreditation-step-retry", "idempotency-key-purge", "pack-stage")
+                listOf("accreditation-step-retry", "idempotency-key-purge", "pack-stage", "tenant-schedule-opening")
             val retry = runtime.registered().single { it.name == AccreditationStepRetryJob.NAME }
             retry.entityScope shouldBe JobEntityScope.PLATFORM
             retry.schedule shouldBe JobSchedule("0 * * * * *")

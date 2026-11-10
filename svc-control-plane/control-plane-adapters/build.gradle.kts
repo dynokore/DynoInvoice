@@ -70,6 +70,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
+    testImplementation(libs.gst.catalogue)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.platform.rulepackKernel.impl)
     testImplementation(libs.platform.crypto)
