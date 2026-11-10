@@ -177,9 +177,9 @@ object MappingPackMapping {
             option = approval.option,
         )
 
-    /** True exactly when at least one approval row has sole_operator true (INV-REQ-992). */
-    fun activationOf(approvals: List<MappingApproval>): MappingPackActivation =
-        MappingPackActivation(noDistinctApprover = approvals.any { it.soleOperator })
+    /** The installation fact stored with the activation (INV-REQ-992); false for a pack never activated. */
+    fun activationOf(noDistinctApprover: Boolean): MappingPackActivation =
+        MappingPackActivation(noDistinctApprover = noDistinctApprover)
 
     fun entryOf(view: MappingEntryView): MappingEntry =
         MappingEntry(

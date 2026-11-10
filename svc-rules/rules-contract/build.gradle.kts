@@ -26,6 +26,10 @@ val stagedRepo = layout.buildDirectory.dir("contracts-repo")
 val bundleVersion = libs.versions.platformContractsBundle
 val bundleService = "rules"
 
+// The services staged from the bundle: rules is this service's own contract; access is the contract of the client
+// rules-adapters generates (gst.contract-client, INV-T-19527). The marker covers the list, so a changed list restages.
+val stagedServices = listOf(bundleService, "access")
+
 // gst.contract-server resolves its source while Gradle builds the task graph, so the layout must exist before any
 // task runs: it is staged while this project is configured, once per bundle version (the marker file), from the
 // bundle Gradle downloaded and cached like any other dependency.
@@ -33,53 +37,56 @@ fun stageContracts() {
     val version = bundleVersion.get()
     val root = stagedRepo.get().asFile
     val marker = File(root, ".bundle-version")
-    if (marker.isFile && marker.readText() == version) return
+    val markerText = "$version ${stagedServices.joinToString(",")}"
+    if (marker.isFile && marker.readText() == markerText) return
     root.deleteRecursively()
     val unpacked = File(root, ".bundle")
     project.copy {
         from(project.zipTree(contractsBundle.singleFile))
         into(unpacked)
     }
-    val moduleDir = File(root, "platform-contracts/$bundleService")
-    val svcDir = File(unpacked, bundleService)
-    check(svcDir.isDirectory) { "the platform-contracts bundle $version has no $bundleService/ directory" }
-    val versionDir = File(moduleDir, version)
-    svcDir.copyRecursively(versionDir, overwrite = true)
-    svcDir.walkTopDown().filter { it.isFile }.forEach { file ->
-        val rel = file.relativeTo(svcDir).invariantSeparatorsPath
-        val classifier = rel.substringBeforeLast('.', rel).replace('/', '-')
-        val ext = rel.substringAfterLast('.', "")
-        file.copyTo(File(versionDir, "$bundleService-$version-$classifier.$ext"), overwrite = true)
+    for (svc in stagedServices) {
+        val moduleDir = File(root, "platform-contracts/$svc")
+        val svcDir = File(unpacked, svc)
+        check(svcDir.isDirectory) { "the platform-contracts bundle $version has no $svc/ directory" }
+        val versionDir = File(moduleDir, version)
+        svcDir.copyRecursively(versionDir, overwrite = true)
+        svcDir.walkTopDown().filter { it.isFile }.forEach { file ->
+            val rel = file.relativeTo(svcDir).invariantSeparatorsPath
+            val classifier = rel.substringBeforeLast('.', rel).replace('/', '-')
+            val ext = rel.substringAfterLast('.', "")
+            file.copyTo(File(versionDir, "$svc-$version-$classifier.$ext"), overwrite = true)
+        }
+        // An OpenAPI document's `../service-runtime/...` $ref resolves beside the artefact (codegen-self-test).
+        File(unpacked, "service-runtime").copyRecursively(File(moduleDir, "service-runtime"), overwrite = true)
+        File(moduleDir, "maven-metadata.xml").writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <metadata>
+              <groupId>platform-contracts</groupId>
+              <artifactId>$svc</artifactId>
+              <versioning>
+                <latest>$version</latest>
+                <release>$version</release>
+                <versions><version>$version</version></versions>
+              </versioning>
+            </metadata>
+            """.trimIndent(),
+        )
+        File(versionDir, "$svc-$version.pom").writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>platform-contracts</groupId>
+              <artifactId>$svc</artifactId>
+              <version>$version</version>
+              <packaging>pom</packaging>
+            </project>
+            """.trimIndent(),
+        )
     }
-    // An OpenAPI document's `../service-runtime/...` $ref resolves beside the artefact (codegen-self-test).
-    File(unpacked, "service-runtime").copyRecursively(File(moduleDir, "service-runtime"), overwrite = true)
-    File(moduleDir, "maven-metadata.xml").writeText(
-        """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <metadata>
-          <groupId>platform-contracts</groupId>
-          <artifactId>$bundleService</artifactId>
-          <versioning>
-            <latest>$version</latest>
-            <release>$version</release>
-            <versions><version>$version</version></versions>
-          </versioning>
-        </metadata>
-        """.trimIndent(),
-    )
-    File(versionDir, "$bundleService-$version.pom").writeText(
-        """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <project xmlns="http://maven.apache.org/POM/4.0.0">
-          <modelVersion>4.0.0</modelVersion>
-          <groupId>platform-contracts</groupId>
-          <artifactId>$bundleService</artifactId>
-          <version>$version</version>
-          <packaging>pom</packaging>
-        </project>
-        """.trimIndent(),
-    )
-    marker.writeText(version)
+    marker.writeText(markerText)
 }
 
 stageContracts()

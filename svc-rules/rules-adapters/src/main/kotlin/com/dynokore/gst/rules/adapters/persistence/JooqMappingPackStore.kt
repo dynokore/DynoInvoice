@@ -43,6 +43,8 @@ data class MappingPackView(
     val entryCount: Int,
     val nonPrimaryCount: Int,
     val unacceptedNonPrimaryCount: Int,
+    /** The installation fact stored with the activation (INV-REQ-992); false for a pack never activated. */
+    val noDistinctApprover: Boolean,
 )
 
 /**
@@ -222,6 +224,7 @@ class JooqMappingPackStore(
             entryCount = count(entries),
             nonPrimaryCount = count(nonPrimary),
             unacceptedNonPrimaryCount = count(nonPrimary.and(PACK_ENTRY_SOURCE.ACCEPTED.eq(false))),
+            noDistinctApprover = row.noDistinctApprover ?: false,
         )
     }
 
@@ -394,6 +397,7 @@ class JooqMappingPackStore(
             .set(PACK_REGISTRY.SUPERSEDES, predecessor)
             .set(PACK_REGISTRY.ACTIVATED_BY, activation.activatedBy)
             .set(PACK_REGISTRY.ACTIVATED_AT, activation.at.atOffset(ZoneOffset.UTC))
+            .set(PACK_REGISTRY.NO_DISTINCT_APPROVER, activation.noDistinctApprover)
             .where(mine(packId))
             .execute()
     }
