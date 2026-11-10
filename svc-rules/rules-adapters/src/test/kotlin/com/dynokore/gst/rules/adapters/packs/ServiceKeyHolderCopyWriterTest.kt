@@ -236,7 +236,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 a write reads exactly the key and the certificate and optional ones if present`() {
+    fun `INV-AC-19690 INV-REQ-1195 a write reads exactly the key and the certificate and optional ones when present`() {
         mount(Identity())
         writer.write(request())
         secrets.reads shouldBe
@@ -270,7 +270,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 the look-alike secret names are not read and alone they are Unavailable`() {
+    fun `INV-AC-19690 INV-REQ-1195 look-alike secret names are not read and a write with them alone is Unavailable`() {
         val id = Identity()
         secrets.values["rules/holder-copy-key"] = id.keyPem
         secrets.values["rules/holder-copy-signing-keys"] = id.keyPem
@@ -342,7 +342,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 an artefact of the next key verifies only while its certificate is present`() {
+    fun `INV-AC-19690 INV-REQ-1195 an artefact of the next key verifies while its certificate is present, not after`() {
         val current = Identity()
         val next = Identity()
         mount(current, next = next)
