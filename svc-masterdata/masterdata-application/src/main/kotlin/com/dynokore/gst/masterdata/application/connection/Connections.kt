@@ -55,7 +55,7 @@ data class CreateConnectionCommand(
     val credentialRef: String,
     val environmentTag: String,
     val ownerService: String,
-    /** The optional `credentialExpiresAt` of the contract; null records nothing. No default and no check beyond the schema. */
+    /** The optional `credentialExpiresAt` of the contract; null records nothing. No default, no check beyond it. */
     val credentialExpiresAt: Instant?,
 )
 
