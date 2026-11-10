@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.adapters
 
 import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.catalogue.PermissionKind
 import com.dynokore.gst.catalogue.RoleAllowance
 import com.dynokore.gst.catalogue.RolePermissions
@@ -20,8 +21,11 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilt
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
-import com.dynokore.platform.serviceruntime.replica.Grant
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.CellAllowance
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantId
@@ -29,6 +33,10 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import jakarta.servlet.http.HttpServletRequest
+import kotlin.io.path.extension
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.readText
+import kotlin.streams.asSequence
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
 import java.lang.reflect.Proxy
@@ -41,10 +49,6 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
 import java.util.UUID
-import kotlin.io.path.extension
-import kotlin.io.path.isRegularFile
-import kotlin.io.path.readText
-import kotlin.streams.asSequence
 
 class ComplianceMetricsControllerTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-30T00:00:00Z"), ZoneOffset.UTC)
@@ -89,16 +93,36 @@ class ComplianceMetricsControllerTest {
             ),
         )
 
-    /** A replica fed by one grant record: [action] on [entity] for [principal]. */
+    private val roleMap =
+        OperationRoleMap { key ->
+            OperationRoles.rolesFor(DeploymentForm.SAAS, key).mapValues { CellAllowance.valueOf(it.value.name) }
+        }
+
+    /** A role the catalogue lists for [key], read from the map; no role name is written in this test. */
+    private fun roleOf(key: String): String = roleMap.rolesFor(key).keys.sorted().first()
+
+    /** A role the catalogue lists for [key] and does not list for [notFor]. */
+    private fun roleOfOnly(
+        key: String,
+        notFor: String,
+    ): String = (roleMap.rolesFor(key).keys - roleMap.rolesFor(notFor).keys).sorted().first()
+
+    /** A replica fed by one role grant per entity: the role the catalogue lists for [action], for [principal]. */
     private fun replica(
         principal: String,
         action: String?,
-    ) = AuthorityReplica(clock).also { replica ->
+    ) = AuthorityReplica(clock, roleMap).also { replica ->
         replica.onSnapshotComplete(0)
         if (action != null) {
-            val grant = Grant(action, ScopeLevel.TENANT, "x", clock.instant().minusSeconds(60))
+            val role =
+                if (action == "submission.view-status") {
+                    roleOfOnly(action, "compliance-metrics.view")
+                } else {
+                    roleOf(action)
+                }
+            val grant = RoleGrant(role, GrantScope.TENANT, tenantA.toString(), clock.instant().minusSeconds(60))
             (1..10).forEach { n ->
-                val record = AuthorityRecord.GrantRecord(entity(n), listOf(grant))
+                val record = AuthorityRecord.RoleGrantRecord("$role-$n", RoleGrantState.ACTIVE, grant)
                 replica.accept(AuthorityChanged(tenantA, principal, n.toLong(), record))
             }
         }

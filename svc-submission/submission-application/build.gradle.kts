@@ -15,4 +15,6 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.gstCatalogue)
+    testImplementation(testFixtures(libs.platform.serviceRuntime.api))
 }

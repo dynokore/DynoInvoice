@@ -1,5 +1,7 @@
 package com.dynokore.gst.submission.application.replay
 
+import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.replay.ReplayCandidate
 import com.dynokore.gst.submission.domain.replay.ReplayScope
@@ -7,11 +9,14 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
+import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.DecisionReason
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
@@ -25,6 +30,11 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 class ReplayBySelectionTest {
+    private companion object {
+        /** A key of the catalogue whose roles differ from those of the replay action. */
+        const val OTHER_KEY = "submission.view-status"
+    }
+
     private val clock = Clock.fixed(Instant.parse("2026-10-30T00:00:00Z"), ZoneOffset.UTC)
     private val deadline = Deadline.after(Duration.ofSeconds(5), clock)
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
@@ -82,13 +92,29 @@ class ReplayBySelectionTest {
         }
     }
 
+    private val roleMap =
+        OperationRoleMap { key ->
+            OperationRoles.rolesFor(DeploymentForm.SAAS, key).mapValues { CellAllowance.valueOf(it.value.name) }
+        }
+
+    /** A role the catalogue lists for [key], read from the map; no role name is written in this test. */
+    private fun roleOf(key: String): String = roleMap.rolesFor(key).keys.sorted().first()
+
+    /** A role the catalogue lists for [key] and does not list for [notFor]. */
+    private fun roleOfOnly(
+        key: String,
+        notFor: String,
+    ): String = (roleMap.rolesFor(key).keys - roleMap.rolesFor(notFor).keys).sorted().first()
+
     private fun replica(
         principal: Principal = holder,
         action: String = ReplayActions.REPLAY,
-    ) = AuthorityReplica(clock).also {
+    ) = AuthorityReplica(clock, roleMap).also {
         it.onSnapshotComplete(0)
-        val grant = Grant(action, ScopeLevel.ENTITY, "x", clock.instant().minusSeconds(60))
-        it.accept(AuthorityChanged(tenant, principal.id, 1, AuthorityRecord.GrantRecord("e1", listOf(grant))))
+        val role = if (action == "other.action") roleOfOnly(OTHER_KEY, ReplayActions.REPLAY) else roleOf(action)
+        val grant = RoleGrant(role, GrantScope.ENTITY, "e1", clock.instant().minusSeconds(60))
+        val record = AuthorityRecord.RoleGrantRecord("$role-e1", RoleGrantState.ACTIVE, grant)
+        it.accept(AuthorityChanged(tenant, principal.id, 1, record))
     }
 
     private val scope = ReplayScope("e1", "2026-Q1", null, null)
@@ -147,7 +173,7 @@ class ReplayBySelectionTest {
     fun `INV-AC-13133 AUTHORITY_UNAVAILABLE is Forbidden with 0 source calls and 0 requeue calls`() {
         val source = FakeSource(pool)
         val requeue = FakeRequeue()
-        run(AuthorityReplica(clock), source, requeue) shouldBe
+        run(AuthorityReplica(clock, roleMap), source, requeue) shouldBe
             ReplayBySelectionResult.Forbidden(DecisionReason.AUTHORITY_UNAVAILABLE)
         source.calls shouldBe 0
         requeue.calls shouldBe emptyList()

@@ -1,5 +1,7 @@
 package com.dynokore.gst.submission.application.compliance
 
+import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.submission.domain.metrics.ObligationRow
 import com.dynokore.gst.submission.domain.metrics.Ratio
 import com.dynokore.gst.submission.domain.metrics.RowKind
@@ -7,13 +9,17 @@ import com.dynokore.gst.submission.domain.metrics.SignalState
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.DecisionReason
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
+import com.dynokore.platform.serviceruntime.replica.MachinePrincipalFixtures
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
@@ -27,6 +33,11 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 class ComplianceMetricsQueryTest {
+    private companion object {
+        /** A key of the catalogue whose roles differ from those of the compliance view. */
+        const val OTHER_KEY = "submission.view-status"
+    }
+
     private val clock = Clock.fixed(Instant.parse("2026-10-30T00:00:00Z"), ZoneOffset.UTC)
     private val today = LocalDate.of(2026, 10, 30)
     private val deadline = Deadline.after(Duration.ofSeconds(5), clock)
@@ -61,18 +72,36 @@ class ComplianceMetricsQueryTest {
         versions: Int = 1,
     ) = ObligationRow(id, entity, period, today.plusDays(3), true, submitted, RowKind.INVOICE, versions)
 
+    private val roleMap =
+        OperationRoleMap { key ->
+            OperationRoles.rolesFor(DeploymentForm.SAAS, key).mapValues { CellAllowance.valueOf(it.value.name) }
+        }
+
+    /** A role the catalogue lists for [key], read from the map; no role name is written in this test. */
+    private fun roleOf(key: String): String = roleMap.rolesFor(key).keys.sorted().first()
+
+    /** A role the catalogue lists for [key] and does not list for [notFor]. */
+    private fun roleOfOnly(
+        key: String,
+        notFor: String,
+    ): String = (roleMap.rolesFor(key).keys - roleMap.rolesFor(notFor).keys).sorted().first()
+
     private fun replica(
         principal: Principal,
         action: String,
-        scope: ScopeLevel,
+        scope: GrantScope,
         entityRef: String = "e1",
-    ) = AuthorityReplica(clock).also {
+    ) = AuthorityReplica(clock, roleMap).also {
         it.onSnapshotComplete(0)
-        val grant = Grant(action, scope, "x", clock.instant().minusSeconds(60))
-        it.accept(AuthorityChanged(tenantA, principal.id, 1, AuthorityRecord.GrantRecord(entityRef, listOf(grant))))
+        val role =
+            if (action == "other.action") roleOfOnly(OTHER_KEY, ComplianceActions.VIEW) else roleOf(action)
+        val scopeRef = if (scope == GrantScope.TENANT) tenantA.toString() else entityRef
+        val grant = RoleGrant(role, scope, scopeRef, clock.instant().minusSeconds(60))
+        val record = AuthorityRecord.RoleGrantRecord("$role-$scope-$scopeRef", RoleGrantState.ACTIVE, grant)
+        it.accept(AuthorityChanged(tenantA, principal.id, 1, record))
     }
 
-    private fun granted(principal: Principal = holder) = replica(principal, ComplianceActions.VIEW, ScopeLevel.TENANT)
+    private fun granted(principal: Principal = holder) = replica(principal, ComplianceActions.VIEW, GrantScope.TENANT)
 
     private fun query(
         source: ObligationRowSource,
@@ -120,7 +149,7 @@ class ComplianceMetricsQueryTest {
     @Test
     fun `INV-AC-12835 a grant of another action refuses and rows is never called`() {
         val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
-        val other = replica(holder, "other.action", ScopeLevel.TENANT)
+        val other = replica(holder, "other.action", GrantScope.TENANT)
         ask(query(source, other)).shouldBeInstanceOf<ComplianceMetricsResult.Forbidden>()
         source.calls shouldBe 0
     }
@@ -128,7 +157,7 @@ class ComplianceMetricsQueryTest {
     @Test
     fun `INV-AC-12835 an entity filtered read is decided on that entity and the filters reach rows unchanged`() {
         val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
-        val q = query(source, replica(holder, ComplianceActions.VIEW, ScopeLevel.ENTITY))
+        val q = query(source, replica(holder, ComplianceActions.VIEW, GrantScope.ENTITY))
         ask(q, entity = "e1", period = "2026-Q1").shouldBeInstanceOf<ComplianceMetricsResult.Allowed>()
         source.last shouldBe Triple(tenantA, "e1", "2026-Q1")
         ask(q, entity = "e2").shouldBeInstanceOf<ComplianceMetricsResult.Forbidden>()
@@ -154,7 +183,7 @@ class ComplianceMetricsQueryTest {
     @Test
     fun `INV-AC-12835 AUTHORITY_UNAVAILABLE refuses fail closed and rows is never called`() {
         val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
-        val cold = AuthorityReplica(clock)
+        val cold = AuthorityReplica(clock, roleMap)
         ask(query(source, cold)) shouldBe ComplianceMetricsResult.Forbidden(DecisionReason.AUTHORITY_UNAVAILABLE)
         ask(query(source, cold), entity = "e1") shouldBe
             ComplianceMetricsResult.Forbidden(DecisionReason.AUTHORITY_UNAVAILABLE)
@@ -229,11 +258,7 @@ class ComplianceMetricsQueryTest {
     }
 
     private fun machine(): Principal =
-        // a machine principal exists only from a verified token (service-runtime); the test builds the same shape
-        Principal::class.java.declaredConstructors
-            .single { it.parameterCount == 6 && !it.isSynthetic }
-            .apply { isAccessible = true }
-            .newInstance("machine", PrincipalKind.MACHINE, null, MachineEntityCoverage.None, null, null) as Principal
+        MachinePrincipalFixtures.machine("machine", null, MachineEntityCoverage.None, "filing-workflow")
 
     @Test
     fun `INV-AC-12835 with no entity filter a TENANT grant gives Allowed and rows receives a null entityRef`() {
@@ -245,7 +270,7 @@ class ComplianceMetricsQueryTest {
     @Test
     fun `INV-AC-12835 with no entity filter an ENTITY grant alone is refused and rows is never called`() {
         val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
-        val q = query(source, replica(holder, ComplianceActions.VIEW, ScopeLevel.ENTITY))
+        val q = query(source, replica(holder, ComplianceActions.VIEW, GrantScope.ENTITY))
         ask(q) shouldBe ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
         ask(q, period = "2026-Q1") shouldBe ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
         source.calls shouldBe 0
@@ -254,7 +279,7 @@ class ComplianceMetricsQueryTest {
     @Test
     fun `INV-AC-12835 with no entity filter a TENANT grant of another action is refused`() {
         val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
-        ask(query(source, replica(holder, "other.action", ScopeLevel.TENANT))) shouldBe
+        ask(query(source, replica(holder, "other.action", GrantScope.TENANT))) shouldBe
             ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
         source.calls shouldBe 0
     }
@@ -262,7 +287,7 @@ class ComplianceMetricsQueryTest {
     @Test
     fun `INV-AC-12835 with no entity filter a lag beyond the bound refuses a HUMAN and a MACHINE principal`() {
         val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
-        val cold = AuthorityReplica(clock)
+        val cold = AuthorityReplica(clock, roleMap)
         listOf(holder, machine()).forEach {
             ask(query(source, cold), who = it) shouldBe
                 ComplianceMetricsResult.Forbidden(DecisionReason.AUTHORITY_UNAVAILABLE)
@@ -273,9 +298,9 @@ class ComplianceMetricsQueryTest {
     @Test
     fun `INV-AC-12835 with an entity filter e1 a grant on e1 gives Allowed and a grant on e2 only is refused`() {
         val source = CountingSource(mapOf(tenantA to listOf(row("d1"))))
-        ask(query(source, replica(holder, ComplianceActions.VIEW, ScopeLevel.ENTITY, "e1")), entity = "e1")
+        ask(query(source, replica(holder, ComplianceActions.VIEW, GrantScope.ENTITY, "e1")), entity = "e1")
             .shouldBeInstanceOf<ComplianceMetricsResult.Allowed>()
-        ask(query(source, replica(holder, ComplianceActions.VIEW, ScopeLevel.ENTITY, "e2")), entity = "e1") shouldBe
+        ask(query(source, replica(holder, ComplianceActions.VIEW, GrantScope.ENTITY, "e2")), entity = "e1") shouldBe
             ComplianceMetricsResult.Forbidden(DecisionReason.NO_GRANT)
         source.calls shouldBe 1
     }
