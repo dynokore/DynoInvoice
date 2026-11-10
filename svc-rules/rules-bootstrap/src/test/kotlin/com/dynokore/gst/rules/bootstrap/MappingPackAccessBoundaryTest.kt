@@ -220,6 +220,17 @@ class MappingPackAccessBoundaryTest(
     }
 
     @Test
+    fun `the same user ID in another case is a different user and is not refused locally`() {
+        val (packId, label) = submitted() // drafted by "user-a"
+        accessStub.replies[AccessStubServer.DECISION] = AccessStubServer.Reply(200, allow())
+        ok(approve(packId, USER_A_UPPER_TOKEN)) // verified token of "USER-A": no case folding, no trimming
+        val sent = accessStub.requestsTo(AccessStubServer.DECISION).single()
+        sent.query["authorRef"] shouldBe listOf("user-a")
+        sent.query["approverRef"] shouldBe listOf("USER-A")
+        approvalRows(label).single()["approved_by"] shouldBe "USER-A"
+    }
+
+    @Test
     fun `a DENY of each reasonCode is 403 SRT-004 naming no person and nothing is recorded`() {
         val reasons =
             listOf(

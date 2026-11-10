@@ -71,6 +71,7 @@ private fun buildPropertiesOf(version: String) =
     BuildProperties(java.util.Properties().apply { setProperty("version", version) })
 
 private const val USER_B_TOKEN = "Bearer token-user-b"
+const val USER_A_UPPER_TOKEN = "Bearer token-user-a-upper"
 private val TENANT_B = TenantId.of("0b000000-0000-0000-0000-00000000000b")
 
 /** Counts and switches of the allowing fakes (probe only). */
@@ -111,6 +112,7 @@ class MappingDoubles {
             when (authorization) {
                 USER_A_TOKEN -> EndUserPrincipal("user-a", TENANT_A, emptySet())
                 USER_B_TOKEN -> EndUserPrincipal("user-b", TENANT_A, emptySet())
+                USER_A_UPPER_TOKEN -> EndUserPrincipal("USER-A", TENANT_A, emptySet())
                 else -> null
             }
         }
