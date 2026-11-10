@@ -44,6 +44,8 @@ class JobRuntimeCompositionTest {
             assertThat(expiry.entityScope).isEqualTo(JobEntityScope.PLATFORM)
             assertThat(expiry.schedule.cron)
                 .isEqualTo(context.environment.getProperty("masterdata.connections.expiry-check-cron"))
+            assertThat(context.environment.getProperty("masterdata.connections.expiry-check-cron"))
+                .isEqualTo("0 0 * * * *")
         }
         BoundaryFixture
             .runner()

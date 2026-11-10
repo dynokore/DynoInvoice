@@ -359,4 +359,35 @@ class ConnectionHealthWiringTest {
             assertThat(after.node.has("credentialExpiresAt")).isFalse()
             assertThat(after.node.get("overlapEndsAt").asString()).isNotBlank()
         }
+
+    @Test
+    fun `INV-AC-845 the x-error-codes of rotateCredential equal the codes the controller maps`() {
+        val declared = contractErrorCodes("rotateCredential")
+        assertThat(declared).isEqualTo(listOf("SRT-001", "SRT-013"))
+        val mapped = mutableSetOf<String>()
+        on(overlap = null) { env -> mapped += env.rotate(env.create(), TestSecrets.CONNECTION_CREDENTIAL_REF_2).code!! }
+        on { env ->
+            val ref = env.create()
+            mapped += env.rotate(ref, "connections/absent").code!!
+            mapped += env.rotate(ref, TestSecrets.CONNECTION_CREDENTIAL_REF).code!!
+        }
+        assertThat(mapped).isEqualTo(declared.toSet())
+        assertThat(declared).doesNotContain("SRT-0130")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun contractErrorCodes(operationId: String): List<String> {
+        val text =
+            checkNotNull(javaClass.classLoader.getResourceAsStream("gst/contracts/masterdata/openapi.yaml")) {
+                "the masterdata contract is not on the classpath"
+            }.use { it.readBytes().toString(Charsets.UTF_8) }
+        val paths =
+            org.yaml.snakeyaml
+                .Yaml()
+                .load<Map<String, Any?>>(text)["paths"] as Map<String, Map<String, Any?>>
+        return paths.values
+            .flatMap { it.values }
+            .filterIsInstance<Map<String, Any?>>()
+            .first { it["operationId"] == operationId }["x-error-codes"] as List<String>
+    }
 }

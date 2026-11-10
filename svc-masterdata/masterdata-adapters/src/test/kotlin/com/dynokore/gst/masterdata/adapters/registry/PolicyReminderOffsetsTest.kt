@@ -22,7 +22,7 @@ import java.util.UUID
 /** INV-REQ-837, INV-REQ-2464 (VP-68): the option keys map to day lists, and any other option fails closed. */
 class PolicyReminderOffsetsTest {
     private val tenant = TenantId(UUID.randomUUID())
-    private val clock = Clock.fixed(Instant.parse("2026-11-10T00:00:00Z"), ZoneOffset.UTC)
+    private var clock = Clock.fixed(Instant.parse("2026-11-10T00:00:00Z"), ZoneOffset.UTC)
 
     private val tenants: TenantContext =
         Proxy.newProxyInstance(javaClass.classLoader, arrayOf(TenantContext::class.java)) { _, method, _ ->
@@ -84,5 +84,16 @@ class PolicyReminderOffsetsTest {
             assertThatThrownBy { offsets("CUSTOM_DAYS", it).days() }.isInstanceOf(IllegalStateException::class.java)
         }
         assertThatThrownBy { offsets("CUSTOM_DAYS", null).days() }.isInstanceOf(IllegalStateException::class.java)
+    }
+
+    @Test
+    fun `the date given to the policy reader is the Singapore business date of the clock`() {
+        listOf("2026-03-31T17:00:00Z" to LocalDate.of(2026, 4, 1), "2026-03-31T15:59:59Z" to LocalDate.of(2026, 3, 31))
+            .forEach { (instant, expected) ->
+                clock = Clock.fixed(Instant.parse(instant), ZoneOffset.UTC)
+                val seen = mutableListOf<Triple<VariationPointKey, PolicyScope, LocalDate>>()
+                offsets("DAYS_14_3", seen = seen).days()
+                assertThat(seen.single().third).isEqualTo(expected)
+            }
     }
 }
