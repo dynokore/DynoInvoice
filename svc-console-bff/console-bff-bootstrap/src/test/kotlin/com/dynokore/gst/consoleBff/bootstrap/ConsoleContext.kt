@@ -17,6 +17,8 @@ object ConsoleContext {
             "gst.service=console-bff",
             "gst.instance-id=console-bff-0",
             "gst.bindings.secret-store.mount-root=$mountRoot",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
             *extra,
         )
 
