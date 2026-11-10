@@ -98,7 +98,8 @@ class SubmissionStoreListColumnsDbTest {
             su.createStatement().use { st ->
                 st.execute(
                     "do \$\$ begin if not exists (select 1 from pg_roles where rolname = '$bypassRole') then " +
-                        "create role $bypassRole login nosuperuser bypassrls password '$bypassPassword'; end if; end \$\$",
+                        "create role $bypassRole login nosuperuser bypassrls password '$bypassPassword'; " +
+                        "end if; end \$\$",
                 )
                 st.execute("grant submission_runtime to $bypassRole")
             }
