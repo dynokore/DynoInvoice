@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 2e75aa4e9274fc6664fd09a392c5c56dab24c14d (2026-11-10), the merge of invoice-docs INV-T-19491 adding TNC-013 (INV-T-19492, coordinator ruling of breakdown tooling/gap15888-gap.md);
+# pinned at commit 0a3dcc90467b4325597eaaa26935083dfb3072c9 (2026-11-10), the merge of invoice-docs INV-T-19786 adding TNC-014, tenant close refused while SCHEDULED or CLOSED (INV-T-19787, coordinator ruling of breakdown tooling/gap8179-gap.md; this re-vendor also brings CPL-010 and CPL-011 from INV-T-19763);
+# previously pinned at 2e75aa4e9274fc6664fd09a392c5c56dab24c14d (2026-11-10), the merge of invoice-docs INV-T-19491 adding TNC-013 (INV-T-19492, coordinator ruling of breakdown tooling/gap15888-gap.md);
 # previously pinned at 92ad97b4853360b6fef30cef44c6ed5ea4cd6cb0 (2026-11-09), the merge of invoice-docs INV-T-19381 adding TNC-012, tenant open refused (INV-T-19382, coordinator ruling of breakdown tooling/gap8142-gap.md);
 # previously pinned at 03bf5b6ed7232362ceb836094380637c1934b66a (2026-11-09), the merge of invoice-docs INV-T-18946 adding MDM-016 to MDM-018, the connection error codes (INV-T-18947, coordinator ruling of breakdown tooling/gap18774-gap.md);
 # previously pinned at 692c582333cf6f650694b24eb100b448946bc347 (2026-11-09), the merge of invoice-docs INV-T-18915 adding MDM-012 to MDM-015, the rate import error codes (INV-T-18916, coordinator ruling of breakdown tooling/gap18772-gap.md);
@@ -1023,6 +1024,11 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+- code: TNC-014
+  condition: "Tenant close refused: the tenant is SCHEDULED or CLOSED, so closeTenant cannot start its offboarding; the tenant keeps its state and no offboarding record is created (HTTP 409; INV-REQ-8100, INV-Q-8137)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
 - code: ING-022
   condition: "Aggregate number cannot be built: the number would exceed 64 characters, or the entity or business unit has no registered short code of 1 to 10 characters A-Z 0-9 in the structure; nothing is stored (HTTP 422; INV-REQ-436, INV-REQ-850 b7, INV-Q-11264)"
   severity: BLOCK
@@ -1065,6 +1071,16 @@ error_codes:
   owner: Platform
 - code: CPL-009
   condition: "The first administrator invitation cannot be reissued now: access-svc gave no answer within the edge policy (timeout, open circuit breaker, full bulkhead or no connection) or answered HTTP 503; nothing is sent; retryable with the same Idempotency-Key (HTTP 503; INV-REQ-906, INV-Q-8232, INV-Q-16204)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-010
+  condition: "Tenant schedule conflict: the request does not fit the state of the schedule of the tenant: another schedule is set while one is live, a change or a cancellation is requested while one of that kind is pending, a time that was already carried out is changed, or an approval names a request that is neither awaiting approval nor already approved (an approval that repeats a finished approval is a no-op that changes nothing and is not refused, as the repeatKey of approveTenantSchedule says); nothing is changed (HTTP 409; INV-REQ-8100)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: CPL-011
+  condition: "Tenant schedule not valid: the contract reference is blank, the offboarding time is not after the go-live time, or the go-live time is not after the moment of setting (for a change, the new times); nothing is stored (HTTP 422; INV-REQ-8100 behavior 1)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
