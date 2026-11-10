@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.6.0] - 2026-11-10
+### Added
+- `TenancyErrorCode` gains `ELECTION_CHANGE_PENDING` (`TNC-013`, HTTP 409, "Election change refused", owner `entity.admin`) after `TENANT_NOT_OPENABLE`; the catalogue snapshot is re-vendored from platform-contracts 034d8d02 (INV-T-19493, INV-AC-19488; ruling of breakdown tooling/gap15888-gap.md).
+
 ## [13.5.1] - 2026-11-10
 ### Changed
 - Version step only: dependency `outbox-and-queue` stepped to 6.20.0 (`ConnectionCredentialExpiryReminderRequested` joins the platform event class; INV-T-18776 design question option A, INV-T-19567, G-DVS).

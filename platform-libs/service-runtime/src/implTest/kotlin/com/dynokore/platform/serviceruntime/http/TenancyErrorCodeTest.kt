@@ -40,8 +40,8 @@ class TenancyErrorCodeTest {
         }.filter { it.code.startsWith("TNC-") }
 
     @Test
-    fun `the codes equal the 12 TNC rows of the pinned catalogue snapshot, in order`() {
-        rows.size shouldBe 12
+    fun `the codes equal the 13 TNC rows of the pinned catalogue snapshot, in order`() {
+        rows.size shouldBe 13
         TenancyErrorCode.entries.map { it.code } shouldBe rows.map { it.code }
     }
 
@@ -125,5 +125,27 @@ class TenancyErrorCodeTest {
         contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
         body.get("code").asString() shouldBe "TNC-012"
         body.get("type").asString() shouldBe "https://errors.invoice.internal/TNC-012"
+    }
+
+    @Test
+    fun `INV-AC-19488 ELECTION_CHANGE_PENDING is the catalogue row TNC-013 and renders as a 409 envelope`() {
+        val row = rows.single { it.code == "TNC-013" }
+        row.severity shouldBe "BLOCK"
+        row.disposition shouldBe "TERMINAL"
+        row.owner shouldBe "entity.admin"
+        row.condition.contains("HTTP 409") shouldBe true
+        val entry = TenancyErrorCode.ELECTION_CHANGE_PENDING
+        entry.code shouldBe "TNC-013"
+        entry.httpStatus shouldBe 409
+        entry.title shouldBe "Election change refused"
+        entry.title shouldBe row.condition.substringBefore(": ")
+        entry.owner shouldBe TenancyErrorCode.Owner.ENTITY_ADMIN
+        entry.owner.text shouldBe row.owner
+        val response = Problems.renderTenancy(entry, "corr-1")
+        response.status shouldBe 409
+        val body = mapper.readTree(response.body)
+        contracts.schemaErrors("service-runtime/schemas/error-envelope.schema.json", body).shouldBeEmpty()
+        body.get("code").asString() shouldBe "TNC-013"
+        body.get("type").asString() shouldBe "https://errors.invoice.internal/TNC-013"
     }
 }
