@@ -229,7 +229,7 @@ object MappingSpreadsheetRules {
 
     /**
      * The command of a request, or the refusal: more than 5,000 rows is 413 before anything else is looked at (the
-     * rows are not validated), a missing `rows`, `entityRef` or a `rowCount` that differs from the number of rows is
+     * rows are never validated), a missing `rows`, `entityRef` or a `rowCount` that differs from the number of rows is
      * 400 SRT-001. The actor is the bound principal's, never a request value.
      */
     @Suppress("CyclomaticComplexMethod", "ThrowsCount", "LongParameterList") // independent request checks
@@ -249,7 +249,7 @@ object MappingSpreadsheetRules {
         if (rowCount != rows.size) throw invalid("rowCount must equal the number of rows")
         if (rows.isEmpty()) throw invalid("a re-import holds at least one row")
         if (!SHA256.matches(fileHash)) throw invalid("fileHash must be a SHA-256")
-        if (blankOrControl(fileName) || fileName.length > MAX_FILE_NAME) throw invalid("fileName is not valid")
+        if (blankOrControl(fileName) || fileName.length > MAX_FILE_NAME) throw invalid("fileName is invalid")
         val mapped =
             rows.mapIndexed { index, row ->
                 val citation = row.citation?.takeIf { it.isNotBlank() }
@@ -258,7 +258,7 @@ object MappingSpreadsheetRules {
                         row.internalTaxCode.length <= MAX_CODE &&
                         !blankOrControl(row.irasCode) &&
                         (citation == null || citation.length <= MAX_CITATION)
-                if (!valid) throw invalid("row ${index + 1} is not valid")
+                if (!valid) throw invalid("row ${index + 1} is invalid")
                 ImportRow(
                     row.internalTaxCode,
                     row.irasCode,
@@ -278,12 +278,9 @@ object MappingSpreadsheetRules {
 
     /** 413 for a request over the 5,000-row cap, refused whole before any row is looked at (API-49, INV-AC-3484). */
     fun overCap() =
-        MappingRefusal(
-            TOO_LARGE,
-            ClosedErrorCode.CONTRACT_VIOLATION.code,
-            "Request over a size or count limit",
-            "a re-import holds at most $MAX_IMPORT_ROWS rows",
-        )
+        ClosedErrorCode.REQUEST_TOO_LARGE.let {
+            MappingRefusal(TOO_LARGE, it.code, it.title, "a re-import holds at most $MAX_IMPORT_ROWS rows")
+        }
 
     /** 422 RUL-006 for a rejected re-import; `errors[]` names each rejected row (API-21, INV-AC-2039). */
     fun rejection(rows: List<Int>): MappingRefusal {
