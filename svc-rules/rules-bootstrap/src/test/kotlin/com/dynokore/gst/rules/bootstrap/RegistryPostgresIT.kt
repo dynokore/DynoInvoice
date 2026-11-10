@@ -413,8 +413,6 @@ class RegistryPostgresIT(
                 "pack_registry_platform_register",
                 "pack_registry_platform_select",
                 "pack_registry_platform_advance",
-                "pack_registry_ref_check_read",
-                "pack_registry_ref_check_lock",
             )
         names(policies + "'dry_run_delta'") shouldBe
             setOf("dry_run_delta_tenant_read", "dry_run_delta_tenant_insert", "dry_run_delta_tenant_update")
@@ -432,7 +430,6 @@ class RegistryPostgresIT(
                 "pack_entry_source_tenant_insert",
                 "pack_entry_source_tenant_update",
                 "pack_entry_source_platform_register",
-                "pack_entry_source_ref_check_read",
             )
     }
 
@@ -854,13 +851,11 @@ class RegistryEntryTriggerIT {
         columns("mapping_import_record", "update") shouldBe setOf("import_id")
         columns("mapping_import_record", "insert") shouldBe emptySet()
         columns("pack_entry_source", "select") shouldBe
-            setOf("id", "tenant_id", "pack_type", "pack_version", "import_ref")
+            setOf("tenant_id", "pack_type", "pack_version", "import_ref")
         columns("pack_entry_source", "update") shouldBe emptySet()
-        // every policy of rules_sys that admits an update on a tenant row carries WITH CHECK (false)
-        names(
-            "select p.policyname as n from pg_policies p where p.schemaname = 'rules' " +
-                "and 'rules_sys' = any (p.roles) and p.policyname like '%_ref_check_lock' and p.with_check = 'false'",
-        ) shouldBe setOf("mapping_import_record_ref_check_lock", "pack_registry_ref_check_lock")
+        // no policy is addressed to rules_sys: the tenant policies without a TO clause bind it to the signed tenant
+        names("select p.policyname as n from pg_policies p where p.schemaname = 'rules' and p.roles = '{rules_sys}'") shouldBe
+            emptySet()
     }
 
     @Test

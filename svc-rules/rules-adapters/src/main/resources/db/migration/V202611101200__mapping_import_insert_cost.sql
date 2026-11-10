@@ -134,26 +134,11 @@ revoke execute on function rules.pack_registry_entry_ref_del() from public;
 revoke execute on function rules.mapping_import_record_entry_ref_upd() from public;
 revoke execute on function rules.mapping_import_record_entry_ref_del() from public;
 
--- rules_sys privileges for the six bodies (read of the key columns; the row lock of FOR KEY SHARE, which PostgreSQL gates
--- on UPDATE privilege and on an UPDATE policy). Every UPDATE policy below has WITH CHECK (false): it admits the lock and
--- never a change of a row.
--- mapping_import_record: the child-side check reads and locks the parent key; the parent-side checks read the key.
+-- rules_sys privileges for the six bodies (INV-ADR-3968 item 6a, OWASP ASVS V4.1 least privilege). No policy is added:
+-- the existing tenant policies have no TO clause, so they bind rules_sys to the signed tenant like every other role.
 grant select (tenant_id, import_id) on rules.mapping_import_record to rules_sys;       -- key columns read by the checks
 grant update (import_id) on rules.mapping_import_record to rules_sys;                  -- needed only for FOR KEY SHARE
-create policy mapping_import_record_ref_check_read on rules.mapping_import_record for select to rules_sys
-    using (true);                                                                      -- the check must see every tenant's key
-create policy mapping_import_record_ref_check_lock on rules.mapping_import_record for update to rules_sys
-    using (true) with check (false);                                                   -- lock only
--- pack_registry: rules_sys already holds select, insert and update from V1 (platform rows only by policy); the lock and
--- the check must also see tenant rows.
-create policy pack_registry_ref_check_read on rules.pack_registry for select to rules_sys
-    using (true);                                                                      -- the check must see every tenant's key
-create policy pack_registry_ref_check_lock on rules.pack_registry for update to rules_sys
-    using (true) with check (false);                                                   -- lock only
--- pack_entry_source: the parent-side checks look for a referencing entry by its key columns.
-grant select (id, tenant_id, pack_type, pack_version, import_ref) on rules.pack_entry_source to rules_sys;  -- key columns read
-create policy pack_entry_source_ref_check_read on rules.pack_entry_source for select to rules_sys
-    using (true);                                                                      -- the check must see every tenant's entries
+grant select (tenant_id, pack_type, pack_version, import_ref) on rules.pack_entry_source to rules_sys;  -- parent-side key read
 
 grant create on schema rules to rules_sys;
 alter function rules.pack_entry_source_ref_ins() owner to rules_sys;
