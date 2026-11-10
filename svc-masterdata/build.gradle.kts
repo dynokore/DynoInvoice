@@ -56,3 +56,4 @@ allprojects {
 
 // Repository gates (INV-T-4942).
 apply(from = "gradle/gates/ac-key-coverage.gradle.kts")
+apply(from = "gradle/gates/lock-consistency.gradle.kts")
