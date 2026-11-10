@@ -222,6 +222,7 @@ open class PacksController(
                         request.internalTaxCode,
                         request.irasCode,
                         sourceClassOrRefuse(request.sourceClass.value),
+                        request.schemeTag?.value,
                     ),
                 ),
             )

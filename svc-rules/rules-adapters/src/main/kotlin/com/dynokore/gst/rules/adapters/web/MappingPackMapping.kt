@@ -36,6 +36,7 @@ data class RefusalError(
     val field: String?,
 )
 
+private const val SCHEME_TAG_FIELD = "schemeTag"
 private const val UNPROCESSABLE = 422
 private const val CONFLICT = 409
 private const val HEX = 16
@@ -82,6 +83,7 @@ object MappingPackMapping {
     private fun catalogued(
         code: ErrorCode,
         detail: String,
+        field: String? = null,
     ) = MappingRefusal(
         UNPROCESSABLE,
         code.code,
@@ -89,6 +91,7 @@ object MappingPackMapping {
         detail,
         code.severity.name,
         code.disposition?.name,
+        errors = field?.let { listOf(RefusalError(code.code, detail, it)) }.orEmpty(),
     )
 
     private fun refusedOf(result: MappingPackResult.Refused): MappingRefusal {
@@ -107,7 +110,11 @@ object MappingPackMapping {
             }
 
             RefusalReason.SCHEME_TAG_SIDE -> {
-                catalogued(ErrorCode.RUL_013, "the scheme tag is not allowed on the side of the code: $named")
+                catalogued(
+                    ErrorCode.RUL_013,
+                    "the scheme tag is not allowed on the side of the code: $named",
+                    SCHEME_TAG_FIELD,
+                )
             }
 
             RefusalReason.LIFECYCLE -> {

@@ -146,6 +146,7 @@ class JooqMappingPackStore(
             .set(PACK_ENTRY_SOURCE.INTERNAL_TAX_CODE, entry.entryId)
             .set(PACK_ENTRY_SOURCE.IRAS_CODE, entry.irasCode)
             .set(PACK_ENTRY_SOURCE.SOURCE_CLASS, entry.sourceClass.name)
+            .set(PACK_ENTRY_SOURCE.SCHEME_TAG, entry.schemeTag)
             .set(PACK_ENTRY_SOURCE.ACCEPTED, false)
             .onConflict(
                 PACK_ENTRY_SOURCE.PACK_TYPE,
@@ -155,6 +156,7 @@ class JooqMappingPackStore(
             ).doUpdate()
             .set(PACK_ENTRY_SOURCE.IRAS_CODE, entry.irasCode)
             .set(PACK_ENTRY_SOURCE.SOURCE_CLASS, entry.sourceClass.name)
+            .set(PACK_ENTRY_SOURCE.SCHEME_TAG, entry.schemeTag)
             .set(PACK_ENTRY_SOURCE.ACCEPTED, false)
             .execute()
         // a delta computed before this change no longer qualifies (INV-Q-14646 A)
@@ -170,7 +172,9 @@ class JooqMappingPackStore(
         after: String?,
         limit: Int,
     ): List<MappingDraftEntry> =
-        entryViews(packId, after, limit, null, null).map { MappingDraftEntry(it.entryId, it.irasCode, it.sourceClass) }
+        entryViews(packId, after, limit, null, null).map {
+            MappingDraftEntry(it.entryId, it.irasCode, it.sourceClass, it.schemeTag)
+        }
 
     /** The entries ordered by entry id after the cursor (exclusive), the optional filters combined with AND. */
     fun entryViews(

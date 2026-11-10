@@ -3,10 +3,15 @@ package com.dynokore.gst.rules.bootstrap
 import com.dynokore.gst.rules.bootstrap.SchemaInspection.Column
 import com.dynokore.gst.rules.bootstrap.SchemaInspection.Grant
 import com.dynokore.gst.rules.bootstrap.SchemaInspection.Table
+import com.dynokore.gst.rules.served.TENANT_A
+import com.dynokore.platform.tenancyjooq.TenancyProbe
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import org.springframework.test.context.DynamicPropertyRegistry
+import java.util.UUID
 
 /** The probes of INV-AC-2182's inspection: each look-alike or violation must produce a finding. */
 class SchemaInspectionTest {
@@ -150,5 +155,113 @@ class SchemaInspectionTest {
         SchemaInspection.loginFindings(false).shouldBeEmpty()
         SchemaInspection.loginFindings(true).shouldNotBeEmpty()
         SchemaInspection.loginFindings(null).shouldNotBeEmpty()
+    }
+}
+
+private const val SCHEME_TAG_SCHEMA_PATTERN = "^[A-Z][A-Z0-9_]{1,39}$"
+private const val SCHEME_TAG_MAX = 40
+
+/**
+ * The `scheme_tag` column of the draft entry table, on the database of the integration tests: the CHECK and the `tag`
+ * pattern of `scenario-pack-handlers.schema.json` give the same verdict for every probe (INV-REQ-2444).
+ */
+class SchemeTagColumnTest {
+    private val probe: TenancyProbe
+
+    init {
+        PostgresRules.register(
+            object : DynamicPropertyRegistry {
+                override fun add(
+                    name: String,
+                    valueSupplier: java.util.function.Supplier<Any>,
+                ) = Unit
+            },
+        )
+        probe =
+            TenancyProbe
+                .connect(PostgresRules.pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
+    }
+
+    private fun seed(version: String) {
+        probe.inTenant(TENANT_A) {
+            fetchValue(
+                "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, " +
+                    "status, min_engine_version, registered_by, label, entity_ref) " +
+                    "values (?::uuid, ?::uuid, ?, 'MAPPING', ?, " +
+                    "'TENANT_MAPPING', 'DRAFT', '1.0.0', 'tenancy-probe', ?, 'E-1') returning id",
+                UUID.randomUUID().toString(),
+                TENANT_A.toString(),
+                "MAP-$version",
+                version,
+                version,
+            )
+        }
+    }
+
+    private fun store(
+        version: String,
+        entry: String,
+        tag: String?,
+    ) = probe.inTenant(TENANT_A) {
+        fetchValue(
+            "insert into rules.pack_entry_source (id, tenant_id, pack_type, pack_version, entry_id, source_class, " +
+                "internal_tax_code, iras_code, scheme_tag) values (?::uuid, ?::uuid, 'MAPPING', ?, ?, 'PRIMARY', " +
+                "?, 'SR', ?) returning id",
+            UUID.randomUUID().toString(),
+            TENANT_A.toString(),
+            version,
+            entry,
+            entry,
+            tag,
+        )
+    }
+
+    private fun stored(
+        version: String,
+        entry: String,
+    ) = probe.inTenant(TENANT_A) {
+        fetchValue(
+            "select coalesce(scheme_tag, '<null>') from rules.pack_entry_source " +
+                "where pack_version = ? and entry_id = ?",
+            version,
+            entry,
+        )
+    }
+
+    @Test
+    fun `INV-AC-16854 the scheme_tag check and the tag pattern of the scenario schema give the same verdict`() {
+        val version = "st-${UUID.randomUUID().toString().take(8)}"
+        seed(version)
+        val schema = Regex(SCHEME_TAG_SCHEMA_PATTERN)
+        val probes =
+            mapOf(
+                "A" to false, // one character
+                "AB" to true,
+                "aB" to false, // lower case
+                "A".repeat(SCHEME_TAG_MAX) to true, // the longest tag
+                "A".repeat(SCHEME_TAG_MAX + 1) to false, // 41 characters
+                "A_1" to true,
+                "1A" to false,
+                "A-B" to false,
+                "AB\n" to false, // a trailing newline does not slip past the anchor
+            )
+        probes.entries.forEachIndexed { index, (tag, accepted) ->
+            schema.matches(tag) shouldBe accepted
+            val entry = "E$index"
+            if (accepted) {
+                store(version, entry, tag)
+                stored(version, entry) shouldBe tag
+            } else {
+                shouldThrow<Exception> { store(version, entry, tag) }
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-16854 an entry without a tag reads back null`() {
+        val version = "st-${UUID.randomUUID().toString().take(8)}"
+        seed(version)
+        store(version, "NOTAG", null)
+        stored(version, "NOTAG") shouldBe "<null>"
     }
 }
