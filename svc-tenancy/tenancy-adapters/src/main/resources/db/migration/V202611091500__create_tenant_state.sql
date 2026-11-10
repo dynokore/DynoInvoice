@@ -105,6 +105,7 @@ BEGIN
     RETURN tenancy.tenant_json('created', found_row);
 END;
 $$;
+ALTER FUNCTION tenancy.create_tenant(uuid, text, text, text, text, uuid, text, text) OWNER TO tenancy_sys;
 
 -- SCHEDULED to OPEN for the tenant with this ref: 'opened', 'repeat' (already OPEN), 'refused' (any other state), 'missing'.
 CREATE FUNCTION tenancy.open_tenant(p_ref text) RETURNS jsonb
