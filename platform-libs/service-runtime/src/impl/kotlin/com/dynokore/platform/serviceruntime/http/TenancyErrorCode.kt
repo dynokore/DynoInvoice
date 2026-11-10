@@ -2,7 +2,7 @@ package com.dynokore.platform.serviceruntime.http
 
 /**
  * The business-conflict refusals of the tenancy operations with their TNC catalogue codes (platform-contracts
- * `catalogue/errors/error-codes.yaml` TNC-001..TNC-013; coordinator rulings INV-Q-7553 A, INV-Q-8903 A and INV-Q-11899 A, and TNC-011 by the INV-T-18814 ruling on INV-T-7382, and TNC-012 by the INV-T-19383 ruling of breakdown tooling/gap8142-gap.md, and TNC-013 by the INV-T-19493 ruling of breakdown tooling/gap15888-gap.md), mapped in one place beside
+ * `catalogue/errors/error-codes.yaml` TNC-001..TNC-014; coordinator rulings INV-Q-7553 A, INV-Q-8903 A and INV-Q-11899 A, and TNC-011 by the INV-T-18814 ruling on INV-T-7382, and TNC-012 by the INV-T-19383 ruling of breakdown tooling/gap8142-gap.md, and TNC-013 by the INV-T-19493 ruling of breakdown tooling/gap15888-gap.md, and TNC-014 by the INV-T-19788 ruling of the answered design question of INV-T-8179, breakdown tooling/gap8179-gap.md), mapped in one place beside
  * [PolicyErrorCode] (ARC-19, CS-14) so that a service renders a TNC refusal with [Problems.renderTenancy] and writes
  * no code of its own. The status is the "HTTP nnn" of the catalogue condition, the title the text of the condition
  * before its first ": ", the owner the row's `owner`; the test of this enum compares all three, and the code set,
@@ -32,6 +32,7 @@ enum class TenancyErrorCode(
     MIGRATION_CUTOVER_CONFLICT("TNC-011", HttpStatusCodes.CONFLICT, "Migration cutover refused", Owner.ENTITY_ADMIN),
     TENANT_NOT_OPENABLE("TNC-012", HttpStatusCodes.CONFLICT, "Tenant open refused", Owner.PLATFORM),
     ELECTION_CHANGE_PENDING("TNC-013", HttpStatusCodes.CONFLICT, "Election change refused", Owner.ENTITY_ADMIN),
+    TENANT_NOT_CLOSABLE("TNC-014", HttpStatusCodes.CONFLICT, "Tenant close refused", Owner.PLATFORM),
     ;
 
     /** The catalogue `owner` text of the row (error-codes.yaml). */

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.9.0] - 2026-11-10
+### Added
+- `TenancyErrorCode` gains `TENANT_NOT_CLOSABLE` (`TNC-014`, HTTP 409, "Tenant close refused", owner Platform) after `ELECTION_CHANGE_PENDING`; the catalogue snapshot is re-vendored from platform-contracts 6c2b7fdd (INV-T-19788, INV-AC-19782; ruling of breakdown tooling/gap8179-gap.md).
+
 ## [13.8.0] - 2026-11-10
 ### Added
 - `MachinePrincipalFixtures.machine` in the new `java-test-fixtures` source set (INV-T-19621, INV-AC-19620): a test-fixtures addition for the pin tests of services that serve a machine route; no production API change (`Principal.machine` and the internal constructor stay internal).
