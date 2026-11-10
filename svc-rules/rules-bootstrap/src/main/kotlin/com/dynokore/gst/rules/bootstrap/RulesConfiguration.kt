@@ -3,6 +3,7 @@ package com.dynokore.gst.rules.bootstrap
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.packs.EngineVersion
+import com.dynokore.gst.rules.adapters.packs.HolderCopySigningKeys
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
 import com.dynokore.gst.rules.adapters.packs.RefusingInstallationApproverFactPort
@@ -11,6 +12,7 @@ import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
 import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
 import com.dynokore.gst.rules.adapters.packs.RefusingRateSourcePort
 import com.dynokore.gst.rules.adapters.packs.ReplicaRateSourcePort
+import com.dynokore.gst.rules.adapters.packs.ServiceKeyHolderCopyWriter
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
@@ -39,6 +41,7 @@ import com.dynokore.gst.rules.application.RateSourcePort
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
+import com.dynokore.platform.crypto.DetachedSigner
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -51,6 +54,7 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.rulepackkernel.PackVerifier
 import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.serviceruntime.binding.DeploymentForm
 import com.dynokore.platform.serviceruntime.binding.GstProperties
@@ -63,7 +67,10 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.JSONB
 import org.jooq.Schema
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
@@ -265,10 +272,39 @@ class RulesConfiguration {
         }
     }
 
-    /** Answers Unavailable until INV-T-16544 replaces it (INV-Q-14650 A, INV-Q-16531 A). */
+    /**
+     * The holder copy is signed with the service key of rules-svc (INV-T-16544; INV-Q-14650 A, INV-Q-16531 A) and
+     * registered through the tenant-bound registry. Declared before [refusingHolderCopyPort] so that the refusing
+     * class is the bean only when no other [HolderCopyPort] exists.
+     */
     @Bean
     @ConditionalOnMissingBean(HolderCopyPort::class)
-    fun holderCopyPort(): HolderCopyPort = RefusingHolderCopyPort()
+    fun holderCopyPort(
+        secrets: SecretStore,
+        signer: DetachedSigner,
+        verifier: PackVerifier,
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): HolderCopyPort =
+        ServiceKeyHolderCopyWriter(
+            HolderCopySigningKeys(secrets),
+            signer,
+            verifier,
+            PersistedPackRegistry(dsl, tenants),
+            canonical = { text -> jsonbText(dsl, text) },
+        )
+
+    /** The text PostgreSQL returns for a JSON text: the form the `jsonb` columns of `pack_artefact` read back in. */
+    private fun jsonbText(
+        dsl: DSLContext,
+        text: String,
+    ): String =
+        checkNotNull(dsl.select(DSL.cast(DSL.`val`(text), SQLDataType.JSONB)).fetchOne(0, JSONB::class.java)).data()
+
+    /** Answers Unavailable; the bean only when no other [HolderCopyPort] exists (fail closed, INV-Q-14647 A). */
+    @Bean
+    @ConditionalOnMissingBean(HolderCopyPort::class)
+    fun refusingHolderCopyPort(): HolderCopyPort = RefusingHolderCopyPort()
 
     /** Answers Unavailable until the access-svc client replaces it. */
     @Bean

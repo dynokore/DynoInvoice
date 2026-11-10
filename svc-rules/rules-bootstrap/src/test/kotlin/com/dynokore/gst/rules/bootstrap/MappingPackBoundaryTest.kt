@@ -1,9 +1,9 @@
 package com.dynokore.gst.rules.bootstrap
 
-import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
 import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
 import com.dynokore.gst.rules.adapters.packs.ReplicaRateSourcePort
+import com.dynokore.gst.rules.adapters.packs.ServiceKeyHolderCopyWriter
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.application.HolderCopyPort
 import com.dynokore.gst.rules.application.HolderCopyRequest
@@ -1169,13 +1169,14 @@ class MappingPackDefaultsTest(
     @org.springframework.boot.test.web.server.LocalServerPort port: Int,
 ) : MappingPackSupport(port) {
     @Test
-    fun `the three defaults are the refusing classes and the rate-source default is the replica port`() {
+    fun `the refusing defaults, the replica rate source and the service key holder copy are the beans`() {
         context.getBean(PackActionAuthority::class.java)::class.java shouldBe RefusingPackActionAuthority::class.java
         context.getBean(PackApprovalDecisionPort::class.java)::class.java shouldBe
             RefusingPackApprovalDecisionPort::class.java
         // INV-T-16546: with a StructureReplica bean the default is the replica port (RateSourceBlockBoundaryTest)
         context.getBean(RateSourcePort::class.java)::class.java shouldBe ReplicaRateSourcePort::class.java
-        context.getBean(HolderCopyPort::class.java)::class.java shouldBe RefusingHolderCopyPort::class.java
+        // INV-T-16544: the holder copy default is the signing adapter, which answers Unavailable without secrets
+        context.getBean(HolderCopyPort::class.java)::class.java shouldBe ServiceKeyHolderCopyWriter::class.java
     }
 
     @Test

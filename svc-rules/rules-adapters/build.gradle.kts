@@ -27,6 +27,8 @@ dependencies {
     implementation(project(":rules-domain"))
     implementation(project(":rules-application"))
     implementation(project(":rules-contract"))
+    implementation(libs.platform.crypto.api)
+    implementation(libs.platform.crypto.impl)
     implementation(libs.platform.rulepackKernel.api)
     implementation(libs.platform.rulepackKernel.impl)
     implementation(libs.platform.tenancyKernel.api)

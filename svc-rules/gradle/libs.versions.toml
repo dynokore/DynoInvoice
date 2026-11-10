@@ -36,6 +36,8 @@ platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }
 platform-tenancyJooq-impl = { module = "com.dynokore.platform:tenancy-jooq" }
 platform-outboxAndQueue-api = { module = "com.dynokore.platform:outbox-and-queue-api" }
 platform-outboxAndQueue-impl = { module = "com.dynokore.platform:outbox-and-queue" }
+platform-crypto-api = { module = "com.dynokore.platform:crypto-api" }
+platform-crypto-impl = { module = "com.dynokore.platform:crypto" }
 platform-rulepackKernel-api = { module = "com.dynokore.platform:rulepack-kernel-api" }
 platform-rulepackKernel-impl = { module = "com.dynokore.platform:rulepack-kernel" }
 platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
