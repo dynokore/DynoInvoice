@@ -27,6 +27,7 @@ readonly TEST_PKG="com.dynokore.gst.submission.bootstrap"
 readonly TEST_CLASSES=(BreakGlassRestrictionTest PayloadReadyDbTest EndUserFilterTest)
 readonly DATES=(2026-11-30 2026-12-31)
 readonly TIMES=(00:30 01:30 12:00 23:59)
+readonly EXPECTED_RUNS=8 # counting unit: one local time on one date (4 times x 2 dates); each run executes the three classes
 readonly TOLERANCE_S=300
 readonly DB_POLL_ROUNDS=2400
 readonly RESULTS_DIR=submission-bootstrap/build/test-results/test
@@ -325,11 +326,13 @@ if [ -n "$ONLY" ]; then
 else
   for d in "${DATES[@]}"; do for t in "${TIMES[@]}"; do runs+=("$d|$t"); done; done
 fi
-failed=0 total=${#runs[@]}
+failed=0 total=0
 for r in "${runs[@]}"; do
+  total=$((total + 1))
   if ! run_one "${r%%|*}" "${r##*|}"; then echo "RUN FAILED ${r%%|*} ${r##*|}"; failed=$((failed + 1)); fi
 done
 echo "=== ${total} runs, ${failed} failed ==="
 [ "$failed" -eq 0 ] || exit 1
+if [ -z "$ONLY" ] && [ "$total" -ne "$EXPECTED_RUNS" ]; then fail "made $total runs, expected $EXPECTED_RUNS"; fi
 if [ -n "$ONLY" ]; then echo "PARTIAL run (--only): not a proof"; exit 3; fi
 echo "TIME-SHIFT OK: all ${total} runs passed"
