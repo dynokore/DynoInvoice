@@ -5,7 +5,7 @@
 
 [versions]
 platformBuild = "0.23.4"
-platformLibsBom = "0.190.0"
+platformLibsBom = "0.194.0"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"
@@ -20,10 +20,10 @@ swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
 # INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876, 3030c14b adds the INV-T-8269 marker rule and the recordEntitlement operation; a85d629f is the lowest published bundle with the INV-T-18816 migration-cutover operations, TNC-011 in x-error-codes and the migration-cutover.record / .view x-operation.permission); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+c9f5f8cd"
+platformContractsBundle = "0.0.0-dev+f23d4378"
 bouncycastle = "1.86"
 # Explicit override of the catalogue platform-libs builds against (INV-T-12278); 2.45.0 is above the RolePermissionsPinTest floor of 2.31.0.
-gstCatalogue = "2.57.0"
+gstCatalogue = "2.58.0"
 
 [libraries]
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }

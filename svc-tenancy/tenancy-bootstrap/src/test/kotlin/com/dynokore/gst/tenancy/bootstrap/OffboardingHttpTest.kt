@@ -583,6 +583,49 @@ class OffboardingHttpTest {
             assertThat(rows(tenant)).hasSize(1)
         }
 
+    private fun setState(
+        tenant: TenantId,
+        state: String,
+    ) = BoundaryFixture.asSuperuser { c ->
+        c.prepareStatement("update tenancy.tenant set state = ? where tenant_id = ?").use { st ->
+            st.setString(1, state)
+            st.setObject(2, tenant.value)
+            check(st.executeUpdate() == 1)
+        }
+    }
+
+    private fun refusedNotClosable(
+        tenant: TenantId,
+        state: String,
+    ) {
+        val answer = close(tenant)
+        assertThat(answer.status).describedAs(answer.body).isEqualTo(409)
+        assertThat(answer.code).isEqualTo("TNC-014")
+        assertThat(json(answer.body)["type"].asString()).isEqualTo("https://errors.invoice.internal/TNC-014")
+        assertThat(json(answer.body)["detail"].asString()).contains(state)
+        assertThat(rows(tenant)).isEmpty()
+        assertThat(tenantState(tenant)).isEqualTo(state)
+    }
+
+    @Test
+    fun `INV-AC-19785 closeTenant for a SCHEDULED tenant is 409 TNC-014 naming SCHEDULED and stores nothing`() =
+        scenario { tenant, _ -> refusedNotClosable(tenant, "SCHEDULED") }
+
+    @Test
+    fun `INV-AC-19785 closeTenant for a CLOSED tenant is 409 TNC-014 naming CLOSED and stores nothing`() =
+        scenario { tenant, _ ->
+            opened(tenant)
+            setState(tenant, "CLOSED")
+            refusedNotClosable(tenant, "CLOSED")
+        }
+
+    @Test
+    fun `INV-AC-19785 closeTenant for an OPEN tenant is accepted with 202`() =
+        scenario { tenant, _ ->
+            opened(tenant)
+            assertThat(close(tenant).status).isEqualTo(202)
+        }
+
     /** The fixture tenant is SCHEDULED; openTenant by control-plane-svc makes it OPEN before it is closed. */
     private fun opened(tenant: TenantId) {
         val ref = tenantColumn(tenant, "ref")

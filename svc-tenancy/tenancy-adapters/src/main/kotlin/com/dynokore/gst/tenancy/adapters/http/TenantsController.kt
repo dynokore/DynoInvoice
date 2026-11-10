@@ -234,6 +234,7 @@ open class TenantsController(
                 OffboardingCodes.UNSUBMITTED_DOCUMENT -> TenancyErrorCode.UNSUBMITTED_DOCUMENTS_REFUSED
                 OffboardingCodes.CUSTODY_HOLDER -> TenancyErrorCode.CUSTODY_HOLDER_REFUSED
                 OffboardingCodes.RECORD_EXISTS -> TenancyErrorCode.OFFBOARDING_RECORD_EXISTS
+                OffboardingCodes.TENANT_NOT_CLOSABLE -> TenancyErrorCode.TENANT_NOT_CLOSABLE
                 else -> error("unknown offboarding refusal code ${outcome.code}")
             },
             outcome.reason,
