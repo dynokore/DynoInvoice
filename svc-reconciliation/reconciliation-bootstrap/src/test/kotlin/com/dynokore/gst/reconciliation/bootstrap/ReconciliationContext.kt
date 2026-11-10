@@ -44,6 +44,8 @@ object ReconciliationContext {
             "service-runtime.idempotency.schema=reconciliation",
             "service-runtime.datasource.credential=db/reconciliation_runtime",
             "gst.bindings.secret-store.mount-root=$mountRoot",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
         )
 
     /**
