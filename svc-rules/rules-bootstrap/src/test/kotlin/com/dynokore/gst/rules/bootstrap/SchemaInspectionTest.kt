@@ -170,12 +170,7 @@ class SchemeTagColumnTest {
 
     init {
         PostgresRules.register(
-            object : DynamicPropertyRegistry {
-                override fun add(
-                    name: String,
-                    valueSupplier: java.util.function.Supplier<Any>,
-                ) = Unit
-            },
+            DynamicPropertyRegistry { _, _ -> },
         )
         probe =
             TenancyProbe

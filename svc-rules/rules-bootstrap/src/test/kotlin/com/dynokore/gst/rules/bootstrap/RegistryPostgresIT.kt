@@ -725,7 +725,7 @@ class RegistryEntryTriggerIT {
         val update = "update rules.pack_entry_source set {set} where pack_version = 'sub'"
         refused(tenantA, update.replace("{set}", "iras_code = 'ZR'"))
         refused(tenantA, update.replace("{set}", "source_class = 'INFERRED'"))
-        refused(tenantA, update.replace("{set}", "accepted = true, scheme_tag = 'x'"))
+        refused(tenantA, update.replace("{set}", "accepted = true, scheme_tag = 'XY'"))
         countOf(tenantA, update.replace("{set}", "accepted = true")) shouldBe 3L
         value(tenantA, "select count(*) from rules.pack_entry_source where accepted") shouldBe 3L
     }
