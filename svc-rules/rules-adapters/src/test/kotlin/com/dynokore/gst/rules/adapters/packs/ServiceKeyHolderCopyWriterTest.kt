@@ -236,7 +236,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 a write reads exactly the key and the certificate, and the optional ones when present`() {
+    fun `INV-AC-19690 INV-REQ-1195 a write reads exactly the key and the certificate and optional ones if present`() {
         mount(Identity())
         writer.write(request())
         secrets.reads shouldBe
@@ -270,7 +270,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 the look-alike secret names are not read and a write with them alone is Unavailable`() {
+    fun `INV-AC-19690 INV-REQ-1195 the look-alike secret names are not read and alone they are Unavailable`() {
         val id = Identity()
         secrets.values["rules/holder-copy-key"] = id.keyPem
         secrets.values["rules/holder-copy-signing-keys"] = id.keyPem
@@ -329,7 +329,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 a previous certificate secret that is not X509 PEM is Unavailable naming that secret`() {
+    fun `INV-AC-19690 INV-REQ-1195 a previous certificate secret that is not X509 PEM is Unavailable naming it`() {
         mount(Identity())
         secrets.values["rules/holder-copy-signing-certificate-previous"] = "garbage"
         assertUnavailableNamed("rules/holder-copy-signing-certificate-previous")
@@ -342,7 +342,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 an artefact signed with the next key verifies while its certificate is present and not after`() {
+    fun `INV-AC-19690 INV-REQ-1195 an artefact of the next key verifies only while its certificate is present`() {
         val current = Identity()
         val next = Identity()
         mount(current, next = next)

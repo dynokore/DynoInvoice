@@ -242,7 +242,7 @@ class HolderCopySigningBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 the row written for a MAPPING pack is signed and read back as the test computes it`() {
+    fun `INV-AC-19690 INV-REQ-1195 the row written for a MAPPING pack is signed and read back as computed`() {
         val id = HolderIdentity()
         mountIdentity(id)
         val request = request("MAP-" + UUID.randomUUID(), "w-1")
@@ -304,7 +304,7 @@ class HolderCopySigningBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-19690 INV-REQ-1195 approvePack then activateMappingPack arms the pack with one verifying artefact row`() {
+    fun `INV-AC-19690 INV-REQ-1195 approvePack then activateMappingPack arms the pack with one verifying row`() {
         val id = HolderIdentity()
         mountIdentity(id)
         val label = "act-" + UUID.randomUUID().toString().take(8)
