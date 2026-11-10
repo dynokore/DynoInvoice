@@ -395,7 +395,7 @@ class GatesTest {
         fun run(t: String) = OperationsGate.check(spec, async, t, code)
 
         val name = "getCalendarPackDelta"
-        val row = "$name\toperation\tINV-T-16829\tpending\n"
+        val row = "$name\toperation\tINV-T-16829\tdone\n"
         table.split("\n").count { it == row.trimEnd() } shouldBe 1
         run(table).shouldBeEmpty()
         val probes =
@@ -405,7 +405,7 @@ class GatesTest {
                 "task cell INV-T-16828" to table.replace(row, row.replace("INV-T-16829", "INV-T-16828")),
                 "kind channel" to table.replace(row, row.replace("\toperation\t", "\tchannel\t")),
                 "name getCalendarPackDeltas" to table.replace(row, row.replace(name, name + "s")),
-                "state done while 501" to table.replace(row, row.replace("pending", "done")),
+                "state pending while implemented" to table.replace(row, row.replace("done", "pending")),
             )
         for ((probe, copy) in probes) {
             (copy != table) shouldBe true
