@@ -29,8 +29,8 @@ import java.time.Duration
  * generated from the owner's contract (STK-46), whose request configuration (method, path, query) is the one sent, and
  * the policy of the sync edge (500 ms, one retry, circuit breaker; edge row "Any -> access-svc (fallback)").
  *
- * Fails closed (NIST SP 800-162, OWASP ASVS V4.1): an error status, a timeout, no answer, an open breaker or a body that
- * does not match the contract is `Unavailable`, never an Allow. A 404 of the fact or the acknowledgement is
+ * Fails closed (NIST SP 800-162, OWASP ASVS V4.1): an error status, a timeout, no answer, an open breaker or a body
+ * that does not match the contract is `Unavailable`, never an Allow. A 404 of the fact or the acknowledgement is
  * `NotRecorded` (the contract's "nothing recorded"). The body is read as a tree and checked member by member, so no
  * scalar is coerced ("false" is not a boolean) and no enum is matched in another case. This class is not wired; the
  * production defaults stay refusing until INV-T-10700.
@@ -63,7 +63,7 @@ class AccessSvcClient(
                     approverRef = request.approverRef,
                     priorApproverRef = request.priorApproverRef.takeIf { it.isNotEmpty() },
                 ),
-            parse = ::decisionOf,
+            parse = ContractBodies::decisionOf,
         )
 
     override fun read(): InstallationApproverFact =
@@ -71,7 +71,7 @@ class AccessSvcClient(
             failed = InstallationApproverFact.Unavailable,
             notFound = InstallationApproverFact.NotRecorded,
             config = separation.getInstallationApproverFactRequestConfig(),
-            parse = ::factOf,
+            parse = ContractBodies::factOf,
         )
 
     override fun read(
@@ -82,7 +82,7 @@ class AccessSvcClient(
             failed = MappingAcknowledgement.Unavailable,
             notFound = MappingAcknowledgement.NotRecorded,
             config = consent.getMappingAcknowledgementRequestConfig(packVersion, clientRef),
-            parse = ::acknowledgementOf,
+            parse = ContractBodies::acknowledgementOf,
         )
 
     /**
@@ -134,50 +134,6 @@ class AccessSvcClient(
             throw MalformedBody()
         }
 
-    private fun decisionOf(node: JsonNode): PackApprovalDecision {
-        val soleOperator = node.requiredBoolean("soleOperator")
-        val outstanding = node.requiredStringArray("outstanding").toSet()
-        val reasonCode = node.optionalString("reasonCode")
-        val option = node.optionalString("option")
-        val ackRef = node.optionalString("soleOperatorAckRef")
-        return when (node.requiredString("decision")) {
-            "ALLOW" -> PackApprovalDecision.Allow(soleOperator, ackRef, option ?: throw MalformedBody(), outstanding)
-            "DENY" -> PackApprovalDecision.Deny(reasonCode ?: throw MalformedBody())
-            else -> throw MalformedBody()
-        }
-    }
-
-    private fun factOf(node: JsonNode): InstallationApproverFact {
-        node.requiredString("recordedAt")
-        return InstallationApproverFact.Recorded(node.requiredBoolean("distinctTaxApprover"))
-    }
-
-    private fun acknowledgementOf(node: JsonNode): MappingAcknowledgement {
-        node.requiredString("packVersion")
-        node.requiredString("clientRef")
-        node.requiredString("acknowledgedAt")
-        return MappingAcknowledgement.Recorded
-    }
-
-    /** A body that does not match the contract. */
-    private class MalformedBody : RuntimeException()
-
-    private fun JsonNode.requiredString(name: String): String =
-        get(name)?.takeIf { it.isString }?.asString() ?: throw MalformedBody()
-
-    private fun JsonNode.optionalString(name: String): String? =
-        if (has(name)) requiredString(name) else null
-
-    private fun JsonNode.requiredBoolean(name: String): Boolean =
-        get(name)?.takeIf { it.isBoolean }?.asBoolean() ?: throw MalformedBody()
-
-    private fun JsonNode.requiredStringArray(name: String): List<String> {
-        val array = get(name)?.takeIf { it.isArray } ?: throw MalformedBody()
-        val values = mutableListOf<String>()
-        for (element in array) values += if (element.isString) element.asString() else throw MalformedBody()
-        return values
-    }
-
     /** The generated `ApiClient` sends the request; the answer comes back raw, so the status precedes any parsing. */
     private class Transport(
         client: RestClient,
@@ -191,5 +147,59 @@ class AccessSvcClient(
 
         /** `x-timeout` of the three operations in the access contract. */
         val EDGE_TIMEOUT: Duration = Duration.ofMillis(500)
+    }
+}
+
+/** A body that does not match the contract. */
+private class MalformedBody : RuntimeException()
+
+/** The bodies of the three operations, checked member by member against the contract; no scalar is coerced. */
+private object ContractBodies {
+    fun decisionOf(node: JsonNode): PackApprovalDecision {
+        val soleOperator = node.requiredBoolean("soleOperator")
+        val outstanding = node.requiredStringArray("outstanding").toSet()
+        val option = node.optionalString("option")
+        val ackRef = node.optionalString("soleOperatorAckRef")
+        val reasonCode = node.optionalString("reasonCode")
+        return when (node.requiredString("decision")) {
+            "ALLOW" -> allowOf(soleOperator, ackRef, option, outstanding)
+            "DENY" -> PackApprovalDecision.Deny(reasonCode ?: throw MalformedBody())
+            else -> throw MalformedBody()
+        }
+    }
+
+    private fun allowOf(
+        soleOperator: Boolean,
+        ackRef: String?,
+        option: String?,
+        outstanding: Set<String>,
+    ): PackApprovalDecision =
+        PackApprovalDecision.Allow(soleOperator, ackRef, option ?: throw MalformedBody(), outstanding)
+
+    fun factOf(node: JsonNode): InstallationApproverFact {
+        node.requiredString("recordedAt")
+        return InstallationApproverFact.Recorded(node.requiredBoolean("distinctTaxApprover"))
+    }
+
+    fun acknowledgementOf(node: JsonNode): MappingAcknowledgement {
+        node.requiredString("packVersion")
+        node.requiredString("clientRef")
+        node.requiredString("acknowledgedAt")
+        return MappingAcknowledgement.Recorded
+    }
+
+    private fun JsonNode.requiredString(name: String): String =
+        get(name)?.takeIf { it.isString }?.asString() ?: throw MalformedBody()
+
+    private fun JsonNode.optionalString(name: String): String? = if (has(name)) requiredString(name) else null
+
+    private fun JsonNode.requiredBoolean(name: String): Boolean =
+        get(name)?.takeIf { it.isBoolean }?.asBoolean() ?: throw MalformedBody()
+
+    private fun JsonNode.requiredStringArray(name: String): List<String> {
+        val array = get(name)?.takeIf { it.isArray } ?: throw MalformedBody()
+        val values = mutableListOf<String>()
+        for (element in array) values += if (element.isString) element.asString() else throw MalformedBody()
+        return values
     }
 }

@@ -96,6 +96,8 @@ class AccessSvcClientTest {
         return AccessSvcClient(RestClient.builder(), registry, clock, baseUrl)
     }
 
+    private val ackBody = """{"packVersion":"2026.3","clientRef":"CLI-2201","acknowledgedAt":"2026-09-27T02:00:00Z"}"""
+
     private val request =
         PackApprovalRequest(
             entityRef = "ENT-1",
@@ -107,7 +109,8 @@ class AccessSvcClientTest {
         )
 
     private val allow =
-        """{"decision":"ALLOW","soleOperator":false,"outstanding":["CLIENT_ACKNOWLEDGEMENT"],"option":"STAFF_APPROVER"}"""
+        """{"decision":"ALLOW","soleOperator":false,"outstanding":["CLIENT_ACKNOWLEDGEMENT"],""" +
+            """"option":"STAFF_APPROVER"}"""
 
     private fun decide(body: String): PackApprovalDecision {
         reply = Reply(200, body)
@@ -115,7 +118,7 @@ class AccessSvcClientTest {
     }
 
     @Test
-    fun `INV-AC-19525 decide sends the contract operation, path and query with one priorApproverRef per prior approver`() {
+    fun `INV-AC-19525 decide sends the contract operation, path and query, one priorApproverRef per prior approver`() {
         reply = Reply(200, allow)
         client().decide(request)
         seen shouldHaveSize 1
@@ -150,14 +153,16 @@ class AccessSvcClientTest {
     @Test
     fun `INV-AC-19525 a matching sole operator ALLOW answer carries its acknowledgement reference`() {
         decide(
-            """{"decision":"ALLOW","soleOperator":true,"outstanding":[],"option":"SOLE_OPERATOR_ACK","soleOperatorAckRef":"ACK-1"}""",
+            """{"decision":"ALLOW","soleOperator":true,"outstanding":[],"option":"SOLE_OPERATOR_ACK",""" +
+                """"soleOperatorAckRef":"ACK-1"}""",
         ) shouldBe PackApprovalDecision.Allow(true, "ACK-1", "SOLE_OPERATOR_ACK", emptySet())
     }
 
     @Test
     fun `INV-AC-19525 a matching DENY answer maps to Deny`() {
-        decide("""{"decision":"DENY","soleOperator":false,"outstanding":[],"reasonCode":"AUTHOR_IS_APPROVER"}""") shouldBe
-            PackApprovalDecision.Deny("AUTHOR_IS_APPROVER")
+        decide(
+            """{"decision":"DENY","soleOperator":false,"outstanding":[],"reasonCode":"AUTHOR_IS_APPROVER"}""",
+        ) shouldBe PackApprovalDecision.Deny("AUTHOR_IS_APPROVER")
     }
 
     @Test
@@ -204,7 +209,8 @@ class AccessSvcClientTest {
 
     @Test
     fun `INV-AC-19525 decide with an unknown decision or a body that is not JSON is Unavailable`() {
-        decide("""{"decision":"MAYBE","soleOperator":false,"outstanding":[]}""") shouldBe PackApprovalDecision.Unavailable
+        decide("""{"decision":"MAYBE","soleOperator":false,"outstanding":[]}""") shouldBe
+            PackApprovalDecision.Unavailable
         decide("not json") shouldBe PackApprovalDecision.Unavailable
         decide("") shouldBe PackApprovalDecision.Unavailable
     }
@@ -212,13 +218,14 @@ class AccessSvcClientTest {
     @Test
     fun `INV-AC-19525 a 500 is retried once under the edge policy and then Unavailable`() {
         reply = Reply(500)
-        val retry = RetryProperties(maxAttempts = 2, initialBackoff = Duration.ofMillis(10), maxBackoff = Duration.ofMillis(20))
+        val retry =
+            RetryProperties(maxAttempts = 2, initialBackoff = Duration.ofMillis(10), maxBackoff = Duration.ofMillis(20))
         client(retry = retry).decide(request) shouldBe PackApprovalDecision.Unavailable
         seen shouldHaveSize 2
     }
 
     @Test
-    fun `INV-AC-19525 getInstallationApproverFact sends the contract operation and path and a matching answer is Recorded`() {
+    fun `INV-AC-19525 getInstallationApproverFact sends the contract operation and path, Recorded`() {
         reply = Reply(200, """{"distinctTaxApprover":true,"recordedAt":"2026-10-25T08:00:00Z"}""")
         client().read() shouldBe InstallationApproverFact.Recorded(true)
         seen shouldHaveSize 1
@@ -258,8 +265,8 @@ class AccessSvcClientTest {
     }
 
     @Test
-    fun `INV-AC-19525 getMappingAcknowledgement sends the contract operation, path and query and a matching answer is Recorded`() {
-        reply = Reply(200, """{"packVersion":"2026.3","clientRef":"CLI-2201","acknowledgedAt":"2026-09-27T02:00:00Z"}""")
+    fun `INV-AC-19525 getMappingAcknowledgement sends the contract operation, path and query, matching is Recorded`() {
+        reply = Reply(200, ackBody)
         client().read("2026.3", "CLI-2201") shouldBe MappingAcknowledgement.Recorded
         seen shouldHaveSize 1
         seen[0].method shouldBe "GET"
@@ -274,10 +281,10 @@ class AccessSvcClientTest {
     }
 
     @Test
-    fun `INV-AC-19525 getMappingAcknowledgement 500, timeout, no answer and a malformed body are Unavailable`() {
+    fun `INV-AC-19525 getMappingAcknowledgement 500, timeout, no answer, malformed body are Unavailable`() {
         reply = Reply(500)
         client().read("2026.3", "CLI-2201") shouldBe MappingAcknowledgement.Unavailable
-        reply = Reply(200, """{"packVersion":"2026.3","clientRef":"CLI-2201","acknowledgedAt":"2026-09-27T02:00:00Z"}""", 1500)
+        reply = Reply(200, ackBody, 1500)
         client(timeout = Duration.ofMillis(200)).read("2026.3", "CLI-2201") shouldBe MappingAcknowledgement.Unavailable
         val closed = ServerSocket(0, 0, InetAddress.getLoopbackAddress()).use { it.localPort }
         client(baseUrl = "http://127.0.0.1:$closed").read("2026.3", "CLI-2201") shouldBe

@@ -338,7 +338,11 @@ open class PacksController(
             unacceptedNonPrimaryCount = view.unacceptedNonPrimaryCount.takeIf { withCounts },
             packVersion = view.packVersion,
             approvals = approvals.map(::approvalOf).takeIf { it.isNotEmpty() },
-            activation = activationOf(view.noDistinctApprover).takeIf { withActivation || (withCounts && view.status.name == ARMED) },
+            activation =
+                activationOf(view.noDistinctApprover).takeIf {
+                    withActivation ||
+                        (withCounts && view.status.name == ARMED)
+                },
         )
     }
 
