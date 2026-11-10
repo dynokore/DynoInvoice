@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.20.0
+  version: 1.21.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -1550,13 +1550,17 @@ paths:
         Console command to console-bff (INV-REQ-834, INV-REQ-835; INV-NOTE-7
         SCR-18.1 to SCR-18.3, the `masterdata-svc` rows). The replacement
         credential is already held in the secret store; the request carries
-        only its reference, never the secret.
+        only its reference, never the secret. `400` carries SRT-001 when the replacement
+        credential reference is not held in the secret store or equals the
+        connection's current credential reference. `503` carries SRT-013 while
+        the deployment has not set the overlap window length (rotation is
+        refused and nothing is changed; INV-REQ-837).
       tags: [connections]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->masterdata-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [SRT-001, SRT-013]
       x-requirements: [INV-REQ-834]
       x-operation:
         kind: PERMISSION
@@ -1590,6 +1594,10 @@ paths:
               examples:
                 default:
                   value: { connectionRef: "CON-31", externalService: "CHECK_GST_REGISTER", endpoint: "https://register.example.gov.sg/check", credentialRef: "SECRET-REG-PROD-2", environmentTag: "PRODUCTION", ownerService: "masterdata-svc" }
+        '400':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/masterdata/entities/{entityRef}/network-registration:
