@@ -18,3 +18,4 @@
 ../schemas/certification-mark-requested-payload.schema.json certification-mark-requested-payload-*.json
 ../schemas/connection-credential-expiry-reminder-requested-payload.schema.json connection-credential-expiry-reminder-requested-payload-*.json
 ../schemas/operator-session-keys-changed-payload.schema.json operator-session-keys-changed-*.json
+../schemas/authority-head-observed-payload.schema.json authority-head-observed-*.json

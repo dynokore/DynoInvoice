@@ -1,14 +1,14 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.22.0
+  version: 1.23.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed, InstallationStatusChanged, OperatorSessionKeysChanged, TenantWideArchiveVolumeMeasured, CertificationMarkRequested, ConnectionCredentialExpiryReminderRequested — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed, InstallationStatusChanged, OperatorSessionKeysChanged, AuthorityHeadObserved, TenantWideArchiveVolumeMeasured, CertificationMarkRequested, ConnectionCredentialExpiryReminderRequested — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
@@ -102,6 +102,12 @@ channels:
     messages:
       OperatorSessionKeysChanged:
         $ref: '#/components/messages/OperatorSessionKeysChanged'
+
+  platformAuthorityHeadObserved:
+    address: 'gst.platform.authority-head-observed.v1'
+    messages:
+      AuthorityHeadObserved:
+        $ref: '#/components/messages/AuthorityHeadObserved'
 
   platformCertificationMarkRequested:
     address: 'gst.platform.certification-mark-requested.v1'
@@ -250,6 +256,14 @@ operations:
       $ref: '#/channels/platformOperatorSessionKeysChanged'
     messages:
       - $ref: '#/channels/platformOperatorSessionKeysChanged/messages/OperatorSessionKeysChanged'
+
+  publishAuthorityHeadObserved:
+    action: send
+    description: AuthorityHeadObserved — access-svc publishes a heartbeat carrying its highest committed authority version every 500 ms (INV-REQ-1226, INV-Q-17070 B).
+    channel:
+      $ref: '#/channels/platformAuthorityHeadObserved'
+    messages:
+      - $ref: '#/channels/platformAuthorityHeadObserved/messages/AuthorityHeadObserved'
 
   publishCertificationMarkRequested:
     action: send
@@ -497,6 +511,21 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/operator-session-keys-changed-payload.schema.json'
+
+    AuthorityHeadObserved:
+      name: com.dynokore.gst.platform.AuthorityHeadObserved.v1
+      title: AuthorityHeadObserved
+      summary: AuthorityHeadObserved
+      description: >-
+        The authority head heartbeat of access-svc: the highest committed authority version, so that a
+        replica measures its lag against a known head and counts silence of more than 1000 ms as a lost
+        feed (INV-REQ-1226, INV-Q-17070 B). Class: platform. Written under the platform tenant
+        with the platform entity: the wire form has no tenantid and no entityref. Emitted by: access-svc. Consumed by: aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Delivery: At-least-once.
+        Subscribed by the authority replica of every service except access-svc, which decides from its
+        own store. A heartbeat every 500 ms carrying the highest committed authority version.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/authority-head-observed-payload.schema.json'
 
     CertificationMarkRequested:
       name: com.dynokore.gst.platform.CertificationMarkRequested.v1

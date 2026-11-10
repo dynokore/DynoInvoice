@@ -59,3 +59,6 @@ schemas/connection-credential-expiry-reminder-requested-payload.schema.json	conn
 schemas/connection-credential-expiry-reminder-requested-payload.schema.json	expiresAt	NONE
 schemas/connection-credential-expiry-reminder-requested-payload.schema.json	offsetDays	NONE
 schemas/operator-session-keys-changed-payload.schema.json	keys	NONE
+schemas/authority-head-observed-payload.schema.json	authorityVersion	NONE
+schemas/authority-head-observed-payload.schema.json	incarnation	NONE
+schemas/authority-head-observed-payload.schema.json	observedAt	NONE

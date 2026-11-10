@@ -56,8 +56,8 @@ has an event, and every event has a topic. The rules are strict.
 
 **Superseded topics (INV-Q-16626 A).** `SUPERSEDED_TOPICS` in the script maps an
 old topic that a deprecation window keeps beside its replacement to that
-replacement, by exact name. It is exactly
-`{"gst.tenancy.installation-status-changed.v1": "gst.platform.installation-status-changed.v1", "gst.access.operator-session-keys-changed.v1": "gst.platform.operator-session-keys-changed.v1"}`.
+replacement, by exact name. It is exactly the three pairs
+`{"gst.tenancy.installation-status-changed.v1": "gst.platform.installation-status-changed.v1", "gst.access.operator-session-keys-changed.v1": "gst.platform.operator-session-keys-changed.v1", "gst.access.authority-head-observed.v1": "gst.platform.authority-head-observed.v1"}`.
 Rule 1 leaves the old topic out and applies the consumer, producer and replica-feed
 rules to the replacement; rule 4 still applies to the old topic. An entry whose old
 topic or replacement is missing from `topics.yaml` is a finding (`superseded topic

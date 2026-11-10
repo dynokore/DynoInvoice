@@ -131,3 +131,4 @@ docUuid	property	schemas/pack-dry-run-sample-recorded-payload.schema.json	INV-RE
 use	property	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
 OPERATOR_SESSION	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
 MACHINE_ACCESS	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
+incarnation	property	schemas/authority-head-observed-payload.schema.json	INV-REQ-1201

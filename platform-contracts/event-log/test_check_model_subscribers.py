@@ -30,6 +30,8 @@ OLD = "gst.tenancy.installation-status-changed.v1"
 NEW = "gst.platform.installation-status-changed.v1"
 OLD_OSK = "gst.access.operator-session-keys-changed.v1"
 NEW_OSK = "gst.platform.operator-session-keys-changed.v1"
+OLD_AHO = "gst.access.authority-head-observed.v1"
+NEW_AHO = "gst.platform.authority-head-observed.v1"
 
 
 def _topic(name, etype, producers, subscribers):
@@ -56,6 +58,9 @@ def base():
     ev.append({"id": "OperatorSessionKeysChanged", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
     tp.append(_topic(OLD_OSK, "OperatorSessionKeysChanged", ["a-svc"], ["b-svc"]))
     tp.append(_topic(NEW_OSK, "OperatorSessionKeysChanged", ["a-svc"], ["b-svc"]))
+    ev.append({"id": "AuthorityHeadObserved", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+    tp.append(_topic(OLD_AHO, "AuthorityHeadObserved", ["a-svc"], ["b-svc"]))
+    tp.append(_topic(NEW_AHO, "AuthorityHeadObserved", ["a-svc"], ["b-svc"]))
     return ev, tp
 
 
@@ -95,7 +100,7 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(chk.NON_EVENT_SERVICES, {"console-web"})
 
     def test_superseded_topics_are_exact(self):
-        self.assertEqual(chk.SUPERSEDED_TOPICS, {OLD: NEW, OLD_OSK: NEW_OSK})
+        self.assertEqual(chk.SUPERSEDED_TOPICS, {OLD: NEW, OLD_OSK: NEW_OSK, OLD_AHO: NEW_AHO})
 
 
 class TestCheck(Case):
@@ -258,6 +263,24 @@ class TestCheck(Case):
                 self.topics.append(_topic(bad, "OperatorSessionKeysChanged", ["a-svc"], ["b-svc"]))
                 _, out = self.run_check()
                 self.assertTrue([ln for ln in out if ln.startswith("OperatorSessionKeysChanged: more than one topic carries the event type")], out)
+
+    def test_superseded_pair_passes_rule_1_authority_head_observed(self):
+        code, out = self.run_check()
+        self.assertEqual((code, out[1:]), (0, []))
+        self.assertFalse([ln for ln in out if "more than one topic" in ln])
+
+    def test_superseded_lookalike_keys_still_fail_rule_1_authority_head_observed(self):
+        for bad in (OLD_AHO.replace(".v1", ".v2"), OLD_AHO.upper(), OLD_AHO + " ", NEW_AHO):
+            with self.subTest(bad=bad):
+                self.topics = [t for t in self.topics if t["topic"] not in (OLD_AHO, NEW_AHO)]
+                self.topics.append(_topic(OLD_AHO, "Plain3", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic(NEW_AHO, "Plain3", ["a-svc"], ["b-svc"]))
+                self.events = [e for e in self.events if e["id"] != "Plain3"]
+                self.events.append({"id": "Plain3", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+                self.topics.append(_topic("gst.q.swap-b.v1", "AuthorityHeadObserved", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic(bad, "AuthorityHeadObserved", ["a-svc"], ["b-svc"]))
+                _, out = self.run_check()
+                self.assertTrue([ln for ln in out if ln.startswith("AuthorityHeadObserved: more than one topic carries the event type")], out)
 
     def test_model_only_with_topic_or_missing_is_stale(self):
         self.topics.append(_topic("gst.x.replay-requested.v1", "ReplayRequested", ["a-svc"], []))
@@ -558,8 +581,10 @@ class TestAddressRule(unittest.TestCase):
             (NEW, "com.dynokore.gst.platform.InstallationStatusChanged.v1"),
             (OLD_OSK, "com.dynokore.gst.access.OperatorSessionKeysChanged.v1"),
             (NEW_OSK, "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1"),
+            (OLD_AHO, "com.dynokore.gst.access.AuthorityHeadObserved.v1"),
+            (NEW_AHO, "com.dynokore.gst.platform.AuthorityHeadObserved.v1"),
         ]
-        code, out = self.run_topics(pairs, extra_events=sorted(chk.MODEL_ONLY) + ["InstallationStatusChanged", "OperatorSessionKeysChanged"])
+        code, out = self.run_topics(pairs, extra_events=sorted(chk.MODEL_ONLY) + ["InstallationStatusChanged", "OperatorSessionKeysChanged", "AuthorityHeadObserved"])
         self.assertEqual(code, 0, out)
         self.assertEqual([l for l in out if "address differs" in l or "is malformed" in l], [])
 
