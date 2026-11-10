@@ -11,7 +11,7 @@ platformBuild = "0.23.3"
 platformLibsBom = "0.183.0"
 # gst-catalogue (ErrorCode, VariationPoint; STK-61) and the published platform-contracts bundle rules-contract
 # generates from (INV-T-4911 settled the rules contract at 206f60b3).
-gstCatalogue = "2.34.0"
+gstCatalogue = "2.56.0"
 platformContractsBundle = "0.0.0-dev+ad8cd7c8"
 springBoot = "4.1.1"
 junit = "6.1.3"

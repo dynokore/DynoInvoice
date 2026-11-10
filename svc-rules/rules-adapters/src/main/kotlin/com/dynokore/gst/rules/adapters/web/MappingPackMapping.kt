@@ -97,6 +97,10 @@ object MappingPackMapping {
                 catalogued(checkNotNull(result.code), "entries: $named")
             }
 
+            RefusalReason.SCHEME_TAG_SIDE -> {
+                catalogued(ErrorCode.RUL_013, "the scheme tag is not allowed on the side of the code: $named")
+            }
+
             RefusalReason.LIFECYCLE -> {
                 conflict("the pack is ${result.status} and the command does not apply")
             }

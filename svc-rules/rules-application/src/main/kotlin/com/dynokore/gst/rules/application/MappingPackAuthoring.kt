@@ -33,6 +33,7 @@ enum class RefusalReason {
     DECISION_UNAVAILABLE,
     HOLDER_COPY_UNAVAILABLE,
     UNKNOWN_ENTRY,
+    SCHEME_TAG_SIDE,
 }
 
 sealed interface MappingPackResult {
