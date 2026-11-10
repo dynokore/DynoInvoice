@@ -103,7 +103,10 @@ class AccessSvcClientTest {
     private val capture: Logger =
         Proxy.newProxyInstance(Logger::class.java.classLoader, arrayOf(Logger::class.java)) { _, method, args ->
             if (method.name in setOf("warn", "error", "info", "debug", "trace")) {
-                lines += (args ?: emptyArray()).joinToString(" ") { a -> if (a is Array<*>) a.joinToString(" ") else a.toString() }
+                lines +=
+                    (args ?: emptyArray()).joinToString(
+                        " ",
+                    ) { a -> if (a is Array<*>) a.joinToString(" ") else a.toString() }
             }
             if (method.returnType == Boolean::class.javaPrimitiveType) true else null
         } as Logger
