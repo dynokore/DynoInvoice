@@ -109,7 +109,7 @@ class SchemeTagBoundaryDoubles {
 /**
  * `mapTaxCode` with a scheme tag at the service boundary, on real PostgreSQL and the real composition (INV-REQ-2444;
  * INV-AC-16854, INV-AC-2502): a tag on a code of the wrong side is answered 422 RUL-013 with `errors[].field`
- * `/schemeTag` and the stored entry is unchanged; a tag on the right side is answered 201 and stored.
+ * `schemeTag` and the stored entry is unchanged; a tag on the right side is answered 201 and stored.
  */
 @SpringBootTest(
     classes = [SchemeTagBoundaryDoubles::class, MappingAllowingPorts::class, RulesApplication::class],
@@ -191,7 +191,7 @@ class SchemeTagAuthoringBoundaryTest(
         }
 
     @Test
-    fun `INV-AC-16854 INV-AC-2502 SWS on ZP is 422 RUL-013 on schemeTag pointer, entry unchanged`() {
+    fun `INV-AC-16854 INV-AC-2502 SWS on purchase code ZP is 422 RUL-013 on schemeTag, stored entry unchanged`() {
         val packId = draft()
         withClue("the draft entry before the call") { mapCode(packId, "PURCH", "ZP", null).statusCode() shouldBe 201 }
         val before = stored(packId, "PURCH")
@@ -206,7 +206,7 @@ class SchemeTagAuthoringBoundaryTest(
                 .get("errors")
                 .get(0)
                 .get("field")
-                .asString() shouldBe "/schemeTag"
+                .asString() shouldBe "schemeTag"
             body
                 .get("errors")
                 .get(0)

@@ -36,7 +36,7 @@ data class RefusalError(
     val field: String?,
 )
 
-private const val SCHEME_TAG_FIELD = "/schemeTag"
+private const val SCHEME_TAG_FIELD = "schemeTag"
 private const val UNPROCESSABLE = 422
 private const val CONFLICT = 409
 private const val HEX = 16
