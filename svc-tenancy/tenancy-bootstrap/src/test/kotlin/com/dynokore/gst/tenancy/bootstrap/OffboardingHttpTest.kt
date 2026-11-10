@@ -514,7 +514,14 @@ class OffboardingHttpTest {
         key: String = UUID.randomUUID().toString(),
         workload: String = "control-plane-svc",
         body: String = """{"scheduleRef":"SCH-7A21C4","retentionCustodyHolder":$HOLDER}""",
-    ) = post("/internal/v1/tenancy/tenants/${tenant.value}/close", body, key, workload = workload, endUser = workload != "control-plane-svc")
+    ) = post(
+        "/internal/v1/tenancy/tenants/${tenant.value}/close",
+        body,
+        key,
+        workload = workload,
+        endUser =
+            workload != "control-plane-svc",
+    )
 
     @Test
     fun `INV-AC-8177 closeTenant by control-plane-svc is 202 and a repeat returns the same record`() =
@@ -524,7 +531,9 @@ class OffboardingHttpTest {
             val first = close(tenant, key)
             assertThat(first.status).describedAs(first.body).isEqualTo(202)
             assertThat(json(first.body)["scope"].asString()).isEqualTo("TENANT")
-            assertThat(json(first.body)["retentionCustodyHolder"]["name"].asString()).isEqualTo("Ledger Custody Pte Ltd")
+            assertThat(
+                json(first.body)["retentionCustodyHolder"]["name"].asString(),
+            ).isEqualTo("Ledger Custody Pte Ltd")
             val repeat = close(tenant, key)
             assertThat(repeat.status).describedAs(repeat.body).isEqualTo(202)
             assertThat(json(repeat.body)["offboardingRef"].asString())
