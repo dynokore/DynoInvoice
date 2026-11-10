@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.7.0] - 2026-11-10
+### Added
+- `BindingFailureAdvice` and `BindingFailureAutoConfiguration` (servlet applications): a request that fails parameter or body binding (`MissingServletRequestParameterException`, `MethodArgumentTypeMismatchException`, `HttpMessageNotReadableException`) is answered 400 SRT-001 in the API-20 envelope (`Problems.contractViolation`), at the lowest precedence so a service's own advice wins (INV-T-19581, INV-AC-19580; answered design question of INV-T-16829, breakdown tooling/gap16829b-gap.md; INV-REQ-827 b3).
+
 ## [13.6.0] - 2026-11-10
 ### Added
 - `TenancyErrorCode` gains `ELECTION_CHANGE_PENDING` (`TNC-013`, HTTP 409, "Election change refused", owner `entity.admin`) after `TENANT_NOT_OPENABLE`; the catalogue snapshot is re-vendored from platform-contracts 034d8d02 (INV-T-19493, INV-AC-19488; ruling of breakdown tooling/gap15888-gap.md).

@@ -1,6 +1,7 @@
 package com.dynokore.platform.serviceruntime.composition
 
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
+import com.dynokore.platform.serviceruntime.http.BindingFailureAutoConfiguration
 import com.dynokore.platform.serviceruntime.tracing.TracingAutoConfiguration
 import com.dynokore.platform.tenancyjooq.TenancyProbeAutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -97,6 +98,7 @@ class WithoutJdbc : DeferredImportSelector {
 internal fun platform(): List<Class<*>> =
     listOf(
         ServiceRuntimeConfiguration::class.java,
+        BindingFailureAutoConfiguration::class.java,
         L1CompositionAutoConfiguration::class.java,
         TenancyJooqWiring::class.java,
         TenancyProbeAutoConfiguration::class.java,
