@@ -130,12 +130,4 @@ class RunDryRun(
         val upTo = last ?: ((numbers.maxOrNull() ?: 0) + 1)
         return (1..upTo).firstOrNull { it !in numbers }
     }
-
-    private fun unavailable(
-        command: RunDryRunCommand,
-        reason: String,
-    ): DryRunOutcome {
-        store.unavailable(command.dryRunId, reason)
-        return DryRunOutcome.Unavailable(reason)
-    }
 }
