@@ -72,22 +72,23 @@ class JooqSubmissionRowSource(
         val ackAt = r.get(version.ACKNOWLEDGED_AT)
         val ackId = r.get(version.ACKNOWLEDGEMENT_ID)
         val number = r.get(entry.DOCUMENT_NUMBER)
-        val factsMissing = number == null
-        return if (type == null || txDate == null || (ackAt == null) != (ackId == null) || factsMissing) {
+        val unpairedAcknowledgement = (ackAt == null) != (ackId == null)
+        val incomplete = type == null || txDate == null || number == null
+        return if (incomplete || unpairedAcknowledgement) {
             null
         } else {
             SubmissionRow(
                 docUuid = checkNotNull(r.get(version.DOC_UUID)),
                 version = checkNotNull(r.get(version.VERSION)),
-                submissionType = SubmissionKind.valueOf(type),
+                submissionType = SubmissionKind.valueOf(checkNotNull(type)),
                 state = LifecycleState.valueOf(checkNotNull(r.get(version.STATE))),
                 dueDate = checkNotNull(r.get(entry.DUE_DATE)),
-                documentNumber = number,
+                documentNumber = checkNotNull(number),
                 documentTypeCode = checkNotNull(r.get(entry.DOCUMENT_TYPE_CODE)),
                 direction = Direction.valueOf(checkNotNull(r.get(entry.DIRECTION))),
                 counterpartyName = checkNotNull(r.get(entry.COUNTERPARTY_NAME)),
                 counterpartyUen = checkNotNull(r.get(entry.COUNTERPARTY_UEN)),
-                transactionDate = txDate,
+                transactionDate = checkNotNull(txDate),
                 taxableAmount = checkNotNull(r.get(entry.TAXABLE_AMOUNT)),
                 gstAmount = checkNotNull(r.get(entry.GST_AMOUNT)),
                 categoryCodes = checkNotNull(r.get(entry.CATEGORY_CODES)).map { checkNotNull(it) }.toSet(),
