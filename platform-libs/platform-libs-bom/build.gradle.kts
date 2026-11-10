@@ -52,6 +52,7 @@ listOf(
     "service-runtime", "outbox-and-queue", "rulepack-kernel", "tenancy-kernel",
     "evidence-store", "adapter-runtime", "config-resolver", "audit-log", "crypto", "tenancy-jooq", "product-runtime",
     "calendar-and-periods", "party-registry", "document-lifecycle", "reconciliation-engine", "integration-canon",
+    "rules-evaluation",
 ).forEach { evaluationDependsOn(":$it") }
 
 dependencies {
@@ -99,6 +100,9 @@ dependencies {
         // integration-canon (INV-T-6101): the fifth L2 module.
         api("com.dynokore.platform:integration-canon-api:${project(":integration-canon").version}") // INV-T-6101
         api("com.dynokore.platform:integration-canon:${project(":integration-canon").version}") // INV-T-6101
+        // rules-evaluation (INV-T-19454): the second L3 module, after the L2 modules.
+        api("com.dynokore.platform:rules-evaluation-api:${project(":rules-evaluation").version}") // INV-T-19454
+        api("com.dynokore.platform:rules-evaluation:${project(":rules-evaluation").version}") // INV-T-19454
 
         // CVE-2026-65182, CVE-2026-65905, CVE-2026-68525: service-runtime (INV-T-2871 /
         // T27) is this repository's first module on Spring Boot 4.1.1, whose managed

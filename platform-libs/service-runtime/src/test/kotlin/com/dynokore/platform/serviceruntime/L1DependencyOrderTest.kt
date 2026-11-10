@@ -580,6 +580,7 @@ internal val MODEL =
         Entry("reconciliation-engine", Level.L2, "INV-MOD-2743"),
         Entry("integration-canon", Level.L2, "INV-MOD-2744"),
         Entry("product-runtime", Level.L3, "INV-MOD-2745"),
+        Entry("rules-evaluation", Level.L3, "INV-MOD-19457"),
     )
 
 /**
