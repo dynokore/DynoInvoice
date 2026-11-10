@@ -89,4 +89,55 @@ class SubmissionStoreListColumnsDbTest {
         column(b, docB, "submitted_at") shouldBe null
         column(b, docB, "submission_type") shouldBe "TYPE_3"
     }
+
+    @Test
+    fun `INV-AC-19465 the tenant condition of recordAccepted holds without row level security`() {
+        val bypassRole = "submission_test_bypass"
+        val bypassPassword = "submission_test_bypass_pw"
+        SubmissionDb.superuser().use { su ->
+            su.createStatement().use { st ->
+                st.execute(
+                    "do \$\$ begin if not exists (select 1 from pg_roles where rolname = '$bypassRole') then " +
+                        "create role $bypassRole login nosuperuser bypassrls password '$bypassPassword'; end if; end \$\$",
+                )
+                st.execute("grant submission_runtime to $bypassRole")
+            }
+        }
+        val tenantA = UUID.randomUUID()
+        val tenantB = UUID.randomUUID()
+        val docA = "a-${UUID.randomUUID()}"
+        val docB = "b-${UUID.randomUUID()}"
+        val at = Instant.parse("2026-11-10T01:02:03Z")
+        SubmissionDb.connect(bypassRole, bypassPassword).use { conn ->
+            val bypassDsl = DSL.using(conn, SQLDialect.POSTGRES)
+            val bypassStore = JooqSubmissionStore(bypassDsl)
+
+            fun read(
+                doc: String,
+                column: String,
+            ): String? =
+                bypassDsl
+                    .fetchOne(
+                        "select $column::text from submission.submission where doc_uuid = ?",
+                        doc,
+                    )!!
+                    .get(0, String::class.java)
+            bypassStore.insertReady(
+                TenantId(tenantA),
+                NewReadySubmission(docA, 1, "e-a", null, byteArrayOf(1), "sha-a", SubmissionKind.TYPE_1A),
+            )
+            bypassStore.insertReady(
+                TenantId(tenantB),
+                NewReadySubmission(docB, 1, "e-b", null, byteArrayOf(2), "sha-b", SubmissionKind.TYPE_2),
+            )
+            shouldThrow<IllegalStateException> { bypassStore.recordAccepted(TenantId(tenantA), docB, 1, at) }
+            read(docB, "submitted_at") shouldBe null
+            read(docB, "ack_timer_started_at") shouldBe null
+            read(docB, "submission_type") shouldBe "TYPE_2"
+            bypassStore.recordAccepted(TenantId(tenantA), docA, 1, at)
+            read(docA, "submitted_at") shouldBe read(docA, "ack_timer_started_at")
+            (read(docA, "submitted_at") != null) shouldBe true
+            read(docB, "submitted_at") shouldBe null
+        }
+    }
 }
