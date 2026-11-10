@@ -6,7 +6,7 @@
 | --- | --- |
 | Layer | L3 (ARC-16) |
 | Embedded by | `rules-svc` and `control-plane-svc` (INV-Q-8719) |
-| Part used | Pure per-line coding through a `TenantMapping`, and the decoders of the pack contents JSON (slice 1 of 3) |
+| Part used | Pure per-line coding through a `TenantMapping`, the scope verdict rules, the document classification and the composed `evaluate` (slices 1 to 3 of 3) |
 | Uses | rulepack-kernel, tenancy-kernel, gst-catalogue |
 | Wave | Wave 2: Library extension |
 

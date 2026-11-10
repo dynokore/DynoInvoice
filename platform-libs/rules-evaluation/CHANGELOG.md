@@ -6,6 +6,16 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-10
+### Added
+- Slice 3 of 3 (INV-T-19456, INV-Q-8719, INV-AC-19453): the document classification moved from svc-rules
+  `rules-domain` (package `classification`: `DocumentClassifier`, `ClassificationTable`, `Classification`), with
+  `ScopePackContents.decodeClassificationTable`; and the composed `evaluate(request, packs, mapping, profile)` returning
+  `EvaluationResult` (categoryCode, scopeVerdict, documentTypeCode). A refusal is a thrown `EvaluationRefusal`
+  (`PackAbsent`, `UnmappedCode`, `NoClassificationRow`, `LineRefused`, `ClassificationHeld`); no field is defaulted. `EvaluationProfile` (obligationStartDate,
+  registrationEndDate, voluntaryOverSubmission, partiallyExempt, election) is the explicit input of the scope facts.
+  `NoClassificationRow.code` is `ErrorCode.RUL_012`; the `gstCatalogue` pin rises from 2.11.0 to 2.57.0.
+
 ## [1.1.0] - 2026-11-10
 ### Added
 - Slice 2 of 3 (INV-T-19455, INV-Q-8719, INV-AC-19452): the scope verdict rules moved from svc-rules `rules-domain`:

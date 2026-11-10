@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.17.2] - 2026-11-10
+### Changed
+- Metadata-only release (G-DVS, INV-T-19456): the `gst-catalogue` pin rises from 2.11.0 to 2.57.0, so the published POM and module metadata change; no code change.
+
 ## [2.17.1] - 2026-11-10
 ### Changed
 - Metadata-only release (G-DVS): depends on `service-runtime 13.6.0`, whose published module metadata changed; no code change.

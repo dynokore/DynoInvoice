@@ -21,6 +21,7 @@ The shared modules of the INV platform: the L1 modules, the L2 modules and the L
 | [`integration-canon`](integration-canon/) | L2 | Wave 3: Document pipeline (SDS §25.1) |
 | [`reconciliation-engine`](reconciliation-engine/) | L2 | Wave 4: Evidence, reconciliation, notification and console (SDS §25.1) |
 | [`product-runtime`](product-runtime/) | L3 | Wave 1: Contracts, harness and platform (SDS §25.1) |
+| [`rules-evaluation`](rules-evaluation/) | L3 | Wave 2: Library extension |
 
 ## Rules for this repository
 

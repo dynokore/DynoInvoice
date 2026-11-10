@@ -12,7 +12,7 @@ import java.io.File
  * Layer and purity rule of rules-evaluation (INV-REQ-775, STK-60, ARC-16): evaluation reads no clock, store, network
  * or Spring type. Deny by default: the imports a file may have are its own package, the platform modules this module
  * is declared to use, gst-catalogue, Jackson (the decoders), `java.time.LocalDate` and `java.time.format`
- * (`DateTimeParseException`) and Kotlin; every other import is a finding.
+ * (`DateTimeParseException`), `java.math.BigDecimal` (the classification) and Kotlin; every other import is a finding.
  */
 class ArchitectureTest {
     private val ownPackage = "com.dynokore.platform.rulesevaluation"
@@ -27,7 +27,9 @@ class ArchitectureTest {
             "kotlin.",
             "java.time.format.",
         )
-    private val allowedExact = setOf("java.time.LocalDate")
+
+    // each exact import is a pure value type: LocalDate (dates), BigDecimal (the sign of a line amount, classification)
+    private val allowedExact = setOf("java.time.LocalDate", "java.math.BigDecimal")
 
     private val testOnlyPrefixes =
         listOf(
@@ -69,6 +71,9 @@ class ArchitectureTest {
             "java.time.Clock",
             "java.time.Instant",
             "java.net.URI",
+            "java.math.BigDecimalX",
+            "java.math.BigInteger",
+            "java.math.MathContext",
             "java.net.http.HttpClient",
             "javax.sql.DataSource",
             "org.jooq.DSLContext",
