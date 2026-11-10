@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.5.1] - 2026-11-10
+### Changed
+- Version step only: dependency `outbox-and-queue` stepped to 6.20.0 (`ConnectionCredentialExpiryReminderRequested` joins the platform event class; INV-T-18776 design question option A, INV-T-19567, G-DVS).
+
 ## [13.5.0] - 2026-11-10
 ### Added
 - `JobRegistered` carries `nextRunAt`, the job's next firing after the announcement computed from its own cron and zone; `JobPayloads.jobRegistered(job, nextRunAt)` and `JobRecords.announceRegistered(registered, now)` take it with no default, and a schedule that never fires fails the announcement (INV-T-15941, INV-AC-15937).

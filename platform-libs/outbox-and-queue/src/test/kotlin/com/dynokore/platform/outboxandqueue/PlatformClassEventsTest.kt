@@ -36,6 +36,7 @@ class PlatformClassEventsTest {
             "TenantWideArchiveVolumeMeasured",
             "AuthorityHeadObserved",
             "CertificationMarkRequested",
+            "ConnectionCredentialExpiryReminderRequested",
         )
     private val refused =
         listOf(
@@ -379,6 +380,56 @@ class PlatformClassEventsTest {
                 IllegalArgumentException::class.java,
                 { envelope(it, TenantId.PLATFORM, EntityRef.PLATFORM) },
                 it,
+            )
+        }
+    }
+
+    @Test
+    fun `INV-AC-19565 name set holds ConnectionCredentialExpiryReminderRequested and not the look-alike`() {
+        val base = "com.dynokore.gst.platform"
+        assertTrue(Envelope.isPlatformType("$base.ConnectionCredentialExpiryReminderRequested.v1"))
+        assertFalse(Envelope.isPlatformType("$base.ConnectionCredentialExpiryReminderRequest.v1"))
+        assertFalse(Envelope.isPlatformType("$base.connectionCredentialExpiryReminderRequested.v1"))
+        assertFalse(Envelope.isPlatformType("$base.ConnectionCredentialExpiryReminderRequestedX.v1"))
+    }
+
+    @Test
+    fun `INV-AC-19565 ConnectionCredentialExpiryReminderRequested is tenant-wide for a real tenant`() {
+        val e =
+            envelope(
+                "com.dynokore.gst.platform.ConnectionCredentialExpiryReminderRequested.v1",
+                tenant,
+                EntityRef.TENANT_WIDE,
+            )
+        val back = json.read(json.write(e))
+        assertEquals(tenant, back.tenant)
+        assertEquals(EntityRef.TENANT_WIDE, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-19565 ConnectionCredentialExpiryReminderRequested is built under the platform tenant`() {
+        val e =
+            envelope(
+                "com.dynokore.gst.platform.ConnectionCredentialExpiryReminderRequested.v1",
+                TenantId.PLATFORM,
+                EntityRef.PLATFORM,
+            )
+        val text = json.write(e)
+        assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+        val back = json.read(text)
+        assertEquals(TenantId.PLATFORM, back.tenant)
+        assertEquals(EntityRef.PLATFORM, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-19565 ConnectionCredentialExpiryReminderRequested masterdata type is refused tenant-wide`() {
+        assertThrows(
+            IllegalArgumentException::class.java,
+        ) {
+            envelope(
+                "com.dynokore.gst.masterdata.ConnectionCredentialExpiryReminderRequested.v1",
+                tenant,
+                EntityRef.TENANT_WIDE,
             )
         }
     }

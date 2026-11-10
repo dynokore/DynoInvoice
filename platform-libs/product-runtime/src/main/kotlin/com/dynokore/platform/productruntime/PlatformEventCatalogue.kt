@@ -50,6 +50,8 @@ object PlatformEventCatalogue {
 
     val AUTHORITY_HEAD_OBSERVED = fixed("AuthorityHeadObserved", "authority-head-observed")
     val CERTIFICATION_MARK_REQUESTED = fixed("CertificationMarkRequested", "certification-mark-requested")
+    val CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED =
+        fixed("ConnectionCredentialExpiryReminderRequested", "connection-credential-expiry-reminder-requested")
 
     /** Every platform event, in INV-REQ-1226 b1's order. */
     val ALL: List<PlatformEvent> =
@@ -75,6 +77,7 @@ object PlatformEventCatalogue {
             TENANT_WIDE_ARCHIVE_VOLUME_MEASURED,
             AUTHORITY_HEAD_OBSERVED,
             CERTIFICATION_MARK_REQUESTED,
+            CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED,
         )
 
     /** True when [eventType] is a platform event. */

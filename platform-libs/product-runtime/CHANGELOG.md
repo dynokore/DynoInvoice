@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-11-10
+### Added
+- `PlatformEventCatalogue.ALL` gains `ConnectionCredentialExpiryReminderRequested` (topic `gst.platform.connection-credential-expiry-reminder-requested.v1`) as its last entry (INV-T-18776 design question option A, INV-REQ-1226, INV-AC-19565, INV-T-19567).
+
 ## [2.16.6] - 2026-11-10
 ### Changed
 - Metadata-only release (G-DVS): depends on `service-runtime 13.5.0`, whose published module metadata changed; no code change (INV-T-15941).

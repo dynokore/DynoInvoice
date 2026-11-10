@@ -29,6 +29,7 @@ class ProductConfigurationTest {
             "TenantWideArchiveVolumeMeasured",
             "AuthorityHeadObserved",
             "CertificationMarkRequested",
+            "ConnectionCredentialExpiryReminderRequested",
         )
 
     @Test
@@ -65,7 +66,8 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.topic shouldBe "gst.platform.break-glass-action-reported.v1"
         PlatformEventCatalogue.BREAK_GLASS_ACTION_REPORTED.eventType shouldBe
             "com.dynokore.gst.platform.BreakGlassActionReported.v1"
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.CERTIFICATION_MARK_REQUESTED
+        PlatformEventCatalogue.ALL.last() shouldBe
+            PlatformEventCatalogue.CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED
     }
 
     @Test
@@ -83,7 +85,8 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.control-plane.AccreditationAlertRaised.v1") shouldBe false
         PlatformEventCatalogue.REPLAY_REQUESTED.topic shouldBe null
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.JobRegistered.v1") shouldBe true
-        PlatformEventCatalogue.ALL.last() shouldBe PlatformEventCatalogue.CERTIFICATION_MARK_REQUESTED
+        PlatformEventCatalogue.ALL.last() shouldBe
+            PlatformEventCatalogue.CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED
         PlatformEventCatalogue.AUTHORITY_CHANGED.topic shouldBe "gst.platform.authority-changed.v1"
         PlatformEventCatalogue.AUTHORITY_CHANGED.eventType shouldBe "com.dynokore.gst.platform.AuthorityChanged.v1"
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.AuthorityChanged.v1") shouldBe true
@@ -154,6 +157,19 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.CertificationMarkRequested.v1") shouldBe true
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.tenancy.CertificationMarkRequested.v1") shouldBe false
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.CertificationMarkRequest.v1") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-19565 the catalogue holds ConnectionCredentialExpiryReminderRequested last with its topic and type`() {
+        val e = PlatformEventCatalogue.CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED
+        val base = "ConnectionCredentialExpiryReminderRequested.v1"
+        e.topic shouldBe "gst.platform.connection-credential-expiry-reminder-requested.v1"
+        e.eventType shouldBe "com.dynokore.gst.platform.$base"
+        PlatformEventCatalogue.ALL.last() shouldBe e
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.$base") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.masterdata.$base") shouldBe false
+        val lookAlike = "com.dynokore.gst.platform.${base.replace("Requested", "Request")}"
+        PlatformEventCatalogue.isPlatform(lookAlike) shouldBe false
     }
 
     @Test
