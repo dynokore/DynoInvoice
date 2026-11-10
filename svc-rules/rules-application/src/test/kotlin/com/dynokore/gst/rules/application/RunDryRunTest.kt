@@ -132,6 +132,8 @@ class RunDryRunTest {
         override fun find(dryRunId: String) = run?.takeIf { it.dryRunId == dryRunId }
     }
 
+    private val clock = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC)
+
     private class Rig(
         val samples: FakeSamples,
         val evaluation: FakeEvaluation = FakeEvaluation(),
@@ -140,7 +142,7 @@ class RunDryRunTest {
         fun counts() = listOf(store.begins, store.completes, store.unavailables, samples.released)
 
         fun run(): DryRunOutcome =
-            RunDryRun(samples, evaluation, store, CLOCK).run(
+            RunDryRun(samples, evaluation, store, clock).run(
                 RunDryRunCommand(
                     DryRunStart(
                         "dr-1",
@@ -339,9 +341,5 @@ class RunDryRunTest {
     @Test
     fun `a sample whose last page has not arrived is incomplete`() {
         rig(page(1, false, item(1))).run().shouldBeInstanceOf<DryRunOutcome.Unavailable>().reason shouldContain "page 2"
-    }
-
-    private companion object {
-        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC)
     }
 }

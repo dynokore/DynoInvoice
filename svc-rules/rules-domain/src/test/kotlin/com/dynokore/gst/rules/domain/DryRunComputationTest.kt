@@ -5,7 +5,6 @@ import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.DryRunComputation
 import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.ItemReading
-import com.dynokore.gst.rules.domain.dryrun.SampleItems
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -148,7 +147,7 @@ class DryRunComputationTest {
                 "taxableValue" to "1.00",
                 "gstValue" to "0.09",
             )
-        SampleItems.read(1, 1, ok).shouldBeInstanceOf<ItemReading.Read>()
+        DryRunComputation.read(1, 1, ok).shouldBeInstanceOf<ItemReading.Read>()
         listOf(
             ok - "periodRef",
             ok + ("periodRef" to " "),
@@ -161,7 +160,7 @@ class DryRunComputationTest {
             ok + ("docUuid" to "not-a-uuid"),
             ok + ("docUuid" to 7),
         ).forEach {
-            SampleItems
+            DryRunComputation
                 .read(2, 5, it)
                 .shouldBeInstanceOf<ItemReading.Refused>()
                 .refusal
