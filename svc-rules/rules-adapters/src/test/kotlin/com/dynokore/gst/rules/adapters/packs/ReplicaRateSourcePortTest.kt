@@ -76,14 +76,14 @@ class ReplicaRateSourcePortTest {
     ) = port().blocking(who, asOf)
 
     @Test
-    fun `a tenant with no entity holding the attribute gives the empty set`() {
+    fun `INV-AC-15992 a tenant with no entity holding the attribute gives the empty set`() {
         elect("E1", null)
         blocking() shouldBe emptyList()
         ReplicaRateSourcePort(replica) { _, _ -> standard.toByteArray() }.blocking(other, day) shouldBe emptyList()
     }
 
     @Test
-    fun `an entity electing an INFERRED id gives that id`() {
+    fun `INV-AC-15992 an entity electing an INFERRED id gives that id`() {
         elect("E1", "RS-I")
         blocking() shouldBe listOf("RS-I")
     }

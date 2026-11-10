@@ -21,6 +21,7 @@ import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -133,19 +134,23 @@ class RateSourceBlockBoundaryTest(
     private fun feed(
         tenant: TenantId,
         source: String?,
-    ) = replica.accept(
-        EntityProfileChanged(
-            tenant,
-            "rs-entity",
-            StructureNode(
-                StructureNodeKind.ENTITY,
-                null,
-                false,
-                "E",
-                "rs-entity",
-                listOfNotNull(source?.let { ProfileEntry("exchangeRateSource", it, LocalDate.of(2026, 1, 1)) }),
-                1,
-            ),
+    ) = replica.accept(entity(tenant, "rs-entity", source))
+
+    private fun entity(
+        tenant: TenantId,
+        ref: String,
+        source: String?,
+    ) = EntityProfileChanged(
+        tenant,
+        ref,
+        StructureNode(
+            StructureNodeKind.ENTITY,
+            null,
+            false,
+            "E",
+            ref,
+            listOfNotNull(source?.let { ProfileEntry("exchangeRateSource", it, LocalDate.of(2026, 1, 1)) }),
+            1,
         ),
     )
 
@@ -189,7 +194,24 @@ class RateSourceBlockBoundaryTest(
     }
 
     @Test
-    fun `a tenant with no election is not refused for the rate source`() {
+    fun `INV-AC-15992 an elected INFERRED source refuses approvePack with RUL-007 naming only that source id`() {
+        val tenant = tenant()
+        replica.onSnapshotComplete(1)
+        scopePack(tenant, "RS-INF" to "INFERRED", "RS-PRI" to "PRIMARY")
+        replica.accept(entity(tenant, "rs-entity-a", "RS-INF"))
+        replica.accept(entity(tenant, "rs-entity-b", "RS-PRI"))
+        val packId = submitted(tenant)
+        val answer = approveAs(packId, tenant)
+        answer.statusCode() shouldBe 422
+        json(answer).get("code").asString() shouldBe "RUL-007"
+        val detail = answer.body()
+        detail shouldContain "RS-INF"
+        detail shouldNotContain "RS-PRI"
+        statusOf(tenant, packId) shouldBe "SUBMITTED"
+    }
+
+    @Test
+    fun `INV-AC-15992 a tenant with no election is not refused for the rate source`() {
         val tenant = tenant()
         replica.onSnapshotComplete(1)
         scopePack(tenant, "RS-INF" to "INFERRED")
