@@ -278,9 +278,12 @@ object MappingSpreadsheetRules {
 
     /** 413 for a request over the 5,000-row cap, refused whole before any row is looked at (API-49, INV-AC-3484). */
     fun overCap() =
-        ClosedErrorCode.REQUEST_TOO_LARGE.let {
-            MappingRefusal(TOO_LARGE, it.code, it.title, "a re-import holds at most $MAX_IMPORT_ROWS rows")
-        }
+        MappingRefusal(
+            TOO_LARGE,
+            ClosedErrorCode.CONTRACT_VIOLATION.code,
+            "Request over a size or count limit",
+            "a re-import holds at most $MAX_IMPORT_ROWS rows",
+        )
 
     /** 422 RUL-006 for a rejected re-import; `errors[]` names each rejected row (API-21, INV-AC-2039). */
     fun rejection(rows: List<Int>): MappingRefusal {
