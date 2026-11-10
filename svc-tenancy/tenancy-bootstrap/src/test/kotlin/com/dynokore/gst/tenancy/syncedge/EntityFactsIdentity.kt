@@ -9,7 +9,8 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 
 /**
- * One end-user principal the test sets; the verifier accepts the workload tokens of `console-bff` and `control-plane-svc` only. It sits outside
+ * One end-user principal the test sets; the verifier accepts the workload tokens of `console-bff` and
+ * `control-plane-svc` only. It sits outside
  * the packages the application scans, so only a test that lists it puts it in a context.
  */
 @Configuration(proxyBeanMethods = false)

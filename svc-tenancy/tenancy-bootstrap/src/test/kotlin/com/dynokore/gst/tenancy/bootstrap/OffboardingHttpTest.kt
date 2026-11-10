@@ -43,6 +43,7 @@ private const val HOLDER = """{"name":"Ledger Custody Pte Ltd","contactEmail":"c
  * (the owning services bind them in later waves, INV-Q-4900).
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Suppress("LargeClass") // one boundary fixture serves offboardTenant and closeTenant
 class OffboardingHttpTest {
     private val http = HttpClient.newHttpClient()
     private val mapper = JsonMapper.builder().build()
@@ -125,6 +126,7 @@ class OffboardingHttpTest {
         block(tenant, entity)
     }
 
+    @Suppress("LongParameterList") // path, body, key, fixture, workload caller and whether an end-user token is sent
     private fun post(
         path: String,
         body: String,
