@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -1017,6 +1017,85 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/Error'
+  /bff/documents/{docUuid}/version-comparison:
+    get:
+      operationId: compareDocumentVersions
+      summary: Compare two versions of a document field by field, with the class of each change and the decision
+      description: >-
+        Compares version `from` with version `to` of one document
+        (INV-REQ-1040, INV-AC-15838). Each changed field carries its class
+        and the answer carries the deciding class and the outcome. The class
+        of each field and the deciding class are those that `classify` of
+        document-lifecycle returns (the most restrictive class among the
+        changed fields decides); the contract adds no second classifier.
+        `transmitted` is true when the outcome taken is the
+        after-transmission one.
+
+
+        Values (`oldValue`, `newValue`) are returned only when the caller's
+        per-request decision for the permission key `doc.view.content` is
+        allow, decided by `AuthorityReplica.decide`, never by a role name
+        (INV-Q-10027); otherwise the answer is 403.
+
+
+        `from` equal to `to` answers `changed` false with empty `fields` and
+        no `decidingClass` or `outcome`. An unknown document or version is
+        404.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000).
+      tags: [documents]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1040]
+      parameters:
+        - name: docUuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: The changed fields with their classes, and the decision.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionComparison'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    fromVersion: 1
+                    toVersion: 2
+                    transmitted: true
+                    changed: true
+                    fields:
+                      - field: "totalAmount"
+                        classCode: "MONETARY"
+                        oldValue: "100.00"
+                        newValue: "109.00"
+                    decidingClass: "MONETARY"
+                    outcome:
+                      code: "CREDIT_NOTE_REQUIRED"
+                      raised: ["SUB-015"]
+        default:
+          $ref: '#/components/responses/Error'
 components:
   schemas:
     Exception:
@@ -1498,6 +1577,58 @@ components:
           type: string
           format: date-time
       required: [bundleRef, generatedAt]
+    ChangedField:
+      type: object
+      properties:
+        field:
+          type: string
+        classCode:
+          $ref: '#/components/schemas/AmendmentClass'
+        oldValue:
+          type: string
+          description: Absent when the field is on the `to` side only.
+        newValue:
+          type: string
+          description: Absent when the field is on the `from` side only.
+      required: [field, classCode]
+    AmendmentClass:
+      type: string
+      enum: [NON_MONETARY, MONETARY, IDENTITY, PERIOD_SHIFTING, STRUCTURAL]
+      x-extensible-enum: true
+    ComparisonOutcome:
+      type: object
+      properties:
+        code:
+          type: string
+        raised:
+          type: array
+          items:
+            type: string
+      required: [code]
+    VersionComparison:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        fromVersion:
+          type: integer
+        toVersion:
+          type: integer
+        transmitted:
+          type: boolean
+          description: True when the outcome taken is the after-transmission one.
+        changed:
+          type: boolean
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangedField'
+        decidingClass:
+          $ref: '#/components/schemas/AmendmentClass'
+        outcome:
+          $ref: '#/components/schemas/ComparisonOutcome'
+      required: [docUuid, fromVersion, toVersion, transmitted, changed, fields]
   responses:
     Error:
       description: Error (API-20 envelope)

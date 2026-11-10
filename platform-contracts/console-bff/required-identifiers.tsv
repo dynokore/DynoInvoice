@@ -53,3 +53,5 @@ PortfolioReadiness.kind.BLOCKED	schema_enum_value	openapi.yaml	INV-REQ-904
 PortfolioReadiness.kind.UNABLE_TO_DETERMINE	schema_enum_value	openapi.yaml	INV-REQ-904
 limit	query_parameter	openapi.yaml	INV-REQ-904
 cursor	query_parameter	openapi.yaml	INV-REQ-904
+# INV-T-15841. Operation compareDocumentVersions (INV-REQ-1040, INV-Q-15831 A).
+compareDocumentVersions	operation	openapi.yaml	INV-REQ-1040
