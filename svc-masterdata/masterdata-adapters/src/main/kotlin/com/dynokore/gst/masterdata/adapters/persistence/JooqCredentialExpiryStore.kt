@@ -26,7 +26,7 @@ class JooqCredentialExpiryStore(
         if (expiresAt == null) {
             dsl
                 .deleteFrom(CREDENTIAL_EXPIRY)
-                .where(CREDENTIAL_EXPIRY.CONNECTION_REF.eq(connectionRef))
+                .where(CREDENTIAL_EXPIRY.RECORD_REF.eq(connectionRef))
                 .execute()
             return
         }
@@ -34,10 +34,10 @@ class JooqCredentialExpiryStore(
         dsl
             .insertInto(CREDENTIAL_EXPIRY)
             .set(CREDENTIAL_EXPIRY.ID, ids.next(clock.instant()))
-            .set(CREDENTIAL_EXPIRY.CONNECTION_REF, connectionRef)
+            .set(CREDENTIAL_EXPIRY.RECORD_REF, connectionRef)
             .set(CREDENTIAL_EXPIRY.CREDENTIAL_REF, credentialRef)
             .set(CREDENTIAL_EXPIRY.EXPIRES_AT, at)
-            .onConflict(CREDENTIAL_EXPIRY.TENANT_ID, CREDENTIAL_EXPIRY.CONNECTION_REF)
+            .onConflict(CREDENTIAL_EXPIRY.TENANT_ID, CREDENTIAL_EXPIRY.RECORD_REF)
             .doUpdate()
             .set(CREDENTIAL_EXPIRY.CREDENTIAL_REF, credentialRef)
             .set(CREDENTIAL_EXPIRY.EXPIRES_AT, at)

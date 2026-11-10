@@ -6,10 +6,10 @@
 CREATE TABLE masterdata.credential_expiry (
     id             uuid        PRIMARY KEY,                                   -- UUIDv7, assigned by the application
     tenant_id      uuid        NOT NULL,                                      -- FR-G.5
-    connection_ref text        NOT NULL CHECK (length(connection_ref) BETWEEN 1 AND 40),
+    record_ref text        NOT NULL CHECK (length(record_ref) BETWEEN 1 AND 40),
     credential_ref text        NOT NULL CHECK (length(credential_ref) BETWEEN 1 AND 100),
     expires_at     timestamptz NOT NULL,
-    UNIQUE (tenant_id, connection_ref)                                        -- one expiry row per connection
+    UNIQUE (tenant_id, record_ref)                                           -- one expiry row per connection
 );
 
 ALTER TABLE masterdata.credential_expiry ENABLE ROW LEVEL SECURITY;
@@ -19,3 +19,5 @@ CREATE POLICY tenant_isolation ON masterdata.credential_expiry
     WITH CHECK (tenant_id = (select masterdata.bound_tenant()));
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON masterdata.credential_expiry TO masterdata_runtime;
+
+COMMENT ON COLUMN masterdata.credential_expiry.record_ref IS 'The reference of the connection record (masterdata.connection.record_ref).';
