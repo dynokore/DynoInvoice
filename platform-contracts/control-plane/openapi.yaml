@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.12.0
+  version: 1.13.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -1000,9 +1000,12 @@ paths:
         the offboarding time, the reference of the signed contract and the inputs the closing needs
         (retentionCustodyHolder, optional noticeWindowDays). The schedule is created AWAITING_APPROVAL
         and takes effect only when a different holder of commercial.admin approves it
-        (approveTenantSchedule). It is refused with 422 when the contract reference is missing, when the
+        (approveTenantSchedule). It is refused with 422 when the contract reference is blank (an absent
+        contractReference is refused 400 by the request schema, before the operation runs), when the
         offboarding time is not after the go-live time, or when the go-live time is not after the moment
-        of setting (INV-REQ-8100 behavior 1).
+        of setting (INV-REQ-8100 behavior 1). A second schedule for a tenant that already has a live
+        schedule with another contract reference is refused 409 with CPL-010; the same contract reference
+        returns the original schedule.
       tags:
       - commercial
       x-principal: filing-workflow
@@ -1011,7 +1014,7 @@ paths:
       x-timeout: 2000
       x-requirements:
       - INV-REQ-8100
-      x-error-codes: []
+      x-error-codes: [CPL-010, CPL-011]
       x-operation:
         role: commercial.admin
         scope: installation
@@ -1058,6 +1061,8 @@ paths:
         "403":
           $ref: '#/components/responses/Error'
         "404":
+          $ref: '#/components/responses/Error'
+        "409":
           $ref: '#/components/responses/Error'
         "422":
           $ref: '#/components/responses/Error'
@@ -1135,7 +1140,7 @@ paths:
       x-timeout: 2000
       x-requirements:
       - INV-REQ-8100
-      x-error-codes: []
+      x-error-codes: [CPL-010]
       x-operation:
         role: commercial.admin
         scope: installation
@@ -1208,7 +1213,7 @@ paths:
       x-timeout: 2000
       x-requirements:
       - INV-REQ-8100
-      x-error-codes: []
+      x-error-codes: [CPL-010, CPL-011]
       x-operation:
         role: commercial.admin
         scope: installation
@@ -1279,7 +1284,7 @@ paths:
       x-timeout: 2000
       x-requirements:
       - INV-REQ-8100
-      x-error-codes: []
+      x-error-codes: [CPL-010]
       x-operation:
         role: commercial.admin
         scope: installation
