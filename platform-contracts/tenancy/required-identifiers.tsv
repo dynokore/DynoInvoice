@@ -69,8 +69,10 @@ changeFilingFrequency	operation	openapi.yaml	INV-REQ-2588
 confirmPeriods	operation	openapi.yaml	INV-REQ-2588
 createWorkspace	operation	openapi.yaml	INV-REQ-2588
 electRateSource	operation	openapi.yaml	INV-REQ-2588
+electRateSource.TNC-013	operation_error_code	openapi.yaml	INV-REQ-505
 installLicence	operation	openapi.yaml	INV-REQ-2588
 recordElection	operation	openapi.yaml	INV-REQ-2588
+recordElection.TNC-013	operation_error_code	openapi.yaml	INV-REQ-505
 recordExtension	operation	openapi.yaml	INV-REQ-2588
 recordRenditionResponsibility	operation	openapi.yaml	INV-REQ-2588
 setIssuanceMode	operation	openapi.yaml	INV-REQ-2588

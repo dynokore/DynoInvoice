@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.36.0
+  version: 1.37.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -1166,7 +1166,7 @@ paths:
       summary: Elect the exchange-rate source and basis from a date (SDS §7, SCR-13.2)
       description: >-
         Elect the exchange-rate source and basis from a date (SCR-13.2).
-        A CHANGE of an election already recorded is refused 409 while a PENDING change exists for the same entity and variation point (INV-Q-10117 (A)); a pending change never expires and ends only by approval, withdrawal (withdrawElectionChange) or decline (declineElectionChange) (INV-Q-10115 (A)).
+        A CHANGE of an election already recorded is refused 409 with the code TNC-013 while a PENDING change exists for the same entity and variation point (INV-Q-10117 (A)); a pending change never expires and ends only by approval, withdrawal (withdrawElectionChange) or decline (declineElectionChange) (INV-Q-10115 (A)).
         Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
       - entities
@@ -1179,6 +1179,7 @@ paths:
       - FR-6.13
       x-error-codes:
       - POL-014
+      - TNC-013
       x-operation:
         role: entity.admin
         scope: entity
@@ -1841,7 +1842,7 @@ paths:
       description: >-
         Record a regulatory election with its effective date (SCR-16.5). The election is one of INVOICE_DATE, POSTING_DATE, CLAIMABLE_PORTION, ENTIRE_INVOICE; any other value is 400 SRT-001.
         The key EXEMPT_PURCHASE_CODES (INV-REQ-369) records the election to exclude purchases coded with the named tax codes: taxCodes and basis are both required for this key and both absent for each of the other four keys, enforced by tenancy-svc with 400 SRT-001. It is effective from effectiveFrom, is recorded by a caller holding the permission this operation already requires, and is published through EntityProfileChanged node.profile as two entries from effectiveFrom: the attribute exemptPurchaseCodes, whose value is the codes in ascending code-unit order joined by a comma with no space, and the attribute exemptPurchaseBasis, whose value is basis.
-        A CHANGE of an election already recorded is refused 409 while a PENDING change exists for the same entity and variation point (INV-Q-10117 (A)); a pending change never expires and ends only by approval, withdrawal (withdrawElectionChange) or decline (declineElectionChange) (INV-Q-10115 (A)).
+        A CHANGE of an election already recorded is refused 409 with the code TNC-013 while a PENDING change exists for the same entity and variation point (INV-Q-10117 (A)); a pending change never expires and ends only by approval, withdrawal (withdrawElectionChange) or decline (declineElectionChange) (INV-Q-10115 (A)).
         Refusals: 422 POL-014 when the election is not permitted by the entity's facts or the approval rule; 400 SRT-001 for a value outside the accepted set or a malformed request; 403 SRT-004 when the caller lacks the required role (SRT codes are not listed in x-error-codes).
       tags:
       - entities
@@ -1854,6 +1855,7 @@ paths:
       - FR-6.1
       x-error-codes:
       - POL-014
+      - TNC-013
       x-operation:
         role: entity.admin
         scope: entity
