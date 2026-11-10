@@ -27,4 +27,5 @@ dependencies {
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
     testImplementation(testFixtures(project(":reconciliation-adapters")))
+    testImplementation(testFixtures(libs.platform.serviceRuntime.api))
 }
