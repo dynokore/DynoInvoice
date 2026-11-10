@@ -127,6 +127,7 @@ class BreakGlassRestrictionTest {
                 .claim("client_id", "client-1")
                 .claim("tenant_id", BreakGlassTestBeans.TENANT_T)
                 .claim("scope", scope)
+                .claim("principal_type", scope)
                 .claim("principal_scope", "installation")
                 .jwtID("jti-1")
                 .issueTime(Date.from(issuedAt))
