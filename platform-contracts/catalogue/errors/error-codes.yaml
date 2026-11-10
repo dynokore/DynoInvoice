@@ -1,6 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
 # pinned at commit 2e75aa4e9274fc6664fd09a392c5c56dab24c14d (2026-11-10), the merge of invoice-docs INV-T-19491 adding TNC-013 (INV-T-19492, coordinator ruling of breakdown tooling/gap15888-gap.md);
-# previously pinned at commit 92ad97b4853360b6fef30cef44c6ed5ea4cd6cb0 (2026-11-09), the merge of invoice-docs INV-T-19381 adding TNC-012, tenant open refused (INV-T-19382, coordinator ruling of breakdown tooling/gap8142-gap.md);
+# previously pinned at 92ad97b4853360b6fef30cef44c6ed5ea4cd6cb0 (2026-11-09), the merge of invoice-docs INV-T-19381 adding TNC-012, tenant open refused (INV-T-19382, coordinator ruling of breakdown tooling/gap8142-gap.md);
 # previously pinned at 03bf5b6ed7232362ceb836094380637c1934b66a (2026-11-09), the merge of invoice-docs INV-T-18946 adding MDM-016 to MDM-018, the connection error codes (INV-T-18947, coordinator ruling of breakdown tooling/gap18774-gap.md);
 # previously pinned at 692c582333cf6f650694b24eb100b448946bc347 (2026-11-09), the merge of invoice-docs INV-T-18915 adding MDM-012 to MDM-015, the rate import error codes (INV-T-18916, coordinator ruling of breakdown tooling/gap18772-gap.md);
 # previously pinned at a387243fb0b03d0c27b08d77eb936e6e785f8c7b (2026-11-08), the merge of invoice-docs INV-T-18812 adding TNC-011 (INV-T-18813, coordinator ruling of breakdown tooling/tenancy-cutover-gap.md);
