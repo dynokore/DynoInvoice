@@ -3,6 +3,7 @@ package com.dynokore.gst.rules.adapters.web
 import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.rules.application.MappingPackResult
 import com.dynokore.gst.rules.application.RefusalReason
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
@@ -12,7 +13,7 @@ class SchemeTagRefusalMappingTest {
     private fun refusal(result: MappingPackResult.Refused) = checkNotNull(MappingPackMapping.refusalOf(result))
 
     @Test
-    fun `INV-AC-19536 SCHEME_TAG_SIDE with the tag SWS answers 422 RUL-013 with the catalogue severity and disposition`() {
+    fun `INV-AC-19536 SCHEME_TAG_SIDE with the tag SWS answers 422 RUL-013 with the catalogue severity`() {
         val r = refusal(MappingPackResult.Refused(RefusalReason.SCHEME_TAG_SIDE, names = listOf("SWS")))
         r.status shouldBe 422
         r.code shouldBe "RUL-013"
@@ -31,12 +32,13 @@ class SchemeTagRefusalMappingTest {
     fun `INV-AC-19536 INPUT_INVALID is still 400 CONTRACT_VIOLATION`() {
         val r = refusal(MappingPackResult.Refused(RefusalReason.INPUT_INVALID))
         r.status shouldBe 400
-        r.code shouldBe com.dynokore.platform.serviceruntime.http.ClosedErrorCode.CONTRACT_VIOLATION.code
+        r.code shouldBe ClosedErrorCode.CONTRACT_VIOLATION.code
     }
 
     @Test
     fun `INV-AC-19536 CODE_CHECK with RUL_010 is still 422 RUL-010`() {
-        val r = refusal(MappingPackResult.Refused(RefusalReason.CODE_CHECK, code = ErrorCode.RUL_010, names = listOf("e1")))
+        val r =
+            refusal(MappingPackResult.Refused(RefusalReason.CODE_CHECK, code = ErrorCode.RUL_010, names = listOf("e1")))
         r.status shouldBe 422
         r.code shouldBe "RUL-010"
     }
