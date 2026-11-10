@@ -11,6 +11,7 @@ dependencies {
     implementation(platform(libs.jackson.bom))
     implementation(project(":console-bff-adapters"))
     implementation(libs.platform.serviceRuntime.impl)
+    implementation(libs.platform.productRuntime.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)
     // the /metrics endpoint of the management server (API-33): the Prometheus scrape format
@@ -23,6 +24,11 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.snakeyaml)
     testImplementation(libs.platform.tenancyKernel.api)
+    // the fixtures are published under the capability service-runtime-test-fixtures on the service-runtime-api module,
+    // so testFixtures(libs.platform.serviceRuntime.api) (capability service-runtime-api-test-fixtures) does not resolve
+    testImplementation(libs.platform.serviceRuntime.api) {
+        capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }
+    }
     constraints {
         implementation(libs.tomcat.embedCore)
         implementation(libs.tomcat.embedEl)
