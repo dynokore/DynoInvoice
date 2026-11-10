@@ -6,6 +6,8 @@ operation	getMappingPack	INV-T-4972
 operation	listMappingPackEntries	INV-T-4972
 operation	mapTaxCode	INV-T-4972
 operation	importMappingSpreadsheet	INV-T-4973
+operation	exportMappingPack	INV-T-4973
+operation	listMappingImportRecords	INV-T-4973
 operation	acceptSourceClassEntry	INV-T-4972
 operation	submitForApproval	INV-T-4972
 operation	approvePack	INV-T-4972

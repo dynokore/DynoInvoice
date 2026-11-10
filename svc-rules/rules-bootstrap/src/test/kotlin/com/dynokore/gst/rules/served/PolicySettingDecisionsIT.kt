@@ -314,9 +314,11 @@ class PolicySettingDecisionsIT(
             setOf(
                 PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType,
                 PlatformEventCatalogue.POLICY_CHANGED.eventType,
+                // the evidence artefact of the mapping re-import record (INV-T-4973, INV-REQ-833 b3)
+                PlatformEventCatalogue.EVIDENCE_ARTEFACT_RECORDED.eventType,
             )
         catalogue.entries().map { it.eventType }.toSet() shouldBe RulesEventCatalogue.TOPICS.keys + platform
-        catalogue.entries().size shouldBe RulesEventCatalogue.TOPICS.size + 2
+        catalogue.entries().size shouldBe RulesEventCatalogue.TOPICS.size + 3
     }
 
     @Test

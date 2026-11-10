@@ -43,6 +43,7 @@ internal object SchemaInspection {
             "mapping_entry_acceptance",
             "mapping_pack_approval",
             "dry_run_delta",
+            "mapping_import_record",
         )
 
     /** The columns of the kernel's registry table (`PackRegistryMigration.ddl`), `pack_version` and not `version`. */

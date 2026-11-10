@@ -18,6 +18,7 @@ import java.time.ZoneOffset
  * of the sign-off refusals (422: nothing is recorded), SRT-004 for a caller without the permission (403), and the
  * closed service-runtime codes for the rest; the detail names entries but never a person (INV-Q-1949).
  */
+@Suppress("LongParameterList") // the fields of the API-20 envelope
 class MappingRefusal(
     val status: Int,
     val code: String,
@@ -25,7 +26,15 @@ class MappingRefusal(
     val detail: String?,
     val severity: String? = null,
     val disposition: String? = null,
+    val errors: List<RefusalError> = emptyList(),
 ) : RuntimeException("$code: $title")
+
+/** One entry of the envelope's `errors[]` (API-20): the catalogue code, a message and the field it names. */
+data class RefusalError(
+    val code: String,
+    val message: String,
+    val field: String?,
+)
 
 private const val UNPROCESSABLE = 422
 private const val CONFLICT = 409
@@ -140,6 +149,16 @@ object MappingPackMapping {
             append(",\"code\":${text(refusal.code)}")
             refusal.severity?.let { append(",\"severity\":${text(it)}") }
             refusal.disposition?.let { append(",\"disposition\":${text(it)}") }
+            if (refusal.errors.isNotEmpty()) {
+                append(",\"errors\":[")
+                append(
+                    refusal.errors.joinToString(",") { error ->
+                        val named = error.field?.let { ",\"field\":${text(it)}" }.orEmpty()
+                        "{\"code\":${text(error.code)},\"message\":${text(error.message)}$named}"
+                    },
+                )
+                append("]")
+            }
             append("}")
         }
 
@@ -189,5 +208,6 @@ object MappingPackMapping {
             sourceClass = MappingEntry.SourceClass.entries.first { it.value == view.sourceClass.name },
             accepted = view.accepted,
             schemeTag = view.schemeTag?.let { tag -> MappingEntry.SchemeTag.entries.firstOrNull { it.value == tag } },
+            importRef = view.importRef,
         )
 }

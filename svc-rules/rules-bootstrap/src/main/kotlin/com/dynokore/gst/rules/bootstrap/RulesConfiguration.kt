@@ -14,14 +14,18 @@ import com.dynokore.gst.rules.adapters.packs.ServiceKeyHolderCopyWriter
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
+import com.dynokore.gst.rules.adapters.persistence.JooqMappingImportRecordStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
 import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
+import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImporter
+import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImports
 import com.dynokore.gst.rules.application.ActivePackReader
 import com.dynokore.gst.rules.application.ClassifyDocument
+import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DryRunDeltaPort
 import com.dynokore.gst.rules.application.EvaluateDocument
@@ -58,6 +62,7 @@ import com.dynokore.platform.serviceruntime.binding.DeploymentForm
 import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
+import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
@@ -93,13 +98,18 @@ class RulesConfiguration {
     /**
      * The event types catalogued for rules; the emission guard refuses any other (INV-AC-1869). Besides the three pack
      * events, the two platform events the mounted setPolicy emits in its transaction: the audit entry and the policy
-     * change (INV-T-18451); no other platform event is listed.
+     * change (INV-T-18451), and the evidence artefact the mapping spreadsheet re-import records (INV-T-4973,
+     * INV-REQ-833 b3); no other platform event is listed.
      */
     @Bean
     fun eventCatalogue(): EventCatalogue =
         EventCatalogue(
             RulesEventCatalogue.entries() +
-                listOf(PlatformEventCatalogue.AUDIT_ENTRY_RECORDED, PlatformEventCatalogue.POLICY_CHANGED).map {
+                listOf(
+                    PlatformEventCatalogue.AUDIT_ENTRY_RECORDED,
+                    PlatformEventCatalogue.POLICY_CHANGED,
+                    PlatformEventCatalogue.EVIDENCE_ARTEFACT_RECORDED,
+                ).map {
                     CatalogueEntry(
                         it.eventType,
                         checkNotNull(it.topic),
@@ -386,6 +396,28 @@ class RulesConfiguration {
             ),
             clock,
         )
+
+    // ---- the mapping spreadsheet round trip (INV-T-4973) ----
+
+    @Bean
+    fun mappingImportRecordStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): JooqMappingImportRecordStore = JooqMappingImportRecordStore(dsl, tenants)
+
+    /** The re-import: the IRAS catalogue is the pack INV-T-4966 decodes, the record leaves as an evidence artefact. */
+    @Suppress("LongParameterList") // the composition root names the seven collaborators of the use case (TPL-18)
+    @Bean
+    fun mappingSpreadsheetImports(
+        packs: JooqMappingPackStore,
+        records: JooqMappingImportRecordStore,
+        authority: PackActionAuthority,
+        catalogues: CodeCataloguePort,
+        evidence: EvidenceArtefactRecorder,
+        tenants: TenantContext,
+        clock: Clock,
+    ): MappingSpreadsheetImports =
+        MappingSpreadsheetImporter(packs, records, authority, catalogues, evidence, tenants, clock)
 }
 
 /** The one access-svc client; it is no port itself, so a replaced port stays the only bean of its type. */

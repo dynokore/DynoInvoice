@@ -394,6 +394,7 @@ class RegistryPostgresIT(
                 "internal_tax_code",
                 "iras_code",
                 "scheme_tag",
+                "import_ref",
             )
     }
 

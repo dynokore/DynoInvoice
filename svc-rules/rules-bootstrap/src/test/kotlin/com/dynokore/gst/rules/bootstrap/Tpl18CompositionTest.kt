@@ -79,6 +79,7 @@ class Tpl18CompositionTest {
                 listOf(
                     PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType,
                     PlatformEventCatalogue.POLICY_CHANGED.eventType,
+                    PlatformEventCatalogue.EVIDENCE_ARTEFACT_RECORDED.eventType,
                 )
         }
     }

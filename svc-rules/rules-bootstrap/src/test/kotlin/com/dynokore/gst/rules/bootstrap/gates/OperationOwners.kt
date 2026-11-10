@@ -15,6 +15,8 @@ internal object OperationOwners {
             "operation\tlistMappingPackEntries\tINV-T-4972",
             "operation\tmapTaxCode\tINV-T-4972",
             "operation\timportMappingSpreadsheet\tINV-T-4973",
+            "operation\texportMappingPack\tINV-T-4973",
+            "operation\tlistMappingImportRecords\tINV-T-4973",
             "operation\tacceptSourceClassEntry\tINV-T-4972",
             "operation\tsubmitForApproval\tINV-T-4972",
             "operation\tapprovePack\tINV-T-4972",

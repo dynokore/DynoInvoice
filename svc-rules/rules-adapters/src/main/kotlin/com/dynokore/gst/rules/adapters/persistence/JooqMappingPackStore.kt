@@ -32,6 +32,16 @@ data class MappingEntryView(
     val sourceClass: SourceClass,
     val accepted: Boolean,
     val schemeTag: String?,
+    val importRef: String? = null,
+    val citation: String? = null,
+)
+
+/** One entry an import creates (INV-REQ-831): the internal code, the IRAS code, the class and the row's citation. */
+data class ImportedEntry(
+    val internalTaxCode: String,
+    val irasCode: String,
+    val sourceClass: SourceClass,
+    val citation: String?,
 )
 
 /** A pack header with the counts the approver sees before signing (`getMappingPack`). */
@@ -196,8 +206,56 @@ class JooqMappingPackStore(
                     SourceClass.valueOf(checkNotNull(it.sourceClass)),
                     checkNotNull(it.accepted),
                     it.schemeTag,
+                    it.importRef,
+                    it.sourceCitation,
                 )
             }
+
+    /**
+     * Adds the entries of an import to the draft [packId], each carrying [importRef] (INV-REQ-833 b2). The entry id is
+     * the internal tax code, as for an authored entry. One statement per chunk, on the open transaction.
+     */
+    fun insertImported(
+        packId: String,
+        importRef: String,
+        entries: List<ImportedEntry>,
+    ) {
+        val version = versionOf(packId)
+        entries.chunked(INSERT_CHUNK).forEach { chunk ->
+            var insert =
+                dsl.insertInto(
+                    PACK_ENTRY_SOURCE,
+                    PACK_ENTRY_SOURCE.ID,
+                    PACK_ENTRY_SOURCE.TENANT_ID,
+                    PACK_ENTRY_SOURCE.PACK_TYPE,
+                    PACK_ENTRY_SOURCE.PACK_VERSION,
+                    PACK_ENTRY_SOURCE.ENTRY_ID,
+                    PACK_ENTRY_SOURCE.INTERNAL_TAX_CODE,
+                    PACK_ENTRY_SOURCE.IRAS_CODE,
+                    PACK_ENTRY_SOURCE.SOURCE_CLASS,
+                    PACK_ENTRY_SOURCE.SOURCE_CITATION,
+                    PACK_ENTRY_SOURCE.ACCEPTED,
+                    PACK_ENTRY_SOURCE.IMPORT_REF,
+                )
+            chunk.forEach {
+                insert =
+                    insert.values(
+                        UUID.randomUUID(),
+                        tenants.current().value,
+                        PACK_TYPE,
+                        version,
+                        it.internalTaxCode,
+                        it.internalTaxCode,
+                        it.irasCode,
+                        it.sourceClass.name,
+                        it.citation,
+                        false,
+                        importRef,
+                    )
+            }
+            insert.execute()
+        }
+    }
 
     /** One entry of the pack by its entry id; null when the pack has none. */
     fun entry(
@@ -404,6 +462,7 @@ class JooqMappingPackStore(
 
     private companion object {
         const val PACK_TYPE = "MAPPING"
+        const val INSERT_CHUNK = 500
         const val CLIENT_ACKNOWLEDGEMENT = "CLIENT_ACKNOWLEDGEMENT"
         const val CLIENT_APPROVAL = "CLIENT_APPROVAL"
 
