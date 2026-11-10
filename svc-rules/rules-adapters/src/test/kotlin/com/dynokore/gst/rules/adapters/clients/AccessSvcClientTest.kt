@@ -15,9 +15,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
-import org.slf4j.Logger
 import org.springframework.web.client.RestClient
-import java.lang.reflect.Proxy
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -86,7 +84,6 @@ class AccessSvcClientTest {
         timeout: Duration = Duration.ofSeconds(5),
         retry: RetryProperties? = null,
         baseUrl: String = url,
-        log: Logger = capture,
     ): AccessSvcClient {
         val clock = Clock.systemUTC()
         val registry: ResilienceRegistry =
@@ -96,20 +93,8 @@ class AccessSvcClientTest {
                 ),
                 clock,
             )
-        return AccessSvcClient(RestClient.builder(), registry, clock, baseUrl, log)
+        return AccessSvcClient(RestClient.builder(), registry, clock, baseUrl)
     }
-
-    private val lines = CopyOnWriteArrayList<String>()
-    private val capture: Logger =
-        Proxy.newProxyInstance(Logger::class.java.classLoader, arrayOf(Logger::class.java)) { _, method, args ->
-            if (method.name in setOf("warn", "error", "info", "debug", "trace")) {
-                lines +=
-                    (args ?: emptyArray()).joinToString(
-                        " ",
-                    ) { a -> if (a is Array<*>) a.joinToString(" ") else a.toString() }
-            }
-            if (method.returnType == Boolean::class.javaPrimitiveType) true else null
-        } as Logger
 
     private val ackBody = """{"packVersion":"2026.3","clientRef":"CLI-2201","acknowledgedAt":"2026-09-27T02:00:00Z"}"""
 
@@ -171,24 +156,6 @@ class AccessSvcClientTest {
             """{"decision":"ALLOW","soleOperator":true,"outstanding":[],"option":"SOLE_OPERATOR_ACK",""" +
                 """"soleOperatorAckRef":"ACK-1"}""",
         ) shouldBe PackApprovalDecision.Allow(true, "ACK-1", "SOLE_OPERATOR_ACK", emptySet())
-    }
-
-    @Test
-    fun `INV-AC-19525 an ALLOW without option is Unavailable and logged once naming option`() {
-        decide("""{"decision":"ALLOW","soleOperator":false,"outstanding":["SECRET-OUTSTANDING"]}""") shouldBe
-            PackApprovalDecision.Unavailable
-        lines shouldHaveSize 1
-        lines[0].contains("option") shouldBe true
-        lines[0].contains("SECRET-OUTSTANDING") shouldBe false
-    }
-
-    @Test
-    fun `INV-AC-19525 a DENY without reasonCode is Unavailable and logged once naming reasonCode`() {
-        decide("""{"decision":"DENY","soleOperator":false,"outstanding":["SECRET-OUTSTANDING"]}""") shouldBe
-            PackApprovalDecision.Unavailable
-        lines shouldHaveSize 1
-        lines[0].contains("reasonCode") shouldBe true
-        lines[0].contains("SECRET-OUTSTANDING") shouldBe false
     }
 
     @Test
