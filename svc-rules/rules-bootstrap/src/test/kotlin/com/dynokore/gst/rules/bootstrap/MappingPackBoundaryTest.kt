@@ -1,7 +1,7 @@
 package com.dynokore.gst.rules.bootstrap
 
+import com.dynokore.gst.rules.adapters.clients.AccessSvcClient
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
-import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
 import com.dynokore.gst.rules.adapters.packs.ReplicaRateSourcePort
 import com.dynokore.gst.rules.adapters.packs.ServiceKeyHolderCopyWriter
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
@@ -1171,8 +1171,8 @@ class MappingPackDefaultsTest(
     @Test
     fun `the refusing defaults, the replica rate source and the service key holder copy are the beans`() {
         context.getBean(PackActionAuthority::class.java)::class.java shouldBe RefusingPackActionAuthority::class.java
-        context.getBean(PackApprovalDecisionPort::class.java)::class.java shouldBe
-            RefusingPackApprovalDecisionPort::class.java
+        // INV-T-10700: the decision port is the production adapter over the one access-svc client
+        context.getBean(AccessSvcEdge::class.java).client::class.java shouldBe AccessSvcClient::class.java
         // INV-T-16546: with a StructureReplica bean the default is the replica port (RateSourceBlockBoundaryTest)
         context.getBean(RateSourcePort::class.java)::class.java shouldBe ReplicaRateSourcePort::class.java
         // INV-T-16544: the holder copy default is the signing adapter, which answers Unavailable without secrets

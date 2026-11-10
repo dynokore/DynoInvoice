@@ -43,13 +43,14 @@ class Tpl18CompositionTest {
             Files.writeString(root.resolve("tenancy/binding-key-current"), "test-only-binding-key-0123456789ab")
         }
 
-    private fun runner(): ApplicationContextRunner =
+    private fun runner(accessUrl: String? = "http://127.0.0.1:1"): ApplicationContextRunner =
         ApplicationContextRunner()
             .withUserConfiguration(Tpl18Bootstrap::class.java)
             .withBean(MeterRegistry::class.java, { SimpleMeterRegistry() })
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
             .withPropertyValues(
                 "gst.service=rules-svc",
+                *listOfNotNull(accessUrl?.let { "rules.access-svc-url=$it" }).toTypedArray(), // required (TPL-16)
                 "gst.instance-id=rules-svc-0",
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",
@@ -83,6 +84,15 @@ class Tpl18CompositionTest {
     }
 
     @Test
+    fun `start-up fails without rules access-svc-url and with a blank one (TPL-16, no default)`() {
+        runner(accessUrl = null).run { context -> (context.startupFailure != null) shouldBe true }
+        runner(accessUrl = "").run { context -> (context.startupFailure != null) shouldBe true }
+        runner(accessUrl = "   ").run { context -> (context.startupFailure != null) shouldBe true }
+        // look-alike that must start: the same context with a value
+        runner().run { context -> context.startupFailure shouldBe null }
+    }
+
+    @Test
     fun `start-up fails without the two telemetry export properties so they are needed`() {
         ApplicationContextRunner()
             .withUserConfiguration(Tpl18Bootstrap::class.java)
@@ -90,6 +100,7 @@ class Tpl18CompositionTest {
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
             .withPropertyValues(
                 "gst.service=rules-svc",
+                "rules.access-svc-url=http://127.0.0.1:1", // required (TPL-16); nothing listens there
                 "gst.instance-id=rules-svc-0",
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",

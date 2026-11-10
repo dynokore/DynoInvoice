@@ -40,6 +40,7 @@ class PolicySettingDecisionWiringTest {
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
             .withPropertyValues(
                 "gst.service=rules-svc",
+                "rules.access-svc-url=http://127.0.0.1:1", // required (TPL-16); nothing listens there
                 "gst.instance-id=rules-svc-0",
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",

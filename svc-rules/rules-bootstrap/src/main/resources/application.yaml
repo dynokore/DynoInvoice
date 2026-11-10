@@ -51,3 +51,11 @@ inv:
 gst:
   service: rules-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+rules:
+  # access-svc's base URL: required, no default; the context does not start without it (TPL-16)
+  access-svc-url: ${RULES_ACCESS_SVC_URL}
+service-runtime.resilience.edges:
+  # Any -> access-svc (architecture model sync-edges.yaml): 500 ms, one retry, circuit breaker; on failure the human action is denied
+  "[rules-svc->access-svc]":
+    timeout: PT0.5S
+    retry.max-attempts: 2

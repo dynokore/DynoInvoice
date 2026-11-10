@@ -1,15 +1,13 @@
 package com.dynokore.gst.rules.bootstrap
 
+import com.dynokore.gst.rules.adapters.clients.AccessSvcClient
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.packs.HolderCopySigningKeys
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
-import com.dynokore.gst.rules.adapters.packs.RefusingInstallationApproverFactPort
-import com.dynokore.gst.rules.adapters.packs.RefusingMappingAcknowledgementPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
-import com.dynokore.gst.rules.adapters.packs.RefusingPackApprovalDecisionPort
 import com.dynokore.gst.rules.adapters.packs.RefusingRateSourcePort
 import com.dynokore.gst.rules.adapters.packs.ReplicaRateSourcePort
 import com.dynokore.gst.rules.adapters.packs.ServiceKeyHolderCopyWriter
@@ -62,6 +60,7 @@ import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
+import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -79,6 +78,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
+import org.springframework.web.client.RestClient
 import java.time.Clock
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
@@ -239,6 +240,7 @@ class RulesConfiguration {
 
     private companion object {
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
+        const val ACCESS_URL_PROPERTY = "rules.access-svc-url"
         const val SCHEMA = "rules"
     }
 
@@ -249,10 +251,28 @@ class RulesConfiguration {
     @ConditionalOnMissingBean(PackActionAuthority::class)
     fun packActionAuthority(): PackActionAuthority = RefusingPackActionAuthority()
 
-    /** Cannot ask access-svc until INV-T-10700 replaces it (INV-Q-14647 A). */
+    /**
+     * The one client of access-svc over the edge `rules-svc->access-svc` (INV-T-10700). The three port beans below
+     * delegate to it, so each implements one port only and a replacement of one stays the only bean of its type. The
+     * base URL is the required property `rules.access-svc-url` with no default (TPL-16, twelve-factor config): the
+     * context does not start without it or with a blank value.
+     */
+    @Bean
+    fun accessSvcEdge(
+        @Qualifier("internalRestClientBuilder") builder: RestClient.Builder,
+        registry: ResilienceRegistry,
+        clock: Clock,
+        environment: Environment,
+    ): AccessSvcEdge =
+        environment.getRequiredProperty(ACCESS_URL_PROPERTY).let { url ->
+            require(url.isNotBlank()) { "$ACCESS_URL_PROPERTY must not be blank" }
+            AccessSvcEdge(AccessSvcClient(builder, registry, clock, url))
+        }
+
     @Bean
     @ConditionalOnMissingBean(PackApprovalDecisionPort::class)
-    fun packApprovalDecisionPort(): PackApprovalDecisionPort = RefusingPackApprovalDecisionPort()
+    fun packApprovalDecisionPort(edge: AccessSvcEdge): PackApprovalDecisionPort =
+        PackApprovalDecisionPort { edge.client.decide(it) }
 
     /**
      * The rate-source block over the structure replica and the SCOPE pack in force (INV-T-16546; INV-Q-14651 A,
@@ -306,15 +326,15 @@ class RulesConfiguration {
     @ConditionalOnMissingBean(HolderCopyPort::class)
     fun refusingHolderCopyPort(): HolderCopyPort = RefusingHolderCopyPort()
 
-    /** Answers Unavailable until the access-svc client replaces it. */
     @Bean
     @ConditionalOnMissingBean(InstallationApproverFactPort::class)
-    fun installationApproverFactPort(): InstallationApproverFactPort = RefusingInstallationApproverFactPort()
+    fun installationApproverFactPort(edge: AccessSvcEdge): InstallationApproverFactPort =
+        InstallationApproverFactPort { edge.client.read() }
 
-    /** Answers Unavailable until its adapter replaces it. */
     @Bean
     @ConditionalOnMissingBean(MappingAcknowledgementPort::class)
-    fun mappingAcknowledgementPort(): MappingAcknowledgementPort = RefusingMappingAcknowledgementPort()
+    fun mappingAcknowledgementPort(edge: AccessSvcEdge): MappingAcknowledgementPort =
+        MappingAcknowledgementPort { version, client -> edge.client.read(version, client) }
 
     @Bean
     fun mappingPackStore(
@@ -367,3 +387,8 @@ class RulesConfiguration {
             clock,
         )
 }
+
+/** The one access-svc client; it is no port itself, so a replaced port stays the only bean of its type. */
+class AccessSvcEdge(
+    val client: AccessSvcClient,
+)

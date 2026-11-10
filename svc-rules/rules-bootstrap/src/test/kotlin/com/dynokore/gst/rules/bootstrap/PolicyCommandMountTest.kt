@@ -49,6 +49,7 @@ class PolicyCommandMountTest {
             // the token resolver is the resource-server configuration in production; the mount waits for it
             .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
             .withPropertyValues(
+                "rules.access-svc-url=http://127.0.0.1:1", // required (TPL-16); nothing listens there
                 "gst.instance-id=rules-svc-0",
                 "service-runtime.workload-identity.audience=rules-svc",
                 "spring.datasource.url=jdbc:postgresql://localhost:1/rules",
