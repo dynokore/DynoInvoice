@@ -44,11 +44,15 @@ class PackDocumentEvaluation(
                 if (t == type) named.find(tenant, type, packVersion) else byDate.resolve(t, tn, date)
             }
         val useCase = EvaluateDocument(PackResolver(lookup), evaluator, packTypes)
-        val dates = ResolutionDates(TransactionDate(document.transactionDate), document.precedingDocumentDate?.let(::TransactionDate))
+        val dates =
+            ResolutionDates(
+                TransactionDate(document.transactionDate),
+                document.precedingDocumentDate?.let(::TransactionDate),
+            )
         val inputs = EvaluationInputs.of(mapOf("internalTaxCode" to document.internalTaxCode))
         return when (val result = useCase.handle(EvaluateCommand(tenant, dates, inputs))) {
             is EvaluateResult.Decided -> DocumentOutcome(result.evaluation.verdict)
-            is EvaluateResult.Refused -> DocumentOutcome(result.code.name, result.code.severity.name)
+            is EvaluateResult.Refused -> DocumentOutcome(result.code.code, result.code.severity.name)
             EvaluateResult.NoRuleFired -> error("no rule fired for document ${document.docUuid}")
             is EvaluateResult.Conflict -> error("rules conflict for document ${document.docUuid}")
         }

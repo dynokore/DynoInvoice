@@ -34,7 +34,7 @@ data class SampledDocument(
     val gstValue: BigDecimal,
 )
 
-/** A changed document with its old and new outcome; money is `0.00` for a flagged document and the page value otherwise. */
+/** A changed document with its old and new outcome; money is `0.00` when flagged. */
 data class ChangedDocument(
     val docUuid: String,
     val periodRef: String,

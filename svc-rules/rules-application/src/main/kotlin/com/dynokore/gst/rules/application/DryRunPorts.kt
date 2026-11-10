@@ -64,6 +64,17 @@ interface PackEvaluationPort {
     ): LocalDate
 }
 
+/** What a run begins with: the ids, the pack versions and who started it, and when. */
+data class DryRunStart(
+    val dryRunId: String,
+    val tenant: TenantId,
+    val packType: String,
+    val currentVersion: String,
+    val candidateVersion: String,
+    val startedBy: String,
+    val startedAt: Instant,
+)
+
 enum class DryRunState { RUNNING, COMPLETE, SAMPLE_UNAVAILABLE }
 
 data class StoredDryRun(
@@ -76,15 +87,7 @@ data class StoredDryRun(
 
 /** The only write path of a dry run: begin, then exactly one of complete or unavailable. */
 interface DryRunDeltaStore {
-    fun begin(
-        dryRunId: String,
-        tenant: TenantId,
-        packType: String,
-        currentVersion: String,
-        candidateVersion: String,
-        startedBy: String,
-        startedAt: Instant,
-    )
+    fun begin(start: DryRunStart)
 
     fun complete(
         dryRunId: String,

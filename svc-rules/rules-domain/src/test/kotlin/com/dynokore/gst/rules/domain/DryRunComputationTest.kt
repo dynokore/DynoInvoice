@@ -5,6 +5,7 @@ import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.DryRunComputation
 import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.ItemReading
+import com.dynokore.gst.rules.domain.dryrun.SampleItems
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -18,7 +19,7 @@ class DryRunComputationTest {
     private val old = DocumentOutcome("SR")
     private val new = DocumentOutcome("TX")
 
-    private fun uuid(n: Int) = "00000000-0000-4000-8000-%012d".format(n)
+    private fun uuid(n: Int) = "00000000-0000-4000-8000-" + n.toString().padStart(12, '0')
 
     private fun doc(
         n: Int,
@@ -26,13 +27,29 @@ class DryRunComputationTest {
         date: LocalDate,
         function: String = "BILL_FOR_PAYMENT",
         preceding: LocalDate? = null,
-        flagged: Boolean = false,
-        taxable: String = "100.00",
-        gst: String = "9.00",
     ) = SampledDocument(
-        1, n, uuid(n), period, "E", date, "C", function, preceding, null, flagged,
-        if (flagged) BigDecimal("0.00") else BigDecimal(taxable), if (flagged) BigDecimal("0.00") else BigDecimal(gst),
+        1,
+        n,
+        uuid(n),
+        period,
+        "E",
+        date,
+        "C",
+        function,
+        preceding,
+        null,
+        false,
+        BigDecimal("100.00"),
+        BigDecimal("9.00"),
     )
+
+    private fun SampledDocument.flagged() =
+        copy(sgdValuesAbsent = true, taxableValue = BigDecimal("0.00"), gstValue = BigDecimal("0.00"))
+
+    private fun SampledDocument.money(
+        taxable: String,
+        gst: String,
+    ) = copy(taxableValue = BigDecimal(taxable), gstValue = BigDecimal(gst))
 
     private fun delta(
         vararg docs: SampledDocument,
@@ -69,8 +86,9 @@ class DryRunComputationTest {
     }
 
     @Test
-    fun `INV-AC-748 two changed documents in one period and one in the next give counts 2 and 1 summing to changedCount`() {
-        val d = delta(doc(1, "P-A", t), doc(2, "P-A", t), doc(3, "P-B", t.plusDays(40), "ADJUSTMENT", t.minusDays(3)))
+    fun `INV-AC-748 two plus one changed documents in two periods give counts 2 and 1 summing to changedCount`() {
+        val cn = doc(3, "P-B", t.plusDays(40), "ADJUSTMENT", t.minusDays(3))
+        val d = delta(doc(1, "P-A", t), doc(2, "P-A", t), cn)
         d.byPeriod.map { it.periodRef to it.documentCount } shouldBe listOf("P-A" to 2, "P-B" to 1)
         d.byPeriod.sumOf { it.documentCount } shouldBe d.changedCount
         d.straddlingCreditNotes.single().docUuid shouldBe uuid(3)
@@ -98,8 +116,8 @@ class DryRunComputationTest {
 
     @Test
     fun `INV-AC-748 a flagged document is counted but left out of the sums and listed with 0 00`() {
-        val flagged = doc(1, "P", t, flagged = true)
-        val d = delta(flagged, doc(2, "P", t, taxable = "1000.00", gst = "90.00"))
+        val flagged = doc(1, "P", t).flagged()
+        val d = delta(flagged, doc(2, "P", t).money("1000.00", "90.00"))
         d.changeTypeTotals.sumOf { it.documentCount } shouldBe 2
         d.changeTypeTotals.first().let { (it.taxableValue to it.gstValue) shouldBe ("1000.00" to "90.00") }
         d.changeTypeTotals.first().valuesAbsentCount shouldBe 1
@@ -121,17 +139,34 @@ class DryRunComputationTest {
     fun `an item is attributable only with periodRef and a UUID docUuid`() {
         val ok =
             mapOf(
-                "periodRef" to "P", "docUuid" to uuid(1), "entityRef" to "E", "transactionDate" to "2026-10-01",
-                "internalTaxCode" to "C", "documentFunction" to "BILL_FOR_PAYMENT", "taxableValue" to "1.00", "gstValue" to "0.09",
+                "periodRef" to "P",
+                "docUuid" to uuid(1),
+                "entityRef" to "E",
+                "transactionDate" to "2026-10-01",
+                "internalTaxCode" to "C",
+                "documentFunction" to "BILL_FOR_PAYMENT",
+                "taxableValue" to "1.00",
+                "gstValue" to "0.09",
             )
-        DryRunComputation.read(1, 1, ok).shouldBeInstanceOf<ItemReading.Read>()
+        SampleItems.read(1, 1, ok).shouldBeInstanceOf<ItemReading.Read>()
         listOf(
-            ok - "periodRef", ok + ("periodRef" to " "), ok + ("periodRef" to "x".repeat(33)), ok + ("periodRef" to 3),
-            ok - "periodRef" + ("periodReference" to "P"), ok - "docUuid", ok - "docUuid" + ("docUUID" to uuid(1)),
-            ok - "docUuid" + ("documentUuid" to uuid(1)), ok + ("docUuid" to "not-a-uuid"), ok + ("docUuid" to 7),
+            ok - "periodRef",
+            ok + ("periodRef" to " "),
+            ok + ("periodRef" to "x".repeat(33)),
+            ok + ("periodRef" to 3),
+            ok - "periodRef" + ("periodReference" to "P"),
+            ok - "docUuid",
+            ok - "docUuid" + ("docUUID" to uuid(1)),
+            ok - "docUuid" + ("documentUuid" to uuid(1)),
+            ok + ("docUuid" to "not-a-uuid"),
+            ok + ("docUuid" to 7),
         ).forEach {
-            DryRunComputation.read(2, 5, it).shouldBeInstanceOf<ItemReading.Refused>()
-                .refusal.toString().startsWith("page 2, item 5: ") shouldBe true
+            SampleItems
+                .read(2, 5, it)
+                .shouldBeInstanceOf<ItemReading.Refused>()
+                .refusal
+                .toString()
+                .startsWith("page 2, item 5: ") shouldBe true
         }
     }
 }

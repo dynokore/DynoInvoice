@@ -3,23 +3,23 @@ package com.dynokore.gst.rules.application
 import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.DryRunComputation
 import com.dynokore.gst.rules.domain.dryrun.ItemReading
+import com.dynokore.gst.rules.domain.dryrun.SampleItems
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
 
 data class RunDryRunCommand(
-    val dryRunId: String,
-    val tenant: TenantId,
-    val packType: String,
-    val currentVersion: String,
-    val candidateVersion: String,
+    val start: DryRunStart,
     val window: DryRunWindow,
-    val startedBy: String,
-    val startedAt: Instant,
     val sampleWait: Duration,
-)
+) {
+    val dryRunId: String get() = start.dryRunId
+    val tenant: TenantId get() = start.tenant
+    val packType: String get() = start.packType
+    val currentVersion: String get() = start.currentVersion
+    val candidateVersion: String get() = start.candidateVersion
+}
 
 sealed interface DryRunOutcome {
     data class Complete(
@@ -43,40 +43,48 @@ class RunDryRun(
     private val store: DryRunDeltaStore,
     private val clock: Clock,
 ) {
+    @Suppress("TooGenericExceptionCaught") // CS-50: fail closed, a failure ends the run
     fun run(command: RunDryRunCommand): DryRunOutcome {
-        store.begin(
-            command.dryRunId, command.tenant, command.packType, command.currentVersion, command.candidateVersion,
-            command.startedBy, command.startedAt,
-        )
-        try {
-            return execute(command)
+        store.begin(command.start)
+        return try {
+            execute(command)
+        } catch (e: SampleUnavailable) {
+            unavailable(command, e.message.orEmpty())
         } catch (e: Exception) {
-            return unavailable(command, "evaluation failed: ${e.javaClass.simpleName}")
+            unavailable(command, "evaluation failed: ${e.javaClass.simpleName}")
         } finally {
             samples.release(command.dryRunId)
         }
     }
 
+    private class SampleUnavailable(
+        reason: String,
+    ) : RuntimeException(reason)
+
     private fun execute(command: RunDryRunCommand): DryRunOutcome {
-        val pages = samples.pages(command.dryRunId, command.window, command.sampleWait).sortedBy { it.number }
-        missingPage(pages)?.let { return unavailable(command, "sample incomplete: page $it is missing") }
-        val documents = mutableListOf<SampledDocument>()
-        for (page in pages) {
-            page.documents.forEachIndexed { index, raw ->
-                when (val read = DryRunComputation.read(page.number, index + 1, raw)) {
-                    is ItemReading.Read -> documents += read.document
-                    is ItemReading.Refused -> return unavailable(command, "sample item unusable, ${read.refusal}")
-                }
-            }
-        }
+        val documents = readSample(command)
         val outcomes =
             documents.map { d ->
-                Triple(d, outcomeOf(command, command.currentVersion, d), outcomeOf(command, command.candidateVersion, d))
+                val old = outcomeOf(command, command.currentVersion, d)
+                Triple(d, old, outcomeOf(command, command.candidateVersion, d))
             }
         val effectiveFrom = evaluation.effectiveFrom(command.tenant, command.packType, command.candidateVersion)
         val delta = DryRunComputation.delta(outcomes, effectiveFrom)
         store.complete(command.dryRunId, clock.instant(), delta)
         return DryRunOutcome.Complete(delta.changedCount)
+    }
+
+    private fun readSample(command: RunDryRunCommand): List<SampledDocument> {
+        val pages = samples.pages(command.dryRunId, command.window, command.sampleWait).sortedBy { it.number }
+        missingPage(pages)?.let { throw SampleUnavailable("sample incomplete: page $it is missing") }
+        return pages.flatMap { page ->
+            page.documents.mapIndexed { index, raw ->
+                when (val read = SampleItems.read(page.number, index + 1, raw)) {
+                    is ItemReading.Read -> read.document
+                    is ItemReading.Refused -> throw SampleUnavailable("sample item unusable, ${read.refusal}")
+                }
+            }
+        }
     }
 
     private fun outcomeOf(
