@@ -1088,6 +1088,26 @@ permissions:
     row: "Approve a tenant schedule"
     cells:
       - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: tenant-schedule.set
+    kind: WRITE
+    row: "Approve a tenant schedule"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: tenant-schedule.change
+    kind: WRITE
+    row: "Approve a tenant schedule"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: tenant-schedule.cancel
+    kind: WRITE
+    row: "Approve a tenant schedule"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
+  - key: tenant-schedule.read
+    kind: READ
+    row: "Approve a tenant schedule"
+    cells:
+      - {role: commercial.admin, form: SAAS, allowance: PERMITTED}
   - key: vp-03.acknowledge
     kind: WRITE
     row: "Acknowledge a control relaxation"

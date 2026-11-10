@@ -422,6 +422,10 @@ class RolePermissionsCheckerTest {
             "accreditation.record" to "Record an accreditation",
             "accreditation.conclude" to "Conclude an accreditation task",
             "tenant-schedule.approve" to "Approve a tenant schedule",
+            "tenant-schedule.set" to "Approve a tenant schedule",
+            "tenant-schedule.change" to "Approve a tenant schedule",
+            "tenant-schedule.cancel" to "Approve a tenant schedule",
+            "tenant-schedule.read" to "Approve a tenant schedule",
         )
 
     @Test
@@ -2287,5 +2291,58 @@ class RolePermissionsCheckerTest {
             withPermission("entity-config.manage") { p -> p.copy(cells = permission(real, mcv).cells) },
             "role tenant.admin key entity-config.manage",
         )
+    }
+
+    private val tsKeys = listOf("tenant-schedule.set", "tenant-schedule.change", "tenant-schedule.cancel", "tenant-schedule.read")
+
+    @Test
+    fun `INV-AC-19760 the four tenant-schedule keys carry the approve row, their kinds and the one commercial admin SAAS cell`() {
+        val kinds = listOf(PermissionKind.WRITE, PermissionKind.WRITE, PermissionKind.WRITE, PermissionKind.READ)
+        tsKeys.zip(kinds).forEach { (k, kind) ->
+            assertEquals("Approve a tenant schedule", permission(real, k).row)
+            assertEquals(kind, permission(real, k).kind)
+            assertEquals(setOf(CellRow("commercial.admin", saasF, RoleAllowance.PERMITTED)), permission(real, k).cells.toSet())
+            assertEquals(1, permission(real, k).cells.size)
+        }
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-AC-19760 probe tax approver added to tenant-schedule set is reported`() {
+        assertReported(cellAdd("tenant-schedule.set", "tax.approver", saasF), "role tax.approver key tenant-schedule.set", "extra")
+    }
+
+    @Test
+    fun `INV-AC-19760 probe the PRIVATE cell of commercial admin added to tenant-schedule read is reported`() {
+        assertReported(cellAdd("tenant-schedule.read", "commercial.admin", privF), "key tenant-schedule.read form PRIVATE")
+    }
+
+    @Test
+    fun `INV-AC-19760 probe the kind of tenant-schedule read changed to WRITE is reported`() {
+        assertReported(withKind("tenant-schedule.read", PermissionKind.WRITE), "key tenant-schedule.read")
+    }
+
+    @Test
+    fun `INV-AC-19760 probe renamed tenant-schedule keys are reported missing`() {
+        listOf(
+            "tenant-schedule.set" to "tenant-schedule.set ",
+            "tenant-schedule.set" to "tenant-schedule.sets",
+            "tenant-schedule.set" to "Tenant-schedule.set",
+            "tenant-schedule.read" to "tenant-schedule.reads",
+        ).forEach { (key, renamed) ->
+            assertReported(withPermission(key) { it.copy(key = renamed) }, "key $key: missing")
+        }
+    }
+
+    @Test
+    fun `INV-AC-19760 probe tenant-schedule approve given a second holder is reported`() {
+        assertReported(cellAdd("tenant-schedule.approve", "tax.approver", saasF), "role tax.approver key tenant-schedule.approve", "extra")
+    }
+
+    @Test
+    fun `INV-AC-19760 probe each removed tenant-schedule key is reported`() {
+        tsKeys.forEach { k ->
+            assertReported(real.copy(permissions = real.permissions.filterNot { it.key == k }), "key $k: missing")
+        }
     }
 }

@@ -663,3 +663,30 @@ class RolePermissionsTest {
         }
     }
 }
+
+/** INV-T-19765: the four tenant-schedule keys, asserted through the library API only (own class: LargeClass limit). */
+class TenantScheduleRolePermissionsTest {
+    private val saas = DeploymentForm.SAAS
+    private val privateForm = DeploymentForm.PRIVATE
+
+    private fun holders(
+        form: DeploymentForm,
+        key: String,
+    ) = RolePermissions.cells(form).filter { (_, perms) -> perms[key] == RoleAllowance.PERMITTED }.keys
+
+    @Test
+    fun `INV-AC-19760 tenant-schedule set change cancel read are held by commercial admin in SAAS only`() {
+        val kinds =
+            mapOf(
+                "tenant-schedule.set" to PermissionKind.WRITE,
+                "tenant-schedule.change" to PermissionKind.WRITE,
+                "tenant-schedule.cancel" to PermissionKind.WRITE,
+                "tenant-schedule.read" to PermissionKind.READ,
+            )
+        kinds.forEach { (key, kind) ->
+            assertEquals(kind, RolePermissions.kind(key), key)
+            assertEquals(setOf("commercial.admin"), holders(saas, key), key)
+            assertEquals(emptySet<String>(), holders(privateForm, key), key)
+        }
+    }
+}
