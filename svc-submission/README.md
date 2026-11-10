@@ -98,6 +98,15 @@ Gradle runs in the CI image; the build needs Docker (jOOQ code generation and th
 | Roles and grants | `WorkQueueGrantsTest` | A role other than `submission_migrate`, `submission_runtime` and `submission_sys` holds a privilege on `submission.work_queue`; `work_queue` is not alone in schema `submission`; a relation `queue_item` exists. |
 | Dependency integrity (STK-72) | `gradle/verification-metadata.xml`, lock files | A dependency without a checksum or signature entry, or outside the lock files. |
 
+## Time-shift proof (INV-T-17258)
+
+`scripts/time-shift-check.sh` proves that the break-glass, inbox and filter tests meet fixed instants only through an injected clock. Run it from the repository root in the tool image `CI_GRADLE_DOCKER_IMAGE` (`ci/stages.gitlab-ci.yml` of platform-build; it carries `faketime`), with the Docker socket mounted. It runs `BreakGlassRestrictionTest`, `PayloadReadyDbTest` and `EndUserFilterTest` of `submission-bootstrap` once for each local time 00:30, 01:30, 12:00 and 23:59 on 2026-11-30 and on 2026-12-31 (eight instants), with two clocks shifted to the same instant:
+
+- the JVM clock of the test JVM, by libfaketime (`LD_PRELOAD` and a `FAKETIME` offset, set on every Gradle `Test` task by an init script; Gradle itself keeps the real clock, because a client in the future cannot validate the TLS certificates of the dependency repositories);
+- the database clock of the test Postgres, by libfaketime inside the Testcontainers container. The tests start that container themselves, so the script puts a small Docker API proxy in front of the socket (`DOCKER_HOST`): it rewrites only `POST /containers/create` of a `postgres:` image (adds `LD_PRELOAD`, `FAKETIME`, a label and a read-only volume with the libfaketime of the tool image) and forwards everything else unchanged.
+
+For each run it prints `date -u` and `Instant.now()` of a JVM started under the same environment, and `select now()` of the test database, and compares both with the requested instant (0 to 300 s after it, because the clocks keep running). Exit status 0 only when every run passes. A missing tool, a clock that is not shifted, a database that was never sampled, a test class without test cases or with a failed one, and any failed run fail it. `--only "YYYY-MM-DD HH:MM"` runs one instant and exits 3 even when it passes (not a proof).
+
 ## Dependency locking and verification
 
 Refresh after a dependency change, with an empty Gradle user home (see platform-libs README, "Dependency locking and verification"):
