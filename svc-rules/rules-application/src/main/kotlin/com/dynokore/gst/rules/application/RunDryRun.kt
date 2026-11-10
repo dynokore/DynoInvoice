@@ -2,7 +2,9 @@ package com.dynokore.gst.rules.application
 
 import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.DryRunComputation
+import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.ItemReading
+import com.dynokore.gst.rules.domain.dryrun.SampleItems
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
@@ -33,7 +35,7 @@ sealed interface DryRunOutcome {
 /**
  * Runs one dry run (INV-REQ-772, INV-REQ-1352, INV-REQ-1303): reads the sample, evaluates every document under the
  * current and the candidate pack, and hands the delta to the store. Fail closed: an incomplete sample, an item that is
- * not attributable or an evaluation that throws ends SAMPLE_UNAVAILABLE and stores no delta. The sample is released
+ * not attributable or a fault of the sample or evaluation port ends SAMPLE_UNAVAILABLE and stores no delta. The sample is released
  * exactly once at the end of every run.
  */
 class RunDryRun(
@@ -42,41 +44,76 @@ class RunDryRun(
     private val store: DryRunDeltaStore,
     private val clock: Clock,
 ) {
-    fun run(command: RunDryRunCommand): DryRunOutcome {
-        store.begin(command.start)
+    /**
+     * Every call of the store is made outside the catch of [compute]: a fault of the store reaches the caller unchanged
+     * (OWASP ASVS V7, Twelve-Factor backing services). The sample is released once, whatever the end, `begin` included.
+     */
+    fun run(command: RunDryRunCommand): DryRunOutcome =
         try {
-            return execute(command)
-        } catch (e: Exception) {
-            return unavailable(command, "evaluation failed: ${e.javaClass.simpleName}")
+            store.begin(command.start)
+            when (val computed = compute(command)) {
+                is Computed.Done -> {
+                    store.complete(command.dryRunId, clock.instant(), computed.delta)
+                    DryRunOutcome.Complete(computed.delta.changedCount)
+                }
+
+                is Computed.Failed -> {
+                    store.unavailable(command.dryRunId, computed.reason)
+                    DryRunOutcome.Unavailable(computed.reason)
+                }
+            }
         } finally {
             samples.release(command.dryRunId)
         }
+
+    private sealed interface Computed {
+        data class Done(
+            val delta: DryRunDelta,
+        ) : Computed
+
+        data class Failed(
+            val reason: String,
+        ) : Computed
     }
 
-    private fun execute(command: RunDryRunCommand): DryRunOutcome {
+    private class SampleUnavailable(
+        reason: String,
+    ) : RuntimeException(reason)
+
+    /** Fail closed for the named set only: a refused sample, or a fault of the sample or evaluation port. */
+    private fun compute(command: RunDryRunCommand): Computed =
+        try {
+            Computed.Done(execute(command))
+        } catch (e: SampleUnavailable) {
+            Computed.Failed(e.message.orEmpty())
+        } catch (e: IllegalStateException) {
+            Computed.Failed("evaluation failed: ${e.javaClass.simpleName}")
+        } catch (e: IllegalArgumentException) {
+            Computed.Failed("evaluation failed: ${e.javaClass.simpleName}")
+        }
+
+    private fun execute(command: RunDryRunCommand): DryRunDelta {
+        val documents = readSample(command)
+        val outcomes =
+            documents.map { d ->
+                val old = outcomeOf(command, command.currentVersion, d)
+                Triple(d, old, outcomeOf(command, command.candidateVersion, d))
+            }
+        val effectiveFrom = evaluation.effectiveFrom(command.tenant, command.packType, command.candidateVersion)
+        return DryRunComputation.delta(outcomes, effectiveFrom)
+    }
+
+    private fun readSample(command: RunDryRunCommand): List<SampledDocument> {
         val pages = samples.pages(command.dryRunId, command.window, command.sampleWait).sortedBy { it.number }
-        missingPage(pages)?.let { return unavailable(command, "sample incomplete: page $it is missing") }
-        val documents = mutableListOf<SampledDocument>()
-        for (page in pages) {
-            page.documents.forEachIndexed { index, raw ->
-                when (val read = DryRunComputation.read(page.number, index + 1, raw)) {
-                    is ItemReading.Read -> documents += read.document
-                    is ItemReading.Refused -> return unavailable(command, "sample item unusable, ${read.refusal}")
+        missingPage(pages)?.let { throw SampleUnavailable("sample incomplete: page $it is missing") }
+        return pages.flatMap { page ->
+            page.documents.mapIndexed { index, raw ->
+                when (val read = SampleItems.read(page.number, index + 1, raw)) {
+                    is ItemReading.Read -> read.document
+                    is ItemReading.Refused -> throw SampleUnavailable("sample item unusable, ${read.refusal}")
                 }
             }
         }
-        val outcomes =
-            documents.map { d ->
-                Triple(
-                    d,
-                    outcomeOf(command, command.currentVersion, d),
-                    outcomeOf(command, command.candidateVersion, d),
-                )
-            }
-        val effectiveFrom = evaluation.effectiveFrom(command.tenant, command.packType, command.candidateVersion)
-        val delta = DryRunComputation.delta(outcomes, effectiveFrom)
-        store.complete(command.dryRunId, clock.instant(), delta)
-        return DryRunOutcome.Complete(delta.changedCount)
     }
 
     private fun outcomeOf(

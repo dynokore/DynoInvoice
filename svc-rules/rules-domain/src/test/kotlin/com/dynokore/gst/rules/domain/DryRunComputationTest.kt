@@ -5,6 +5,7 @@ import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.DryRunComputation
 import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.ItemReading
+import com.dynokore.gst.rules.domain.dryrun.SampleItems
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -114,6 +115,12 @@ class DryRunComputationTest {
     }
 
     @Test
+    fun `byPeriod items with equal earliest dates are ordered by periodRef ascending`() {
+        val d = delta(doc(1, "P-B", t), doc(2, "P-A", t))
+        d.byPeriod.map { it.periodRef } shouldBe listOf("P-A", "P-B")
+    }
+
+    @Test
     fun `INV-AC-748 a flagged document is counted but left out of the sums and listed with 0 00`() {
         val flagged = doc(1, "P", t).flagged()
         val d = delta(flagged, doc(2, "P", t).money("1000.00", "90.00"))
@@ -147,7 +154,7 @@ class DryRunComputationTest {
                 "taxableValue" to "1.00",
                 "gstValue" to "0.09",
             )
-        DryRunComputation.read(1, 1, ok).shouldBeInstanceOf<ItemReading.Read>()
+        SampleItems.read(1, 1, ok).shouldBeInstanceOf<ItemReading.Read>()
         listOf(
             ok - "periodRef",
             ok + ("periodRef" to " "),
@@ -160,7 +167,7 @@ class DryRunComputationTest {
             ok + ("docUuid" to "not-a-uuid"),
             ok + ("docUuid" to 7),
         ).forEach {
-            DryRunComputation
+            SampleItems
                 .read(2, 5, it)
                 .shouldBeInstanceOf<ItemReading.Refused>()
                 .refusal

@@ -4,6 +4,7 @@ import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -65,12 +66,16 @@ class RunDryRunTest {
         var pages: List<SamplePage>,
     ) : HistoricalSamplePort {
         var released = 0
+        var pagesCalls = 0
 
         override fun pages(
             dryRunId: String,
             window: DryRunWindow,
             wait: Duration,
-        ) = pages
+        ): List<SamplePage> {
+            pagesCalls++
+            return pages
+        }
 
         override fun release(dryRunId: String) {
             released++
@@ -80,6 +85,7 @@ class RunDryRunTest {
     /** Code "X" is SR under v1 and TX under v2; every other code is unchanged. */
     private class FakeEvaluation(
         val failOn: String? = null,
+        val fault: RuntimeException = IllegalStateException("boom"),
     ) : PackEvaluationPort {
         val versions = mutableListOf<String>()
 
@@ -90,7 +96,7 @@ class RunDryRunTest {
             document: SampledDocument,
         ): DocumentOutcome {
             versions += packVersion
-            if (document.internalTaxCode == failOn) error("boom")
+            if (document.internalTaxCode == failOn) throw fault
             return DocumentOutcome(if (document.internalTaxCode == "X" && packVersion == "v2") "TX" else "SR")
         }
 
@@ -101,7 +107,11 @@ class RunDryRunTest {
         ): LocalDate = LocalDate.of(2026, 10, 1)
     }
 
-    private class FakeStore : DryRunDeltaStore {
+    private class StoreFault : RuntimeException("store down")
+
+    private class FakeStore(
+        private val throwsOn: String? = null,
+    ) : DryRunDeltaStore {
         var begins = 0
         var completes = 0
         var unavailables = 0
@@ -109,6 +119,7 @@ class RunDryRunTest {
 
         override fun begin(start: DryRunStart) {
             begins++
+            if (throwsOn == "begin") throw StoreFault()
             run = StoredDryRun(start.dryRunId, start.startedBy, DryRunState.RUNNING, null, null)
         }
 
@@ -118,6 +129,7 @@ class RunDryRunTest {
             delta: DryRunDelta,
         ) {
             completes++
+            if (throwsOn == "complete") throw StoreFault()
             run = run?.copy(state = DryRunState.COMPLETE, delta = delta)
         }
 
@@ -126,13 +138,12 @@ class RunDryRunTest {
             reason: String,
         ) {
             unavailables++
+            if (throwsOn == "unavailable") throw StoreFault()
             run = run?.copy(state = DryRunState.SAMPLE_UNAVAILABLE, reason = reason)
         }
 
         override fun find(dryRunId: String) = run?.takeIf { it.dryRunId == dryRunId }
     }
-
-    private val clock = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC)
 
     private class Rig(
         val samples: FakeSamples,
@@ -142,7 +153,7 @@ class RunDryRunTest {
         fun counts() = listOf(store.begins, store.completes, store.unavailables, samples.released)
 
         fun run(): DryRunOutcome =
-            RunDryRun(samples, evaluation, store, clock).run(
+            RunDryRun(samples, evaluation, store, CLOCK).run(
                 RunDryRunCommand(
                     DryRunStart(
                         "dr-1",
@@ -205,6 +216,52 @@ class RunDryRunTest {
         val boom = Rig(FakeSamples(listOf(page(1, true, item(1)))), FakeEvaluation(failOn = "X"))
         boom.run().shouldBeInstanceOf<DryRunOutcome.Unavailable>()
         boom.counts() shouldBe listOf(1, 0, 1, 1)
+    }
+
+    @Test
+    fun `a store whose complete throws propagates, writes no unavailable and releases once`() {
+        val r = Rig(FakeSamples(listOf(page(1, true, item(1)))), store = FakeStore("complete"))
+        shouldThrow<StoreFault> { r.run() }
+        listOf(r.store.unavailables, r.samples.released) shouldBe listOf(0, 1)
+    }
+
+    @Test
+    fun `a store whose begin throws propagates, never asks for pages and releases once`() {
+        val r = Rig(FakeSamples(listOf(page(1, true, item(1)))), store = FakeStore("begin"))
+        shouldThrow<StoreFault> { r.run() }
+        listOf(r.samples.pagesCalls, r.samples.released) shouldBe listOf(0, 1)
+    }
+
+    @Test
+    fun `a store whose unavailable throws on an incomplete sample propagates and releases once`() {
+        val r = Rig(FakeSamples(emptyList()), store = FakeStore("unavailable"))
+        shouldThrow<StoreFault> { r.run() }
+        r.samples.released shouldBe 1
+    }
+
+    @Test
+    fun `an evaluation port that throws IllegalStateException ends SAMPLE_UNAVAILABLE with one release`() {
+        val r = Rig(FakeSamples(listOf(page(1, true, item(1)))), FakeEvaluation(failOn = "X"))
+        r.run().shouldBeInstanceOf<DryRunOutcome.Unavailable>()
+        listOf(r.store.unavailables, r.samples.released) shouldBe listOf(1, 1)
+    }
+
+    @Test
+    fun `an evaluation port that throws UnsupportedOperationException propagates, outside the named set`() {
+        val fault = UnsupportedOperationException("no")
+        val r = Rig(FakeSamples(listOf(page(1, true, item(1)))), FakeEvaluation(failOn = "X", fault = fault))
+        shouldThrow<UnsupportedOperationException> { r.run() }
+        listOf(r.store.completes, r.store.unavailables, r.samples.released) shouldBe listOf(0, 0, 1)
+    }
+
+    @Test
+    fun `the run never calls the sample request port`() {
+        var requests = 0
+        val port = SampleRequestPort { _, _, _ -> requests++ }
+        rig(page(1, true, item(1))).run()
+        requests shouldBe 0
+        port.request("dr-1", TenantId(UUID.randomUUID()), DryRunWindow("P-A", "P-A", 1))
+        requests shouldBe 1
     }
 
     @Test
@@ -341,5 +398,9 @@ class RunDryRunTest {
     @Test
     fun `a sample whose last page has not arrived is incomplete`() {
         rig(page(1, false, item(1))).run().shouldBeInstanceOf<DryRunOutcome.Unavailable>().reason shouldContain "page 2"
+    }
+
+    private companion object {
+        val CLOCK: Clock = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC)
     }
 }

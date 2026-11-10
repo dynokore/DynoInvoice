@@ -38,8 +38,11 @@ interface HistoricalSamplePort {
     fun release(dryRunId: String)
 }
 
-/** Asks for the sample of a dry run (owner ruling INV-Q-4870 B); the operation of INV-T-4974 calls it, not the run. */
-interface SampleRequestPort {
+/**
+ * Asks for the sample of a dry run (owner ruling INV-Q-4870 B). INV-T-4974 is its only caller: `RunDryRun` never
+ * calls it.
+ */
+fun interface SampleRequestPort {
     fun request(
         dryRunId: String,
         tenant: TenantId,
