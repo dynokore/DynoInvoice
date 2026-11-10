@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.8.0] - 2026-11-10
+### Added
+- `MachinePrincipalFixtures.machine` in the new `java-test-fixtures` source set (INV-T-19621, INV-AC-19620): a test-fixtures addition for the pin tests of services that serve a machine route; no production API change (`Principal.machine` and the internal constructor stay internal).
+
 ## [13.7.0] - 2026-11-10
 ### Added
 - `BindingFailureAdvice` and `BindingFailureAutoConfiguration` (servlet applications): a request that fails parameter or body binding (`MissingServletRequestParameterException`, `MethodArgumentTypeMismatchException`, `HttpMessageNotReadableException`) is answered 400 SRT-001 in the API-20 envelope (`Problems.contractViolation`), at the lowest precedence so a service's own advice wins (INV-T-19581, INV-AC-19580; answered design question of INV-T-16829, breakdown tooling/gap16829b-gap.md; INV-REQ-827 b3).

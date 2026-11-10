@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.17.4] - 2026-11-10
+### Changed
+- Metadata-only change (INV-T-19621, G-DVS): the POM dependency `service-runtime` steps to 13.8.0; no code change.
+
 ## [2.17.3] - 2026-11-10
 ### Changed
 - Metadata-only release (G-DVS): depends on `service-runtime 13.7.0`, whose published module metadata changed (INV-T-19581, INV-AC-19580; answered design question of INV-T-16829); no code change.

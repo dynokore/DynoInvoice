@@ -33,6 +33,7 @@ plugins {
     id("gst.library")
     id("gst.jooq-codegen")
     `maven-publish`
+    id("java-test-fixtures")
 }
 
 // INV-T-4224 (STK-15): the persistence tests' tables, records and POJOs are generated from the fixture migration under
@@ -305,6 +306,7 @@ dependencies {
         add("${config.removeSuffix("Implementation")}RuntimeOnly", libs.junit.platformLauncher)
     }
     testImplementation(libs.platform.konsistRules)
+    testImplementation(kotlin("reflect"))
     add("implTestImplementation", libs.platform.konsistRules)
 }
 
