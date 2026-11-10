@@ -42,7 +42,7 @@ if [ "${1:-}" = "--only" ]; then ONLY="${2:-}"; [ -n "$ONLY" ] || fail "--only n
 for tool in faketime docker python3 gradle java date; do
   command -v "$tool" >/dev/null 2>&1 || fail "tool not found: $tool"
 done
-FT_LIB=$(ls /usr/lib/*/faketime/libfaketime.so.1 2>/dev/null | head -1)
+FT_LIB=$(compgen -G '/usr/lib/*/faketime/libfaketime.so.1' | sed -n 1p)
 [ -n "$FT_LIB" ] && [ -r "$FT_LIB" ] || fail "libfaketime.so.1 not found under /usr/lib/*/faketime"
 DOCKER_SOCK="${DOCKER_SOCK:-/var/run/docker.sock}"
 [ -S "$DOCKER_SOCK" ] || fail "Docker socket not found: $DOCKER_SOCK"
