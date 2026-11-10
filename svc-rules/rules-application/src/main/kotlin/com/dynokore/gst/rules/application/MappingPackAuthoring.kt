@@ -5,6 +5,8 @@ import com.dynokore.gst.rules.domain.coding.CodeCatalogue
 import com.dynokore.gst.rules.domain.coding.CodeFinding
 import com.dynokore.gst.rules.domain.coding.MappingCodeChecks
 import com.dynokore.gst.rules.domain.coding.MappingEntry
+import com.dynokore.gst.rules.domain.coding.SchemeTagAuthoring
+import com.dynokore.gst.rules.domain.coding.SchemeTagCheck
 import com.dynokore.gst.rules.domain.pack.MappingAcceptance
 import com.dynokore.gst.rules.domain.pack.MappingAcceptanceRecord
 import com.dynokore.gst.rules.domain.pack.MappingCommand
@@ -73,6 +75,7 @@ data class MapTaxCodeCommand(
     val internalTaxCode: String,
     val irasCode: String,
     val sourceClass: SourceClass,
+    val schemeTag: String? = null,
 )
 
 data class AcceptEntryCommand(
@@ -112,6 +115,7 @@ data class MappingPackCollaborators(
     val acknowledgements: MappingAcknowledgementPort,
     /** True in the private deployment form; the SaaS form never asks the installation fact port. */
     val privateForm: Boolean,
+    val scenarios: ScenarioDataPort,
 )
 
 /** Thrown inside a command to stop it with a typed result; caught at the command boundary, never escapes. */
@@ -203,9 +207,13 @@ class MappingPackAuthoring(
             }
             val checked = MappingEntry(command.internalTaxCode, command.irasCode)
             stopOnFindings(MappingCodeChecks.atAuthoring(listOf(checked)))
+            val tag = command.schemeTag
+            if (tag != null) {
+                SchemeTagGate.check(ports, pack, MappingEntry(command.internalTaxCode, command.irasCode, tag), today())
+            }
             store.replaceEntry(
                 command.packId,
-                MappingDraftEntry(command.internalTaxCode, command.irasCode, command.sourceClass),
+                MappingDraftEntry(command.internalTaxCode, command.irasCode, command.sourceClass, tag),
             )
             MappingPackResult.Done(pack.status)
         }
@@ -397,6 +405,26 @@ private fun noDistinctApprover(ports: MappingPackCollaborators): Boolean {
         InstallationApproverFact.Unavailable -> {
             stopRefused(RefusalReason.DECISION_UNAVAILABLE, names = listOf("installation-approver-fact"))
         }
+    }
+}
+
+/** The scheme tag against the sides the scenario pack declares (INV-REQ-2444 behaviour 4, INV-AC-2502). */
+private object SchemeTagGate {
+    /** Reads the packs in force on [today]; a port that cannot answer refuses: fail closed. */
+    fun check(
+        ports: MappingPackCollaborators,
+        pack: MappingPackDraft,
+        entry: MappingEntry,
+        today: LocalDate,
+    ) {
+        val date = TransactionDate(today)
+        val catalogue = ports.catalogues.catalogueAt(pack.tenant, date)
+        val scenario = ports.scenarios.scenarioAt(pack.tenant, date)
+        val refused =
+            catalogue == null ||
+                scenario == null ||
+                SchemeTagAuthoring.check(entry, catalogue, scenario) is SchemeTagCheck.Refused
+        if (refused) stopRefused(RefusalReason.SCHEME_TAG_SIDE, names = listOf(entry.schemeTag.orEmpty()))
     }
 }
 

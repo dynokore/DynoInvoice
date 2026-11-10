@@ -362,6 +362,7 @@ class RulesConfiguration {
                 installationFacts,
                 acknowledgements,
                 gst.form == DeploymentForm.PRIVATE,
+                catalogues,
             ),
             clock,
         )

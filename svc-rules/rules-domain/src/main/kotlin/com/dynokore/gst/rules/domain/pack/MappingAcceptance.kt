@@ -7,6 +7,8 @@ data class MappingDraftEntry(
     val entryId: String,
     val irasCode: String,
     val sourceClass: SourceClass,
+    /** The optional scheme tag, drafted and signed off with the entry (INV-REQ-2444). */
+    val schemeTag: String? = null,
 ) {
     init {
         require(entryId.isNotBlank()) { "entryId must not be blank" }

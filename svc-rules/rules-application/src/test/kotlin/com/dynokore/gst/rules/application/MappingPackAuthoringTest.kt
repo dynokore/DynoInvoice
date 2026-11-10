@@ -6,6 +6,13 @@ import com.dynokore.gst.rules.application.MappingPackResult.Forbidden
 import com.dynokore.gst.rules.application.MappingPackResult.Refused
 import com.dynokore.gst.rules.domain.coding.CatalogueEntry
 import com.dynokore.gst.rules.domain.coding.CodeCatalogue
+import com.dynokore.gst.rules.domain.coding.Direction
+import com.dynokore.gst.rules.domain.coding.Handling
+import com.dynokore.gst.rules.domain.coding.ScenarioData
+import com.dynokore.gst.rules.domain.coding.SchemeTagSide
+import com.dynokore.gst.rules.domain.coding.SelfBillingAssignment
+import com.dynokore.gst.rules.domain.coding.Side
+import com.dynokore.gst.rules.domain.coding.SubmissionType
 import com.dynokore.gst.rules.domain.pack.MappingAcceptanceRecord
 import com.dynokore.gst.rules.domain.pack.MappingDraftEntry
 import com.dynokore.gst.rules.domain.pack.PackStatus
@@ -29,6 +36,22 @@ private val CLOCK = Clock.fixed(Instant.parse("2026-11-02T10:00:00Z"), ZoneOffse
 
 private fun catalogueOf(vararg codes: String) =
     CodeCatalogue(true, codes.map { CatalogueEntry(it, "G", "OUTPUT", "9%", null, SourceClass.PRIMARY, "R1") })
+
+private fun sidedCatalogue() =
+    CodeCatalogue(
+        true,
+        listOf(
+            CatalogueEntry("SR", "G", "SUPPLY", "9", null, SourceClass.PRIMARY, "R1"),
+            CatalogueEntry("ZP", "G", "PURCHASE", "0", null, SourceClass.PRIMARY, "R1"),
+            CatalogueEntry("TXNA", "G", "PURCHASE", "9", null, SourceClass.PRIMARY, "R1"),
+        ),
+    )
+
+private fun scenarioOf(vararg tags: Pair<String, Side>): ScenarioData {
+    val assignment = SelfBillingAssignment(Direction.SALE, SubmissionType.TYPE_1A)
+    val rows = tags.map { SchemeTagSide(it.first, it.second, Handling.HANDLED) }
+    return ScenarioData(assignment, assignment, rows, emptyList())
+}
 
 private data class StoreState(
     val packs: Map<String, MappingPackDraft>,
@@ -137,6 +160,7 @@ private class Env {
     var rate: List<String>? = emptyList()
     var holder: HolderCopyResult = HolderCopyResult.Written
     val holderRequests = mutableListOf<HolderCopyRequest>()
+    var scenario: ScenarioData? = scenarioOf("SWS" to Side.SUPPLY, "A3PL" to Side.PURCHASE)
 
     val authoring by lazy {
         MappingPackAuthoring(
@@ -180,6 +204,10 @@ private class Env {
                     ackAnswer?.invoke(version, client) ?: ack
                 },
                 privateForm,
+                { _, _ ->
+                    calls += "scenario"
+                    scenario
+                },
             ),
             CLOCK,
         )
@@ -196,6 +224,12 @@ private class Env {
         sc: SourceClass = SourceClass.PRIMARY,
         id: String = "P1",
     ) = authoring.mapTaxCode(MapTaxCodeCommand("author-1", "E-001", id, code, iras, sc))
+
+    fun tagged(
+        code: String,
+        iras: String,
+        tag: String?,
+    ) = authoring.mapTaxCode(MapTaxCodeCommand("author-1", "E-001", "P1", code, iras, SourceClass.PRIMARY, tag))
 
     fun submit(id: String = "P1") = authoring.submit(PackActionCommand("author-1", "E-001", id))
 
@@ -806,5 +840,90 @@ class MappingPackAuthorFactsTest {
         e.store.apps
             .getValue("P1")
             .size shouldBe 2
+    }
+}
+
+class MappingPackSchemeTagTest {
+    private fun tagEnv() =
+        Env().also {
+            it.catalogue = sidedCatalogue()
+            it.draft()
+        }
+
+    private fun Env.stored(code: String) = store.entries.getValue("P1")[code]
+
+    @Test
+    fun `INV-AC-2502 SWS on an entry mapped to the purchase code ZP is refused and replaceEntry is never called`() {
+        val e = tagEnv()
+        val before = e.store.state()
+        e.tagged("X", "ZP", "SWS") shouldBe Refused(RefusalReason.SCHEME_TAG_SIDE, names = listOf("SWS"))
+        e.store.state() shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-2535 A3PL on the purchase code TXNA is stored with the tag`() {
+        val e = tagEnv()
+        e.tagged("X", "TXNA", "A3PL") shouldBe Done(PackStatus.DRAFT)
+        e.stored("X") shouldBe MappingDraftEntry("X", "TXNA", SourceClass.PRIMARY, "A3PL")
+    }
+
+    @Test
+    fun `INV-AC-2535 SWS on a supply code is stored with the tag`() {
+        val e = tagEnv()
+        e.tagged("X", "SR", "SWS") shouldBe Done(PackStatus.DRAFT)
+        e.stored("X") shouldBe MappingDraftEntry("X", "SR", SourceClass.PRIMARY, "SWS")
+    }
+
+    @Test
+    fun `INV-AC-2535 the look-alike tag SWSX and the lower-case sws are refused`() {
+        val e = tagEnv()
+        val before = e.store.state()
+        e.tagged("X", "SR", "SWSX") shouldBe Refused(RefusalReason.SCHEME_TAG_SIDE, names = listOf("SWSX"))
+        e.tagged("X", "SR", "sws") shouldBe Refused(RefusalReason.SCHEME_TAG_SIDE, names = listOf("sws"))
+        e.store.state() shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-2535 an IRAS code the catalogue does not hold is refused with a tag`() {
+        val e = tagEnv()
+        val before = e.store.state()
+        e.tagged("X", "QQ", "SWS") shouldBe Refused(RefusalReason.SCHEME_TAG_SIDE, names = listOf("SWS"))
+        e.store.state() shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-2535 a port that cannot answer refuses a tagged entry and no port is asked without a tag`() {
+        val e = tagEnv()
+        e.scenario = null
+        e.tagged("X", "SR", "SWS") shouldBe Refused(RefusalReason.SCHEME_TAG_SIDE, names = listOf("SWS"))
+        e.catalogue = null
+        e.scenario = scenarioOf("SWS" to Side.SUPPLY)
+        e.tagged("X", "SR", "SWS") shouldBe Refused(RefusalReason.SCHEME_TAG_SIDE, names = listOf("SWS"))
+        e.store.entries["P1"]
+            .orEmpty()
+            .isEmpty() shouldBe true
+        e.calls.clear()
+        e.catalogue = sidedCatalogue()
+        e.tagged("Y", "SR", null) shouldBe Done(PackStatus.DRAFT)
+        e.calls.contains("scenario") shouldBe false
+        e.stored("Y") shouldBe MappingDraftEntry("Y", "SR", SourceClass.PRIMARY)
+    }
+
+    @Test
+    fun `INV-AC-2535 a repeat call replaces the entry and the tag check runs after permission and lifecycle`() {
+        val e = tagEnv()
+        e.tagged("X", "SR", "SWS")
+        e.tagged("X", "SR", null) shouldBe Done(PackStatus.DRAFT)
+        e.stored("X") shouldBe MappingDraftEntry("X", "SR", SourceClass.PRIMARY)
+        e.denyAll = true
+        e.calls.clear()
+        e.tagged("X", "ZP", "SWS").shouldBeInstanceOf<Forbidden>()
+        e.calls shouldBe listOf("authority")
+        e.denyAll = false
+        e.submitted("P9")
+        e.calls.clear()
+        val command = MapTaxCodeCommand("author-1", "E-001", "P9", "Z", "ZP", SourceClass.PRIMARY, "SWS")
+        e.authoring.mapTaxCode(command) shouldBe Refused(RefusalReason.LIFECYCLE, status = PackStatus.SUBMITTED)
+        e.calls.contains("scenario") shouldBe false
     }
 }
