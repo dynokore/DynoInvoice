@@ -48,6 +48,7 @@ import com.dynokore.gst.masterdata.domain.connection.ConnectionRecord as DomainR
  * for it.
  */
 @RestController
+@Suppress("LongParameterList", "TooManyFunctions") // one use case per operation of the generated interface
 // open: the generated API interface is @Validated, so Spring proxies the controller
 open class ConnectionsController(
     private val create: CreateConnection,

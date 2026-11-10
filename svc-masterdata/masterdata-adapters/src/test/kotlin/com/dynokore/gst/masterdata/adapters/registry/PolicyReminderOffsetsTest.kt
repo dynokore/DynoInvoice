@@ -38,8 +38,9 @@ class PolicyReminderOffsetsTest {
     ): PolicyReminderOffsets {
         val reader =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(PolicyReader::class.java)) { _, method, args ->
-                check(method.name == "resolve") { "unexpected call ${method.name}" }
-                val vp = args[0] as VariationPointKey
+                // a value-class parameter makes the name mangled and passes the raw text
+                check(method.name.startsWith("resolve")) { "unexpected call ${method.name}" }
+                val vp = args[0].let { if (it is String) VariationPointKey(it) else it as VariationPointKey }
                 val scope = args[1] as PolicyScope
                 val at = args[2] as LocalDate
                 seen += Triple(vp, scope, at)
@@ -53,7 +54,15 @@ class PolicyReminderOffsetsTest {
         val seen = mutableListOf<Triple<VariationPointKey, PolicyScope, LocalDate>>()
         assertThat(offsets("DAYS_14_3", seen = seen).days()).isEqualTo(listOf(14, 3))
         assertThat(seen.single().first).isEqualTo(VariationPointKey("VP-68"))
-        assertThat(seen.single().second).isEqualTo(PolicyScope.tenant(tenant))
+        // PolicyScope has no value equality: its rendering names the scope levels and ids
+        assertThat(
+            seen
+                .single()
+                .second
+                .toString()
+                .substringBefore(" ("),
+        ).isEqualTo(PolicyScope.tenant(tenant).toString().substringBefore(" ("))
+        assertThat(seen.single().second.toString()).startsWith("TENANT:${tenant.value} ")
         assertThat(seen.single().third).isEqualTo(LocalDate.of(2026, 11, 10))
     }
 
