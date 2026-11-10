@@ -165,7 +165,8 @@ class AccessSvcClient(
     private fun JsonNode.requiredString(name: String): String =
         get(name)?.takeIf { it.isString }?.asString() ?: throw MalformedBody()
 
-    private fun JsonNode.optionalString(name: String): String? = if (has(name)) requiredString(name) else null
+    private fun JsonNode.optionalString(name: String): String? =
+        if (has(name)) requiredString(name) else null
 
     private fun JsonNode.requiredBoolean(name: String): Boolean =
         get(name)?.takeIf { it.isBoolean }?.asBoolean() ?: throw MalformedBody()
