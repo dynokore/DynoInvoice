@@ -26,6 +26,7 @@ import java.lang.reflect.Proxy
 import java.util.UUID
 
 /** The offboardTenant use cases over in-memory ports (INV-AC-2056, INV-AC-8104, INV-AC-8177,). */
+@Suppress("LargeClass", "TooManyFunctions")
 class OffboardTenantTest {
     private val tenantRef = "00000000-0000-0000-0000-0000000000a1"
     private val caller = "identity:USR-004"
@@ -457,6 +458,71 @@ class OffboardTenantTest {
         }
         assertTrue(store.rows.isEmpty())
         assertEquals(0, exportCalls)
+    }
+
+    // ---- INV-AC-19784: only an OPEN tenant is closed ----
+
+    private fun seedState(state: String) {
+        tenantStore.rows[0] = tenantStore.rows[0].copy(state = state)
+    }
+
+    private fun wholeTenant(key: String) =
+        assertInstanceOf(
+            OffboardOutcome.Conflict::class.java,
+            useCase().forWholeTenant(tenantRef, key, tenantRequest()),
+        )
+
+    private fun refusedNotClosable(state: String) {
+        seedState(state)
+        val outcome = wholeTenant("k1")
+        assertEquals("TNC-014", outcome.code)
+        assertTrue(outcome.reason.contains(state))
+        assertTrue(store.rows.isEmpty())
+        assertEquals(0, exportCalls)
+        assertEquals(state, tenantStore.current()?.state)
+    }
+
+    @Test
+    fun `INV-AC-19784 a SCHEDULED tenant is refused TNC-014 and nothing is stored`() =
+        refusedNotClosable(TenantState.SCHEDULED.name)
+
+    @Test
+    fun `INV-AC-19784 a CLOSED tenant without a record is refused TNC-014 and nothing is stored`() =
+        refusedNotClosable(TenantState.CLOSED.name)
+
+    @Test
+    fun `INV-AC-19784 a CLOSED tenant after a COMPLETED call with a new key is TNC-010 and the same key replays`() {
+        val first = accepted(useCase().forWholeTenant(tenantRef, "k1", tenantRequest()))
+        assertEquals(TenantState.CLOSED.name, tenantStore.current()?.state)
+        val again = useCase().forWholeTenant(tenantRef, "k2", tenantRequest())
+        assertEquals("TNC-010", assertInstanceOf(OffboardOutcome.Conflict::class.java, again).code)
+        val replay = useCase().forWholeTenant(tenantRef, "k1", tenantRequest())
+        assertEquals(first, assertInstanceOf(OffboardOutcome.Replayed::class.java, replay).record)
+        assertEquals(1, store.rows.size)
+    }
+
+    @Test
+    fun `INV-AC-19784 an OPEN tenant is accepted and becomes CLOSED`() {
+        accepted(useCase().forWholeTenant(tenantRef, "k1", tenantRequest()))
+        assertEquals(TenantState.CLOSED.name, tenantStore.current()?.state)
+    }
+
+    @Test
+    fun `INV-AC-19784 a lower-case open state is not OPEN`() {
+        seedState("open")
+        assertEquals("TNC-014", wholeTenant("k1").code)
+    }
+
+    @Test
+    fun `INV-AC-19784 scope ENTITY does not read the tenant state`() {
+        seedState(TenantState.SCHEDULED.name)
+        accepted(person(entityRequest()))
+        assertEquals(TenantState.SCHEDULED.name, tenantStore.current()?.state)
+    }
+
+    @Test
+    fun `INV-AC-19784 an OPEN tenant with a blank holder is still TNC-009`() {
+        conflict(useCase().forWholeTenant(tenantRef, "k1", tenantRequest(holder = holder.copy(name = " "))), "TNC-009")
     }
 
     @Test

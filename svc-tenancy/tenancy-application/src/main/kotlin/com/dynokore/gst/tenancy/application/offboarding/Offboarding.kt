@@ -12,6 +12,7 @@ import com.dynokore.gst.tenancy.domain.OffboardingScope
 import com.dynokore.gst.tenancy.domain.OffboardingState
 import com.dynokore.gst.tenancy.domain.RetentionCustodyHolder
 import com.dynokore.gst.tenancy.domain.TenantRefs
+import com.dynokore.gst.tenancy.domain.TenantState
 import com.dynokore.gst.tenancy.domain.UnsubmittedOverride
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -116,7 +117,7 @@ sealed interface OffboardOutcome {
     /** 404: no such tenant or entity in the caller's tenant. */
     data object NotFound : OffboardOutcome
 
-    /** 409 with [code] TNC-008, TNC-009 or TNC-010; nothing is created. */
+    /** 409 with [code] TNC-008, TNC-009, TNC-010 or TNC-014; nothing is created. */
     data class Conflict(
         val code: String,
         val reason: String,
@@ -132,6 +133,7 @@ object OffboardingCodes {
     const val UNSUBMITTED_DOCUMENT = "TNC-008"
     const val CUSTODY_HOLDER = "TNC-009"
     const val RECORD_EXISTS = "TNC-010"
+    const val TENANT_NOT_CLOSABLE = "TNC-014"
 }
 
 /**
@@ -249,7 +251,7 @@ class OffboardTenant(
         }
     }
 
-    /** TNC-009, TNC-010, TNC-008 in this order; an unreadable count is a refusal naming the input. */
+    /** TNC-009, TNC-010, TNC-014 (scope TENANT), TNC-008 in this order; an unreadable count is a refusal. */
     private fun gates(
         request: OffboardRequest,
         holder: RetentionCustodyHolder,
@@ -269,6 +271,31 @@ class OffboardTenant(
                 OffboardOutcome.Conflict(OffboardingCodes.RECORD_EXISTS, "an offboarding record already exists")
             }
 
+            request.scope == OffboardingScope.TENANT -> {
+                tenantStateProblem() ?: unsubmittedProblem(unsubmitted, request)
+            }
+
+            else -> {
+                unsubmittedProblem(unsubmitted, request)
+            }
+        }
+    }
+
+    /** TNC-014: only an OPEN tenant is closed; a missing row is NotFound. */
+    private fun tenantStateProblem(): OffboardOutcome? {
+        val state = tenantStore.current()?.state ?: return OffboardOutcome.NotFound
+        return if (state == TenantState.OPEN.name) {
+            null
+        } else {
+            OffboardOutcome.Conflict(OffboardingCodes.TENANT_NOT_CLOSABLE, "the tenant is $state")
+        }
+    }
+
+    private fun unsubmittedProblem(
+        unsubmitted: Int,
+        request: OffboardRequest,
+    ): OffboardOutcome? =
+        when {
             unsubmitted > 0 && request.unsubmittedOverride == null -> {
                 OffboardOutcome.Conflict(OffboardingCodes.UNSUBMITTED_DOCUMENT, "$unsubmitted document(s) unsubmitted")
             }
@@ -277,7 +304,6 @@ class OffboardTenant(
                 null
             }
         }
-    }
 
     private fun produce(
         tenantRef: String,
