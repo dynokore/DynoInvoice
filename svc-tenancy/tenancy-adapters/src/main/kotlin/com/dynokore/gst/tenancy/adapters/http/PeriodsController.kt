@@ -91,8 +91,8 @@ open class PeriodsController(
         limit: Int,
         cursor: String?,
     ): ResponseEntity<CalendarPackDeltaResponse> {
-        if (limit < 1 || limit > MAX_LIMIT) invalid("limit is between 1 and $MAX_LIMIT")
         access.denial(entityRef, PeriodPermissions.PACK_DELTA_VIEW)?.let { forbidden(it) }
+        if (limit < 1 || limit > MAX_LIMIT) invalid("limit is between 1 and $MAX_LIMIT")
         if (packIdentifier.isBlank()) invalid("packIdentifier is required")
         if (version.isBlank()) invalid("version is required")
         val now = clock.getIfAvailable(Clock::systemUTC).instant()

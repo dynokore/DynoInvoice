@@ -200,6 +200,15 @@ class PackDeltaApiTest {
             actAs(entity, role)
             val refusal = refusalOf { delta(entity) } as ApiRefusal
             assertThat(refusal.code).describedAs(role).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            // the key gate runs before every parameter check: a bad limit is still 403 for this caller
+            assertThat(
+                codeOf {
+                    delta(entity, limit = 501)
+                },
+            ).describedAs("$role limit 501").isEqualTo(ClosedErrorCode.ACCESS_DENIED)
+            assertThat(
+                codeOf { delta(entity, limit = 0) },
+            ).describedAs("$role limit 0").isEqualTo(ClosedErrorCode.ACCESS_DENIED)
             listOf("2026-10-31", "2026-11-02", "2027-01-31", "2027-02-01").forEach {
                 assertThat("${refusal.message} ${refusal.detail}").doesNotContain(it)
             }
