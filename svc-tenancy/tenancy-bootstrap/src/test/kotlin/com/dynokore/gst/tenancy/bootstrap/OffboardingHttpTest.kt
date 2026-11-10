@@ -4,6 +4,7 @@ import com.dynokore.gst.tenancy.application.offboarding.OffboardOutcome
 import com.dynokore.gst.tenancy.application.offboarding.OffboardRequest
 import com.dynokore.gst.tenancy.application.offboarding.OffboardTenant
 import com.dynokore.gst.tenancy.contract.model.EntityResponse
+import com.dynokore.gst.tenancy.contract.model.OpenTenantRequest
 import com.dynokore.gst.tenancy.domain.ElectionRoles
 import com.dynokore.gst.tenancy.domain.ExportContent
 import com.dynokore.gst.tenancy.domain.ExportState
@@ -388,10 +389,26 @@ class OffboardingHttpTest {
     fun `probe offboarding with scope ENTITY and a confirmer holding only tax approver is accepted`() =
         confirmation("identity:USR-0042", arrayOf(ElectionRoles.TAX_APPROVER), 202)
 
+    /** A new tenant is SCHEDULED; only an OPEN tenant is closable (INV-AC-19784), so open it first. */
+    private fun openTenant(tenant: TenantId) {
+        val ref =
+            BoundaryFixture.asSuperuser { c ->
+                c.prepareStatement("select ref from tenancy.tenant where tenant_id = ?").use { s ->
+                    s.setObject(1, tenant.value)
+                    s.executeQuery().use {
+                        it.next()
+                        it.getString(1)
+                    }
+                }
+            }
+        env.tenantsApi.openTenant(ref, UUID.randomUUID(), OpenTenantRequest("SCH-1"))
+    }
+
     private fun useCaseTenantScope(
         confirmer: String?,
         callerRoles: Array<String>,
     ) = scenario(callerRoles) { tenant, _ ->
+        openTenant(tenant)
         val outcome =
             context
                 .getBean(OffboardTenant::class.java)
