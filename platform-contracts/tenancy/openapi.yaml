@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.37.0
+  version: 1.38.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -3028,7 +3028,7 @@ paths:
         (API-15). A call for a tenant whose offboarding record is REQUESTED or COMPLETED is refused with 409
         and creates nothing. A call after a FAILED record is a new request: a new offboardingRef, every
         precondition evaluated afresh, nothing carried over; the FAILED record stays as history
-        (INV-Q-5025). A tenant that is SCHEDULED or CLOSED is refused with 409. The job never records an
+        (INV-Q-5025). A tenant that is SCHEDULED or CLOSED is refused with 409 and the code TNC-014. The job never records an
         unsubmitted-document override: a call while an in-scope document is unsubmitted is refused with 409.
       tags:
       - tenants
@@ -3042,11 +3042,12 @@ paths:
       - FR-AF.8
       x-error-codes:
       - DEP-007
+      - TNC-014
       x-operation:
         role: control-plane-svc
         scope: platform
         precondition: A retention custody holder is named and no in-scope document is unsubmitted (the job never
-          records an override), and the tenant is OPEN (a tenant that is SCHEDULED or CLOSED is refused with 409)
+          records an override), and the tenant is OPEN (a tenant that is SCHEDULED or CLOSED is refused with 409 and the code TNC-014)
         reversibility: IRREVERSIBLE
         repeatKey: (tenantRef)
       parameters:
