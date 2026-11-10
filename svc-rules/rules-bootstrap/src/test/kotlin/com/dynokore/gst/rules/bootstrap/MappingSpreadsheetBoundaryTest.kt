@@ -17,8 +17,8 @@ import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancyjooq.TenancyProbe
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -141,7 +141,6 @@ private fun sha(text: String): String =
         "service-runtime.workload-identity.callers[1].subject=subject-of-$CONSOLE$ALT",
     ],
 )
-@Suppress("LargeClass") // one boundary class per task keeps the fixtures and the acceptance keys together
 class MappingSpreadsheetBoundaryTest(
     @LocalServerPort port: Int,
 ) : MappingPackSupport(port) {
@@ -635,10 +634,6 @@ class MappingImportReferenceIT {
 
     private class RolledBack : RuntimeException()
 
-    private fun counted(statement: String) = "with s as ($statement returning 1) select count(*) from s"
-
-    private fun store(statement: String) = runtime.inTenant(tenant) { fetchValue(counted(statement)) }
-
     private fun sqlStateOf(failure: Throwable): String =
         generateSequence(failure) { it.cause }.filterIsInstance<java.sql.SQLException>().first().sqlState
 
@@ -684,8 +679,7 @@ class MappingImportReferenceIT {
         probe.inTenant(owned) {
             fetchValue(
                 "select (select coalesce(string_agg(t::text, '|' order by t.id), '') from rules.pack_entry_source t) " +
-                    "|| '#' || (select coalesce(string_agg(t::text, '|' order by t.id), '') " +
-                    "from rules.pack_registry t) " +
+                    "|| '#' || (select coalesce(string_agg(t::text, '|' order by t.id), '') from rules.pack_registry t) " +
                     "|| '#' || (select coalesce(string_agg(t::text, '|' order by t.import_id), '') " +
                     "from rules.mapping_import_record t)",
             ) as String
@@ -704,14 +698,14 @@ class MappingImportReferenceIT {
             shouldThrow<Exception> {
                 probe.inTenant(owned) {
                     preamble?.let { fetchValue(it) }
-                    fetchValue(counted(statement))
+                    fetchValue("with s as ($statement returning 1) select count(*) from s")
                 }
             }
         sqlStateOf(failure) shouldBe state
         content(owner, owned) shouldBe before
     }
 
-    /** Runs [statement] as the owner under a policy the test adds and rolls back; returns the failure state. */
+    /** Runs [statement] as the owning role under a policy the test adds and rolls back; returns the failure state or null. */
     private fun asOwner(
         owned: TenantId,
         policy: String,
@@ -722,7 +716,7 @@ class MappingImportReferenceIT {
             owner.inTenant(owned) {
                 fetchValue(policy)
                 try {
-                    fetchValue(counted(statement))
+                    fetchValue("with s as ($statement returning 1) select count(*) from s")
                 } catch (e: Exception) {
                     state = sqlStateOf(e)
                     throw e
@@ -750,7 +744,7 @@ class MappingImportReferenceIT {
     fun `INV-AC-3484 an update of an entry to a missing reference is refused 23503 and nothing changes`() {
         seedPack(tenant, "c1")
         seedRecord(tenant, "imp-c1")
-        store(insertEntries(tenant, "c1", 2, "imp-c1"))
+        runtime.inTenant(tenant) { fetchValue("with s as (${insertEntries(tenant, "c1", 2, "imp-c1")} returning 1) select count(*) from s") }
         refused(
             runtime,
             tenant,
@@ -765,8 +759,7 @@ class MappingImportReferenceIT {
         )
         // the look-alike that must pass: an update that keeps both references
         runtime.inTenant(tenant) {
-            val keep = "update rules.pack_entry_source set accepted = true where pack_version = 'c1'"
-            fetchValue(counted(keep)) shouldBe 2L
+            fetchValue("with s as (update rules.pack_entry_source set accepted = true where pack_version = 'c1' returning 1) select count(*) from s") shouldBe 2L
         }
     }
 
@@ -776,26 +769,22 @@ class MappingImportReferenceIT {
         seedPack(tenant, "d2")
         seedRecord(tenant, "imp-d1")
         seedRecord(tenant, "imp-free")
-        store(insertEntries(tenant, "d1", 2, "imp-d1"))
-        val mine = "tenant_id = (select rules.bound_tenant())"
-        val importDelete = "create policy probe_delete on rules.mapping_import_record for delete using ($mine)"
-        val importUpdate =
-            "create policy probe_update on rules.mapping_import_record for update using ($mine) with check ($mine)"
-        val packDelete = "create policy probe_delete on rules.pack_registry for delete using ($mine)"
-        val record = "rules.mapping_import_record"
-        asOwner(tenant, importDelete, "delete from $record where import_id = 'imp-d1'") shouldBe "23503"
-        asOwner(tenant, importUpdate, "update $record set import_id = 'x' where import_id = 'imp-d1'") shouldBe "23503"
+        runtime.inTenant(tenant) { fetchValue("with s as (${insertEntries(tenant, "d1", 2, "imp-d1")} returning 1) select count(*) from s") }
+        val importDelete = "create policy probe_delete on rules.mapping_import_record for delete using (tenant_id = (select rules.bound_tenant()))"
+        val importUpdate = "create policy probe_update on rules.mapping_import_record for update using (tenant_id = (select rules.bound_tenant())) with check (tenant_id = (select rules.bound_tenant()))"
+        val packDelete = "create policy probe_delete on rules.pack_registry for delete using (tenant_id = (select rules.bound_tenant()))"
+        asOwner(tenant, importDelete, "delete from rules.mapping_import_record where import_id = 'imp-d1'") shouldBe "23503"
+        asOwner(tenant, importUpdate, "update rules.mapping_import_record set import_id = 'x' where import_id = 'imp-d1'") shouldBe "23503"
         asOwner(tenant, packDelete, "delete from rules.pack_registry where pack_version = 'd1'") shouldBe "23503"
-        // the same key update as the runtime login: the BEFORE trigger pack_registry_frozen_update (V1) refuses a
-        // changed pack_version with 42501 before any referential check, on main with the foreign key as well
-        val keyUpdate = "update rules.pack_registry set pack_version = 'd1x' where pack_version = 'd1'"
-        refused(runtime, tenant, "42501", keyUpdate)
+        // the same key update as the runtime login: the BEFORE trigger pack_registry_frozen_update (V1) refuses a changed
+        // pack_version with 42501 before any referential check, on main with the foreign key as with the trigger
+        refused(runtime, tenant, "42501", "update rules.pack_registry set pack_version = 'd1x' where pack_version = 'd1'")
         // look-alikes that must pass: the same statements against rows no entry references
         var passed: Any? = null
         try {
             owner.inTenant(tenant) {
                 fetchValue(importDelete)
-                passed = fetchValue(counted("delete from $record where import_id = 'imp-free'"))
+                passed = fetchValue("with s as (delete from rules.mapping_import_record where import_id = 'imp-free' returning 1) select count(*) from s")
                 throw RolledBack()
             }
         } catch (_: RolledBack) {
@@ -805,7 +794,7 @@ class MappingImportReferenceIT {
         try {
             owner.inTenant(tenant) {
                 fetchValue(packDelete)
-                passed = fetchValue(counted("delete from rules.pack_registry where pack_version = 'd2'"))
+                passed = fetchValue("with s as (delete from rules.pack_registry where pack_version = 'd2' returning 1) select count(*) from s")
                 throw RolledBack()
             }
         } catch (_: RolledBack) {
@@ -824,24 +813,23 @@ class MappingImportReferenceIT {
                 "'rules.pack_registry'::regclass) and a.rolname <> 'rules_migrate'"
         val expected =
             "mapping_import_record:rules_runtime:INSERT,mapping_import_record:rules_runtime:SELECT," +
-                "pack_registry:rules_runtime:INSERT,pack_registry:rules_runtime:SELECT," +
-                "pack_registry:rules_runtime:UPDATE," +
+                "pack_registry:rules_runtime:INSERT,pack_registry:rules_runtime:SELECT,pack_registry:rules_runtime:UPDATE," +
                 "pack_registry:rules_sys:INSERT,pack_registry:rules_sys:SELECT,pack_registry:rules_sys:UPDATE"
         runtime.inTenant(tenant) { fetchValue(grants) } shouldBe expected
         refused(runtime, tenant, "42501", "delete from rules.mapping_import_record where import_id = 'imp-g1'")
-        refused(runtime, tenant, "42501", "update rules.mapping_import_record set file_name = 'x'")
+        refused(runtime, tenant, "42501", "update rules.mapping_import_record set file_name = 'x' where import_id = 'imp-g1'")
         refused(runtime, tenant, "42501", "delete from rules.pack_registry where pack_version = 'g1'")
         runtime.inTenant(tenant) { fetchValue(grants) } shouldBe expected
     }
 
     @Test
-    fun `INV-AC-3484 a valid import needs no new privilege and an entry without import_ref is stored`() {
+    fun `INV-AC-3484 a valid import runs as the runtime login with no new privilege and an entry without import_ref is stored`() {
         seedPack(tenant, "e1")
         seedRecord(tenant, "imp-e1")
         runtime.inTenant(tenant) {
-            fetchValue(counted(insertEntries(tenant, "e1", 4, "imp-e1"))) shouldBe 4L
-            fetchValue(counted(insertEntries(tenant, "e1", 2, null, "P"))) shouldBe 2L
-            fetchValue("select count(*) from rules.pack_entry_source where import_ref is null") shouldBe 2L
+            fetchValue("with s as (${insertEntries(tenant, "e1", 4, "imp-e1")} returning 1) select count(*) from s") shouldBe 4L
+            fetchValue("with s as (${insertEntries(tenant, "e1", 2, null, "P")} returning 1) select count(*) from s") shouldBe 2L
+            fetchValue("select count(*) from rules.pack_entry_source where pack_version = 'e1' and import_ref is null") shouldBe 2L
         }
     }
 
@@ -855,13 +843,13 @@ class MappingImportReferenceIT {
     @Test
     fun `INV-AC-3484 a second entry with the same entry_id or the same internal_tax_code is refused 23505`() {
         seedPack(tenant, "u1")
-        store(insertEntries(tenant, "u1", 1))
+        runtime.inTenant(tenant) { fetchValue("with s as (${insertEntries(tenant, "u1", 1)} returning 1) select count(*) from s") }
         refused(runtime, tenant, "23505", insertEntries(tenant, "u1", 1))
         refused(
             runtime,
             tenant,
             "23505",
-            insertEntries(tenant, "u1", 1, prefix = "Q").replace("'PRIMARY', 'Q' || g", "'PRIMARY', 'N' || g"),
+            insertEntries(tenant, "u1", 1, prefix = "Q").replace("'Q' || g, 'PRIMARY', 'Q' || g", "'Q' || g, 'PRIMARY', 'N' || g"),
         )
     }
 
@@ -869,8 +857,7 @@ class MappingImportReferenceIT {
     fun `INV-AC-3484 an entry inserted into an ARMED pack is refused 42501`() {
         seedPack(tenant, "r1")
         listOf("SUBMITTED", "APPROVED", "ARMED").forEach {
-            val move = "update rules.pack_registry set status = '$it' where pack_version = 'r1' returning id"
-            runtime.inTenant(tenant) { fetchValue(move) }
+            runtime.inTenant(tenant) { fetchValue("update rules.pack_registry set status = '$it' where pack_version = 'r1' returning id") }
         }
         refused(runtime, tenant, "42501", insertEntries(tenant, "r1", 1))
     }

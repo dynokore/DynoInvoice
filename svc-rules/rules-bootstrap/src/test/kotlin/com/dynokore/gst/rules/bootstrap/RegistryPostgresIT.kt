@@ -107,7 +107,6 @@ private val LIBRARY_TABLES =
  * the same login for the catalog and row-level-security probes. No other raw SQL, no connection of the test's own.
  */
 @SpringBootTest(classes = [RulesApplication::class])
-@Suppress("LargeClass") // one IT class keeps the registry fixtures and the acceptance keys together
 class RegistryPostgresIT(
     @Autowired private val tx: TransactionRunner,
     @Autowired private val tenants: TenantContext,
