@@ -378,6 +378,7 @@ class RegistryPostgresIT(
                 "entity_ref",
                 "activated_by",
                 "activated_at",
+                "no_distinct_approver",
                 "content_changed_at",
             )
         columnsOf("pack_entry_source") shouldBe

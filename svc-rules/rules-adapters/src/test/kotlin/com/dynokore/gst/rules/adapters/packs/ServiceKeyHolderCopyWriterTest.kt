@@ -191,7 +191,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 the copy is signed over manifest then checksums and carries the label`() {
+    fun `INV-AC-19690 INV-REQ-1195 the copy is signed over manifest then checksums and carries the label`() {
         val id = Identity()
         mount(id)
         writer.write(request()) shouldBe HolderCopyResult.Written
@@ -215,7 +215,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 an open-ended pack has a null effectiveTo in the signed manifest`() {
+    fun `INV-AC-19690 INV-REQ-1195 an open-ended pack has a null effectiveTo in the signed manifest`() {
         mount(Identity())
         writer.write(request(effectiveTo = null)) shouldBe HolderCopyResult.Written
         registry.registered
@@ -224,7 +224,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 the label is the hash of the certificate DER and not its subject text`() {
+    fun `INV-AC-19690 INV-REQ-1195 the label is the hash of the certificate DER and not its subject text`() {
         val a = Identity(subject = "same-subject")
         val b = Identity(subject = "same-subject")
         mount(a)
@@ -236,7 +236,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 a write reads exactly the key and the certificate, and the optional ones when present`() {
+    fun `INV-AC-19690 INV-REQ-1195 a write reads exactly the key and the certificate, and the optional ones when present`() {
         mount(Identity())
         writer.write(request())
         secrets.reads shouldBe
@@ -259,7 +259,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 a replaced key pair takes effect on the next write without a restart`() {
+    fun `INV-AC-19690 INV-REQ-1195 a replaced key pair takes effect on the next write without a restart`() {
         val first = Identity()
         val second = Identity()
         mount(first)
@@ -270,7 +270,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 the look-alike secret names are not read and a write with them alone is Unavailable`() {
+    fun `INV-AC-19690 INV-REQ-1195 the look-alike secret names are not read and a write with them alone is Unavailable`() {
         val id = Identity()
         secrets.values["rules/holder-copy-key"] = id.keyPem
         secrets.values["rules/holder-copy-signing-keys"] = id.keyPem
@@ -280,20 +280,20 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 an absent key secret is Unavailable and the log names it`() {
+    fun `INV-AC-19690 INV-REQ-1195 an absent key secret is Unavailable and the log names it`() {
         val id = Identity()
         secrets.values["rules/holder-copy-signing-certificate"] = id.certificatePem
         assertUnavailableNamed("rules/holder-copy-signing-key")
     }
 
     @Test
-    fun `INV-REQ-1195 an absent certificate secret is Unavailable and the log names it`() {
+    fun `INV-AC-19690 INV-REQ-1195 an absent certificate secret is Unavailable and the log names it`() {
         secrets.values["rules/holder-copy-signing-key"] = Identity().keyPem
         assertUnavailableNamed("rules/holder-copy-signing-certificate")
     }
 
     @Test
-    fun `INV-REQ-1195 a key that is not PKCS8 PEM is Unavailable and no key byte is logged`() {
+    fun `INV-AC-19690 INV-REQ-1195 a key that is not PKCS8 PEM is Unavailable and no key byte is logged`() {
         val id = Identity()
         mount(id)
         val keyText = Base64.getEncoder().encodeToString(id.pair.private.encoded)
@@ -305,14 +305,14 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 a P-384 key is Unavailable`() {
+    fun `INV-AC-19690 INV-REQ-1195 a P-384 key is Unavailable`() {
         val id = Identity(curve = "secp384r1")
         mount(id)
         assertUnavailableNamed("rules/holder-copy-signing-key")
     }
 
     @Test
-    fun `INV-REQ-1195 a certificate that does not belong to the key is Unavailable`() {
+    fun `INV-AC-19690 INV-REQ-1195 a certificate that does not belong to the key is Unavailable`() {
         mount(Identity())
         secrets.values["rules/holder-copy-signing-certificate"] = Identity().certificatePem
         writer.write(request()) shouldBe HolderCopyResult.Unavailable
@@ -322,27 +322,27 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 a certificate secret that is not X509 PEM is Unavailable naming that secret`() {
+    fun `INV-AC-19690 INV-REQ-1195 a certificate secret that is not X509 PEM is Unavailable naming that secret`() {
         mount(Identity())
         secrets.values["rules/holder-copy-signing-certificate-next"] = "garbage"
         assertUnavailableNamed("rules/holder-copy-signing-certificate-next")
     }
 
     @Test
-    fun `INV-REQ-1195 a previous certificate secret that is not X509 PEM is Unavailable naming that secret`() {
+    fun `INV-AC-19690 INV-REQ-1195 a previous certificate secret that is not X509 PEM is Unavailable naming that secret`() {
         mount(Identity())
         secrets.values["rules/holder-copy-signing-certificate-previous"] = "garbage"
         assertUnavailableNamed("rules/holder-copy-signing-certificate-previous")
     }
 
     @Test
-    fun `INV-REQ-1195 the exception text names the secret`() {
+    fun `INV-AC-19690 INV-REQ-1195 the exception text names the secret`() {
         val e = shouldThrow<HolderCopyKeyUnavailable> { keys.load() }
         e.message!! shouldContain "rules/holder-copy-signing-key"
     }
 
     @Test
-    fun `INV-REQ-1195 an artefact signed with the next key verifies while its certificate is present and not after`() {
+    fun `INV-AC-19690 INV-REQ-1195 an artefact signed with the next key verifies while its certificate is present and not after`() {
         val current = Identity()
         val next = Identity()
         mount(current, next = next)
@@ -357,7 +357,7 @@ class ServiceKeyHolderCopyWriterTest {
     }
 
     @Test
-    fun `INV-REQ-1195 an older row of the retired key verifies while its certificate is previous`() {
+    fun `INV-AC-19690 INV-REQ-1195 an older row of the retired key verifies while its certificate is previous`() {
         val retired = Identity()
         val current = Identity()
         mount(current, previous = retired)

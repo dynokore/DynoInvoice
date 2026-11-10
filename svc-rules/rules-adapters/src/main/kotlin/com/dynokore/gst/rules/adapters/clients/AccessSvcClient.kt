@@ -14,6 +14,8 @@ import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.RequestConfig
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.client.RestClient
@@ -40,6 +42,7 @@ class AccessSvcClient(
     registry: ResilienceRegistry,
     private val clock: Clock,
     baseUrl: String,
+    private val log: Logger = LoggerFactory.getLogger(AccessSvcClient::class.java),
 ) : PackApprovalDecisionPort,
     InstallationApproverFactPort,
     MappingAcknowledgementPort {
@@ -117,7 +120,9 @@ class AccessSvcClient(
                 } else {
                     try {
                         parse(tree(response.body))
-                    } catch (_: MalformedBody) {
+                    } catch (gap: MalformedBody) {
+                        // Logged once per call: the field name only, never a payload value.
+                        gap.missingField?.let { log.warn("access-svc decision cannot be interpreted: missing {}", it) }
                         failed
                     }
                 }
@@ -151,7 +156,10 @@ class AccessSvcClient(
 }
 
 /** A body that does not match the contract. */
-private class MalformedBody : RuntimeException()
+private class MalformedBody(
+    /** Set when the schema allows the body but rules-svc cannot interpret it: the field that is missing. */
+    val missingField: String? = null,
+) : RuntimeException()
 
 /** The bodies of the three operations, checked member by member against the contract; no scalar is coerced. */
 private object ContractBodies {
@@ -163,7 +171,7 @@ private object ContractBodies {
         val reasonCode = node.optionalString("reasonCode")
         return when (node.requiredString("decision")) {
             "ALLOW" -> allowOf(soleOperator, ackRef, option, outstanding)
-            "DENY" -> PackApprovalDecision.Deny(reasonCode ?: throw MalformedBody())
+            "DENY" -> PackApprovalDecision.Deny(reasonCode ?: throw MalformedBody("reasonCode"))
             else -> throw MalformedBody()
         }
     }
@@ -174,7 +182,7 @@ private object ContractBodies {
         option: String?,
         outstanding: Set<String>,
     ): PackApprovalDecision =
-        PackApprovalDecision.Allow(soleOperator, ackRef, option ?: throw MalformedBody(), outstanding)
+        PackApprovalDecision.Allow(soleOperator, ackRef, option ?: throw MalformedBody("option"), outstanding)
 
     fun factOf(node: JsonNode): InstallationApproverFact {
         node.requiredString("recordedAt")
