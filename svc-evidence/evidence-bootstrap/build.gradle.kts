@@ -36,6 +36,10 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.gstCatalogue)
     testImplementation(libs.platform.serviceRuntime.api)
+    // MachinePrincipalFixtures (INV-T-19621): the published test-fixtures variant of service-runtime
+    testImplementation(libs.platform.serviceRuntime.api) {
+        capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }
+    }
     testImplementation(platform(libs.jackson.bom))
     testImplementation(libs.jackson.databind)
     testImplementation(libs.jsonSchemaValidator)

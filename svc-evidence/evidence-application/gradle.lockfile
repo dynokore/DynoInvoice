@@ -2,14 +2,14 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :evidence-application:dependencies --write-locks
-com.dynokore.platform:audit-log-api:4.0.29=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:audit-log-api:4.0.30=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:calendar-and-periods-api:1.5.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:config-resolver-api:6.0.2=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:config-resolver-api:6.0.3=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:crypto-api:1.1.1=runtimeClasspath,testRuntimeClasspath
 com.dynokore.platform:evidence-store-api:2.4.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:outbox-and-queue-api:6.19.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:platform-libs-bom:0.184.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.dynokore.platform:service-runtime-api:13.3.2=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:outbox-and-queue-api:6.20.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:platform-libs-bom:0.193.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+com.dynokore.platform:service-runtime-api:13.8.0=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.dynokore.platform:tenancy-kernel-api:4.2.1=compileClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.github.ben-manes.caffeine:caffeine:2.9.3=detekt
 com.google.errorprone:error_prone_annotations:2.10.0=detekt
