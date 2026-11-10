@@ -1,4 +1,4 @@
--- V202611101000__mapping_import_record.sql (INV-T-4973; INV-REQ-833, INV-REQ-831). Expand only.
+-- V202611101100__mapping_import_record.sql (INV-T-4973; INV-REQ-833, INV-REQ-831). Expand only.
 -- The import record of a mapping spreadsheet re-import and the link of a draft entry to it. Run as rules_migrate.
 -- The actor is the user ID of the verified token, never a role (INV-Q-10647). Relational only: the rejected rows are an
 -- integer array (row numbers from 1) and one code, no document-shaped column.
@@ -29,8 +29,8 @@ create index mapping_import_record_hash_idx on rules.mapping_import_record (tena
 
 -- Each entry created by an import keeps a reference to its import (INV-REQ-833 b2); an entry authored by hand has none.
 alter table rules.pack_entry_source add column import_ref text null;
-alter table rules.pack_entry_source add constraint pack_entry_source_import_ref
-    foreign key (tenant_id, import_ref) references rules.mapping_import_record (tenant_id, import_id);
+-- No foreign key constraint: the reference is checked by the statement-level triggers of the next migration, which
+-- cost one set-based check per statement instead of one lookup per row (a 5,000-row import).
 
 alter table rules.mapping_import_record enable row level security;
 alter table rules.mapping_import_record force row level security;

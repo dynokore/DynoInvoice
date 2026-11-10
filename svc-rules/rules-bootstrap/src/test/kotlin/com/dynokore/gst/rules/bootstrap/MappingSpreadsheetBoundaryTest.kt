@@ -18,6 +18,8 @@ import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancyjooq.TenancyProbe
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -349,12 +351,39 @@ class MappingSpreadsheetBoundaryTest(
 
     @Test
     fun `INV-AC-3484 the 5000-row file is answered within the synchronous budget of the operation`() {
+        // warm-up (not timed): a request of 5,000 valid rows with its own fileHash in the same JVM and database; the
+        // budget is for the synchronous answer of a running service, not for JVM or container start-up
+        import(body(valid(CAP))).statusCode() shouldBe 201
         val started = System.nanoTime()
         val answer = import(body(valid(CAP)))
         val millis = (System.nanoTime() - started) / 1_000_000
         answer.statusCode() shouldBe 201
         io.kotest.assertions.withClue("$millis ms against $BUDGET_MILLIS ms") {
             (millis <= BUDGET_MILLIS) shouldBe true
+        }
+    }
+
+    @Test
+    fun `INV-AC-3484 a 5000-row import writes every row as the request names it and links each to its record`() {
+        val hash = hash()
+        val rows = valid(CAP)
+        val answer = ok(import(body(rows, hash)), 201)
+        val importId = records(hash).single().get("importId").asString()
+        val stored =
+            rows(
+                TENANT_A,
+                "select e.internal_tax_code, e.iras_code, e.source_class, e.source_citation, e.import_ref " +
+                    "from rules.pack_entry_source e join rules.pack_registry p on p.pack_version = e.pack_version " +
+                    "and p.pack_type = e.pack_type and p.tenant_id = e.tenant_id " +
+                    "where p.pack_id = '${answer.get("packId").asString()}' order by e.internal_tax_code",
+            )
+        stored.size shouldBe CAP
+        stored.forEachIndexed { i, r ->
+            r["internal_tax_code"] shouldBe "C%05d".format(Locale.ROOT, i + 1)
+            r["iras_code"] shouldBe "SR"
+            r["source_class"] shouldBe "PRIMARY"
+            r["source_citation"] shouldBe null
+            r["import_ref"] shouldBe importId
         }
     }
 
@@ -589,5 +618,253 @@ class MappingSpreadsheetBoundaryTest(
         @DynamicPropertySource
         @JvmStatic
         fun props(registry: DynamicPropertyRegistry) = registerCatalogue(registry)
+    }
+}
+
+/**
+ * The two foreign keys of rules.pack_entry_source are statement-level triggers (INV-T-4973, INV-AC-3484): the same
+ * refusals and the same stored rows as the constraints, with no privilege added to the runtime login.
+ */
+@SpringBootTest(classes = [RulesApplication::class])
+class MappingImportReferenceIT {
+    private val runtime = TenancyProbe.connect(PostgresRules.pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
+    private val owner = TenancyProbe.connect(PostgresRules.pg.jdbcUrl, "rules_migrate", "rules_migrate_pw")
+    private val tenant = TenantId(UUID.randomUUID())
+    private val other = TenantId(UUID.randomUUID())
+
+    private class RolledBack : RuntimeException()
+
+    private fun sqlStateOf(failure: Throwable): String =
+        generateSequence(failure) { it.cause }.filterIsInstance<java.sql.SQLException>().first().sqlState
+
+    private fun seedPack(
+        owned: TenantId,
+        version: String,
+    ) = runtime.inTenant(owned) {
+        fetchValue(
+            "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
+                "effective_from, min_engine_version, registered_by, entity_ref) values (gen_random_uuid(), " +
+                "'$owned'::uuid, 'MAP-$version', 'MAPPING', '$version', 'TENANT_MAPPING', 'DRAFT', " +
+                "'2026-01-01'::date, '1.0.0', 'tenancy-probe', 'E-1') returning id",
+        )
+    }
+
+    private fun seedRecord(
+        owned: TenantId,
+        importId: String,
+    ) = runtime.inTenant(owned) {
+        fetchValue(
+            "insert into rules.mapping_import_record (tenant_id, import_id, entity_ref, actor, file_hash, file_name, " +
+                "row_count, dry_run_result, applied_count, pack_id) values ('$owned'::uuid, '$importId', 'E-1', " +
+                "'user-a', 'h-$importId', 'f.csv', 1, 'CLEAN', 1, 'MAP-x') returning import_id",
+        )
+    }
+
+    private fun insertEntries(
+        owned: TenantId,
+        version: String,
+        n: Int,
+        importRef: String? = null,
+        prefix: String = "N",
+    ): String =
+        "insert into rules.pack_entry_source (id, tenant_id, pack_type, pack_version, entry_id, source_class, " +
+            "internal_tax_code, iras_code, import_ref) select gen_random_uuid(), '$owned'::uuid, 'MAPPING', " +
+            "'$version', '$prefix' || g, 'PRIMARY', '$prefix' || g, 'SR', " +
+            (importRef?.let { "'$it'" } ?: "null") + " from generate_series(1, $n) g"
+
+    private fun content(
+        probe: TenancyProbe,
+        owned: TenantId,
+    ): String =
+        probe.inTenant(owned) {
+            fetchValue(
+                "select (select coalesce(string_agg(t::text, '|' order by t.id), '') from rules.pack_entry_source t) " +
+                    "|| '#' || (select coalesce(string_agg(t::text, '|' order by t.id), '') from rules.pack_registry t) " +
+                    "|| '#' || (select coalesce(string_agg(t::text, '|' order by t.import_id), '') " +
+                    "from rules.mapping_import_record t)",
+            ) as String
+        }
+
+    /** The statement fails with [state], and every row of the three tables reads the same before and after. */
+    private fun refused(
+        probe: TenancyProbe,
+        owned: TenantId,
+        state: String,
+        statement: String,
+        preamble: String? = null,
+    ) {
+        val before = content(owner, owned)
+        val failure =
+            shouldThrow<Exception> {
+                probe.inTenant(owned) {
+                    preamble?.let { fetchValue(it) }
+                    fetchValue("with s as ($statement returning 1) select count(*) from s")
+                }
+            }
+        sqlStateOf(failure) shouldBe state
+        content(owner, owned) shouldBe before
+    }
+
+    /** Runs [statement] as the owning role under a policy the test adds and rolls back; returns the failure state or null. */
+    private fun asOwner(
+        owned: TenantId,
+        policy: String,
+        statement: String,
+    ): String? {
+        var state: String? = null
+        try {
+            owner.inTenant(owned) {
+                fetchValue(policy)
+                try {
+                    fetchValue("with s as ($statement returning 1) select count(*) from s")
+                } catch (e: Exception) {
+                    state = sqlStateOf(e)
+                    throw e
+                }
+                throw RolledBack()
+            }
+        } catch (_: Exception) {
+        }
+        return state
+    }
+
+    @Test
+    fun `INV-AC-3484 an entry whose import_ref names no import record is refused 23503 and nothing changes`() {
+        seedPack(tenant, "a1")
+        refused(runtime, tenant, "23503", insertEntries(tenant, "a1", 3, importRef = "missing"))
+    }
+
+    @Test
+    fun `INV-AC-3484 an entry whose pack names no pack is refused 23503 and nothing changes`() {
+        seedPack(tenant, "b1")
+        refused(runtime, tenant, "23503", insertEntries(tenant, "no-such-pack", 3))
+    }
+
+    @Test
+    fun `INV-AC-3484 an update of an entry to a missing reference is refused 23503 and nothing changes`() {
+        seedPack(tenant, "c1")
+        seedRecord(tenant, "imp-c1")
+        runtime.inTenant(tenant) { fetchValue("with s as (${insertEntries(tenant, "c1", 2, "imp-c1")} returning 1) select count(*) from s") }
+        refused(
+            runtime,
+            tenant,
+            "23503",
+            "update rules.pack_entry_source set import_ref = 'missing' where pack_version = 'c1'",
+        )
+        refused(
+            runtime,
+            tenant,
+            "23503",
+            "update rules.pack_entry_source set pack_version = 'no-such-pack' where pack_version = 'c1'",
+        )
+        // the look-alike that must pass: an update that keeps both references
+        runtime.inTenant(tenant) {
+            fetchValue("with s as (update rules.pack_entry_source set accepted = true where pack_version = 'c1' returning 1) select count(*) from s") shouldBe 2L
+        }
+    }
+
+    @Test
+    fun `INV-AC-3484 a delete and a key update of a referenced import record or pack are refused 23503 as the owner`() {
+        seedPack(tenant, "d1")
+        seedPack(tenant, "d2")
+        seedRecord(tenant, "imp-d1")
+        seedRecord(tenant, "imp-free")
+        runtime.inTenant(tenant) { fetchValue("with s as (${insertEntries(tenant, "d1", 2, "imp-d1")} returning 1) select count(*) from s") }
+        val importDelete = "create policy probe_delete on rules.mapping_import_record for delete using (true)"
+        val importUpdate = "create policy probe_update on rules.mapping_import_record for update using (true) with check (true)"
+        val packDelete = "create policy probe_delete on rules.pack_registry for delete using (true)"
+        asOwner(tenant, importDelete, "delete from rules.mapping_import_record where import_id = 'imp-d1'") shouldBe "23503"
+        asOwner(tenant, importUpdate, "update rules.mapping_import_record set import_id = 'x' where import_id = 'imp-d1'") shouldBe "23503"
+        asOwner(tenant, packDelete, "delete from rules.pack_registry where pack_version = 'd1'") shouldBe "23503"
+        // the same key update as the runtime login: the BEFORE trigger pack_registry_frozen_update (V1) refuses a changed
+        // pack_version with 42501 before any referential check, on main with the foreign key as with the trigger
+        refused(runtime, tenant, "42501", "update rules.pack_registry set pack_version = 'd1x' where pack_version = 'd1'")
+        // look-alikes that must pass: the same statements against rows no entry references
+        var passed: Any? = null
+        try {
+            owner.inTenant(tenant) {
+                fetchValue(importDelete)
+                passed = fetchValue("with s as (delete from rules.mapping_import_record where import_id = 'imp-free' returning 1) select count(*) from s")
+                throw RolledBack()
+            }
+        } catch (_: RolledBack) {
+        }
+        passed shouldBe 1L
+        passed = null
+        try {
+            owner.inTenant(tenant) {
+                fetchValue(packDelete)
+                passed = fetchValue("with s as (delete from rules.pack_registry where pack_version = 'd2' returning 1) select count(*) from s")
+                throw RolledBack()
+            }
+        } catch (_: RolledBack) {
+        }
+        passed shouldBe 1L
+    }
+
+    @Test
+    fun `INV-AC-3484 the runtime login keeps its grants and is still refused 42501 on the parent tables`() {
+        seedPack(tenant, "g1")
+        seedRecord(tenant, "imp-g1")
+        val grants =
+            "select string_agg(c.relname || ':' || a.rolname || ':' || x.privilege_type, ',' " +
+                "order by c.relname, a.rolname, x.privilege_type) from pg_class c, aclexplode(c.relacl) x " +
+                "join pg_roles a on a.oid = x.grantee where c.oid in ('rules.mapping_import_record'::regclass, " +
+                "'rules.pack_registry'::regclass) and a.rolname <> 'rules_migrate'"
+        val expected =
+            "mapping_import_record:rules_runtime:INSERT,mapping_import_record:rules_runtime:SELECT," +
+                "pack_registry:rules_runtime:INSERT,pack_registry:rules_runtime:SELECT,pack_registry:rules_runtime:UPDATE," +
+                "pack_registry:rules_sys:INSERT,pack_registry:rules_sys:SELECT,pack_registry:rules_sys:UPDATE"
+        runtime.inTenant(tenant) { fetchValue(grants) } shouldBe expected
+        refused(runtime, tenant, "42501", "delete from rules.mapping_import_record where import_id = 'imp-g1'")
+        refused(runtime, tenant, "42501", "update rules.mapping_import_record set file_name = 'x' where import_id = 'imp-g1'")
+        refused(runtime, tenant, "42501", "delete from rules.pack_registry where pack_version = 'g1'")
+        runtime.inTenant(tenant) { fetchValue(grants) } shouldBe expected
+    }
+
+    @Test
+    fun `INV-AC-3484 a valid import runs as the runtime login with no new privilege and an entry without import_ref is stored`() {
+        seedPack(tenant, "e1")
+        seedRecord(tenant, "imp-e1")
+        runtime.inTenant(tenant) {
+            fetchValue("with s as (${insertEntries(tenant, "e1", 4, "imp-e1")} returning 1) select count(*) from s") shouldBe 4L
+            fetchValue("with s as (${insertEntries(tenant, "e1", 2, null, "P")} returning 1) select count(*) from s") shouldBe 2L
+            fetchValue("select count(*) from rules.pack_entry_source where pack_version = 'e1' and import_ref is null") shouldBe 2L
+        }
+    }
+
+    @Test
+    fun `INV-AC-3484 an entry for another bound tenant is refused by row-level security 42501`() {
+        seedPack(tenant, "t1")
+        seedPack(other, "t1")
+        refused(runtime, tenant, "42501", insertEntries(other, "t1", 1))
+    }
+
+    @Test
+    fun `INV-AC-3484 a second entry with the same entry_id or the same internal_tax_code is refused 23505`() {
+        seedPack(tenant, "u1")
+        runtime.inTenant(tenant) { fetchValue("with s as (${insertEntries(tenant, "u1", 1)} returning 1) select count(*) from s") }
+        refused(runtime, tenant, "23505", insertEntries(tenant, "u1", 1))
+        refused(
+            runtime,
+            tenant,
+            "23505",
+            insertEntries(tenant, "u1", 1, prefix = "Q").replace("'Q' || g, 'PRIMARY', 'Q' || g", "'Q' || g, 'PRIMARY', 'N' || g"),
+        )
+    }
+
+    @Test
+    fun `INV-AC-3484 an entry inserted into an ARMED pack is refused 42501`() {
+        seedPack(tenant, "r1")
+        listOf("SUBMITTED", "APPROVED", "ARMED").forEach {
+            runtime.inTenant(tenant) { fetchValue("update rules.pack_registry set status = '$it' where pack_version = 'r1' returning id") }
+        }
+        refused(runtime, tenant, "42501", insertEntries(tenant, "r1", 1))
+    }
+
+    companion object {
+        @DynamicPropertySource
+        @JvmStatic
+        fun props(registry: DynamicPropertyRegistry) = PostgresRules.register(registry)
     }
 }
