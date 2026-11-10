@@ -186,6 +186,7 @@ class ServiceKeyHolderCopyWriterTest {
             it shouldContain secret
             it shouldNotContain "PRIVATE KEY"
             it shouldNotContain "BEGIN"
+            it shouldNotContain "garbage"
         }
     }
 
@@ -325,6 +326,13 @@ class ServiceKeyHolderCopyWriterTest {
         mount(Identity())
         secrets.values["rules/holder-copy-signing-certificate-next"] = "garbage"
         assertUnavailableNamed("rules/holder-copy-signing-certificate-next")
+    }
+
+    @Test
+    fun `INV-REQ-1195 a previous certificate secret that is not X509 PEM is Unavailable naming that secret`() {
+        mount(Identity())
+        secrets.values["rules/holder-copy-signing-certificate-previous"] = "garbage"
+        assertUnavailableNamed("rules/holder-copy-signing-certificate-previous")
     }
 
     @Test
