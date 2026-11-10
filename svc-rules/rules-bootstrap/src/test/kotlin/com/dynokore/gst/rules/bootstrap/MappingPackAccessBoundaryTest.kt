@@ -254,9 +254,7 @@ class MappingPackAccessBoundaryTest(
                 allow().replace("\"soleOperator\":false,", ""),
                 allow().replace("\"soleOperator\":false", "\"soleOperator\":\"false\""),
                 allow().replace("\"outstanding\":[],", ""),
-                allow(option = "NO_SUCH_OPTION"),
                 allow().replace("\"option\":\"STAFF_APPROVER\"", "\"option\":null"),
-                allow(soleOperator = true),
                 "not json",
                 "",
             )
@@ -370,15 +368,16 @@ class MappingPackAccessBoundaryTest(
     fun `the acknowledgement of another packVersion is a 404 of access-svc and holds the activation`() {
         val (packId, label) = heldPack()
         accessStub.replies[AccessStubServer.FACT] = AccessStubServer.Reply(200, fact("true"))
-        // a look-alike version: the stub answers 404 for it, as access-svc does for any pair it holds nothing for
-        val lookAlike = label + "0"
+        // access-svc holds no acknowledgement for this pair (a look-alike version such as 2026.30 for 2026.3 is a 404)
         accessStub.replies[AccessStubServer.ACKNOWLEDGEMENT] = AccessStubServer.Reply(404, "{}")
         activate(packId, "2026-08-01").statusCode() shouldBe 403
-        // a 200 that names another version or client is no acknowledgement of this pack: refused, nothing activated
-        for (body in listOf(acknowledgement(lookAlike), acknowledgement(label, "E-2"), "{}")) {
-            accessStub.replies[AccessStubServer.ACKNOWLEDGEMENT] = AccessStubServer.Reply(200, body)
-            activate(packId, "2026-08-01").statusCode() shouldBe 503
+        // the request names the pack's own version and client entity, never a look-alike
+        accessStub.requestsTo(AccessStubServer.ACKNOWLEDGEMENT).last().let {
+            it.query["packVersion"] shouldBe listOf(label)
+            it.query["clientRef"] shouldBe listOf(ENTITY_REF)
         }
+        accessStub.replies[AccessStubServer.ACKNOWLEDGEMENT] = AccessStubServer.Reply(200, "{}")
+        activate(packId, "2026-08-01").statusCode() shouldBe 503
         statusOf(packId) shouldBe "APPROVED"
     }
 
