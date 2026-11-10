@@ -28,6 +28,8 @@ UNIVERSE = ["a-svc", "b-svc", "c-svc"]
 GONE = "gst.old.gone.v1"
 OLD = "gst.tenancy.installation-status-changed.v1"
 NEW = "gst.platform.installation-status-changed.v1"
+OLD_OSK = "gst.access.operator-session-keys-changed.v1"
+NEW_OSK = "gst.platform.operator-session-keys-changed.v1"
 
 
 def _topic(name, etype, producers, subscribers):
@@ -51,6 +53,9 @@ def base():
     ev.append({"id": "InstallationStatusChanged", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
     tp.append(_topic(OLD, "InstallationStatusChanged", ["a-svc"], ["b-svc"]))
     tp.append(_topic(NEW, "InstallationStatusChanged", ["a-svc"], ["b-svc"]))
+    ev.append({"id": "OperatorSessionKeysChanged", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+    tp.append(_topic(OLD_OSK, "OperatorSessionKeysChanged", ["a-svc"], ["b-svc"]))
+    tp.append(_topic(NEW_OSK, "OperatorSessionKeysChanged", ["a-svc"], ["b-svc"]))
     return ev, tp
 
 
@@ -90,7 +95,7 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(chk.NON_EVENT_SERVICES, {"console-web"})
 
     def test_superseded_topics_are_exact(self):
-        self.assertEqual(chk.SUPERSEDED_TOPICS, {OLD: NEW})
+        self.assertEqual(chk.SUPERSEDED_TOPICS, {OLD: NEW, OLD_OSK: NEW_OSK})
 
 
 class TestCheck(Case):
@@ -215,6 +220,44 @@ class TestCheck(Case):
                 self.topics.append(_topic(bad, "InstallationStatusChanged", ["a-svc"], ["b-svc"]))
                 _, out = self.run_check()
                 self.assertTrue([ln for ln in out if ln.startswith("InstallationStatusChanged: more than one topic carries the event type")], out)
+
+    def test_superseded_pair_passes_rule_1_operator_session_keys(self):
+        code, out = self.run_check()
+        self.assertEqual((code, out[1:]), (0, []))
+        self.assertFalse([ln for ln in out if "more than one topic" in ln])
+
+    def test_superseded_old_topic_removed_is_stale_operator_session_keys(self):
+        self.topics = [t for t in self.topics if t["topic"] != OLD_OSK]
+        _, out = self.run_check()
+        self.assertEqual(out[1:], [f"superseded topic {OLD_OSK} is stale"])
+
+    def test_superseded_replacement_removed_is_stale_operator_session_keys(self):
+        self.topics = [t for t in self.topics if t["topic"] != NEW_OSK]
+        _, out = self.run_check()
+        self.assertEqual(out[1:], ["OperatorSessionKeysChanged: no topic carries the event type", f"superseded topic {OLD_OSK} is stale"])
+
+    def test_superseded_rules_apply_to_the_replacement_operator_session_keys(self):
+        self.topic(NEW_OSK)["subscribers"] = ["c-svc"]
+        _, out = self.run_check()
+        self.assertIn(f"OperatorSessionKeysChanged: consumer b-svc is not a subscriber of {NEW_OSK}", out)
+
+    def test_superseded_old_topic_still_needs_an_event_operator_session_keys(self):
+        self.events = [e for e in self.events if e["id"] != "OperatorSessionKeysChanged"]
+        _, out = self.run_check()
+        self.assertIn(f"topic {OLD_OSK}: event type OperatorSessionKeysChanged has no event in events.yaml", out)
+
+    def test_superseded_lookalike_keys_still_fail_rule_1_operator_session_keys(self):
+        for bad in (OLD_OSK.replace(".v1", ".v2"), OLD_OSK.upper(), OLD_OSK + " ", NEW_OSK):
+            with self.subTest(bad=bad):
+                self.topics = [t for t in self.topics if t["topic"] not in (OLD_OSK, NEW_OSK)]
+                self.topics.append(_topic(OLD_OSK, "Plain2", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic(NEW_OSK, "Plain2", ["a-svc"], ["b-svc"]))
+                self.events = [e for e in self.events if e["id"] != "Plain2"]
+                self.events.append({"id": "Plain2", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+                self.topics.append(_topic("gst.q.swap-a.v1", "OperatorSessionKeysChanged", ["a-svc"], ["b-svc"]))
+                self.topics.append(_topic(bad, "OperatorSessionKeysChanged", ["a-svc"], ["b-svc"]))
+                _, out = self.run_check()
+                self.assertTrue([ln for ln in out if ln.startswith("OperatorSessionKeysChanged: more than one topic carries the event type")], out)
 
     def test_model_only_with_topic_or_missing_is_stale(self):
         self.topics.append(_topic("gst.x.replay-requested.v1", "ReplayRequested", ["a-svc"], []))
@@ -513,8 +556,10 @@ class TestAddressRule(unittest.TestCase):
             ("gst.access.authority-changed.v1", "com.dynokore.gst.access.AuthorityChanged.v1"),
             (OLD, "com.dynokore.gst.tenancy.InstallationStatusChanged.v1"),
             (NEW, "com.dynokore.gst.platform.InstallationStatusChanged.v1"),
+            (OLD_OSK, "com.dynokore.gst.access.OperatorSessionKeysChanged.v1"),
+            (NEW_OSK, "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1"),
         ]
-        code, out = self.run_topics(pairs, extra_events=sorted(chk.MODEL_ONLY) + ["InstallationStatusChanged"])
+        code, out = self.run_topics(pairs, extra_events=sorted(chk.MODEL_ONLY) + ["InstallationStatusChanged", "OperatorSessionKeysChanged"])
         self.assertEqual(code, 0, out)
         self.assertEqual([l for l in out if "address differs" in l or "is malformed" in l], [])
 

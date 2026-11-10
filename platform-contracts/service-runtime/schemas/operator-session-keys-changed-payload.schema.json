@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/operator-session-keys-changed-payload.schema.json",
+  "title": "OperatorSessionKeysChangedPayload",
+  "description": "Payload of the OperatorSessionKeysChanged event (catalogued in model/architecture/events.yaml; class: platform; written under the platform tenant with the platform entity, so the wire form has no tenantid and no entityref; feeds runtime replicas). access-svc publishes its operator-session signing keys on their own topic, gst.platform.operator-session-keys-changed.v1, subscribed by every service except access-svc, which signs with them and verifies operator tokens from its own key store (coordinator ruling INV-Q-4171); each service's authority replica (service-runtime) consumes them beside AuthorityChanged, with no ordering between the two, keeps them, and verifies an operator-session token (a token carrying `act`) only against these replicated keys, refusing it (401) while the replica holds no valid key (fail closed). getVerificationKeys and getRevocationList stay gateway-only (owner ruling INV-Q-4006 A; coordinator ruling INV-Q-4162; owner ruling INV-Q-4119). access-svc publishes a key before signing with it and keeps the old key until every token it signed has expired. Each event carries the current key and, during rotation, the next key. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "keys": {
+      "type": "array",
+      "description": "The signing keys of access-svc: for each use, the current key and, during rotation, the next key. An item without `use` is read as OPERATOR_SESSION. A MACHINE_ACCESS key verifies machine access tokens only, and an OPERATOR_SESSION key verifies operator-session tokens only.",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "properties": {
+          "kid": {
+            "type": "string",
+            "description": "Key id, matched against the token header's kid.",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "use": {
+            "type": "string",
+            "description": "The use of the key: OPERATOR_SESSION verifies operator-session tokens, MACHINE_ACCESS verifies machine access tokens. An item without use is read as OPERATOR_SESSION.",
+            "enum": [
+              "OPERATOR_SESSION",
+              "MACHINE_ACCESS"
+            ],
+            "x-extensible-enum": true
+          },
+          "alg": {
+            "type": "string",
+            "description": "The JWS signing algorithm (RFC 7518), for example RS256.",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "The key's DER X.509 SubjectPublicKeyInfo (RFC 5280 section 4.1.2.7), standard base64 (RFC 4648 section 4), whatever the alg; the same encoding as getVerificationKeys (coordinator ruling INV-Q-4079).",
+            "minLength": 1,
+            "maxLength": 8192,
+            "contentEncoding": "base64"
+          },
+          "validFrom": {
+            "type": "string",
+            "description": "Start of the key's validity.",
+            "format": "date-time"
+          },
+          "validUntil": {
+            "type": "string",
+            "description": "End of the key's validity.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "kid",
+          "alg",
+          "publicKey",
+          "validFrom",
+          "validUntil"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "keys"
+  ],
+  "additionalProperties": true,
+  "examples": [
+    {
+      "keys": [
+        {
+          "kid": "ops-2026-10",
+          "alg": "RS256",
+          "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "kid": "ops-2026-10",
+          "alg": "RS256",
+          "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
+        },
+        {
+          "kid": "ops-2026-11",
+          "alg": "RS256",
+          "publicKey": "TkVYVC1QTEFDRUhPTERFUgo=",
+          "validFrom": "2026-11-01T00:00:00Z",
+          "validUntil": "2026-12-15T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "kid": "ops-2026-10",
+          "use": "OPERATOR_SESSION",
+          "alg": "RS256",
+          "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
+        },
+        {
+          "kid": "machine-2026-10",
+          "use": "MACHINE_ACCESS",
+          "alg": "RS256",
+          "publicKey": "TUFDSElORS1QTEFDRUhPTERFUgo=",
+          "validFrom": "2026-10-01T00:00:00Z",
+          "validUntil": "2026-11-15T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}

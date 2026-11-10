@@ -54,6 +54,16 @@ topic, every event with `feeds_runtime_replicas: true` must be subscribed by
 every service except `console-web` and its producers, every topic's event type
 has an event, and every event has a topic. The rules are strict.
 
+**Superseded topics (INV-Q-16626 A).** `SUPERSEDED_TOPICS` in the script maps an
+old topic that a deprecation window keeps beside its replacement to that
+replacement, by exact name. It is exactly
+`{"gst.tenancy.installation-status-changed.v1": "gst.platform.installation-status-changed.v1", "gst.access.operator-session-keys-changed.v1": "gst.platform.operator-session-keys-changed.v1"}`.
+Rule 1 leaves the old topic out and applies the consumer, producer and replica-feed
+rules to the replacement; rule 4 still applies to the old topic. An entry whose old
+topic or replacement is missing from `topics.yaml` is a finding (`superseded topic
+<old> is stale`). The constant is shrink-only: the change that removes an old topic
+from `topics.yaml` deletes its pair in the same change.
+
 **Address rule (INV-T-17778).** Every `topics.yaml` entry with a string `topic`
 and a string `event_type` is checked in both modes, including the entries of
 `EXEMPT_TOPICS` and `SUPERSEDED_TOPICS`; the rule has no exemption. The event

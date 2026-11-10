@@ -491,6 +491,28 @@ topics:
     subscribers:
       - console-bff
       - notification-svc
+  - topic: gst.platform.operator-session-keys-changed.v1
+    event_type: com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - access-svc
+    subscribers:
+      - aggregation-svc
+      - canonical-svc
+      - console-bff
+      - control-plane-svc
+      - evidence-svc
+      - ingestion-svc
+      - masterdata-svc
+      - notification-svc
+      - payload-svc
+      - reconciliation-svc
+      - rules-svc
+      - submission-svc
+      - tenancy-svc
+      - transport-svc
   - topic: gst.platform.pack-dry-run-sample-recorded.v1
     event_type: com.dynokore.gst.platform.PackDryRunSampleRecorded.v1
     content_topic: true
@@ -847,6 +869,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -861,6 +884,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -876,6 +900,7 @@ replay_topics:
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -890,6 +915,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -905,6 +931,7 @@ replay_topics:
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
       - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -919,6 +946,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -935,6 +963,7 @@ replay_topics:
       - com.dynokore.gst.access.SignedLinkIssued.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -953,6 +982,7 @@ replay_topics:
       - com.dynokore.gst.platform.BreakGlassAlertRaised.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
       - com.dynokore.gst.platform.ConnectionStatusChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -967,6 +997,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -981,6 +1012,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -995,6 +1027,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -1009,6 +1042,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -1023,6 +1057,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
@@ -1037,6 +1072,7 @@ replay_topics:
       - com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.AuthorityChanged.v1
       - com.dynokore.gst.platform.BreakGlassSessionChanged.v1
+      - com.dynokore.gst.platform.OperatorSessionKeysChanged.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false

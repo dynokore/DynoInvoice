@@ -1,0 +1,44 @@
+{
+  "keys": [
+    {
+      "kid": "k0",
+      "use": "MACHINE_ACCESS",
+      "alg": "RS256",
+      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validUntil": "2026-11-15T00:00:00Z"
+    },
+    {
+      "kid": "k1",
+      "use": "MACHINE_ACCESS",
+      "alg": "RS256",
+      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validUntil": "2026-11-15T00:00:00Z"
+    },
+    {
+      "kid": "k2",
+      "use": "MACHINE_ACCESS",
+      "alg": "RS256",
+      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validUntil": "2026-11-15T00:00:00Z"
+    },
+    {
+      "kid": "k3",
+      "use": "MACHINE_ACCESS",
+      "alg": "RS256",
+      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validUntil": "2026-11-15T00:00:00Z"
+    },
+    {
+      "kid": "k4",
+      "use": "MACHINE_ACCESS",
+      "alg": "RS256",
+      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validUntil": "2026-11-15T00:00:00Z"
+    }
+  ]
+}

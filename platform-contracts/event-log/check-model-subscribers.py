@@ -39,6 +39,7 @@ EXEMPT_TYPES: frozenset[str] = frozenset()
 # topic or replacement is missing from topics.yaml is a finding.
 SUPERSEDED_TOPICS = {
     "gst.tenancy.installation-status-changed.v1": "gst.platform.installation-status-changed.v1",
+    "gst.access.operator-session-keys-changed.v1": "gst.platform.operator-session-keys-changed.v1",
 }
 # Address rule (INV-T-17778): the topic address is derived from the event type; no exemption.
 EVENT_TYPE_RE = re.compile(r"^com\.dynokore\.gst\.([a-z][a-z0-9]*)\.([A-Z][A-Za-z0-9]*)\.v([0-9]+)$")
