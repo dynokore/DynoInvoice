@@ -8,11 +8,11 @@ import com.dynokore.gst.tenancy.domain.ExportManifest
 import com.dynokore.gst.tenancy.domain.ExportState
 import com.dynokore.gst.tenancy.domain.OffboardingScope
 import com.dynokore.platform.tenancykernel.TenantContext
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.atomic.AtomicInteger
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * The documents-count stub and the export port of the offboarding tests (the real ones belong to later-wave services,
@@ -22,7 +22,8 @@ import org.springframework.context.annotation.Primary
 class OffboardingPorts {
     @Bean
     @Primary
-    fun stubDocuments(tenants: TenantContext): UnsubmittedDocuments = UnsubmittedDocuments { _: OffboardingScope, _: String? ->
+    fun stubDocuments(tenants: TenantContext): UnsubmittedDocuments =
+        UnsubmittedDocuments { _: OffboardingScope, _: String? ->
             calls.incrementAndGet()
             actors.add(tenants.currentActor())
             unsubmitted

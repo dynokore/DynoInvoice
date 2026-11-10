@@ -163,7 +163,8 @@ open class TenantsController(
                 noticeWindowDays = closeTenantRequest.noticeWindowDays,
             )
         // the audit actor is the calling service of the verified workload token; none or blank refuses closed (401)
-        val actor = serviceCaller.current()?.takeIf { it.isNotBlank() } ?: throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
+        val actor =
+            serviceCaller.current()?.takeIf { it.isNotBlank() } ?: throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
         // a service-job call carries no end-user token, so nothing is bound yet: bind the tenant of the path
         val id = runCatching { TenantRefs.idOf(tenantRef) }.getOrElse { notFound() }
         return tenants.bind(id, actor) {
