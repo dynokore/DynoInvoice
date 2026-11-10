@@ -88,7 +88,7 @@ class PayloadReadyDbTest {
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val worker: SubmissionWorker = context.getBean(SubmissionWorker::class.java)
         val workQueue: WorkQueuePort = context.getBean(WorkQueuePort::class.java)
-        val handler: PayloadReadyHandler = context.getBean(PayloadReadyHandler::class.java)
+        val handler: EventHandler = context.getBean("payloadReadyHandler", EventHandler::class.java)
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val catalogue: EventCatalogue = context.getBean(EventCatalogue::class.java)
         val reader = ListReader()

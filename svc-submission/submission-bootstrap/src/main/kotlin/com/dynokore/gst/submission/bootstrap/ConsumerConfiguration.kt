@@ -7,6 +7,7 @@ import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcReplayDelivery
@@ -59,7 +60,7 @@ class ConsumerConfiguration {
         catalogue: EventCatalogue,
         reader: EventLogReader,
         scope: TenantScope,
-        handler: PayloadReadyHandler,
+        @Qualifier("payloadReadyHandler") handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): JdbcInboxConsumer =
