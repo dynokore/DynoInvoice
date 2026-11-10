@@ -28,7 +28,9 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
-    testImplementation(testFixtures(libs.platform.serviceRuntime.api))
+    testImplementation(libs.platform.serviceRuntime.api) {
+        capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }
+    }
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
     testImplementation(testFixtures(project(":submission-adapters")))

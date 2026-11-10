@@ -33,10 +33,6 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import jakarta.servlet.http.HttpServletRequest
-import kotlin.io.path.extension
-import kotlin.io.path.isRegularFile
-import kotlin.io.path.readText
-import kotlin.streams.asSequence
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
 import java.lang.reflect.Proxy
@@ -49,6 +45,10 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
 import java.util.UUID
+import kotlin.io.path.extension
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.readText
+import kotlin.streams.asSequence
 
 class ComplianceMetricsControllerTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-30T00:00:00Z"), ZoneOffset.UTC)
@@ -99,7 +99,12 @@ class ComplianceMetricsControllerTest {
         }
 
     /** A role the catalogue lists for [key], read from the map; no role name is written in this test. */
-    private fun roleOf(key: String): String = roleMap.rolesFor(key).keys.sorted().first()
+    private fun roleOf(key: String): String =
+        roleMap
+            .rolesFor(key)
+            .keys
+            .sorted()
+            .first()
 
     /** A role the catalogue lists for [key] and does not list for [notFor]. */
     private fun roleOfOnly(

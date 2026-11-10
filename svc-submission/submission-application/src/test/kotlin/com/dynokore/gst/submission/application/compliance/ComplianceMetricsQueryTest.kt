@@ -78,7 +78,12 @@ class ComplianceMetricsQueryTest {
         }
 
     /** A role the catalogue lists for [key], read from the map; no role name is written in this test. */
-    private fun roleOf(key: String): String = roleMap.rolesFor(key).keys.sorted().first()
+    private fun roleOf(key: String): String =
+        roleMap
+            .rolesFor(key)
+            .keys
+            .sorted()
+            .first()
 
     /** A role the catalogue lists for [key] and does not list for [notFor]. */
     private fun roleOfOnly(

@@ -16,5 +16,7 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.gstCatalogue)
-    testImplementation(testFixtures(libs.platform.serviceRuntime.api))
+    testImplementation(libs.platform.serviceRuntime.api) {
+        capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }
+    }
 }
