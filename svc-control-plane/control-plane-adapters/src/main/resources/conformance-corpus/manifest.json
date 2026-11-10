@@ -185,6 +185,10 @@
       "sha256": "68f03e2f52b370614641cf1736ddab03840f2e7af3175269b5bc61315721b0c9"
     },
     {
+      "name": "mapping-scheme-fixture.json",
+      "sha256": "0e102b5d45fb9b66c4b1dc9a109d31b2575947fe8b25194918e1d1f67e53117e"
+    },
+    {
       "name": "profile-fixture.json",
       "sha256": "2509a0b582a0e66417c86b9bd763a9dee02e1b10dda6e195ea4435bb4e173984"
     },
@@ -319,6 +323,10 @@
     {
       "name": "sm-sws-supply-invoice.json",
       "sha256": "b283cec97a5c2af3c5e29d22baa2a24db15b89bb8e0988a26605afd39ac5e482"
+    },
+    {
+      "name": "sm-sws-supply-tagged-invoice.json",
+      "sha256": "2975324f7baa287315e5523bfbdc07137473c94bc42e491076ed7dffa7d47709"
     },
     {
       "name": "wx-r1-ex25-dd-purchase.json",

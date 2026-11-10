@@ -9,7 +9,7 @@ import com.dynokore.platform.rulesevaluation.evaluate
  * The rule conformance corpus run in-process (INV-REQ-2660, INV-AC-9790, owner answer INV-Q-8719 A): the golden
  * documents of the corpus resource tree, and [classify] by the pure `evaluate` of rules-evaluation in the same JVM,
  * with no HTTP call. The candidate pack's `contents` replaces the baseline of its own type; the other two types come
- * from the baselines of the tree, the tenant mapping from `mapping-fixture.json` and the entity profile from
+ * from the baselines of the tree, the tenant mapping from `mapping-fixture.json` with `mapping-scheme-fixture.json` and the entity profile from
  * `profile-fixture.json`.
  *
  * Fail closed (NIST SP 800-53 SI-7, SI-10): [CorpusLoader] makes [documents] throw for a tree that is not exactly as
@@ -49,7 +49,7 @@ class InProcessConformanceCorpus(
     }
 
     companion object {
-        /** The five fixture files of the tree; every other manifest entry is a golden document. */
+        /** The six fixture files of the tree; every other manifest entry is a golden document. */
         val FIXTURES: Set<String> get() = CorpusLoader.FIXTURES
     }
 }

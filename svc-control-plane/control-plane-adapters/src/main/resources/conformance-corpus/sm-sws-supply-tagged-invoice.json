@@ -1,0 +1,17 @@
+{
+  "description": "Specialised warehouse scheme supply (invoice) whose internal tax code is mapped with scheme tag SWS; the SWS/SUPPLY treatment of the scenario pack decides ZR.",
+  "expected": "ZR",
+  "expectedField": "categoryCode",
+  "id": "sm-sws-supply-tagged-invoice",
+  "inputs": {
+    "direction": "SALE",
+    "election": "SWS",
+    "entityRef": "ENT-CORPUS-1",
+    "internalTaxCode": "INT-SWS-SR",
+    "lineSign": "POSITIVE",
+    "transactionDate": "2026-10-01"
+  },
+  "period": "2026-10",
+  "section": "SCENARIO_MATRIX",
+  "source": "INV-NOTE-2 section 14.15 table, SWS: ordinary zero-rated supplies ZR"
+}

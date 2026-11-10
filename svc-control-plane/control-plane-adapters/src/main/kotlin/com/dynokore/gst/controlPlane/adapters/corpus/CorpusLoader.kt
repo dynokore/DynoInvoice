@@ -39,7 +39,7 @@ internal class LoadedCorpus(
 
 /**
  * Reads and verifies a corpus tree (NIST SP 800-53 SI-7, SI-10): every manifest entry is present and equals its
- * SHA-256, every file parses and is in its format, the five fixtures are listed, and the corpus is not empty. Any
+ * SHA-256, every file parses and is in its format, the six fixtures are listed, and the corpus is not empty. Any
  * failure throws; nothing is defaulted.
  */
 internal class CorpusLoader(
@@ -50,7 +50,12 @@ internal class CorpusLoader(
         val entries = manifestEntries(manifest)
         val bytes = entries.associate { (name, hash) -> name to verified(name, hash) }
         FIXTURES.forEach { check(it in bytes) { "$it is not listed in $MANIFEST" } }
-        val mapping = CorpusFixtures.mappingOf(parse(MAPPING_FIXTURE, bytes.getValue(MAPPING_FIXTURE)))
+        val mapping =
+            CorpusFixtures.mappingOf(
+                parse(MAPPING_FIXTURE, bytes.getValue(MAPPING_FIXTURE)),
+                parse(MAPPING_SCHEME_FIXTURE, bytes.getValue(MAPPING_SCHEME_FIXTURE)),
+                bytes.getValue(MAPPING_SCHEME_FIXTURE),
+            )
         val profile = CorpusFixtures.profileOf(parse(PROFILE_FIXTURE, bytes.getValue(PROFILE_FIXTURE)))
         val baselines = BASELINE_FILES.mapValues { (_, name) -> baselineOf(name, bytes.getValue(name)) }
         val documents =
@@ -203,6 +208,7 @@ internal class CorpusLoader(
     companion object {
         const val MANIFEST = "manifest.json"
         const val MAPPING_FIXTURE = "mapping-fixture.json"
+        const val MAPPING_SCHEME_FIXTURE = "mapping-scheme-fixture.json"
         const val PROFILE_FIXTURE = "profile-fixture.json"
 
         /** The baseline contents file per evaluated pack type. */
@@ -213,8 +219,9 @@ internal class CorpusLoader(
                 EvaluationPackTypes.SCOPE to "scope-pack.json",
             )
 
-        /** The five fixture files of the tree; every other manifest entry is a golden document. */
-        val FIXTURES: Set<String> = setOf(MAPPING_FIXTURE, PROFILE_FIXTURE) + BASELINE_FILES.values
+        /** The six fixture files of the tree; every other manifest entry is a golden document. */
+        val FIXTURES: Set<String> =
+            setOf(MAPPING_FIXTURE, MAPPING_SCHEME_FIXTURE, PROFILE_FIXTURE) + BASELINE_FILES.values
 
         const val CATEGORY_CODE = "categoryCode"
         const val SCOPE_VERDICT = "scopeVerdict"

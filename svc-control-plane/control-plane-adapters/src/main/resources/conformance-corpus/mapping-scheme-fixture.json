@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "entryId": "MAP-SWS-SR",
+      "internalTaxCode": "INT-SWS-SR",
+      "irasCode": "SR",
+      "schemeTag": "SWS",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus mapping-scheme-fixture (test fixture)"
+    }
+  ]
+}

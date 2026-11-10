@@ -33,12 +33,18 @@ class CorpusFixtureFeedTest {
         val fixture = tree.read("mapping-fixture.json")
         val corpus = tree.corpus()
         val pack = tree.pack("SCOPE", scopePack())
+        val schemeCodes =
+            tree.read("mapping-scheme-fixture.json").get("entries").let { e ->
+                (0 until e.size()).map { e.get(it).get("internalTaxCode").asString() }.toSet()
+            }
         var checked = 0
         tree.manifestNames().filter { it !in InProcessConformanceCorpus.FIXTURES }.forEach { name ->
             val doc = tree.read(name)
-            if (doc.get("expectedField").asString() == "categoryCode") {
+            val code = doc.get("inputs").get("internalTaxCode").asString()
+            // a scheme-tagged code is mapped by mapping-scheme-fixture.json and decided by the scenario pack
+            if (doc.get("expectedField").asString() == "categoryCode" && code !in schemeCodes) {
                 val golden = corpus.documents().first { it.id.value == doc.get("id").asString() }
-                val mapped = fixture.get(doc.get("inputs").get("internalTaxCode").asString()).asString()
+                val mapped = fixture.get(code).asString()
                 corpus.classify(pack, golden) shouldBe mapped
                 checked++
             }

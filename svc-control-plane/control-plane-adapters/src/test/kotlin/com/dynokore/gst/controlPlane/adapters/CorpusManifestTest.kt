@@ -86,11 +86,12 @@ class CorpusManifestTest {
                 value.isString && value.asString() in CATEGORY_CODES,
             ) { "fixture value of $key is not a code of INV-BR-1470" }
         }
+        val schemeEntries = items(read(dir.resolve(SCHEME_FIXTURE)).get("entries"))
         val sections = mutableSetOf<String>()
         val entityRefs = mutableSetOf<String>()
         names.filter { it !in FIXTURE_FILES }.forEach { name ->
             sections +=
-                verifyDocument(name, read(dir.resolve(name)), fixture, entityRefs)
+                verifyDocument(name, read(dir.resolve(name)), fixture, schemeEntries, entityRefs)
         }
         check(entityRefs == setOf(ENTITY)) { "entityRef values are $entityRefs, not the one corpus entity" }
         check(sections == SECTIONS) { "sections are $sections" }
@@ -100,6 +101,7 @@ class CorpusManifestTest {
         name: String,
         doc: JsonNode,
         fixture: JsonNode,
+        schemeEntries: List<JsonNode>,
         entityRefs: MutableSet<String>,
     ): String {
         check(field(doc, "id") + ".json" == name) { "$name: id differs from the file name" }
@@ -121,6 +123,14 @@ class CorpusManifestTest {
         entityRefs += field(inputs, "entityRef")
         field(inputs, "transactionDate")
         val internalTaxCode = field(inputs, "internalTaxCode")
+        val schemeEntry = schemeEntries.firstOrNull { it.get("internalTaxCode").asString() == internalTaxCode }
+        if (schemeEntry != null) {
+            // checked against its scheme entry: the tag equals the election; the expected value is the scheme treatment
+            check(schemeEntry.get("schemeTag").asString() == field(inputs, "election")) {
+                "$name: schemeTag of $internalTaxCode differs from inputs.election"
+            }
+            return section
+        }
         val mapped =
             checkNotNull(
                 fixture.get(internalTaxCode),
@@ -315,7 +325,7 @@ class CorpusManifestTest {
     }
 
     @Test
-    fun `INV-AC-9790 each of the five fixture files is listed in the manifest and none is a golden document`() {
+    fun `INV-AC-9790 each of the six fixture files is listed in the manifest and none is a golden document`() {
         val names = entries(corpusDir()).map { it.first }
         FIXTURE_FILES.forEach { (it in names) shouldBe true }
         FIXTURE_FILES.forEach { fixture ->
@@ -360,9 +370,18 @@ class CorpusManifestTest {
         const val MANIFEST = "manifest.json"
         const val FIXTURE = "mapping-fixture.json"
 
-        /** The five fixture files of the tree (mapping, profile, three baselines); the rest are documents. */
+        const val SCHEME_FIXTURE = "mapping-scheme-fixture.json"
+
+        /** The six fixture files of the tree (two mappings, profile, three baselines); the rest are documents. */
         val FIXTURE_FILES =
-            setOf(FIXTURE, "profile-fixture.json", "code-catalogue-pack.json", "scenario-pack.json", "scope-pack.json")
+            setOf(
+                FIXTURE,
+                SCHEME_FIXTURE,
+                "profile-fixture.json",
+                "code-catalogue-pack.json",
+                "scenario-pack.json",
+                "scope-pack.json",
+            )
         const val ENTITY = "ENT-CORPUS-1"
 
         val SECTIONS = setOf("WORKED_EXAMPLES", "SCENARIO_MATRIX", "SCOPE_MATRIX", "CODE_MATRIX", "EDGE_CORPUS")

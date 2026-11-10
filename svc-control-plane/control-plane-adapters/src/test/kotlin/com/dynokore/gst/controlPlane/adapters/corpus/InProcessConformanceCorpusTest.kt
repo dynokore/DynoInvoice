@@ -27,11 +27,11 @@ class InProcessConformanceCorpusTest {
     }
 
     @Test
-    fun `INV-AC-9790 documents are the manifest entries other than the five fixtures in manifest order`() {
+    fun `INV-AC-9790 documents are the manifest entries other than the six fixtures in manifest order`() {
         val expected = tree.manifestNames().filter { it !in fixtures }
         fixtures.all { it in tree.manifestNames() } shouldBe true
         tree.corpus().documents().map { it.id.value + ".json" } shouldBe expected
-        expected.size shouldBe tree.manifestNames().size - 5
+        expected.size shouldBe tree.manifestNames().size - 6
     }
 
     @Test
