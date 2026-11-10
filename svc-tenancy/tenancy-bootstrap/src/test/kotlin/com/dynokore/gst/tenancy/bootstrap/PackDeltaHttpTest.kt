@@ -7,14 +7,15 @@ import com.dynokore.gst.tenancy.application.period.PackActivationRecompute
 import com.dynokore.gst.tenancy.syncedge.EntityFactsIdentity
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import tools.jackson.databind.ObjectMapper
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import tools.jackson.databind.ObjectMapper
 import java.nio.file.Path
 
 /**
@@ -33,6 +34,23 @@ class PackDeltaHttpTest {
             "\"finalReturnForm\":\"F8\",\"dueRules\":{\"F5\":{\"monthsAfterEnd\":1,\"endOfMonth\":true," +
             "\"daysAfterEnd\":0},\"F8\":{\"monthsAfterEnd\":3,\"endOfMonth\":true,\"daysAfterEnd\":0}}," +
             "\"weekend\":[\"SATURDAY\",\"SUNDAY\"],\"holidays\":[]}}}"
+
+    private fun stage(
+        env: ProfileEnv,
+        tenant: TenantId,
+    ) {
+        val context = env.context
+        val handler =
+            CalendarPackStagedHandler(
+                context.getBean(CalendarPackReplica::class.java),
+                ObjectMapper(),
+                context.getBean(CalendarPackDecoder::class.java),
+                effects = context.getBean(PackActivationRecompute::class.java),
+            )
+        env.inTenant(tenant) {
+            env.inTx { handler.handle(testEnvelope(CalendarPackStagedHandler.STAGED, tenant, staged)) }
+        }
+    }
 
     private fun get(
         dir: Path,
@@ -53,16 +71,7 @@ class PackDeltaHttpTest {
                 val env = ProfileEnv(context)
                 env.withEntity { tenant, entity ->
                     PeriodEnv(env).actAs(entity, "tax.approver")
-                    val handler =
-                        CalendarPackStagedHandler(
-                            context.getBean(CalendarPackReplica::class.java),
-                            ObjectMapper(),
-                            context.getBean(CalendarPackDecoder::class.java),
-                            effects = context.getBean(PackActivationRecompute::class.java),
-                        )
-                    env.inTenant(tenant) {
-                        env.inTx { handler.handle(testEnvelope(CalendarPackStagedHandler.STAGED, tenant, staged)) }
-                    }
+                    stage(env, tenant)
                     EntityFactsIdentity.principal =
                         EndUserPrincipal("user-a", tenant, setOf(EntityRef(entity.entityRef)))
                     val port = context.environment.getProperty("local.server.port")
