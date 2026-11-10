@@ -37,8 +37,6 @@ object AggregationContext {
                 "service-runtime.idempotency.schema=aggregation",
                 "service-runtime.datasource.credential=db/aggregation_runtime",
                 "gst.bindings.secret-store.mount-root=$mountRoot",
-                "gst.bindings.telemetry-export=bundled-otel",
-                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
             )
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
