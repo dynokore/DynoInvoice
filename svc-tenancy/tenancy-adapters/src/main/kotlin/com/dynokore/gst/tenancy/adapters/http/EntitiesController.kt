@@ -489,14 +489,16 @@ open class EntitiesController(
                 forbidden(outcome.reason)
             }
 
-            // INV-T-13532 (S1) adds Withdrawn, Declined, Listed and Conflict; INV-T-15888 (S2) maps them to HTTP.
+            is ElectionOutcome.Conflict -> {
+                conflict(TenancyErrorCode.ELECTION_CHANGE_PENDING, outcome.reason)
+            }
+
             is ElectionOutcome.Done,
             is ElectionOutcome.Pending,
             is ElectionOutcome.Approved,
             is ElectionOutcome.Withdrawn,
             is ElectionOutcome.Declined,
             is ElectionOutcome.Listed,
-            is ElectionOutcome.Conflict,
             -> {
                 error("outcome ${outcome::class.simpleName} is not a refusal")
             }
