@@ -5,7 +5,7 @@ SET lock_timeout = '5s';
 -- (NIST SP 800-53 AU-9, AU-10).
 create table submission.readiness_check (
     seq bigint generated always as identity primary key,
-    tenant_id uuid not null default submission.bound_tenant(),
+    tenant_id uuid not null,
     entity_ref text not null,
     period_ref text not null,
     verdict text not null check (verdict in ('READY', 'NOT_READY')),

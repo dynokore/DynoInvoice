@@ -6,6 +6,7 @@ import com.dynokore.gst.submission.application.readiness.ReadinessCheckReader
 import com.dynokore.gst.submission.application.readiness.ReadinessCheckRecorder
 import com.dynokore.gst.submission.application.readiness.StoredReadinessCheck
 import com.dynokore.gst.submission.domain.gate.CheckVerdict
+import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.impl.DSL
@@ -19,6 +20,7 @@ import java.time.ZoneOffset
  */
 class JooqReadinessCheckStore(
     private val dsl: DSLContext,
+    private val tenants: TenantContext,
 ) : ReadinessCheckRecorder,
     ReadinessCheckReader {
     private val t = ReadinessCheck.READINESS_CHECK
@@ -38,6 +40,7 @@ class JooqReadinessCheckStore(
         val row =
             dsl
                 .insertInto(t)
+                .set(t.TENANT_ID, tenants.current().value)
                 .set(t.ENTITY_REF, entityRef)
                 .set(t.PERIOD_REF, periodRef)
                 .set(t.VERDICT, verdict.name)
@@ -74,7 +77,8 @@ class JooqReadinessCheckStore(
         require(periodRef.isNotBlank()) { "periodRef must not be blank" }
         return dsl
             .selectFrom(t)
-            .where(t.ENTITY_REF.eq(entityRef))
+            .where(t.TENANT_ID.eq(tenants.current().value))
+            .and(t.ENTITY_REF.eq(entityRef))
             .and(t.PERIOD_REF.eq(periodRef))
             .let { q -> if (before != null) q.and(t.SEQ.lt(before)) else q }
             .orderBy(t.SEQ.desc())

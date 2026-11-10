@@ -3,6 +3,8 @@ package com.dynokore.gst.submission.adapters
 import com.dynokore.gst.submission.adapters.persistence.JooqReadinessCheckStore
 import com.dynokore.gst.submission.application.readiness.StoredReadinessCheck
 import com.dynokore.gst.submission.domain.gate.CheckVerdict
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.jooq.SQLDialect
@@ -21,7 +23,9 @@ import java.util.concurrent.Executors
 class JooqReadinessCheckStoreTest {
     private val connection =
         SubmissionDb.connect(SubmissionDb.RUNTIME, SubmissionDb.RUNTIME_PASSWORD).also { it.autoCommit = false }
-    private val store = JooqReadinessCheckStore(DSL.using(connection, SQLDialect.POSTGRES))
+    private var bound: UUID = UUID.randomUUID()
+    private val tenants = contextOf { bound }
+    private val store = JooqReadinessCheckStore(DSL.using(connection, SQLDialect.POSTGRES), tenants)
     private val created = mutableListOf<UUID>()
     private val t0 = Instant.parse("2026-11-01T08:00:00Z")
 
@@ -43,6 +47,7 @@ class JooqReadinessCheckStoreTest {
         block: () -> T,
     ): T {
         SignedBindings.bind(connection, tenant)
+        bound = tenant
         return try {
             block().also { if (commit) connection.commit() }
         } finally {
@@ -130,6 +135,7 @@ class JooqReadinessCheckStoreTest {
         append(t1, CheckVerdict.READY, "U1", t0)
         inTx(t2) { store.latest("E1", "P1") } shouldBe null
         SignedBindings.bind(connection, t1, signature = "forged")
+        bound = t1
         val forged = runCatching { store.page("E1", "P1", 10) }.getOrDefault(emptyList())
         connection.rollback()
         forged shouldBe emptyList()
@@ -190,7 +196,7 @@ class JooqReadinessCheckStoreTest {
                                 c.autoCommit = false
                                 SignedBindings.bind(c, t)
                                 barrier.await()
-                                JooqReadinessCheckStore(DSL.using(c, SQLDialect.POSTGRES))
+                                JooqReadinessCheckStore(DSL.using(c, SQLDialect.POSTGRES), contextOf { t })
                                     .append("E1", "P1", CheckVerdict.READY, t0.plusSeconds(n.toLong()), "U$n", null)
                                     .also { c.commit() }
                             }
@@ -254,4 +260,29 @@ class JooqReadinessCheckStoreTest {
             }
         }
     }
+
+    @Test
+    fun `the tenant_id column has no default and an insert stores the tenant of the context`() {
+        val a = tenant()
+        ownerRows(
+            "select column_default is null from information_schema.columns " +
+                "where table_schema = 'submission' and table_name = 'readiness_check' and column_name = 'tenant_id'",
+        ) shouldBe listOf("t")
+        append(a, CheckVerdict.READY, "U1", t0)
+        ownerRows("select tenant_id from submission.readiness_check where tenant_id = '$a'") shouldBe
+            listOf(a.toString())
+    }
 }
+
+private fun contextOf(current: () -> UUID): TenantContext =
+    object : TenantContext {
+        override fun current(): TenantId = TenantId(current())
+
+        override fun currentActor(): String? = null
+
+        override fun <T> bind(
+            tenant: TenantId,
+            actor: String,
+            block: () -> T,
+        ): T = block()
+    }
