@@ -329,6 +329,7 @@ class MappingSpreadsheetBoundaryTest(
         val before = snapshot()
         val over = import(body(valid(CAP + 1)))
         io.kotest.assertions.withClue(over.body().take(300)) { over.statusCode() shouldBe 413 }
+        json(over).get("code").asString() shouldBe "SRT-014"
         SpreadsheetProbe.catalogueCalls.get() shouldBe 0
         SpreadsheetProbe.authorityAsked.shouldBeEmpty()
         snapshot() shouldBe before
