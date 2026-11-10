@@ -43,7 +43,8 @@ class RunDryRun(
     private val store: DryRunDeltaStore,
     private val clock: Clock,
 ) {
-    @Suppress("TooGenericExceptionCaught") // CS-50: fail closed, a failure ends the run
+    // fail closed: any failure of a port or an evaluation ends the run unavailable
+    @Suppress("TooGenericExceptionCaught")
     fun run(command: RunDryRunCommand): DryRunOutcome {
         store.begin(command.start)
         return try {
