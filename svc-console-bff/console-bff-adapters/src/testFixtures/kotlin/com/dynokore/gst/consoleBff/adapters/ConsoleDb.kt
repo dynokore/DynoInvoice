@@ -10,7 +10,7 @@ import java.time.Duration
 
 /**
  * A PostgreSQL 18 database with the roles of `db/roles.sql`, the schema `console` created by provisioning
- * (`db/provision.sql`, owned by `console_migrate`) and the Flyway migrations of this module applied by `console_migrate`
+ * (`db/provision.sql`, owned by `console_migrate`) and the Flyway migrations of this module applied by the same role
  * (TPL-12, TPL-14). The two SQL files are run by the postgres image as superuser when it initialises.
  */
 object ConsoleDb {

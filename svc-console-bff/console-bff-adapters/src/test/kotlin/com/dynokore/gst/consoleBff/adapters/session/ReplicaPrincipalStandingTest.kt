@@ -5,7 +5,7 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
-import com.dynokore.platform.serviceruntime.replica.PrincipalState
+import com.dynokore.platform.serviceruntime.replica.PrincipalState.REVOKED
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -39,7 +39,7 @@ class ReplicaPrincipalStandingTest {
         version: Long,
         principal: String = "p1",
         on: TenantId = tenant,
-    ) = replica.accept(AuthorityChanged(on, principal, version, AuthorityRecord.PrincipalRecord(PrincipalState.REVOKED)))
+    ) = replica.accept(AuthorityChanged(on, principal, version, AuthorityRecord.PrincipalRecord(REVOKED)))
 
     @Test
     fun `INV-AC-14457 a replica with no version received yet is UNKNOWN`() {

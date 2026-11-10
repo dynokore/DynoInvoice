@@ -89,7 +89,7 @@ class JooqSessionStore(
         dsl.deleteFrom(CONSOLE_SESSION).where(CONSOLE_SESSION.SESSION_ID_HASH.eq(hash)).execute()
     }
 
-    /** Removes in one statement every row idle for [idle] or open for [absolute] at [now] (the resolver's `>=` bound). */
+    /** Removes in one statement every row idle for [idle] or open for [absolute] at [now] (the `>=` bound). */
     fun deleteExpired(
         now: Instant,
         idle: Duration,

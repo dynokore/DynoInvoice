@@ -29,12 +29,14 @@ class JooqSessionStoreTest {
         connection.close()
     }
 
-    private fun hash(value: String) =
-        SessionIdHash.of((SessionId.parse(value) as SessionIdParse.Parsed).id)
+    private fun hash(value: String) = SessionIdHash.of((SessionId.parse(value) as SessionIdParse.Parsed).id)
 
     private fun count(): Int =
         ConsoleDb.superuser().use { c ->
-            c.createStatement().executeQuery("select count(*) from console.console_session").use { it.next(); it.getInt(1) }
+            c.createStatement().executeQuery("select count(*) from console.console_session").use {
+                it.next()
+                it.getInt(1)
+            }
         }
 
     @Test

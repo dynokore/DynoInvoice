@@ -68,7 +68,8 @@ class SessionPropertiesTest {
     ) {
         ConsoleContext.offline(dir, property).run { context ->
             val failure = checkNotNull(context.startupFailure)
-            generateSequence<Throwable>(failure) { it.cause }.joinToString(" | ") { it.message.orEmpty() } shouldContain named
+            generateSequence<Throwable>(failure) { it.cause }.joinToString(" | ") { it.message.orEmpty() } shouldContain
+                named
         }
     }
 }

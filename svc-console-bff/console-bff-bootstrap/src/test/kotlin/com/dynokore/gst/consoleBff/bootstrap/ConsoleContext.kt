@@ -37,16 +37,15 @@ object ConsoleContext {
         Files.writeString(mountRoot.resolve("tenancy/binding-key-current"), BINDING_SECRET)
     }
 
-    /** The application with the real application.yaml (TPL-16), then the overrides. No connection is opened at start. */
+    /** The application with the real application.yaml (TPL-16), then the overrides; no connection at start. */
     fun offline(
         mountRoot: Path,
         vararg extra: String,
-    ): ApplicationContextRunner {
-        return ApplicationContextRunner()
+    ): ApplicationContextRunner =
+        ApplicationContextRunner()
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(ConsoleBffApplication::class.java)
             .withPropertyValues(*overrides(mountRoot, *extra))
-    }
 
     /** As [offline], over the Flyway-built Testcontainers database. */
     fun online(

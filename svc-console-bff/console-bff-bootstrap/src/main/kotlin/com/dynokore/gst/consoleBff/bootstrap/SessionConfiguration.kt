@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 
 /** The console session wiring (TPL-18): store, replica standing, resolver, filter and the expiry sweep. */
@@ -24,14 +25,16 @@ import java.util.concurrent.TimeUnit
 @EnableConfigurationProperties(ConsoleSessionProperties::class)
 class SessionConfiguration {
     @Bean
-    fun sessionPolicy(properties: ConsoleSessionProperties) = SessionPolicy(properties.idleTimeout, properties.absoluteTimeout)
+    fun sessionPolicy(properties: ConsoleSessionProperties) =
+        SessionPolicy(properties.idleTimeout, properties.absoluteTimeout)
 
     /** The one [SessionStore]; typed as its class so the sweeper reaches `deleteExpired`. */
     @Bean
     fun sessionStore(dsl: DSLContext): JooqSessionStore = JooqSessionStore(dsl)
 
     @Bean
-    fun principalStanding(authorityReplica: AuthorityReplica): PrincipalStanding = ReplicaPrincipalStanding(authorityReplica)
+    fun principalStanding(authorityReplica: AuthorityReplica): PrincipalStanding =
+        ReplicaPrincipalStanding(authorityReplica)
 
     @Bean
     fun sessionResolver(
@@ -44,7 +47,7 @@ class SessionConfiguration {
     @Bean
     fun consoleSessionFilter(resolver: SessionResolver) = ConsoleSessionFilter(resolver)
 
-    /** The filter on the main port (the management server is a separate context); the order is the filter's constant. */
+    /** The filter on the main port (the management server is a separate context), at the filter's order. */
     @Bean
     fun consoleSessionFilterRegistration(filter: ConsoleSessionFilter) =
         FilterRegistrationBean(filter).apply {
@@ -65,8 +68,17 @@ class SessionConfiguration {
         sweeper: SessionSweeper,
         properties: ConsoleSessionProperties,
     ): ScheduledExecutorService =
-        Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().name("console-session-sweep").daemon().factory()).also {
+        Executors.newSingleThreadScheduledExecutor(SWEEP_THREADS).also {
             val interval = properties.sweepInterval.toMillis()
             it.scheduleWithFixedDelay({ runCatching { sweeper.sweep() } }, interval, interval, TimeUnit.MILLISECONDS)
         }
+
+    private companion object {
+        val SWEEP_THREADS: ThreadFactory =
+            Thread
+                .ofPlatform()
+                .name("console-session-sweep")
+                .daemon()
+                .factory()
+    }
 }

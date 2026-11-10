@@ -3,7 +3,7 @@ package com.dynokore.gst.consoleBff.adapters
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
-/** `db/provision.sql` creates the schema owned by the migration role; `roles.sql` never grants CREATE on the database. */
+/** `db/provision.sql` creates the schema owned by the migration role; no script grants CREATE on the database. */
 class ProvisionScriptTest {
     private val provision = checkNotNull(javaClass.getResource("/db/provision.sql")).readText()
     private val roles = checkNotNull(javaClass.getResource("/db/roles.sql")).readText()

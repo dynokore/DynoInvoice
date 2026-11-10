@@ -2,7 +2,7 @@ package com.dynokore.gst.consoleBff.adapters.session
 
 import java.time.Clock
 
-/** Removes the sessions past either timeout. A request never depends on it: the resolver checks both timeouts itself. */
+/** Removes the sessions past either timeout. A request never depends on it: the resolver checks both itself. */
 class SessionSweeper(
     private val store: JooqSessionStore,
     private val clock: Clock,

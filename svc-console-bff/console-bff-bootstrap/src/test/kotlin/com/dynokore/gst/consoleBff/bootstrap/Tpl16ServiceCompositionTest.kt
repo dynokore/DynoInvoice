@@ -5,14 +5,14 @@ import com.dynokore.gst.consoleBff.application.session.PrincipalStanding
 import com.dynokore.gst.consoleBff.application.session.SessionResolver
 import com.dynokore.gst.consoleBff.application.session.SessionStore
 import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
-import org.jooq.Schema
-import java.time.Clock
-import java.time.Duration
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import org.jooq.Schema
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
+import java.time.Clock
+import java.time.Duration
 import javax.sql.DataSource
 
 /**

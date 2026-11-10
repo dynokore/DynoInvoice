@@ -61,11 +61,13 @@ class MigrationSchemaTest {
     @Test
     fun `INV-AC-14457 the migration role holds no CREATE on the database and owns the schema`() {
         ConsoleDb.superuser().use { c ->
-            c.createStatement().executeQuery("select has_database_privilege('console_migrate', current_database(), 'CREATE')").use {
+            val privilege = "select has_database_privilege('console_migrate', current_database(), 'CREATE')"
+            c.createStatement().executeQuery(privilege).use {
                 it.next()
                 it.getBoolean(1) shouldBe false
             }
-            c.createStatement().executeQuery("select schema_owner from information_schema.schemata where schema_name = 'console'").use {
+            val owner = "select schema_owner from information_schema.schemata where schema_name = 'console'"
+            c.createStatement().executeQuery(owner).use {
                 it.next()
                 it.getString(1) shouldBe "console_migrate"
             }

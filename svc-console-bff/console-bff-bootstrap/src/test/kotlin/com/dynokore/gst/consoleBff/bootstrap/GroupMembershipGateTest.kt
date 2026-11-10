@@ -25,13 +25,19 @@ class GroupMembershipGateTest {
         @TempDir mount: Path,
     ) {
         ConsoleContext
-            .offline(mount, "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
-            .run { context -> (context.startupFailure != null) shouldBe true }
+            .offline(
+                mount,
+                "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",
+            ).run { context -> (context.startupFailure != null) shouldBe true }
     }
 
     @Test
     fun `INV-AC-14457 no uncommented line of application yaml names the key`() {
-        val live = Files.readAllLines(Path.of("src/main/resources/application.yaml")).filterNot { it.trim().startsWith("#") }
+        val live =
+            Files
+                .readAllLines(
+                    Path.of("src/main/resources/application.yaml"),
+                ).filterNot { it.trim().startsWith("#") }
         live.none { it.contains("validate-group-membership") } shouldBe true
     }
 

@@ -4,6 +4,6 @@ package com.dynokore.gst.consoleBff.adapters.session
 object SessionCookie {
     const val NAME = "__Host-console-session"
 
-    /** Exactly `__Host-console-session=<value>; Path=/; Secure; HttpOnly; SameSite=Strict`; no Domain, Max-Age or Expires. */
+    /** `__Host-console-session=<value>; Path=/; Secure; HttpOnly; SameSite=Strict`; no Domain, Max-Age, Expires. */
     fun render(value: String): String = "$NAME=$value; Path=/; Secure; HttpOnly; SameSite=Strict"
 }

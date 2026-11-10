@@ -51,7 +51,8 @@ class SessionFilterTest {
                         .parse(good) as com.dynokore.gst.consoleBff.domain.session.SessionIdParse.Parsed
                 ).id,
             )
-        val store = Store(mutableMapOf(hash to SessionRow(hash, "p-1", "11111111-1111-1111-1111-111111111111", 7, opened, opened)))
+        val row = SessionRow(hash, "p-1", "11111111-1111-1111-1111-111111111111", 7, opened, opened)
+        val store = Store(mutableMapOf(hash to row))
         val resolver =
             SessionResolver(
                 SessionPolicy(Duration.ofMinutes(30), Duration.ofHours(12)),
@@ -109,7 +110,8 @@ class SessionFilterTest {
 
     @Test
     fun `INV-AC-14457 an expired session is 401 SRT-003`() {
-        refused(call(filter(opened = now.minus(Duration.ofHours(13))), "/api/x", Cookie(SessionCookie.NAME, good)).first)
+        val old = filter(opened = now.minus(Duration.ofHours(13)))
+        refused(call(old, "/api/x", Cookie(SessionCookie.NAME, good)).first)
     }
 
     @Test
