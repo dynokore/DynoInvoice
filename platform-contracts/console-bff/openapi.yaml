@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -1096,6 +1096,74 @@ paths:
                       raised: ["SUB-015"]
         default:
           $ref: '#/components/responses/Error'
+  /bff/configuration-bundles/{bundleId}/promotion-diff:
+    get:
+      operationId: previewConfigurationPromotion
+      summary: Preview the diff of a configuration bundle against production before a promotion
+      description: >-
+        Shows the diff between an exported configuration bundle and
+        production's current configuration for one domain, before the
+        promotion (INV-REQ-1128, INV-AC-14239). It changes no state and
+        applies nothing. console-bff orchestrates and each owning service
+        reads its own domain (INV-NOTE-3 §28.15). The diff is against
+        production's current configuration.
+
+
+        Promotion never bypasses a control that direct editing requires, so
+        the answer names the approval path that remains:
+        `MAPPING_DRY_RUN_AND_APPROVAL` for the mapping pack domain
+        (INV-REQ-772) and `IDENTITY_TRIPLE_DUAL_CONTROL` for the identity
+        triple domain (INV-REQ-1007).
+
+
+        The caller is decided per request through `AuthorityReplica.decide`
+        by the permission key of the direct-editing operation of the
+        requested domain, never by a role name (INV-Q-10027): domain mapping
+        pack, `mapping-pack.author`; domain identity triple,
+        `entity-config.manage`.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000).
+      tags: [configuration]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: [SRT-004, SRT-005]
+      x-requirements: [INV-REQ-1128]
+      parameters:
+        - name: bundleId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+        - name: domain
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: The changes against production's current configuration, with the approval path that remains.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationDiff'
+              examples:
+                default:
+                  value:
+                    bundleId: "bundle-2026-01"
+                    domain: "mapping"
+                    changes:
+                      - path: "rules/gst-rate-standard/rate"
+                        change: "CHANGED"
+                        current: "8"
+                        proposed: "9"
+                    approvalPath: "MAPPING_DRY_RUN_AND_APPROVAL"
+        default:
+          $ref: '#/components/responses/Error'
 components:
   schemas:
     Exception:
@@ -1526,6 +1594,42 @@ components:
           enum: [PENDING, APPLIED]
           x-extensible-enum: true
       required: [bundleId, domain, status]
+    ConfigurationDiff:
+      type: object
+      properties:
+        bundleId:
+          type: string
+          maxLength: 64
+        domain:
+          type: string
+          maxLength: 64
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigurationChange'
+        approvalPath:
+          type: string
+          enum: [MAPPING_DRY_RUN_AND_APPROVAL, IDENTITY_TRIPLE_DUAL_CONTROL]
+          x-extensible-enum: true
+      required: [bundleId, domain, changes, approvalPath]
+    ConfigurationChange:
+      type: object
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 500
+        change:
+          type: string
+          enum: [ADDED, CHANGED, REMOVED]
+          x-extensible-enum: true
+        current:
+          type: string
+          maxLength: 2000
+        proposed:
+          type: string
+          maxLength: 2000
+      required: [path, change]
     DeferralTarget:
       type: object
       properties:

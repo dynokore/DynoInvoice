@@ -55,3 +55,9 @@ limit	query_parameter	openapi.yaml	INV-REQ-904
 cursor	query_parameter	openapi.yaml	INV-REQ-904
 # INV-T-15841. Operation compareDocumentVersions (INV-REQ-1040, INV-Q-15831 A).
 compareDocumentVersions	operation	openapi.yaml	INV-REQ-1040
+# INV-T-14244. Operation previewConfigurationPromotion (INV-REQ-1128, INV-Q-14229 A).
+previewConfigurationPromotion	operation	openapi.yaml	INV-REQ-1128
+ConfigurationDiff.changes	schema_property	openapi.yaml	INV-REQ-1128
+ConfigurationDiff.approvalPath	schema_property	openapi.yaml	INV-REQ-1128
+previewConfigurationPromotion.SRT-004	operation_error_code	openapi.yaml	INV-REQ-1128
+previewConfigurationPromotion.SRT-005	operation_error_code	openapi.yaml	INV-REQ-1128
