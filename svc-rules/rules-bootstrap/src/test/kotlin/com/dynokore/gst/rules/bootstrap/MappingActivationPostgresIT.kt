@@ -46,7 +46,7 @@ private const val COLUMN =
 class MappingActivationPostgresIT(
     @Autowired private val tx: TransactionRunner,
     @Autowired private val tenants: TenantContext,
-    @Autowired private val db: DSLContext,
+    @Autowired db: DSLContext,
 ) {
     private val migrate: TenancyProbe = TenancyProbe.connect(pg.jdbcUrl, "rules_migrate", "rules_migrate_pw")
     private val tenant = TenantId(UUID.randomUUID())
