@@ -161,7 +161,7 @@ class DryRunComputationTest {
             ok + ("docUuid" to "not-a-uuid"),
             ok + ("docUuid" to 7),
         ).forEach {
-            DryRunComputation
+            SampleItems
                 .read(2, 5, it)
                 .shouldBeInstanceOf<ItemReading.Refused>()
                 .refusal
