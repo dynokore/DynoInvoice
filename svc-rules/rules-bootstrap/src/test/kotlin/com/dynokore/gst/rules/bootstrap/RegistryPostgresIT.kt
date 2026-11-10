@@ -107,6 +107,7 @@ private val LIBRARY_TABLES =
  * the same login for the catalog and row-level-security probes. No other raw SQL, no connection of the test's own.
  */
 @SpringBootTest(classes = [RulesApplication::class])
+@Suppress("LargeClass") // one IT class keeps the registry fixtures and the acceptance keys together
 class RegistryPostgresIT(
     @Autowired private val tx: TransactionRunner,
     @Autowired private val tenants: TenantContext,
@@ -412,6 +413,8 @@ class RegistryPostgresIT(
                 "pack_registry_platform_register",
                 "pack_registry_platform_select",
                 "pack_registry_platform_advance",
+                "pack_registry_ref_check_read",
+                "pack_registry_ref_check_lock",
             )
         names(policies + "'dry_run_delta'") shouldBe
             setOf("dry_run_delta_tenant_read", "dry_run_delta_tenant_insert", "dry_run_delta_tenant_update")
@@ -429,6 +432,7 @@ class RegistryPostgresIT(
                 "pack_entry_source_tenant_insert",
                 "pack_entry_source_tenant_update",
                 "pack_entry_source_platform_register",
+                "pack_entry_source_ref_check_read",
             )
     }
 
@@ -795,6 +799,90 @@ class RegistryEntryTriggerIT {
                 "and p.proname like 'pack_entry_source_%' and not p.prosecdef and p.proconfig is not null " +
                 "and has_function_privilege('public', p.oid, 'execute') = false",
         ) shouldBe ENTRY_TRIGGERS
+    }
+
+    private fun sqlState(action: () -> Any?): String? {
+        val failure = shouldThrow<Exception> { action() }
+        return generateSequence<Throwable>(failure) { it.cause }
+            .filterIsInstance<java.sql.SQLException>()
+            .first()
+            .sqlState
+    }
+
+    @Test
+    fun `INV-AC-19511 the six reference triggers are owned by rules_sys and rules_sys holds no other privilege`() {
+        val referenceFunctions =
+            "p.pronamespace = 'rules'::regnamespace and p.prosecdef and " +
+                "(p.proname like 'pack_entry_source_ref_%' or p.proname like '%_entry_ref_%')"
+        names("select p.proname as n from pg_proc p where $referenceFunctions") shouldBe
+            setOf(
+                "pack_entry_source_ref_ins",
+                "pack_entry_source_ref_upd",
+                "pack_registry_entry_ref_upd",
+                "pack_registry_entry_ref_del",
+                "mapping_import_record_entry_ref_upd",
+                "mapping_import_record_entry_ref_del",
+            )
+        names(
+            "select p.proname as n from pg_proc p where $referenceFunctions " +
+                "and (pg_get_userbyid(p.proowner) <> 'rules_sys' or p.proconfig is null)",
+        ) shouldBe emptySet()
+
+        // table-level rights of rules_sys on the three tables: exactly the ones named in the migration
+        fun held(
+            table: String,
+            vararg privileges: String,
+        ) = privileges
+            .filter {
+                val sql = "select has_table_privilege('rules_sys', 'rules.$table', '$it') as n"
+                probe.fetchRows(sql).single()["n"] == true
+            }.toSet()
+        val all = arrayOf("select", "insert", "update", "delete", "truncate", "references", "trigger")
+        held("mapping_import_record", *all) shouldBe emptySet()
+        held("pack_entry_source", *all) shouldBe setOf("insert")
+        held("pack_registry", *all) shouldBe setOf("select", "insert", "update")
+
+        // column-level rights
+        fun columns(
+            table: String,
+            privilege: String,
+        ) = names(
+            "select a.attname as n from pg_attribute a where a.attrelid = 'rules.$table'::regclass and a.attnum > 0 " +
+                "and not a.attisdropped and has_column_privilege('rules_sys', a.attrelid, a.attnum, '$privilege')",
+        )
+        columns("mapping_import_record", "select") shouldBe setOf("tenant_id", "import_id")
+        columns("mapping_import_record", "update") shouldBe setOf("import_id")
+        columns("mapping_import_record", "insert") shouldBe emptySet()
+        columns("pack_entry_source", "select") shouldBe
+            setOf("id", "tenant_id", "pack_type", "pack_version", "import_ref")
+        columns("pack_entry_source", "update") shouldBe emptySet()
+        // every policy of rules_sys that admits an update on a tenant row carries WITH CHECK (false)
+        names(
+            "select p.policyname as n from pg_policies p where p.schemaname = 'rules' " +
+                "and 'rules_sys' = any (p.roles) and p.policyname like '%_ref_check_lock' and p.with_check = 'false'",
+        ) shouldBe setOf("mapping_import_record_ref_check_lock", "pack_registry_ref_check_lock")
+    }
+
+    @Test
+    fun `INV-AC-19511 an entry naming no import record or pack is refused with 23503, a pack key stays`() {
+        seed(tenantA, "ref")
+        val missingImport =
+            "insert into rules.pack_entry_source (id, tenant_id, pack_type, pack_version, entry_id, source_class, " +
+                "internal_tax_code, iras_code, import_ref) select gen_random_uuid(), '$tenantA'::uuid, " +
+                "'MAPPING', 'ref', 'N' || g, 'PRIMARY', 'N' || g, 'SR', 'no-such-import' from generate_series(1, 2) g"
+        sqlState { countOf(tenantA, missingImport) } shouldBe "23503"
+        countOf(tenantA, insertEntries(tenantA, "ref" to 2)) shouldBe 2L
+        sqlState { countOf(tenantA, insertEntries(tenantA, "absent" to 1)) } shouldBe "23503"
+        // the V1 frozen-registry trigger answers first (42501), so 23503 is unreachable for a runtime key update
+        val before = entryContent(tenantA)
+        sqlState {
+            value(
+                tenantA,
+                "update rules.pack_registry set pack_version = 'moved' where pack_version = 'ref' returning id",
+            )
+        } shouldBe "42501"
+        entryContent(tenantA) shouldBe before
+        countOf(tenantA, "update rules.pack_registry set pack_version = 'ref' where pack_version = 'ref'") shouldBe 1L
     }
 
     companion object {

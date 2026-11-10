@@ -7,10 +7,10 @@
 -- previous migration does not create, and pack_entry_source_pack_type_tenant_id_pack_version_fkey
 -- (pack_type, tenant_id, pack_version) -> rules.pack_registry, created by V1.
 --
--- Every function is SECURITY DEFINER, owned by the migration role that owns the tables, so that FOR KEY SHARE (which
--- PostgreSQL gates on the UPDATE privilege) runs with the table owner's rights as the built-in referential check does:
--- no grant is added to rules_runtime and none is widened (OWASP ASVS V4.1 least privilege). A definer function takes
--- the tenant from the transition rows and compares tenant_id by equality in every join, never from the session.
+-- Every function is SECURITY DEFINER and owned by rules_sys, a role that holds only what the bodies need, never by the
+-- schema owner rules_migrate (INV-ADR-3968 item 6a; PostgreSQL "Writing SECURITY DEFINER Functions Safely"; least
+-- privilege). A definer function takes the tenant from the transition rows and compares tenant_id by equality in every
+-- join, never from the session. The grants and policies it needs are named below, each with its reason.
 -- The lock is taken first and the check follows in a later statement, so a parent row deleted by a concurrent
 -- transaction that the lock waited for is not found by the check (READ COMMITTED takes a new snapshot per statement).
 
@@ -133,6 +133,36 @@ revoke execute on function rules.pack_registry_entry_ref_upd() from public;
 revoke execute on function rules.pack_registry_entry_ref_del() from public;
 revoke execute on function rules.mapping_import_record_entry_ref_upd() from public;
 revoke execute on function rules.mapping_import_record_entry_ref_del() from public;
+
+-- rules_sys privileges for the six bodies (read of the key columns; the row lock of FOR KEY SHARE, which PostgreSQL gates
+-- on UPDATE privilege and on an UPDATE policy). Every UPDATE policy below has WITH CHECK (false): it admits the lock and
+-- never a change of a row.
+-- mapping_import_record: the child-side check reads and locks the parent key; the parent-side checks read the key.
+grant select (tenant_id, import_id) on rules.mapping_import_record to rules_sys;       -- key columns read by the checks
+grant update (import_id) on rules.mapping_import_record to rules_sys;                  -- needed only for FOR KEY SHARE
+create policy mapping_import_record_ref_check_read on rules.mapping_import_record for select to rules_sys
+    using (true);                                                                      -- the check must see every tenant's key
+create policy mapping_import_record_ref_check_lock on rules.mapping_import_record for update to rules_sys
+    using (true) with check (false);                                                   -- lock only
+-- pack_registry: rules_sys already holds select, insert and update from V1 (platform rows only by policy); the lock and
+-- the check must also see tenant rows.
+create policy pack_registry_ref_check_read on rules.pack_registry for select to rules_sys
+    using (true);                                                                      -- the check must see every tenant's key
+create policy pack_registry_ref_check_lock on rules.pack_registry for update to rules_sys
+    using (true) with check (false);                                                   -- lock only
+-- pack_entry_source: the parent-side checks look for a referencing entry by its key columns.
+grant select (id, tenant_id, pack_type, pack_version, import_ref) on rules.pack_entry_source to rules_sys;  -- key columns read
+create policy pack_entry_source_ref_check_read on rules.pack_entry_source for select to rules_sys
+    using (true);                                                                      -- the check must see every tenant's entries
+
+grant create on schema rules to rules_sys;
+alter function rules.pack_entry_source_ref_ins() owner to rules_sys;
+alter function rules.pack_entry_source_ref_upd() owner to rules_sys;
+alter function rules.pack_registry_entry_ref_upd() owner to rules_sys;
+alter function rules.pack_registry_entry_ref_del() owner to rules_sys;
+alter function rules.mapping_import_record_entry_ref_upd() owner to rules_sys;
+alter function rules.mapping_import_record_entry_ref_del() owner to rules_sys;
+revoke create on schema rules from rules_sys;
 
 -- AFTER triggers fire in name order: frozen_*, locked_*, then ref_*, as the constraint triggers fired after them.
 create trigger pack_entry_source_ref_ins after insert on rules.pack_entry_source
