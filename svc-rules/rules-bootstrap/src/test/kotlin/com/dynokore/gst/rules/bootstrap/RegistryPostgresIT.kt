@@ -853,9 +853,13 @@ class RegistryEntryTriggerIT {
         columns("pack_entry_source", "select") shouldBe
             setOf("tenant_id", "pack_type", "pack_version", "import_ref")
         columns("pack_entry_source", "update") shouldBe emptySet()
-        // no policy is addressed to rules_sys: the tenant policies without a TO clause bind it to the signed tenant
-        names("select p.policyname as n from pg_policies p where p.schemaname = 'rules' and p.roles = '{rules_sys}'") shouldBe
-            emptySet()
+        // INV-T-4973 adds no policy for rules_sys and none on these tables admits every row: the tenant policies bind it
+        names(
+            "select p.policyname as n from pg_policies p where p.schemaname = 'rules' " +
+                "and p.tablename in ('pack_registry', 'pack_entry_source', 'mapping_import_record') " +
+                "and 'rules_sys' = any (p.roles) and (p.policyname like '%ref_check%' or p.policyname like '%sys_lock%' " +
+                "or p.qual = 'true' or p.with_check = 'true')",
+        ) shouldBe emptySet()
     }
 
     @Test
