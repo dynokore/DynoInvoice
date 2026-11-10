@@ -51,6 +51,8 @@ class ManagementPortTest {
                     "service-runtime.idempotency.schema=ingestion",
                     "service-runtime.datasource.credential=db/ingestion_runtime",
                     "gst.bindings.secret-store.mount-root=$dir",
+                    "gst.bindings.telemetry-export=bundled-otel",
+                    "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
                 ).run()
         app.use { context ->
             val management = context.environment.getProperty("local.management.port")!!
