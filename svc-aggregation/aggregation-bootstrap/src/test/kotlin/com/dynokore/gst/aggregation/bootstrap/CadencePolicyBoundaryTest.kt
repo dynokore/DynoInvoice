@@ -11,7 +11,6 @@ import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
-import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.http.PolicyCommandServlet
@@ -19,6 +18,7 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.logging.CorrelationId
+import com.dynokore.platform.serviceruntime.policy.PolicyRoleResolver
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
 import com.dynokore.platform.serviceruntime.replica.StructureNode
@@ -45,11 +45,10 @@ import java.util.UUID
 /**
  * VP-55 while it is planned (INV-REQ-1316, INV-REQ-1251): the platform refuses to set a weekly cadence, the entity
  * resolves to DEFAULT_CADENCE and the windows never span the period end. The setter is the holder of the scoped
- * permission `vp-55.set`, which the platform decides; the test's SetterPermission bean stands for that decision,
- * records every key it is asked and the service checks no role.
+ * permission `vp-55.set`, which the platform decides; the test's role port stands for that decision and the service
+ * checks no role.
  */
 class CadencePolicyBoundaryTest {
-    private val askedKeys = java.util.concurrent.CopyOnWriteArrayList<String>()
     private val actor = "user:integration-engineer"
     private val tenant = TenantId(UUID.randomUUID())
     private val principal = EndUserPrincipal(actor, tenant, setOf(EntityRef("E-001")))
@@ -64,8 +63,8 @@ class CadencePolicyBoundaryTest {
                 EndUserPrincipalResolver::class.java,
                 { EndUserPrincipalResolver { header -> if (header == "Bearer token") principal else null } },
             ).withBean(
-                SetterPermission::class.java,
-                { SetterPermission { _, _, _, _, _, key -> askedKeys.add(key).let { true } } },
+                PolicyRoleResolver::class.java,
+                { PolicyRoleResolver { _, _, _, _, _ -> setOf("integration.engineer") } },
             ).run { context ->
                 context.startupFailure?.let { throw it }
                 block(context)
@@ -165,7 +164,6 @@ class CadencePolicyBoundaryTest {
                 response.status shouldBe 422
                 response.contentAsString.contains("POL-006") shouldBe true
             }
-            askedKeys.all { it == "vp-55.set" } shouldBe true
             val scope = context.getBean(TenantScope::class.java)
             val reader = context.getBean(PolicyReader::class.java)
             val resolved =
