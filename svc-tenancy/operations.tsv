@@ -51,9 +51,9 @@ getLicenceStatus	operation	INV-T-4933	done
 getPlatformElection	operation	INV-T-4933	done
 recordInstallationFacts	operation	INV-T-4933	done
 PlanLimitExceeded	channel	INV-T-4933	pending
-withdrawElectionChange	operation	INV-T-15888	pending
-declineElectionChange	operation	INV-T-15888	pending
-listElectionChanges	operation	INV-T-15888	pending
+withdrawElectionChange	operation	INV-T-15888	done
+declineElectionChange	operation	INV-T-15888	done
+listElectionChanges	operation	INV-T-15888	done
 PeriodRecordsChanged	channel	INV-T-16564	done
 CertificationStatusChanged	channel	INV-T-16409	done
 getCalendarPackDelta	operation	INV-T-16829	done
