@@ -10,6 +10,7 @@ import com.dynokore.gst.tenancy.domain.ExportContent
 import com.dynokore.gst.tenancy.domain.ExportState
 import com.dynokore.gst.tenancy.domain.OffboardingScope
 import com.dynokore.gst.tenancy.domain.RetentionCustodyHolder
+import com.dynokore.gst.tenancy.syncedge.ContractDocument
 import com.dynokore.gst.tenancy.syncedge.EntityFactsIdentity
 import com.dynokore.gst.tenancy.syncedge.OffboardingPorts
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -519,7 +520,7 @@ class OffboardingHttpTest {
     private fun close(
         tenant: TenantId,
         key: String = UUID.randomUUID().toString(),
-        workload: String = "control-plane-svc",
+        workload: String = closeCaller,
         body: String = """{"scheduleRef":"SCH-7A21C4","retentionCustodyHolder":$HOLDER}""",
     ) = post(
         "/internal/v1/tenancy/tenants/${tenant.value}/close",
@@ -527,16 +528,29 @@ class OffboardingHttpTest {
         key,
         workload = workload,
         endUser =
-            workload != "control-plane-svc",
+            workload != closeCaller,
     )
+
+    /** The caller the `x-sync-edge` of closeTenant names, read from the contract document (never typed here). */
+    private val closeCaller: String by lazy {
+        ContractDocument
+            .operations(ContractDocument.text(javaClass.classLoader))
+            .single { it.template.endsWith("/tenants/{tenantRef}/close") }
+            .callerFields
+            .single()
+    }
 
     @Test
     fun `INV-AC-8177 closeTenant by control-plane-svc is 202 and a repeat returns the same record`() =
         scenario { tenant, _ ->
             opened(tenant)
             val key = UUID.randomUUID().toString()
+            OffboardingPorts.reset()
             val first = close(tenant, key)
             assertThat(first.status).describedAs(first.body).isEqualTo(202)
+            // the use case double is reached once, with the mapped caller as the bound audit actor
+            assertThat(OffboardingPorts.calls.get()).isEqualTo(1)
+            assertThat(OffboardingPorts.actors).containsExactly(closeCaller)
             assertThat(json(first.body)["scope"].asString()).isEqualTo("TENANT")
             assertThat(
                 json(first.body)["retentionCustodyHolder"]["name"].asString(),
@@ -575,6 +589,7 @@ class OffboardingHttpTest {
                 val answer = close(tenant, workload = workload)
                 assertThat(answer.status).describedAs("$what: ${answer.body}").isEqualTo(403)
                 assertThat(answer.code).describedAs(what).isEqualTo("SRT-004")
+                assertThat(OffboardingPorts.calls.get()).describedAs("$what: use case calls").isEqualTo(0)
             }
             assertThat(rows(tenant)).isEmpty()
             assertThat(tenantState(tenant)).isEqualTo("OPEN")

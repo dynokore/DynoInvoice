@@ -7,6 +7,9 @@ import com.dynokore.gst.tenancy.domain.ExportContent
 import com.dynokore.gst.tenancy.domain.ExportManifest
 import com.dynokore.gst.tenancy.domain.ExportState
 import com.dynokore.gst.tenancy.domain.OffboardingScope
+import com.dynokore.platform.tenancykernel.TenantContext
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -19,7 +22,11 @@ import org.springframework.context.annotation.Primary
 class OffboardingPorts {
     @Bean
     @Primary
-    fun stubDocuments(): UnsubmittedDocuments = UnsubmittedDocuments { _: OffboardingScope, _: String? -> unsubmitted }
+    fun stubDocuments(tenants: TenantContext): UnsubmittedDocuments = UnsubmittedDocuments { _: OffboardingScope, _: String? ->
+            calls.incrementAndGet()
+            actors.add(tenants.currentActor())
+            unsubmitted
+        }
 
     @Bean
     @Primary
@@ -36,7 +43,15 @@ class OffboardingPorts {
         @Volatile
         var contents: List<ExportContent> = ExportContent.entries
 
+        /** How often the use case reached its documents port (the double); a refused caller leaves it at 0. */
+        val calls = AtomicInteger()
+
+        /** `tenants.currentActor()` at each call of the double. */
+        val actors = CopyOnWriteArrayList<String?>()
+
         fun reset() {
+            calls.set(0)
+            actors.clear()
             unsubmitted = 0
             state = ExportState.READY
             contents = ExportContent.entries

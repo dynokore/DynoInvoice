@@ -50,6 +50,7 @@ import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.gst.tenancy.domain.UnsubmittedOverride
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.TenancyErrorCode
+import com.dynokore.platform.serviceruntime.identity.ServiceCaller
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -78,6 +79,7 @@ open class TenantsController(
     private val authority: TenantAuthority,
     private val offboard: OffboardTenant,
     private val openTenant: OpenTenant,
+    private val serviceCaller: ServiceCaller,
 ) : TenantsApi {
     override fun createTenant(
         idempotencyKey: UUID,
@@ -160,16 +162,13 @@ open class TenantsController(
                 retentionCustodyHolder = DomainHolder(holder.name, holder.contactEmail, holder.contactMobile),
                 noticeWindowDays = closeTenantRequest.noticeWindowDays,
             )
+        // the audit actor is the calling service of the verified workload token; none or blank refuses closed (401)
+        val actor = serviceCaller.current()?.takeIf { it.isNotBlank() } ?: throw ApiRefusal(ClosedErrorCode.UNAUTHENTICATED)
         // a service-job call carries no end-user token, so nothing is bound yet: bind the tenant of the path
         val id = runCatching { TenantRefs.idOf(tenantRef) }.getOrElse { notFound() }
-        return tenants.bind(id, SCHEDULED_JOB_ACTOR) {
+        return tenants.bind(id, actor) {
             answerOf(offboard.forWholeTenant(tenantRef, idempotencyKey.toString(), request))
         }
-    }
-
-    private companion object {
-        /** The audit actor of a call by the scheduled job; the record stores no user (requestedBy is null). */
-        const val SCHEDULED_JOB_ACTOR = "tenancy-svc"
     }
 
     private fun answerOf(outcome: OffboardOutcome): ResponseEntity<OffboardingRecordResponse> =
