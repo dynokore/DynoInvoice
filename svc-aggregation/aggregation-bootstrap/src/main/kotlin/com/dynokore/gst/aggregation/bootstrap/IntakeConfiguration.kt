@@ -3,8 +3,10 @@ package com.dynokore.gst.aggregation.bootstrap
 import com.dynokore.gst.aggregation.adapters.persistence.JooqAggregateStore
 import com.dynokore.gst.aggregation.adapters.replica.StructureCodeLookup
 import com.dynokore.gst.aggregation.application.AggregateRepository
+import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.ShortCodes
+import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -32,5 +34,7 @@ class IntakeConfiguration {
     fun intakeAggregate(
         shortCodes: ShortCodes,
         repository: AggregateRepository,
-    ): IntakeAggregate = IntakeAggregate(shortCodes, repository)
+        windows: WindowRepository,
+        cadences: CadenceSource,
+    ): IntakeAggregate = IntakeAggregate(shortCodes, repository, windows, cadences)
 }

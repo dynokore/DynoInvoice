@@ -7,6 +7,7 @@ import com.dynokore.gst.aggregation.application.DuplicateIntakeKey
 import com.dynokore.gst.aggregation.application.NewAggregate
 import com.dynokore.gst.aggregation.application.StoredAggregate
 import com.dynokore.gst.aggregation.domain.AggregateType
+import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
@@ -81,6 +82,9 @@ class JooqAggregateStore(
                     .set(AGGREGATE.DOCUMENT_NUMBER, aggregate.documentNumber)
                     .set(AGGREGATE.ISSUE_DATE, aggregate.issueDate)
                     .set(AGGREGATE.TRANSACTION_DATE, aggregate.transactionDate)
+                    .set(AGGREGATE.WINDOW_START, aggregate.windowStart)
+                    .set(AGGREGATE.WINDOW_END, aggregate.windowEnd)
+                    .set(AGGREGATE.WINDOW_STATE, aggregate.windowState?.name)
                     .execute()
             }
         } catch (failure: DataAccessException) {
@@ -106,6 +110,9 @@ class JooqAggregateStore(
                 documentNumber = row.required(AGGREGATE.DOCUMENT_NUMBER),
                 issueDate = row.required(AGGREGATE.ISSUE_DATE),
                 transactionDate = row.required(AGGREGATE.TRANSACTION_DATE),
+                windowStart = row.get(AGGREGATE.WINDOW_START),
+                windowEnd = row.get(AGGREGATE.WINDOW_END),
+                windowState = row.get(AGGREGATE.WINDOW_STATE)?.let(WindowState::valueOf),
             ),
             row.required(AGGREGATE.AGGREGATE_ID),
         )

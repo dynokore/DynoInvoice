@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":aggregation-domain"))
     implementation(project(":aggregation-contract"))
     implementation(libs.platform.serviceRuntime.impl)
+    implementation(libs.platform.configResolver.impl)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.tenancyKernel.impl)

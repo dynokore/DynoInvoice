@@ -3,6 +3,7 @@ package com.dynokore.gst.aggregation.adapters.http
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.IntakeCommand
 import com.dynokore.gst.aggregation.application.IntakeOutcome
+import com.dynokore.gst.aggregation.application.NewAggregate
 import com.dynokore.gst.aggregation.application.StoredAggregate
 import com.dynokore.gst.aggregation.contract.api.IntakeApi
 import com.dynokore.gst.aggregation.contract.model.AggregationBatchRequest
@@ -66,13 +67,19 @@ open class IntakeController(
         }
     }
 
+    /** The state stored with the aggregate at its first intake; a replay answers it unchanged (INV-REQ-434). */
+    private fun windowState(aggregate: NewAggregate): AggregationReceipt.WindowState =
+        AggregationReceipt.WindowState.valueOf(
+            checkNotNull(aggregate.windowState) { "an aggregate is placed in a window at its first intake" }.name,
+        )
+
     private fun accepted(stored: StoredAggregate): ResponseEntity<AggregationReceipt> {
         val aggregate = stored.aggregate
         val receipt =
             AggregationReceipt(
                 entityRef = aggregate.entityRef,
                 aggregateType = AggregationReceipt.AggregateType.valueOf(aggregate.aggregateType.name),
-                windowState = WINDOW_STATE,
+                windowState = windowState(aggregate),
                 documentNumber = aggregate.documentNumber,
                 sequence = aggregate.sequence,
                 issueDate = aggregate.issueDate,
@@ -99,12 +106,6 @@ open class IntakeController(
         CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
 
     private companion object {
-        /**
-         * Until INV-T-8453 builds the windows no window can be closed or late, so every stored aggregate is in an
-         * open window (INV-Q-13907 A). INV-T-8453 replaces this constant with the state of the stored window.
-         */
-        val WINDOW_STATE = AggregationReceipt.WindowState.OPEN
-
         val log: Logger = LoggerFactory.getLogger(IntakeController::class.java)
     }
 }
