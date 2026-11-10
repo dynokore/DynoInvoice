@@ -55,6 +55,8 @@ dependencies {
     // JcaSigningKey, the signing key over the JCA provider that holds it (INV-Q-7459)
     implementation(libs.platform.crypto)
     implementation(libs.platform.rulepackKernel.api)
+    // The pure rule evaluation the corpus run calls in the same JVM (INV-Q-8719 A); no rules-svc client
+    implementation(libs.platform.rulesEvaluation.api)
     implementation(libs.jsonSchemaValidator)
     implementation(libs.platform.productRuntime.api)
     implementation(libs.jooq)

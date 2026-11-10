@@ -5,6 +5,7 @@
   "id": "ed-cancellation-381",
   "inputs": {
     "direction": "SALE",
+    "documentFunction": "ADJUSTMENT",
     "documentKind": "cancellation",
     "entityRef": "ENT-CORPUS-1",
     "internalTaxCode": "INT-SR",

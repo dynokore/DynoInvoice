@@ -27,7 +27,7 @@ class CorpusManifestTest {
         Paths.get("src/main/resources/conformance-corpus").also { check(Files.isDirectory(it)) { "missing $it" } }
 
     private fun copyCorpus(): Path {
-        val target = Files.createDirectory(tmp.resolve("corpus"))
+        val target = Files.createTempDirectory(tmp, "corpus")
         Files.list(corpusDir()).use { it.forEach { f -> Files.copy(f, target.resolve(f.fileName.toString())) } }
         return target
     }
@@ -77,7 +77,7 @@ class CorpusManifestTest {
         val onDisk = fileNames(dir) - MANIFEST
         check(onDisk == names.toSet()) { "files $onDisk differ from entries ${names.toSet()}" }
         entries.forEach { (name, hash) -> check(sha256(dir.resolve(name)) == hash) { "SHA-256 of $name differs" } }
-        check(FIXTURE in names) { "$FIXTURE is not listed in $MANIFEST" }
+        FIXTURE_FILES.forEach { check(it in names) { "$it is not listed in $MANIFEST" } }
         val fixture = read(dir.resolve(FIXTURE))
         check(fixture.isObject) { "$FIXTURE is not an object" }
         keys(fixture).forEach { key ->
@@ -88,7 +88,7 @@ class CorpusManifestTest {
         }
         val sections = mutableSetOf<String>()
         val entityRefs = mutableSetOf<String>()
-        names.filter { it != FIXTURE }.forEach { name ->
+        names.filter { it !in FIXTURE_FILES }.forEach { name ->
             sections +=
                 verifyDocument(name, read(dir.resolve(name)), fixture, entityRefs)
         }
@@ -169,7 +169,7 @@ class CorpusManifestTest {
         val sections =
             entries(
                 corpusDir(),
-            ).map { it.first }.filter { it != FIXTURE }.map { field(read(corpusDir().resolve(it)), "section") }
+            ).map { it.first }.filter { it !in FIXTURE_FILES }.map { field(read(corpusDir().resolve(it)), "section") }
         sections.toSet() shouldBe SECTIONS
     }
 
@@ -314,9 +314,55 @@ class CorpusManifestTest {
         bad(dir)
     }
 
+    @Test
+    fun `INV-AC-9790 each of the five fixture files is listed in the manifest and none is a golden document`() {
+        val names = entries(corpusDir()).map { it.first }
+        FIXTURE_FILES.forEach { (it in names) shouldBe true }
+        FIXTURE_FILES.forEach { fixture ->
+            val dir = copyCorpus()
+            val files = items(read(dir.resolve(MANIFEST)).get("files")).filter { it.get("name").asString() != fixture }
+            Files.writeString(dir.resolve(MANIFEST), json.writeValueAsString(mapOf("files" to files)))
+            bad(dir)
+        }
+    }
+
+    @Test
+    fun `INV-AC-9790 ed-cancellation-381 has inputs documentFunction ADJUSTMENT and expected 381`() {
+        val doc = read(corpusDir().resolve("ed-cancellation-381.json"))
+        field(doc.get("inputs"), "documentFunction") shouldBe "ADJUSTMENT"
+        field(doc, "expected") shouldBe "381"
+        field(doc, "expectedField") shouldBe "documentTypeCode"
+    }
+
+    @Test
+    fun `INV-AC-9790 the look-alike members DocumentFunction and document_function added alone fail`() {
+        listOf("DocumentFunction", "document_function").forEach { member ->
+            val dir = copyCorpus()
+            mutateDoc(dir, "cm-supply-sr.json") {
+                it.replace("\"internalTaxCode\"", "\"$member\": \"ADJUSTMENT\",\n    \"internalTaxCode\"")
+            }
+            bad(dir)
+        }
+    }
+
+    @Test
+    fun `INV-AC-9790 the manifest hash of ed-cancellation-381 not updated fails`() {
+        val dir = copyCorpus()
+        val file = dir.resolve("ed-cancellation-381.json")
+        Files.writeString(
+            file,
+            Files.readString(file).replace("\"description\": \"Cancellation", "\"description\": \"A cancellation"),
+        )
+        bad(dir)
+    }
+
     private companion object {
         const val MANIFEST = "manifest.json"
         const val FIXTURE = "mapping-fixture.json"
+
+        /** The five fixture files of the tree (mapping, profile, three baselines); the rest are documents. */
+        val FIXTURE_FILES =
+            setOf(FIXTURE, "profile-fixture.json", "code-catalogue-pack.json", "scenario-pack.json", "scope-pack.json")
         const val ENTITY = "ENT-CORPUS-1"
 
         val SECTIONS = setOf("WORKED_EXAMPLES", "SCENARIO_MATRIX", "SCOPE_MATRIX", "CODE_MATRIX", "EDGE_CORPUS")

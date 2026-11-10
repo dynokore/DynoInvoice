@@ -1,0 +1,42 @@
+{
+  "selfBillingAssignment": {
+    "customerCumIssuer": {
+      "direction": "PURCHASE",
+      "submissionType": "TYPE_3",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    "supplierCumRecipient": {
+      "direction": "SALE",
+      "submissionType": "TYPE_2",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    }
+  },
+  "schemeTagSides": [
+    {
+      "tag": "SWS",
+      "side": "SUPPLY",
+      "handling": "HANDLED",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    }
+  ],
+  "treatments": [
+    {
+      "tag": "SWS",
+      "side": "SUPPLY",
+      "categoryCode": "ZR",
+      "rateBasis": "PREVAILING",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    }
+  ],
+  "approvableSchemes": [
+    {
+      "scheme": "MES",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    }
+  ]
+}

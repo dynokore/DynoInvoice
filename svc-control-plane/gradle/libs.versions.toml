@@ -3,7 +3,7 @@
 # platform-build's convention plugins and konsist-rules (TPL-01 `libs.versions.platformBuild`).
 platformBuild = "0.23.3"
 # The platform-libs BOM names the module versions tested together; a service bumps this one line (STK-60).
-platformLibsBom = "0.183.0"
+platformLibsBom = "0.191.0"
 gstCatalogue = "2.60.0"
 # The published platform-contracts bundle this service generates from and tests against (INV-T-4984: the fixture takes
 # the feed index schema from the pinned release, never a copy).
@@ -41,6 +41,7 @@ platform-crypto-api = { module = "com.dynokore.platform:crypto-api" }
 platform-crypto = { module = "com.dynokore.platform:crypto" }
 platform-rulepackKernel-api = { module = "com.dynokore.platform:rulepack-kernel-api" }
 platform-rulepackKernel-impl = { module = "com.dynokore.platform:rulepack-kernel" }
+platform-rulesEvaluation-api = { module = "com.dynokore.platform:rules-evaluation-api" }
 platform-productRuntime = { module = "com.dynokore.platform:product-runtime" }
 gst-catalogue = { module = "com.dynokore.gst:gst-catalogue", version.ref = "gstCatalogue" }
 platformContracts-bundle = { module = "platform-contracts-bundle:platform-contracts", version.ref = "platformContractsBundle" }

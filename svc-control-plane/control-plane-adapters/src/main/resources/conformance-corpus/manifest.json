@@ -141,6 +141,10 @@
       "sha256": "b6e4701a5d12bd476c5dc7755f2ed82c323c59af3d6b61be6341d746ab5a3617"
     },
     {
+      "name": "code-catalogue-pack.json",
+      "sha256": "452f6da700a150faa2124f8ab1b8639b4bc9b737b4a0506d4042d671f9010fd1"
+    },
+    {
       "name": "ed-aggregate-pcp-tx.json",
       "sha256": "d3369a88a47c75e00964de355f17266942629a797cd0d57b9f6c2c03cf4c6c3d"
     },
@@ -150,7 +154,7 @@
     },
     {
       "name": "ed-cancellation-381.json",
-      "sha256": "aaa6c6fe7d2d0ac473d0460c4c1ee28f18e7bd5b9e15f64d3e1ba3d32609cad7"
+      "sha256": "c7153f2137acc0d939acad552fccbf4f38aadd163782f3032f902f9e81118e32"
     },
     {
       "name": "ed-foreign-currency-zr-export.json",
@@ -179,6 +183,10 @@
     {
       "name": "mapping-fixture.json",
       "sha256": "68f03e2f52b370614641cf1736ddab03840f2e7af3175269b5bc61315721b0c9"
+    },
+    {
+      "name": "profile-fixture.json",
+      "sha256": "2509a0b582a0e66417c86b9bd763a9dee02e1b10dda6e195ea4435bb4e173984"
     },
     {
       "name": "sc-blocked-input-tax.json",
@@ -215,6 +223,14 @@
     {
       "name": "sc-reverse-charge-supply.json",
       "sha256": "97729ddef9e0b05a0813380b4dd3afa55d1d7a1b0d064e7d160144962c3fc5d9"
+    },
+    {
+      "name": "scenario-pack.json",
+      "sha256": "d7a0873b40f39e161e52197c2fe1f42662c3c81fa451fb70b323fe9ead2f23cf"
+    },
+    {
+      "name": "scope-pack.json",
+      "sha256": "06805411cfd70b70d3ffdad8db3264eed033df19ab4111f1d85a8ee930ec645f"
     },
     {
       "name": "sm-a3pl-purchase-credit-note.json",

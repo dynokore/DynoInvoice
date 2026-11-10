@@ -1,0 +1,288 @@
+{
+  "classificationTable": [
+    {
+      "upstreamFunction": "BILL_FOR_PAYMENT",
+      "upstreamKind": "invoice",
+      "signOfTotal": "POSITIVE",
+      "documentFunction": "BILL_FOR_PAYMENT",
+      "documentTypeCode": "380",
+      "signNormalised": false,
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "upstreamFunction": "BILL_FOR_PAYMENT",
+      "upstreamKind": "invoice",
+      "signOfTotal": "NEGATIVE",
+      "documentFunction": "ADJUSTMENT",
+      "documentTypeCode": "381",
+      "signNormalised": true,
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "upstreamFunction": "ADJUSTMENT",
+      "upstreamKind": "debitnote",
+      "signOfTotal": "POSITIVE",
+      "documentFunction": "ADJUSTMENT",
+      "documentTypeCode": "380",
+      "signNormalised": false,
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "upstreamFunction": "ADJUSTMENT",
+      "upstreamKind": "cancellation",
+      "signOfTotal": "NEGATIVE",
+      "documentFunction": "ADJUSTMENT",
+      "documentTypeCode": "381",
+      "signNormalised": true,
+      "cancellation": true,
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "upstreamFunction": "NOT_A_BILL",
+      "upstreamKind": "statement",
+      "signOfTotal": "POSITIVE",
+      "documentFunction": "NOT_A_BILL",
+      "signNormalised": false,
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    }
+  ],
+  "lineScopeRules": [
+    {
+      "categoryCode": "BL",
+      "lineVerdict": "OUT_OF_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "DS",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "EP",
+      "lineVerdict": "OUT_OF_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "ES33",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "ESN33",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "IGDS",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "IM",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "IM-ESS",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "IM-N33",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "IM-RE",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "ME",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "NA",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "NG",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "NR",
+      "lineVerdict": "OUT_OF_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "OP",
+      "lineVerdict": "OUT_OF_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "OS",
+      "lineVerdict": "OUT_OF_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "SR",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "SRCA-C",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "SRCA-S",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "SRLVG",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "SROVR-LVG",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "SROVR-RS",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "SRRC",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TX",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TX-ESS",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TX-N33",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TX-RE",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TXCA",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TXNA",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TXRC-ESS",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TXRC-N33",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TXRC-RE",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "TXRC-TS",
+      "lineVerdict": "EXCLUDED_TXN",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "ZP",
+      "lineVerdict": "OUT_OF_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    },
+    {
+      "categoryCode": "ZR",
+      "lineVerdict": "IN_SCOPE",
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    }
+  ],
+  "exchangeRateSources": [
+    {
+      "sourceId": "SRC1",
+      "name": "Corpus source",
+      "bases": [
+        "MID"
+      ],
+      "sourceClass": "INFERRED",
+      "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+    }
+  ],
+  "exchangeRateTolerance": {
+    "value": "1.5",
+    "unit": "percent",
+    "sourceClass": "INFERRED",
+    "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+  },
+  "intraGroupRule": {
+    "treatment": "PASS_THROUGH",
+    "sourceClass": "INFERRED",
+    "sourceReference": "INV-T-9788 conformance-corpus baseline (test fixture)"
+  }
+}
