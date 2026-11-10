@@ -12,8 +12,17 @@ dependencies {
     implementation(project(":console-bff-adapters"))
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
+    implementation(libs.platform.configResolver.impl)
+    implementation(libs.platform.tenancyKernel.impl)
+    implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)
+    implementation(libs.springBoot.starterJdbc)
+    implementation(libs.springBoot.starterJooq)
+    implementation(libs.jooq)
+    implementation(project(":console-bff-application"))
+    implementation(project(":console-bff-domain"))
+    runtimeOnly(libs.postgresql)
     // the /metrics endpoint of the management server (API-33): the Prometheus scrape format
     runtimeOnly(libs.micrometer.registryPrometheus)
     testImplementation(platform(libs.junit.bom))
@@ -23,6 +32,9 @@ dependencies {
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
     testImplementation(libs.snakeyaml)
+    testImplementation(testFixtures(project(":console-bff-adapters")))
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.postgresql)
     testImplementation(libs.platform.tenancyKernel.api)
     // the fixtures are published under the capability service-runtime-test-fixtures on the service-runtime-api module,
     // so testFixtures(libs.platform.serviceRuntime.api) (capability service-runtime-api-test-fixtures) does not resolve

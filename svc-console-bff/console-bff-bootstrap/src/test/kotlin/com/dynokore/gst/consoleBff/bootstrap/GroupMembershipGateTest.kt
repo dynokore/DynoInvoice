@@ -1,33 +1,41 @@
 package com.dynokore.gst.consoleBff.bootstrap
 
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** INV-Q-17470 A: the temporary `validate-group-membership: false` of the unmodified application.yaml fails closed. */
+/** INV-Q-17470: the temporary `validate-group-membership` exception is gone; the ready group validates membership. */
 class GroupMembershipGateTest {
     @Test
-    fun `INV-AC-14435 membership validation is false under a comment naming the ruling and the removing task`(
+    fun `INV-AC-14457 the key validate-group-membership is absent from application yaml and the context starts`(
         @TempDir mount: Path,
     ) {
-        ConsoleContext.offline(mount).run { context ->
+        val text = Files.readString(Path.of("src/main/resources/application.yaml"))
+        text.contains("validate-group-membership") shouldBe false
+        ConsoleContext.online(mount).run { context ->
             context.startupFailure shouldBe null
-            context.environment.getProperty(MEMBERSHIP_KEY, Boolean::class.javaObjectType) shouldBe false
-            context.environment.getProperty(READY_KEY) shouldBe "readinessState,vault,db,eventLoops"
+            context.environment.containsProperty(MEMBERSHIP_KEY) shouldBe false
         }
-        val lines = Files.readAllLines(Path.of("src/main/resources/application.yaml"))
-        val at = lines.indexOfFirst { it.trim().startsWith("validate-group-membership:") }
-        (at > 0) shouldBe true
-        val comment = lines.take(at).takeLastWhile { it.trim().startsWith("#") }.joinToString("\n")
-        comment shouldContain "INV-Q-17470"
-        comment shouldContain "INV-T-14458"
+    }
+
+    @Test
+    fun `INV-AC-14457 a context with no DataSource bean fails to start because the ready group names db`(
+        @TempDir mount: Path,
+    ) {
+        ConsoleContext
+            .offline(mount, "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
+            .run { context -> (context.startupFailure != null) shouldBe true }
+    }
+
+    @Test
+    fun `INV-AC-14457 no uncommented line of application yaml names the key`() {
+        val live = Files.readAllLines(Path.of("src/main/resources/application.yaml")).filterNot { it.trim().startsWith("#") }
+        live.none { it.contains("validate-group-membership") } shouldBe true
     }
 
     private companion object {
         const val MEMBERSHIP_KEY = "management.endpoint.health.validate-group-membership"
-        const val READY_KEY = "management.endpoint.health.group.ready.include"
     }
 }

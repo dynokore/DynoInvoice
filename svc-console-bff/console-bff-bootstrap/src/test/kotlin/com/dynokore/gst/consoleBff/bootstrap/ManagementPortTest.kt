@@ -1,5 +1,6 @@
 package com.dynokore.gst.consoleBff.bootstrap
 
+import com.dynokore.gst.consoleBff.adapters.ConsoleDb
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -35,6 +36,7 @@ class ManagementPortTest {
                     *ConsoleContext.overrides(
                         dir,
                         "server.port=0",
+                        "spring.datasource.url=${ConsoleDb.jdbcUrl}",
                     ),
                 ).run()
         app.use { context ->

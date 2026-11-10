@@ -1,7 +1,28 @@
-# TPL-16 (INV-T-14436). No database in this slice (INV-Q-17448 C): the datasource keys arrive with INV-T-14458.
+# TPL-16 (INV-T-14436, INV-T-14458). One DataSource, declared only here and in the Helm values: Spring Boot's `dataSource`,
+# the service's one bounded HikariCP pool (STK-17). Passwords are never set here: service-runtime reads them through
+# SecretStore (STK-29).
 spring:
   threads.virtual.enabled: true # STK-03
   main.lazy-initialization: false # STK-06
+  datasource:
+    username: console_runtime # the one runtime LOGIN: NOSUPERUSER, NOBYPASSRLS, owns no table (CS-19)
+    hikari:
+      minimum-idle: 1
+      idle-timeout: 60000
+      max-lifetime: 1800000
+  flyway:
+    schemas: console
+    default-schema: console
+    user: console_migrate # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
+service-runtime:
+  datasource.credential: db/console_runtime
+  modules.schema: console
+  idempotency.schema: console
+console:
+  session: # NIST SP 800-63B AAL2 (INV-Q-14429); 12-factor: overridable from the environment
+    idle-timeout: PT30M
+    absolute-timeout: PT12H
+    sweep-interval: PT5M
 management:
   server.port: 8081 # API-33: health, metrics and diagnostics only on the management port, no token
   endpoints.web:
@@ -9,9 +30,6 @@ management:
     exposure.include: health,prometheus,diagnostics
     path-mapping.prometheus: metrics
   endpoint.health:
-    # TEMPORARY (ruling INV-Q-17470): this slice has no db contributor, so Spring Boot would refuse to start with `db` in
-    # ready.include. The line is temporary and is removed in INV-T-14458, which adds the datasource and the db component.
-    validate-group-membership: false
     status.order: DOWN,OUT_OF_SERVICE,DEGRADED,UP,UNKNOWN
     status.http-mapping: { DEGRADED: 200, DOWN: 503, OUT_OF_SERVICE: 503 }
     group:
