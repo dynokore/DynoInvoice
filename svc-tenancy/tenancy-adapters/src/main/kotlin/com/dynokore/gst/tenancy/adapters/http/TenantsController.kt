@@ -27,6 +27,7 @@ import com.dynokore.gst.tenancy.application.tenant.TenantRefused
 import com.dynokore.gst.tenancy.application.workspace.TenantAuthority
 import com.dynokore.gst.tenancy.contract.api.TenantsApi
 import com.dynokore.gst.tenancy.contract.model.AppliedOperatingProfileRecord
+import com.dynokore.gst.tenancy.contract.model.CloseTenantRequest
 import com.dynokore.gst.tenancy.contract.model.CreateTenantRequest
 import com.dynokore.gst.tenancy.contract.model.EntitlementResponse
 import com.dynokore.gst.tenancy.contract.model.EntityUsage
@@ -138,7 +139,41 @@ open class TenantsController(
                 idempotencyKey.toString(),
                 offboardRequestOf(offboardTenantRequest),
             )
-        return when (outcome) {
+        return answerOf(outcome)
+    }
+
+    /**
+     * closeTenant (scope platform, caller control-plane-svc; INV-REQ-8100, owner answer INV-Q-8137): the whole tenant
+     * is offboarded through the use case with scope TENANT, no override and no confirmer. The caller check is the
+     * generated one of service-runtime (x-sync-edge); this method names no caller.
+     */
+    override fun closeTenant(
+        tenantRef: String,
+        idempotencyKey: UUID,
+        closeTenantRequest: CloseTenantRequest,
+    ): ResponseEntity<OffboardingRecordResponse> {
+        val holder = closeTenantRequest.retentionCustodyHolder
+        val request =
+            OffboardRequest(
+                scope = OffboardingScope.TENANT,
+                entityRef = null,
+                retentionCustodyHolder = DomainHolder(holder.name, holder.contactEmail, holder.contactMobile),
+                noticeWindowDays = closeTenantRequest.noticeWindowDays,
+            )
+        // a service-job call carries no end-user token, so nothing is bound yet: bind the tenant of the path
+        val id = runCatching { TenantRefs.idOf(tenantRef) }.getOrElse { notFound() }
+        return tenants.bind(id, SCHEDULED_JOB_ACTOR) {
+            answerOf(offboard.forWholeTenant(tenantRef, idempotencyKey.toString(), request))
+        }
+    }
+
+    private companion object {
+        /** The audit actor of a call by the scheduled job; the record stores no user (requestedBy is null). */
+        const val SCHEDULED_JOB_ACTOR = "tenancy-svc"
+    }
+
+    private fun answerOf(outcome: OffboardOutcome): ResponseEntity<OffboardingRecordResponse> =
+        when (outcome) {
             is OffboardOutcome.Accepted -> {
                 ResponseEntity
                     .status(
@@ -173,7 +208,6 @@ open class TenantsController(
                 offboardingConflict(outcome)
             }
         }
-    }
 
     private fun offboardRequestOf(request: OffboardTenantRequest): OffboardRequest {
         val holder = request.retentionCustodyHolder

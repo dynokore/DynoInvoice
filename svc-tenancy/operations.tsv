@@ -33,7 +33,7 @@ recordInstallationAction	operation	INV-T-3290	done
 recordMigrationCutover	operation	INV-T-7382	done
 getMigrationCutover	operation	INV-T-7382	done
 openTenant	operation	INV-T-8142	done
-closeTenant	operation	INV-T-8179	pending
+closeTenant	operation	INV-T-8179	done
 OrganisationStructureChanged	channel	INV-T-4925	done
 ExampleHappened	channel	INV-T-4925	done
 EntityProfileChanged	channel	INV-T-4926	done

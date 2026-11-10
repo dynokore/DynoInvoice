@@ -103,6 +103,8 @@ class OffboardingHttpTest {
             arrayOf(
                 "service-runtime.workload-identity.callers[0].service=console-bff",
                 "service-runtime.workload-identity.callers[0].subject=sa-console-bff",
+                "service-runtime.workload-identity.callers[1].service=control-plane-svc",
+                "service-runtime.workload-identity.callers[1].subject=sa-control-plane-svc",
                 "management.server.port=0",
             ),
             javaClass.classLoader,
@@ -128,6 +130,8 @@ class OffboardingHttpTest {
         body: String,
         key: String = UUID.randomUUID().toString(),
         of: ProfileEnv = env,
+        workload: String = "console-bff",
+        endUser: Boolean = true,
     ): Answer {
         val port = of.context.environment.getProperty("local.server.port")
         val request =
@@ -135,8 +139,8 @@ class OffboardingHttpTest {
                 .newBuilder(URI.create("http://localhost:$port$path"))
                 .header("Content-Type", "application/json")
                 .header("Idempotency-Key", key)
-                .header("X-Workload-Token", "token-console-bff")
-                .header("Authorization", "Bearer ${EntityFactsIdentity.TOKEN}")
+                .header("X-Workload-Token", "token-$workload")
+                .apply { if (endUser) header("Authorization", "Bearer ${EntityFactsIdentity.TOKEN}") }
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build()
         return http.send(request, HttpResponse.BodyHandlers.ofString()).let { Answer(it.statusCode(), it.body()) }
@@ -503,5 +507,98 @@ class OffboardingHttpTest {
             val entityScope = offboard(tenant, entityBody(entity))
             assertThat(entityScope.status).describedAs(entityScope.body).isEqualTo(202)
             assertThat(rows(tenant).map { it.scope }).containsExactly("ENTITY")
+        }
+
+    private fun close(
+        tenant: TenantId,
+        key: String = UUID.randomUUID().toString(),
+        workload: String = "control-plane-svc",
+        body: String = """{"scheduleRef":"SCH-7A21C4","retentionCustodyHolder":$HOLDER}""",
+    ) = post("/internal/v1/tenancy/tenants/${tenant.value}/close", body, key, workload = workload, endUser = workload != "control-plane-svc")
+
+    @Test
+    fun `INV-AC-8177 closeTenant by control-plane-svc is 202 and a repeat returns the same record`() =
+        scenario { tenant, _ ->
+            opened(tenant)
+            val key = UUID.randomUUID().toString()
+            val first = close(tenant, key)
+            assertThat(first.status).describedAs(first.body).isEqualTo(202)
+            assertThat(json(first.body)["scope"].asString()).isEqualTo("TENANT")
+            assertThat(json(first.body)["retentionCustodyHolder"]["name"].asString()).isEqualTo("Ledger Custody Pte Ltd")
+            val repeat = close(tenant, key)
+            assertThat(repeat.status).describedAs(repeat.body).isEqualTo(202)
+            assertThat(json(repeat.body)["offboardingRef"].asString())
+                .isEqualTo(json(first.body)["offboardingRef"].asString())
+            val stored = rows(tenant).single()
+            assertThat(stored.scope).isEqualTo("TENANT")
+            assertThat(stored.state).isEqualTo("COMPLETED")
+            assertThat(stored.overrideBy).isNull()
+            assertThat(stored.confirmedBy).isNull()
+        }
+
+    @Test
+    fun `INV-AC-8177 closeTenant by a person or another service is 403 SRT-004 and stores nothing`() =
+        scenario { tenant, entity ->
+            people().grant("identity:USR-C1", entity.entityRef, TENANT_ADMIN)
+            people().caller = "identity:USR-C1"
+            listOf("console-bff").forEach { workload ->
+                val answer = close(tenant, workload = workload)
+                assertThat(answer.status).describedAs("$workload: ${answer.body}").isEqualTo(403)
+                assertThat(answer.code).isEqualTo("SRT-004")
+            }
+            assertThat(rows(tenant)).isEmpty()
+        }
+
+    @Test
+    fun `INV-AC-8177 closeTenant with an unsubmitted document and no override is 409 and the tenant stays OPEN`() =
+        scenario { tenant, _ ->
+            opened(tenant)
+            OffboardingPorts.unsubmitted = 2
+            val answer = close(tenant)
+            assertThat(answer.status).describedAs(answer.body).isEqualTo(409)
+            assertThat(answer.code).isEqualTo("TNC-008")
+            assertThat(rows(tenant)).isEmpty()
+            assertThat(tenantState(tenant)).isEqualTo("OPEN")
+        }
+
+    @Test
+    fun `INV-AC-8177 closeTenant COMPLETED closes the tenant and a new key is 409 TNC-010`() =
+        scenario { tenant, _ ->
+            opened(tenant)
+            assertThat(close(tenant).status).isEqualTo(202)
+            assertThat(tenantState(tenant)).isEqualTo("CLOSED")
+            val again = close(tenant)
+            assertThat(again.status).describedAs(again.body).isEqualTo(409)
+            assertThat(rows(tenant)).hasSize(1)
+        }
+
+    /** The fixture tenant is SCHEDULED; openTenant by control-plane-svc makes it OPEN before it is closed. */
+    private fun opened(tenant: TenantId) {
+        val ref = tenantColumn(tenant, "ref")
+        val answer =
+            post(
+                "/internal/v1/tenancy/tenants/$ref/open",
+                """{"scheduleRef":"SCH-OPEN"}""",
+                workload = "control-plane-svc",
+                endUser = false,
+            )
+        assertThat(answer.status).describedAs(answer.body).isEqualTo(200)
+        assertThat(tenantState(tenant)).isEqualTo("OPEN")
+    }
+
+    private fun tenantState(tenant: TenantId) = tenantColumn(tenant, "state")
+
+    private fun tenantColumn(
+        tenant: TenantId,
+        column: String,
+    ): String =
+        BoundaryFixture.asSuperuser { c ->
+            c.prepareStatement("select $column from tenancy.tenant where tenant_id = ?").use { st ->
+                st.setObject(1, tenant.value)
+                st.executeQuery().use { rs ->
+                    rs.next()
+                    rs.getString(1)
+                }
+            }
         }
 }
