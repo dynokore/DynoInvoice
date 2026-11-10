@@ -35,7 +35,8 @@ sealed interface DryRunOutcome {
 /**
  * Runs one dry run (INV-REQ-772, INV-REQ-1352, INV-REQ-1303): reads the sample, evaluates every document under the
  * current and the candidate pack, and hands the delta to the store. Fail closed: an incomplete sample, an item that is
- * not attributable or a fault of the sample or evaluation port ends SAMPLE_UNAVAILABLE and stores no delta. The sample is released
+ * not attributable or a fault of the sample or evaluation port ends SAMPLE_UNAVAILABLE and stores no delta.
+ * The sample is released
  * exactly once at the end of every run.
  */
 class RunDryRun(
