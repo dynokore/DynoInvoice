@@ -9,6 +9,7 @@ import java.nio.file.Path
 object TestSecrets {
     const val CURSOR_KEY = "register-suggestion-cursor-key-for-tests-only"
     const val CONNECTION_CREDENTIAL_REF = "connections/test-credential"
+    const val CONNECTION_CREDENTIAL_REF_2 = "connections/test-credential-2"
     const val CONNECTION_SECRET = "connection-secret-value-for-tests-only"
     const val BINDING_KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 
@@ -22,6 +23,7 @@ object TestSecrets {
         write(root, "db/masterdata_runtime", databasePassword)
         cursorKeyPath?.let { write(root, it, CURSOR_KEY) }
         write(root, CONNECTION_CREDENTIAL_REF, CONNECTION_SECRET)
+        write(root, CONNECTION_CREDENTIAL_REF_2, CONNECTION_SECRET + "-2")
         root.toFile().deleteOnExit()
         return root
     }

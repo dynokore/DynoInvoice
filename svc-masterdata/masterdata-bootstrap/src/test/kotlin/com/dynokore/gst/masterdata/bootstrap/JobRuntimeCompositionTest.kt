@@ -27,17 +27,23 @@ class JobRuntimeCompositionTest {
             .filterIsInstance<CronTask>()
 
     @Test
-    fun `INV-AC-9601 the runtime holds exactly the long-command-sweep definition with the configured cron`() {
+    fun `INV-AC-9601 the runtime holds exactly the two job definitions with the configured crons`() {
         BoundaryFixture.runner().run { context ->
             assertThat(context).hasNotFailed()
             val definitions = context.getBean(JobRuntime::class.java).registered()
-            assertThat(definitions.map { it.name }).isEqualTo(listOf("long-command-sweep"))
-            val definition = definitions.single()
+            assertThat(definitions.map { it.name }.sorted())
+                .isEqualTo(listOf("credential-expiry-check", "long-command-sweep"))
+            val definition = definitions.single { it.name == "long-command-sweep" }
             assertThat(definition.ownerService).isEqualTo("masterdata-svc")
             assertThat(definition.entityScope).isEqualTo(JobEntityScope.PLATFORM)
             assertThat(definition.schedule.zone).isEqualTo(ZoneOffset.UTC)
             assertThat(definition.schedule.cron)
                 .isEqualTo(context.environment.getProperty("masterdata.long-command.sweep-cron"))
+            val expiry = definitions.single { it.name == "credential-expiry-check" }
+            assertThat(expiry.ownerService).isEqualTo("masterdata-svc")
+            assertThat(expiry.entityScope).isEqualTo(JobEntityScope.PLATFORM)
+            assertThat(expiry.schedule.cron)
+                .isEqualTo(context.environment.getProperty("masterdata.connections.expiry-check-cron"))
         }
         BoundaryFixture
             .runner()
@@ -48,7 +54,7 @@ class JobRuntimeCompositionTest {
                     context
                         .getBean(JobRuntime::class.java)
                         .registered()
-                        .single()
+                        .single { it.name == "long-command-sweep" }
                         .schedule.cron,
                 ).isEqualTo("0 0 3 * * *")
             }
@@ -81,7 +87,10 @@ class JobRuntimeCompositionTest {
             .withPropertyValues("inv.masterdata.job-scheduling.enabled=true")
             .run { context ->
                 assertThat(cronTasks(context).map { it.expression })
-                    .isEqualTo(listOf(context.environment.getProperty("masterdata.long-command.sweep-cron")))
+                    .containsExactlyInAnyOrder(
+                        context.environment.getProperty("masterdata.long-command.sweep-cron"),
+                        context.environment.getProperty("masterdata.connections.expiry-check-cron"),
+                    )
             }
     }
 
@@ -91,8 +100,12 @@ class JobRuntimeCompositionTest {
         ApplicationContextRunner()
             .withBean(Clock::class.java, { Clock.systemUTC() })
             .withBean(SweepStaleRecords::class.java, { sweep })
-            .withPropertyValues(
+            .withBean(
+                CheckCredentialExpiryForTenants::class.java,
+                { ObjenesisStd().newInstance(CheckCredentialExpiryForTenants::class.java) },
+            ).withPropertyValues(
                 "masterdata.long-command.sweep-cron=0 */5 * * * *",
+                "masterdata.connections.expiry-check-cron=0 0 * * * *",
                 "inv.submission.job-scheduling.enabled=false",
             ).withUserConfiguration(JobRuntimeConfiguration::class.java)
             .run { context ->

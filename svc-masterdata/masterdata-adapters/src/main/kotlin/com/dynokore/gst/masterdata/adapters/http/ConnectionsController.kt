@@ -2,27 +2,41 @@ package com.dynokore.gst.masterdata.adapters.http
 
 import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.masterdata.adapters.connection.InstallationEnvironment
+import com.dynokore.gst.masterdata.adapters.persistence.JooqCredentialExpiries
+import com.dynokore.gst.masterdata.application.connection.ConnectionStore
 import com.dynokore.gst.masterdata.application.connection.CreateConnection
 import com.dynokore.gst.masterdata.application.connection.CreateConnectionCommand
 import com.dynokore.gst.masterdata.application.connection.CreateConnectionOutcome
+import com.dynokore.gst.masterdata.application.connection.CredentialStateStore
 import com.dynokore.gst.masterdata.application.connection.GetConnection
+import com.dynokore.gst.masterdata.application.connection.GetConnectionHealth
+import com.dynokore.gst.masterdata.application.connection.GetConnectionHealthOutcome
 import com.dynokore.gst.masterdata.application.connection.GetConnectionOutcome
+import com.dynokore.gst.masterdata.application.connection.RotateCredential
+import com.dynokore.gst.masterdata.application.connection.RotateCredentialOutcome
 import com.dynokore.gst.masterdata.application.connection.TestConnection
 import com.dynokore.gst.masterdata.application.connection.TestConnectionCommand
 import com.dynokore.gst.masterdata.application.connection.TestConnectionOutcome
 import com.dynokore.gst.masterdata.contract.api.ConnectionsApi
+import com.dynokore.gst.masterdata.contract.model.ConnectionHealth
+import com.dynokore.gst.masterdata.contract.model.ConnectionHealthLastFailure
 import com.dynokore.gst.masterdata.contract.model.ConnectionRecord
 import com.dynokore.gst.masterdata.contract.model.ConnectionTestResult
 import com.dynokore.gst.masterdata.contract.model.CreateConnectionRequest
+import com.dynokore.gst.masterdata.contract.model.RotateConnectionCredentialRequest
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
+import java.math.BigDecimal
 import java.time.Clock
+import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import com.dynokore.gst.masterdata.domain.connection.ConnectionHealth as DomainHealth
 import com.dynokore.gst.masterdata.domain.connection.ConnectionRecord as DomainRecord
 
 /**
@@ -39,6 +53,9 @@ open class ConnectionsController(
     private val create: CreateConnection,
     private val read: GetConnection,
     private val test: TestConnection,
+    private val health: GetConnectionHealth,
+    private val rotate: RotateCredential,
+    private val extras: HealthExtras,
     private val tenants: TenantContext,
     private val installation: InstallationEnvironment,
     private val clock: Clock,
@@ -72,6 +89,50 @@ open class ConnectionsController(
             connectionRef,
             test.handle(TestConnectionCommand(caller(), connectionRef, installation.text())),
         )
+
+    override fun getConnectionHealth(connectionRef: String): ResponseEntity<ConnectionHealth> =
+        when (val outcome = health.handle(caller(), connectionRef)) {
+            is GetConnectionHealthOutcome.Found -> ResponseEntity.ok(wire(outcome.health, extras.of(connectionRef)))
+            GetConnectionHealthOutcome.Unknown -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            GetConnectionHealthOutcome.Forbidden -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        }
+
+    override fun rotateCredential(
+        connectionRef: String,
+        idempotencyKey: UUID,
+        rotateConnectionCredentialRequest: RotateConnectionCredentialRequest,
+    ): ResponseEntity<ConnectionRecord> =
+        when (
+            val outcome =
+                rotate.handle(
+                    caller(),
+                    connectionRef,
+                    rotateConnectionCredentialRequest.credentialRef,
+                    rotateConnectionCredentialRequest.credentialExpiresAt?.toInstant(),
+                )
+        ) {
+            is RotateCredentialOutcome.Rotated -> {
+                ResponseEntity.ok(wire(extras.record(connectionRef), outcome.rotation.currentRef))
+            }
+
+            RotateCredentialOutcome.Forbidden -> {
+                throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+
+            RotateCredentialOutcome.Unknown -> {
+                throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            RotateCredentialOutcome.OverlapNotConfigured -> {
+                throw ApiRefusal(ClosedErrorCode.SERVICE_NOT_READY)
+            }
+
+            RotateCredentialOutcome.ReplacementUnavailable,
+            RotateCredentialOutcome.SameAsCurrent,
+            -> {
+                throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+            }
+        }
 
     private fun caller(): PersonRef =
         tenants
@@ -146,4 +207,60 @@ open class ConnectionsController(
             environmentTag = ConnectionRecord.EnvironmentTag.forValue(record.environmentTag.name),
             ownerService = record.ownerService,
         )
+
+    private fun wire(
+        record: DomainRecord,
+        credentialRef: String,
+    ): ConnectionRecord = wire(record.copy(credentialRef = credentialRef))
+
+    private fun wire(
+        health: DomainHealth,
+        extra: HealthExtra,
+    ): ConnectionHealth =
+        ConnectionHealth(
+            connectionRef = health.connectionRef,
+            state = ConnectionHealth.State.valueOf(health.state.name),
+            breakerState = ConnectionHealth.BreakerState.valueOf(health.breakerState.name),
+            successRate = health.successRate?.let(BigDecimal::valueOf),
+            latencyMillis = health.latencyMillis?.let(Math::toIntExact),
+            measuredOverSeconds = health.measuredOver.seconds.toInt(),
+            lastFailure =
+                health.lastFailure?.let {
+                    ConnectionHealthLastFailure(
+                        at = it.at.atOffset(ZoneOffset.UTC),
+                        classification =
+                            ConnectionHealthLastFailure.Classification.valueOf(
+                                it.failure.classification.name,
+                            ),
+                        detail = it.failure.detail,
+                    )
+                },
+            credentialExpiresAt = extra.credentialExpiresAt?.atOffset(ZoneOffset.UTC),
+            overlapEndsAt = extra.overlapEndsAt?.atOffset(ZoneOffset.UTC),
+        )
+}
+
+/** The two optional figures of `ConnectionHealth` that are not health: the credential expiry and the overlap end. */
+data class HealthExtra(
+    val credentialExpiresAt: Instant?,
+    val overlapEndsAt: Instant?,
+)
+
+/** Reads, in one transaction, what the answers add to the use cases' outcomes; it writes nothing. */
+class HealthExtras(
+    private val tx: TransactionRunner,
+    private val expiries: JooqCredentialExpiries,
+    private val states: CredentialStateStore,
+    private val connections: ConnectionStore,
+) {
+    fun of(connectionRef: String): HealthExtra =
+        tx.inTransaction {
+            HealthExtra(
+                expiries.of(connectionRef)?.credentialExpiresAt,
+                states.find(connectionRef)?.last?.overlapEnd,
+            )
+        }
+
+    fun record(connectionRef: String): DomainRecord =
+        checkNotNull(tx.inTransaction { connections.find(connectionRef) }) { "connection $connectionRef vanished" }
 }

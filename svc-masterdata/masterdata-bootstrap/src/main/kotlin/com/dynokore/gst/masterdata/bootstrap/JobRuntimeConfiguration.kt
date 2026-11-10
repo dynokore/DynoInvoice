@@ -97,7 +97,45 @@ class JobRuntimeConfiguration {
         return SmartInitializingSingleton { runtime.ifAvailable { registerSweep(it, cron, sweep) } }
     }
 
+    /**
+     * Registers [CREDENTIAL_EXPIRY_CHECK] in the service's [JobRuntime] (the existing job tables record its runs and
+     * emit JobRegistered). The cron is the key `masterdata.connections.expiry-check-cron`, a six-field cron with no
+     * default in code: a start without it, or with a blank value, fails.
+     */
+    @Bean
+    fun credentialExpiryCheckJobRegistration(
+        runtime: ObjectProvider<JobRuntime>,
+        check: CheckCredentialExpiryForTenants,
+        environment: Environment,
+    ): SmartInitializingSingleton {
+        val cron = environment.getRequiredProperty(EXPIRY_CRON_KEY)
+        require(cron.isNotBlank()) { "$EXPIRY_CRON_KEY must not be blank" }
+        return SmartInitializingSingleton { runtime.ifAvailable { registerExpiryCheck(it, cron, check) } }
+    }
+
     companion object {
+        const val EXPIRY_CRON_KEY = "masterdata.connections.expiry-check-cron"
+        const val CREDENTIAL_EXPIRY_CHECK = "credential-expiry-check"
+
+        fun expiryDefinition(cron: String) =
+            JobDefinition(
+                name = CREDENTIAL_EXPIRY_CHECK,
+                ownerService = "masterdata-svc",
+                entityScope = JobEntityScope.PLATFORM,
+                schedule = JobSchedule(cron, ZoneOffset.UTC),
+                criticality = JobCriticality.STANDARD,
+                tolerance = TOLERANCE,
+            )
+
+        /** Registers the check; its body runs it once for every tenant and lets an exception propagate. */
+        fun registerExpiryCheck(
+            runtime: JobRuntime,
+            cron: String,
+            check: CheckCredentialExpiryForTenants,
+        ) = runtime.register(expiryDefinition(cron), null) {
+            LOG.log(System.Logger.Level.INFO, "credential expiry check requested {0} reminder(s)", check.run())
+        }
+
         const val SWEEP_CRON_KEY = "masterdata.long-command.sweep-cron"
 
         /** The tolerance is inferred, not ruled: five minutes, a small multiple of the configured schedule. */

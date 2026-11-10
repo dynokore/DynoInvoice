@@ -12,4 +12,6 @@ object OperationPermissionKeys {
     const val CONNECTION_CONFIGURE = "connection.configure"
     const val CONNECTION_VIEW = "connection.view"
     const val CONNECTION_TEST = "connection.test"
+    const val CONNECTION_HEALTH_VIEW = "connection-health.view"
+    const val CONNECTION_CREDENTIAL_ROTATE = "connection-credential.rotate"
 }

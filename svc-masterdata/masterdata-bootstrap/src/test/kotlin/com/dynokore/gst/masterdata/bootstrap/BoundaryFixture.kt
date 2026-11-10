@@ -73,6 +73,8 @@ object TestPermissions {
             OperationPermissionKeys.CONNECTION_CONFIGURE,
             OperationPermissionKeys.CONNECTION_VIEW,
             OperationPermissionKeys.CONNECTION_TEST,
+            OperationPermissionKeys.CONNECTION_HEALTH_VIEW,
+            OperationPermissionKeys.CONNECTION_CREDENTIAL_ROTATE,
         )
 
     /** A second person holding the same keys, for the criteria that compare a starter with another principal. */

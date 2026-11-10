@@ -2,8 +2,10 @@ package com.dynokore.gst.masterdata.bootstrap
 
 import com.dynokore.gst.masterdata.adapters.connection.HttpConnectionTester
 import com.dynokore.gst.masterdata.adapters.connection.InstallationEnvironment
+import com.dynokore.gst.masterdata.adapters.connection.RecordingConnectionTester
 import com.dynokore.gst.masterdata.adapters.http.ManualRateEntry
 import com.dynokore.gst.masterdata.adapters.permission.OperationPermissionKeys
+import com.dynokore.gst.masterdata.adapters.persistence.JooqCallRecords
 import com.dynokore.gst.masterdata.adapters.persistence.JooqConnectionStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqCredentialExpiryStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqRateStore
@@ -14,6 +16,8 @@ import com.dynokore.gst.masterdata.application.connection.ConnectionTester
 import com.dynokore.gst.masterdata.application.connection.ConnectionViewPermission
 import com.dynokore.gst.masterdata.application.connection.CreateConnection
 import com.dynokore.gst.masterdata.application.connection.CredentialExpiryStore
+import com.dynokore.gst.masterdata.application.connection.CredentialGate
+import com.dynokore.gst.masterdata.application.connection.EvaluateConnectionStatus
 import com.dynokore.gst.masterdata.application.connection.GetConnection
 import com.dynokore.gst.masterdata.application.connection.TestConnection
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
@@ -74,9 +78,14 @@ class ConnectionUseCases {
         InstallationEnvironment { environment.getProperty(INSTALLATION_ENVIRONMENT).orEmpty() }
 
     @Bean
+    @Suppress("LongParameterList") // the http tester and the recording path it is wrapped in
     fun connectionTester(
         secrets: SecretStore,
         clock: Clock,
+        gate: CredentialGate,
+        calls: JooqCallRecords,
+        evaluate: EvaluateConnectionStatus,
+        tx: TransactionRunner,
     ): ConnectionTester {
         val policy =
             ResiliencePolicy(
@@ -87,7 +96,7 @@ class ConnectionUseCases {
             )
         val deadLetters: DeadLetterSink = InMemoryDeadLetterSink()
         val executor = Resilience4jResilientExecutor(policy, "connection-test", deadLetters, clock)
-        return HttpConnectionTester(executor, secrets)
+        return RecordingConnectionTester(HttpConnectionTester(executor, secrets), gate, calls, evaluate, tx, clock)
     }
 
     @Bean

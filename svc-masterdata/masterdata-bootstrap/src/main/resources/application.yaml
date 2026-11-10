@@ -38,6 +38,14 @@ management:
 logging.structured.format.console: ecs             # STK-35
 masterdata:
   long-command.sweep-cron: "0 */5 * * * *"          # six-field cron of the long-command-sweep job, evaluated in UTC; no default in code
+  connections:
+    expiry-check-cron: "0 0 * * * *"              # six-field cron of the credential-expiry-check job, evaluated in UTC: hourly; no default in code
+    health:                                       # INV-REQ-836 health figures; no default in code, an unset value fails the start
+      window: PT300S                              # the observation window: 300 seconds
+      percentile: 95                              # the latency percentile, nearest rank
+      failure-threshold: 5                        # consecutive failures that open the breaker
+      open-for: PT30S                             # how long the breaker stays open before a probe: 30 seconds
+    # overlap (masterdata.connections.overlap, ISO-8601) is deliberately not set here: the length is an open owner question
   long-command.max-run: PT15M                      # a RUNNING gap report, dry run or import older than this is finalised FAILED
 gst:
   service: masterdata-svc
@@ -53,5 +61,6 @@ inv:
       - masterdata.shedlock                         # JobSchema.platformScopedTables("masterdata")
       - masterdata.job_retention
       - masterdata.stale_record_tenants             # INV-Q-18051 A: a definer function, tenant ids only
+      - masterdata.connection_expiry_tenants        # INV-T-18776: a definer function, tenant ids only
   masterdata:
     job-scheduling.enabled: true                    # INV-Q-16793 A: fire the registered jobs on their cron; the boundary tests set it false

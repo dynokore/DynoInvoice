@@ -15,8 +15,8 @@ operation	enterRate	INV-T-18774	done
 operation	createConnection	INV-T-18774	done
 operation	getConnection	INV-T-18774	done
 operation	testConnection	INV-T-18774	done
-operation	rotateCredential	INV-T-4947	open
-operation	getConnectionHealth	INV-T-18776	open
+operation	rotateCredential	INV-T-18776	done
+operation	getConnectionHealth	INV-T-18776	done
 operation	resolveMasterDataGap	INV-T-4943	done
 operation	getRegisterAndRates	INV-T-18775	done
 operation	getImportRecord	INV-T-4944	done
