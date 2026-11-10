@@ -30,6 +30,52 @@ sealed interface ItemReading {
  */
 object DryRunComputation {
     private val ZERO = BigDecimal("0.00")
+    private val MONEY = Regex("^-?\\d{1,17}(\\.\\d{1,2})?$")
+
+    /** Reads one page item (a raw member map); the position counts from 1. */
+    fun read(
+        pageNumber: Int,
+        position: Int,
+        raw: Map<String, Any?>,
+    ): ItemReading {
+        fun refuse(reason: String) = ItemReading.Refused(ItemRefusal(pageNumber, position, reason))
+
+        val periodRef = raw["periodRef"]
+        if (periodRef !is String || periodRef.isBlank() || periodRef.length > 32) {
+            return refuse("periodRef is missing, blank, too long or not a string")
+        }
+        val docUuid = raw["docUuid"]
+        if (docUuid !is String || !isUuidText(docUuid)) return refuse("docUuid is missing or not a UUID")
+        val strings =
+            listOf("entityRef", "internalTaxCode", "documentFunction").associateWith { raw[it] as? String }
+        strings.forEach { (k, v) -> if (v.isNullOrBlank()) return refuse("$k is missing or not a string") }
+        val date = date(raw["transactionDate"]) ?: return refuse("transactionDate is missing or not a date")
+        val preceding =
+            if (raw["precedingDocumentDate"] == null) null else date(raw["precedingDocumentDate"])
+                ?: return refuse("precedingDocumentDate is not a date")
+        val flagged = raw["sgdValuesAbsent"] == true
+        var taxable = ZERO
+        var gst = ZERO
+        if (!flagged) {
+            taxable = money(raw["taxableValue"]) ?: return refuse("taxableValue is missing or not a decimal")
+            gst = money(raw["gstValue"]) ?: return refuse("gstValue is missing or not a decimal")
+        }
+        return ItemReading.Read(
+            SampledDocument(
+                pageNumber, position, docUuid, periodRef, strings.getValue("entityRef")!!, date,
+                strings.getValue("internalTaxCode")!!, strings.getValue("documentFunction")!!, preceding,
+                raw["supplyType"] as? String, flagged, taxable, gst,
+            ),
+        )
+    }
+
+    private fun isUuidText(s: String): Boolean =
+        s.length == 36 && runCatching { UUID.fromString(s) }.isSuccess && s.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == '-' }
+
+    private fun date(v: Any?): LocalDate? =
+        if (v !is String) null else try { LocalDate.parse(v) } catch (_: DateTimeParseException) { null }
+
+    private fun money(v: Any?): BigDecimal? = if (v is String && MONEY.matches(v)) BigDecimal(v).setScale(2) else null
 
     fun changeTypeOf(
         old: DocumentOutcome,
@@ -42,7 +88,7 @@ object DryRunComputation {
             else -> ChangeType.CODE_CHANGED
         }
 
-    /** A credit note whose two dates lie on different sides of [effectiveFrom] (before vs on or after). */
+    /** A credit note whose own date and preceding date lie on different sides of [effectiveFrom] (before against on or after). */
     fun straddles(
         doc: ChangedDocument,
         effectiveFrom: LocalDate,
@@ -52,72 +98,41 @@ object DryRunComputation {
             doc.transactionDate.isBefore(effectiveFrom) != preceding.isBefore(effectiveFrom)
     }
 
-    /** The delta of the documents with their [outcomes] (old, new), for a pack effective from [effectiveFrom]. */
+    /** The delta of the documents with their [outcomes] (old, new), for a candidate pack effective from [effectiveFrom]. */
     fun delta(
         outcomes: List<Triple<SampledDocument, DocumentOutcome, DocumentOutcome>>,
         effectiveFrom: LocalDate,
     ): DryRunDelta {
-        val changed = outcomes.mapNotNull { (d, old, new) -> changedOf(d, old, new) }
+        val changed =
+            outcomes.mapNotNull { (d, old, new) ->
+                val type = changeTypeOf(old, new) ?: return@mapNotNull null
+                ChangedDocument(
+                    d.docUuid, d.periodRef, d.transactionDate, d.precedingDocumentDate, d.documentFunction, d.supplyType,
+                    old, new, type, d.taxableValue.toPlainString(), d.gstValue.toPlainString(), d.sgdValuesAbsent,
+                )
+            }
         val (straddling, general) = changed.partition { straddles(it, effectiveFrom) }
         return DryRunDelta(
             changedCount = changed.size,
             documents = changed,
-            changeTypeTotals =
-                ChangeType.entries.map { t ->
-                    changeTypeTotal(t, changed.filter { it.changeType == t })
-                },
-            byPeriod = periods(changed),
+            changeTypeTotals = ChangeType.entries.map { t -> total(changed.filter { it.changeType == t }).let { ChangeTypeTotal(t, it.documentCount, it.taxableValue, it.gstValue, it.valuesAbsentCount) } },
+            byPeriod =
+                changed
+                    .groupBy { it.periodRef }
+                    .map { (ref, docs) -> ref to docs }
+                    .sortedWith(compareBy({ (_, docs) -> docs.minOf { it.transactionDate } }, { it.first }))
+                    .map { (ref, docs) ->
+                        val t = total(docs)
+                        PeriodDelta(ref, t.documentCount, t.taxableValue, t.gstValue, t.valuesAbsentCount)
+                    },
             straddlingCreditNotes = straddling.map(::listing),
             sample = general.map(::listing),
         )
     }
 
-    private fun changedOf(
-        d: SampledDocument,
-        old: DocumentOutcome,
-        new: DocumentOutcome,
-    ): ChangedDocument? {
-        val type = changeTypeOf(old, new) ?: return null
-        return ChangedDocument(
-            d.docUuid,
-            d.periodRef,
-            d.transactionDate,
-            d.precedingDocumentDate,
-            d.documentFunction,
-            d.supplyType,
-            old,
-            new,
-            type,
-            d.taxableValue.toPlainString(),
-            d.gstValue.toPlainString(),
-            d.sgdValuesAbsent,
-        )
-    }
-
-    private fun changeTypeTotal(
-        type: ChangeType,
-        docs: List<ChangedDocument>,
-    ): ChangeTypeTotal =
-        total(docs).let { ChangeTypeTotal(type, it.documentCount, it.taxableValue, it.gstValue, it.valuesAbsentCount) }
-
-    /** One item per period, in the order of the earliest transaction date of its changed documents (INV-REQ-686). */
-    private fun periods(changed: List<ChangedDocument>): List<PeriodDelta> =
-        changed
-            .groupBy { it.periodRef }
-            .toList()
-            .sortedWith(compareBy({ (_, docs) -> docs.minOf { it.transactionDate } }, { it.first }))
-            .map { (ref, docs) ->
-                val t = total(docs)
-                PeriodDelta(ref, t.documentCount, t.taxableValue, t.gstValue, t.valuesAbsentCount)
-            }
-
     private fun listing(d: ChangedDocument) =
         DeltaListing(
-            d.docUuid,
-            d.transactionDate,
-            d.precedingDocumentDate,
-            d.oldOutcome.code,
-            d.newOutcome.code,
+            d.docUuid, d.transactionDate, d.precedingDocumentDate, d.oldOutcome.code, d.newOutcome.code,
             if (d.sgdValuesAbsent) "0.00" else d.taxableValue,
             if (d.sgdValuesAbsent) "0.00" else d.gstValue,
             d.supplyType,
@@ -139,87 +154,5 @@ object DryRunComputation {
             ordinary.fold(ZERO) { a, d -> a + BigDecimal(d.gstValue) }.toPlainString(),
             docs.size - ordinary.size,
         )
-    }
-}
-
-/** Reads the raw members of a page item; nothing is guessed, derived or generated. */
-object SampleItems {
-    private val ZERO = BigDecimal("0.00")
-    private val MONEY = Regex("^-?\\d{1,17}(\\.\\d{1,2})?$")
-
-    private const val MAX_PERIOD_REF = 32
-    private const val UUID_TEXT_LENGTH = 36
-
-    private class ItemFault(
-        message: String,
-    ) : RuntimeException(message)
-
-    /** Reads one page item (a raw member map); the position counts from 1. */
-    fun read(
-        pageNumber: Int,
-        position: Int,
-        raw: Map<String, Any?>,
-    ): ItemReading =
-        try {
-            ItemReading.Read(readItem(pageNumber, position, raw))
-        } catch (fault: ItemFault) {
-            ItemReading.Refused(ItemRefusal(pageNumber, position, fault.message.orEmpty()))
-        }
-
-    private fun readItem(
-        pageNumber: Int,
-        position: Int,
-        raw: Map<String, Any?>,
-    ): SampledDocument {
-        val periodRef = raw["periodRef"]
-        if (periodRef !is String || periodRef.isBlank() || periodRef.length > MAX_PERIOD_REF) {
-            throw ItemFault("periodRef is missing, blank, too long or not a string")
-        }
-        val docUuid = raw["docUuid"]
-        if (docUuid !is String || !isUuidText(docUuid)) throw ItemFault("docUuid is missing or not a UUID")
-        val flagged = raw["sgdValuesAbsent"] == true
-        return SampledDocument(
-            pageNumber = pageNumber,
-            position = position,
-            docUuid = docUuid,
-            periodRef = periodRef,
-            entityRef = text(raw, "entityRef"),
-            transactionDate = date(raw, "transactionDate"),
-            internalTaxCode = text(raw, "internalTaxCode"),
-            documentFunction = text(raw, "documentFunction"),
-            precedingDocumentDate = raw["precedingDocumentDate"]?.let { date(raw, "precedingDocumentDate") },
-            supplyType = raw["supplyType"] as? String,
-            sgdValuesAbsent = flagged,
-            taxableValue = if (flagged) ZERO else money(raw, "taxableValue"),
-            gstValue = if (flagged) ZERO else money(raw, "gstValue"),
-        )
-    }
-
-    private fun text(
-        raw: Map<String, Any?>,
-        key: String,
-    ): String = (raw[key] as? String)?.takeIf { it.isNotBlank() } ?: throw ItemFault("$key is missing or not a string")
-
-    private fun isUuidText(s: String): Boolean =
-        s.length == UUID_TEXT_LENGTH && runCatching { UUID.fromString(s) }.isSuccess &&
-            s.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == '-' }
-
-    private fun date(
-        raw: Map<String, Any?>,
-        key: String,
-    ): LocalDate =
-        try {
-            LocalDate.parse(raw[key] as? String ?: throw ItemFault("$key is missing or not a date"))
-        } catch (_: DateTimeParseException) {
-            throw ItemFault("$key is not a date")
-        }
-
-    private fun money(
-        raw: Map<String, Any?>,
-        key: String,
-    ): BigDecimal {
-        val v = raw[key]
-        if (v !is String || !MONEY.matches(v)) throw ItemFault("$key is missing or not a decimal")
-        return BigDecimal(v).setScale(2)
     }
 }
