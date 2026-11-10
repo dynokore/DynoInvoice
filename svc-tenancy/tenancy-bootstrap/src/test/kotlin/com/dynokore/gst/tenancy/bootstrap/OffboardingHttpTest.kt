@@ -34,6 +34,7 @@ import java.util.UUID
 private const val CALLER = "identity:USR-004"
 private const val SECOND = "identity:USR-0040"
 private const val TENANT_ADMIN = "tenant.admin"
+private const val COMMERCIAL_ADMIN = "commercial.admin"
 private const val FINANCE_VIEWER = "finance.viewer"
 private const val HOLDER = """{"name":"Ledger Custody Pte Ltd","contactEmail":"custody@ledger.example"}"""
 
@@ -106,6 +107,10 @@ class OffboardingHttpTest {
                 "service-runtime.workload-identity.callers[0].subject=sa-console-bff",
                 "service-runtime.workload-identity.callers[1].service=control-plane-svc",
                 "service-runtime.workload-identity.callers[1].subject=sa-control-plane-svc",
+                "service-runtime.workload-identity.callers[2].service=billing-svc",
+                "service-runtime.workload-identity.callers[2].subject=sa-billing-svc",
+                "service-runtime.workload-identity.callers[3].service=control-plane-svc-two",
+                "service-runtime.workload-identity.callers[3].subject=sa-control-plane-svc-two",
                 "management.server.port=0",
             ),
             javaClass.classLoader,
@@ -550,14 +555,57 @@ class OffboardingHttpTest {
     @Test
     fun `INV-AC-8177 closeTenant by a person or another service is 403 SRT-004 and stores nothing`() =
         scenario { tenant, entity ->
-            people().grant("identity:USR-C1", entity.entityRef, TENANT_ADMIN)
-            people().caller = "identity:USR-C1"
-            listOf("console-bff").forEach { workload ->
+            opened(tenant)
+            // the use case is reached only with 409 TNC-008 here, so a 403 SRT-004 shows the use case was not called
+            OffboardingPorts.unsubmitted = 2
+            val persons = listOf(TENANT_ADMIN, ElectionRoles.ENTITY_ADMIN, COMMERCIAL_ADMIN)
+            val callers =
+                persons.map { role -> "person $role via console-bff" to ("console-bff" to role) } +
+                    listOf("billing-svc", "control-plane-svc-two", "stranger-svc").map {
+                        "service $it" to (it to TENANT_ADMIN)
+                    } +
+                    persons.map { role ->
+                        "person $role via look-alike control-plane-svc-two" to
+                            ("control-plane-svc-two" to role)
+                    }
+            callers.forEachIndexed { i, (what, caller) ->
+                val (workload, role) = caller
+                people().grant("identity:USR-C$i", entity.entityRef, role)
+                people().caller = "identity:USR-C$i"
                 val answer = close(tenant, workload = workload)
-                assertThat(answer.status).describedAs("$workload: ${answer.body}").isEqualTo(403)
-                assertThat(answer.code).isEqualTo("SRT-004")
+                assertThat(answer.status).describedAs("$what: ${answer.body}").isEqualTo(403)
+                assertThat(answer.code).describedAs(what).isEqualTo("SRT-004")
             }
             assertThat(rows(tenant)).isEmpty()
+            assertThat(tenantState(tenant)).isEqualTo("OPEN")
+        }
+
+    @Test
+    fun `INV-AC-8177 createTenant by a person or another service is 403 SRT-004 and stores nothing`() =
+        scenario { _, _ ->
+            val before = tenantCount()
+            listOf("billing-svc", "control-plane-svc-two", "console-bff", "stranger-svc").forEach { workload ->
+                val answer =
+                    post(
+                        "/internal/v1/tenancy/tenants",
+                        """{"contractReference":"CTR-CALLER-$workload","legalName":"Probe","planRef":"PLAN-A"}""",
+                        workload = workload,
+                        endUser = true,
+                    )
+                assertThat(answer.status).describedAs("$workload: ${answer.body}").isEqualTo(403)
+                assertThat(answer.code).describedAs(workload).isEqualTo("SRT-004")
+            }
+            assertThat(tenantCount()).isEqualTo(before)
+        }
+
+    private fun tenantCount(): Long =
+        BoundaryFixture.asSuperuser { c ->
+            c.prepareStatement("select count(*) from tenancy.tenant").use { st ->
+                st.executeQuery().use { rs ->
+                    rs.next()
+                    rs.getLong(1)
+                }
+            }
         }
 
     @Test

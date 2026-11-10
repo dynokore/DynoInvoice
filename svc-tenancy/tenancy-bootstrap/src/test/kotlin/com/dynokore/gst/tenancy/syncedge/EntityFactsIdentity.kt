@@ -10,8 +10,9 @@ import org.springframework.context.annotation.Primary
 
 /**
  * One end-user principal the test sets; the verifier accepts the workload tokens of `console-bff` and
- * `control-plane-svc` only. It sits outside
- * the packages the application scans, so only a test that lists it puts it in a context.
+ * `control-plane-svc` and the test callers `billing-svc`, `control-plane-svc-two` and `stranger-svc`
+ * (verified, not mapped) only. It sits outside the packages the application scans, so only a test that lists
+ * it puts it in a context.
  */
 @Configuration(proxyBeanMethods = false)
 class EntityFactsIdentity {
@@ -34,7 +35,8 @@ class EntityFactsIdentity {
 
     companion object {
         const val TOKEN = "facts-token"
-        private val VERIFIED_SERVICES = setOf("console-bff", "control-plane-svc")
+        private val VERIFIED_SERVICES =
+            setOf("console-bff", "control-plane-svc", "billing-svc", "control-plane-svc-two", "stranger-svc")
 
         @Volatile
         var principal: EndUserPrincipal? = null
