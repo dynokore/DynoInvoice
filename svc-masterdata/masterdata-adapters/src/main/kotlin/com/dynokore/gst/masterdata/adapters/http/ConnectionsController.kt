@@ -56,6 +56,7 @@ open class ConnectionsController(
                     credentialRef = createConnectionRequest.credentialRef,
                     environmentTag = createConnectionRequest.environmentTag.value,
                     ownerService = createConnectionRequest.ownerService,
+                    credentialExpiresAt = createConnectionRequest.credentialExpiresAt?.toInstant(),
                 ),
             ),
         )

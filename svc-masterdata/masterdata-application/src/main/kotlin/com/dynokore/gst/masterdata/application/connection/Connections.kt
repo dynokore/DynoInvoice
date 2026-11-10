@@ -5,6 +5,7 @@ import com.dynokore.gst.masterdata.domain.connection.ConnectionTestResult
 import com.dynokore.gst.masterdata.domain.connection.EnvironmentTag
 import com.dynokore.gst.masterdata.domain.identity.PersonRef
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import java.time.Instant
 
 /** The connection records of the bound tenant (TPL-11); every call runs inside the caller's transaction. */
 interface ConnectionStore {
@@ -54,6 +55,8 @@ data class CreateConnectionCommand(
     val credentialRef: String,
     val environmentTag: String,
     val ownerService: String,
+    /** The optional `credentialExpiresAt` of the contract; null records nothing. No default and no check beyond the schema. */
+    val credentialExpiresAt: Instant?,
 )
 
 sealed interface CreateConnectionOutcome {
@@ -74,6 +77,7 @@ class CreateConnection(
     private val tx: TransactionRunner,
     private val store: ConnectionStore,
     private val permission: ConnectionConfigurePermission,
+    private val expiries: CredentialExpiryStore,
 ) {
     fun handle(command: CreateConnectionCommand): CreateConnectionOutcome =
         tx.inTransaction {
@@ -97,6 +101,7 @@ class CreateConnection(
                             ownerService = command.ownerService,
                         )
                     store.save(record)
+                    command.credentialExpiresAt?.let { expiries.record(record.connectionRef, record.credentialRef, it) }
                     CreateConnectionOutcome.Stored(record, created = true)
                 }
             }

@@ -69,11 +69,24 @@ sealed interface RotateCredentialOutcome {
     data object SameAsCurrent : RotateCredentialOutcome
 }
 
+/**
+ * The expiry of a connection credential (one row per connection). [record] replaces the single row of the connection;
+ * a null [expiresAt] removes it. It runs inside the caller's transaction.
+ */
+fun interface CredentialExpiryStore {
+    fun record(
+        connectionRef: String,
+        credentialRef: String,
+        expiresAt: Instant?,
+    )
+}
+
 /** The stores a rotation uses. */
 data class RotationPorts(
     val store: ConnectionStore,
     val states: CredentialStateStore,
     val secrets: SecretStore,
+    val expiries: CredentialExpiryStore,
 )
 
 /** The permission port of rotation; the adapter asks `AuthorityReplica.decide` with [permissionKey]. */
@@ -99,6 +112,7 @@ class RotateCredential(
         caller: PersonRef,
         connectionRef: String,
         credentialRef: String,
+        credentialExpiresAt: Instant?,
     ): RotateCredentialOutcome =
         tx.inTransaction {
             if (!permission.allows(caller, PERMISSION_KEY)) return@inTransaction RotateCredentialOutcome.Forbidden
@@ -126,6 +140,7 @@ class RotateCredential(
                     rotated,
                 ),
             )
+            ports.expiries.record(connectionRef, credentialRef, credentialExpiresAt)
             RotateCredentialOutcome.Rotated(rotated, repeat = false)
         }
 

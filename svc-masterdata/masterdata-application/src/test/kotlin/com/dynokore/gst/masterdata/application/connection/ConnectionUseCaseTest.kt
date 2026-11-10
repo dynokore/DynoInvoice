@@ -104,8 +104,16 @@ class ConnectionUseCaseTest {
         secret: String = "vault://kv/gst/peppol-sml",
         tag: String = "PRODUCTION",
         allow: Boolean = true,
-    ) = CreateConnection(Tx, store, { allow }).handle(
-        CreateConnectionCommand(caller, "CHECK_GST_REGISTER", "https://api.example.sg", secret, tag, "masterdata-svc"),
+    ) = CreateConnection(Tx, store, { allow }, { _, _, _ -> }).handle(
+        CreateConnectionCommand(
+            caller,
+            "CHECK_GST_REGISTER",
+            "https://api.example.sg",
+            secret,
+            tag,
+            "masterdata-svc",
+            null,
+        ),
     )
 
     private fun test(

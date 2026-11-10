@@ -309,7 +309,7 @@ class ConnectionHealthAndCredentialTest {
         }
         health.handle(caller, "CON-1")
         assertEquals(listOf("connection-health.view"), healthKeys)
-        rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "cred-new")
+        rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "cred-new", null)
         assertEquals(listOf("connection-credential.rotate"), rotateKeys)
     }
 
@@ -321,7 +321,7 @@ class ConnectionHealthAndCredentialTest {
     private fun rotation(overlap: Duration?) =
         RotateCredential(
             HealthTx,
-            RotationPorts(records, states, secrets),
+            RotationPorts(records, states, secrets, { _, _, _ -> }),
             { _, key ->
                 rotateKeys += key
                 true
@@ -336,7 +336,7 @@ class ConnectionHealthAndCredentialTest {
     fun `INV-AC-18782 an in-flight call finishes on the old credential and no call fails`() {
         val inFlight = gate.begin("CON-1")
         assertEquals("cred-old", inFlight)
-        val out = rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new")
+        val out = rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new", null)
         val rotated = assertInstanceOf(RotateCredentialOutcome.Rotated::class.java, out)
         assertEquals(t0.plus(Duration.ofMinutes(10)), rotated.rotation.overlapEnd)
         assertTrue(gate.accepts("CON-1", inFlight!!), "the call started before the rotation finishes on its credential")
@@ -350,7 +350,7 @@ class ConnectionHealthAndCredentialTest {
     @Test
     fun `INV-AC-18782 a rotation that withdraws the old credential at once is detected by the overlap comparison`() {
         val inFlight = gate.begin("CON-1")!!
-        rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new")
+        rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new", null)
         clock.now = t0.plusSeconds(1)
         assertTrue(gate.accepts("CON-1", inFlight))
     }
@@ -360,12 +360,12 @@ class ConnectionHealthAndCredentialTest {
         val first =
             rotation(
                 Duration.ofMinutes(10),
-            ).handle(caller, "CON-1", "cred-new") as RotateCredentialOutcome.Rotated
+            ).handle(caller, "CON-1", "cred-new", null) as RotateCredentialOutcome.Rotated
         clock.now = t0.plusSeconds(120)
         val again =
             rotation(
                 Duration.ofMinutes(10),
-            ).handle(caller, "CON-1", "cred-new") as RotateCredentialOutcome.Rotated
+            ).handle(caller, "CON-1", "cred-new", null) as RotateCredentialOutcome.Rotated
         assertTrue(again.repeat)
         assertEquals(first.rotation, again.rotation)
         assertEquals(t0.plus(Duration.ofMinutes(10)), states.find("CON-1")!!.overlapEnd)
@@ -376,12 +376,12 @@ class ConnectionHealthAndCredentialTest {
     fun `INV-AC-18782 rotations to A B A and B again perform four rotations and a retry of the last reads no secret`() {
         val rotate = rotation(Duration.ofMinutes(10))
         listOf("cred-new", "cred-newer", "cred-new", "cred-newer").forEachIndexed { i, ref ->
-            val out = rotate.handle(caller, "CON-1", ref) as RotateCredentialOutcome.Rotated
+            val out = rotate.handle(caller, "CON-1", ref, null) as RotateCredentialOutcome.Rotated
             assertFalse(out.repeat, "rotation ${i + 1}")
             assertEquals(i + 1, secrets.reads)
         }
         val end = states.find("CON-1")!!.overlapEnd
-        val retry = rotate.handle(caller, "CON-1", "cred-newer") as RotateCredentialOutcome.Rotated
+        val retry = rotate.handle(caller, "CON-1", "cred-newer", null) as RotateCredentialOutcome.Rotated
         assertTrue(retry.repeat)
         assertEquals(4, secrets.reads)
         assertEquals(end, states.find("CON-1")!!.overlapEnd)
@@ -389,37 +389,40 @@ class ConnectionHealthAndCredentialTest {
 
     @Test
     fun `INV-AC-18782 rotation is refused while the overlap is unset and when the replacement does not resolve`() {
-        assertEquals(RotateCredentialOutcome.OverlapNotConfigured, rotation(null).handle(caller, "CON-1", "cred-new"))
+        assertEquals(
+            RotateCredentialOutcome.OverlapNotConfigured,
+            rotation(null).handle(caller, "CON-1", "cred-new", null),
+        )
         assertNull(states.find("CON-1"))
         assertEquals(0, secrets.reads)
         assertEquals(
             RotateCredentialOutcome.ReplacementUnavailable,
-            rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "missing"),
+            rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "missing", null),
         )
         assertEquals(
             RotateCredentialOutcome.SameAsCurrent,
-            rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "cred-old"),
+            rotation(Duration.ofMinutes(1)).handle(caller, "CON-1", "cred-old", null),
         )
         assertEquals(
             RotateCredentialOutcome.Unknown,
-            rotation(Duration.ofMinutes(1)).handle(caller, "CON-9", "cred-new"),
+            rotation(Duration.ofMinutes(1)).handle(caller, "CON-9", "cred-new", null),
         )
         val denied =
             RotateCredential(
                 HealthTx,
-                RotationPorts(records, states, secrets),
+                RotationPorts(records, states, secrets, { _, _, _ -> }),
                 { _, _ -> false },
                 RotationSettings(Duration.ofMinutes(1)),
                 clock,
             )
-        assertEquals(RotateCredentialOutcome.Forbidden, denied.handle(caller, "CON-1", "cred-new"))
+        assertEquals(RotateCredentialOutcome.Forbidden, denied.handle(caller, "CON-1", "cred-new", null))
         assertNull(states.find("CON-1"))
     }
 
     @Test
     fun `INV-AC-18782 a second rotation drops the first previous reference`() {
-        rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new")
-        rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-newer")
+        rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-new", null)
+        rotation(Duration.ofMinutes(10)).handle(caller, "CON-1", "cred-newer", null)
         assertFalse(gate.accepts("CON-1", "cred-old"))
         assertTrue(gate.accepts("CON-1", "cred-new"))
     }

@@ -5,6 +5,7 @@ import com.dynokore.gst.masterdata.adapters.connection.InstallationEnvironment
 import com.dynokore.gst.masterdata.adapters.http.ManualRateEntry
 import com.dynokore.gst.masterdata.adapters.permission.OperationPermissionKeys
 import com.dynokore.gst.masterdata.adapters.persistence.JooqConnectionStore
+import com.dynokore.gst.masterdata.adapters.persistence.JooqCredentialExpiryStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqRateStore
 import com.dynokore.gst.masterdata.application.connection.ConnectionConfigurePermission
 import com.dynokore.gst.masterdata.application.connection.ConnectionStore
@@ -12,6 +13,7 @@ import com.dynokore.gst.masterdata.application.connection.ConnectionTestPermissi
 import com.dynokore.gst.masterdata.application.connection.ConnectionTester
 import com.dynokore.gst.masterdata.application.connection.ConnectionViewPermission
 import com.dynokore.gst.masterdata.application.connection.CreateConnection
+import com.dynokore.gst.masterdata.application.connection.CredentialExpiryStore
 import com.dynokore.gst.masterdata.application.connection.GetConnection
 import com.dynokore.gst.masterdata.application.connection.TestConnection
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
@@ -51,6 +53,12 @@ class ConnectionUseCases {
     ): ConnectionStore = JooqConnectionStore(dsl, clock)
 
     @Bean
+    fun credentialExpiryStore(
+        dsl: DSLContext,
+        clock: Clock,
+    ): CredentialExpiryStore = JooqCredentialExpiryStore(dsl, clock)
+
+    @Bean
     fun rateStore(
         dsl: DSLContext,
         clock: Clock,
@@ -86,11 +94,13 @@ class ConnectionUseCases {
     fun createConnection(
         tx: TransactionRunner,
         store: ConnectionStore,
+        expiries: CredentialExpiryStore,
         permission: TenantPermission,
     ) = CreateConnection(
         tx,
         store,
         ConnectionConfigurePermission { permission.holds(it.value, OperationPermissionKeys.CONNECTION_CONFIGURE) },
+        expiries,
     )
 
     @Bean
