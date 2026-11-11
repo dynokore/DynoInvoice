@@ -196,7 +196,7 @@ class PeriodSpansBoundaryTest {
         """.trimMargin()
 
     @Test
-    fun `INV-AC-20247 the only bean of type PeriodBoundarySource is StoredPeriodBoundaries and NoPeriodBoundaries is not a bean`(
+    fun `INV-AC-20247 StoredPeriodBoundaries is the only PeriodBoundarySource bean`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
