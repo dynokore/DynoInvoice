@@ -130,8 +130,18 @@ open class PacksController(
         ResponseEntity
             .status(refusal.status)
             .header("Content-Type", "application/problem+json")
-            .apply { refusal.retryAfterSeconds?.let { header("Retry-After", it.toString()) } }
             .body(problemBody(refusal, correlationId()))
+
+    /** The dry-run capacity is in use: 503 SRT-013 with `Retry-After`; nothing is written. */
+    @ExceptionHandler(DryRunCapacityInUse::class)
+    fun capacityInUse(e: DryRunCapacityInUse): ResponseEntity<String> {
+        val refusal = unavailable(e.message.orEmpty())
+        return ResponseEntity
+            .status(refusal.status)
+            .header("Content-Type", "application/problem+json")
+            .header("Retry-After", e.retryAfterSeconds.toString())
+            .body(problemBody(refusal, correlationId()))
+    }
 
     /** A body that does not match the contract (unknown enum value, malformed JSON) is SRT-001; nothing is stored. */
     @ExceptionHandler(HttpMessageNotReadableException::class)

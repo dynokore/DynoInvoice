@@ -84,6 +84,11 @@ data class DryRunRecord(
     val completedAt: OffsetDateTime?,
 )
 
+/** The dry-run capacity is in use (503 SRT-013 with `Retry-After`); the controller maps it, nothing is written. */
+class DryRunCapacityInUse(
+    val retryAfterSeconds: Long,
+) : RuntimeException("the dry-run capacity of the service is in use")
+
 /**
  * The `dryRun` and `getDryRun` calls (INV-T-4974; INV-REQ-772, INV-REQ-1303, INV-REQ-1352; INV-API-3473).
  *
@@ -126,7 +131,7 @@ class DryRunCalls(
         val target = transactions.inTransaction { targetOf(packRef, tenant) }
         val resolved = window ?: lastCompletePeriod(tenant, target.entityRef)
         if (!capacity.tryAcquire()) {
-            throw unavailable("the dry-run capacity of the service is in use", retryAfterSeconds)
+            throw DryRunCapacityInUse(retryAfterSeconds)
         }
         var submitted = false
         try {

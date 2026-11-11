@@ -27,8 +27,6 @@ class MappingRefusal(
     val severity: String? = null,
     val disposition: String? = null,
     val errors: List<RefusalError> = emptyList(),
-    /** The `Retry-After` of the answer in whole seconds; null for a refusal that carries no header. */
-    val retryAfterSeconds: Long? = null,
 ) : RuntimeException("$code: $title")
 
 /** One entry of the envelope's `errors[]` (API-20): the catalogue code, a message and the field it names. */
@@ -45,18 +43,15 @@ private const val HEX = 16
 private const val UNICODE_WIDTH = 4
 
 /** 503 SRT-013 (the service is not ready to decide; nothing is decided or changed, the caller retries later). */
-fun unavailable(
-    detail: String,
-    retryAfterSeconds: Long? = null,
-) = ClosedErrorCode.SERVICE_NOT_READY.let {
-    MappingRefusal(
-        it.httpStatus,
-        it.code,
-        "A dependency is unavailable",
-        detail,
-        retryAfterSeconds = retryAfterSeconds,
-    )
-}
+fun unavailable(detail: String) =
+    ClosedErrorCode.SERVICE_NOT_READY.let {
+        MappingRefusal(
+            it.httpStatus,
+            it.code,
+            "A dependency is unavailable",
+            detail,
+        )
+    }
 
 /** 409 SRT-008: the tenant already holds a mapping version with this label; nothing is stored. */
 fun labelTaken() =
