@@ -70,6 +70,12 @@ components:
           type: string
           enum: [ACTIVE, OPEN]
         extra: {type: string}
+        open:
+          type: string
+          x-extensible-enum: [IMPORTS, DEEMED]
+        marker:
+          type: string
+          x-extensible-enum: true
 YAML
   printf 'identifier\tkind\tfile\trequirement\n%s\t%s\topenapi.yaml\tR-6\n' "$3" "$2" > "$T/$1/svc/required-identifiers.tsv"
 }
@@ -84,6 +90,17 @@ expect_fail_dir() {
        *) echo "gst-ci: FAIL — '$1' failed, but not with '$2' naming R-6:"; echo "$out"; failed=1;; esac; fi
 }
 NF="not found as a"
+# INV-T-20335: enum_value is satisfied by a member of an `enum` list or of an `x-extensible-enum` list;
+# the boolean marker `true` adds no member and schema_enum_value still reads `enum` only.
+scoped_fail extensible-member-in-neither enum_value NEITHER "$NF enum_value"
+scoped_fail extensible-lookalike-lower enum_value imports "$NF enum_value"
+scoped_fail extensible-lookalike-singular enum_value IMPORT "$NF enum_value"
+scoped_fail extensible-true-marker-only enum_value true "$NF enum_value"
+scoped_fail extensible-schema-enum-value schema_enum_value Thing.open.DEEMED "$NF schema_enum_value"
+mk extensible-member-passes enum_value IMPORTS
+out=$(python3 check-required-identifiers.py "$T/extensible-member-passes" 2>&1) \
+  && echo "gst-ci: self-test 'extensible-member-passes' accepted as expected" \
+  || { echo "gst-ci: FAIL — a member only in an x-extensible-enum list was rejected:"; echo "$out"; failed=1; }
 scoped_fail enum-only-second-schema schema_enum_value Thing.status.OPEN "$NF schema_enum_value"
 scoped_fail enum-other-property schema_enum_value Thing.status.RED "$NF schema_enum_value"
 scoped_fail enum-suppliers schema_enum_value Thing.status.ACTIVES "$NF schema_enum_value"

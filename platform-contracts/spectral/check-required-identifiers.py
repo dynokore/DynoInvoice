@@ -11,7 +11,7 @@ kind says where the identifier must be, found by equality as a whole token (neve
 substring, never in another case):
     property    a key of a `properties` mapping (an OpenAPI or JSON Schema property)
     operation   the value of an `operationId`
-    enum_value  a member of an `enum` list
+    enum_value  a member of an `enum` list or of an `x-extensible-enum` list (the boolean `x-extensible-enum: true` adds no member)
     root_property  a key of the document's own top-level `properties` mapping; it does not follow `allOf`, `$ref`,
                 `$defs`, `definitions`, nested properties or a `properties` key of any other mapping (INV-T-13720, INV-Q-13717 A)
     query_parameter  the `name` of a parameter object whose `in` is `query` (INV-T-5959, INV-Q-6006 A)
@@ -114,7 +114,7 @@ def collect(doc) -> dict[str, set]:
                     found["property"].update(str(k) for k in value)
                 elif key == "operationId" and isinstance(value, str):
                     found["operation"].add(value)
-                elif key == "enum" and isinstance(value, list):
+                elif key in ("enum", "x-extensible-enum") and isinstance(value, list):
                     found["enum_value"].update(str(m) for m in value if isinstance(m, (str, int)))
                 walk(value)
         elif isinstance(node, list):
