@@ -75,9 +75,9 @@ class SamplePageInboxIT(
     @Autowired private val db: DSLContext,
     @Autowired private val scope: TenantScope,
     @Autowired private val sink: RebuildRequiredSink,
-    @Autowired private val events: DryRunSampleEvents,
     @Autowired private val context: ApplicationContext,
 ) {
+    private val events get() = context.getBean(DryRunSampleEvents::class.java)
     private val runtime: TenancyProbe = TenancyProbe.connect(pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
     private val json = EnvelopeJson()
     private val mapper = JsonMapper.builder().build()
