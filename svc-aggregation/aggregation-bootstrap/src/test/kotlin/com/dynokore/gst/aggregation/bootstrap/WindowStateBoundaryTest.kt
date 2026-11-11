@@ -6,6 +6,7 @@ import com.dynokore.gst.aggregation.adapters.http.IntakeController
 import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CadenceSource
+import com.dynokore.gst.aggregation.application.CloseWindows
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.ShortCodes
 import com.dynokore.gst.aggregation.application.WindowRepository
@@ -198,6 +199,14 @@ class WindowStateBoundaryTest {
                     .get(bean)
             field("windows") shouldNotBe null
             field("cadences") shouldNotBe null
+        }
+
+    @Test
+    fun `the application context holds no CloseWindows bean until INV-T-14464`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            boundary.context.getBeanNamesForType(CloseWindows::class.java).toList() shouldBe emptyList()
         }
 
     @Test

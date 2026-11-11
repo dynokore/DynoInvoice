@@ -1,4 +1,5 @@
--- V4__config_resolver_schema.sql (INV-T-14462; TPL-12, INV-REQ-1316). Generated: config-resolver's
+-- V4__config_resolver_schema.sql (INV-T-14462; TPL-12, INV-REQ-1316). Generated from platform-libs-bom 0.171.0
+-- (config-resolver 6.0.0, service-runtime 12.0.0), checked byte-equal to the generator output. Generated: config-resolver's
 -- ConfigSchema.ddl("aggregation", "aggregation_runtime", "aggregation_sys", OUTBOX) of the BOM pinned in gradle/libs.versions.toml,
 -- for the cadence variation point VP-55, then service-runtime's IdempotencySchema.ddl(...) for the Idempotency-Key
 -- store of the setPolicy servlet. Run only by the migration Job as aggregation_migrate.
