@@ -35,8 +35,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 
-private const val CONSOLE_BFF = "console-bff"
-private const val SUFFIX_ALT = "-alt"
+internal const val CONSOLE_BFF = "console-bff"
+internal const val SUFFIX_ALT = "-alt"
 private const val DRY_RUNS = "/internal/v1/rules/packs"
 private const val ENTITY_E1 = "E-1"
 private const val USER_B_BEARER = "Bearer token-user-b"
@@ -138,12 +138,12 @@ class DryRunWithoutSampleAdapter {
         }
 }
 
-private const val WAIT_PROPERTY = "rules.dry-run.sample-wait=PT2S"
-private const val IDEMPOTENCY = "service-runtime.idempotency.schema=rules"
-private const val CALLER_0 = "service-runtime.workload-identity.callers[0].service=$CONSOLE_BFF"
-private const val SUBJECT_0 = "service-runtime.workload-identity.callers[0].subject=subject-of-$CONSOLE_BFF"
-private const val CALLER_1 = "service-runtime.workload-identity.callers[1].service=$CONSOLE_BFF$SUFFIX_ALT"
-private const val SUBJECT_1 = "service-runtime.workload-identity.callers[1].subject=subject-of-$CONSOLE_BFF$SUFFIX_ALT"
+internal const val WAIT_PROPERTY = "rules.dry-run.sample-wait=PT2S"
+internal const val IDEMPOTENCY = "service-runtime.idempotency.schema=rules"
+internal const val CALLER_0 = "service-runtime.workload-identity.callers[0].service=$CONSOLE_BFF"
+internal const val SUBJECT_0 = "service-runtime.workload-identity.callers[0].subject=subject-of-$CONSOLE_BFF"
+internal const val CALLER_1 = "service-runtime.workload-identity.callers[1].service=$CONSOLE_BFF$SUFFIX_ALT"
+internal const val SUBJECT_1 = "service-runtime.workload-identity.callers[1].subject=subject-of-$CONSOLE_BFF$SUFFIX_ALT"
 
 /** What the three contexts share: the calls, the pack fixtures and the comparisons of every table of `rules`. */
 open class DryRunSupport(

@@ -33,6 +33,7 @@ import com.dynokore.gst.rules.contract.model.RulesDryRunStatus
 import com.dynokore.gst.rules.domain.dryrun.ChangeTypeTotal
 import com.dynokore.gst.rules.domain.dryrun.DeltaListing
 import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
+import com.dynokore.gst.rules.domain.dryrun.DryRunComputation
 import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.PeriodDelta
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
@@ -384,9 +385,6 @@ object DryRunStates {
 
 /** The stored run as the contract types state it (INV-REQ-772; API-17, API-20). */
 object DryRunMapping {
-    private val SUPPLY_ORDER = DryRunSupplyTypeTotal.SupplyType.entries.map { it.value }
-    private val ZERO = java.math.BigDecimal("0.00")
-
     /** The `result` of a SUCCEEDED run; null for a run that is still RUNNING or has FAILED. */
     fun resultOf(
         packRef: String,
@@ -441,30 +439,21 @@ object DryRunMapping {
             listing.newCategoryCode,
             java.math.BigDecimal(listing.taxableValue),
             java.math.BigDecimal(listing.gstValue),
-            listing.supplyType?.let(DryRunResultSampleInner.SupplyType::forValue),
+            listing.supplyType,
             listing.sgdValuesAbsent,
         )
 
-    /**
-     * One item for each supply type with a changed document, in the contract order (INV-Q-10703 B'); a document
-     * flagged `sgdValuesAbsent` counts in `documentCount` and `valuesAbsentCount` and in neither sum. A changed
-     * document with no supply type, or one the contract enum does not list, cannot be counted, so it is a fault and
-     * the status read fails closed instead of answering totals that do not add up to `changedCount`.
-     */
+    /** The totals come from the domain (INV-Q-10703 B'); the supply type string is passed through unchanged. */
     private fun supplyTotals(delta: DryRunDelta): List<DryRunSupplyTypeTotal> =
-        delta.documents
-            .groupBy { checkNotNull(it.supplyType) { "changed document ${it.docUuid} has no supply type" } }
-            .toSortedMap(compareBy({ SUPPLY_ORDER.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { it }))
-            .map { (type, docs) ->
-                val counted = docs.filterNot { it.sgdValuesAbsent }
-                DryRunSupplyTypeTotal(
-                    DryRunSupplyTypeTotal.SupplyType.forValue(type),
-                    docs.size,
-                    counted.fold(ZERO) { a, d -> a + java.math.BigDecimal(d.taxableValue) },
-                    counted.fold(ZERO) { a, d -> a + java.math.BigDecimal(d.gstValue) },
-                    docs.count { it.sgdValuesAbsent },
-                )
-            }
+        DryRunComputation.supplyTypeTotals(delta.documents).map {
+            DryRunSupplyTypeTotal(
+                it.supplyType,
+                it.documentCount,
+                java.math.BigDecimal(it.taxableValue),
+                java.math.BigDecimal(it.gstValue),
+                it.valuesAbsentCount,
+            )
+        }
 
     /** The status resource of [record]; a run that ended without a sample is FAILED with the 503 SRT-013 envelope. */
     fun statusOf(
