@@ -14,7 +14,6 @@ import com.dynokore.gst.tenancy.domain.AttestationState
 import com.dynokore.gst.tenancy.domain.Renderer
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
-import org.jooq.impl.DSL
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -103,30 +102,27 @@ class JooqRenditionStore(
         val entity = entityId(entityRef) ?: return 0
         // one STATE_CHANGED row per class whose state differs, from the current row before it is updated
         dsl
-            .insertInto(
-                RENDITION_ATTESTATION_HISTORY,
-                RENDITION_ATTESTATION_HISTORY.TENANT_ID,
-                RENDITION_ATTESTATION_HISTORY.ENTITY_ID,
-                RENDITION_ATTESTATION_HISTORY.DOCUMENT_CLASS,
-                RENDITION_ATTESTATION_HISTORY.KIND,
-                RENDITION_ATTESTATION_HISTORY.RENDERER,
-                RENDITION_ATTESTATION_HISTORY.ATTESTED_BY,
-                RENDITION_ATTESTATION_HISTORY.ATTESTED_AT,
-                RENDITION_ATTESTATION_HISTORY.STATE,
-            ).select(
+            .select(
+                RENDITION_ATTESTATION.DOCUMENT_CLASS,
+                RENDITION_ATTESTATION.RENDERER,
+                RENDITION_ATTESTATION.ATTESTED_BY,
+                RENDITION_ATTESTATION.ATTESTED_AT,
+            ).from(RENDITION_ATTESTATION)
+            .where(RENDITION_ATTESTATION.ENTITY_ID.eq(entity).and(RENDITION_ATTESTATION.STATE.ne(state.name)))
+            .fetch()
+            .forEach {
                 dsl
-                    .select(
-                        RENDITION_ATTESTATION.TENANT_ID,
-                        RENDITION_ATTESTATION.ENTITY_ID,
-                        RENDITION_ATTESTATION.DOCUMENT_CLASS,
-                        DSL.inline(RenditionRecordKind.STATE_CHANGED.name),
-                        RENDITION_ATTESTATION.RENDERER,
-                        RENDITION_ATTESTATION.ATTESTED_BY,
-                        RENDITION_ATTESTATION.ATTESTED_AT,
-                        DSL.inline(state.name),
-                    ).from(RENDITION_ATTESTATION)
-                    .where(RENDITION_ATTESTATION.ENTITY_ID.eq(entity).and(RENDITION_ATTESTATION.STATE.ne(state.name))),
-            ).execute()
+                    .insertInto(RENDITION_ATTESTATION_HISTORY)
+                    .set(RENDITION_ATTESTATION_HISTORY.TENANT_ID, tenants.current().value)
+                    .set(RENDITION_ATTESTATION_HISTORY.ENTITY_ID, entity)
+                    .set(RENDITION_ATTESTATION_HISTORY.DOCUMENT_CLASS, it[RENDITION_ATTESTATION.DOCUMENT_CLASS])
+                    .set(RENDITION_ATTESTATION_HISTORY.KIND, RenditionRecordKind.STATE_CHANGED.name)
+                    .set(RENDITION_ATTESTATION_HISTORY.RENDERER, it[RENDITION_ATTESTATION.RENDERER])
+                    .set(RENDITION_ATTESTATION_HISTORY.ATTESTED_BY, it[RENDITION_ATTESTATION.ATTESTED_BY])
+                    .set(RENDITION_ATTESTATION_HISTORY.ATTESTED_AT, it[RENDITION_ATTESTATION.ATTESTED_AT])
+                    .set(RENDITION_ATTESTATION_HISTORY.STATE, state.name)
+                    .execute()
+            }
         return dsl
             .update(RENDITION_ATTESTATION)
             .set(RENDITION_ATTESTATION.STATE, state.name)
