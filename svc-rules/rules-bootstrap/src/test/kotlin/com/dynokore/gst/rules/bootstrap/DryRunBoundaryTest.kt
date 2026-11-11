@@ -39,6 +39,7 @@ private const val SUFFIX_ALT = "-alt"
 private const val DRY_RUNS = "/internal/v1/rules/packs"
 private const val ENTITY_E1 = "E-1"
 private const val USER_B_BEARER = "Bearer token-user-b"
+private val CANDIDATE_LABELS: MutableSet<String> = ConcurrentHashMap.newKeySet()
 private const val CURRENT_PREFIX = "cur-4974"
 private const val REQUESTED = "com.dynokore.gst.platform.PackDryRunSampleRequested.v1"
 private const val SRT_001 = "SRT-001"
@@ -65,10 +66,10 @@ class FixtureEvaluation : PackEvaluationPort {
         document: SampledDocument,
     ): DocumentOutcome {
         evaluated.add(document.docUuid)
-        return if (packVersion.startsWith(CURRENT_PREFIX)) {
-            DocumentOutcome("SR")
-        } else {
+        return if (packVersion in CANDIDATE_LABELS) {
             candidate[document.docUuid] ?: DocumentOutcome("SR")
+        } else {
+            DocumentOutcome("SR")
         }
     }
 
@@ -152,6 +153,7 @@ open class DryRunSupport(
 
     protected fun candidate(label: String = label()): String {
         ensureCurrentPack()
+        CANDIDATE_LABELS.add(label)
         val packId = draft(label)
         ok(mapCode(packId), 201)
         return packId
