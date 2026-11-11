@@ -46,6 +46,10 @@ masterdata:
       failure-threshold: 5                        # consecutive failures that open the breaker
       open-for: PT30S                             # how long the breaker stays open before a probe: 30 seconds
     # overlap (masterdata.connections.overlap, ISO-8601) is deliberately not set here: the length is an open owner question
+  counterparty-request:                           # INV-REQ-901, INV-AC-18555; ISO-8601 durations of whole days; no default in code, an absent, unparseable, non-positive value or a default above the maximum fails the start
+    link-validity:
+      default: P7D                                # owner answer 2026-11-08: the default link validity is 7 days
+      max: P30D                                   # and the maximum 30 days (a tenant value above it is refused)
   long-command.max-run: PT15M                      # a RUNNING gap report, dry run or import older than this is finalised FAILED
 gst:
   service: masterdata-svc

@@ -161,11 +161,12 @@ class StructureFeedWiringTest {
                 .filter { it.path.contains("masterdata-bootstrap") }
                 .flatMap { Files.readAllLines(Path.of(it.toURI())) }
                 .filter { it.isNotBlank() && !it.startsWith("#") }
-        // INV-T-18775 adds RatePackFeed beside it; StructureFeed is still listed exactly once
+        // INV-T-18775 adds RatePackFeed, INV-T-18221 SignedLinkFeed; StructureFeed is still listed exactly once
         assertThat(imports)
             .containsExactly(
                 "com.dynokore.gst.masterdata.bootstrap.StructureFeed",
                 "com.dynokore.gst.masterdata.bootstrap.RatePackFeed",
+                "com.dynokore.gst.masterdata.bootstrap.SignedLinkFeed",
             )
     }
 }

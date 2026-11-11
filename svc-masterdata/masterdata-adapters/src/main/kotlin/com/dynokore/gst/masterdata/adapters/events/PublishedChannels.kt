@@ -14,4 +14,14 @@ object PublishedChannels {
             IdentityTripleChangedOutbox.CHANNEL,
             ReferenceRateLoadedOutbox.CHANNEL,
         )
+
+    /**
+     * The asyncapi channels of other services this build consumes, each through an idempotent consumer of the link
+     * bindings (`SignedLinkIssued`, `SignedLinkInvalidated` of access-svc). The contract gate holds these `done`
+     * exactly as the published ones: [IMPLEMENTED] is the union.
+     */
+    val CONSUMED: Set<String> =
+        setOf(ConsumedSignedLinkEvents.ISSUED_CHANNEL, ConsumedSignedLinkEvents.INVALIDATED_CHANNEL)
+
+    val IMPLEMENTED: Set<String> = ALL + CONSUMED
 }

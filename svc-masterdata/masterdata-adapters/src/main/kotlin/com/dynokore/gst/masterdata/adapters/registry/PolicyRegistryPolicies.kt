@@ -1,14 +1,17 @@
 package com.dynokore.gst.masterdata.adapters.registry
 
 import com.dynokore.gst.masterdata.application.registry.RegistryPolicies
+import com.dynokore.gst.masterdata.application.request.SendMethodPolicy
 import com.dynokore.gst.masterdata.domain.registry.CacheLifetimes
 import com.dynokore.gst.masterdata.domain.registry.RegisterPolicy
+import com.dynokore.platform.configresolver.BusinessDate
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.tenancykernel.TenantContext
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 
@@ -22,6 +25,9 @@ object RegistryVariationPoints {
 
     /** VP-65: the Check GST Register cache lifetimes in minutes (INV-REQ-1548), tenant scope. */
     val REGISTER_LIFETIMES = VariationPointKey("VP-65")
+
+    /** VP-30: how counterparties are asked for their details (INV-REQ-1291), tenant scope. */
+    val SEND_METHOD = VariationPointKey("VP-30")
 }
 
 /**
@@ -93,4 +99,25 @@ class PolicyRegistryPolicies(
         const val DEFAULT_OPTION = "DEFAULT_24H_1H"
         const val SHORTER_OPTION = "SHORTER"
     }
+}
+
+/**
+ * VP-30 as `PolicyReader.resolve` gives it for the bound tenant on the installation's business date
+ * (`BusinessDate.today(clock)`), read on every send (INV-REQ-1291, INV-Q-9649 A). The option key is returned as
+ * stored; the use case refuses a key it does not know, so an unknown option is never guessed.
+ */
+class PolicySendMethod(
+    private val policy: PolicyReader,
+    private val tenants: TenantContext,
+    private val clock: Clock,
+) : SendMethodPolicy {
+    override fun option(): String =
+        policy
+            .resolve(
+                RegistryVariationPoints.SEND_METHOD,
+                PolicyScope.tenant(tenants.current()),
+                BusinessDate.today(clock),
+            ).selected
+            .single()
+            .key
 }

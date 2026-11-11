@@ -37,7 +37,7 @@ class OperationsTableTest {
         lines: List<String>,
         contract: Contract = this.contract,
         answers: (OperationRef) -> Int = { 200 },
-        published: Set<String> = PublishedChannels.ALL,
+        published: Set<String> = PublishedChannels.IMPLEMENTED,
     ): List<String> {
         val (rows, findings) = rows(lines)
         return OperationsGate.verify(rows, contract, findings, published, answers)
@@ -64,9 +64,19 @@ class OperationsTableTest {
             val mvc = MockMvcBuilders.webAppContextSetup(web).build()
             val (rows, parseFindings) = rows(table)
             findings +=
-                OperationsGate.verify(rows, contract, parseFindings, PublishedChannels.ALL) { statusOf(mvc, it) }
+                OperationsGate.verify(
+                    rows,
+                    contract,
+                    parseFindings,
+                    PublishedChannels.IMPLEMENTED,
+                ) { statusOf(mvc, it) }
             findings +=
-                OperationsGate.verifyDoneTasks(doneTasks, rows, contract, PublishedChannels.ALL) { statusOf(mvc, it) }
+                OperationsGate.verifyDoneTasks(
+                    doneTasks,
+                    rows,
+                    contract,
+                    PublishedChannels.IMPLEMENTED,
+                ) { statusOf(mvc, it) }
         }
         assertThat(findings).isEmpty()
     }
@@ -196,7 +206,7 @@ class OperationsTableTest {
     @Test
     fun `INV-AC-16047 probe - PublishedChannels ALL with a fourth name fails the gate`() {
         assertThat(verify(table)).isEmpty()
-        assertThat(verify(table, published = PublishedChannels.ALL + "masterdataSignedLinkRequested"))
+        assertThat(verify(table, published = PublishedChannels.IMPLEMENTED + "masterdataSignedLinkRequested"))
             .containsExactly("channel masterdataSignedLinkRequested: published by the code but not marked done")
         val reopened =
             table.map {
@@ -230,7 +240,7 @@ class OperationsTableTest {
                 "masterdataIdentityTripleCorrected",
                 "masterdataIdentityTripleChanged",
                 "masterdataReferenceRateLoaded",
-            )
+            ) + PublishedChannels.CONSUMED
         assertThat(verify(base, published = published + "masterdataSignedLinkRequested"))
             .containsExactly("channel masterdataSignedLinkRequested: published by the code but not marked done")
         val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
@@ -242,7 +252,7 @@ class OperationsTableTest {
                         "masterdataIdentityTripleCorrected",
                         "masterdataIdentityTripleChanged",
                         "masterdataReferenceRateLoaded",
-                    ),
+                    ) + PublishedChannels.CONSUMED,
             ),
         ).containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
     }
@@ -286,7 +296,7 @@ class OperationsTableTest {
             .anyMatch { "the task must be exactly PLACEHOLDER" in it }
         assertThat(replaced("channel\tmasterdataExampleHappened\tINV-T-4947\topen"))
             .containsExactly("channel masterdataExampleHappened: the task must be exactly PLACEHOLDER")
-        assertThat(verify(base, published = PublishedChannels.ALL + "masterdataExampleHappened"))
+        assertThat(verify(base, published = PublishedChannels.IMPLEMENTED + "masterdataExampleHappened"))
             .containsExactly("channel masterdataExampleHappened: the code must not publish the PLACEHOLDER channel")
     }
 

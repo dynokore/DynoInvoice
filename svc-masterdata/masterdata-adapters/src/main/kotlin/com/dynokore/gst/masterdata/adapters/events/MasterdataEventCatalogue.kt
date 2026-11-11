@@ -50,7 +50,14 @@ object MasterdataEventCatalogue {
             ConsumedRatePackEvents.SUBSCRIPTIONS
                 .filterKeys { it !in ownTypes && consumed.none { entry -> entry.eventType == it } }
                 .map { (type, topic) -> CatalogueEntry(type, topic, setOf(RULES_SERVICE), contentTopic = false) }
-        val seen = (ownTypes + consumed.map { it.eventType } + packs.map { it.eventType })
+        val seenBeforeLinks = ownTypes + consumed.map { it.eventType } + packs.map { it.eventType }
+        val links =
+            ConsumedSignedLinkEvents.SUBSCRIPTIONS
+                .filterKeys { it !in seenBeforeLinks }
+                .map { (type, topic) ->
+                    CatalogueEntry(type, topic, setOf(ConsumedSignedLinkEvents.EMITTER), contentTopic = false)
+                }
+        val seen = seenBeforeLinks + links.map { it.eventType }
         val platform =
             PlatformEventCatalogue.ALL
                 .filter { it.topic != null && it.eventType !in seen }
@@ -62,7 +69,7 @@ object MasterdataEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + packs + platform)
+        return EventCatalogue(own + consumed + packs + links + platform)
     }
 
     /** A channel message is either inline or a `$ref` to `#/components/messages/<name>`. */
@@ -78,13 +85,29 @@ object MasterdataEventCatalogue {
 
     private const val COMPONENT_PREFIX = "#/components/messages/"
 
+    /** The channels an operation with `action: receive` names: other services publish on them, this one only reads. */
+    @Suppress("UNCHECKED_CAST")
+    private fun receivedChannels(document: Map<String, Any?>): Set<String> =
+        (document["operations"] as Map<String, Map<String, Any?>>?)
+            .orEmpty()
+            .values
+            .filter { it["action"] == "receive" }
+            .mapNotNull {
+                (
+                    (it["channel"] as Map<String, Any?>?)?.get(
+                        "\$ref",
+                    ) as String?
+                )?.removePrefix("#/channels/")
+            }.toSet()
+
     @Suppress("UNCHECKED_CAST")
     fun producedBy(asyncApi: String): List<CatalogueEntry> {
         val document = Yaml().load<Map<String, Any?>>(asyncApi)
         val channels = document["channels"] as Map<String, Map<String, Any?>>
+        val received = receivedChannels(document)
         val components = (document["components"] as Map<String, Any?>)["messages"] as Map<String, Map<String, Any?>>
         return channels
-            .filterKeys { it !in PLACEHOLDER_CHANNELS }
+            .filterKeys { it !in PLACEHOLDER_CHANNELS && it !in received }
             .map { (_, channel) ->
                 val topic = channel["address"] as String
                 val messages = channel["messages"] as Map<String, Map<String, Any?>>
