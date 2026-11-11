@@ -41,46 +41,58 @@ class ConsoleReadAuthorisationFilter(
 ) : OncePerRequestFilter() {
     private val log = LoggerFactory.getLogger(ConsoleReadAuthorisationFilter::class.java)
 
+    private enum class Verdict { PASS, UNAUTHENTICATED, DENIED }
+
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
         chain: FilterChain,
     ) {
-        if (request.method != "GET" && request.method != "HEAD") {
-            chain.doFilter(request, response)
-            return
+        when (verdictOf(request)) {
+            Verdict.PASS -> chain.doFilter(request, response)
+            Verdict.UNAUTHENTICATED -> refuse(response, unauthenticated = true)
+            Verdict.DENIED -> refuse(response, unauthenticated = false)
         }
+    }
+
+    private fun verdictOf(request: HttpServletRequest): Verdict {
+        if (request.method != "GET" && request.method != "HEAD") return Verdict.PASS
         val principalId = request.getAttribute(ConsoleSessionFilter.PRINCIPAL_ATTRIBUTE) as? String
-        val tenantText = request.getAttribute(ConsoleSessionFilter.TENANT_ATTRIBUTE) as? String
-        val tenant = tenantText?.let { runCatching { TenantId.of(it) }.getOrNull() }
-        if (principalId == null || tenant == null) {
-            refuse(response, unauthenticated = true)
-            return
-        }
+        val tenant =
+            (request.getAttribute(ConsoleSessionFilter.TENANT_ATTRIBUTE) as? String)
+                ?.let { runCatching { TenantId.of(it) }.getOrNull() }
         // HEAD is the same read as GET
         val key = permissions.keyFor("GET", request.requestURI)
-        if (key == null) {
-            log.debug("console read refused: no permission key")
-            refuse(response, unauthenticated = false)
-            return
+        return when {
+            principalId == null || tenant == null -> {
+                Verdict.UNAUTHENTICATED
+            }
+
+            key == null -> {
+                log.debug("console read refused: no permission key")
+                Verdict.DENIED
+            }
+
+            else -> {
+                val decision =
+                    replica.decide(
+                        AuthorizationRequest(
+                            tenant,
+                            Principal(principalId, PrincipalKind.HUMAN),
+                            "",
+                            key,
+                            level = ScopeLevel.TENANT,
+                        ),
+                        Deadline.after(budget, clock),
+                    )
+                if (decision.allowed) {
+                    Verdict.PASS
+                } else {
+                    log.debug("console read refused: {} {}", decision.source, decision.reason)
+                    Verdict.DENIED
+                }
+            }
         }
-        val decision =
-            replica.decide(
-                AuthorizationRequest(
-                    tenant,
-                    Principal(principalId, PrincipalKind.HUMAN),
-                    "",
-                    key,
-                    level = ScopeLevel.TENANT,
-                ),
-                Deadline.after(budget, clock),
-            )
-        if (!decision.allowed) {
-            log.debug("console read refused: {} {}", decision.source, decision.reason)
-            refuse(response, unauthenticated = false)
-            return
-        }
-        chain.doFilter(request, response)
     }
 
     private fun refuse(

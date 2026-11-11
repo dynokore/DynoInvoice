@@ -36,7 +36,16 @@ class ConsoleReadAuthorisationFilterTest {
 
     private val clock = FixedClock()
     private val tenant = TenantId.of("11111111-1111-1111-1111-111111111111")
-    private val roles = OperationRoleMap { key -> if (key == "exception.view") mapOf(FIXTURE_ROLE to CellAllowance.PERMITTED) else emptyMap() }
+    private val roles =
+        OperationRoleMap { key ->
+            if (key ==
+                "exception.view"
+            ) {
+                mapOf(FIXTURE_ROLE to CellAllowance.PERMITTED)
+            } else {
+                emptyMap()
+            }
+        }
     private val replica = AuthorityReplica(clock, roles)
     private val production = CatalogueReadPermissions()
     private val filter = ConsoleReadAuthorisationFilter(production, replica, clock)
