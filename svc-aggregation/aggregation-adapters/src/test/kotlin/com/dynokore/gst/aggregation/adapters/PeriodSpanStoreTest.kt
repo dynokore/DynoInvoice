@@ -134,7 +134,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `the same version again and a lower version change nothing`() {
+    fun `INV-AC-20247 the same version again and a lower version change nothing`() {
         handler.handle(event(payload("E-001", 5, q1))) shouldBe HandleOutcome.APPLIED
         handler.handle(event(payload("E-001", 5, q2))) shouldBe HandleOutcome.IGNORED
         handler.handle(event(payload("E-001", 4, q2))) shouldBe HandleOutcome.IGNORED
@@ -142,7 +142,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `a payload that breaks the contract is a ContractViolation and stores nothing`() {
+    fun `INV-AC-20247 a payload that breaks the contract is a ContractViolation and stores nothing`() {
         val jan = """{"periodRef":"P","periodStart":"2027-01-01","periodEnd":"2027-01-31"}"""
         val broken =
             listOf(
@@ -160,7 +160,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `an event of another type is refused and the handler is bound to PeriodRecordsChanged only`() {
+    fun `INV-AC-20247 an event of another type is refused and the handler is bound to PeriodRecordsChanged only`() {
         shouldThrow<IllegalArgumentException> {
             handler.handle(event(payload("E-001", 1, q1), "com.dynokore.gst.tenancy.PeriodExtended.v1"))
         }
@@ -170,7 +170,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `a set for entity A leaves entity B unchanged`() {
+    fun `INV-AC-20247 a set for entity A leaves entity B unchanged`() {
         handler.handle(event(payload("E-B", 1, q1))) shouldBe HandleOutcome.APPLIED
         handler.handle(event(payload("E-A", 1, q2))) shouldBe HandleOutcome.APPLIED
         handler.handle(event(payload("E-A", 2, q2))) shouldBe HandleOutcome.APPLIED
@@ -178,7 +178,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `the rows of one tenant are invisible to another and the version is kept per tenant`() {
+    fun `INV-AC-20247 the rows of one tenant are invisible to another and the version is kept per tenant`() {
         handler.handle(event(payload("E-001", 3, q1))) shouldBe HandleOutcome.APPLIED
         val first = tenant
         tenant = UUID.randomUUID()
@@ -203,7 +203,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `a stored set with a gap inside the asked range is returned as stored`() {
+    fun `INV-AC-20247 a stored set with a gap inside the asked range is returned as stored`() {
         handler.handle(event(payload("E-001", 1, q1, Triple("P-Q3", "2027-07-01", "2027-09-30"))))
         source.spans("E-001", LocalDate.of(2027, 3, 28), LocalDate.of(2027, 7, 3)) shouldBe
             PeriodSpans.Known(

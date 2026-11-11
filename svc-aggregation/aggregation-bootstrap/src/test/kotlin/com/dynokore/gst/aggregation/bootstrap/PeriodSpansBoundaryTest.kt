@@ -196,7 +196,7 @@ class PeriodSpansBoundaryTest {
         """.trimMargin()
 
     @Test
-    fun `the only bean of type PeriodBoundarySource is StoredPeriodBoundaries and NoPeriodBoundaries is not a bean`(
+    fun `INV-AC-20247 the only bean of type PeriodBoundarySource is StoredPeriodBoundaries and NoPeriodBoundaries is not a bean`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
@@ -208,7 +208,7 @@ class PeriodSpansBoundaryTest {
         }
 
     @Test
-    fun `the period records consumer is on the topic gst tenancy period-records-changed v1 only`(
+    fun `INV-AC-20247 the period records consumer is on the topic gst tenancy period-records-changed v1 only`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
