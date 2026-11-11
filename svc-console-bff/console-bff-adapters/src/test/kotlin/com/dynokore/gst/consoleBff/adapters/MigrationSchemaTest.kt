@@ -73,4 +73,21 @@ class MigrationSchemaTest {
             }
         }
     }
+
+    @Test
+    fun `INV-AC-14457 the table is commented platform-scoped and has bound_tenant_id and no tenant_id column`() {
+        ConsoleDb.superuser().use { c ->
+            c.createStatement().executeQuery(
+                "select obj_description('console.console_session'::regclass), " +
+                    "(select string_agg(column_name, ',') from information_schema.columns " +
+                    "where table_schema = 'console' and table_name = 'console_session')",
+            ).use { rs ->
+                rs.next() shouldBe true
+                rs.getString(1) shouldBe "platform-scoped: no tenant data"
+                val columns = rs.getString(2).split(",")
+                (columns.contains("bound_tenant_id")) shouldBe true
+                (columns.contains("tenant_id")) shouldBe false
+            }
+        }
+    }
 }

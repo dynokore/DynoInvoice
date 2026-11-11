@@ -39,3 +39,9 @@ logging.structured.format.console: ecs # STK-35
 gst:
   service: console-bff
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+inv:
+  tenancy:
+    # The session table is platform-scoped: the lookup runs before any tenant is known and the tenant is read from the row
+    # (owner answer of 2026-11-11, INV-T-14458 option A; the table comment says the same).
+    platform-scoped-tables:
+      - console.console_session

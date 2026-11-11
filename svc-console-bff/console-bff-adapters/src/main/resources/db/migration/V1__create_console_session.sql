@@ -1,10 +1,11 @@
 -- INV-T-14458: the console session table (OWASP ASVS V3.2, V3.3). The schema `console` is created by provisioning,
 -- owned by console_migrate (INV-Q-17448 schema ruling); this file creates the table and nothing else.
 -- Only SHA-256 hashes are stored: never the cookie value, the CSRF token or the end-user token.
--- No tenant row-level-security policy: the lookup key is the hash and the tenant is read from the row.
+-- Platform-scoped: the lookup key is the hash and the tenant is read from the row (owner answer of 2026-11-11, INV-T-14458).
+-- The column is bound_tenant_id, not tenant_id: tenancy-jooq refuses a platform-scoped table that has a tenant_id column.
 create table console.console_session (
     session_id_hash   char(64)    primary key,
-    tenant_id         uuid        not null,
+    bound_tenant_id   uuid        not null,
     principal_id      text        not null,
     opened_at         timestamptz not null,
     last_seen_at      timestamptz not null,
@@ -16,3 +17,5 @@ create table console.console_session (
 );
 
 create index console_session_last_seen_idx on console.console_session (last_seen_at);
+
+comment on table console.console_session is 'platform-scoped: no tenant data';

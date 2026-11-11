@@ -4,11 +4,14 @@ import com.dynokore.gst.consoleBff.adapters.session.ConsoleSessionFilter
 import com.dynokore.gst.consoleBff.adapters.session.JooqSessionStore
 import com.dynokore.gst.consoleBff.adapters.session.ReplicaPrincipalStanding
 import com.dynokore.gst.consoleBff.adapters.session.SessionSweeper
+import com.dynokore.gst.consoleBff.adapters.session.sessionSweeperOf
 import com.dynokore.gst.consoleBff.application.session.PrincipalStanding
 import com.dynokore.gst.consoleBff.application.session.SessionResolver
 import com.dynokore.gst.consoleBff.application.session.SessionStore
 import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean
@@ -28,9 +31,13 @@ class SessionConfiguration {
     fun sessionPolicy(properties: ConsoleSessionProperties) =
         SessionPolicy(properties.idleTimeout, properties.absoluteTimeout)
 
-    /** The one [SessionStore]; typed as its class so the sweeper reaches `deleteExpired`. */
+    /** The one [SessionStore]; the `TenantContext` bean is the store's platform binding (it implements it); typed as its class so the sweeper reaches `deleteExpired`. */
     @Bean
-    fun sessionStore(dsl: DSLContext): JooqSessionStore = JooqSessionStore(dsl)
+    fun sessionStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+    ): JooqSessionStore = JooqSessionStore.of(dsl, tenants, transactions)
 
     @Bean
     fun principalStanding(authorityReplica: AuthorityReplica): PrincipalStanding =
@@ -58,9 +65,11 @@ class SessionConfiguration {
     @Bean
     fun sessionSweeper(
         store: JooqSessionStore,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
         clock: Clock,
         properties: ConsoleSessionProperties,
-    ) = SessionSweeper(store, clock, properties.idleTimeout, properties.absoluteTimeout)
+    ) = sessionSweeperOf(store, tenants, transactions, clock, properties.idleTimeout, properties.absoluteTimeout)
 
     /** Runs the sweep every `console.session.sweep-interval`, validated positive by [ConsoleSessionProperties]. */
     @Bean

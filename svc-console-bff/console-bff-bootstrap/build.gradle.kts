@@ -36,6 +36,8 @@ dependencies {
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
     testImplementation(libs.platform.tenancyKernel.api)
+    testImplementation(libs.platform.tenancyJooq.api)
+    testImplementation(libs.platform.tenancyJooq.impl)
     // the fixtures are published under the capability service-runtime-test-fixtures on the service-runtime-api module,
     // so testFixtures(libs.platform.serviceRuntime.api) (capability service-runtime-api-test-fixtures) does not resolve
     testImplementation(libs.platform.serviceRuntime.api) {

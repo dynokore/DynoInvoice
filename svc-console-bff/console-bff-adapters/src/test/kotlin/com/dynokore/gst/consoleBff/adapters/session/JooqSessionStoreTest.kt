@@ -17,7 +17,8 @@ import java.time.Instant
 /** The store on the Flyway-built database (INV-AC-14457): hashes only, boundaries at the timeout. */
 class JooqSessionStoreTest {
     private val connection: Connection = ConsoleDb.connect(ConsoleDb.RUNTIME, ConsoleDb.RUNTIME_PASSWORD)
-    private val store = JooqSessionStore(DSL.using(connection, SQLDialect.POSTGRES))
+    private val fakes = PlatformFakes()
+    private val store = fakes.store(DSL.using(connection, SQLDialect.POSTGRES))
     private val tenant = "11111111-1111-1111-1111-111111111111"
     private val now = Instant.parse("2026-11-10T10:00:00Z")
     private val idle = Duration.ofMinutes(30)
@@ -108,5 +109,24 @@ class JooqSessionStoreTest {
         store.deleteExpired(now, idle, absolute) shouldBe 1
         store.find(hash(atBoundary.cookieValue)) shouldBe null
         (store.find(hash(before.cookieValue)) != null) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-14457 every method runs inside one platform binding and one transaction with the fixed actor`() {
+        val created = store.create(tenant, "p1", 7, now)
+        val h = hash(created.cookieValue)
+        store.find(h)
+        store.touch(h, now)
+        store.deleteExpired(now, idle, absolute)
+        store.delete(h)
+        fakes.actors shouldBe List(5) { JooqSessionStore.ACTOR }
+        fakes.transactions shouldBe 5
+        JooqSessionStore.ACTOR.startsWith("svc:console-bff/") shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-14457 find returns the bound tenant as data`() {
+        val created = store.create(tenant, "p1", 7, now)
+        store.find(hash(created.cookieValue))?.tenantId shouldBe tenant
     }
 }
