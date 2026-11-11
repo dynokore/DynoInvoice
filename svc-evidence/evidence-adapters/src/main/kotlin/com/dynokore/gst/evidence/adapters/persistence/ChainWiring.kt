@@ -3,7 +3,9 @@ package com.dynokore.gst.evidence.adapters.persistence
 import com.dynokore.gst.evidence.adapters.events.AuditEntryRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.evidence.adapters.events.DecisionTraceRecordedHandler
+import com.dynokore.gst.evidence.adapters.events.EvidenceArtefactRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.GstReturnRecordedHandler
+import com.dynokore.gst.evidence.application.artefact.ArtefactRecorder
 import com.dynokore.gst.evidence.application.chain.LocatorRecorder
 import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.application.digest.DigestObjects
@@ -60,6 +62,12 @@ object ChainWiring {
         dsl: DSLContext,
         clock: Clock = Clock.systemUTC(),
     ): EventHandler = AuditEntryRecordedHandler(recordAppender(dsl, clock), clock)
+
+    /** The handler of `EvidenceArtefactRecorded`, to run inside the inbox consumer's transaction. */
+    fun evidenceArtefactHandler(
+        dsl: DSLContext,
+        clock: Clock = Clock.systemUTC(),
+    ): EventHandler = EvidenceArtefactRecordedHandler(ArtefactRecorder(JooqArtefactStore(dsl)), clock)
 
     /** The handler of `GstReturnRecorded`, to run inside the inbox consumer's transaction. */
     fun gstReturnRecordedHandler(
