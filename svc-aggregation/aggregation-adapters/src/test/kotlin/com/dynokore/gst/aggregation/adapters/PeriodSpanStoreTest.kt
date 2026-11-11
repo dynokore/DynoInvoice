@@ -124,7 +124,7 @@ class PeriodSpanStoreTest {
         transaction { it.overlapping(entity, LocalDate.of(2000, 1, 1), LocalDate.of(2100, 1, 1)) }
 
     @Test
-    fun `INV-AC-14492 a higher version replaces the whole set of the entity`() {
+    fun `INV-AC-457 a higher version replaces the whole set of the entity`() {
         handler.handle(event(payload("E-001", 1, q1))) shouldBe HandleOutcome.APPLIED
         handler.handle(event(payload("E-001", 2, q1, q2))) shouldBe HandleOutcome.APPLIED
         stored("E-001") shouldBe
@@ -143,12 +143,14 @@ class PeriodSpanStoreTest {
 
     @Test
     fun `a payload that breaks the contract is a ContractViolation and stores nothing`() {
+        val jan = """{"periodRef":"P","periodStart":"2027-01-01","periodEnd":"2027-01-31"}"""
         val broken =
             listOf(
-                """{"entityRef":"E-001","periods":[{"periodRef":"P","periodStart":"2027-01-01","periodEnd":"2027-01-31"}]}""",
+                """{"entityRef":"E-001","periods":[""" + jan + "]}",
                 payload("E-001", 1, Triple("P", "2027-02-01", "2027-01-31")),
                 payload("E-001", 1, Triple("", "2027-01-01", "2027-01-31")),
-                """{"entityRef":"E-001","version":1,"periods":[{"periodStart":"2027-01-01","periodEnd":"2027-01-31"}]}""",
+                """{"entityRef":"E-001","version":1,"periods":[""" +
+                    """{"periodStart":"2027-01-01","periodEnd":"2027-01-31"}]}""",
                 payload("E-001", 0, q1),
                 payload("E-001", 1, q1, q1),
                 """{"entityRef":"E-001","version":1}""",
@@ -188,7 +190,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `INV-AC-14492 the source returns the overlapping spans earliest first and Unknown without a set`() {
+    fun `INV-AC-457 the source returns the overlapping spans earliest first and Unknown without a set`() {
         source.spans("E-001", LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3)) shouldBe PeriodSpans.Unknown
         handler.handle(event(payload("E-001", 1, q2, q1)))
         source.spans("E-001", LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3)) shouldBe
