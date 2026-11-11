@@ -49,6 +49,7 @@ object TestSecrets {
 
     fun newSigningKey(): ECKey = ECKeyGenerator(Curve.P_256).generate()
 
+    @Suppress("LongParameterList") // one optional secret per mounted file, each defaulted
     fun mount(
         databasePassword: String = "unused-in-composition-tests",
         bindingKey: String = BINDING_KEY,

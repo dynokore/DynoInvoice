@@ -52,6 +52,7 @@ import java.util.UUID
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
 // template)
+@Suppress("LongParameterList") // one collaborator per use case of the controller
 open class ElevationController(
     private val open: OpenElevationUseCase,
     private val decide: DecideElevationUseCase,
@@ -156,24 +157,7 @@ open class ElevationController(
     ): ResponseEntity<OperatorSessionResponse> {
         val actor = IdentityRef(checkNotNull(tenants.currentActor()) { "no actor is bound" })
         // the grant, the case, the tenant and the key publication are settled outside any transaction
-        val ready =
-            when (
-                val prepared =
-                    opening.prepare(actor, operatorSessionRequest.tenantRef, operatorSessionRequest.caseId)
-            ) {
-                is SessionPreparation.Ready -> prepared
-
-                SessionPreparation.Forbidden -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
-
-                SessionPreparation.BadCase -> throw ApiRefusal(
-                    ClosedErrorCode.CONTRACT_VIOLATION,
-                    "caseId is not valid",
-                )
-
-                SessionPreparation.NoTenant -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
-
-                SessionPreparation.Unavailable -> throw ApiRefusal(ClosedErrorCode.ISSUER_UNAVAILABLE)
-            }
+        val ready = prepared(opening.prepare(actor, operatorSessionRequest.tenantRef, operatorSessionRequest.caseId))
         val id = CommandKey(actor, idempotencyKey, "POST openOperatorSession")
         return tenants.bind(ready.tenant, actor.value) {
             commands.once(id, operatorSessionRequest, commands.reader(OperatorSessionResponse::class.java)) {
@@ -239,3 +223,12 @@ open class ElevationController(
             DiagnosticInvitationResponse.Status.valueOf(record.status.name),
         )
 }
+
+private fun prepared(outcome: SessionPreparation): SessionPreparation.Ready =
+    when (outcome) {
+        is SessionPreparation.Ready -> outcome
+        SessionPreparation.Forbidden -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        SessionPreparation.BadCase -> throw ApiRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "caseId is not valid")
+        SessionPreparation.NoTenant -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+        SessionPreparation.Unavailable -> throw ApiRefusal(ClosedErrorCode.ISSUER_UNAVAILABLE)
+    }

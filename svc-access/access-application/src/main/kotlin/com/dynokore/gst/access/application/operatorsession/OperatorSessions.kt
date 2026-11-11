@@ -161,17 +161,27 @@ class OpenOperatorSessionUseCase(
         tenantRef: String,
         caseId: String,
     ): SessionPreparation {
-        val role = callers.operatorRole(actor, ElevationKeys.OPEN_SESSION) ?: return SessionPreparation.Forbidden
-        if (!CaseId.valid(caseId)) return SessionPreparation.BadCase
-        val tenant = directory.live(tenantRef) ?: return SessionPreparation.NoTenant
-        val session =
-            try {
-                publishKeys()
-            } catch (_: SigningKeyUnavailable) {
-                return SessionPreparation.Unavailable
-            }
-        return SessionPreparation.Ready(actor, tenant, role, caseId, session)
+        val role = callers.operatorRole(actor, ElevationKeys.OPEN_SESSION)
+        val tenant = if (role != null && CaseId.valid(caseId)) directory.live(tenantRef) else null
+        return when {
+            role == null -> SessionPreparation.Forbidden
+            !CaseId.valid(caseId) -> SessionPreparation.BadCase
+            tenant == null -> SessionPreparation.NoTenant
+            else -> ready(actor, tenant, role, caseId)
+        }
     }
+
+    private fun ready(
+        actor: IdentityRef,
+        tenant: TenantId,
+        role: Role,
+        caseId: String,
+    ): SessionPreparation =
+        try {
+            SessionPreparation.Ready(actor, tenant, role, caseId, publishKeys())
+        } catch (_: SigningKeyUnavailable) {
+            SessionPreparation.Unavailable
+        }
 
     /** Publishes the current key and the optional next key; the current key must be inside its signing interval. */
     private fun publishKeys(): OperatorSigningSession {
@@ -204,8 +214,8 @@ class OpenOperatorSessionUseCase(
     /** Call inside a transaction bound to [SessionPreparation.Ready.tenant]. */
     fun open(ready: SessionPreparation.Ready): OpenedSession =
         tx.inTransaction {
-            // a JWT holds whole seconds: the record's validUntil is then the token exp exactly
             val at = clock.instant()
+            // a JWT holds whole seconds: the record's validUntil is then the token exp exactly
             val now = at.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
             val expires = now.plus(settings.lifetime)
             val token =
@@ -231,24 +241,28 @@ class OpenOperatorSessionUseCase(
                 ),
             )
             val elevation = openElevation(ready, at)
-            accessRecords.publish(
-                OperatorAccessRecord(
-                    tenant = ready.tenant,
-                    operatorRef = ready.actor.value,
-                    authorityVersion = versions.next(),
-                    caseRef = ready.caseId,
-                    role = ready.role.wire,
-                    permissions = OperatorSessionAccess.metadataKeys { matrix.allowance(ready.role, it) }.map { it.value },
-                    validUntil = expires,
-                    elevation =
-                        elevation?.let {
-                            val box = checkNotNull(it.window)
-                            ElevationWindowRecord(it.ref, box.from, checkNotNull(box.until))
-                        },
-                ),
-            )
+            accessRecords.publish(accessRecord(ready, expires, elevation))
             OpenedSession(token, expires, elevation != null)
         }
+
+    private fun accessRecord(
+        ready: SessionPreparation.Ready,
+        expires: Instant,
+        elevation: ElevationRecord?,
+    ) = OperatorAccessRecord(
+        tenant = ready.tenant,
+        operatorRef = ready.actor.value,
+        authorityVersion = versions.next(),
+        caseRef = ready.caseId,
+        role = ready.role.wire,
+        permissions = OperatorSessionAccess.metadataKeys { matrix.allowance(ready.role, it) }.map { it.value },
+        validUntil = expires,
+        elevation =
+            elevation?.let {
+                val box = checkNotNull(it.window)
+                ElevationWindowRecord(it.ref, box.from, checkNotNull(box.until))
+            },
+    )
 
     /**
      * The approved elevation whose time box the session carries: present exactly when `doc.view.content` is allowed

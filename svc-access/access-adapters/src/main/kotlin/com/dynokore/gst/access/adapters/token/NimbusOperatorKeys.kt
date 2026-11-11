@@ -43,16 +43,18 @@ class NimbusOperatorKeys(
             } catch (_: Exception) {
                 throw unreadable()
             }
+        return NimbusOperatorSession(p256(text))
+    }
+
+    private fun p256(text: String): ECKey {
         val key =
             try {
                 ECKey.parse(text)
             } catch (_: Exception) {
                 throw unreadable()
             }
-        if (!key.isPrivate || key.curve != Curve.P_256) {
-            throw SigningKeyUnavailable("an operator-session key is not a P-256 private key")
-        }
-        return NimbusOperatorSession(key)
+        return key.takeIf { it.isPrivate && it.curve == Curve.P_256 }
+            ?: throw SigningKeyUnavailable("an operator-session key is not a P-256 private key")
     }
 
     private fun unreadable() = SigningKeyUnavailable("an operator-session key is unreadable")

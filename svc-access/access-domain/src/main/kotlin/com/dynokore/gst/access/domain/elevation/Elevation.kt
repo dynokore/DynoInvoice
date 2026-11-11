@@ -175,7 +175,7 @@ object OperatorSessionAccess {
             else -> false
         }
 
-    /** The metadata keys a session of the role holds, sorted: the keys of [OperatorAccess.SESSION_METADATA] it allows. */
+    /** The metadata keys a session of the role holds, sorted: those of [OperatorAccess.SESSION_METADATA] it allows. */
     fun metadataKeys(roleCell: (Permission) -> Allowance?): List<Permission> =
         OperatorAccess.SESSION_METADATA
             .filter { allows(roleCell, it, elevated = false) }

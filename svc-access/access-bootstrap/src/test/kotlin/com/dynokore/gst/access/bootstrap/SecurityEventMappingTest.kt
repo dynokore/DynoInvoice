@@ -179,7 +179,7 @@ class SecurityEventMappingTest {
     }
 
     @Test
-    fun `INV-AC-2336 the effective mapping holds the shipped default, the two break-glass actions and the operator session`() =
+    fun `INV-AC-2336 the effective mapping holds the default, the break-glass actions and the operator session`() =
         run { env, _ ->
             assertThat(env.context.getBean(SecurityEventProperties::class.java).mapping)
                 .isEqualTo(

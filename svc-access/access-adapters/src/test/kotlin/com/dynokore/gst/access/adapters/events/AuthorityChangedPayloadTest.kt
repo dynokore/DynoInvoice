@@ -49,7 +49,10 @@ class AuthorityChangedPayloadTest {
             mapper = mapper,
         )
     private val operatorOutbox =
-        OperatorAccessOutbox(org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java), mapper)
+        OperatorAccessOutbox(
+            org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java),
+            mapper,
+        )
     private val schema =
         resource("gst/contracts/service-runtime/schemas/authority-changed-payload.schema.json").let { text ->
             SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12).getSchema(text)
@@ -197,18 +200,19 @@ class AuthorityChangedPayloadTest {
         assertTrue(operatorOutbox.payload(elevated)["operatorAccessRecord"].has("elevation"))
     }
 
-    private fun operatorRecord(
-        elevation: com.dynokore.gst.access.application.operatorsession.ElevationWindowRecord?,
-    ) = com.dynokore.gst.access.application.operatorsession.OperatorAccessRecord(
-        tenant = com.dynokore.platform.tenancykernel.TenantId.of(tenantValue),
-        operatorRef = "op-1",
-        authorityVersion = 7,
-        caseRef = "CASE-1",
-        role = "platform.support",
-        permissions = listOf("period-readiness.view", "submission.view-status"),
-        validUntil = Instant.parse("2026-11-11T00:15:00Z"),
-        elevation = elevation,
-    )
+    private fun operatorRecord(elevation: com.dynokore.gst.access.application.operatorsession.ElevationWindowRecord?) =
+        com.dynokore.gst.access.application.operatorsession.OperatorAccessRecord(
+            tenant =
+                com.dynokore.platform.tenancykernel.TenantId
+                    .of(tenantValue),
+            operatorRef = "op-1",
+            authorityVersion = 7,
+            caseRef = "CASE-1",
+            role = "platform.support",
+            permissions = listOf("period-readiness.view", "submission.view-status"),
+            validUntil = Instant.parse("2026-11-11T00:15:00Z"),
+            elevation = elevation,
+        )
 
     @Test
     fun `the emission guard accepts the types access produces and rejects an uncatalogued type`() {

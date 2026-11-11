@@ -235,7 +235,7 @@ class OperatorSessionTest {
             .getInstance("SHA-256")
             .digest(key.toECPublicKey().encoded)
             .take(8)
-            .joinToString("") { "%02x".format(it) }
+            .joinToString("") { "%02x".format(java.util.Locale.ROOT, it) }
 
     private fun run(
         form: String = "SAAS",
@@ -446,7 +446,7 @@ class OperatorSessionTest {
     )
 
     @Test
-    fun `INV-AC-922 the operator access record is appended for the tenant with the claims, masked without elevation`() =
+    fun `INV-AC-922 the operator access record is appended with the claims, masked without elevation`() =
         run { env, _ ->
             val opened = env.open(env.support)
             val claims = SignedJWT.parse(opened.token).jwtClaimsSet
@@ -496,7 +496,7 @@ class OperatorSessionTest {
         }
 
     @Test
-    fun `the key set record is a platform event under the platform tenant, published again only when the set changes`() {
+    fun `the key set record is a platform event under the platform tenant and is not repeated`() {
         val current = TestSecrets.newSigningKey()
         val next = TestSecrets.newSigningKey()
         run(operatorKey = current, next = next) { env, _ ->

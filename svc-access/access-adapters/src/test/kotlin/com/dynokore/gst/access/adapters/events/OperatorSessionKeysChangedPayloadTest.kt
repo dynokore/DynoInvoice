@@ -2,16 +2,16 @@ package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.domain.revocation.KeyUse
 import com.dynokore.gst.access.domain.revocation.VerificationKey
-import com.networknt.schema.SchemaRegistry
-import com.networknt.schema.SpecificationVersion
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.TenantId
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SpecificationVersion
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 
@@ -93,13 +93,16 @@ class OperatorSessionKeysChangedPayloadTest {
         assertEquals(TenantId.PLATFORM, record.context.tenant)
         assertEquals(EntityRef.PLATFORM, record.context.entity)
         assertEquals("operator-session-keys", record.context.aggregateKey)
-        val wire = com.dynokore.platform.outboxandqueue.EnvelopeJson().write(record.envelope)
+        val wire =
+            com.dynokore.platform.outboxandqueue
+                .EnvelopeJson()
+                .write(record.envelope)
         assertFalse(wire.contains("tenantid"))
         assertFalse(wire.contains("entityref"))
     }
 
     @Test
-    fun `look-alike types are not the platform type and a payload of five items or a use of operator_session fails the schema`() {
+    fun `look-alike types differ and a use of operator_session fails the schema`() {
         listOf(
             "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
             "com.dynokore.gst.platform.OperatorSessionKeyChanged.v1",

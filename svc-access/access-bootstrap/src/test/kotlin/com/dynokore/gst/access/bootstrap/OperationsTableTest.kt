@@ -254,20 +254,20 @@ class OperationsTableTest {
     }
 
     @Test
-    fun `INV-T-4154 the rows openOperatorSession and accessOperatorSessionKeysChanged are done, and a row still open fails`() {
+    fun `INV-T-4154 the operator session rows are done and a row still open fails`() {
         fun findings(lines: List<String>): List<String> {
             val rows = rows(lines).first.associateBy { it.kind to it.name }
             return listOf("operation" to "openOperatorSession", "channel" to "accessOperatorSessionKeysChanged")
                 .mapNotNull { key ->
                     val row = rows[key]
-                    if (row?.task == "INV-T-4154" && row.state == "done") null else "${key.first} ${key.second}: not done"
+                    if (row?.task == "INV-T-4154" && row.state == "done") null else "${key.first} ${key.second}: no"
                 }
         }
         assertThat(findings(table)).isEmpty()
         listOf("openOperatorSession", "accessOperatorSessionKeysChanged").forEach { name ->
             val open = table.map { it.replace(Regex("^(\\w+\\t$name\\tINV-T-4154\\t)done"), "$1open") }
             assertThat(findings(open)).containsExactly(
-                (if (name == "openOperatorSession") "operation" else "channel") + " $name: not done",
+                (if (name == "openOperatorSession") "operation" else "channel") + " $name: no",
             )
         }
     }
