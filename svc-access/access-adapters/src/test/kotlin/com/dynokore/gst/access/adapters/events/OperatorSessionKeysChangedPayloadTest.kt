@@ -114,20 +114,20 @@ class OperatorSessionKeysChangedPayloadTest {
     }
 
     @Test
-    fun `INV-AC-9147 probe a machine key item always carries its use`() {
-        val payload = outbox.payload(listOf(key("fedcba9876543210", KeyUse.MACHINE_ACCESS)))
-        val item = payload["keys"][0] as tools.jackson.databind.node.ObjectNode
-        assertTrue(item.has("use"))
-        // the schema leaves `use` optional and reads an item without it as an operator-session key: always set it
-        val stripped = item.deepCopy().also { it.remove("use") }
-        assertTrue(schema.validate(mapper.readTree("""{"keys":[$stripped]}""")).isEmpty())
-        assertFalse(stripped.has("use"))
-        assertEquals("MACHINE_ACCESS", item["use"].asString())
-    }
-
-    @Test
-    fun `INV-AC-9147 probe a machine key item is written with use MACHINE_ACCESS`() {
-        val payload = outbox.payload(listOf(key("fedcba9876543210", KeyUse.MACHINE_ACCESS)))
+    fun `INV-AC-9147 probe an item without use for a machine key fails the publication`() {
+        val machine = key("fedcba9876543210", KeyUse.MACHINE_ACCESS)
+        val payload = outbox.payload(listOf(machine))
         assertEquals("MACHINE_ACCESS", payload["keys"][0]["use"].asString())
+        outbox.requireUses(payload, listOf(machine))
+        // the schema reads no `use` as OPERATOR_SESSION (API-41), so the publication refuses it
+        (payload["keys"][0] as tools.jackson.databind.node.ObjectNode).remove("use")
+        assertThrows(IllegalStateException::class.java) { outbox.requireUses(payload, listOf(machine)) }
+        // and an item whose use differs from the stored key's
+        (payload["keys"][0] as tools.jackson.databind.node.ObjectNode).put("use", "OPERATOR_SESSION")
+        assertThrows(IllegalStateException::class.java) { outbox.requireUses(payload, listOf(machine)) }
+        // nothing is appended when the check fails
+        val failing = OperatorSessionKeysChangedOutbox(captured, mapper)
+        failing.publish(listOf(machine))
+        assertEquals(1, captured.appended.size)
     }
 }

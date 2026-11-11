@@ -23,7 +23,25 @@ class OperatorSessionKeysChangedOutbox(
 ) {
     fun publish(valid: List<VerificationKey>) {
         val context = EventContexts.forAggregate(TenantId.PLATFORM, EntityRef.PLATFORM, AGGREGATE_KEY)
-        outbox.append(listOf(OutboundEvent(EVENT_TYPE, payload(valid).toString())), context)
+        val payload = payload(valid)
+        requireUses(payload, valid)
+        outbox.append(listOf(OutboundEvent(EVENT_TYPE, payload.toString())), context)
+    }
+
+    /**
+     * The channel schema reads an item without `use` as OPERATOR_SESSION and may not make it required inside a major
+     * version (API-41), so the publication refuses a payload whose item for a key lacks `use` or names another use.
+     */
+    internal fun requireUses(
+        payload: ObjectNode,
+        valid: List<VerificationKey>,
+    ) {
+        valid.forEach { key ->
+            val item = payload["keys"].singleOrNull { it["kid"]?.asString() == key.kid }
+            check(item != null && item["use"]?.asString() == key.use.name) {
+                "the item of key ${key.kid} lacks use ${key.use.name}; the event is not published"
+            }
+        }
     }
 
     /** True when [recordJson], an earlier record of this event, carries exactly the key set [valid] would publish. */
