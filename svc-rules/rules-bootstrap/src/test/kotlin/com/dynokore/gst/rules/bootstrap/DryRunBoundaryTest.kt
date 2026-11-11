@@ -152,12 +152,20 @@ open class DryRunSupport(
 
     protected fun label() = "2026.d${++counter}-${UUID.randomUUID().toString().take(6)}"
 
-    /** One ARMED mapping pack of tenant A, so that a candidate has a current pack to be compared with. */
+    /**
+     * One ARMED mapping pack of tenant A, so that a candidate has a current pack to be compared with. It is effective
+     * from yesterday: after every date the other test classes of the shared database use, and never after the clock.
+     */
     protected fun ensureCurrentPack() {
         if (!currentPack) {
             synchronized(DryRunSupport::class.java) {
                 if (!currentPack) {
-                    fullFlow("$CURRENT_PREFIX-${UUID.randomUUID().toString().take(6)}", "2026-01-01")
+                    val from =
+                        java.time.LocalDate
+                            .now(java.time.ZoneOffset.UTC)
+                            .minusDays(1)
+                            .toString()
+                    fullFlow("$CURRENT_PREFIX-${UUID.randomUUID().toString().take(6)}", from)
                     currentPack = true
                 }
             }
