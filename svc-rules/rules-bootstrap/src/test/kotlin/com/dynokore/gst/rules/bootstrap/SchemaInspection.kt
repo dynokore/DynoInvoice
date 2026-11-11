@@ -34,7 +34,9 @@ internal object SchemaInspection {
 
     /**
      * The metadata tables: registry and activation state, the entries, the acceptances, the approvals, the dry-run
-     * deltas of a mapping pack and their document and total rows (V1, INV-Q-14648 A, INV-Q-14646 A, INV-T-19902), all relational, no document-shaped column.
+     * deltas of a mapping pack and their document and total rows (V1, INV-Q-14648 A, INV-Q-14646 A,
+     * INV-T-19902), all relational, no document-shaped
+     * column.
      */
     val REGISTRY_TABLES =
         setOf(

@@ -58,27 +58,7 @@ class JooqDryRunDeltaStore(
             val tx = DSL.using(configuration)
             val straddling = delta.straddlingCreditNotes.map { it.docUuid }.toSet()
             delta.documents.forEachIndexed { index, doc ->
-                tx
-                    .insertInto(DRY_RUN_DELTA_DOCUMENT)
-                    .set(DRY_RUN_DELTA_DOCUMENT.TENANT_ID, tenant)
-                    .set(DRY_RUN_DELTA_DOCUMENT.DELTA_ID, id)
-                    .set(DRY_RUN_DELTA_DOCUMENT.POSITION, index + 1)
-                    .set(DRY_RUN_DELTA_DOCUMENT.DOC_UUID, UUID.fromString(doc.docUuid))
-                    .set(DRY_RUN_DELTA_DOCUMENT.PERIOD_REF, doc.periodRef)
-                    .set(DRY_RUN_DELTA_DOCUMENT.TRANSACTION_DATE, doc.transactionDate)
-                    .set(DRY_RUN_DELTA_DOCUMENT.PRECEDING_DOCUMENT_DATE, doc.precedingDocumentDate)
-                    .set(DRY_RUN_DELTA_DOCUMENT.DOCUMENT_FUNCTION, doc.documentFunction)
-                    .set(DRY_RUN_DELTA_DOCUMENT.SUPPLY_TYPE, doc.supplyType)
-                    .set(DRY_RUN_DELTA_DOCUMENT.CHANGE_TYPE, doc.changeType.name)
-                    .set(DRY_RUN_DELTA_DOCUMENT.OLD_CODE, doc.oldOutcome.code)
-                    .set(DRY_RUN_DELTA_DOCUMENT.OLD_SEVERITY, doc.oldOutcome.severity)
-                    .set(DRY_RUN_DELTA_DOCUMENT.NEW_CODE, doc.newOutcome.code)
-                    .set(DRY_RUN_DELTA_DOCUMENT.NEW_SEVERITY, doc.newOutcome.severity)
-                    .set(DRY_RUN_DELTA_DOCUMENT.TAXABLE_VALUE, BigDecimal(doc.taxableValue))
-                    .set(DRY_RUN_DELTA_DOCUMENT.GST_VALUE, BigDecimal(doc.gstValue))
-                    .set(DRY_RUN_DELTA_DOCUMENT.VALUES_ABSENT, doc.sgdValuesAbsent)
-                    .set(DRY_RUN_DELTA_DOCUMENT.STRADDLING_CREDIT_NOTE, doc.docUuid in straddling)
-                    .execute()
+                insertDocument(tx, tenant, id, index + 1, doc, doc.docUuid in straddling)
             }
             delta.changeTypeTotals.forEachIndexed { index, t ->
                 insertTotal(
@@ -120,6 +100,38 @@ class JooqDryRunDeltaStore(
                     .execute()
             check(updated == 1) { "dry run $dryRunId is not a RUNNING run of this tenant" }
         }
+    }
+
+    @Suppress("LongParameterList")
+    private fun insertDocument(
+        tx: DSLContext,
+        tenant: UUID,
+        id: UUID,
+        position: Int,
+        doc: ChangedDocument,
+        straddling: Boolean,
+    ) {
+        tx
+            .insertInto(DRY_RUN_DELTA_DOCUMENT)
+            .set(DRY_RUN_DELTA_DOCUMENT.TENANT_ID, tenant)
+            .set(DRY_RUN_DELTA_DOCUMENT.DELTA_ID, id)
+            .set(DRY_RUN_DELTA_DOCUMENT.POSITION, position)
+            .set(DRY_RUN_DELTA_DOCUMENT.DOC_UUID, UUID.fromString(doc.docUuid))
+            .set(DRY_RUN_DELTA_DOCUMENT.PERIOD_REF, doc.periodRef)
+            .set(DRY_RUN_DELTA_DOCUMENT.TRANSACTION_DATE, doc.transactionDate)
+            .set(DRY_RUN_DELTA_DOCUMENT.PRECEDING_DOCUMENT_DATE, doc.precedingDocumentDate)
+            .set(DRY_RUN_DELTA_DOCUMENT.DOCUMENT_FUNCTION, doc.documentFunction)
+            .set(DRY_RUN_DELTA_DOCUMENT.SUPPLY_TYPE, doc.supplyType)
+            .set(DRY_RUN_DELTA_DOCUMENT.CHANGE_TYPE, doc.changeType.name)
+            .set(DRY_RUN_DELTA_DOCUMENT.OLD_CODE, doc.oldOutcome.code)
+            .set(DRY_RUN_DELTA_DOCUMENT.OLD_SEVERITY, doc.oldOutcome.severity)
+            .set(DRY_RUN_DELTA_DOCUMENT.NEW_CODE, doc.newOutcome.code)
+            .set(DRY_RUN_DELTA_DOCUMENT.NEW_SEVERITY, doc.newOutcome.severity)
+            .set(DRY_RUN_DELTA_DOCUMENT.TAXABLE_VALUE, BigDecimal(doc.taxableValue))
+            .set(DRY_RUN_DELTA_DOCUMENT.GST_VALUE, BigDecimal(doc.gstValue))
+            .set(DRY_RUN_DELTA_DOCUMENT.VALUES_ABSENT, doc.sgdValuesAbsent)
+            .set(DRY_RUN_DELTA_DOCUMENT.STRADDLING_CREDIT_NOTE, straddling)
+            .execute()
     }
 
     @Suppress("LongParameterList")
@@ -166,21 +178,25 @@ class JooqDryRunDeltaStore(
     }
 
     override fun find(dryRunId: String): StoredDryRun? {
-        val id = runCatching { UUID.fromString(dryRunId) }.getOrNull() ?: return null
+        val id = runCatching { UUID.fromString(dryRunId) }.getOrNull()
         val run =
-            dsl
-                .selectFrom(DRY_RUN_DELTA)
-                .where(DRY_RUN_DELTA.ID.eq(id))
-                .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
-                .fetchOne() ?: return null
-        val state = DryRunState.valueOf(run.req(DRY_RUN_DELTA.STATE))
-        return StoredDryRun(
-            dryRunId = id.toString(),
-            startedBy = run.req(DRY_RUN_DELTA.STARTED_BY),
-            state = state,
-            reason = run.unavailableReason,
-            delta = if (state == DryRunState.COMPLETE) rebuild(id) else null,
-        )
+            id?.let {
+                dsl
+                    .selectFrom(DRY_RUN_DELTA)
+                    .where(DRY_RUN_DELTA.ID.eq(it))
+                    .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
+                    .fetchOne()
+            }
+        return run?.let {
+            val state = DryRunState.valueOf(it.req(DRY_RUN_DELTA.STATE))
+            StoredDryRun(
+                dryRunId = it.req(DRY_RUN_DELTA.ID).toString(),
+                startedBy = it.req(DRY_RUN_DELTA.STARTED_BY),
+                state = state,
+                reason = it.unavailableReason,
+                delta = if (state == DryRunState.COMPLETE) rebuild(it.req(DRY_RUN_DELTA.ID)) else null,
+            )
+        }
     }
 
     private fun rebuild(id: UUID): DryRunDelta {
@@ -190,28 +206,11 @@ class JooqDryRunDeltaStore(
                 .where(DRY_RUN_DELTA_DOCUMENT.DELTA_ID.eq(id))
                 .orderBy(DRY_RUN_DELTA_DOCUMENT.POSITION)
                 .fetch()
-        val documents =
-            rows.map { r ->
-                ChangedDocument(
-                    docUuid = r.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString(),
-                    periodRef = r.req(DRY_RUN_DELTA_DOCUMENT.PERIOD_REF),
-                    transactionDate = r.req(DRY_RUN_DELTA_DOCUMENT.TRANSACTION_DATE),
-                    precedingDocumentDate = r.precedingDocumentDate,
-                    documentFunction = r.req(DRY_RUN_DELTA_DOCUMENT.DOCUMENT_FUNCTION),
-                    supplyType = r.supplyType,
-                    oldOutcome = DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.OLD_CODE), r.oldSeverity),
-                    newOutcome = DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.NEW_CODE), r.newSeverity),
-                    changeType = ChangeType.valueOf(r.req(DRY_RUN_DELTA_DOCUMENT.CHANGE_TYPE)),
-                    taxableValue = r.req(DRY_RUN_DELTA_DOCUMENT.TAXABLE_VALUE).toPlainString(),
-                    gstValue = r.req(DRY_RUN_DELTA_DOCUMENT.GST_VALUE).toPlainString(),
-                    sgdValuesAbsent = r.req(DRY_RUN_DELTA_DOCUMENT.VALUES_ABSENT),
-                )
-            }
+        val documents = rows.map(::documentOf)
         val straddling =
             rows
-                .filter {
-                    it.req(DRY_RUN_DELTA_DOCUMENT.STRADDLING_CREDIT_NOTE)
-                }.map { it.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString() }
+                .filter { it.req(DRY_RUN_DELTA_DOCUMENT.STRADDLING_CREDIT_NOTE) }
+                .map { it.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString() }
                 .toSet()
         val totals =
             dsl
@@ -222,30 +221,48 @@ class JooqDryRunDeltaStore(
         return DryRunDelta(
             changedCount = documents.size,
             documents = documents,
-            changeTypeTotals =
-                totals.filter { it.kind == CHANGE_TYPE }.map {
-                    ChangeTypeTotal(
-                        ChangeType.valueOf(it.req(DRY_RUN_DELTA_TOTAL.KEY)),
-                        it.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
-                        it.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
-                        it.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
-                        it.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
-                    )
-                },
-            byPeriod =
-                totals.filter { it.kind == PERIOD }.map {
-                    PeriodDelta(
-                        it.req(DRY_RUN_DELTA_TOTAL.KEY),
-                        it.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
-                        it.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
-                        it.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
-                        it.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
-                    )
-                },
+            changeTypeTotals = totals.filter { it.kind == CHANGE_TYPE }.map(::changeTypeTotalOf),
+            byPeriod = totals.filter { it.kind == PERIOD }.map(::periodOf),
             straddlingCreditNotes = documents.filter { it.docUuid in straddling }.map(::listing),
             sample = documents.filter { it.docUuid !in straddling }.map(::listing),
         )
     }
+
+    private fun documentOf(r: Record) =
+        ChangedDocument(
+            docUuid = r.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString(),
+            periodRef = r.req(DRY_RUN_DELTA_DOCUMENT.PERIOD_REF),
+            transactionDate = r.req(DRY_RUN_DELTA_DOCUMENT.TRANSACTION_DATE),
+            precedingDocumentDate = r.get(DRY_RUN_DELTA_DOCUMENT.PRECEDING_DOCUMENT_DATE),
+            documentFunction = r.req(DRY_RUN_DELTA_DOCUMENT.DOCUMENT_FUNCTION),
+            supplyType = r.get(DRY_RUN_DELTA_DOCUMENT.SUPPLY_TYPE),
+            oldOutcome =
+                DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.OLD_CODE), r.get(DRY_RUN_DELTA_DOCUMENT.OLD_SEVERITY)),
+            newOutcome =
+                DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.NEW_CODE), r.get(DRY_RUN_DELTA_DOCUMENT.NEW_SEVERITY)),
+            changeType = ChangeType.valueOf(r.req(DRY_RUN_DELTA_DOCUMENT.CHANGE_TYPE)),
+            taxableValue = r.req(DRY_RUN_DELTA_DOCUMENT.TAXABLE_VALUE).toPlainString(),
+            gstValue = r.req(DRY_RUN_DELTA_DOCUMENT.GST_VALUE).toPlainString(),
+            sgdValuesAbsent = r.req(DRY_RUN_DELTA_DOCUMENT.VALUES_ABSENT),
+        )
+
+    private fun changeTypeTotalOf(r: Record) =
+        ChangeTypeTotal(
+            ChangeType.valueOf(r.req(DRY_RUN_DELTA_TOTAL.KEY)),
+            r.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
+            r.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
+            r.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
+            r.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
+        )
+
+    private fun periodOf(r: Record) =
+        PeriodDelta(
+            r.req(DRY_RUN_DELTA_TOTAL.KEY),
+            r.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
+            r.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
+            r.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
+            r.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
+        )
 
     /** The listing of a changed document as the computation builds it: `0.00` money and a true flag when flagged. */
     private fun listing(d: ChangedDocument) =
