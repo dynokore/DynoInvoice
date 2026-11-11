@@ -50,6 +50,24 @@
           "version"
         ]
       }
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The error-catalogue code that opened the exception (INV-REQ-940). Absent when the producer does not know it; never guessed by the consumer."
+    },
+    "remediationOwner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The effective owner of that code, as Exception.remediationOwner of console-bff/openapi.yaml (INV-REQ-940). Absent when the producer does not know it; never guessed by the consumer."
+    },
+    "disposition": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The base disposition of the code in the error catalogue, read as Exception.disposition of console-bff/openapi.yaml: AUTO_RELEASE, AUTO_RETRY, MANUAL, OVERRIDABLE, TERMINAL; extensible (INV-REQ-940). Absent when the producer does not know it; never guessed by the consumer."
     }
   },
   "required": [

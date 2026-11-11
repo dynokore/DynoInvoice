@@ -82,3 +82,7 @@ ValidationOverrideEntry.status.PENDING	schema_enum_value	openapi.yaml	INV-REQ-12
 ValidationOverrideEntry.status.RELEASED	schema_enum_value	openapi.yaml	INV-REQ-1293
 overrideValidation.202	operation_response	openapi.yaml	INV-REQ-500
 overrideValidation.403	operation_response	openapi.yaml	INV-REQ-500
+# INV-T-20612: optional exception members of the PayloadRejected payload (INV-REQ-940).
+code	property	schemas/payload-rejected-payload.schema.json	INV-REQ-940
+remediationOwner	property	schemas/payload-rejected-payload.schema.json	INV-REQ-940
+disposition	property	schemas/payload-rejected-payload.schema.json	INV-REQ-940
