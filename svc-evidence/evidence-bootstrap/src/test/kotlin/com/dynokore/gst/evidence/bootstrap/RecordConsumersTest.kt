@@ -354,6 +354,39 @@ class RecordConsumersTest {
     }
 
     @Test
+    fun `INV-AC-20319 the registry lists exactly one evidence artefact subscription and keeps the two record ones`() {
+        val topic = "gst.platform.evidence-artefact-recorded.v1"
+        val type = "com.dynokore.gst.platform.EvidenceArtefactRecorded.v1"
+        val listed = RecordConsumerConfiguration.subscriptions
+        listed.count { it.topic == topic && it.eventType == type } shouldBe 1
+        listed.any {
+            it.topic == "gst.canonical.decision-trace-recorded.v1" &&
+                it.eventType == "com.dynokore.gst.canonical.DecisionTraceRecorded.v1"
+        } shouldBe true
+        listed.any {
+            it.topic == "gst.platform.audit-entry-recorded.v1" &&
+                it.eventType == "com.dynokore.gst.platform.AuditEntryRecorded.v1"
+        } shouldBe true
+        // look-alikes are not this subscription: a v2 topic, a v2 type, the same topic with another event type
+        listed.count { it.topic == "gst.platform.evidence-artefact-recorded.v2" } shouldBe 0
+        listed.count { it.eventType == "com.dynokore.gst.platform.EvidenceArtefactRecorded.v2" } shouldBe 0
+        listed.count { it.topic == topic && it.eventType != type } shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-20319 the consumer bean of the evidence artefact subscription is composed by the bootstrap module`(
+        @TempDir dir: Path,
+    ) {
+        EvidenceContext.offline(dir).run { context ->
+            val names = context.getBeanNamesForType(com.dynokore.platform.outboxandqueue.InboxConsumer::class.java)
+            RecordConsumerConfiguration.subscriptions.map { it.bean }.forEach {
+                names.toList().contains(it) shouldBe
+                    true
+            }
+        }
+    }
+
+    @Test
     fun `the database versions are exactly 16, 17 and 18, pinned by digest, and each container reports its major`() {
         EvidenceDb.Version.entries.map { it.major } shouldBe listOf(16, 17, 18)
         EvidenceDb.Version.entries.map { it.image } shouldBe

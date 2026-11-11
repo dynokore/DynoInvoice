@@ -85,6 +85,31 @@ class RecordConsumerConfiguration {
             ),
         )
 
+    /**
+     * The subscription to `gst.platform.evidence-artefact-recorded.v1` (INV-REQ-1036 behavior 2): an ordinary inbox
+     * consumer, not a record topic, so it keeps the `docsequence` check and takes no position writer.
+     */
+    @Bean
+    @Suppress("LongParameterList")
+    fun evidenceArtefactConsumer(
+        catalogue: EventCatalogue,
+        reader: EventLogReader,
+        scope: TenantScope,
+        rebuildRequired: RebuildRequiredSink,
+        clock: Clock,
+        dsl: DSLContext,
+    ): InboxConsumer =
+        JdbcInboxConsumer(
+            ConsumerSubscription(LocatorConsumerConfiguration.CONSUMER, EVIDENCE_ARTEFACT_TOPIC, ChainWiring.SCHEMA),
+            catalogue,
+            reader,
+            scope,
+            dsl,
+            ChainWiring.evidenceArtefactHandler(dsl, clock),
+            rebuildRequired,
+            clock,
+        )
+
     @Suppress("LongParameterList")
     private fun recording(
         topic: String,
@@ -102,5 +127,26 @@ class RecordConsumerConfiguration {
     companion object {
         const val DECISION_TRACE_TOPIC = "gst.canonical.decision-trace-recorded.v1"
         const val AUDIT_ENTRY_TOPIC = "gst.platform.audit-entry-recorded.v1"
+        const val EVIDENCE_ARTEFACT_TOPIC = "gst.platform.evidence-artefact-recorded.v1"
+        const val EVIDENCE_ARTEFACT_TYPE = "com.dynokore.gst.platform.EvidenceArtefactRecorded.v1"
+
+        /** A subscription of this registry: the topic and the event type its handler takes. */
+        data class Registered(
+            val bean: String,
+            val topic: String,
+            val eventType: String,
+        )
+
+        /** The subscriptions this configuration registers, one per consumer bean. */
+        val subscriptions: List<Registered> =
+            listOf(
+                Registered(
+                    "decisionTraceConsumer",
+                    DECISION_TRACE_TOPIC,
+                    "com.dynokore.gst.canonical.DecisionTraceRecorded.v1",
+                ),
+                Registered("auditEntryConsumer", AUDIT_ENTRY_TOPIC, "com.dynokore.gst.platform.AuditEntryRecorded.v1"),
+                Registered("evidenceArtefactConsumer", EVIDENCE_ARTEFACT_TOPIC, EVIDENCE_ARTEFACT_TYPE),
+            )
     }
 }
