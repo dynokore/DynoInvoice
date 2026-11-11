@@ -71,6 +71,15 @@ data class ChangeTypeTotal(
     val valuesAbsentCount: Int,
 )
 
+/** The totals of the changed documents of one GST supply type; sums leave out flagged documents. */
+data class SupplyTypeTotal(
+    val supplyType: String,
+    val documentCount: Int,
+    val taxableValue: String,
+    val gstValue: String,
+    val valuesAbsentCount: Int,
+)
+
 data class PeriodDelta(
     val periodRef: String,
     val documentCount: Int,

@@ -7,6 +7,8 @@ import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.ItemReading
 import com.dynokore.gst.rules.domain.dryrun.SampleItems
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
+import com.dynokore.gst.rules.domain.dryrun.SupplyTypeTotal
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
@@ -174,5 +176,113 @@ class DryRunComputationTest {
                 .toString()
                 .startsWith("page 2, item 5: ") shouldBe true
         }
+    }
+
+    private fun typed(
+        n: Int,
+        type: String?,
+        taxable: String = "100.00",
+        gst: String = "9.00",
+    ) = doc(n, "P1", t.plusDays(1)).copy(supplyType = type).money(taxable, gst)
+
+    private fun totals(vararg docs: SampledDocument): Pair<DryRunDelta, List<SupplyTypeTotal>> {
+        val d = delta(*docs)
+        val r = DryRunComputation.supplyTypeTotals(d.documents)
+        r.sumOf { it.documentCount } shouldBe d.changedCount
+        r.sumOf { BigDecimal(it.taxableValue) }.setScale(2) shouldBe
+            d.changeTypeTotals.sumOf { BigDecimal(it.taxableValue) }.setScale(2)
+        r.sumOf { BigDecimal(it.gstValue) }.setScale(2) shouldBe
+            d.changeTypeTotals.sumOf { BigDecimal(it.gstValue) }.setScale(2)
+        return d to r
+    }
+
+    @Test
+    fun `INV-AC-20339 five members give five items in the stated order`() {
+        val (_, r) =
+            totals(
+                typed(1, "IMPORTS"),
+                typed(2, "OUT_OF_SCOPE"),
+                typed(3, "EXEMPT"),
+                typed(4, "ZERO_RATED"),
+                typed(5, "STANDARD_RATED"),
+            )
+        r.map { it.supplyType } shouldBe listOf("STANDARD_RATED", "ZERO_RATED", "EXEMPT", "OUT_OF_SCOPE", "IMPORTS")
+    }
+
+    @Test
+    fun `INV-AC-20339 two supply types give their pairs and no third item`() {
+        val (d, r) =
+            totals(
+                typed(1, "ZERO_RATED", "250.00", "22.50"),
+                typed(2, "STANDARD_RATED", "1000.00", "90.00"),
+            )
+        r shouldBe
+            listOf(
+                SupplyTypeTotal("STANDARD_RATED", 1, "1000.00", "90.00", 0),
+                SupplyTypeTotal("ZERO_RATED", 1, "250.00", "22.50", 0),
+            )
+        r.none { x -> d.documents.any { it.docUuid in x.toString() } } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-20339 a flagged document counts in documentCount and valuesAbsentCount and in neither sum`() {
+        val flagged = typed(2, "STANDARD_RATED", "777.00", "70.00").copy(sgdValuesAbsent = true)
+        val (_, r) = totals(typed(1, "STANDARD_RATED", "10.00", "0.90"), flagged)
+        r shouldBe listOf(SupplyTypeTotal("STANDARD_RATED", 2, "10.00", "0.90", 1))
+    }
+
+    @Test
+    fun `INV-AC-20339 look-alikes of ZERO_RATED are their own items after the five`() {
+        val (_, r) =
+            totals(typed(1, "zero_rated"), typed(2, "ZERO-RATED"), typed(3, "ZERO_RATED"), typed(4, "IMPORTS"))
+        r.map { it.supplyType } shouldBe listOf("ZERO_RATED", "IMPORTS", "ZERO-RATED", "zero_rated")
+        r.map { it.documentCount } shouldBe listOf(1, 1, 1, 1)
+    }
+
+    @Test
+    fun `INV-AC-20339 a member outside the five is carried unchanged and others sort ascending`() {
+        val (_, r) = totals(typed(1, "ZZ_OTHER"), typed(2, "DEEMED_SUPPLY"), typed(3, "EXEMPT"))
+        r.map { it.supplyType } shouldBe listOf("EXEMPT", "DEEMED_SUPPLY", "ZZ_OTHER")
+    }
+
+    @Test
+    fun `INV-AC-20339 an empty delta gives an empty list`() {
+        DryRunComputation.supplyTypeTotals(emptyList()) shouldBe emptyList()
+        totals().second shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-20339 a changed document without a supply type is a fault naming it`() {
+        val d = delta(typed(1, null))
+        val e = shouldThrow<IllegalStateException> { DryRunComputation.supplyTypeTotals(d.documents) }
+        e.message!!.contains(uuid(1)) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-20339 a blank, whitespace-only or missing supplyType is read as null`() {
+        val ok =
+            mapOf(
+                "periodRef" to "P",
+                "docUuid" to uuid(1),
+                "entityRef" to "E",
+                "transactionDate" to "2026-10-01",
+                "internalTaxCode" to "C",
+                "documentFunction" to "BILL_FOR_PAYMENT",
+                "taxableValue" to "1.00",
+                "gstValue" to "0.09",
+            )
+
+        fun typeOf(raw: Map<String, Any?>) =
+            SampleItems
+                .read(1, 1, raw)
+                .shouldBeInstanceOf<ItemReading.Read>()
+                .document.supplyType
+        typeOf(ok + ("supplyType" to "")) shouldBe null
+        typeOf(ok + ("supplyType" to " \t ")) shouldBe null
+        typeOf(ok) shouldBe null
+        typeOf(ok + ("supplyType" to 5)) shouldBe null
+        typeOf(ok + ("supplyTypes" to "ZERO_RATED")) shouldBe null
+        typeOf(ok + ("supplyType" to "ZERO_RATED")) shouldBe "ZERO_RATED"
+        typeOf(ok + ("supplyType" to "DEEMED_SUPPLY")) shouldBe "DEEMED_SUPPLY"
     }
 }

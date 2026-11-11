@@ -72,6 +72,25 @@ object DryRunComputation {
         )
     }
 
+    private val SUPPLY_ORDER = listOf("STANDARD_RATED", "ZERO_RATED", "EXEMPT", "OUT_OF_SCOPE", "IMPORTS")
+
+    /**
+     * The totals of the changed [docs] by GST supply type: one item per type with a changed document, in the order
+     * of the five GST-return categories and then any other member ascending by code unit. A flagged document counts
+     * in `documentCount` and `valuesAbsentCount` and in neither sum. A document without a supply type is a fault.
+     */
+    fun supplyTypeTotals(docs: List<ChangedDocument>): List<SupplyTypeTotal> =
+        docs
+            .groupBy { checkNotNull(it.supplyType) { "changed document ${it.docUuid} has no supply type" } }
+            .toList()
+            .sortedWith(compareBy({ supplyRank(it.first) }, { it.first }))
+            .map { (type, group) ->
+                val t = total(group)
+                SupplyTypeTotal(type, t.documentCount, t.taxableValue, t.gstValue, t.valuesAbsentCount)
+            }
+
+    private fun supplyRank(type: String): Int = SUPPLY_ORDER.indexOf(type).takeIf { it >= 0 } ?: SUPPLY_ORDER.size
+
     private fun changedOf(
         d: SampledDocument,
         old: DocumentOutcome,
@@ -188,7 +207,7 @@ object SampleItems {
             internalTaxCode = text(raw, "internalTaxCode"),
             documentFunction = text(raw, "documentFunction"),
             precedingDocumentDate = raw["precedingDocumentDate"]?.let { date(raw, "precedingDocumentDate") },
-            supplyType = raw["supplyType"] as? String,
+            supplyType = (raw["supplyType"] as? String)?.takeIf { it.isNotBlank() },
             sgdValuesAbsent = flagged,
             taxableValue = if (flagged) ZERO else money(raw, "taxableValue"),
             gstValue = if (flagged) ZERO else money(raw, "gstValue"),
