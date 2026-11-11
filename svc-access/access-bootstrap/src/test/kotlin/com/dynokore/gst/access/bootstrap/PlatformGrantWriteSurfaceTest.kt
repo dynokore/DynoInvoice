@@ -225,6 +225,7 @@ class PlatformGrantWriteSurfaceTest {
                 "openOperatorSession" to false,
                 "inviteDiagnostics" to false,
                 "withdrawDiagnosticInvitation" to false,
+                "issueSignatoryLink" to false,
                 "verifySignatoryLink" to false,
                 "recordSignatoryAction" to false, // the link evidence; WITHDRAW changes a consent, not a role_grant
                 // the two consultant-grant operations of the pinned contract: INV-T-15800 sets the real values

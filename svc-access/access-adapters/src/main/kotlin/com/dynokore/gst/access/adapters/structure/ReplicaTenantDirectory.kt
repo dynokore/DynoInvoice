@@ -20,6 +20,6 @@ class ReplicaTenantDirectory(
                 it.kind ==
                     StructureNodeKind.TENANT
             }
-        return if (nodes.isNotEmpty() && nodes.none { node -> node.retired }) tenant else null
+        return tenant.takeIf { nodes.isNotEmpty() && nodes.none { it.retired } }
     }
 }
