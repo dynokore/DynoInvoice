@@ -15,7 +15,6 @@ create table rules.dry_run_delta_document (
     position               integer       not null check (position >= 1),
     doc_uuid               uuid          not null,
     period_ref             varchar(32)   not null check (period_ref !~ '^\s*$'),
-    entity_ref             text          null check (entity_ref is null or entity_ref !~ '^\s*$'),
     transaction_date       date          not null,
     preceding_document_date date         null,
     document_function      text          not null check (document_function !~ '^\s*$'),

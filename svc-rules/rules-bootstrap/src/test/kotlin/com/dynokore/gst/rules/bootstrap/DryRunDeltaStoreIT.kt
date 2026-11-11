@@ -136,6 +136,40 @@ class DryRunDeltaStoreIT(
     }
 
     @Test
+    fun `INV-AC-19904 probe - the document table has exactly the ruled columns and no entity column`() {
+        val columns =
+            runtime
+                .inTenant(tenant) {
+                    fetchRows(
+                        "select column_name from information_schema.columns " +
+                            "where table_schema = 'rules' and table_name = 'dry_run_delta_document'",
+                    )
+                }.map { it["column_name"] as String }
+        columns.toSet() shouldBe
+            setOf(
+                "tenant_id",
+                "delta_id",
+                "position",
+                "doc_uuid",
+                "period_ref",
+                "transaction_date",
+                "preceding_document_date",
+                "document_function",
+                "supply_type",
+                "change_type",
+                "old_code",
+                "old_severity",
+                "new_code",
+                "new_severity",
+                "taxable_value",
+                "gst_value",
+                "values_absent",
+                "straddling_credit_note",
+            )
+        columns.size shouldBe 18
+    }
+
+    @Test
     fun `INV-AC-19904 probe - a second document row that violates a constraint leaves the run RUNNING with no rows`() {
         val id = UUID.randomUUID().toString()
         val delta = twoDocumentDelta()
