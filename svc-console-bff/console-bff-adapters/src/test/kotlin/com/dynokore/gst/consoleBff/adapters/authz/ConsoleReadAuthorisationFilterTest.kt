@@ -5,10 +5,13 @@ import com.dynokore.gst.consoleBff.application.authz.ReadPermissions
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
 import com.dynokore.platform.serviceruntime.replica.CellAllowance
+import com.dynokore.platform.serviceruntime.replica.FallbackResult
 import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
+import com.dynokore.platform.serviceruntime.replica.ReplicaFallback
 import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantId
@@ -89,6 +92,48 @@ class ConsoleReadAuthorisationFilterTest {
                 ),
             ),
         )
+
+    private fun grantEntity(
+        version: Long,
+        entity: String,
+        ref: String = "g-$entity",
+    ) = replica.accept(
+        AuthorityChanged(
+            tenant,
+            "p1",
+            version,
+            AuthorityRecord.RoleGrantRecord(
+                ref,
+                RoleGrantState.ACTIVE,
+                RoleGrant(FIXTURE_ROLE, GrantScope.ENTITY, entity, clock.instant().minusSeconds(60)),
+            ),
+        ),
+    )
+
+    /** A fixture route that names an entity parameter; the production table has no such entry yet. */
+    private val entityRoute =
+        object : ReadPermissions {
+            override fun keyFor(
+                method: String,
+                pathTemplate: String,
+            ): String? = if (method == "GET" && pathTemplate == "/v1/fixture") "exception.view" else null
+
+            override fun entityParameterFor(
+                method: String,
+                pathTemplate: String,
+            ): String? = if (keyFor(method, pathTemplate) != null) "entity" else null
+        }
+
+    private fun runEntity(entityQuery: List<String>): Outcome {
+        val request = MockHttpServletRequest("GET", "/v1/fixture").apply { requestURI = "/v1/fixture" }
+        request.setAttribute(ConsoleSessionFilter.PRINCIPAL_ATTRIBUTE, "p1")
+        request.setAttribute(ConsoleSessionFilter.TENANT_ATTRIBUTE, tenant.toString())
+        entityQuery.forEach { request.addParameter("entity", it) }
+        val response = MockHttpServletResponse()
+        val chain = MockFilterChain()
+        ConsoleReadAuthorisationFilter(entityRoute, replica, clock).doFilter(request, response, chain)
+        return Outcome(response, chain)
+    }
 
     private fun revoke(version: Long) =
         replica.accept(AuthorityChanged(tenant, "p1", version, AuthorityRecord.PrincipalRecord(PrincipalState.REVOKED)))
@@ -180,6 +225,56 @@ class ConsoleReadAuthorisationFilterTest {
         caughtUp()
         val out = run()
         out.response.contentAsString shouldNotContain FIXTURE_ROLE
+    }
+
+    @Test
+    fun `INV-AC-20309 a principal holding only an entity-scope grant of the key is refused on a tenant read`() {
+        caughtUp()
+        grantEntity(2, "e1")
+        val out = run()
+        out.response.status shouldBe 403
+        out.called shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-20309 a tenant read beyond the lag bound is refused even when an access fallback would allow`() {
+        // decideTenant never asks the fallback (AUTHORITY_UNAVAILABLE); decide with an invented entity ref would
+        val allowing =
+            AuthorityReplica(
+                clock,
+                roles,
+                fallback = ReplicaFallback { _, _ -> FallbackResult.Found(AuthorityVerdict(true)) },
+            )
+        val out = run(subject = ConsoleReadAuthorisationFilter(production, allowing, clock))
+        out.response.status shouldBe 403
+        out.called shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-20309 the production getExceptions entry names no entity parameter`() {
+        production.entityParameterFor("GET", "/v1/exceptions") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-20309 an entity read is decided by decide with the ref of the request`() {
+        caughtUp()
+        grantEntity(2, "e1")
+        runEntity(listOf("e1")).called shouldBe true
+        // an entity-scope grant never satisfies decideTenant, so the allow above came from decide with the ref
+        val other = runEntity(listOf("e2"))
+        other.response.status shouldBe 403
+        other.called shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-20309 an entity read with a missing, blank or repeated entity value is refused`() {
+        caughtUp()
+        grantEntity(2, "e1")
+        for (values in listOf(emptyList(), listOf(""), listOf("e1", "e1"))) {
+            val out = runEntity(values)
+            out.response.status shouldBe 403
+            out.called shouldBe false
+        }
     }
 
     private companion object {

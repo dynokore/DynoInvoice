@@ -3,9 +3,9 @@ package com.dynokore.gst.consoleBff.adapters.authz
 import com.dynokore.gst.consoleBff.adapters.ratelimit.ConsoleRateLimitFilter
 import com.dynokore.gst.consoleBff.adapters.session.ConsoleSessionFilter
 import com.dynokore.gst.consoleBff.application.authz.ReadPermissions
-import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.serviceruntime.replica.AuthorityDecision
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.Principal
@@ -30,8 +30,9 @@ import java.util.UUID
  * cached here, so a revocation applies to the next read. A DEGRADED decision is whatever `decide` returns. Other
  * methods pass on: the owning service authorises a write again (behavior 2).
  *
- * A console read names no entity (the queue spans the entities in the caller's scope), so it is decided at the
- * TENANT level with an empty entity reference, as an operation that names no entity (INV-Q-11688 A).
+ * A read whose table entry names no entity parameter is decided by [AuthorityReplica.decideTenant] (TENANT-scope
+ * grant, INV-Q-11688 A); one that names an entity parameter is decided by [AuthorityReplica.decide] at entity scope
+ * with that ref, and refused when the request carries no single value for it. No entity ref is invented.
  */
 class ConsoleReadAuthorisationFilter(
     private val permissions: ReadPermissions,
@@ -74,24 +75,35 @@ class ConsoleReadAuthorisationFilter(
             }
 
             else -> {
+                val principal = Principal(principalId, PrincipalKind.HUMAN)
+                val entityParameter = permissions.entityParameterFor("GET", request.requestURI)
                 val decision =
-                    replica.decide(
-                        AuthorizationRequest(
-                            tenant,
-                            Principal(principalId, PrincipalKind.HUMAN),
-                            "",
-                            key,
-                            level = ScopeLevel.TENANT,
-                        ),
-                        Deadline.after(budget, clock),
-                    )
-                if (decision.allowed) {
+                    if (entityParameter == null) {
+                        replica.decideTenant(tenant, principal, key)
+                    } else {
+                        decideEntity(request, tenant, principal, key, entityParameter)
+                    }
+                if (decision?.allowed == true) {
                     Verdict.PASS
                 } else {
-                    log.debug("console read refused: {} {}", decision.source, decision.reason)
+                    log.debug("console read refused: {} {}", decision?.source, decision?.reason)
                     Verdict.DENIED
                 }
             }
+        }
+    }
+
+    /** Null (refused) when the request carries no single non-blank value of the entity parameter. */
+    private fun decideEntity(
+        request: HttpServletRequest,
+        tenant: TenantId,
+        principal: Principal,
+        key: String,
+        entityParameter: String,
+    ): AuthorityDecision? {
+        val entityRef = request.getParameterValues(entityParameter)?.singleOrNull()?.takeIf { it.isNotBlank() }
+        return entityRef?.let {
+            replica.decide(AuthorizationRequest(tenant, principal, it, key), Deadline.after(budget, clock))
         }
     }
 
