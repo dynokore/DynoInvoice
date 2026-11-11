@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: tenancy events
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Every event tenancy produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -211,7 +211,7 @@ components:
       summary: PeriodRecordsChanged — the period spans of an entity (model/architecture/events.yaml).
       description: >-
         Catalogued event PeriodRecordsChanged (model/architecture/events.yaml; class: domain). Emitted by:
-        tenancy-svc. Consumed by: aggregation-svc, canonical-svc. Delivery: At-least-once. Event-carried
+        tenancy-svc. Consumed by: aggregation-svc, canonical-svc, rules-svc. Delivery: At-least-once. Event-carried
         state transfer: the payload holds the complete set of period records in force of the entity, so a
         consumer replaces its read model when the version is above the one it holds (INV-REQ-435,
         INV-REQ-83, INV-REQ-84; INV-Q-16535 A).
