@@ -20,8 +20,8 @@ import java.util.UUID
 
 /**
  * The dated-transaction intake of the aggregation contract (INV-REQ-435 item 2, INV-REQ-434 items 2 and 3). It extends
- * [IntakeController] because the contract has one `IntakeApi` for both operations. Each transaction is stored in the
- * window of its own date; a repeat of
+ * [IntakeController] because the contract has one `IntakeApi` for both operations, and it is the registered bean of
+ * `IntakeApi`. Each transaction is stored in the window of its own date; a repeat of
  * (entityRef, sourceKey, sourceRevision) answers the receipt of the first call and stores nothing.
  */
 @RestController
@@ -67,7 +67,11 @@ open class TransactionIntakeController(
         )
     }
 
-    /** The stored states of the windows the transactions went to; the furthest from OPEN is answered. */
+    /**
+     * The stored states of the windows the transactions went to. For a request spanning several windows the state
+     * furthest from OPEN is answered (OPEN, CLOSED, LATE in that order; fail-safe: a window is never reported as more
+     * open than it is). Coordinator ruling, breakdown tooling/gap14463-gap.md.
+     */
     private fun receiptState(placed: List<PlacedTransaction>): AggregationTransactionsReceipt.WindowState {
         val state = placed.map { it.placement.state }.maxByOrNull(WindowState::ordinal) ?: WindowState.OPEN
         return AggregationTransactionsReceipt.WindowState.valueOf(state.name)

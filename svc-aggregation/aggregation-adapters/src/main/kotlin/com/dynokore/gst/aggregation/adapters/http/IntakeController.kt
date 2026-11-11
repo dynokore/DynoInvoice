@@ -17,15 +17,16 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
  * The intake operation of the aggregation contract (TPL-08, INV-REQ-427, INV-REQ-434 items 1, 2, 3 and 5,
  * INV-REQ-436). The type check (ING-006) runs while the body is read ([NotAggregatableAdvice]); the rules are
  * [IntakeAggregate]'s. A first intake and a replay both answer 202 with the receipt of the stored aggregate.
+ *
+ * It carries no stereotype: [TransactionIntakeController] extends it and is the registered bean of `IntakeApi`, so
+ * each route has one handler (a second bean would map `/batches` and `/transactions` twice).
  */
-@RestController
 open class IntakeController(
     private val intake: IntakeAggregate,
 ) : IntakeApi {
