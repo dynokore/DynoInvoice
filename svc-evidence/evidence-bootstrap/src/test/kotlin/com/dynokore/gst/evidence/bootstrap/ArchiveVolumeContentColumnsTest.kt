@@ -37,10 +37,6 @@ class ArchiveVolumeContentColumnsTest {
             "outbox.data" to
                 "transport copy of an event whose content is held by its owner and is deleted once published",
             "event_dead_letter.raw" to "a transient failed delivery, not retained evidence",
-            "held_payload.payload_bytes" to
-                "a transient copy held until its despatch arrives; the sealed content is the evidence_payload record",
-            "payload_quarantine.payload_bytes" to
-                "a payload that failed its own digest (Dead Letter Channel); never sealed, not retained evidence",
             "config_setting.reason" to CONFIG_REASON,
             "config_installation_setting.reason" to CONFIG_REASON,
             "config_relaxation_acknowledgement.reason" to CONFIG_REASON,
