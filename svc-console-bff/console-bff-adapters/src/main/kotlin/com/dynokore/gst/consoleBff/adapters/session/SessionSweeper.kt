@@ -1,5 +1,6 @@
 package com.dynokore.gst.consoleBff.adapters.session
 
+import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
@@ -34,6 +35,6 @@ fun sessionSweeperOf(
     tenants: com.dynokore.platform.tenancykernel.TenantContext,
     transactions: TransactionRunner,
     clock: Clock,
-    idle: Duration,
-    absolute: Duration,
-): SessionSweeper = SessionSweeper(store, JooqSessionStore.bindingOf(tenants), transactions, clock, idle, absolute)
+    policy: SessionPolicy,
+): SessionSweeper =
+    SessionSweeper(store, JooqSessionStore.bindingOf(tenants), transactions, clock, policy.idle, policy.absolute)

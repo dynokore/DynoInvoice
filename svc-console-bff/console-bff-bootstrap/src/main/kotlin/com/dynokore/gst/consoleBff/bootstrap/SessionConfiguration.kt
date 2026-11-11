@@ -71,8 +71,8 @@ class SessionConfiguration {
         tenants: TenantContext,
         transactions: TransactionRunner,
         clock: Clock,
-        properties: ConsoleSessionProperties,
-    ) = sessionSweeperOf(store, tenants, transactions, clock, properties.idleTimeout, properties.absoluteTimeout)
+        policy: SessionPolicy,
+    ) = sessionSweeperOf(store, tenants, transactions, clock, policy)
 
     /** Runs the sweep every `console.session.sweep-interval`, validated positive by [ConsoleSessionProperties]. */
     @Bean
