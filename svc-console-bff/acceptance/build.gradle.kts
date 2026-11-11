@@ -11,6 +11,7 @@ dependencies {
     testImplementation(project(":console-bff-adapters"))
     testImplementation(libs.springBoot.starterWeb)
     testImplementation(libs.snakeyaml)
+    testImplementation(libs.gstCatalogue)
     testImplementation(project(":console-bff-bootstrap"))
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
