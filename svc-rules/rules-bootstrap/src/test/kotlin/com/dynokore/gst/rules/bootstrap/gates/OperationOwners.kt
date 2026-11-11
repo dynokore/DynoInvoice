@@ -25,6 +25,7 @@ internal object OperationOwners {
             "operation\tgetRegulatoryPack\tINV-T-4976",
             "operation\tacknowledgePackDelta\tINV-T-4977",
             "operation\tarmRegulatoryPack\tINV-T-4977",
+            "operation\tapproveRegulatoryPack\tINV-T-4975",
             "operation\trollbackPack\tINV-T-4978",
             "operation\treprocessPopulation\tINV-T-4978",
             "operation\tdryRun\tINV-T-4974",
