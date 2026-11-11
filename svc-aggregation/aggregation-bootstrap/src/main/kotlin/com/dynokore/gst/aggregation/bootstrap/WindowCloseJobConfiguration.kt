@@ -34,7 +34,9 @@ import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
-import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.scheduling.annotation.SchedulingConfigurer
+import org.springframework.scheduling.config.CronTask
+import org.springframework.scheduling.support.CronTrigger
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
 import java.time.LocalDate
@@ -84,6 +86,7 @@ class WindowCloseJobConfiguration {
     ): JobEntitySource = OpenWindowEntitySource(scope, dsl)
 
     @Bean
+    @Suppress("LongParameterList")
     fun windowCloseJob(
         jobs: JobRuntime,
         entities: JobEntitySource,
@@ -160,14 +163,24 @@ class WindowCloseJob(
     }
 }
 
-/** The `@Scheduled` method that calls [JobRuntime.fire] on every instance; the lock makes one of them run. */
+/**
+ * The scheduled firing: one cron task that calls [JobRuntime.fire] on every instance; the lock makes one of them run.
+ * The build refuses a string attribute on `@Scheduled` (INV-Q-4690), so the task is registered through the
+ * [SchedulingConfigurer], as svc-evidence does; the cron and the zone are those of the registered definition.
+ */
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
-class WindowCloseSchedule(
-    private val job: WindowCloseJob,
-) {
-    @Scheduled(cron = WindowCloseJob.CRON, zone = WindowCloseJob.ZONE)
-    fun fire() = job.fire()
+class WindowCloseSchedule {
+    @Bean
+    fun windowCloseScheduling(job: WindowCloseJob): SchedulingConfigurer =
+        SchedulingConfigurer { registrar ->
+            registrar.addCronTask(
+                CronTask(
+                    { job.fire() },
+                    CronTrigger(WindowCloseJob.DEFINITION.schedule.cron, WindowCloseJob.DEFINITION.schedule.zone),
+                ),
+            )
+        }
 }
 
 /**
