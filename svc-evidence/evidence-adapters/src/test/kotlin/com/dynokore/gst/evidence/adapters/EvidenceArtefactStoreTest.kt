@@ -83,8 +83,17 @@ class EvidenceArtefactStoreTest {
                 ).use {
                     it.setObject(1, tenant)
                     it.executeQuery().use { rs ->
-                        generateSequence { if (rs.next()) Triple(rs.getString(1), rs.getString(2), rs.getString(3)) else null }
-                            .toList()
+                        generateSequence {
+                            if (rs.next()) {
+                                Triple(
+                                    rs.getString(1),
+                                    rs.getString(2),
+                                    rs.getString(3),
+                                )
+                            } else {
+                                null
+                            }
+                        }.toList()
                     }
                 }
         }
@@ -125,11 +134,14 @@ class EvidenceArtefactStoreTest {
         handle(tenant, envelope(tenant, "e1", data()))
         EvidenceDb.superuser().use { c ->
             c.createStatement().use {
-                it.executeQuery("select entity_ref, event_id from evidence.evidence_artefact where tenant_id = '$tenant'").use { rs ->
-                    rs.next() shouldBe true
-                    rs.getString(1) shouldBe "ENT-3F2A9C"
-                    rs.getString(2) shouldBe "e1"
-                }
+                it
+                    .executeQuery(
+                        "select entity_ref, event_id from evidence.evidence_artefact where tenant_id = '$tenant'",
+                    ).use { rs ->
+                        rs.next() shouldBe true
+                        rs.getString(1) shouldBe "ENT-3F2A9C"
+                        rs.getString(2) shouldBe "e1"
+                    }
             }
         }
     }
