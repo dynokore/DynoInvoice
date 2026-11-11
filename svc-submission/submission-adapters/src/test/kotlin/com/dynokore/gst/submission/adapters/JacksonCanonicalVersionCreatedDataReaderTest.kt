@@ -14,7 +14,8 @@ import java.time.LocalDate
 
 /**
  * The reader over a sample of platform-contracts canonical/examples/valid/, held as the constant SAMPLE below
- * (canonical-version-created-with-party-details.json, copied unchanged; no test-resource path in scope).
+ * (canonical/examples/valid/canonical-version-created-with-party-details.json of platform-contracts commit
+ * 9d2562813d16daca6be35d1ffb916c1209967c28 (9d25628), copied verbatim; no test-resource path in scope).
  * INV-AC-16339.
  */
 class JacksonCanonicalVersionCreatedDataReaderTest {
@@ -68,7 +69,7 @@ class JacksonCanonicalVersionCreatedDataReaderTest {
     }
 }
 
-/** canonical-version-created-with-party-details.json of platform-contracts, byte for byte. */
+/** canonical-version-created-with-party-details.json of platform-contracts commit 9d25628, verbatim. */
 private const val SAMPLE =
     "{\"docUuid\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"version\":1,\"docsequence\":1,\"transaction" +
         "Date\":\"2026-03-20\",\"prescribedPeriodRef\":\"2026-Q1\",\"scopeVerdict\":\"SUBMITTABLE\",\"appliedPa" +
