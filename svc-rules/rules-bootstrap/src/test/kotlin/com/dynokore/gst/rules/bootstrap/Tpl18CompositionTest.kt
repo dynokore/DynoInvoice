@@ -54,6 +54,7 @@ class Tpl18CompositionTest {
                 *listOfNotNull(accessUrl?.let { "rules.access-svc-url=$it" }).toTypedArray(), // required (TPL-16)
                 "rules.dry-run.parallelism=1", // required by the dry-run capacity (INV-T-4974)
                 "rules.dry-run.sample-wait=PT1S",
+                "rules.dry-run.retry-after=PT2S",
                 "gst.instance-id=rules-svc-0",
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",
@@ -108,6 +109,7 @@ class Tpl18CompositionTest {
                 "rules.access-svc-url=http://127.0.0.1:1", // required (TPL-16); nothing listens there
                 "rules.dry-run.parallelism=1", // required by the dry-run capacity (INV-T-4974)
                 "rules.dry-run.sample-wait=PT1S",
+                "rules.dry-run.retry-after=PT2S",
                 "gst.instance-id=rules-svc-0",
                 "service-runtime.workload-identity.audience=rules-svc",
                 "service-runtime.modules.schema=rules",

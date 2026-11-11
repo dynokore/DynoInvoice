@@ -33,6 +33,7 @@ import java.net.http.HttpResponse
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 
 private const val CONSOLE_BFF = "console-bff"
 private const val SUFFIX_ALT = "-alt"
@@ -779,3 +780,105 @@ class DryRunWithoutSampleAdapterTest(
         answer.body() shouldContain "sample"
     }
 }
+
+private const val RETRY_PROPERTY = "rules.dry-run.retry-after=PT7S"
+private const val SLOTS_PROPERTY = "rules.dry-run.parallelism=2"
+private const val FREE_SLOT_TRIES = 60
+
+/**
+ * The saturation of the dry-run lane (INV-T-4974, option A): with every slot held the next call is refused 503
+ * SRT-013 with `Retry-After`, nothing is written, and the slot comes back when a run ends. A robustness case: it
+ * carries no acceptance-criterion key.
+ */
+@SpringBootTest(
+    classes = [DryRunFixtures::class, RulesApplication::class],
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties =
+        [
+            WAIT_PROPERTY, SLOTS_PROPERTY, RETRY_PROPERTY,
+            IDEMPOTENCY, CALLER_0, SUBJECT_0, CALLER_1, SUBJECT_1,
+        ],
+)
+class DryRunSaturationTest(
+    @LocalServerPort port: Int,
+    @Autowired private val samples: FixtureHistoricalSamplePort,
+    @Autowired private val periods: FixtureLastCompletePeriodPort,
+) : DryRunSupport(port) {
+    @BeforeEach
+    @AfterEach
+    fun reset() {
+        samples.clear()
+        periods.reset()
+    }
+
+    @Test
+    fun `saturation - all slots in use refuses the next call 503 SRT-013 with Retry-After and writes nothing`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3")))
+        samples.hold = CountDownLatch(1)
+        val packs = List(3) { candidate() }
+        val ids =
+            packs.take(2).map {
+                val held = dryRun(it)
+                held.statusCode() shouldBe 202
+                held.headers().firstValue("Retry-After").get() shouldBe "7"
+                bodyOf(held).get("dryRunId").asString()
+            }
+        val before = snapshot()
+        val refusedCall = dryRun(packs[2])
+        refused(refusedCall, 503, SRT_013, before)
+        refusedCall.headers().firstValue("Retry-After").get() shouldBe "7"
+        // the slot is released when a run ends: after the held runs end the next call is accepted
+        samples.hold?.countDown()
+        ids.forEachIndexed { i, id -> pollEnd(packs[i], id).get("state").asString() shouldBe "SUCCEEDED" }
+        var accepted = 0
+        repeat(FREE_SLOT_TRIES) {
+            if (accepted == 0) {
+                val answer = dryRun(packs[2])
+                if (answer.statusCode() != 503) accepted = answer.statusCode() else Thread.sleep(POLL_MILLIS)
+            }
+        }
+        (accepted == 200 || accepted == 202) shouldBe true
+    }
+
+    private fun bodyOf(answer: HttpResponse<String>): JsonNode = mapper.readTree(answer.body())
+}
+
+/** The three properties of the lane bind the pool, the sample wait and the header: other values, other behaviour. */
+@SpringBootTest(
+    classes = [DryRunFixtures::class, RulesApplication::class],
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties =
+        [
+            "rules.dry-run.sample-wait=PT37S", "rules.dry-run.parallelism=1", "rules.dry-run.retry-after=PT3S",
+            IDEMPOTENCY, CALLER_0, SUBJECT_0, CALLER_1, SUBJECT_1,
+        ],
+)
+class DryRunLaneBindingTest(
+    @LocalServerPort port: Int,
+    @Autowired private val samples: FixtureHistoricalSamplePort,
+    @Autowired private val periods: FixtureLastCompletePeriodPort,
+) : DryRunSupport(port) {
+    @BeforeEach
+    @AfterEach
+    fun reset() {
+        samples.clear()
+        periods.reset()
+    }
+
+    @Test
+    fun `binding - the pool size, the sample wait and the Retry-After follow the properties`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3")))
+        samples.hold = CountDownLatch(1)
+        val first = candidate()
+        val second = candidate()
+        val held = dryRun(first)
+        held.statusCode() shouldBe 202
+        held.headers().firstValue("Retry-After").get() shouldBe "3"
+        val refusedCall = dryRun(second)
+        refusedCall.statusCode() shouldBe 503
+        refusedCall.headers().firstValue("Retry-After").get() shouldBe "3"
+        samples.waits.single() shouldBe java.time.Duration.ofSeconds(SAMPLE_WAIT_SECONDS)
+    }
+}
+
+private const val SAMPLE_WAIT_SECONDS = 37L

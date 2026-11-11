@@ -60,6 +60,9 @@ rules:
     # page. A sample is read from the event log page by page, so the wait is minutes, not the 2 s of the synchronous
     # answer, and still short enough that a run never outlives the 7 days a status resource is kept (API-17).
     sample-wait: PT5M
+    # Retry-After of a 202 (poll again) and of the 503 SRT-013 a call gets while every slot is in use (fail-fast load
+    # shedding, no queue): two seconds is about one synchronous wait, so a retry meets a freed slot or a finished run.
+    retry-after: PT2S
   # access-svc's base URL: required, no default; the context does not start without it (TPL-16)
   access-svc-url: ${RULES_ACCESS_SVC_URL}
 service-runtime.resilience.edges:

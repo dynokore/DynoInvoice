@@ -6,6 +6,7 @@ import com.dynokore.gst.rules.application.SamplePage
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 
 /**
  * Canned sample pages of the test composition (owner ruling INV-Q-4870 B): the documents of each period in
@@ -16,6 +17,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 class FixtureHistoricalSamplePort : HistoricalSamplePort {
     val windows = CopyOnWriteArrayList<DryRunWindow>()
     val released = CopyOnWriteArrayList<String>()
+
+    /** The `wait` each read was given (the property `rules.dry-run.sample-wait` reaches the port). */
+    val waits = CopyOnWriteArrayList<Duration>()
+
+    /** While set, every read holds its background slot until the latch opens (the saturation cases). */
+    @Volatile var hold: CountDownLatch? = null
     private val byPeriod = ConcurrentHashMap<String, List<Map<String, Any?>>>()
 
     /** Makes the read take this long, so that a run outlasts the 2,000 ms of the synchronous answer. */
@@ -38,6 +45,9 @@ class FixtureHistoricalSamplePort : HistoricalSamplePort {
         pagesOverride = null
         windows.clear()
         released.clear()
+        waits.clear()
+        hold?.countDown()
+        hold = null
     }
 
     override fun pages(
@@ -46,6 +56,8 @@ class FixtureHistoricalSamplePort : HistoricalSamplePort {
         wait: Duration,
     ): List<SamplePage> {
         windows.add(window)
+        waits.add(wait)
+        hold?.await()
         if (delayMillis > 0) Thread.sleep(delayMillis)
         pagesOverride?.let { return it }
         val periods = FixtureLastCompletePeriodPort.PERIODS

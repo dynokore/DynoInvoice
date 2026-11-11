@@ -342,7 +342,7 @@ class RulesConfiguration {
     /**
      * The background capacity of dry runs: a fixed pool of `rules.dry-run.parallelism` platform threads whose queue
      * holds no more than the pool can start, so a run never waits unbounded; a call finding no free slot is refused
-     * 503 SRT-013.
+     * 503 SRT-013 with `Retry-After` (`rules.dry-run.retry-after`).
      * The connections it takes count against the background lane of the service's one pool.
      */
     @Bean
@@ -388,6 +388,7 @@ class RulesConfiguration {
             Semaphore(environment.getRequiredProperty(DRY_RUN_PARALLELISM, Int::class.java)),
             Duration.parse(environment.getRequiredProperty(DRY_RUN_SAMPLE_WAIT)),
             SYNC_WAIT,
+            Duration.parse(environment.getRequiredProperty(DRY_RUN_RETRY_AFTER)),
         )
 
     /**
@@ -615,6 +616,7 @@ class AccessSvcEdge(
 private const val MAPPING_PACK_TYPE = "MAPPING"
 private const val DRY_RUN_PARALLELISM = "rules.dry-run.parallelism"
 private const val DRY_RUN_SAMPLE_WAIT = "rules.dry-run.sample-wait"
+private const val DRY_RUN_RETRY_AFTER = "rules.dry-run.retry-after"
 
 /** `dryRun` answers 202 when the run outlasts this (API-17, x-timeout 2000 ms of the contract). */
 private val SYNC_WAIT: Duration = Duration.ofMillis(2000)

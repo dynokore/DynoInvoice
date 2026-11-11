@@ -130,6 +130,7 @@ open class PacksController(
         ResponseEntity
             .status(refusal.status)
             .header("Content-Type", "application/problem+json")
+            .apply { refusal.retryAfterSeconds?.let { header("Retry-After", it.toString()) } }
             .body(problemBody(refusal, correlationId()))
 
     /** A body that does not match the contract (unknown enum value, malformed JSON) is SRT-001; nothing is stored. */
@@ -524,7 +525,7 @@ open class PacksController(
         ResponseEntity
             .status(HttpStatus.ACCEPTED)
             .header("Location", "/internal/v1/rules/packs/$packRef/dry-runs/${record.stored.dryRunId}")
-            .header("Retry-After", RETRY_AFTER_SECONDS)
+            .header("Retry-After", dryRuns.retryAfterSeconds.toString())
             .body(DryRunMapping.statusOf(packRef, record, correlationId())) as ResponseEntity<DryRunResult>
 
     private fun readRun(
@@ -542,7 +543,6 @@ open class PacksController(
 }
 
 private const val PACK_ID_HEX = 8
-private const val RETRY_AFTER_SECONDS = "2"
 private const val ARMED = "ARMED"
 private const val UNIQUE_VIOLATION = "23505"
 private const val LINEAGE_KEY = "pack_registry_lineage_key"

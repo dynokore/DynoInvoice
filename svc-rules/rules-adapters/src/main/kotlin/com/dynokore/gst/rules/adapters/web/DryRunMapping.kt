@@ -108,7 +108,11 @@ class DryRunCalls(
     private val capacity: Semaphore,
     private val sampleWait: Duration,
     private val syncWait: Duration,
+    retryAfter: Duration,
 ) {
+    /** `rules.dry-run.retry-after` in whole seconds (rounded up): the `Retry-After` of the 202 and of the 503. */
+    val retryAfterSeconds: Long = (retryAfter.toMillis() + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND
+
     private val log = LoggerFactory.getLogger(DryRunCalls::class.java)
 
     /** Starts the dry run of [packRef] for [window] (null: the last complete period) and waits [syncWait] for it. */
@@ -121,7 +125,9 @@ class DryRunCalls(
         val tenant = tenants.current()
         val target = transactions.inTransaction { targetOf(packRef, tenant) }
         val resolved = window ?: lastCompletePeriod(tenant, target.entityRef)
-        if (!capacity.tryAcquire()) throw unavailable("the dry-run capacity of the service is in use")
+        if (!capacity.tryAcquire()) {
+            throw unavailable("the dry-run capacity of the service is in use", retryAfterSeconds)
+        }
         var submitted = false
         try {
             val dryRunId = UUID.randomUUID().toString()
@@ -520,3 +526,5 @@ class RegistryNamedPackVersions(
         )
     }
 }
+
+private const val MILLIS_PER_SECOND = 1000L
