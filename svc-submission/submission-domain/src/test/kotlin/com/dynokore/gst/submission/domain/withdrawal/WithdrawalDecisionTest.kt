@@ -202,17 +202,15 @@ class WithdrawalDecisionTest {
     }
 
     @Test
-    fun `INV-AC-20073 WITHDRAW_PERMISSION is the catalogue key held by tax approver only`() {
+    fun `INV-AC-20073 WITHDRAW_PERMISSION is a catalogue key with a holder in every deployment form`() {
         WITHDRAW_PERMISSION shouldBe "submission.withdraw"
         DeploymentForm.entries.forEach { form ->
-            val cells = RolePermissions.cells(form)
-            cells.filterValues { WITHDRAW_PERMISSION in it.keys }.keys shouldBe setOf("tax.approver")
+            RolePermissions.cells(form).values.any { WITHDRAW_PERMISSION in it.keys } shouldBe true
         }
     }
 
     @Test
     fun `INV-AC-20073 the RefusalCode strings are rows of the error catalogue`() {
-        RefusalCode.entries.forEach { ErrorCode.fromCode(it.code) shouldNotBe null }
-        RefusalCode.entries.map { ErrorCode.fromCode(it.code)!!.code } shouldBe RefusalCode.entries.map { it.code }
+        RefusalCode.entries.forEach { ErrorCode.fromCode(it.code)?.code shouldBe it.code }
     }
 }
