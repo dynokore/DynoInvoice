@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.domain.routing
 
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
+import com.dynokore.gst.submission.domain.ordering.isTransmitted
 
 enum class ChangeClass { NON_MONETARY, IDENTITY, PERIOD_SHIFTING, MONETARY, STRUCTURAL }
 
@@ -82,33 +83,7 @@ object ArrivalRouting {
     private fun amendmentOf(earlier: List<LifecycleState>): Amendment =
         when {
             earlier.isEmpty() -> Amendment.NONE
-            earlier.any(::transmitted) -> Amendment.AFTER_TRANSMISSION
+            earlier.any(::isTransmitted) -> Amendment.AFTER_TRANSMISSION
             else -> Amendment.SUPERSEDE
-        }
-
-    /** Exhaustive over [LifecycleState]: a new member fails to compile here. */
-    private fun transmitted(state: LifecycleState): Boolean =
-        when (state) {
-            LifecycleState.SENT,
-            LifecycleState.SENT_UNCONFIRMED,
-            LifecycleState.RETRY,
-            LifecycleState.DEAD_LETTERED,
-            LifecycleState.ACKNOWLEDGED,
-            LifecycleState.SUPERSEDED,
-            LifecycleState.NETWORK_ISSUED,
-            LifecycleState.EXTERNALLY_SUBMITTED,
-            -> true
-
-            LifecycleState.READY,
-            LifecycleState.AWAITING_PRECEDING,
-            LifecycleState.QUEUED,
-            LifecycleState.REJECTED,
-            LifecycleState.CANCELLED,
-            LifecycleState.WITHDRAWN,
-            LifecycleState.INGESTED,
-            LifecycleState.HELD,
-            LifecycleState.BLOCKED,
-            LifecycleState.NOT_SUBMITTABLE,
-            -> false
         }
 }
