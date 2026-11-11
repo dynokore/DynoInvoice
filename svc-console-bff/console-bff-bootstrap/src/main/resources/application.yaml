@@ -23,6 +23,10 @@ console:
     idle-timeout: PT30M
     absolute-timeout: PT12H
     sweep-interval: PT5M
+  rate-limit: # INV-REQ-825 b5, API-30; installation settings, per window of 60 s; ready-replicas is set by the chart (INV-Q-4089)
+    per-principal: 300
+    per-tenant: 3000
+    ready-replicas: 1
 management:
   server.port: 8081 # API-33: health, metrics and diagnostics only on the management port, no token
   endpoints.web:
