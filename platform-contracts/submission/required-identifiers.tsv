@@ -237,3 +237,10 @@ disposition	property	schemas/submission-failed-payload.schema.json	INV-REQ-940
 SubmissionSummary.originalDueDate	schema_property	openapi.yaml	INV-REQ-86
 SubmissionSummary.extendedDueDate	schema_property	openapi.yaml	INV-REQ-86
 replaySubmissions.SUB-025	operation_error_code	openapi.yaml	INV-REQ-575
+entityRef	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
+periodRef	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
+queueDepth	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
+oldestUnsentAgeSeconds	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
+failureRate	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
+unacknowledgedCount	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
+measuredAt	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370

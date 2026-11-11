@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: submission events
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Every event submission produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -47,6 +47,11 @@ channels:
     messages:
       ReadinessChanged:
         $ref: '#/components/messages/ReadinessChanged'
+  submissionBacklogValuesMeasured:
+    address: 'gst.submission.backlog-values-measured.v1'
+    messages:
+      BacklogValuesMeasured:
+        $ref: '#/components/messages/BacklogValuesMeasured'
   submissionComplianceAlertValuesMeasured:
     address: 'gst.submission.compliance-alert-values-measured.v1'
     messages:
@@ -99,6 +104,13 @@ operations:
       $ref: '#/channels/submissionReadinessChanged'
     messages:
       - $ref: '#/channels/submissionReadinessChanged/messages/ReadinessChanged'
+  publishBacklogValuesMeasured:
+    action: send
+    description: BacklogValuesMeasured — the queue depth, oldest-unsent age, failure rate and unacknowledged count of an entity and period, for notification-svc (INV-REQ-1370).
+    channel:
+      $ref: '#/channels/submissionBacklogValuesMeasured'
+    messages:
+      - $ref: '#/channels/submissionBacklogValuesMeasured/messages/BacklogValuesMeasured'
   publishComplianceAlertValuesMeasured:
     action: send
     description: ComplianceAlertValuesMeasured — the alert-driving coverage and deadline values, for notification-svc (INV-REQ-1069, INV-Q-12767 A).
@@ -180,6 +192,19 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/readiness-changed-payload.schema.json'
+    BacklogValuesMeasured:
+      name: com.dynokore.gst.submission.BacklogValuesMeasured.v1
+      title: BacklogValuesMeasured
+      summary: The backlog values of an entity and period were measured (INV-REQ-1370).
+      description: >-
+        Event BacklogValuesMeasured (INV-REQ-1370; class: domain).
+        Emitted by: submission-svc. Consumed by: notification-svc. Delivery: At-least-once.
+        notification-svc compares queueDepth, oldestUnsentAgeSeconds, failureRate and unacknowledgedCount
+        with the thresholds of the entity's alert policy. No value is a metric label; entity and period
+        are payload fields.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/backlog-values-measured-payload.schema.json'
     ComplianceAlertValuesMeasured:
       name: com.dynokore.gst.submission.ComplianceAlertValuesMeasured.v1
       title: ComplianceAlertValuesMeasured

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/backlog-values-measured-payload.schema.json",
+  "title": "BacklogValuesMeasuredPayload",
+  "description": "Payload of the BacklogValuesMeasured event (INV-REQ-1370; class: domain). Delivery is at least once. No value is a metric label (Prometheus instrumentation guidance on label cardinality): entity and period are payload fields. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The registered entity."
+    },
+    "periodRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "The prescribed accounting period reference, e.g. 2026Q1."
+    },
+    "queueDepth": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of versions waiting to be sent."
+    },
+    "oldestUnsentAgeSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Age in seconds of the oldest unsent version; absent when no version is unsent."
+    },
+    "failureRate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Share of completed attempts that failed; 0 when there is no completed attempt."
+    },
+    "unacknowledgedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Submissions sent and not yet acknowledged."
+    },
+    "measuredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant the values were measured."
+    }
+  },
+  "required": [
+    "entityRef",
+    "periodRef",
+    "queueDepth",
+    "failureRate",
+    "unacknowledgedCount",
+    "measuredAt"
+  ],
+  "additionalProperties": true
+}

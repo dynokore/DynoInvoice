@@ -24,3 +24,10 @@ schemas/period-filing-status-changed-payload.schema.json	submissionLate	NONE
 schemas/period-filing-status-changed-payload.schema.json	recordedAt	NONE
 schemas/period-filing-status-changed-payload.schema.json	governingFiledAt	NONE
 schemas/period-filing-status-changed-payload.schema.json	conflict	NONE
+schemas/backlog-values-measured-payload.schema.json	entityRef	NONE
+schemas/backlog-values-measured-payload.schema.json	periodRef	NONE
+schemas/backlog-values-measured-payload.schema.json	queueDepth	NONE
+schemas/backlog-values-measured-payload.schema.json	oldestUnsentAgeSeconds	NONE
+schemas/backlog-values-measured-payload.schema.json	failureRate	NONE
+schemas/backlog-values-measured-payload.schema.json	unacknowledgedCount	NONE
+schemas/backlog-values-measured-payload.schema.json	measuredAt	NONE

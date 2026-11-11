@@ -25,3 +25,4 @@ service-runtime	schemas/certification-mark-requested-payload.schema.json
 service-runtime	schemas/connection-credential-expiry-reminder-requested-payload.schema.json
 service-runtime	schemas/operator-session-keys-changed-payload.schema.json
 service-runtime	schemas/authority-head-observed-payload.schema.json
+submission	schemas/backlog-values-measured-payload.schema.json
