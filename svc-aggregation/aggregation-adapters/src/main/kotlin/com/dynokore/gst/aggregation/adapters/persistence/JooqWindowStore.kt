@@ -67,13 +67,13 @@ class JooqWindowStore(
             Placement(window, WindowState.valueOf(stored))
         }
 
-    override fun openWindowsEndingOnOrBefore(date: LocalDate): List<OpenWindow> =
+    override fun openWindowsStartingOnOrBefore(date: LocalDate): List<OpenWindow> =
         runner.inTransaction {
             dsl
                 .selectFrom(AGGREGATE_WINDOW)
                 .where(AGGREGATE_WINDOW.TENANT_ID.eq(tenants.current().value))
                 .and(AGGREGATE_WINDOW.STATE.eq(WindowState.OPEN.name))
-                .and(AGGREGATE_WINDOW.WINDOW_END.le(date))
+                .and(AGGREGATE_WINDOW.WINDOW_START.le(date))
                 .orderBy(AGGREGATE_WINDOW.WINDOW_START, AGGREGATE_WINDOW.ENTITY_REF)
                 .fetch()
                 .map {

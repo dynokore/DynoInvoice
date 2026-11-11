@@ -4,7 +4,10 @@ import com.dynokore.gst.aggregation.adapters.persistence.JooqWindowStore
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.AggregationWindow
+import com.dynokore.gst.aggregation.domain.Cadence
+import com.dynokore.gst.aggregation.domain.WindowPart
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -13,6 +16,7 @@ import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
+import java.util.UUID
 
 /** The migration V3__aggregation_windows.sql as the database holds it (CS-19). */
 class WindowStoreTest {
@@ -73,4 +77,94 @@ class WindowStoreTest {
 
     @Test
     fun `recordLate fails closed with the INV-T-14464 token`() = failsClosed { store.recordLate(window) }
+
+    private fun d(
+        m: Int,
+        day: Int,
+    ) = LocalDate.of(2022, m, day)
+
+    /** A window store and an aggregate inserter over one runtime-role connection bound to [tenant]. */
+    private fun <T> withWindowStore(
+        tenant: UUID,
+        block: (JooqWindowStore, () -> UUID) -> T,
+    ): T =
+        AggregationDb.connect(AggregationDb.RUNTIME, AggregationDb.RUNTIME_PASSWORD).use { connection ->
+            connection.autoCommit = false
+            val runner =
+                object : TransactionRunner {
+                    override fun <R> inTransaction(block: () -> R): R {
+                        SignedBindings.bind(connection, tenant)
+                        return block().also { connection.commit() }
+                    }
+                }
+            val tenants =
+                object : TenantContext {
+                    override fun current() = TenantId(tenant)
+
+                    override fun currentActor(): String = SignedBindings.ACTOR
+
+                    override fun <R> bind(
+                        tenant: TenantId,
+                        actor: String,
+                        block: () -> R,
+                    ): R = block()
+                }
+            val dsl = DSL.using(connection, SQLDialect.POSTGRES)
+            var n = 0
+            val aggregate = {
+                val id = UUID.randomUUID()
+                n++
+                runner.inTransaction {
+                    dsl.execute(
+                        "insert into aggregation.aggregate (aggregate_id, tenant_id, entity_ref, business_unit_ref, " +
+                            "aggregate_type, period_start, period_end, sequence, source_key, source_revision, " +
+                            "entity_code, business_unit_code, document_number, issue_date, transaction_date) " +
+                            "values (?, ?, 'E-W', 'BU-W', 'POS', date '2022-03-28', date '2022-03-31', " +
+                            "nextval('aggregation.aggregate_sequence'), ?, 1, 'E', 'B', ?, date '2022-03-31', " +
+                            "date '2022-03-31')",
+                        id,
+                        tenant,
+                        "W-$id-$n",
+                        "DOC-$id",
+                    )
+                }
+                id
+            }
+            block(JooqWindowStore(dsl, runner, tenants), aggregate)
+        }
+
+    private fun place(store: JooqWindowStore): OpenWindow {
+        val placed = store.place("E-W", "BU-W", AggregateType.POS, d(3, 31), Cadence.WEEKLY)
+        return OpenWindow("E-W", "BU-W", AggregateType.POS, placed.window)
+    }
+
+    @Test
+    fun `INV-AC-20428 the store lists a weekly window from its start, not before it`() {
+        withWindowStore(UUID.randomUUID()) { store, _ ->
+            val open = place(store)
+            open.window shouldBe AggregationWindow(d(3, 28), d(4, 3))
+            store.openWindowsStartingOnOrBefore(d(3, 31)) shouldBe listOf(open)
+            store.openWindowsStartingOnOrBefore(d(3, 27)) shouldBe emptyList()
+        }
+    }
+
+    @Test
+    fun `INV-AC-20428 a window stays listed until its closed parts cover all its days`() {
+        withWindowStore(UUID.randomUUID()) { store, aggregate ->
+            val open = place(store)
+            store.closePart(open, WindowPart(d(3, 28), d(3, 31), "2022-03"), aggregate())
+            store.openWindowsStartingOnOrBefore(d(4, 3)) shouldBe listOf(open)
+            store.closePart(open, WindowPart(d(4, 1), d(4, 3), "2022-04"), aggregate())
+            store.openWindowsStartingOnOrBefore(d(4, 3)) shouldBe emptyList()
+        }
+    }
+
+    @Test
+    fun `INV-AC-20428 a window of another tenant is never listed`() {
+        val other = UUID.randomUUID()
+        withWindowStore(other) { store, _ -> place(store) }
+        withWindowStore(UUID.randomUUID()) { store, _ ->
+            store.openWindowsStartingOnOrBefore(d(4, 3)) shouldBe emptyList()
+        }
+    }
 }

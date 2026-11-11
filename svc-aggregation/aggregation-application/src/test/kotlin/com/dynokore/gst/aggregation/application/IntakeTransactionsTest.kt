@@ -30,7 +30,7 @@ class IntakeTransactionsTest {
             part: com.dynokore.gst.aggregation.domain.WindowPart,
         ) = false
 
-        override fun openWindowsEndingOnOrBefore(date: LocalDate) = emptyList<OpenWindow>()
+        override fun openWindowsStartingOnOrBefore(date: LocalDate) = emptyList<OpenWindow>()
 
         override fun closePart(
             window: OpenWindow,

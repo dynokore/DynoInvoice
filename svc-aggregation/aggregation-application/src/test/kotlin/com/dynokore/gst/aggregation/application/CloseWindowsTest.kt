@@ -66,8 +66,16 @@ class CloseWindowsTest {
             part: com.dynokore.gst.aggregation.domain.WindowPart,
         ) = closedParts.any { it.first == window && it.second == part }
 
-        override fun openWindowsEndingOnOrBefore(date: LocalDate) =
-            open.filter { it.window.end <= date && closedParts.none { c -> c.first == it } }
+        override fun openWindowsStartingOnOrBefore(date: LocalDate) =
+            open.filter { w ->
+                w.window.start <= date &&
+                    closedParts.filter { it.first == w }.sumOf {
+                        it.second.end.toEpochDay() -
+                            it.second.start.toEpochDay() +
+                            1
+                    } <
+                    w.window.end.toEpochDay() - w.window.start.toEpochDay() + 1
+            }
 
         override fun closePart(
             window: OpenWindow,
@@ -216,7 +224,7 @@ class CloseWindowsTest {
             part: com.dynokore.gst.aggregation.domain.WindowPart,
         ) = true
 
-        override fun openWindowsEndingOnOrBefore(date: LocalDate) = open
+        override fun openWindowsStartingOnOrBefore(date: LocalDate) = open
 
         override fun closePart(
             window: OpenWindow,
@@ -246,5 +254,59 @@ class CloseWindowsTest {
         f.repo.rows.shouldBeEmpty()
         f.published.changes.shouldBeEmpty()
         f.windows.closedParts.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-20428 a part ending on the tick closes alone and the later part stays open`() {
+        val f = Fixture(listOf(window(Cadence.WEEKLY, d(3, 30))), PeriodSpans.Known(monthly))
+        val result = f.run.execute(d(3, 31))
+        result.closed.size shouldBe 1
+        result.closed.single().let {
+            (it.part.start to it.part.end) shouldBe (d(3, 29) to d(3, 31))
+            it.state shouldBe WindowState.CLOSED
+        }
+        f.repo.rows
+            .single()
+            .aggregate.periodEnd shouldBe d(3, 31)
+        f.published.changes.size shouldBe 1
+        f.windows.closedParts.size shouldBe 1
+        f.repo.rows.none { it.aggregate.periodStart == d(4, 1) } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-20428 the later part closes on the next tick and the first is not closed again`() {
+        val f = Fixture(listOf(window(Cadence.WEEKLY, d(3, 30))), PeriodSpans.Known(monthly))
+        f.run.execute(d(3, 31))
+        val firstId =
+            f.repo.rows
+                .single()
+                .aggregateId
+        val second = f.run.execute(d(4, 4))
+        second.closed.map { it.part.start to it.part.end } shouldBe listOf(d(4, 1) to d(4, 4))
+        f.repo.rows.size shouldBe 2
+        f.published.changes.size shouldBe 2
+        f.repo.rows
+            .first()
+            .aggregateId shouldBe firstId
+    }
+
+    @Test
+    fun `INV-AC-20428 a tick one day before the part end closes nothing`() {
+        val f = Fixture(listOf(window(Cadence.WEEKLY, d(3, 30))), PeriodSpans.Known(monthly))
+        f.run
+            .execute(d(3, 30))
+            .closed
+            .shouldBeEmpty()
+        f.repo.rows.shouldBeEmpty()
+        f.published.changes.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-20428 a window ending after the tick with unknown spans is neither closed nor held`() {
+        val f = Fixture(listOf(window(Cadence.MONTHLY, d(4, 10))), PeriodSpans.Unknown)
+        val result = f.run.execute(d(4, 29))
+        result.held.shouldBeEmpty()
+        result.closed.shouldBeEmpty()
+        f.repo.rows.shouldBeEmpty()
     }
 }

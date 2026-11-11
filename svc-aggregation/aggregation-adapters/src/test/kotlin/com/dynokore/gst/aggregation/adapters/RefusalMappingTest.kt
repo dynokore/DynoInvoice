@@ -41,7 +41,7 @@ class RefusalMappingTest {
                 WindowState.OPEN,
             )
 
-            override fun openWindowsEndingOnOrBefore(date: LocalDate) =
+            override fun openWindowsStartingOnOrBefore(date: LocalDate) =
                 emptyList<com.dynokore.gst.aggregation.application.OpenWindow>()
 
             override fun isPartClosed(

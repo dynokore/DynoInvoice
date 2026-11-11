@@ -61,8 +61,11 @@ interface WindowRepository {
         cadence: Cadence,
     ): Placement
 
-    /** The open windows whose end is on or before [date]. */
-    fun openWindowsEndingOnOrBefore(date: LocalDate): List<OpenWindow>
+    /**
+     * The open windows whose start is on or before [date]; a window stays listed until its closed parts cover all
+     * its days.
+     */
+    fun openWindowsStartingOnOrBefore(date: LocalDate): List<OpenWindow>
 
     /** Whether [part] of [window] is already closed; a window stays listed as open until all its parts are. */
     fun isPartClosed(
