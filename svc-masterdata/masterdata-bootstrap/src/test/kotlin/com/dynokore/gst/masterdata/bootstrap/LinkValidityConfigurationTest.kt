@@ -48,14 +48,23 @@ class LinkValidityConfigurationTest {
                 Triple("-P7D", "P30D", defaultKey),
                 Triple("P7D", "-P30D", maxKey),
                 Triple("PT36H", "P30D", defaultKey),
+                Triple("P1D", "PT36H", maxKey),
                 Triple("P31D", "P30D", defaultKey),
             )
         bad.forEach { (default, max, key) ->
             assertThatThrownBy { ConfiguredLinkValidityLimits.of(default, max) }
                 .describedAs("default=$default max=$max")
-                .isInstanceOf(IllegalStateException::class.java)
+                .isInstanceOf(LinkValidityConfigurationException::class.java)
                 .hasMessageContaining(key)
+                .extracting { (it as LinkValidityConfigurationException).key }
+                .isEqualTo(key)
         }
+    }
+
+    @Test
+    fun `INV-AC-18555 PT24H is accepted as one day`() {
+        assertThat(ConfiguredLinkValidityLimits.of("PT24H", "P30D").defaultDays).isEqualTo(1)
+        assertThat(ConfiguredLinkValidityLimits.of("P1D", "PT720H").maxDays).isEqualTo(30)
     }
 
     @Test

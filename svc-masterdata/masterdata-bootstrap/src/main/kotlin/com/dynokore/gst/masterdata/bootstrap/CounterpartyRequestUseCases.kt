@@ -32,6 +32,12 @@ import java.time.Clock
 import java.time.Duration
 import java.time.format.DateTimeParseException
 
+/** The start-up configuration error of a link validity key; [key] names the property that is wrong. */
+class LinkValidityConfigurationException(
+    val key: String,
+    message: String,
+) : IllegalStateException(message)
+
 /**
  * The link validity limits of the installation, read from configuration (INV-AC-18555, owner answer relayed 2026-11-08:
  * default 7 days, maximum 30 days, configurable, never code). The two keys are ISO-8601 durations of whole days; the
@@ -59,7 +65,12 @@ class ConfiguredLinkValidityLimits private constructor(
         ): ConfiguredLinkValidityLimits {
             val default = days(DEFAULT_KEY, defaultText)
             val max = days(MAX_KEY, maxText)
-            check(default <= max) { "$DEFAULT_KEY ($defaultText) is greater than $MAX_KEY ($maxText)" }
+            if (default > max) {
+                throw LinkValidityConfigurationException(
+                    DEFAULT_KEY,
+                    "$DEFAULT_KEY ($defaultText) is greater than $MAX_KEY ($maxText)",
+                )
+            }
             return ConfiguredLinkValidityLimits(default, max)
         }
 
@@ -67,19 +78,26 @@ class ConfiguredLinkValidityLimits private constructor(
             key: String,
             text: String?,
         ): Long {
-            check(!text.isNullOrBlank()) { "$key is not configured" }
+            if (text.isNullOrBlank()) invalid(key, "$key is not configured")
             val duration =
                 try {
                     Duration.parse(text.trim())
                 } catch (_: DateTimeParseException) {
-                    error("$key is not an ISO-8601 duration: $text")
+                    invalid(key, "$key is not an ISO-8601 duration: $text")
                 }
-            check(!duration.isNegative && !duration.isZero) { "$key must be positive: $text" }
-            check(duration.toDaysPart() * SECONDS_PER_DAY == duration.seconds && duration.nano == 0) {
-                "$key must be a whole number of days: $text"
+            if (duration.isNegative || duration.isZero) {
+                invalid(key, "$key must be positive: $text")
+            }
+            if (duration.toDaysPart() * SECONDS_PER_DAY != duration.seconds || duration.nano != 0) {
+                invalid(key, "$key must be a whole number of days: $text")
             }
             return duration.toDays()
         }
+
+        private fun invalid(
+            key: String,
+            message: String,
+        ): Nothing = throw LinkValidityConfigurationException(key, message)
 
         private const val SECONDS_PER_DAY = 86_400L
     }
