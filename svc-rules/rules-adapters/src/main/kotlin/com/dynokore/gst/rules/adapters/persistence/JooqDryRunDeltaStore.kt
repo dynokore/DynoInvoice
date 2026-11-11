@@ -16,6 +16,8 @@ import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.PeriodDelta
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.Record
 import org.jooq.impl.DSL
 import java.math.BigDecimal
 import java.time.Instant
@@ -80,14 +82,30 @@ class JooqDryRunDeltaStore(
             }
             delta.changeTypeTotals.forEachIndexed { index, t ->
                 insertTotal(
-                    tx, tenant, id, CHANGE_TYPE, t.changeType.name, index + 1,
-                    t.documentCount, t.valuesAbsentCount, t.taxableValue, t.gstValue,
+                    tx,
+                    tenant,
+                    id,
+                    CHANGE_TYPE,
+                    t.changeType.name,
+                    index + 1,
+                    t.documentCount,
+                    t.valuesAbsentCount,
+                    t.taxableValue,
+                    t.gstValue,
                 )
             }
             delta.byPeriod.forEachIndexed { index, p ->
                 insertTotal(
-                    tx, tenant, id, PERIOD, p.periodRef, index + 1,
-                    p.documentCount, p.valuesAbsentCount, p.taxableValue, p.gstValue,
+                    tx,
+                    tenant,
+                    id,
+                    PERIOD,
+                    p.periodRef,
+                    index + 1,
+                    p.documentCount,
+                    p.valuesAbsentCount,
+                    p.taxableValue,
+                    p.gstValue,
                 )
             }
             val updated =
@@ -155,10 +173,10 @@ class JooqDryRunDeltaStore(
                 .where(DRY_RUN_DELTA.ID.eq(id))
                 .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
                 .fetchOne() ?: return null
-        val state = DryRunState.valueOf(run.state!!)
+        val state = DryRunState.valueOf(run.req(DRY_RUN_DELTA.STATE))
         return StoredDryRun(
             dryRunId = id.toString(),
-            startedBy = run.startedBy!!,
+            startedBy = run.req(DRY_RUN_DELTA.STARTED_BY),
             state = state,
             reason = run.unavailableReason,
             delta = if (state == DryRunState.COMPLETE) rebuild(id) else null,
@@ -175,21 +193,26 @@ class JooqDryRunDeltaStore(
         val documents =
             rows.map { r ->
                 ChangedDocument(
-                    docUuid = r.docUuid!!.toString(),
-                    periodRef = r.periodRef!!,
-                    transactionDate = r.transactionDate!!,
+                    docUuid = r.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString(),
+                    periodRef = r.req(DRY_RUN_DELTA_DOCUMENT.PERIOD_REF),
+                    transactionDate = r.req(DRY_RUN_DELTA_DOCUMENT.TRANSACTION_DATE),
                     precedingDocumentDate = r.precedingDocumentDate,
-                    documentFunction = r.documentFunction!!,
+                    documentFunction = r.req(DRY_RUN_DELTA_DOCUMENT.DOCUMENT_FUNCTION),
                     supplyType = r.supplyType,
-                    oldOutcome = DocumentOutcome(r.oldCode!!, r.oldSeverity),
-                    newOutcome = DocumentOutcome(r.newCode!!, r.newSeverity),
-                    changeType = ChangeType.valueOf(r.changeType!!),
-                    taxableValue = r.taxableValue!!.toPlainString(),
-                    gstValue = r.gstValue!!.toPlainString(),
-                    sgdValuesAbsent = r.valuesAbsent!!,
+                    oldOutcome = DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.OLD_CODE), r.oldSeverity),
+                    newOutcome = DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.NEW_CODE), r.newSeverity),
+                    changeType = ChangeType.valueOf(r.req(DRY_RUN_DELTA_DOCUMENT.CHANGE_TYPE)),
+                    taxableValue = r.req(DRY_RUN_DELTA_DOCUMENT.TAXABLE_VALUE).toPlainString(),
+                    gstValue = r.req(DRY_RUN_DELTA_DOCUMENT.GST_VALUE).toPlainString(),
+                    sgdValuesAbsent = r.req(DRY_RUN_DELTA_DOCUMENT.VALUES_ABSENT),
                 )
             }
-        val straddling = rows.filter { it.straddlingCreditNote!! }.map { it.docUuid!!.toString() }.toSet()
+        val straddling =
+            rows
+                .filter {
+                    it.req(DRY_RUN_DELTA_DOCUMENT.STRADDLING_CREDIT_NOTE)
+                }.map { it.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString() }
+                .toSet()
         val totals =
             dsl
                 .selectFrom(DRY_RUN_DELTA_TOTAL)
@@ -202,21 +225,21 @@ class JooqDryRunDeltaStore(
             changeTypeTotals =
                 totals.filter { it.kind == CHANGE_TYPE }.map {
                     ChangeTypeTotal(
-                        ChangeType.valueOf(it.key!!),
-                        it.documentCount!!,
-                        it.taxableValue!!.toPlainString(),
-                        it.gstValue!!.toPlainString(),
-                        it.valuesAbsentCount!!,
+                        ChangeType.valueOf(it.req(DRY_RUN_DELTA_TOTAL.KEY)),
+                        it.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
+                        it.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
+                        it.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
+                        it.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
                     )
                 },
             byPeriod =
                 totals.filter { it.kind == PERIOD }.map {
                     PeriodDelta(
-                        it.key!!,
-                        it.documentCount!!,
-                        it.taxableValue!!.toPlainString(),
-                        it.gstValue!!.toPlainString(),
-                        it.valuesAbsentCount!!,
+                        it.req(DRY_RUN_DELTA_TOTAL.KEY),
+                        it.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
+                        it.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
+                        it.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
+                        it.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
                     )
                 },
             straddlingCreditNotes = documents.filter { it.docUuid in straddling }.map(::listing),
@@ -224,7 +247,7 @@ class JooqDryRunDeltaStore(
         )
     }
 
-    /** The listing of a changed document, as the computation builds it: money is `0.00` and the flag true when flagged. */
+    /** The listing of a changed document as the computation builds it: `0.00` money and a true flag when flagged. */
     private fun listing(d: ChangedDocument) =
         DeltaListing(
             d.docUuid,
@@ -237,6 +260,8 @@ class JooqDryRunDeltaStore(
             d.supplyType,
             if (d.sgdValuesAbsent) true else null,
         )
+
+    private fun <T : Any> Record.req(field: Field<T?>): T = checkNotNull(get(field)) { "${field.name} is null" }
 
     private companion object {
         const val CHANGE_TYPE = "CHANGE_TYPE"

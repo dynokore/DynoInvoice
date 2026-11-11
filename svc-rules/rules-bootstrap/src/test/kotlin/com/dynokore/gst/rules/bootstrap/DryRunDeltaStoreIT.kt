@@ -35,8 +35,13 @@ import java.util.UUID
 
 private const val COUNT_DOCUMENTS = "select count(*) from rules.dry_run_delta_document where delta_id = ?::uuid"
 private const val COUNT_TOTALS = "select count(*) from rules.dry_run_delta_total where delta_id = ?::uuid"
+private const val CHANGED_COUNT = "select changed_count from rules.dry_run_delta where id = ?::uuid"
+private const val UPDATE_RUN = "update rules.dry_run_delta set started_by = 'user-b' where id = ?::uuid returning id"
+private const val DELETE_RUN = "delete from rules.dry_run_delta where id = ?::uuid returning id"
 private const val STATE = "select state from rules.dry_run_delta where id = ?::uuid"
-private const val PACK_VERSION = "select pack_version from rules.pack_registry where tenant_id = ?::uuid and pack_id = ?"
+private const val PACK_VERSION =
+    "select pack_version from rules.pack_registry where tenant_id = ?::uuid and pack_id = ?"
+private const val ENGINE = "1.0.0"
 private const val EFFECTIVE_FROM = "2026-02-01"
 
 /**
@@ -70,19 +75,27 @@ class DryRunDeltaStoreIT(
         period: String,
         date: String,
         function: String,
-        preceding: String?,
         flagged: Boolean,
     ) = SampledDocument(
-        1, 1, uuid, period, "E-1", LocalDate.parse(date), "STD", function, preceding?.let(LocalDate::parse),
-        "STANDARD", flagged,
+        1,
+        1,
+        uuid,
+        period,
+        "E-1",
+        LocalDate.parse(date),
+        "STD",
+        function,
+        if (function == "ADJUSTMENT") LocalDate.parse("2026-01-20") else null,
+        "STANDARD",
+        flagged,
         if (flagged) BigDecimal("0.00") else BigDecimal("100.00"),
         if (flagged) BigDecimal("0.00") else BigDecimal("9.00"),
     )
 
-    /** Two changed documents in two periods: an ordinary one, and a flagged credit note that straddles the pack date. */
+    /** Two changed documents in two periods: an ordinary one and a flagged credit note straddling the pack date. */
     private fun twoDocumentDelta(): DryRunDelta {
-        val first = document(UUID.randomUUID().toString(), "2026-01", "2026-01-10", "INVOICE", null, false)
-        val second = document(UUID.randomUUID().toString(), "2026-02", "2026-02-10", "ADJUSTMENT", "2026-01-20", true)
+        val first = document(UUID.randomUUID().toString(), "2026-01", "2026-01-10", "INVOICE", false)
+        val second = document(UUID.randomUUID().toString(), "2026-02", "2026-02-10", "ADJUSTMENT", true)
         return DryRunComputation.delta(
             listOf(
                 Triple(first, DocumentOutcome("SR"), DocumentOutcome("ZR")),
@@ -119,14 +132,15 @@ class DryRunDeltaStoreIT(
         stored.delta!!.changeTypeTotals shouldBe delta.changeTypeTotals
         stored.delta!!.straddlingCreditNotes.size shouldBe 1
         count(COUNT_DOCUMENTS, id) shouldBe "2"
-        runtime.inTenant(tenant) { fetchValue("select changed_count from rules.dry_run_delta where id = ?::uuid", id) } shouldBe 2
+        count(CHANGED_COUNT, id) shouldBe "2"
     }
 
     @Test
     fun `INV-AC-19904 probe - a second document row that violates a constraint leaves the run RUNNING with no rows`() {
         val id = UUID.randomUUID().toString()
         val delta = twoDocumentDelta()
-        val duplicate = delta.copy(documents = delta.documents.map { it.copy(docUuid = delta.documents.first().docUuid) })
+        val sameUuid = delta.documents.first().docUuid
+        val duplicate = delta.copy(documents = delta.documents.map { it.copy(docUuid = sameUuid) })
         asTenant { store.begin(start(id)) }
         val refused = shouldThrow<Throwable> { asTenant { store.complete(id, Instant.now(), duplicate) } }
         message(refused) shouldContain "dry_run_delta_document"
@@ -157,12 +171,12 @@ class DryRunDeltaStoreIT(
         val update =
             shouldThrow<Throwable> {
                 runtime.inTenant(tenant) {
-                    fetchValue("update rules.dry_run_delta set started_by = 'user-b' where id = ?::uuid returning id", id)
+                    fetchValue(UPDATE_RUN, id)
                 }
             }
         message(update) shouldContain "a complete dry-run delta is never updated or deleted"
         shouldThrow<Throwable> {
-            runtime.inTenant(tenant) { fetchValue("delete from rules.dry_run_delta where id = ?::uuid returning id", id) }
+            runtime.inTenant(tenant) { fetchValue(DELETE_RUN, id) }
         }
         shouldThrow<Throwable> { asTenant { store.complete(id, Instant.now(), twoDocumentDelta()) } }
         count(STATE, id) shouldBe "COMPLETE"
@@ -186,13 +200,13 @@ class DryRunDeltaStoreIT(
     }
 
     @Test
-    fun `INV-AC-19904 the qualifying port finds the COMPLETE run and not the SAMPLE_UNAVAILABLE run of the same version`() {
+    fun `INV-AC-19904 the qualifying port finds the COMPLETE run and not the unavailable run of the version`() {
         val packId = "pack-" + UUID.randomUUID().toString().take(8)
         val packs =
             JooqMappingPackStore(
                 db,
                 tenants,
-                EngineVersion(BuildProperties(Properties().apply { setProperty("version", "1.0.0") })),
+                EngineVersion(BuildProperties(Properties().apply { setProperty("version", ENGINE) })),
                 Clock.systemUTC(),
             )
         asTenant { packs.draft(MappingPackDraft(packId, tenant, "E-1", packId, "rules-actor", PackStatus.DRAFT)) }
