@@ -117,14 +117,26 @@ object OperatorAccess {
         requester: IdentityRef,
         tenant: TenantRef,
         at: Instant,
-    ): Boolean =
-        records.any {
-            it.kind == ElevationKind.ELEVATION &&
-                it.requester == requester &&
-                it.tenant == tenant &&
-                it.subject == tenant.value &&
-                it.opensAccessAt(at)
-        }
+    ): Boolean = openElevation(records, requester, tenant, at) != null
+
+    /**
+     * The approved, unexpired elevation of [requester] for [tenant] at [at]; when several are open, the one that ends
+     * last (ties by reference), so the choice does not depend on the order of [records].
+     */
+    fun openElevation(
+        records: List<ElevationRecord>,
+        requester: IdentityRef,
+        tenant: TenantRef,
+        at: Instant,
+    ): ElevationRecord? =
+        records
+            .filter {
+                it.kind == ElevationKind.ELEVATION &&
+                    it.requester == requester &&
+                    it.tenant == tenant &&
+                    it.subject == tenant.value &&
+                    it.opensAccessAt(at)
+            }.maxWithOrNull(compareBy<ElevationRecord>({ it.window?.until }, { it.ref }))
 
     /** An approved, unexpired diagnostic invitation of [requester] for the data of [tenant] exists (INV-Q-15952 A). */
     fun invited(
@@ -162,4 +174,10 @@ object OperatorSessionAccess {
             in OperatorAccess.OPENED_BY_ELEVATION -> elevated
             else -> false
         }
+
+    /** The metadata keys a session of the role holds, sorted: the keys of [OperatorAccess.SESSION_METADATA] it allows. */
+    fun metadataKeys(roleCell: (Permission) -> Allowance?): List<Permission> =
+        OperatorAccess.SESSION_METADATA
+            .filter { allows(roleCell, it, elevated = false) }
+            .sortedBy { it.value }
 }

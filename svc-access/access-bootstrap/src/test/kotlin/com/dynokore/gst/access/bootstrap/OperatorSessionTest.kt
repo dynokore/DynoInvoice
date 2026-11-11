@@ -245,6 +245,7 @@ class OperatorSessionTest {
     ) {
         Collector().use { collector ->
             val mount = BoundaryFixture.mountOperator(operatorKey, next)
+            BoundaryFixture.deleteOperatorVerificationKeys()
             BoundaryFixture
                 .runner(catalogueMatrix = true, form = form, mounted = mount, requirements = null)
                 .withPropertyValues(
@@ -385,7 +386,7 @@ class OperatorSessionTest {
         }
 
     @Test
-    fun `content mode is MASKED without an elevation and ELEVATED during one, only for its holder`() =
+    fun `INV-AC-922 content mode is MASKED without an elevation and ELEVATED during one, only for its holder`() =
         run { env, _ ->
             assertThat(env.open(env.support).contentMode).isEqualTo(OperatorSessionResponse.ContentMode.MASKED)
             env.elevate(env.support)
@@ -394,6 +395,125 @@ class OperatorSessionTest {
             env.clock.advance(Duration.ofMinutes(31))
             assertThat(env.open(env.support).contentMode).isEqualTo(OperatorSessionResponse.ContentMode.MASKED)
         }
+
+    private class OutboxRow(
+        val tenant: String,
+        val entity: String,
+        val subject: String,
+        val topic: String,
+        val type: String,
+        val data: tools.jackson.databind.JsonNode,
+    )
+
+    private fun outboxRows(
+        where: String,
+        vararg args: String,
+    ): List<OutboxRow> =
+        BoundaryFixture.asSuperuser { c ->
+            c
+                .prepareStatement(
+                    "select tenant_id::text, entity_ref, subject, topic, type, data::text from access.outbox " +
+                        "where $where order by seq",
+                ).use { st ->
+                    args.forEachIndexed { i, v -> st.setString(i + 1, v) }
+                    st.executeQuery().use { rs ->
+                        buildList {
+                            while (rs.next()) {
+                                add(
+                                    OutboxRow(
+                                        rs.getString(1),
+                                        rs.getString(2),
+                                        rs.getString(3),
+                                        rs.getString(4),
+                                        rs.getString(5),
+                                        mapper.readTree(rs.getString(6)),
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+        }
+
+    private fun accessRecords(
+        env: Env,
+        operator: String,
+    ) = outboxRows(
+        "tenant_id = ?::uuid and type = 'com.dynokore.gst.platform.AuthorityChanged.v1' and subject = ? " +
+            "and data->>'changeKind' = 'OPERATOR_ACCESS'",
+        env.a.toString(),
+        operator,
+    )
+
+    @Test
+    fun `INV-AC-922 the operator access record is appended for the tenant with the claims, masked without elevation`() =
+        run { env, _ ->
+            val opened = env.open(env.support)
+            val claims = SignedJWT.parse(opened.token).jwtClaimsSet
+            val row = accessRecords(env, env.support).single()
+            assertThat(row.data["principalRef"].asString()).isEqualTo(env.support)
+            assertThat(row.data["authorityVersion"].asLong()).isPositive()
+            val record = row.data["operatorAccessRecord"]
+            assertThat(record["caseRef"].asString()).isEqualTo(claims.getJSONObjectClaim("act")["case"])
+            assertThat(record["role"].asString()).isEqualTo(claims.getJSONObjectClaim("act")["role"])
+            assertThat(record["state"].asString()).isEqualTo("ACTIVE")
+            assertThat(record["permissions"].toList().map { it.asString() })
+                .containsExactlyInAnyOrder("submission.view-status", "period-readiness.view")
+            assertThat(java.time.Instant.parse(record["validUntil"].asString()))
+                .isEqualTo(claims.expirationTime.toInstant())
+            assertThat(record.has("elevation")).isFalse()
+        }
+
+    @Test
+    fun `INV-AC-922 the operator access record carries the approved elevation exactly when the session is elevated`() =
+        run { env, _ ->
+            env.elevate(env.support, minutes = 30)
+            val opened = env.open(env.support)
+            assertThat(opened.contentMode).isEqualTo(OperatorSessionResponse.ContentMode.ELEVATED)
+            val claims = SignedJWT.parse(opened.token).jwtClaimsSet
+            val record = accessRecords(env, env.support).single().data["operatorAccessRecord"]
+            assertThat(record["permissions"].toList().map { it.asString() }).doesNotContain("doc.view.content")
+            val elevation = record["elevation"]
+            assertThat(elevation["elevationRef"].asString()).startsWith("ELV-")
+            assertThat(java.time.Instant.parse(record["validUntil"].asString()))
+                .isEqualTo(claims.expirationTime.toInstant())
+            assertThat(java.time.Instant.parse(elevation["validUntil"].asString()))
+                .isAfter(java.time.Instant.parse(elevation["validFrom"].asString()))
+            // a platform engineer holds no elevation cell: masked, so no elevation object
+            env.open(env.engineer)
+            assertThat(accessRecords(env, env.engineer).single().data["operatorAccessRecord"].has("elevation"))
+                .isFalse()
+        }
+
+    @Test
+    fun `a refused call writes no operator access record and no audit entry`() =
+        run { env, _ ->
+            env.refusal(env.stranger)
+            env.refusal(env.support, tenantRef = "not-a-tenant")
+            assertThat(accessRecords(env, env.stranger)).isEmpty()
+            assertThat(accessRecords(env, env.support)).isEmpty()
+            assertThat(env.auditRows("openOperatorSession")).isEmpty()
+        }
+
+    @Test
+    fun `the key set record is a platform event under the platform tenant, published again only when the set changes`() {
+        val current = TestSecrets.newSigningKey()
+        val next = TestSecrets.newSigningKey()
+        run(operatorKey = current, next = next) { env, _ ->
+            val before = outboxRows("type like '%OperatorSessionKeysChanged%'").size
+            env.open(env.support)
+            val rows = outboxRows("type like '%OperatorSessionKeysChanged%'")
+            assertThat(rows).hasSize(before + 1)
+            val row = rows.last()
+            assertThat(row.type).isEqualTo("com.dynokore.gst.platform.OperatorSessionKeysChanged.v1")
+            assertThat(row.topic).isEqualTo("gst.platform.operator-session-keys-changed.v1")
+            assertThat(row.tenant).isEqualTo(platform)
+            assertThat(row.subject).isEqualTo("operator-session-keys")
+            assertThat(row.data["keys"].toList().size).isBetween(1, 4)
+            env.open(env.support)
+            assertThat(outboxRows("type like '%OperatorSessionKeysChanged%'")).hasSize(before + 1)
+        }
+    }
 
     @Test
     fun `an elevation for another tenant keeps the content masked`() =

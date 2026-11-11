@@ -406,6 +406,14 @@ object BoundaryFixture {
             }
         }
 
+    /** Removes the published operator-session keys of earlier tests, so a test can state the exact set (INV-T-4154). */
+    fun deleteOperatorVerificationKeys() =
+        asSuperuser {
+            it.createStatement().use { statement ->
+                statement.execute("DELETE FROM access.verification_key WHERE use = 'OPERATOR_SESSION'")
+            }
+        }
+
     /** A connection as the runtime login with nothing bound: forced row-level security hides every row. */
     fun <T> asRuntime(block: (java.sql.Connection) -> T): T =
         DriverManager.getConnection(container.jdbcUrl, "access_runtime", RUNTIME_PASSWORD).use(block)

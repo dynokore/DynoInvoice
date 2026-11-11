@@ -1,13 +1,17 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.events.OperatorAccessOutbox
 import com.dynokore.gst.access.adapters.events.OperatorSessionKeysChangedOutbox
+import com.dynokore.gst.access.adapters.persistence.JooqAuthorityVersions
 import com.dynokore.gst.access.adapters.persistence.JooqOperatorKeyPublication
 import com.dynokore.gst.access.adapters.structure.ReplicaTenantDirectory
 import com.dynokore.gst.access.adapters.token.NimbusOperatorKeys
 import com.dynokore.gst.access.application.elevation.ElevationCallers
 import com.dynokore.gst.access.application.elevation.Elevations
 import com.dynokore.gst.access.application.grant.GrantAudit
+import com.dynokore.gst.access.application.operatorsession.AuthorityVersions
 import com.dynokore.gst.access.application.operatorsession.OpenOperatorSessionUseCase
+import com.dynokore.gst.access.application.operatorsession.OperatorAccessPublisher
 import com.dynokore.gst.access.application.operatorsession.OperatorKeyPublication
 import com.dynokore.gst.access.application.operatorsession.OperatorKeys
 import com.dynokore.gst.access.application.operatorsession.TenantDirectory
@@ -54,6 +58,15 @@ class OperatorSessionUseCases {
         )
 
     @Bean
+    fun operatorAccessPublisher(
+        outbox: OutboxWriter,
+        mapper: ObjectMapper,
+    ): OperatorAccessPublisher = OperatorAccessOutbox(outbox, mapper)
+
+    @Bean
+    fun authorityVersions(dsl: DSLContext): AuthorityVersions = JooqAuthorityVersions(dsl)
+
+    @Bean
     fun tenantDirectory(structure: StructureReplica): TenantDirectory = ReplicaTenantDirectory(structure)
 
     @Bean
@@ -69,6 +82,8 @@ class OperatorSessionUseCases {
         dependencies: GrantDependencies,
         settings: TokenSettings,
         clock: Clock,
+        accessRecords: OperatorAccessPublisher,
+        versions: AuthorityVersions,
     ) = OpenOperatorSessionUseCase(
         callers,
         directory,
@@ -80,5 +95,7 @@ class OperatorSessionUseCases {
         dependencies.matrix,
         settings,
         clock,
+        accessRecords,
+        versions,
     )
 }

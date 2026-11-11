@@ -3,6 +3,7 @@ package com.dynokore.gst.access.adapters.events
 import com.dynokore.gst.access.adapters.persistence.InstallationRoleGrantRow
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.grant.RoleGrantChange
+import com.dynokore.gst.access.application.operatorsession.OperatorAccessRecord
 import com.dynokore.gst.access.domain.consent.ConsentStatus
 import com.dynokore.gst.access.domain.consent.ScopeItem
 import tools.jackson.databind.ObjectMapper
@@ -86,6 +87,31 @@ class AuthorityChangedPayloads(
         root.put("authorityVersion", authorityVersion)
         root.putObject("validity").put("from", ISO.format(validFrom.atOffset(ZoneOffset.UTC)))
         root.putObject("principalRecord").put("state", "REVOKED")
+        return root
+    }
+
+    /**
+     * An OPERATOR_ACCESS record (INV-Q-16496 A): the access of one operator session in the envelope tenant, keyed on
+     * the case. `doc.view.content` is never in `permissions`; `elevation` is present only for an elevated session.
+     */
+    fun operatorAccess(record: OperatorAccessRecord): ObjectNode {
+        val root = mapper.createObjectNode()
+        root.put("changeKind", "OPERATOR_ACCESS")
+        root.put("principalRef", record.operatorRef)
+        root.put("authorityVersion", record.authorityVersion)
+        val node = root.putObject("operatorAccessRecord")
+        node.put("caseRef", record.caseRef)
+        node.put("role", record.role)
+        node.put("state", "ACTIVE")
+        val permissions = node.putArray("permissions")
+        record.permissions.forEach { permissions.add(it) }
+        node.put("validUntil", ISO.format(record.validUntil.atOffset(ZoneOffset.UTC)))
+        record.elevation?.let {
+            val elevation = node.putObject("elevation")
+            elevation.put("elevationRef", it.elevationRef)
+            elevation.put("validFrom", ISO.format(it.validFrom.atOffset(ZoneOffset.UTC)))
+            elevation.put("validUntil", ISO.format(it.validUntil.atOffset(ZoneOffset.UTC)))
+        }
         return root
     }
 

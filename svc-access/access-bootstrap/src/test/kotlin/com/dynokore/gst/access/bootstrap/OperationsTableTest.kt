@@ -254,6 +254,25 @@ class OperationsTableTest {
     }
 
     @Test
+    fun `INV-T-4154 the rows openOperatorSession and accessOperatorSessionKeysChanged are done, and a row still open fails`() {
+        fun findings(lines: List<String>): List<String> {
+            val rows = rows(lines).first.associateBy { it.kind to it.name }
+            return listOf("operation" to "openOperatorSession", "channel" to "accessOperatorSessionKeysChanged")
+                .mapNotNull { key ->
+                    val row = rows[key]
+                    if (row?.task == "INV-T-4154" && row.state == "done") null else "${key.first} ${key.second}: not done"
+                }
+        }
+        assertThat(findings(table)).isEmpty()
+        listOf("openOperatorSession", "accessOperatorSessionKeysChanged").forEach { name ->
+            val open = table.map { it.replace(Regex("^(\\w+\\t$name\\tINV-T-4154\\t)done"), "$1open") }
+            assertThat(findings(open)).containsExactly(
+                (if (name == "openOperatorSession") "operation" else "channel") + " $name: not done",
+            )
+        }
+    }
+
+    @Test
     fun `the task column of the rows INV-T-4938 names is INV-T-4938 and probes against it fail`() {
         assertThat(taskFindingsOf4938(table)).isEmpty()
         val unassigned =
@@ -324,10 +343,9 @@ class OperationsTableTest {
         val alertDone = "\taccessAccessAlertRaised\tINV-T-4938\tdone"
         assertThat(verify(base.map { it.replace(alertDone, "\taccessAccessAlertRaised\tINV-T-4938\topen") }))
             .anyMatch { "published by the code but not marked done" in it }
-        val unpublished = "channel\taccessOperatorSessionKeysChanged\tINV-T-4154\tdone"
-        assertThat(
-            verify(base.map { if (it.startsWith("channel\taccessOperatorSessionKeysChanged")) unpublished else it }),
-        ).containsExactly("channel accessOperatorSessionKeysChanged: marked done but the code does not publish it")
+        // the channel is marked done and the code publishes it; a published set without it is the probe
+        assertThat(verify(base, published = PublishedChannels.ALL - "accessOperatorSessionKeysChanged"))
+            .containsExactly("channel accessOperatorSessionKeysChanged: marked done but the code does not publish it")
     }
 
     @Test

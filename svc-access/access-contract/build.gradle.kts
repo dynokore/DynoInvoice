@@ -119,6 +119,7 @@ val stageContractResources =
                 "cloud-event-envelope.schema.json",
                 "break-glass-alert-raised-payload.schema.json",
                 "break-glass-session-changed-payload.schema.json",
+                "operator-session-keys-changed-payload.schema.json",
             )
             into("gst/contracts/service-runtime/schemas")
         }

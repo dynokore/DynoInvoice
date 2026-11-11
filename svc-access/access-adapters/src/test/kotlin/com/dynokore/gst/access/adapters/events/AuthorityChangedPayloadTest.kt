@@ -48,6 +48,8 @@ class AuthorityChangedPayloadTest {
             outbox = org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java),
             mapper = mapper,
         )
+    private val operatorOutbox =
+        OperatorAccessOutbox(org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java), mapper)
     private val schema =
         resource("gst/contracts/service-runtime/schemas/authority-changed-payload.schema.json").let { text ->
             SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12).getSchema(text)
@@ -171,12 +173,50 @@ class AuthorityChangedPayloadTest {
     }
 
     @Test
+    fun `an operator access record validates against the AuthorityChanged schema, with and without an elevation`() {
+        val masked = operatorRecord(null)
+        val elevated =
+            operatorRecord(
+                com.dynokore.gst.access.application.operatorsession.ElevationWindowRecord(
+                    "ELV-1",
+                    Instant.parse("2026-11-11T00:00:00Z"),
+                    Instant.parse("2026-11-11T01:00:00Z"),
+                ),
+            )
+        listOf(masked, elevated).forEach {
+            val payload = operatorOutbox.payload(it)
+            assertTrue(schema.validate(payload.toString(), com.networknt.schema.InputFormat.JSON).isEmpty())
+            assertEquals("OPERATOR_ACCESS", payload["changeKind"].asString())
+            assertEquals("op-1", payload["principalRef"].asString())
+            assertEquals(
+                listOf("period-readiness.view", "submission.view-status"),
+                payload["operatorAccessRecord"]["permissions"].toList().map { p -> p.asString() },
+            )
+        }
+        assertTrue(!operatorOutbox.payload(masked)["operatorAccessRecord"].has("elevation"))
+        assertTrue(operatorOutbox.payload(elevated)["operatorAccessRecord"].has("elevation"))
+    }
+
+    private fun operatorRecord(
+        elevation: com.dynokore.gst.access.application.operatorsession.ElevationWindowRecord?,
+    ) = com.dynokore.gst.access.application.operatorsession.OperatorAccessRecord(
+        tenant = com.dynokore.platform.tenancykernel.TenantId.of(tenantValue),
+        operatorRef = "op-1",
+        authorityVersion = 7,
+        caseRef = "CASE-1",
+        role = "platform.support",
+        permissions = listOf("period-readiness.view", "submission.view-status"),
+        validUntil = Instant.parse("2026-11-11T00:15:00Z"),
+        elevation = elevation,
+    )
+
+    @Test
     fun `the emission guard accepts the types access produces and rejects an uncatalogued type`() {
         val catalogue = AccessEventCatalogue.load()
         val guard = EmissionGuard(catalogue, AccessEventCatalogue.SERVICE)
         listOf(
             PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
-            "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
+            PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.eventType,
             "com.dynokore.gst.access.AccessAlertRaised.v1",
             "com.dynokore.gst.access.MessageRequested.v1",
         ).forEach { guard.require(it) }

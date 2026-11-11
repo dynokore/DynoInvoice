@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter
 
 /**
  * TPL-05: maps the verification keys that are valid to the contract event OperatorSessionKeysChanged on
- * `gst.access.operator-session-keys-changed.v1` (coordinator rulings INV-Q-4162, INV-Q-4171) and appends it through
+ * `gst.platform.operator-session-keys-changed.v1` (INV-Q-16498 A, amending INV-Q-4171) and appends it through
  * outbox-and-queue in the transaction the caller holds. One event carries the whole of both key sets, as the authority
  * replica replaces what it holds; every item carries its `use`. The payload is the
  * `operator-session-keys-changed-payload` schema of platform-contracts, at most [MAX_KEYS] items.
@@ -47,7 +47,8 @@ class OperatorSessionKeysChangedOutbox(
     companion object {
         /** The asyncapi channel this class publishes (operations.tsv lists it). */
         const val CHANNEL = "accessOperatorSessionKeysChanged"
-        const val EVENT_TYPE = "com.dynokore.gst.access.OperatorSessionKeysChanged.v1"
+        const val EVENT_TYPE = "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1"
+        const val TOPIC = "gst.platform.operator-session-keys-changed.v1"
         const val MAX_KEYS = 4
         private const val AGGREGATE_KEY = "operator-session-keys"
         private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME

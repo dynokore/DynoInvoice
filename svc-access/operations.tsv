@@ -24,7 +24,6 @@ operation	withdrawElevationRequest	INV-T-4941	done
 operation	openOperatorSession	INV-T-4154	done
 operation	inviteDiagnostics	INV-T-4941	done
 operation	withdrawDiagnosticInvitation	INV-T-4941	done
-operation	issueSignatoryLink	INV-T-4940	open
 operation	recordSignatoryAction	INV-T-17453	done
 operation	verifySignatoryLink	INV-T-17453	done
 operation	unlockBreakGlass	INV-T-4938	done

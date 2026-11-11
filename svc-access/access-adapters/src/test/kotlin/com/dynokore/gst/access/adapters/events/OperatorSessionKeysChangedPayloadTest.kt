@@ -8,7 +8,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito
+import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
+import com.dynokore.platform.tenancykernel.TenantId
+import org.junit.jupiter.api.Assertions.assertFalse
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 
@@ -18,9 +21,9 @@ import java.time.Instant
  */
 class OperatorSessionKeysChangedPayloadTest {
     private val mapper = JsonMapper.builder().build()
-    private val writer = Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java)
-    private val outbox = OperatorSessionKeysChangedOutbox(writer, mapper)
-    private val schemaPath = "gst/contracts/access/schemas/operator-session-keys-changed-payload.schema.json"
+    private val captured = CapturedEvents()
+    private val outbox = OperatorSessionKeysChangedOutbox(captured, mapper)
+    private val schemaPath = "gst/contracts/service-runtime/schemas/operator-session-keys-changed-payload.schema.json"
     private val schema =
         checkNotNull(javaClass.classLoader.getResourceAsStream(schemaPath)).use {
             SchemaRegistry
@@ -66,7 +69,7 @@ class OperatorSessionKeysChangedPayloadTest {
     @Test
     fun `the event type and the channel are the contract names compared by equality`() {
         assertEquals(
-            "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
+            "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1",
             OperatorSessionKeysChangedOutbox.EVENT_TYPE,
         )
         assertEquals("accessOperatorSessionKeysChanged", OperatorSessionKeysChangedOutbox.CHANNEL)
@@ -77,5 +80,33 @@ class OperatorSessionKeysChangedPayloadTest {
         assertThrows(IllegalStateException::class.java) { outbox.payload(emptyList()) }
         val five = (1..5).map { key("k$it", KeyUse.OPERATOR_SESSION) }
         assertThrows(IllegalStateException::class.java) { outbox.payload(five) }
+    }
+
+    @Test
+    fun `the record is a platform event under the platform tenant and entity with the constant aggregate key`() {
+        outbox.publish(listOf(key("0123456789abcdef", KeyUse.OPERATOR_SESSION)))
+        val record = captured.appended.single()
+        assertEquals("com.dynokore.gst.platform.OperatorSessionKeysChanged.v1", record.event.type)
+        assertEquals(PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.eventType, record.event.type)
+        assertEquals("gst.platform.operator-session-keys-changed.v1", OperatorSessionKeysChangedOutbox.TOPIC)
+        assertEquals(PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.topic, OperatorSessionKeysChangedOutbox.TOPIC)
+        assertEquals(TenantId.PLATFORM, record.context.tenant)
+        assertEquals(EntityRef.PLATFORM, record.context.entity)
+        assertEquals("operator-session-keys", record.context.aggregateKey)
+        val wire = com.dynokore.platform.outboxandqueue.EnvelopeJson().write(record.envelope)
+        assertFalse(wire.contains("tenantid"))
+        assertFalse(wire.contains("entityref"))
+    }
+
+    @Test
+    fun `look-alike types are not the platform type and a payload of five items or a use of operator_session fails the schema`() {
+        listOf(
+            "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
+            "com.dynokore.gst.platform.OperatorSessionKeyChanged.v1",
+        ).forEach { assertTrue(it != OperatorSessionKeysChangedOutbox.EVENT_TYPE, it) }
+        val bad =
+            """{"keys":[{"kid":"a","use":"operator_session","alg":"ES256","publicKey":"QQ==",""" +
+                """"validFrom":"2026-11-02T00:00:00Z","validUntil":"2026-11-02T02:15:00Z"}]}"""
+        assertTrue(schema.validate(bad, com.networknt.schema.InputFormat.JSON).isNotEmpty())
     }
 }

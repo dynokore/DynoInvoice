@@ -8,6 +8,7 @@ import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.token.SigningKeyUnavailable
 import com.dynokore.gst.access.application.token.TokenSettings
+import com.dynokore.gst.access.domain.elevation.ElevationRecord
 import com.dynokore.gst.access.domain.elevation.OperatorAccess
 import com.dynokore.gst.access.domain.elevation.OperatorSessionAccess
 import com.dynokore.gst.access.domain.grant.IdentityRef
@@ -71,6 +72,39 @@ fun interface TenantDirectory {
     fun live(tenantRef: String): TenantId?
 }
 
+/** The approved elevation a session record carries (INV-Q-16496 A). */
+data class ElevationWindowRecord(
+    val elevationRef: String,
+    val validFrom: Instant,
+    val validUntil: Instant,
+)
+
+/**
+ * The operator access record of one session (INV-Q-16496 A): what replicas decide a session request from. [permissions]
+ * are the metadata keys of the session (never `doc.view.content`); [elevation] is present exactly when the content
+ * mode is ELEVATED; [validUntil] is the token `exp`.
+ */
+data class OperatorAccessRecord(
+    val tenant: TenantId,
+    val operatorRef: String,
+    val authorityVersion: Long,
+    val caseRef: String,
+    val role: String,
+    val permissions: List<String>,
+    val validUntil: Instant,
+    val elevation: ElevationWindowRecord?,
+)
+
+/** Appends the operator access record in the transaction the caller holds. */
+fun interface OperatorAccessPublisher {
+    fun publish(record: OperatorAccessRecord)
+}
+
+/** The next value of access-svc's one authority sequence. */
+fun interface AuthorityVersions {
+    fun next(): Long
+}
+
 sealed interface SessionPreparation {
     /** No live platform grant holds `operator-session.open` (403 SRT-004). */
     data object Forbidden : SessionPreparation
@@ -118,6 +152,8 @@ class OpenOperatorSessionUseCase(
     private val matrix: PermissionMatrix,
     private val settings: TokenSettings,
     private val clock: Clock,
+    private val accessRecords: OperatorAccessPublisher,
+    private val versions: AuthorityVersions,
     private val newTokenId: () -> String = { UUID.randomUUID().toString() },
 ) {
     fun prepare(
@@ -168,7 +204,9 @@ class OpenOperatorSessionUseCase(
     /** Call inside a transaction bound to [SessionPreparation.Ready.tenant]. */
     fun open(ready: SessionPreparation.Ready): OpenedSession =
         tx.inTransaction {
-            val now = clock.instant()
+            // a JWT holds whole seconds: the record's validUntil is then the token exp exactly
+            val at = clock.instant()
+            val now = at.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
             val expires = now.plus(settings.lifetime)
             val token =
                 ready.session.sign(
@@ -192,28 +230,53 @@ class OpenOperatorSessionUseCase(
                     priorStateJson = null,
                 ),
             )
-            OpenedSession(token, expires, contentAllowed(ready, now))
+            val elevation = openElevation(ready, at)
+            accessRecords.publish(
+                OperatorAccessRecord(
+                    tenant = ready.tenant,
+                    operatorRef = ready.actor.value,
+                    authorityVersion = versions.next(),
+                    caseRef = ready.caseId,
+                    role = ready.role.wire,
+                    permissions = OperatorSessionAccess.metadataKeys { matrix.allowance(ready.role, it) }.map { it.value },
+                    validUntil = expires,
+                    elevation =
+                        elevation?.let {
+                            val box = checkNotNull(it.window)
+                            ElevationWindowRecord(it.ref, box.from, checkNotNull(box.until))
+                        },
+                ),
+            )
+            OpenedSession(token, expires, elevation != null)
         }
 
-    /** Whether `doc.view.content` is allowed to this session now: the decision its permissions follow. */
-    private fun contentAllowed(
+    /**
+     * The approved elevation whose time box the session carries: present exactly when `doc.view.content` is allowed
+     * to this session now, which is also when the content mode is ELEVATED.
+     */
+    private fun openElevation(
         ready: SessionPreparation.Ready,
         at: Instant,
-    ): Boolean {
+    ): ElevationRecord? {
         val canElevate = matrix.allowance(ready.role, ElevationKeys.REQUEST) == Allowance.PERMITTED
-        val inElevation =
-            canElevate &&
-                OperatorAccess.elevated(
+        val record =
+            if (canElevate) {
+                OperatorAccess.openElevation(
                     elevations.findByRequester(ready.actor),
                     ready.actor,
                     TenantRef(ready.tenant.toString()),
                     at,
                 )
-        return OperatorSessionAccess.allows(
-            { matrix.allowance(ready.role, it) },
-            OperatorAccess.OPENED_BY_ELEVATION.single(),
-            inElevation,
-        )
+            } else {
+                null
+            }
+        val allowed =
+            OperatorSessionAccess.allows(
+                { matrix.allowance(ready.role, it) },
+                OperatorAccess.OPENED_BY_ELEVATION.single(),
+                record != null,
+            )
+        return record.takeIf { allowed }
     }
 
     companion object {
