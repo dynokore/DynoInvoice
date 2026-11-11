@@ -12,6 +12,7 @@ import com.dynokore.gst.rules.application.DryRunState
 import com.dynokore.gst.rules.application.DryRunWindow
 import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.LastCompletePeriodPort
+import com.dynokore.gst.rules.application.NamedPackVersions
 import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.PeriodCalendarUnavailableException
 import com.dynokore.gst.rules.application.RunDryRun
@@ -35,7 +36,11 @@ import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.PeriodDelta
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
+import com.dynokore.platform.rulepackkernel.PackId
+import com.dynokore.platform.rulepackkernel.PackManifest
 import com.dynokore.platform.rulepackkernel.PackType
+import com.dynokore.platform.rulepackkernel.PackVersion
+import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.pool.PoolLane
 import com.dynokore.platform.serviceruntime.pool.PoolLanes
@@ -43,6 +48,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import java.time.Clock
@@ -478,6 +484,39 @@ object DryRunMapping {
             completedAt = record.completedAt,
             result = resultOf(packRef, record),
             error = error,
+        )
+    }
+}
+
+/** [NamedPackVersions] over `rules.pack_registry`: the tenant's own version or the platform's, any status. */
+class RegistryNamedPackVersions(
+    private val dsl: DSLContext,
+) : NamedPackVersions {
+    override fun find(
+        tenant: TenantId,
+        packType: PackType,
+        label: String,
+    ): PackVersion? {
+        val row =
+            dsl
+                .selectFrom(PACK_REGISTRY)
+                .where(PACK_REGISTRY.PACK_TYPE.eq(packType.value))
+                .and(PACK_REGISTRY.PACK_VERSION.eq(label))
+                .and(PACK_REGISTRY.TENANT_ID.`in`(listOf(tenant.value, TenantId.PLATFORM.value)))
+                .orderBy(DSL.`when`(PACK_REGISTRY.TENANT_ID.eq(TenantId.PLATFORM.value), 1).otherwise(0))
+                .limit(1)
+                .fetchOne() ?: return null
+        val owner = checkNotNull(row.tenantId)
+        return PackVersion(
+            PackManifest(
+                packId = PackId(checkNotNull(row.packId)),
+                packType = packType,
+                version = PackVersionLabel(checkNotNull(row.packVersion)),
+                effectiveFrom = row.effectiveFrom ?: LocalDate.MAX,
+                effectiveTo = row.effectiveTo,
+                minEngineVersion = checkNotNull(row.minEngineVersion),
+            ),
+            tenant = if (owner == TenantId.PLATFORM.value) null else TenantId(owner),
         )
     }
 }
