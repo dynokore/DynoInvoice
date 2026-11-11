@@ -124,7 +124,7 @@ class PeriodSpanStoreTest {
         transaction { it.overlapping(entity, LocalDate.of(2000, 1, 1), LocalDate.of(2100, 1, 1)) }
 
     @Test
-    fun `INV-AC-14492 a higher version replaces the whole set of the entity`() {
+    fun `INV-AC-457 a higher version replaces the whole set of the entity`() {
         handler.handle(event(payload("E-001", 1, q1))) shouldBe HandleOutcome.APPLIED
         handler.handle(event(payload("E-001", 2, q1, q2))) shouldBe HandleOutcome.APPLIED
         stored("E-001") shouldBe
@@ -190,7 +190,7 @@ class PeriodSpanStoreTest {
     }
 
     @Test
-    fun `INV-AC-14492 the source returns the overlapping spans earliest first and Unknown without a set`() {
+    fun `INV-AC-457 the source returns the overlapping spans earliest first and Unknown without a set`() {
         source.spans("E-001", LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3)) shouldBe PeriodSpans.Unknown
         handler.handle(event(payload("E-001", 1, q2, q1)))
         source.spans("E-001", LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3)) shouldBe
