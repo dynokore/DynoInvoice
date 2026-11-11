@@ -78,6 +78,15 @@ object AggregationDb {
             .baselineVersion("0")
             .load()
             .migrate()
+        // The row the migration runner writes at install (INV-Q-4346 A): JobRuntime.announce refuses to start without it.
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use {
+                it.execute(
+                    "insert into $SCHEMA.job_retention (id, job_window) values (true, interval '2592000 seconds') " +
+                        "on conflict do nothing",
+                )
+            }
+        }
     }
 }
 
