@@ -386,7 +386,7 @@ class RulesConfiguration {
             clock,
             executor,
             Semaphore(parallelism),
-            sampleWait,
+            Duration.parse(sampleWait),
             SYNC_WAIT,
         )
 
