@@ -38,16 +38,22 @@ interface HistoricalSamplePort {
     fun release(dryRunId: String)
 }
 
+/** What the sample request event carries (INV-T-4915): dry run, entity, window and both pack versions. */
+data class DryRunSampleRequest(
+    val dryRunId: String,
+    val tenant: TenantId,
+    val entityRef: String,
+    val window: DryRunWindow,
+    val currentPackVersion: String,
+    val candidatePackVersion: String,
+)
+
 /**
  * Asks for the sample of a dry run (owner ruling INV-Q-4870 B). INV-T-4974 is its only caller: `RunDryRun` never
- * calls it.
+ * calls it. The production implementation is the event adapter of INV-T-19903.
  */
 fun interface SampleRequestPort {
-    fun request(
-        dryRunId: String,
-        tenant: TenantId,
-        window: DryRunWindow,
-    )
+    fun request(request: DryRunSampleRequest)
 }
 
 /** The verdict or code of a sampled document under one pack version. */

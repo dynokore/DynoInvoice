@@ -257,11 +257,44 @@ class RunDryRunTest {
     @Test
     fun `the run never calls the sample request port`() {
         var requests = 0
-        val port = SampleRequestPort { _, _, _ -> requests++ }
+        val port = SampleRequestPort { requests++ }
         rig(page(1, true, item(1))).run()
         requests shouldBe 0
-        port.request("dr-1", TenantId(UUID.randomUUID()), DryRunWindow("P-A", "P-A", 1))
+        port.request(sampleRequest())
         requests shouldBe 1
+    }
+
+    private fun sampleRequest() =
+        DryRunSampleRequest(
+            "dr-1",
+            TenantId(UUID.randomUUID()),
+            "entity-1",
+            DryRunWindow("P-A", "P-B", 2),
+            "1.0.0",
+            "1.1.0",
+        )
+
+    @Test
+    fun `INV-AC-20125 the sample request port hands over the whole request`() {
+        val given = sampleRequest()
+        var received: DryRunSampleRequest? = null
+        val port = SampleRequestPort { received = it }
+        port.request(given)
+        val got = received!!
+        got shouldBe given
+        got.dryRunId shouldBe given.dryRunId
+        got.tenant shouldBe given.tenant
+        got.entityRef shouldBe given.entityRef
+        got.window shouldBe given.window
+        got.currentPackVersion shouldBe given.currentPackVersion
+        got.candidatePackVersion shouldBe given.candidatePackVersion
+    }
+
+    @Test
+    fun `INV-AC-20125 the sample request port has one entry point`() {
+        val methods = SampleRequestPort::class.java.methods
+        methods.map { it.name } shouldBe listOf("request")
+        methods.single().parameterTypes.toList() shouldBe listOf(DryRunSampleRequest::class.java)
     }
 
     @Test
