@@ -70,29 +70,7 @@ class JooqRenditionHistoryTest {
         val tenant = TenantId(UUID.randomUUID())
         val ref = "e-$tag"
         Db.superuser { dsl ->
-            fun version() = dsl.fetchValue("select nextval('tenancy.structure_version_seq')") as Long
-            val now = OffsetDateTime.now(ZoneOffset.UTC)
-            dsl
-                .insertInto(TENANT)
-                .set(TENANT.TENANT_ID, tenant.value)
-                .set(TENANT.REF, "T-$tag")
-                .set(TENANT.LEGAL_NAME, "Legal")
-                .set(TENANT.PLAN_REF, "plan")
-                .set(TENANT.CONTRACT_REFERENCE, "c-$tag")
-                .set(TENANT.STRUCTURE_VERSION, version())
-                .set(TENANT.CREATED_AT, now)
-                .execute()
-            val group = UUID.randomUUID()
-            dsl
-                .insertInto(TENANT_GROUP)
-                .set(TENANT_GROUP.ID, group)
-                .set(TENANT_GROUP.TENANT_ID, tenant.value)
-                .set(TENANT_GROUP.REF, "g-$tag")
-                .set(TENANT_GROUP.NAME, "Group")
-                .set(TENANT_GROUP.KIND, "DIVISIONAL")
-                .set(TENANT_GROUP.STRUCTURE_VERSION, version())
-                .set(TENANT_GROUP.CREATED_AT, now)
-                .execute()
+            val group = insertTenantAndGroup(dsl, tenant, tag)
             dsl
                 .insertInto(ENTITY)
                 .set(ENTITY.ID, UUID.randomUUID())
@@ -103,11 +81,43 @@ class JooqRenditionHistoryTest {
                 .set(ENTITY.CONSTITUTION, "COMPANY")
                 .set(ENTITY.CODE, "E$tag".uppercase())
                 .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
-                .set(ENTITY.STRUCTURE_VERSION, version())
-                .set(ENTITY.CREATED_AT, now)
+                .set(ENTITY.STRUCTURE_VERSION, version(dsl))
+                .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute()
         }
         return Seed(tenant, ref)
+    }
+
+    private fun version(dsl: DSLContext) = dsl.fetchValue("select nextval('tenancy.structure_version_seq')") as Long
+
+    private fun insertTenantAndGroup(
+        dsl: DSLContext,
+        tenant: TenantId,
+        tag: String,
+    ): UUID {
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
+        dsl
+            .insertInto(TENANT)
+            .set(TENANT.TENANT_ID, tenant.value)
+            .set(TENANT.REF, "T-$tag")
+            .set(TENANT.LEGAL_NAME, "Legal")
+            .set(TENANT.PLAN_REF, "plan")
+            .set(TENANT.CONTRACT_REFERENCE, "c-$tag")
+            .set(TENANT.STRUCTURE_VERSION, version(dsl))
+            .set(TENANT.CREATED_AT, now)
+            .execute()
+        val group = UUID.randomUUID()
+        dsl
+            .insertInto(TENANT_GROUP)
+            .set(TENANT_GROUP.ID, group)
+            .set(TENANT_GROUP.TENANT_ID, tenant.value)
+            .set(TENANT_GROUP.REF, "g-$tag")
+            .set(TENANT_GROUP.NAME, "Group")
+            .set(TENANT_GROUP.KIND, "DIVISIONAL")
+            .set(TENANT_GROUP.STRUCTURE_VERSION, version(dsl))
+            .set(TENANT_GROUP.CREATED_AT, now)
+            .execute()
+        return group
     }
 
     private fun attest(
@@ -218,8 +228,15 @@ class JooqRenditionHistoryTest {
             PostgreSQLContainer("postgres:17")
                 .withStartupTimeout(Duration.ofMinutes(3))
                 .withStartupAttempts(3)
-                .withCommand("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
-                .withLabel("inv.agent", "c-inv-t-20312")
+                .withCommand(
+                    "postgres",
+                    "-c",
+                    "fsync=off",
+                    "-c",
+                    "synchronous_commit=off",
+                    "-c",
+                    "full_page_writes=off",
+                ).withLabel("inv.agent", "c-inv-t-20312")
 
         init {
             container.start()

@@ -23,7 +23,7 @@ data class RenditionAttestationRecord(
     val state: AttestationState,
 )
 
-/** The append-only attestation history of one entity and document class of the bound tenant (adapter: JooqRenditionStore). */
+/** The append-only attestation history of one entity and class of the bound tenant (adapter: JooqRenditionStore). */
 interface RenditionAttestationHistory {
     /** Every record of the entity and class, ordered by `seq`; empty when none. */
     fun list(
