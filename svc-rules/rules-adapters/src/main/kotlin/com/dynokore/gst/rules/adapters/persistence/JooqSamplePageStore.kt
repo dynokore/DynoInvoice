@@ -126,6 +126,7 @@ class JooqSamplePageStore(
  * The columns of one page item. The members the contract requires must be present and well typed, else the event breaks
  * the contract ([ContractViolation]); `periodRef` and `docUuid` are taken as they are, whatever they hold.
  */
+@Suppress("LongParameterList") // one parameter per column of the item row
 private class SampleItemColumns(
     val entityRef: String,
     val transactionDate: LocalDate,

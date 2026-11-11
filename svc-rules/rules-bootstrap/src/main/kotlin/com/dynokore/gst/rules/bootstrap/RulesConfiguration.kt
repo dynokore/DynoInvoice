@@ -88,7 +88,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Profile
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import java.time.Clock
@@ -248,9 +247,12 @@ class RulesConfiguration {
     @Bean
     fun dryRunSampleEvents(writer: OutboxWriter): DryRunSampleEvents = DryRunSampleEvents(writer)
 
-    /** Outside the test profile the sample comes from the pages canonical-svc published (INV-Q-4995, INV-Q-4870 B). */
+    /**
+     * The sample comes from the pages canonical-svc published (INV-Q-4995, INV-Q-4870 B); a context that supplies its
+     * own [HistoricalSamplePort] (the fixture adapter of the test composition) keeps that one.
+     */
     @Bean
-    @Profile("!test")
+    @ConditionalOnMissingBean(HistoricalSamplePort::class)
     fun historicalSamplePort(
         store: JooqSamplePageStore,
         clock: Clock,

@@ -89,7 +89,7 @@ class SamplePageInboxIT(
         ): List<LogRecord> = records.filter { it.offset > afterOffset }.take(limit)
     }
 
-    /** The canonical-svc stub: publishes pages to the log; a consumer of its own name reads them (offset row per name). */
+    /** The canonical-svc stub publishes pages to the log; a consumer of its own name (one offset row) reads them. */
     private inner class Harness {
         val log = Log()
         val consumer =

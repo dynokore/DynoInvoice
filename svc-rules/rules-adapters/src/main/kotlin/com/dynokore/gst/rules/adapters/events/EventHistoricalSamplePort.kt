@@ -9,7 +9,8 @@ import java.time.Duration
 
 /**
  * The production [HistoricalSamplePort] (coordinator ruling INV-Q-4995): the pages are those the inbox consumer of
- * `PackDryRunSampleRecorded` stored in [JooqSamplePageStore]; this class only reads them, waits for them and frees them.
+ * `PackDryRunSampleRecorded` stored in [JooqSamplePageStore]; this class only reads them, waits for them and frees
+ * them.
  * It derives, corrects and defaults nothing. The request itself is published by [DryRunSampleEvents] in the command
  * transaction of `dryRun`, so that the request and the run commit or roll back together.
  */

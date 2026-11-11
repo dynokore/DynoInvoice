@@ -78,7 +78,8 @@ class ScopeBeanContextTest {
     fun `the context holds the entity-profile consumer that feeds the structure replica`() {
         runner().run { context ->
             context.startupFailure?.let { throw it }
-            context.getBeansOfType(JdbcInboxConsumer::class.java).keys shouldBe setOf("entityProfileConsumer")
+            context.getBeansOfType(JdbcInboxConsumer::class.java).keys shouldBe
+                setOf("entityProfileConsumer", "dryRunSampleConsumer")
         }
     }
 }
