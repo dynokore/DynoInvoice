@@ -1,24 +1,23 @@
 package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.gst.aggregation.adapters.AggregationDb
+import com.dynokore.gst.aggregation.adapters.http.IntakeBodyCachingFilter
+import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
+import com.dynokore.gst.aggregation.adapters.http.TransactionIntakeController
 import com.dynokore.gst.aggregation.adapters.periods.ConsumedPeriodEvents
 import com.dynokore.gst.aggregation.adapters.periods.NoPeriodBoundaries
 import com.dynokore.gst.aggregation.adapters.periods.PeriodRecordsChangedHandler
 import com.dynokore.gst.aggregation.adapters.periods.StoredPeriodBoundaries
 import com.dynokore.gst.aggregation.adapters.persistence.JooqTransactionStore
 import com.dynokore.gst.aggregation.application.AggregateRepository
+import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.CloseWindows
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.ShortCodes
 import com.dynokore.gst.aggregation.application.WindowRepository
-import com.dynokore.gst.aggregation.adapters.http.IntakeBodyCachingFilter
-import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
-import com.dynokore.gst.aggregation.adapters.http.TransactionIntakeController
-import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.platform.outboxandqueue.CausationId
-import com.dynokore.platform.outboxandqueue.CorrelationId as EventCorrelation
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventId
@@ -46,6 +45,7 @@ import java.nio.file.Path
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
+import com.dynokore.platform.outboxandqueue.CorrelationId as EventCorrelation
 
 /**
  * The period spans read model wired into the composed service (INV-REQ-435, INV-Q-14444 A, INV-Q-16535 A): the
@@ -83,7 +83,21 @@ class PeriodSpansBoundaryTest {
                         TenantId(tenant),
                         it.first,
                         StructureChange.UPDATED,
-                        StructureNode(it.second, null, false, it.first, if (it.first == "E-001") "E" else "B", emptyList(), 2),
+                        StructureNode(
+                            it.second,
+                            null,
+                            false,
+                            it.first,
+                            if (it.first ==
+                                "E-001"
+                            ) {
+                                "E"
+                            } else {
+                                "B"
+                            },
+                            emptyList(),
+                            2,
+                        ),
                     ),
                 )
             }
@@ -210,7 +224,7 @@ class PeriodSpansBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-14492 with an event of 1 Jan to 31 Mar and 1 Apr to 30 Jun the weekly window is split at 31 Mar`(
+    fun `INV-AC-457 with an event of 1 Jan to 31 Mar and 1 Apr to 30 Jun the weekly window is split at 31 Mar`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
@@ -227,7 +241,7 @@ class PeriodSpansBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-14492 before any event the window stays open and nothing is created`(
+    fun `INV-AC-457 before any event the window stays open and nothing is created`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->

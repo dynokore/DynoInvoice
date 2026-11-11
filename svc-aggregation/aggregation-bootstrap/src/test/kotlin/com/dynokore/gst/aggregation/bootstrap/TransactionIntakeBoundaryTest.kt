@@ -199,11 +199,12 @@ class TransactionIntakeBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-457 with the production StoredPeriodBoundaries and no stored set the window is held and no aggregate is made`(
+    fun `INV-AC-457 with the production StoredPeriodBoundaries and no set the window is held and no aggregate is made`(
         @TempDir dir: Path,
     ): Unit =
         run(dir, Cadence.WEEKLY) { boundary ->
-            boundary.context.getBean(PeriodBoundarySource::class.java).javaClass shouldBe StoredPeriodBoundaries::class.java
+            boundary.context.getBean(PeriodBoundarySource::class.java).javaClass shouldBe
+                StoredPeriodBoundaries::class.java
             boundary.send(week).status shouldBe 202
             val production = boundary.context.getBean(PeriodBoundarySource::class.java)
             val result = boundary.close(production, LocalDate.of(2022, 4, 4))
