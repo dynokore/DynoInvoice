@@ -15,6 +15,7 @@ import com.dynokore.platform.productruntime.catalogue.GstOperationRoleMap
 import com.dynokore.platform.productruntime.catalogue.GstVariationPointCatalogue
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.productruntime.feed.BreakGlassSessionFeedHandler
+import com.dynokore.platform.productruntime.feed.OperatorSessionKeysFeedHandler
 import com.dynokore.platform.productruntime.feed.PolicyFeed
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.ServiceRuntimeConfiguration
@@ -96,6 +97,7 @@ class WiringTest {
             context.getBean(DelegationProbe::class.java)
             context.getBean(StructureFeedHandler::class.java)
             context.getBean(AuthorityFeedHandler::class.java)
+            context.getBean(OperatorSessionKeysFeedHandler::class.java)
             context.getBean(BreakGlassSessionFeedHandler::class.java)
             context.getBean(PolicyFeed::class.java)
             context.getBeansOfType(StructureFallback::class.java).size shouldBe 0

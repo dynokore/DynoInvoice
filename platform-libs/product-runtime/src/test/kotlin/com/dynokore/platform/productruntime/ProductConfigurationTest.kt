@@ -37,10 +37,10 @@ class ProductConfigurationTest {
         ReplicaFeeds.of(ReplicaKind.STRUCTURE).map { it.eventType } shouldContainExactly
             listOf(ProductEventTypes.ORGANISATION_STRUCTURE_CHANGED, ProductEventTypes.ENTITY_PROFILE_CHANGED)
         ReplicaFeeds.of(ReplicaKind.STRUCTURE).map { it.fallbackService }.toSet() shouldBe setOf("tenancy-svc")
-        ReplicaFeeds.of(ReplicaKind.AUTHORITY).single().eventType shouldBe
-            PlatformEventCatalogue.AUTHORITY_CHANGED.eventType
-        ReplicaFeeds.of(ReplicaKind.AUTHORITY).single().topic shouldBe "gst.platform.authority-changed.v1"
-        ReplicaFeeds.of(ReplicaKind.AUTHORITY).single().fallbackService shouldBe "access-svc"
+        val authority = ReplicaFeeds.of(ReplicaKind.AUTHORITY).first()
+        authority.eventType shouldBe PlatformEventCatalogue.AUTHORITY_CHANGED.eventType
+        authority.topic shouldBe "gst.platform.authority-changed.v1"
+        authority.fallbackService shouldBe "access-svc"
         val policy = ReplicaFeeds.of(ReplicaKind.POLICY).single()
         policy.eventType shouldBe "com.dynokore.gst.platform.PolicyChanged.v1"
         policy.topic shouldBe "gst.platform.policy-changed.v1"
@@ -53,6 +53,7 @@ class ProductConfigurationTest {
             listOf(
                 ReplicaKind.STRUCTURE,
                 ReplicaKind.STRUCTURE,
+                ReplicaKind.AUTHORITY,
                 ReplicaKind.AUTHORITY,
                 ReplicaKind.POLICY,
                 ReplicaKind.BREAK_GLASS_SESSION,

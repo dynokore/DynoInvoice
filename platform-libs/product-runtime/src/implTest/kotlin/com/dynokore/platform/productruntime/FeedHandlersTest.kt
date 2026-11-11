@@ -7,14 +7,21 @@ import com.dynokore.platform.productruntime.Fixtures.CLOCK
 import com.dynokore.platform.productruntime.Fixtures.TENANT
 import com.dynokore.platform.productruntime.Fixtures.envelope
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
+import com.dynokore.platform.productruntime.feed.OperatorSessionKeysFeedHandler
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
+import com.dynokore.platform.serviceruntime.identity.OperatorSession
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.ConsentKey
 import com.dynokore.platform.serviceruntime.replica.ConsentState
+import com.dynokore.platform.serviceruntime.replica.DecisionReason
 import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.Lookup
 import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
+import com.dynokore.platform.serviceruntime.replica.OperatorAccessState
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.replica.RoleGrantKey
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.replica.StructureEnvironment
@@ -26,8 +33,11 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.security.KeyPairGenerator
+import java.security.Signature
 import java.time.Duration
 import java.time.LocalDate
+import java.util.Base64
 
 /** INV-T-2876: the replica feeds (INV-REQ-1200, INV-REQ-1201; INV-Q-3259, INV-Q-3850). */
 class FeedHandlersTest {
@@ -213,5 +223,152 @@ class FeedHandlersTest {
             handler.decode(envelope("com.dynokore.gst.access.AuthorityChanged.v1", bare))
         }
         handler.decode(envelope("com.dynokore.gst.platform.AuthorityChanged.v1", bare)).record.shouldBeNull()
+    }
+
+    private val keysType = PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.eventType
+    private val rsa = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+    private val rsaMachine = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+
+    private fun keyItem(
+        kid: String,
+        use: String?,
+        pair: java.security.KeyPair = rsa,
+    ) = """{"kid":"$kid",${use?.let { """"use":"$it",""" } ?: ""}"alg":"RS256",""" +
+        """"publicKey":"${Base64.getEncoder().encodeToString(pair.public.encoded)}",""" +
+        """"validFrom":"2026-10-01T00:00:00Z","validUntil":"2026-11-15T00:00:00Z"}"""
+
+    private fun keys(vararg items: String) = """{"keys":[${items.joinToString(",")}]}"""
+
+    private fun newReplica() = AuthorityReplica(CLOCK, OperationRoleMap { emptyMap() })
+
+    /** A replica that has finished its cold start, so a decision is local and not AUTHORITY_UNAVAILABLE. */
+    private fun syncedReplica() = newReplica().also { it.onSnapshotComplete(0) }
+
+    private fun verifies(
+        replica: AuthorityReplica,
+        kid: String,
+    ): Boolean {
+        val key = replica.operatorSessionKeys.valid(kid) ?: return false
+        val publicKey =
+            java.security.KeyFactory
+                .getInstance("RSA")
+                .generatePublic(java.security.spec.X509EncodedKeySpec(Base64.getDecoder().decode(key.publicKey)))
+        val signed = "header.claims".toByteArray()
+        val signature =
+            Signature.getInstance("SHA256withRSA").run {
+                initSign(rsa.private)
+                update(signed)
+                sign()
+            }
+        return Signature.getInstance("SHA256withRSA").run {
+            initVerify(publicKey)
+            update(signed)
+            verify(signature)
+        }
+    }
+
+    @Test
+    fun `INV-AC-16966 after the key event the replica holds the operator items and not the machine ones`() {
+        val replica = newReplica()
+        OperatorSessionKeysFeedHandler(replica)
+            .handle(
+                envelope(
+                    keysType,
+                    keys(keyItem("op1", "OPERATOR_SESSION"), keyItem("m1", "MACHINE_ACCESS", rsaMachine)),
+                ),
+            )
+        (replica.operatorSessionKeys.valid("op1") != null) shouldBe true
+        replica.operatorSessionKeys.valid("m1") shouldBe null
+        (replica.machineAccessKeys.valid("m1") != null) shouldBe true
+        replica.machineAccessKeys.valid("op1") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-16966 a token signed by a published key verifies, an unpublished kid is refused`() {
+        val replica = newReplica()
+        OperatorSessionKeysFeedHandler(replica).handle(envelope(keysType, keys(keyItem("op1", null))))
+        verifies(replica, "op1") shouldBe true
+        verifies(replica, "other") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-16966 before any key event an operator token is refused`() {
+        verifies(newReplica(), "op1") shouldBe false
+    }
+
+    private val operatorRecord =
+        """{"changeKind":"OPERATOR_ACCESS","principalRef":"op-1","authorityVersion":4,
+        |"operatorAccessRecord":{"caseRef":"CASE-1","role":"platform.support","state":"ACTIVE",
+        |"permissions":["doc.view.metadata"],"validUntil":"2026-10-12T02:15:00Z",
+        |"elevation":{"elevationRef":"EL-1","validFrom":"2026-10-12T01:00:00Z","validUntil":"2026-10-12T03:00:00Z"}}}
+        """.trimMargin()
+
+    private fun askOperator(
+        replica: AuthorityReplica,
+        action: String,
+    ) = replica.decide(
+        AuthorizationRequest(
+            TENANT,
+            Principal("op-1", PrincipalKind.HUMAN),
+            "E-001",
+            action,
+            operatorSession = OperatorSession("platform.support", "CASE-1"),
+        ),
+        Deadline.after(Duration.ofSeconds(1), CLOCK),
+    )
+
+    @Test
+    fun `INV-AC-16966 the operator access envelope is held and a matching session request is GRANTED`() {
+        val replica = syncedReplica()
+        val handler = AuthorityFeedHandler(replica)
+        handler.handle(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, operatorRecord))
+        handler
+            .decode(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, operatorRecord))
+            .record
+            .shouldBeInstanceOf<AuthorityRecord.OperatorAccessRecord>()
+            .access.state shouldBe OperatorAccessState.ACTIVE
+        askOperator(replica, "doc.view.metadata").reason shouldBe DecisionReason.GRANTED
+        askOperator(replica, "doc.view.content").reason shouldBe DecisionReason.GRANTED
+        askOperator(replica, "doc.other").reason shouldBe DecisionReason.NO_GRANT
+    }
+
+    @Test
+    fun `INV-AC-16966 the access envelope with two records is a ContractViolation and changes nothing`() {
+        val replica = syncedReplica()
+        val two = operatorRecord.dropLast(1) + ""","principalRecord":{"state":"REVOKED"}}"""
+        assertThrows<ContractViolation> {
+            AuthorityFeedHandler(replica).handle(envelope(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, two))
+        }
+        askOperator(replica, "doc.view.metadata").reason shouldBe DecisionReason.NO_GRANT
+    }
+
+    @Test
+    fun `INV-AC-16966 look-alike types, an unbindable payload and five key items are ContractViolations`() {
+        val replica = newReplica()
+        val handler = OperatorSessionKeysFeedHandler(replica)
+        val one = keys(keyItem("op1", null))
+        listOf(
+            "com.dynokore.gst.access.OperatorSessionKeysChanged.v1",
+            "com.dynokore.gst.platform.OperatorSessionKeyChanged.v1",
+            "com.dynokore.gst.platform.OperatorSessionKeysChanged.v10",
+        ).forEach { assertThrows<ContractViolation> { handler.handle(envelope(it, one)) } }
+        assertThrows<ContractViolation> { handler.handle(envelope(keysType, """{"keys":"x"}""")) }
+        assertThrows<ContractViolation> { handler.handle(envelope(keysType, "{}")) }
+        assertThrows<ContractViolation> {
+            handler.handle(envelope(keysType, keys(*Array(5) { keyItem("k$it", "OPERATOR_SESSION") })))
+        }
+        replica.operatorSessionKeys.valid("op1") shouldBe null
+        replica.operatorSessionKeys.valid("k0") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-16966 ReplicaFeeds holds six entries, AUTHORITY takes the two platform types`() {
+        ReplicaFeeds.ALL.size shouldBe 6
+        ReplicaFeeds.of(ReplicaKind.AUTHORITY).map { it.eventType } shouldBe
+            listOf(
+                "com.dynokore.gst.platform.AuthorityChanged.v1",
+                "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1",
+            )
+        ReplicaFeeds.forType(keysType)!!.fallbackService shouldBe null
     }
 }

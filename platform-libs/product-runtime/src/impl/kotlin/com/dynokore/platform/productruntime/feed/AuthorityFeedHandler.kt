@@ -2,6 +2,7 @@ package com.dynokore.platform.productruntime.feed
 
 import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayload
 import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadConsentRecord
+import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadOperatorAccessRecord
 import com.dynokore.gst.productRuntimeAuthorityEvents.adapters.events.model.AuthorityChangedPayloadRoleGrantRecord
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
@@ -14,6 +15,9 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.ConsentScopeItem
 import com.dynokore.platform.serviceruntime.replica.ConsentState
 import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperatorAccess
+import com.dynokore.platform.serviceruntime.replica.OperatorAccessState
+import com.dynokore.platform.serviceruntime.replica.OperatorElevation
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
 import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
@@ -43,12 +47,19 @@ class AuthorityFeedHandler(
         }
         val payload = ContractJson.read(event.dataJson, AuthorityChangedPayload::class.java)
         val records =
-            listOfNotNull(payload.grantRecord, payload.roleGrantRecord, payload.consentRecord, payload.principalRecord)
+            listOfNotNull(
+                payload.grantRecord,
+                payload.roleGrantRecord,
+                payload.consentRecord,
+                payload.principalRecord,
+                payload.operatorAccessRecord,
+            )
         if (records.size > 1) {
             throw ContractViolation("AuthorityChanged ${event.id} carries ${records.size} records, the contract one")
         }
         val record =
             payload.roleGrantRecord?.let(::roleGrantRecord)
+                ?: payload.operatorAccessRecord?.let(::operatorAccessRecord)
                 ?: payload.grantRecord?.let { AuthorityRecord.LegacyGrant(it.entityRef) }
                 ?: payload.consentRecord?.let(::consentRecord)
                 ?: payload.principalRecord?.let { AuthorityRecord.PrincipalRecord(PrincipalState.of(it.state.value)) }
@@ -88,12 +99,38 @@ class AuthorityFeedHandler(
         )
     }
 
+    private fun operatorAccessRecord(record: AuthorityChangedPayloadOperatorAccessRecord): AuthorityRecord {
+        // the generated type does not enforce maxLength (INV-Q-17149 A): the handler holds the schema bounds
+        requireLength("caseRef", record.caseRef, MAX_CASE_REF)
+        requireLength("role", record.role, MAX_ROLE)
+        if (record.role.isEmpty()) throw ContractViolation("operatorAccessRecord.role is empty")
+        if (record.permissions.size > MAX_PERMISSIONS) {
+            throw ContractViolation("operatorAccessRecord.permissions has more than $MAX_PERMISSIONS items")
+        }
+        record.permissions.forEach { requireLength("permissions item", it, MAX_PERMISSION) }
+        val elevation =
+            record.elevation?.let {
+                requireLength("elevationRef", it.elevationRef, MAX_ELEVATION_REF)
+                OperatorElevation(it.elevationRef, it.validFrom.toInstant(), it.validUntil.toInstant())
+            }
+        return AuthorityRecord.OperatorAccessRecord(
+            OperatorAccess(
+                caseRef = record.caseRef,
+                role = record.role,
+                state = OperatorAccessState.of(record.state.value),
+                permissions = record.permissions.toSet(),
+                validUntil = record.validUntil.toInstant(),
+                elevation = elevation,
+            ),
+        )
+    }
+
     private fun requireLength(
         name: String,
         value: String,
         max: Int,
     ) {
-        if (value.length > max) throw ContractViolation("roleGrantRecord.$name is longer than $max characters")
+        if (value.length > max) throw ContractViolation("record field $name is longer than $max characters")
     }
 
     private fun consentRecord(record: AuthorityChangedPayloadConsentRecord) =
@@ -110,5 +147,11 @@ class AuthorityFeedHandler(
         const val MAX_GRANT_REF = 64
         const val MAX_ROLE = 100
         const val MAX_SCOPE_REF = 64
+
+        /** The `maxLength` and `maxItems` values of `operatorAccessRecord` in the same schema. */
+        const val MAX_CASE_REF = 64
+        const val MAX_PERMISSIONS = 8
+        const val MAX_PERMISSION = 100
+        const val MAX_ELEVATION_REF = 64
     }
 }

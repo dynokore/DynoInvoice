@@ -11,6 +11,7 @@ import com.dynokore.platform.productruntime.fallback.AccessAuthorityFallback
 import com.dynokore.platform.productruntime.fallback.TenancyStructureFallback
 import com.dynokore.platform.productruntime.feed.AuthorityFeedHandler
 import com.dynokore.platform.productruntime.feed.BreakGlassSessionFeedHandler
+import com.dynokore.platform.productruntime.feed.OperatorSessionKeysFeedHandler
 import com.dynokore.platform.productruntime.feed.PolicyFeed
 import com.dynokore.platform.productruntime.feed.StructureFeedHandler
 import com.dynokore.platform.serviceruntime.binding.GstProperties
@@ -98,6 +99,10 @@ class ProductRuntimeConfiguration {
 
     @Bean
     fun authorityFeedHandler(replica: AuthorityReplica): AuthorityFeedHandler = AuthorityFeedHandler(replica)
+
+    @Bean
+    fun operatorSessionKeysFeedHandler(replica: AuthorityReplica): OperatorSessionKeysFeedHandler =
+        OperatorSessionKeysFeedHandler(replica)
 
     @Bean
     fun breakGlassSessionFeedHandler(replica: AuthorityReplica): BreakGlassSessionFeedHandler =

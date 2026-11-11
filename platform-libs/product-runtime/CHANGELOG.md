@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-11-11
+### Added
+- `OperatorSessionKeysFeedHandler` and a `ReplicaFeeds` entry for `OperatorSessionKeysChanged` on the AUTHORITY replica with no fallback: the operator-session key sets are fed from the platform topic (INV-Q-16496 A, INV-AC-16966). `AuthorityFeedHandler` decodes `operatorAccessRecord` to the replica's operator access record; a second record, a look-alike type or a payload outside the schema bounds is a `ContractViolation`. `ReplicaFeeds.of(AUTHORITY)` now has two feeds.
+
 ## [2.18.0] - 2026-11-11
 ### Added
 - New generated module `product-runtime-operator-session-keys-events` (INV-T-20240, INV-AC-20239): the `OperatorSessionKeysChangedPayload` type generated from `platform-contracts:service-runtime:schemas/operator-session-keys-changed-payload.schema.json`, its own module because `gst.event-types` takes one `generatorSource` per module; shipped inside the impl artefact.

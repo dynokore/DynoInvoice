@@ -22,7 +22,8 @@ data class ReplicaFeed(
 /**
  * The product's configuration of service-runtime's replicas (INV-MOD-2745, AD-26): OrganisationStructureChanged and
  * EntityProfileChanged feed the structure replica with tenancy-svc as its fallback (INV-REQ-1200), AuthorityChanged
- * the authority replica with access-svc as its fallback (INV-REQ-1201), and PolicyChanged the policy replica, which
+ * the authority replica with access-svc as its fallback (INV-REQ-1201), OperatorSessionKeysChanged the authority
+ * replica's key sets with no fallback (INV-Q-16496 A, INV-Q-4006 A), and PolicyChanged the policy replica, which
  * has no fallback (INV-REQ-1241 b2), and BreakGlassSessionChanged the break-glass session replica, which has none
  * either (INV-Q-9119 A).
  */
@@ -49,6 +50,12 @@ object ReplicaFeeds {
                 requireNotNull(PlatformEventCatalogue.AUTHORITY_CHANGED.topic),
                 ReplicaKind.AUTHORITY,
                 ACCESS_SVC,
+            ),
+            ReplicaFeed(
+                PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.eventType,
+                requireNotNull(PlatformEventCatalogue.OPERATOR_SESSION_KEYS_CHANGED.topic),
+                ReplicaKind.AUTHORITY,
+                null,
             ),
             ReplicaFeed(
                 PlatformEventCatalogue.POLICY_CHANGED.eventType,
