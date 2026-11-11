@@ -76,7 +76,7 @@ class Tpl18CompositionTest {
                 listOf("rules")
             context.getBean(EventCatalogue::class.java).entries().map { it.eventType } shouldContainExactlyInAnyOrder
                 RulesEventCatalogue.TOPICS.keys.toList() +
-                // the two platform events the mounted setPolicy emits (INV-T-18451) and the sample request (INV-T-19903)
+                // the platform events of setPolicy (INV-T-18451) and the sample request (INV-T-19903)
                 listOf(
                     DryRunSampleEvents.REQUESTED,
                     PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType,
