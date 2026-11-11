@@ -76,10 +76,10 @@ class OperatorSessionKeysChangedPayloadTest {
     }
 
     @Test
-    fun `no key and more than four keys are refused`() {
+    fun `no key and more than six keys are refused`() {
         assertThrows(IllegalStateException::class.java) { outbox.payload(emptyList()) }
-        val five = (1..5).map { key("k$it", KeyUse.OPERATOR_SESSION) }
-        assertThrows(IllegalStateException::class.java) { outbox.payload(five) }
+        val seven = (1..7).map { key("k$it", KeyUse.OPERATOR_SESSION) }
+        assertThrows(IllegalStateException::class.java) { outbox.payload(seven) }
     }
 
     @Test

@@ -41,7 +41,9 @@ class JooqOperatorKeyPublication(
      * stored in `access.link_session_key` and the event carries them with the machine and operator-session keys.
      */
     fun publishLinkSessionKeys(candidates: List<PublishedKey>): List<PublishedKey> =
-        publishItems(candidates.onEach { require(it.use == LINK_SESSION) { "a link-session key has use LINK_SESSION" } })
+        publishItems(
+            candidates.onEach { require(it.use == LINK_SESSION) { "a link-session key has use LINK_SESSION" } },
+        )
 
     private fun publishItems(candidates: List<PublishedKey>): List<PublishedKey> =
         tenants.bindPlatform(actor) {

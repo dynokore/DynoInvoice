@@ -44,6 +44,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -86,7 +87,13 @@ class LinkSessionTokenAcceptanceTest {
         state: String = "ACTIVE",
         expiresAt: Instant = Instant.now().plusSeconds(3600),
     ): String {
-        val ref = "LNK-" + UUID.randomUUID().toString().replace("-", "").take(22)
+        val ref =
+            "LNK-" +
+                UUID
+                    .randomUUID()
+                    .toString()
+                    .replace("-", "")
+                    .take(22)
         BoundaryFixture.asSuperuser { connection ->
             connection
                 .prepareStatement(
@@ -126,14 +133,15 @@ class LinkSessionTokenAcceptanceTest {
     private fun publicKey(item: JsonNode): RSAPublicKey =
         KeyFactory
             .getInstance("RSA")
-            .generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(item["publicKey"].asString()))) as RSAPublicKey
+            .generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(item["publicKey"].asString())))
+            as RSAPublicKey
 
     private fun kidOf(key: RSAKey): String =
         MessageDigest
             .getInstance("SHA-256")
             .digest(key.toRSAPublicKey().encoded)
             .take(8)
-            .joinToString("") { "%02x".format(it) }
+            .joinToString("") { "%02x".format(Locale.ROOT, it) }
 
     private fun privateBytes(key: RSAKey): List<String> =
         listOf(
@@ -154,7 +162,7 @@ class LinkSessionTokenAcceptanceTest {
             root.detachAppender(appender)
             root.level = before
         }
-        return appender.list.map { it.formattedMessage + " " + (it.throwableProxy?.message ?: "") }
+        return appender.list.map { it.formattedMessage + " " + it.throwableProxy?.message.orEmpty() }
     }
 
     private fun assertNoToken(
@@ -260,25 +268,37 @@ class LinkSessionTokenAcceptanceTest {
         }
     }
 
-    @Test
-    fun `INV-AC-17810 a link-session kid shared with a machine key publishes nothing and logs an error`() {
-        val key = TestSecrets.defaultLinkKey
-        val platform = UUID.fromString(TenantId.PLATFORM.toString())
+    private fun superuserUpdate(
+        sql: String,
+        vararg params: Any,
+    ) = BoundaryFixture.asSuperuser { c ->
+        c.prepareStatement(sql).use { st ->
+            params.forEachIndexed { i, p -> st.setObject(i + 1, p) }
+            st.executeUpdate()
+        }
+    }
+
+    private fun linkKeyRows(): Int =
         BoundaryFixture.asSuperuser { c ->
-            c.prepareStatement("delete from access.verification_key where kid = ?").use {
-                it.setString(1, kidOf(key))
-                it.executeUpdate()
-            }
-            c.prepareStatement(
-                "insert into access.verification_key (id, tenant_id, kid, alg, public_key, valid_from, valid_until, " +
-                    "use) values (?, ?, ?, 'ES256', 'x', now(), now() + interval '1 day', 'MACHINE_ACCESS')",
-            ).use {
-                it.setObject(1, UUID.randomUUID())
-                it.setObject(2, platform)
-                it.setString(3, kidOf(key))
-                it.executeUpdate()
+            c.createStatement().use { st ->
+                st.executeQuery("select count(*) from access.link_session_key").use { rs ->
+                    rs.next()
+                    rs.getInt(1)
+                }
             }
         }
+
+    @Test
+    fun `INV-AC-17810 a link-session kid shared with a machine key publishes nothing and logs an error`() {
+        val kid = kidOf(TestSecrets.defaultLinkKey)
+        superuserUpdate("delete from access.verification_key where kid = ?", kid)
+        superuserUpdate(
+            "insert into access.verification_key (id, tenant_id, kid, alg, public_key, valid_from, valid_until, " +
+                "use) values (?, ?, ?, 'ES256', 'x', now(), now() + interval '1 day', 'MACHINE_ACCESS')",
+            UUID.randomUUID(),
+            UUID.fromString(TenantId.PLATFORM.toString()),
+            kid,
+        )
         try {
             run { env ->
                 val before = events().size
@@ -291,24 +311,10 @@ class LinkSessionTokenAcceptanceTest {
                     }
                 assertThat(events().size).isEqualTo(before)
                 assertThat(logs.any { "stored under two uses" in it }).isTrue()
-                val rows =
-                    BoundaryFixture.asSuperuser { c ->
-                        c.createStatement().use { st ->
-                            st.executeQuery("select count(*) from access.link_session_key").use { rs ->
-                                rs.next()
-                                rs.getInt(1)
-                            }
-                        }
-                    }
-                assertThat(rows).isZero()
+                assertThat(linkKeyRows()).isZero()
             }
         } finally {
-            BoundaryFixture.asSuperuser { c ->
-                c.prepareStatement("delete from access.verification_key where kid = ?").use {
-                    it.setString(1, kidOf(key))
-                    it.executeUpdate()
-                }
-            }
+            superuserUpdate("delete from access.verification_key where kid = ?", kid)
         }
     }
 
@@ -339,6 +345,7 @@ class LinkSessionTokenAcceptanceTest {
                 AuthorityReplica(clock, OperationRoleMap { mapOf("signatory.fixture" to CellAllowance.PERMITTED) })
             replica.onSnapshotComplete(0)
             val role = RoleGrant("signatory.fixture", GrantScope.ENTITY, "CLI-A", Instant.now().minusSeconds(60))
+
             fun change(
                 version: Long,
                 state: RoleGrantState,

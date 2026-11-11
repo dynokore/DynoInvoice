@@ -19,7 +19,7 @@ import org.springframework.core.env.Environment
 import java.time.Clock
 import com.dynokore.gst.access.application.link.LinkSessionSigner as LinkSessionSignerPort
 
-/** TPL-18: the link-session token of `verifySignatoryLink` (INV-T-17805): its signer, its key publication, its issuer. */
+/** TPL-18: the link-session token of `verifySignatoryLink` (INV-T-17805): signer, key publication, issuer. */
 @Configuration(proxyBeanMethods = false)
 class LinkSessionUseCases {
     /** The key rows and the key-feed record are written in one platform-bound transaction (INV-Q-16473 A). */

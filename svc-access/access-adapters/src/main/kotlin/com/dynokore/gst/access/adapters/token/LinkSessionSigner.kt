@@ -17,6 +17,7 @@ import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
 import java.security.MessageDigest
 import java.time.Clock
+import java.time.Instant
 import java.util.Base64
 import java.util.Date
 import java.util.Locale
@@ -54,14 +55,20 @@ class LinkSessionSigner(
             publication.publish(
                 sessions.map { PublishedKey(it.kid, USE, ALG, it.publicKey, now, validUntil) },
             )
-        val own = stored.first()
-        if (own.kid != current.kid || own.publicKey != current.publicKey) {
-            throw SigningKeyUnavailable("the published link-session key differs from the signing key")
-        }
-        if (!now.isBefore(own.validFrom.plus(settings.keyRotationInterval))) {
-            throw SigningKeyUnavailable("the link-session key is past its signing interval")
-        }
+        checkSigning(stored.first(), current, now)
         return current.sign(claims)
+    }
+
+    private fun checkSigning(
+        own: PublishedKey,
+        current: LinkSigningKey,
+        now: Instant,
+    ) {
+        val published = own.kid == current.kid && own.publicKey == current.publicKey
+        val inInterval = now.isBefore(own.validFrom.plus(settings.keyRotationInterval))
+        if (!published || !inInterval) {
+            throw SigningKeyUnavailable("the link-session key is not the published key inside its signing interval")
+        }
     }
 
     private fun open(name: String): LinkSigningKey? {
@@ -71,19 +78,20 @@ class LinkSessionSigner(
             } catch (_: SecretNotFound) {
                 return null
             } catch (_: Exception) {
-                throw SigningKeyUnavailable("a link-session key is unreadable")
+                throw unreadable()
             }
-        val key =
-            try {
-                RSAKey.parse(text)
-            } catch (_: Exception) {
-                throw SigningKeyUnavailable("a link-session key is unreadable")
-            }
+        return LinkSigningKey(rsa(text))
+    }
+
+    private fun rsa(text: String): RSAKey {
+        val key = runCatching { RSAKey.parse(text) }.getOrElse { throw unreadable() }
         if (!key.isPrivate || key.size() < MIN_MODULUS_BITS) {
             throw SigningKeyUnavailable("a link-session key is not an RSA private key of at least 2048 bits")
         }
-        return LinkSigningKey(key)
+        return key
     }
+
+    private fun unreadable() = SigningKeyUnavailable("a link-session key is unreadable")
 
     override fun toString(): String = "LinkSessionSigner(key=<redacted>)"
 

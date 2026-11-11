@@ -1,14 +1,14 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.domain.revocation.VerificationKey
-import org.slf4j.LoggerFactory
-import java.time.Instant
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantId
+import org.slf4j.LoggerFactory
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
+import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -70,7 +70,7 @@ class OperatorSessionKeysChangedOutbox(
         }
     }
 
-    /** A kid is never published under two uses (NIST SP 800-57 key separation): nothing is emitted, an error is logged. */
+    /** A kid is never published under two uses (NIST SP 800-57): nothing is emitted and an error is logged. */
     private fun requireOneUsePerKid(valid: List<PublishedKey>) {
         val shared = valid.groupBy { it.kid }.filterValues { items -> items.map { it.use }.distinct().size > 1 }.keys
         if (shared.isNotEmpty()) {
