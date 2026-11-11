@@ -11,6 +11,7 @@ import com.dynokore.gst.access.adapters.link.Sha256PasscodeDigests
 import com.dynokore.gst.access.contract.model.VerifySignatoryLinkRequest
 import com.dynokore.gst.access.domain.link.LinkRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.identity.JwtEndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -19,20 +20,28 @@ import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.DecisionReason
 import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
+import com.dynokore.platform.serviceruntime.replica.OperatorSessionKey
+import com.dynokore.platform.serviceruntime.replica.OperatorSessionKeysChanged
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
+import com.nimbusds.jose.JOSEObjectType
+import com.nimbusds.jose.JWSAlgorithm
+import com.nimbusds.jose.JWSHeader
+import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jose.crypto.RSASSAVerifier
 import com.nimbusds.jose.jwk.RSAKey
+import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.security.KeyFactory
@@ -44,6 +53,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
+import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
@@ -369,4 +379,131 @@ class LinkSessionTokenAcceptanceTest {
             assertThat(jwt.verify(RSASSAVerifier(publicKey(item)))).isTrue()
             assertThat(jwt.jwtClaimsSet.expirationTime.toInstant()).isAfter(Instant.now())
         }
+
+    // ---- Trust boundary: the verifier a service builds, fed from this service's own published key rows ----
+
+    private val idp = TestSecrets.newLinkKey()
+
+    private fun keysOf(event: JsonNode): OperatorSessionKeysChanged =
+        OperatorSessionKeysChanged(
+            event["keys"].toList().map {
+                OperatorSessionKey(
+                    it["kid"].asString(),
+                    it["alg"].asString(),
+                    it["publicKey"].asString(),
+                    Instant.parse(it["validFrom"].asString()),
+                    Instant.parse(it["validUntil"].asString()),
+                    it["use"].asString(),
+                )
+            },
+        )
+
+    private fun resolverOver(keys: OperatorSessionKeysChanged): JwtEndUserPrincipalResolver {
+        val replica = AuthorityReplica(Clock.systemUTC(), OperationRoleMap { emptyMap() })
+        replica.keySets.accept(keys)
+        return JwtEndUserPrincipalResolver(
+            NimbusJwtDecoder.withPublicKey(idp.toRSAPublicKey()).build(),
+            replica,
+            Clock.systemUTC(),
+        )
+    }
+
+    private fun signed(
+        key: RSAKey,
+        kid: String,
+        ref: String,
+    ): String {
+        val now = Instant.now()
+        val claims =
+            JWTClaimsSet
+                .Builder()
+                .subject("link:$ref")
+                .jwtID(UUID.randomUUID().toString())
+                .issueTime(Date.from(now))
+                .expirationTime(Date.from(now.plusSeconds(600)))
+                .claim("tenant_id", tenant.toString())
+                .build()
+        val header =
+            JWSHeader
+                .Builder(JWSAlgorithm.RS256)
+                .keyID(kid)
+                .type(JOSEObjectType("link-session+jwt"))
+                .build()
+        return SignedJWT(header, claims).also { it.sign(RSASSASigner(key)) }.serialize()
+    }
+
+    @Test
+    fun `INV-AC-17810 trust boundary, the service verifier over the published link keys resolves the link principal`() =
+        run { env ->
+            val ref = seed()
+            val token = env.enter(ref, passcode).body!!.sessionToken!!
+            val resolver = resolverOver(keysOf(events().last()))
+            val principal = resolver.resolve("Bearer $token")
+            assertThat(principal).isNotNull()
+            assertThat(principal!!.actor).isEqualTo("link:$ref")
+            assertThat(principal.tenant.toString()).isEqualTo(tenant.toString())
+            // probe: an event with no LINK_SESSION item refuses the same token
+            val noLink =
+                keysOf(events().last()).let { e ->
+                    OperatorSessionKeysChanged(
+                        e.keys.filter {
+                            it.use !=
+                                "LINK_SESSION"
+                        },
+                    )
+                }
+            assertThat(resolverOver(noLink).resolve("Bearer $token")).isNull()
+            // probe: the public key of another pair under the same kid refuses it
+            val other = TestSecrets.newLinkKey()
+            val swapped =
+                keysOf(events().last()).let { e ->
+                    OperatorSessionKeysChanged(
+                        e.keys.map {
+                            if (it.use == "LINK_SESSION") {
+                                it.copy(publicKey = Base64.getEncoder().encodeToString(other.toRSAPublicKey().encoded))
+                            } else {
+                                it
+                            }
+                        },
+                    )
+                }
+            assertThat(resolverOver(swapped).resolve("Bearer $token")).isNull()
+        }
+
+    @Test
+    fun `INV-AC-17810 trust boundary, a token signed under a kid in no row of the link key table is refused`() =
+        run { env ->
+            val ref = seed()
+            env.enter(ref, passcode)
+            val rogue = TestSecrets.newLinkKey()
+            val rows = keysOf(events().last())
+            assertThat(rows.keys.map { it.kid }).doesNotContain(kidOf(rogue))
+            assertThat(resolverOver(rows).resolve("Bearer " + signed(rogue, kidOf(rogue), ref))).isNull()
+        }
+
+    @Test
+    fun `INV-AC-17810 trust boundary, the same claims under the kid of a machine key of the event are refused`() {
+        val machine = TestSecrets.newLinkKey()
+        val machineKid = "machine-probe-" + UUID.randomUUID().toString().take(8)
+        superuserUpdate(
+            "insert into access.verification_key (id, tenant_id, kid, alg, public_key, valid_from, valid_until, " +
+                "use) values (?, ?, ?, 'RS256', ?, now() - interval '1 minute', now() + interval '1 day', " +
+                "'MACHINE_ACCESS')",
+            UUID.randomUUID(),
+            UUID.fromString(TenantId.PLATFORM.toString()),
+            machineKid,
+            Base64.getEncoder().encodeToString(machine.toRSAPublicKey().encoded),
+        )
+        try {
+            run { env ->
+                val ref = seed()
+                env.enter(ref, passcode)
+                val rows = keysOf(events().last())
+                assertThat(rows.keys.single { it.kid == machineKid }.use).isEqualTo("MACHINE_ACCESS")
+                assertThat(resolverOver(rows).resolve("Bearer " + signed(machine, machineKid, ref))).isNull()
+            }
+        } finally {
+            superuserUpdate("delete from access.verification_key where kid = ?", machineKid)
+        }
+    }
 }
