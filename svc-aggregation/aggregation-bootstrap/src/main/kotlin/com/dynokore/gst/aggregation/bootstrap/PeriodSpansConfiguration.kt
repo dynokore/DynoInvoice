@@ -7,6 +7,7 @@ import com.dynokore.gst.aggregation.adapters.periods.StoredPeriodBoundaries
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
@@ -57,7 +58,7 @@ class PeriodSpansConfiguration {
         reader: EventLogReader,
         scope: TenantScope,
         dsl: DSLContext,
-        periodRecordsChangedHandler: PeriodRecordsChangedHandler,
+        periodRecordsChangedHandler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): JdbcInboxConsumer =

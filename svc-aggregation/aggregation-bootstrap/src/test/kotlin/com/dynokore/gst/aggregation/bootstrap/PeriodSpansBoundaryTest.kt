@@ -6,7 +6,6 @@ import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
 import com.dynokore.gst.aggregation.adapters.http.TransactionIntakeController
 import com.dynokore.gst.aggregation.adapters.periods.ConsumedPeriodEvents
 import com.dynokore.gst.aggregation.adapters.periods.NoPeriodBoundaries
-import com.dynokore.gst.aggregation.adapters.periods.PeriodRecordsChangedHandler
 import com.dynokore.gst.aggregation.adapters.periods.StoredPeriodBoundaries
 import com.dynokore.gst.aggregation.adapters.persistence.JooqTransactionStore
 import com.dynokore.gst.aggregation.application.AggregateRepository
@@ -20,6 +19,7 @@ import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
@@ -130,7 +130,7 @@ class PeriodSpansBoundaryTest {
         /** Delivers the event the way the inbox consumer does: the record's tenant bound, the handler called. */
         fun deliver(data: String): HandleOutcome =
             scope.bind(TenantId(tenant), actor) {
-                context.getBean(PeriodRecordsChangedHandler::class.java).handle(
+                context.getBean("periodRecordsChangedHandler", EventHandler::class.java).handle(
                     Envelope(
                         id = EventId(UUID.randomUUID().toString()),
                         source = "/gst/tenancy-svc",
@@ -220,7 +220,12 @@ class PeriodSpansBoundaryTest {
                 )
             subscription.topic shouldBe "gst.tenancy.period-records-changed.v1"
             ConsumedPeriodEvents.PERIOD_RECORDS_CHANGED shouldBe "com.dynokore.gst.tenancy.PeriodRecordsChanged.v1"
-            boundary.context.getBeansOfType(PeriodRecordsChangedHandler::class.java).size shouldBe 1
+            boundary.context
+                .getBeansOfType(
+                    EventHandler::class.java,
+                ).keys
+                .count { it == "periodRecordsChangedHandler" } shouldBe
+                1
         }
 
     @Test
