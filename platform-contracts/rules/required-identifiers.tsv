@@ -404,4 +404,4 @@ specVersion	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-R
 accepted_from	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
 accepted_to	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
 approveRegulatoryPack	operation	openapi.yaml	INV-REQ-489
-APPROVED	enum_value	openapi.yaml	INV-REQ-489
+RegulatoryPack.status.APPROVED	schema_enum_value	openapi.yaml	INV-REQ-489
