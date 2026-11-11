@@ -1,5 +1,7 @@
 package com.dynokore.gst.tenancy.application.election
 
+import com.dynokore.gst.tenancy.application.migration.MigrationCutover
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverStore
 import com.dynokore.gst.tenancy.application.status.EntityProfileChange
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.structure.EntityRecord
@@ -62,6 +64,18 @@ class ExemptPurchaseProfileTest {
     private val tenants = InMemoryTenantContext(tenant)
     private val authority = ActionAuthority { _, _, _ -> allowed }
     private val clock = Clock.fixed(Instant.parse("2026-11-07T01:00:00Z"), ZoneOffset.UTC)
+
+    /** A cutover store that holds no record, so the profile carries no migrationCutoverDate. */
+    private val noCutovers =
+        object : MigrationCutoverStore {
+            override fun find(entityRef: String): MigrationCutover? = null
+
+            override fun insert(
+                entityId: UUID,
+                cutover: MigrationCutover,
+            ): Boolean = error("insert is not used")
+        }
+
     private val commands =
         ElectionCommands(
             Direct,
@@ -83,6 +97,7 @@ class ExemptPurchaseProfileTest {
             tenants,
             ExemptPurchaseElections(Direct, structure, store, authority, { "user-1" }, idle(), tenants, clock),
             store,
+            noCutovers,
             clock,
         )
 

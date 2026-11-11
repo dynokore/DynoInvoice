@@ -31,6 +31,8 @@ import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElectionStore
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElections
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseProfileExtras
 import com.dynokore.gst.tenancy.application.election.ScopePackStore
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverProfileExtras
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverStore
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.status.EntityStatusStore
 import com.dynokore.gst.tenancy.application.structure.ProfileExtras
@@ -98,12 +100,15 @@ class ElectionUseCases {
         history: PolicyHistory,
         tenants: TenantContext,
         exemptPurchases: ExemptPurchaseElectionStore,
+        cutovers: MigrationCutoverStore,
     ): ProfileExtras {
         val issuance = IssuanceProfileExtras(elections)
         val schemes = GstSchemeProfileExtras(history, tenants)
         val exempt = ExemptPurchaseProfileExtras(exemptPurchases)
+        val cutover = MigrationCutoverProfileExtras(cutovers)
         return ProfileExtras { entityRef ->
-            issuance.entries(entityRef) + schemes.entries(entityRef) + exempt.entries(entityRef)
+            issuance.entries(entityRef) + schemes.entries(entityRef) + exempt.entries(entityRef) +
+                cutover.entries(entityRef)
         }
     }
 
@@ -202,6 +207,7 @@ class ElectionUseCases {
         tenants: TenantContext,
         exemptPurchase: ExemptPurchaseElections,
         exemptPurchases: ExemptPurchaseElectionStore,
+        cutovers: MigrationCutoverStore,
         clock: ObjectProvider<Clock>,
     ): ElectionCommands =
         ElectionCommands(
@@ -220,6 +226,7 @@ class ElectionUseCases {
             tenants,
             exemptPurchase,
             exemptPurchases,
+            cutovers,
             clock.getIfAvailable(Clock::systemUTC),
         )
 

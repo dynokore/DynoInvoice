@@ -1,5 +1,7 @@
 package com.dynokore.gst.tenancy.application.election
 
+import com.dynokore.gst.tenancy.application.migration.MigrationCutover
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverStore
 import com.dynokore.gst.tenancy.application.status.EntityProfileChange
 import com.dynokore.gst.tenancy.application.status.EntityProfileChangePublisher
 import com.dynokore.gst.tenancy.application.structure.EntityRecord
@@ -113,6 +115,17 @@ class ElectionChangeLifecycleTest {
             override fun instant(): Instant = now
         }
 
+    /** A cutover store that holds no record, so the profile carries no migrationCutoverDate. */
+    private val noCutovers =
+        object : MigrationCutoverStore {
+            override fun find(entityRef: String): MigrationCutover? = null
+
+            override fun insert(
+                entityId: UUID,
+                cutover: MigrationCutover,
+            ): Boolean = error("insert is not used")
+        }
+
     private val commands =
         ElectionCommands(
             Direct,
@@ -143,6 +156,7 @@ class ElectionChangeLifecycleTest {
                 Clock.fixed(start, ZoneOffset.UTC),
             ),
             exempt,
+            noCutovers,
             movingClock,
         )
 

@@ -11,6 +11,8 @@ import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElectionRow
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseElections
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseOutcome
 import com.dynokore.gst.tenancy.application.election.ExemptPurchaseProfileExtras
+import com.dynokore.gst.tenancy.application.migration.MigrationCutover
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverStore
 import com.dynokore.gst.tenancy.application.structure.ProfileEntry
 import com.dynokore.gst.tenancy.application.structure.StructureQueries
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
@@ -153,6 +155,18 @@ class ExemptPurchaseElectionStoreTest {
             }
         val writer =
             JdbcOutboxWriter(dsl, "tenancy", "tenancy-svc", "instance-1", TenancyEventCatalogue.load(), clock)
+
+        /** A cutover store that holds no record, so the profile carries no migrationCutoverDate. */
+        val noCutovers =
+            object : MigrationCutoverStore {
+                override fun find(entityRef: String): MigrationCutover? = null
+
+                override fun insert(
+                    entityId: UUID,
+                    cutover: MigrationCutover,
+                ): Boolean = error("insert is not used")
+            }
+
         return ElectionCommands(
             direct,
             structure,
@@ -178,6 +192,7 @@ class ExemptPurchaseElectionStoreTest {
                 clock,
             ),
             store,
+            noCutovers,
             clock,
         )
     }

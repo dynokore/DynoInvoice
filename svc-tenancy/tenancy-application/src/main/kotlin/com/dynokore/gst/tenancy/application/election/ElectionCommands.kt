@@ -1,5 +1,7 @@
 package com.dynokore.gst.tenancy.application.election
 
+import com.dynokore.gst.tenancy.application.migration.MigrationCutoverStore
+import com.dynokore.gst.tenancy.application.migration.migrationCutoverEntries
 import com.dynokore.gst.tenancy.application.period.SINGAPORE
 import com.dynokore.gst.tenancy.application.status.ChangedAttribute
 import com.dynokore.gst.tenancy.application.status.EntityProfileChange
@@ -136,6 +138,7 @@ class ElectionCommands(
     private val tenants: TenantContext,
     private val exemptPurchase: ExemptPurchaseElections,
     private val exemptPurchases: ExemptPurchaseElectionStore,
+    private val cutovers: MigrationCutoverStore,
     private val clock: Clock,
 ) {
     /**
@@ -653,7 +656,8 @@ class ElectionCommands(
                 statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
                     electionEntries(entity.ref, ElectionKind.ISSUANCE_MODE, ISSUANCE_MODE_ATTRIBUTE) +
                     electionEntries(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE, RATE_SOURCE_ATTRIBUTE) +
-                    exemptPurchaseEntries(exemptPurchases.history(entity.ref))
+                    exemptPurchaseEntries(exemptPurchases.history(entity.ref)) +
+                    migrationCutoverEntries(cutovers.find(entity.ref))
             ).sortedBy { it.effectiveDate }
         publisher.publish(
             EntityProfileChange(
