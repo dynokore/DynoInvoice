@@ -17,14 +17,20 @@ import com.dynokore.gst.rules.adapters.packs.ServiceKeyHolderCopyWriter
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
 import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
+import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingImportRecordStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
+import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_REGISTRY
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
 import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
+import com.dynokore.gst.rules.adapters.web.BackgroundDryRunStore
+import com.dynokore.gst.rules.adapters.web.BackgroundEvaluation
+import com.dynokore.gst.rules.adapters.web.BackgroundSamplePort
+import com.dynokore.gst.rules.adapters.web.DryRunCalls
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImporter
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImports
 import com.dynokore.gst.rules.application.ActivePackReader
@@ -32,19 +38,27 @@ import com.dynokore.gst.rules.application.ClassifyDocument
 import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DryRunDeltaPort
+import com.dynokore.gst.rules.application.DryRunDeltaStore
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.HolderCopyPort
 import com.dynokore.gst.rules.application.InstallationApproverFactPort
+import com.dynokore.gst.rules.application.LastCompletePeriodPort
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.application.ListCursorKey
 import com.dynokore.gst.rules.application.MappingAcknowledgementPort
 import com.dynokore.gst.rules.application.MappingPackAuthoring
 import com.dynokore.gst.rules.application.MappingPackCollaborators
+import com.dynokore.gst.rules.application.NamedPackVersions
 import com.dynokore.gst.rules.application.PackActionAuthority
 import com.dynokore.gst.rules.application.PackApprovalDecisionPort
+import com.dynokore.gst.rules.application.PackDocumentEvaluation
+import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.PackEventEmitter
+import com.dynokore.gst.rules.application.PeriodCalendarUnavailableException
 import com.dynokore.gst.rules.application.RateSourcePort
+import com.dynokore.gst.rules.application.RunDryRun
+import com.dynokore.gst.rules.application.SampleRequestPort
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
@@ -61,7 +75,12 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.rulepackkernel.PackId
+import com.dynokore.platform.rulepackkernel.PackManifest
+import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.rulepackkernel.PackVerifier
+import com.dynokore.platform.rulepackkernel.PackVersion
+import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.serviceruntime.binding.DeploymentForm
 import com.dynokore.platform.serviceruntime.binding.GstProperties
@@ -74,7 +93,16 @@ import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import java.time.Clock
+import java.time.Duration
+import java.time.LocalDate
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Semaphore
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.Schema
@@ -83,6 +111,7 @@ import org.jooq.impl.SQLDataType
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.info.BuildProperties
@@ -90,7 +119,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
-import java.time.Clock
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
@@ -257,6 +285,98 @@ class RulesConfiguration {
         store: JooqSamplePageStore,
         clock: Clock,
     ): HistoricalSamplePort = EventHistoricalSamplePort(store, clock)
+
+    /**
+     * The period calendar belongs to tenancy-svc and rules-svc computes no period (INV-T-4974, INV-REQ-1303). Until the
+     * production adapter (INV-T-20226) replaces this binding, a `dryRun` without a body is refused 503 SRT-013.
+     */
+    @Bean
+    @ConditionalOnMissingBean(LastCompletePeriodPort::class)
+    fun lastCompletePeriodPort(): LastCompletePeriodPort =
+        LastCompletePeriodPort { _, _ -> throw PeriodCalendarUnavailableException("no period calendar is configured") }
+
+    /** The version named by a call is read from the registry whatever its status (tenant's own or the platform's). */
+    @Bean
+    @ConditionalOnMissingBean(NamedPackVersions::class)
+    fun namedPackVersions(dsl: DSLContext): NamedPackVersions = RegistryNamedPackVersions(dsl)
+
+    /** The pack evaluation of a dry run: [PackDocumentEvaluation] over the registry (INV-T-19901). */
+    @Bean
+    @ConditionalOnMissingBean(PackEvaluationPort::class)
+    fun packEvaluationPort(
+        named: NamedPackVersions,
+        dsl: DSLContext,
+    ): PackEvaluationPort =
+        PackDocumentEvaluation(named, ArmedPackLookup(dsl), Evaluator(emptyList()), listOf(PackType(MAPPING_PACK_TYPE)))
+
+    /** The stored delta of the dry runs (INV-T-19902). */
+    @Bean
+    fun dryRunDeltaStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): DryRunDeltaStore = JooqDryRunDeltaStore(dsl, tenants)
+
+    /**
+     * The dry-run use case. Absent (null) when no [HistoricalSamplePort] exists, so that the service still starts and
+     * `dryRun` is refused naming the unavailable sample (coordinator ruling INV-Q-4900). Every port of the run is its
+     * own transaction on the background thread.
+     */
+    @Bean
+    fun runDryRun(
+        samples: ObjectProvider<HistoricalSamplePort>,
+        evaluation: PackEvaluationPort,
+        store: DryRunDeltaStore,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ): RunDryRun? =
+        samples.ifAvailable?.let {
+            RunDryRun(
+                BackgroundSamplePort(it, transactions),
+                BackgroundEvaluation(evaluation, transactions),
+                BackgroundDryRunStore(store, transactions),
+                clock,
+            )
+        }
+
+    /**
+     * The background capacity of dry runs: a fixed pool of `rules.dry-run.parallelism` platform threads whose queue holds no more
+     * than the pool can start, so a run never waits unbounded; a call finding no free slot is refused 503 SRT-013.
+     * The connections it takes count against the background lane of the service's one pool.
+     */
+    @Bean(destroyMethod = "shutdown")
+    fun dryRunExecutor(
+        @Value("\${rules.dry-run.parallelism}") parallelism: Int,
+    ): ExecutorService =
+        ThreadPoolExecutor(
+            parallelism,
+            parallelism,
+            0L,
+            TimeUnit.MILLISECONDS,
+            ArrayBlockingQueue(parallelism),
+            { r -> Thread(r, "dry-run").also { it.isDaemon = true } },
+        )
+
+    /** The calls of `dryRun` and `getDryRun`; the sample wait comes from `rules.dry-run.sample-wait`. */
+    @Bean
+    @Suppress("LongParameterList") // the composition root names the collaborators of the calls (TPL-18)
+    fun dryRunCalls(
+        runs: ObjectProvider<RunDryRun>,
+        store: DryRunDeltaStore,
+        requests: SampleRequestPort,
+        periods: LastCompletePeriodPort,
+        packs: JooqMappingPackStore,
+        dsl: DSLContext,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+        clock: Clock,
+        executor: ExecutorService,
+        @Value("\${rules.dry-run.parallelism}") parallelism: Int,
+        @Value("\${rules.dry-run.sample-wait}") sampleWait: Duration,
+    ): DryRunCalls =
+        DryRunCalls(
+            runs, store, requests, periods, packs, dsl, tenants, transactions, clock, executor,
+            Semaphore(parallelism), sampleWait, SYNC_WAIT,
+        )
 
     /**
      * rules-svc is the subscriber of `gst.platform.pack-dry-run-sample-recorded.v1` (platform-contracts
@@ -479,3 +599,41 @@ class RulesConfiguration {
 class AccessSvcEdge(
     val client: AccessSvcClient,
 )
+
+private const val MAPPING_PACK_TYPE = "MAPPING"
+
+/** `dryRun` answers 202 when the run outlasts this (API-17, x-timeout 2000 ms of the contract). */
+private val SYNC_WAIT: Duration = Duration.ofMillis(2000)
+
+/** [NamedPackVersions] over `rules.pack_registry`: the tenant's own version or the platform's, any status. */
+class RegistryNamedPackVersions(
+    private val dsl: DSLContext,
+) : NamedPackVersions {
+    override fun find(
+        tenant: TenantId,
+        packType: PackType,
+        label: String,
+    ): PackVersion? {
+        val row =
+            dsl
+                .selectFrom(PACK_REGISTRY)
+                .where(PACK_REGISTRY.PACK_TYPE.eq(packType.value))
+                .and(PACK_REGISTRY.PACK_VERSION.eq(label))
+                .and(PACK_REGISTRY.TENANT_ID.`in`(listOf(tenant.value, TenantId.PLATFORM.value)))
+                .orderBy(DSL.`when`(PACK_REGISTRY.TENANT_ID.eq(TenantId.PLATFORM.value), 1).otherwise(0))
+                .limit(1)
+                .fetchOne() ?: return null
+        val owner = checkNotNull(row.tenantId)
+        return PackVersion(
+            PackManifest(
+                packId = PackId(checkNotNull(row.packId)),
+                packType = packType,
+                version = PackVersionLabel(checkNotNull(row.packVersion)),
+                effectiveFrom = row.effectiveFrom ?: LocalDate.MAX,
+                effectiveTo = row.effectiveTo,
+                minEngineVersion = checkNotNull(row.minEngineVersion),
+            ),
+            tenant = if (owner == TenantId.PLATFORM.value) null else TenantId(owner),
+        )
+    }
+}

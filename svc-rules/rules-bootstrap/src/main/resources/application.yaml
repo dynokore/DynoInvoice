@@ -52,6 +52,14 @@ gst:
   service: rules-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
 rules:
+  dry-run:
+    # Background capacity of dry runs (INV-T-4974): runs executed at the same time. Two keeps a console user's second
+    # dry run from waiting behind the first while leaving most of the background lane to relay and consumers.
+    parallelism: 2
+    # How long a run waits for the sample pages of canonical-svc before it ends SAMPLE_UNAVAILABLE naming the missing
+    # page. A sample is read from the event log page by page, so the wait is minutes, not the 2 s of the synchronous
+    # answer, and still short enough that a run never outlives the 7 days a status resource is kept (API-17).
+    sample-wait: PT5M
   # access-svc's base URL: required, no default; the context does not start without it (TPL-16)
   access-svc-url: ${RULES_ACCESS_SVC_URL}
 service-runtime.resilience.edges:

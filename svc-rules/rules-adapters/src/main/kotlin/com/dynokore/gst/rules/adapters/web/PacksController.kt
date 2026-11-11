@@ -85,6 +85,7 @@ open class PacksController(
     private val importRecords: JooqMappingImportRecordStore,
     private val catalogues: CodeCataloguePort,
     private val clock: Clock,
+    private val dryRuns: DryRunCalls,
 ) : MappingPacksApi,
     RegulatoryPacksApi {
     /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
@@ -494,19 +495,54 @@ open class PacksController(
                 .take(PACK_ID_HEX)
                 .uppercase()
 
+    // ---- the dry run (INV-T-4974; INV-REQ-772, INV-REQ-1303, INV-REQ-1352; INV-API-3473) ----
+
     override fun dryRun(
         packRef: String,
         idempotencyKey: UUID,
         dryRunRequest: DryRunRequest?,
-    ): ResponseEntity<DryRunResult> = ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    ): ResponseEntity<DryRunResult> {
+        val window = DryRunWindows.of(dryRunRequest)
+        return when (val started = dryRuns.start(packRef, window)) {
+            is DryRunStarted.Finished -> {
+                val record = checkNotNull(readRun(packRef, started.dryRunId)) { "the run vanished" }
+                val result = DryRunMapping.resultOf(packRef, record)
+                if (result != null) ResponseEntity.ok(result) else accepted(packRef, record)
+            }
+
+            is DryRunStarted.Running -> {
+                accepted(packRef, checkNotNull(readRun(packRef, started.dryRunId)) { "the run vanished" })
+            }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST") // the 202 body is the status resource; the generated signature types the 200 body only
+    private fun accepted(
+        packRef: String,
+        record: DryRunRecord,
+    ): ResponseEntity<DryRunResult> =
+        ResponseEntity
+            .status(HttpStatus.ACCEPTED)
+            .header("Location", "/internal/v1/rules/packs/$packRef/dry-runs/${record.stored.dryRunId}")
+            .header("Retry-After", RETRY_AFTER_SECONDS)
+            .body(DryRunMapping.statusOf(packRef, record, correlationId())) as ResponseEntity<DryRunResult>
+
+    private fun readRun(
+        packRef: String,
+        dryRunId: String,
+    ): DryRunRecord? = transactions.inTransaction { dryRuns.find(packRef, dryRunId) }
 
     override fun getDryRun(
         packRef: String,
         dryRunId: String,
-    ): ResponseEntity<RulesDryRunStatus> = ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    ): ResponseEntity<RulesDryRunStatus> {
+        val record = readRun(packRef, dryRunId) ?: throw checkNotNull(refusalOf(MappingPackResult.NotFound))
+        return ResponseEntity.ok(DryRunMapping.statusOf(packRef, record, correlationId()))
+    }
 }
 
 private const val PACK_ID_HEX = 8
+private const val RETRY_AFTER_SECONDS = "2"
 private const val ARMED = "ARMED"
 private const val UNIQUE_VIOLATION = "23505"
 private const val LINEAGE_KEY = "pack_registry_lineage_key"
