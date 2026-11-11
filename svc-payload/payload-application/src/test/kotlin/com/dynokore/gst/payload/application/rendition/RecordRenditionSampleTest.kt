@@ -192,6 +192,19 @@ class RecordRenditionSampleTest {
     }
 
     @Test
+    fun `INV-AC-20322 a repeat after a later passed sample reports the closed standing and no change`() {
+        val first = recorded(useCase.record(cmd(sha = 'a', checkId = "chk-1")))
+        text = "GST Reg No Zebra"
+        useCase.record(cmd(sha = 'b', checkId = "chk-2"))
+        val again = recorded(useCase.record(cmd(sha = 'a', checkId = "chk-3")))
+        again.result shouldBe first.result
+        again.findingOpen shouldBe false
+        again.findingChanged shouldBe false
+        store.saves shouldBe 2
+        recorder.recorded.size shouldBe 2
+    }
+
+    @Test
     fun `INV-AC-20322 the same hash under another scenario or submission type is a new sample`() {
         useCase.record(cmd(scenario = "S1"))
         useCase.record(cmd(scenario = "S2", checkId = "chk-2"))
