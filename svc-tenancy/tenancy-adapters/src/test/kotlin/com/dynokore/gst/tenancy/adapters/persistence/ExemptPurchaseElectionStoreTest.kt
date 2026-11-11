@@ -142,6 +142,17 @@ class ExemptPurchaseElectionStoreTest {
             .execute()
     }
 
+    /** A cutover store that holds no record, so the profile carries no migrationCutoverDate. */
+    private val noCutovers =
+        object : MigrationCutoverStore {
+            override fun find(entityRef: String): MigrationCutover? = null
+
+            override fun insert(
+                entityId: UUID,
+                cutover: MigrationCutover,
+            ): Boolean = error("insert is not used")
+        }
+
     private fun commands(
         dsl: DSLContext,
         tenant: TenantId,
@@ -155,17 +166,6 @@ class ExemptPurchaseElectionStoreTest {
             }
         val writer =
             JdbcOutboxWriter(dsl, "tenancy", "tenancy-svc", "instance-1", TenancyEventCatalogue.load(), clock)
-
-        /** A cutover store that holds no record, so the profile carries no migrationCutoverDate. */
-        val noCutovers =
-            object : MigrationCutoverStore {
-                override fun find(entityRef: String): MigrationCutover? = null
-
-                override fun insert(
-                    entityId: UUID,
-                    cutover: MigrationCutover,
-                ): Boolean = error("insert is not used")
-            }
 
         return ElectionCommands(
             direct,
