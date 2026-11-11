@@ -10,10 +10,10 @@ import org.jooq.DSLContext
 import org.jooq.Field
 
 /**
- * [RegisterEntryStore] over the register entry (INV-REQ-975, INV-Q-16315 A): one insert-or-update per call in one
- * transaction of the bound tenant. On conflict of `doc_uuid` the row changes only where the stored `source_version` is
- * null or lower (version guard); the tenant is in the conflict WHERE as well as in the forced row level security
- * (CS-19). Values are never logged.
+ * [RegisterEntryStore] over the register entry (INV-REQ-975, INV-Q-16315 A): in one transaction of the bound tenant,
+ * `insert ... on conflict (doc_uuid) do nothing` (one row: INSERTED), else a version-guarded `update` where tenant and
+ * doc match and the stored `source_version` is null or lower (one row: UPDATED, none: UNCHANGED). No select, so the
+ * result cannot race with a concurrent writer; forced row level security applies (CS-19). Values are never logged.
  */
 class JooqRegisterEntryStore(
     private val dsl: DSLContext,
@@ -27,30 +27,27 @@ class JooqRegisterEntryStore(
     ): UpsertResult =
         runner.inTransaction {
             val values = valuesOf(entry)
-            val existed =
-                dsl.fetchExists(
-                    dsl
-                        .selectOne()
-                        .from(e)
-                        .where(e.TENANT_ID.eq(tenant.value))
-                        .and(e.DOC_UUID.eq(entry.docUuid)),
-                )
-            val rows =
+            val inserted =
                 dsl
                     .insertInto(e)
                     .set(e.TENANT_ID, tenant.value)
                     .set(e.DOC_UUID, entry.docUuid)
                     .set(values)
                     .onConflict(e.DOC_UUID)
-                    .doUpdate()
-                    .set(values)
-                    .where(e.TENANT_ID.eq(tenant.value))
-                    .and(e.SOURCE_VERSION.isNull.or(e.SOURCE_VERSION.lt(entry.sourceVersion)))
+                    .doNothing()
                     .execute()
-            when {
-                rows == 0 -> UpsertResult.UNCHANGED
-                existed -> UpsertResult.UPDATED
-                else -> UpsertResult.INSERTED
+            if (inserted == 1) {
+                UpsertResult.INSERTED
+            } else {
+                val updated =
+                    dsl
+                        .update(e)
+                        .set(values)
+                        .where(e.TENANT_ID.eq(tenant.value))
+                        .and(e.DOC_UUID.eq(entry.docUuid))
+                        .and(e.SOURCE_VERSION.isNull.or(e.SOURCE_VERSION.lt(entry.sourceVersion)))
+                        .execute()
+                if (updated == 1) UpsertResult.UPDATED else UpsertResult.UNCHANGED
             }
         }
 

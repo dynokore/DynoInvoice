@@ -195,6 +195,73 @@ class RegisterEntryStoreDbTest {
         allOrNone(a, doc)
     }
 
+    /** A store on its own connection, bound to [tenant] in every transaction. */
+    private fun storeOn(
+        conn: java.sql.Connection,
+        tenant: UUID,
+    ): JooqRegisterEntryStore {
+        val own =
+            object : TransactionRunner {
+                override fun <T> inTransaction(block: () -> T): T {
+                    SignedBindings.bind(conn, tenant)
+                    return block().also { conn.commit() }
+                }
+            }
+        return JooqRegisterEntryStore(DSL.using(conn, SQLDialect.POSTGRES), own)
+    }
+
+    private fun storedVersion(
+        tenant: UUID,
+        doc: String,
+    ): Int {
+        bound.set(tenant)
+        try {
+            return runner.inTransaction {
+                dsl
+                    .fetchOne(
+                        "select source_version from submission.obligation_register_entry where doc_uuid = ?",
+                        doc,
+                    )!!
+                    .get(0, Int::class.java)
+            }
+        } finally {
+            bound.remove()
+        }
+    }
+
+    @Test
+    fun `INV-AC-16339 two connections writing version 1 and 2 of a fresh document give exactly one INSERTED`() {
+        val a = UUID.randomUUID()
+        val pool =
+            java.util.concurrent.Executors
+                .newFixedThreadPool(2)
+        val extra =
+            SubmissionDb.connect(SubmissionDb.RUNTIME, SubmissionDb.RUNTIME_PASSWORD).also {
+                it.autoCommit =
+                    false
+            }
+        try {
+            val stores = listOf(storeOn(connection, a), storeOn(extra, a))
+            repeat(20) {
+                val doc = "race-${UUID.randomUUID()}"
+                val gate = java.util.concurrent.CyclicBarrier(2)
+                val futures =
+                    stores.mapIndexed { n, st ->
+                        pool.submit<UpsertResult> {
+                            gate.await()
+                            st.upsert(TenantId(a), entry(doc, n + 1))
+                        }
+                    }
+                val results = futures.map { f -> f.get(30, java.util.concurrent.TimeUnit.SECONDS) }
+                results.count { r -> r == UpsertResult.INSERTED } shouldBe 1
+                storedVersion(a, doc) shouldBe 2
+            }
+        } finally {
+            pool.shutdownNow()
+            extra.close()
+        }
+    }
+
     @Test
     fun `INV-AC-16339 tenant B cannot update or see tenant A's row`() {
         val a = UUID.randomUUID()
