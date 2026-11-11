@@ -67,13 +67,13 @@ class CanonicalVersionCreatedHandlerTest {
                 buildMap {
                     if (number != null) put("documentNumber", mapOf("value" to number))
                     put("documentTypeCode", mapOf("value" to "380"))
+                    put("currency", mapOf("value" to "SGD"))
+                    val parties = mapOf("supplier" to party("SUP"), "buyer" to party("CANARY-BUYER Pte Ltd"))
+                    put("parties", mapOf("value" to parties))
+                    put("totals", mapOf("value" to mapOf("totalExcludingTax" to "100.00", "totalTax" to "9.00")))
+                    put("lines", mapOf("value" to listOf(mapOf("taxCode" to "SR"))))
                 },
             )
-            put("currency", mapOf("value" to "SGD"))
-            val parties = mapOf("supplier" to party("SUP"), "buyer" to party("CANARY-BUYER Pte Ltd"))
-            put("parties", mapOf("value" to parties))
-            put("totals", mapOf("value" to mapOf("totalExcludingTax" to "100.00", "totalTax" to "9.00")))
-            put("lines", mapOf("value" to listOf(mapOf("taxCode" to "SR"))))
             put("routingFacts", mapOf("direction" to "SALE"))
         }
 

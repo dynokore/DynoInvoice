@@ -11,9 +11,8 @@ import java.time.format.DateTimeParseException
 
 /**
  * [CanonicalVersionCreatedDataReader] over Jackson (canonical-version-created-payload.schema.json). A missing or
- * malformed member is a [ContractViolation]. The payload map keeps `canonicalDocument`, `routingFacts` and the
- * canonical members `ListFactsPolicy.extract` reads at the top level (`parties`, `currency`, `totals`, `lines`,
- * hoisted from `canonicalDocument`); nothing else of the event is kept.
+ * malformed member is a [ContractViolation]. The payload map keeps exactly `canonicalDocument` and `routingFacts`
+ * (each when present), shape unchanged; nothing else of the event is kept.
  */
 class JacksonCanonicalVersionCreatedDataReader : CanonicalVersionCreatedDataReader {
     private val mapper = ObjectMapper()
@@ -67,9 +66,6 @@ class JacksonCanonicalVersionCreatedDataReader : CanonicalVersionCreatedDataRead
         val document = data.get("canonicalDocument")
         if (document != null && document.isObject) {
             out["canonicalDocument"] = plain(document)
-            for (name in HOISTED) {
-                document.get(name)?.let { out[name] = plain(it) }
-            }
         }
         data.get("routingFacts")?.let { out["routingFacts"] = plain(it) }
         return out
@@ -84,8 +80,4 @@ class JacksonCanonicalVersionCreatedDataReader : CanonicalVersionCreatedDataRead
             node.isNull -> null
             else -> node.numberValue()
         }
-
-    private companion object {
-        val HOISTED = listOf("parties", "currency", "totals", "lines")
-    }
 }

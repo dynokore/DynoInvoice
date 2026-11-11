@@ -36,7 +36,7 @@ class JacksonCanonicalVersionCreatedDataReaderTest {
         d.transactionDate shouldBe LocalDate.of(2026, 3, 20)
         d.prescribedPeriodRef shouldBe "2026-Q1"
         d.scopeVerdict shouldBe "SUBMITTABLE"
-        d.payload.keys shouldBe setOf("canonicalDocument", "parties", "currency", "totals", "lines")
+        d.payload.keys shouldBe setOf("canonicalDocument")
         ListFactsPolicy.extract(d.payload).shouldBeInstanceOf<ListFactsResult.Incomplete>().missing shouldBe
             setOf("direction", "counterpartyName", "counterpartyUen")
     }
@@ -48,7 +48,7 @@ class JacksonCanonicalVersionCreatedDataReaderTest {
                 .also { it.putObject("routingFacts").put("direction", "SALE") }
                 .toString()
         val d = reader.read(withRouting)
-        d.payload.keys shouldBe setOf("canonicalDocument", "parties", "currency", "totals", "lines", "routingFacts")
+        d.payload.keys shouldBe setOf("canonicalDocument", "routingFacts")
         ListFactsPolicy.extract(d.payload).shouldBeInstanceOf<ListFactsResult.Complete>()
     }
 
