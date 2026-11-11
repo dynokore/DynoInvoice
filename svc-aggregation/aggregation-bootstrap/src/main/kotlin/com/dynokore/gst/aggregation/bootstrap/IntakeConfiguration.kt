@@ -5,6 +5,7 @@ import com.dynokore.gst.aggregation.adapters.replica.StructureCodeLookup
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.IntakeAggregate
+import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.ShortCodes
 import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -36,5 +37,6 @@ class IntakeConfiguration {
         repository: AggregateRepository,
         windows: WindowRepository,
         cadences: CadenceSource,
-    ): IntakeAggregate = IntakeAggregate(shortCodes, repository, windows, cadences)
+        periods: PeriodBoundarySource,
+    ): IntakeAggregate = IntakeAggregate(shortCodes, repository, windows, cadences, periods)
 }
