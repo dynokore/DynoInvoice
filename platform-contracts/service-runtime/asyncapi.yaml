@@ -503,8 +503,8 @@ components:
       summary: OperatorSessionKeysChanged
       description: >-
         The operator-session signing keys of access-svc: key id, algorithm, public key, valid-from,
-        valid-until and use (OPERATOR_SESSION or MACHINE_ACCESS); the current key and, during rotation,
-        the next key (INV-REQ-1226, INV-Q-16498 A). Class: platform. Written under the platform tenant
+        valid-until and use (OPERATOR_SESSION, MACHINE_ACCESS or LINK_SESSION; access-svc keeps one signing key for each of
+        the three uses); the current key and, during rotation, the next key (INV-REQ-1226, INV-Q-16498 A). Class: platform. Written under the platform tenant
         with the platform entity: the wire form has no tenantid and no entityref. Emitted by: access-svc. Consumed by: aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Delivery: At-least-once.
         Subscribed by the authority replica of every service except access-svc, which signs with the
         keys and verifies operator tokens from its own key store. The payload carries public keys only.

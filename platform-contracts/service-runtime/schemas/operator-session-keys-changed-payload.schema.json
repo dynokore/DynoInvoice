@@ -7,9 +7,9 @@
   "properties": {
     "keys": {
       "type": "array",
-      "description": "The signing keys of access-svc: for each use, the current key and, during rotation, the next key. An item without `use` is read as OPERATOR_SESSION. A MACHINE_ACCESS key verifies machine access tokens only, and an OPERATOR_SESSION key verifies operator-session tokens only.",
+      "description": "The signing keys of access-svc: for each of the three uses, the current key and, during rotation, the next key, so at most six items. An item without `use` is read as OPERATOR_SESSION. A MACHINE_ACCESS key verifies machine access tokens only, an OPERATOR_SESSION key verifies operator-session tokens only, and a LINK_SESSION key verifies link-session tokens only.",
       "minItems": 1,
-      "maxItems": 4,
+      "maxItems": 6,
       "items": {
         "type": "object",
         "properties": {
@@ -21,10 +21,11 @@
           },
           "use": {
             "type": "string",
-            "description": "The use of the key: OPERATOR_SESSION verifies operator-session tokens, MACHINE_ACCESS verifies machine access tokens. An item without use is read as OPERATOR_SESSION.",
+            "description": "The use of the key: OPERATOR_SESSION verifies operator-session tokens, MACHINE_ACCESS verifies machine access tokens, LINK_SESSION verifies link-session tokens only. An item without use is still read as OPERATOR_SESSION.",
             "enum": [
               "OPERATOR_SESSION",
-              "MACHINE_ACCESS"
+              "MACHINE_ACCESS",
+              "LINK_SESSION"
             ],
             "x-extensible-enum": true
           },

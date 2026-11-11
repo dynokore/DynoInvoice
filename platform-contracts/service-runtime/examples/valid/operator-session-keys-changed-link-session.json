@@ -1,7 +1,15 @@
 {
   "keys": [
     {
-      "kid": "k0",
+      "kid": "ops-2026-10",
+      "use": "OPERATOR_SESSION",
+      "alg": "RS256",
+      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
+      "validFrom": "2026-10-01T00:00:00Z",
+      "validUntil": "2026-11-15T00:00:00Z"
+    },
+    {
+      "kid": "machine-2026-10",
       "use": "MACHINE_ACCESS",
       "alg": "RS256",
       "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
@@ -9,32 +17,8 @@
       "validUntil": "2026-11-15T00:00:00Z"
     },
     {
-      "kid": "k1",
-      "use": "MACHINE_ACCESS",
-      "alg": "RS256",
-      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
-      "validFrom": "2026-10-01T00:00:00Z",
-      "validUntil": "2026-11-15T00:00:00Z"
-    },
-    {
-      "kid": "k2",
-      "use": "MACHINE_ACCESS",
-      "alg": "RS256",
-      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
-      "validFrom": "2026-10-01T00:00:00Z",
-      "validUntil": "2026-11-15T00:00:00Z"
-    },
-    {
-      "kid": "k3",
-      "use": "MACHINE_ACCESS",
-      "alg": "RS256",
-      "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
-      "validFrom": "2026-10-01T00:00:00Z",
-      "validUntil": "2026-11-15T00:00:00Z"
-    },
-    {
-      "kid": "k4",
-      "use": "MACHINE_ACCESS",
+      "kid": "link-2026-10",
+      "use": "LINK_SESSION",
       "alg": "RS256",
       "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
       "validFrom": "2026-10-01T00:00:00Z",
