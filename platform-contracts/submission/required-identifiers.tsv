@@ -233,3 +233,6 @@ IrreversibleImpact.totalAmount	schema_property	openapi.yaml	INV-REQ-1012
 code	property	schemas/submission-failed-payload.schema.json	INV-REQ-940
 remediationOwner	property	schemas/submission-failed-payload.schema.json	INV-REQ-940
 disposition	property	schemas/submission-failed-payload.schema.json	INV-REQ-940
+# INV-T-20707 (INV-REQ-86). Optional extension date members of the submission list item.
+SubmissionSummary.originalDueDate	schema_property	openapi.yaml	INV-REQ-86
+SubmissionSummary.extendedDueDate	schema_property	openapi.yaml	INV-REQ-86
