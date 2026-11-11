@@ -18,8 +18,6 @@ import com.dynokore.platform.serviceruntime.jobs.TransactionalJobCommandJournal
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
-import com.dynokore.platform.serviceruntime.replica.Principal
-import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import jakarta.servlet.http.HttpServlet
@@ -97,8 +95,7 @@ class JobCommandServlet(
     ): Boolean {
         val tenant = principal.tenant
         if (principal.entitySetCurrent || tenant == null || authority == null) return principal.covers(entity)
-        val request =
-            AuthorizationRequest(tenant, Principal(principal.actor, PrincipalKind.HUMAN), entity.value, JOB_OPERATE)
+        val request = AuthorizationRequest.of(principal, tenant, entity.value, JOB_OPERATE)
         return authority.decide(request, CurrentDeadline.current() ?: Deadline.after(FALLBACK_BUDGET, clock)).allowed
     }
 

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.12.0] - 2026-11-11
+### Added
+- `AuthorityReplica` decides an operator-session request from the operator access record (coordinator ruling INV-Q-16496 A; owner answer INV-Q-4119 A; INV-REQ-862, INV-REQ-1201; INV-T-16968, INV-AC-16965). New `OperatorAccess` (`caseRef`, `role`, `state`, `permissions`, `validUntil`, optional `OperatorElevation`), `OperatorAccessState` (`ACTIVE` exactly, every other string `ENDED`), `OperatorAccessKey` and the record kind `AuthorityRecord.OperatorAccessRecord`, stored by `accept` per (tenant, principal, case) with the version rule of the other kinds (ENDED keeps its version as a tombstone, an expired entry is evicted on the next accept). `AuthorizationRequest.operatorSession` (default null) and the factory `AuthorizationRequest.of(EndUserPrincipal, ...)`. A request with a session is decided only from the record, never from grant records or the machine path: GRANTED for an ACTIVE, unexpired record of the same tenant, operator, case and role, not voided by the principal record (else REVOKED), with the action in `permissions` or `doc.view.content` inside the elevation window (`doc.view.content` in `permissions` never grants); otherwise NO_GRANT; beyond the lag bound or before the first version AUTHORITY_UNAVAILABLE with no fallback call. `JobCommandServlet` passes the session of its `EndUserPrincipal`. Additive; a hand-built request with no session is unchanged.
+
 ## [13.11.0] - 2026-11-11
 ### Added
 - `IngestionErrorCode.CROSSES_PERIOD_BOUNDARY` (`ING-018`, HTTP 422, owner Integration) after `AGGREGATE_NUMBER_NOT_BUILDABLE`: a pre-aggregated call whose period crosses a prescribed-period boundary (INV-REQ-435, FR-AE.49; status per INV-Q-1841; added by the ruling that split ING-018 out of INV-T-14463; INV-T-20101, INV-AC-20108).

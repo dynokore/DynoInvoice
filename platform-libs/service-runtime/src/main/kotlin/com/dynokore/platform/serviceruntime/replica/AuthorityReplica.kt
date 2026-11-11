@@ -1,6 +1,8 @@
 package com.dynokore.platform.serviceruntime.replica
 
 import com.dynokore.platform.configresolver.ScopeLevel
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.platform.serviceruntime.identity.OperatorSession
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
@@ -239,6 +241,14 @@ sealed interface AuthorityRecord {
     data class PrincipalRecord(
         val state: PrincipalState,
     ) : AuthorityRecord
+
+    /**
+     * What access-svc resolved for one operator session, keyed (tenant, principal, `access.caseRef`) and replaced
+     * whole (INV-Q-16496 A). ENDED removes the entry and keeps its version.
+     */
+    data class OperatorAccessRecord(
+        val access: OperatorAccess,
+    ) : AuthorityRecord
 }
 
 /**
@@ -273,6 +283,8 @@ data class AuthorityChanged
  * `TenantId.PLATFORM`, whatever [tenant] says; at TENANT and GROUP the TENANT-scope grants of [tenant]; at the entity
  * levels the ENTITY row of the role-answer table. [entityRef] is ignored at INSTALLATION, TENANT and GROUP.
  * [action] is the permission key the generated operation-to-roles map is asked about.
+ * [operatorSession] is the `act.role` and `act.case` of a verified operator-session token, null otherwise: a request
+ * that carries one is decided only from the operator access record (INV-Q-16496 A).
  */
 data class AuthorizationRequest(
     val tenant: TenantId,
@@ -283,7 +295,36 @@ data class AuthorizationRequest(
     val requiredScopeItem: ConsentScopeItem? = null,
     val operation: OperationKey? = null,
     val level: ScopeLevel = ScopeLevel.ENTITY,
-)
+    val operatorSession: OperatorSession? = null,
+) {
+    companion object {
+        /**
+         * A request for [principal], a HUMAN principal of [tenant], carrying the operator session of the verified
+         * token (INV-Q-16496 A): the replica then decides it from the operator access record only.
+         */
+        fun of(
+            principal: EndUserPrincipal,
+            tenant: TenantId,
+            entityRef: String,
+            action: String,
+            resourcePeriod: DateSpan? = null,
+            requiredScopeItem: ConsentScopeItem? = null,
+            operation: OperationKey? = null,
+            level: ScopeLevel = ScopeLevel.ENTITY,
+        ): AuthorizationRequest =
+            AuthorizationRequest(
+                tenant,
+                Principal(principal.actor, PrincipalKind.HUMAN),
+                entityRef,
+                action,
+                resourcePeriod,
+                requiredScopeItem,
+                operation,
+                level,
+                principal.operatorSession,
+            )
+    }
+}
 
 enum class DecisionSource { LOCAL, FALLBACK, DEGRADED }
 
@@ -532,6 +573,15 @@ class AuthorityReplica(
     /** The role grants per (tenant, principal, grantRef) (INV-Q-8972 A). */
     val roleGrants: EventFedReplica<RoleGrantKey, RoleGrant> get() = roleBook.grants
 
+    /** The operator access records per (tenant, principal, case) (INV-Q-16496 A). */
+    internal val operatorAccess =
+        EventFedReplica<OperatorAccessKey, OperatorAccess>(
+            "authority-operator-access",
+            clock,
+            lagBound,
+            tracker = tracker,
+        )
+
     /** Both key sets, fed by one `OperatorSessionKeysChanged` (INV-Q-4162, INV-Q-4171, INV-Q-9028 A). */
     val keySets = AuthorityKeySets(clock)
 
@@ -551,6 +601,7 @@ class AuthorityReplica(
         request: AuthorizationRequest,
         deadline: Deadline,
     ): AuthorityDecision {
+        request.operatorSession?.let { return decideOperator(request, it) }
         val machine = request.principal.kind == PrincipalKind.MACHINE
         // The token type is checked first, before any access-svc call and before degraded(): a type the map does not
         // list for the action is denied whatever the replica state (INV-AC-13561, INV-Q-10649 C).
@@ -572,6 +623,67 @@ class AuthorityReplica(
             }
         }
     }
+
+    /**
+     * An operator-session request is decided from the operator access record and never from grant records or the
+     * machine path (INV-Q-16496 A, INV-REQ-862): beyond the lag bound or before the first version the answer is
+     * AUTHORITY_UNAVAILABLE with no fallback call. GRANTED only for an ACTIVE, unexpired record of (tenant,
+     * principal, case) with the token's role, not voided by the principal record, and an action in `permissions`
+     * or `doc.view.content` inside the elevation window; `doc.view.content` in `permissions` never grants.
+     */
+    private fun decideOperator(
+        request: AuthorizationRequest,
+        session: OperatorSession,
+    ): AuthorityDecision {
+        if (!tracker.lag().isWithin(lagBound)) {
+            return AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+        }
+        val principal = request.principal
+        val held =
+            if (principal.kind == PrincipalKind.HUMAN) {
+                operatorAccess.store.examine(OperatorAccessKey(request.tenant, principal.id, session.case))
+            } else {
+                null
+            }
+        val now = clock.instant()
+        val access = held?.value
+        val matches =
+            access != null && access.state == OperatorAccessState.ACTIVE && access.role == session.role &&
+                !access.isExpiredAt(now)
+        return when {
+            !matches -> {
+                local(DecisionReason.NO_GRANT)
+            }
+
+            voidedByPrincipal(request.tenant, principal.id, checkNotNull(held).version) -> {
+                local(DecisionReason.REVOKED)
+            }
+
+            else -> {
+                local(operatorReason(checkNotNull(access), request.action, now))
+            }
+        }
+    }
+
+    private fun operatorReason(
+        access: OperatorAccess,
+        action: String,
+        now: Instant,
+    ): DecisionReason {
+        val allowed =
+            if (action == OperatorAccess.CONTENT_KEY) {
+                access.elevation?.isOpenAt(now) == true
+            } else {
+                action in access.permissions
+            }
+        return if (allowed) DecisionReason.GRANTED else DecisionReason.NO_GRANT
+    }
+
+    private fun voidedByPrincipal(
+        tenant: TenantId,
+        principalId: String,
+        version: Long,
+    ): Boolean = (principals.peek(PrincipalKey(tenant, principalId))?.revocationVersion ?: Long.MIN_VALUE) > version
 
     private fun decideBeyondBound(
         request: AuthorizationRequest,
@@ -779,6 +891,7 @@ class AuthorityReplica(
                         consents.clear()
                         principals.clear()
                         roleBook.clear()
+                        operatorAccess.clear()
                         cleared = true
                     }
                 }
@@ -800,6 +913,7 @@ class AuthorityReplica(
     override fun accept(event: AuthorityChanged) {
         if (!admit(event.incarnation, "change")) return
         roleBook.tombstones.evictExpired()
+        evictExpiredOperatorAccess()
         val version = event.authorityVersion
         when (val record = event.record) {
             is AuthorityRecord.LegacyGrant -> {
@@ -818,11 +932,27 @@ class AuthorityReplica(
                 revoke(event, record.state)
             }
 
+            is AuthorityRecord.OperatorAccessRecord -> {
+                val key = OperatorAccessKey(event.tenant, event.principalId, record.access.caseRef)
+                if (record.access.state == OperatorAccessState.ACTIVE) {
+                    operatorAccess.apply(ReplicaChange.Upsert(key, record.access, version))
+                } else {
+                    operatorAccess.apply(ReplicaChange.Remove(key, version))
+                }
+            }
+
             null -> {
                 revoke(event, null)
                 roleBook.tombstone(event.tenant, event.principalId)
             }
         }
+    }
+
+    /** An expired record is dropped on the next accept, keeping its version as a tombstone; it is never read. */
+    private fun evictExpiredOperatorAccess() {
+        val now = clock.instant()
+        val expired = operatorAccess.heldWhere { true }.filterValues { it.isExpiredAt(now) }.keys
+        if (expired.isNotEmpty()) operatorAccess.tombstoneIf { it in expired }
     }
 
     private fun revoke(

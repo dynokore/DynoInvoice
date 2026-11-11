@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.17.8] - 2026-11-11
+### Changed
+- Dependency step only: `service-runtime` 13.12.0 (operator access record in the authority replica, INV-T-16968); no change to this module's code (coordinator rule G-DVS).
+
 ## [2.17.7] - 2026-11-11
 ### Changed
 - Metadata-only release (G-DVS): depends on `service-runtime 13.11.0` (INV-T-20101), whose published module metadata changed; no code change.
