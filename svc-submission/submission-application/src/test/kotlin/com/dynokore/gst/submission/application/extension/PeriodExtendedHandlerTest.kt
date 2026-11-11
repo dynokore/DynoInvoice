@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.application.extension
 
 import com.dynokore.gst.submission.application.register.RegisterDueDate
+import com.dynokore.gst.submission.application.register.RegisterDueDateReader
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -100,8 +101,10 @@ class PeriodExtendedHandlerTest {
         data: PeriodExtendedData,
         id: String = UUID.randomUUID().toString(),
         register: List<RegisterDueDate> = entries,
-    ) = PeriodExtendedHandler(tenants, { data }, { _, e, p -> if (e == "E" && p == "P") register else emptyList() }, store)
-        .handle(envelope(id))
+    ): HandleOutcome {
+        val source = RegisterDueDateReader { _, e, p -> if (e == "E" && p == "P") register else emptyList() }
+        return PeriodExtendedHandler(tenants, { data }, source, store).handle(envelope(id))
+    }
 
     @Test
     fun `INV-AC-20595 a submission extension of the period stores the extended and the original date`() {
@@ -181,7 +184,7 @@ class PeriodExtendedHandlerTest {
         val bad =
             PeriodExtendedHandler(
                 tenants,
-                { throw ContractViolation("PeriodExtended data member irasReference is missing or not a non-empty string") },
+                { throw ContractViolation("PeriodExtended data member irasReference is missing") },
                 { _, _, _ -> entries },
                 s,
             )

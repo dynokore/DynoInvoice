@@ -35,12 +35,15 @@ class JacksonPeriodExtendedDataReaderTest {
         val d = reader.read(json(scope = """{"kind":"DOCUMENT_SET","documentRefs":["a","b"]}""")).scope
         d.kind shouldBe ExtensionScopeKind.DOCUMENT_SET
         d.documentRefs shouldBe listOf("a", "b")
-        val r = reader.read(json(scope = """{"kind":"DATE_RANGE","dateFrom":"2026-04-01","dateTo":"2026-04-03"}""")).scope
+        val range = """{"kind":"DATE_RANGE","dateFrom":"2026-04-01","dateTo":"2026-04-03"}"""
+        val r = reader.read(json(scope = range)).scope
         r.dateFrom shouldBe LocalDate.of(2026, 4, 1)
         r.dateTo shouldBe LocalDate.of(2026, 4, 3)
-        val both = reader.read(json("BOTH", extra = """"newFilingDueDate":"2026-05-07","newSubmissionDueDate":"2026-05-14","""))
+        val bothDates = """"newFilingDueDate":"2026-05-07","newSubmissionDueDate":"2026-05-14","""
+        val both = reader.read(json("BOTH", extra = bothDates))
         both.newFilingDueDate shouldBe LocalDate.of(2026, 5, 7)
-        reader.read(json("FILING_DUE_DATE", extra = """"newFilingDueDate":"2026-05-07",""")).newSubmissionDueDate shouldBe null
+        val filingOnly = reader.read(json("FILING_DUE_DATE", extra = """"newFilingDueDate":"2026-05-07","""))
+        filingOnly.newSubmissionDueDate shouldBe null
     }
 
     @Test

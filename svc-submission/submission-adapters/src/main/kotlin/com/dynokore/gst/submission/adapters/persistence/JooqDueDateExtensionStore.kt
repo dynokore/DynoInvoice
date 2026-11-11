@@ -1,6 +1,5 @@
 package com.dynokore.gst.submission.adapters.persistence
 
-import com.dynokore.gst.submission.adapters.persistence.jooq.tables.DueDateExtension as ExtensionTable
 import com.dynokore.gst.submission.application.extension.DueDateExtension
 import com.dynokore.gst.submission.application.extension.DueDateExtensions
 import com.dynokore.gst.submission.application.extension.ExtensionScopeKind
@@ -8,6 +7,7 @@ import com.dynokore.gst.submission.application.extension.ExtensionTarget
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import com.dynokore.gst.submission.adapters.persistence.jooq.tables.DueDateExtension as ExtensionTable
 
 /**
  * [DueDateExtensions] over `submission.due_date_extension`: `insert ... on conflict (tenant_id, source_event_id) do
@@ -58,16 +58,16 @@ class JooqDueDateExtensionStore(
                 .fetch()
                 .map {
                     DueDateExtension(
-                        entityRef = it.entityRef!!,
-                        periodRef = it.periodRef!!,
-                        target = ExtensionTarget.valueOf(it.target!!),
-                        scopeKind = ExtensionScopeKind.valueOf(it.scopeKind!!),
+                        entityRef = checkNotNull(it.entityRef),
+                        periodRef = checkNotNull(it.periodRef),
+                        target = ExtensionTarget.valueOf(checkNotNull(it.target)),
+                        scopeKind = ExtensionScopeKind.valueOf(checkNotNull(it.scopeKind)),
                         scopeRef = it.scopeRef,
                         originalDueDate = it.originalDueDate,
-                        extendedDueDate = it.extendedDueDate!!,
+                        extendedDueDate = checkNotNull(it.extendedDueDate),
                         extendedFilingDueDate = it.extendedFilingDueDate,
-                        irasReference = it.irasReference!!,
-                        sourceEventId = it.sourceEventId!!,
+                        irasReference = checkNotNull(it.irasReference),
+                        sourceEventId = checkNotNull(it.sourceEventId),
                     )
                 }
         }

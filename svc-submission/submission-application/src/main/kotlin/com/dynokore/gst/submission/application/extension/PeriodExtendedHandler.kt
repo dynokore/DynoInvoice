@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.extension
 
+import com.dynokore.gst.submission.application.register.RegisterDueDate
 import com.dynokore.gst.submission.application.register.RegisterDueDateReader
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
@@ -49,39 +50,58 @@ class PeriodExtendedHandler(
         val entries = register.forPeriod(tenant, data.entityRef, data.period)
         val scope = data.scope
         val refs = scope.documentRefs.map { it.lowercase() }.toSortedSet()
-        val original =
-            when (scope.kind) {
-                ExtensionScopeKind.PERIOD -> entries.minOfOrNull { it.dueDate }
-                ExtensionScopeKind.DOCUMENT_SET -> entries.filter { it.docUuid.lowercase() in refs }.minOfOrNull { it.dueDate }
-                ExtensionScopeKind.DATE_RANGE -> null
-            }
-        val scopeRef =
-            when (scope.kind) {
-                ExtensionScopeKind.PERIOD -> null
-                ExtensionScopeKind.DOCUMENT_SET -> refs.joinToString(",")
-                ExtensionScopeKind.DATE_RANGE -> "${scope.dateFrom}/${scope.dateTo}"
-            }
-        val extended =
-            when (data.target) {
-                ExtensionTarget.FILING_DUE_DATE -> data.newFilingDueDate
-                ExtensionTarget.SUBMISSION_DUE_DATE, ExtensionTarget.BOTH -> data.newSubmissionDueDate
-            } ?: throw ContractViolation("PeriodExtended: the new date of the target is missing")
-        if (data.target == ExtensionTarget.BOTH && data.newFilingDueDate == null) {
-            throw ContractViolation("PeriodExtended: the new filing date of target BOTH is missing")
-        }
         val row =
             DueDateExtension(
                 entityRef = data.entityRef,
                 periodRef = data.period,
                 target = data.target,
                 scopeKind = scope.kind,
-                scopeRef = scopeRef,
-                originalDueDate = original,
-                extendedDueDate = extended,
-                extendedFilingDueDate = if (data.target == ExtensionTarget.BOTH) data.newFilingDueDate else null,
+                scopeRef = scopeRefOf(scope, refs),
+                originalDueDate = originalOf(scope.kind, refs, entries),
+                extendedDueDate = extendedOf(data),
+                extendedFilingDueDate = if (data.target == ExtensionTarget.BOTH) filingOf(data) else null,
                 irasReference = data.irasReference,
                 sourceEventId = event.id.value,
             )
         return if (store.insert(tenant, row)) HandleOutcome.APPLIED else HandleOutcome.IGNORED
     }
+
+    private fun scopeRefOf(
+        scope: PeriodExtendedScope,
+        refs: Set<String>,
+    ): String? =
+        when (scope.kind) {
+            ExtensionScopeKind.PERIOD -> null
+            ExtensionScopeKind.DOCUMENT_SET -> refs.joinToString(",")
+            ExtensionScopeKind.DATE_RANGE -> "${scope.dateFrom}/${scope.dateTo}"
+        }
+
+    /** The earliest register due date of the scope; a date range is resolved at read time, so null here. */
+    private fun originalOf(
+        kind: ExtensionScopeKind,
+        refs: Set<String>,
+        entries: List<RegisterDueDate>,
+    ): LocalDate? =
+        when (kind) {
+            ExtensionScopeKind.PERIOD -> {
+                entries.minOfOrNull { it.dueDate }
+            }
+
+            ExtensionScopeKind.DOCUMENT_SET -> {
+                entries.filter { it.docUuid.lowercase() in refs }.minOfOrNull { it.dueDate }
+            }
+
+            ExtensionScopeKind.DATE_RANGE -> {
+                null
+            }
+        }
+
+    private fun extendedOf(data: PeriodExtendedData): LocalDate =
+        when (data.target) {
+            ExtensionTarget.FILING_DUE_DATE -> data.newFilingDueDate
+            ExtensionTarget.SUBMISSION_DUE_DATE, ExtensionTarget.BOTH -> data.newSubmissionDueDate
+        } ?: throw ContractViolation("PeriodExtended: the new date of the target is missing")
+
+    private fun filingOf(data: PeriodExtendedData): LocalDate =
+        data.newFilingDueDate ?: throw ContractViolation("PeriodExtended: the filing date of target BOTH is missing")
 }

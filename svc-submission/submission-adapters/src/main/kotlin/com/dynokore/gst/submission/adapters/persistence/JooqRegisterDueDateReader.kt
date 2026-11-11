@@ -30,6 +30,6 @@ class JooqRegisterDueDateReader(
                 .and(e.ENTITY_REF.eq(entityRef))
                 .and(e.PERIOD_REF.eq(periodRef))
                 .fetch()
-                .map { RegisterDueDate(it[e.DOC_UUID]!!, it[e.DUE_DATE]!!) }
+                .map { RegisterDueDate(checkNotNull(it[e.DOC_UUID]), checkNotNull(it[e.DUE_DATE])) }
         }
 }

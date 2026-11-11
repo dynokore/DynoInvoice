@@ -5,8 +5,8 @@ import com.dynokore.gst.submission.application.register.RegisterDueDate
 import com.dynokore.gst.submission.application.register.RegisterDueDateReader
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
@@ -41,7 +41,7 @@ class RegisterDueDateReaderDbTest {
     ): T {
         bound.set(tenant)
         try {
-            return runner.inTransaction(block)
+            return block()
         } finally {
             bound.remove()
         }
@@ -54,26 +54,33 @@ class RegisterDueDateReaderDbTest {
         period: String,
         due: LocalDate,
     ) = asTenant(tenant) {
-        dsl.execute(
-            "insert into submission.obligation_register_entry " +
-                "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) " +
-                "values (?, ?, ?, ?, ?, true, 'INVOICE')",
-            tenant,
-            doc,
-            entity,
-            period,
-            due,
-        )
+        runner.inTransaction {
+            dsl.execute(
+                "insert into submission.obligation_register_entry " +
+                    "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) " +
+                    "values (?, ?, ?, ?, ?, true, 'INVOICE')",
+                tenant,
+                doc,
+                entity,
+                period,
+                due,
+            )
+        }
     }
 
     private fun count(tenant: UUID): Int =
-        asTenant(tenant) { dsl.fetchOne("select count(*) from submission.obligation_register_entry")!!.get(0, Int::class.java) }
+        asTenant(tenant) {
+            runner.inTransaction {
+                val row = dsl.fetchOne("select count(*) from submission.obligation_register_entry")
+                checkNotNull(row).get(0, Int::class.java)
+            }
+        }
 
     private fun read(
         tenant: UUID,
         entity: String,
         period: String,
-    ) = reader.forPeriod(TenantId(tenant), entity, period)
+    ) = asTenant(tenant) { reader.forPeriod(TenantId(tenant), entity, period) }
 
     @Test
     fun `INV-AC-20595 the reader returns every entry of the entity and period of the bound tenant only`() {
@@ -87,12 +94,12 @@ class RegisterDueDateReaderDbTest {
         insert(a, "$s-3", "E", "P2", d1)
         insert(a, "$s-4", "e", "P", d1)
         insert(a, "$s-5", "F", "P", d1)
-        insert(b, "${b}-1", "E", "P", d1)
+        insert(b, "$b-1", "E", "P", d1)
         val before = count(a)
         read(a, "E", "P").shouldContainExactlyInAnyOrder(RegisterDueDate("$s-1", d1), RegisterDueDate("$s-2", d2))
         read(a, "E", "P3").shouldBeEmpty()
         read(a, "e", "P").map { it.docUuid } shouldBe listOf("$s-4")
-        read(b, "E", "P").map { it.docUuid } shouldBe listOf("${b}-1")
+        read(b, "E", "P").map { it.docUuid } shouldBe listOf("$b-1")
         read(UUID.randomUUID(), "E", "P").shouldBeEmpty()
         count(a) shouldBe before
         count(b) shouldBe 1
