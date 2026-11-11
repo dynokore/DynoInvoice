@@ -31,7 +31,10 @@ class SessionConfiguration {
     fun sessionPolicy(properties: ConsoleSessionProperties) =
         SessionPolicy(properties.idleTimeout, properties.absoluteTimeout)
 
-    /** The one [SessionStore]; the `TenantContext` bean is the store's platform binding (it implements it); typed as its class so the sweeper reaches `deleteExpired`. */
+    /**
+     * The one [SessionStore]; typed as its class so the sweeper reaches `deleteExpired`. The `TenantContext` bean is
+     * the store's platform binding (it implements it).
+     */
     @Bean
     fun sessionStore(
         dsl: DSLContext,

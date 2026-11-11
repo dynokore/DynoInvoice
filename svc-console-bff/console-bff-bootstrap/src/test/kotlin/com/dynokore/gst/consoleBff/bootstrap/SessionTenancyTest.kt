@@ -54,7 +54,7 @@ class SessionTenancyTest {
     }
 
     @Test
-    fun `INV-AC-14457 after find the caller binds the row tenant and sees only that tenant and the unbound statement is refused`(
+    fun `INV-AC-14457 after find the bound row tenant sees only its rows and the unbound statement is refused`(
         @TempDir dir: Path,
     ) {
         prepare()
@@ -72,8 +72,13 @@ class SessionTenancyTest {
                         runner,
                     ),
                 )
-            fun notes() = dsl.select(DSL.field(DSL.name("console", "tenant_probe", "note"), String::class.java))
-                .from(DSL.table(table)).fetch().map { it.value1() }
+
+            fun notes() =
+                dsl
+                    .select(DSL.field(DSL.name("console", "tenant_probe", "note"), String::class.java))
+                    .from(DSL.table(table))
+                    .fetch()
+                    .map { it.value1() }
 
             val created = store.create(a, "p1", 1, Instant.now())
             val hash = SessionIdHash.of((SessionId.parse(created.cookieValue) as SessionIdParse.Parsed).id)

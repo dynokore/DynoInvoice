@@ -3,7 +3,7 @@ package com.dynokore.gst.consoleBff.adapters.session
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 
-/** Records the actors of the platform bindings and the transactions opened; runs the block in place (no database tenancy). */
+/** Records the actors of the platform bindings and the transactions opened; runs blocks in place. */
 class PlatformFakes {
     val actors = mutableListOf<String>()
     var transactions = 0
