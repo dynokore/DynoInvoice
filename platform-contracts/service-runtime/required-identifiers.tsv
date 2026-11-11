@@ -132,3 +132,10 @@ use	property	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1
 OPERATOR_SESSION	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
 MACHINE_ACCESS	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
 incarnation	property	schemas/authority-head-observed-payload.schema.json	INV-REQ-1201
+# INV-T-16967. The operator access record of AuthorityChanged (INV-Q-16496 A).
+OPERATOR_ACCESS	enum_value	schemas/authority-changed-payload.schema.json	INV-REQ-862
+operatorAccessRecord	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
+caseRef	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
+permissions	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
+elevation	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
+elevationRef	property	schemas/authority-changed-payload.schema.json	INV-REQ-862

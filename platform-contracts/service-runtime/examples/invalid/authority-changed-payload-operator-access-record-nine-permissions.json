@@ -1,0 +1,27 @@
+{
+  "changeKind": "OPERATOR_ACCESS",
+  "principalRef": "PRN-0P31",
+  "authorityVersion": 90500,
+  "operatorAccessRecord": {
+    "caseRef": "CASE-2041",
+    "role": "platform.support",
+    "state": "ACTIVE",
+    "permissions": [
+      "ops.p0.view",
+      "ops.p1.view",
+      "ops.p2.view",
+      "ops.p3.view",
+      "ops.p4.view",
+      "ops.p5.view",
+      "ops.p6.view",
+      "ops.p7.view",
+      "ops.p8.view"
+    ],
+    "validUntil": "2026-11-11T09:15:00Z",
+    "elevation": {
+      "elevationRef": "ELV-77A1",
+      "validFrom": "2026-11-11T08:30:00Z",
+      "validUntil": "2026-11-11T09:10:00Z"
+    }
+  }
+}

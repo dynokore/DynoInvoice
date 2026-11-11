@@ -7,13 +7,14 @@
   "properties": {
     "changeKind": {
       "type": "string",
-      "description": "What kind of authority change this is. Every event carries exactly one record (INV-Q-3702): GRANT a grantRecord, CONSENT a consentRecord, PRINCIPAL (a deletion, only) the principalRecord DELETED, REVOCATION the principalRecord REVOKED. A principal change that removes all of the principal's authority without deleting it (deactivation, suspension) is a REVOCATION; a reactivation re-emits the principal's current grant records with higher versions; a principal change that leaves its authority unchanged (creation before any grant, name or contact change, credential rotation) emits no AuthorityChanged. ROLE_GRANT carries a roleGrantRecord: one role grant of one principal, keyed on grantRef.",
+      "description": "What kind of authority change this is. Every event carries exactly one record (INV-Q-3702): GRANT a grantRecord, CONSENT a consentRecord, PRINCIPAL (a deletion, only) the principalRecord DELETED, REVOCATION the principalRecord REVOKED. A principal change that removes all of the principal's authority without deleting it (deactivation, suspension) is a REVOCATION; a reactivation re-emits the principal's current grant records with higher versions; a principal change that leaves its authority unchanged (creation before any grant, name or contact change, credential rotation) emits no AuthorityChanged. ROLE_GRANT carries a roleGrantRecord: one role grant of one principal, keyed on grantRef. OPERATOR_ACCESS carries an operatorAccessRecord: the access of one operator session in one tenant, keyed on caseRef.",
       "enum": [
         "GRANT",
         "CONSENT",
         "PRINCIPAL",
         "REVOCATION",
-        "ROLE_GRANT"
+        "ROLE_GRANT",
+        "OPERATOR_ACCESS"
       ]
     },
     "principalRef": {
@@ -274,6 +275,81 @@
         "state",
         "scopeLevel",
         "validFrom"
+      ],
+      "additionalProperties": true
+    },
+    "operatorAccessRecord": {
+      "type": "object",
+      "description": "Present when changeKind is OPERATOR_ACCESS: the access of one operator session, keyed (envelope tenant, principalRef = the operator, caseRef) and versioned by this event's authorityVersion; it replaces whole what a replica holds for that key (INV-REQ-862, INV-Q-16496 A, INV-Q-4119 A). access-svc resolves the permission set (the closed set of INV-Q-16475 A intersected with the catalogue cell of role); a replica never resolves a role itself. A replica never reads doc.view.content from permissions: that action is allowed only while elevation is present and validFrom <= now < elevation.validUntil. Staleness bound: after a later loss of the operator's platform grant the record stays ACTIVE in the replicas until validUntil, at most the 900 seconds of the operator token.",
+      "properties": {
+        "caseRef": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The case of the operator session (the act.case claim); part of the record key."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "The operator role (the act.role claim)."
+        },
+        "state": {
+          "type": "string",
+          "description": "ACTIVE or ENDED. Fail-closed: any other value is read as ENDED.",
+          "enum": [
+            "ACTIVE",
+            "ENDED"
+          ],
+          "x-extensible-enum": true
+        },
+        "permissions": {
+          "type": "array",
+          "maxItems": 8,
+          "description": "The metadata permission keys access-svc resolved for this session. May be empty. doc.view.content is never read from this list.",
+          "items": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time",
+          "description": "End of the session, never later than the token exp."
+        },
+        "elevation": {
+          "type": "object",
+          "description": "The approved elevation of this operator for this tenant; absent when there is none.",
+          "properties": {
+            "elevationRef": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "The access-svc identifier of the approved elevation."
+            },
+            "validFrom": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Start of the elevation time box."
+            },
+            "validUntil": {
+              "type": "string",
+              "format": "date-time",
+              "description": "End of the elevation time box."
+            }
+          },
+          "required": [
+            "elevationRef",
+            "validFrom",
+            "validUntil"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "caseRef",
+        "role",
+        "state",
+        "permissions",
+        "validUntil"
       ],
       "additionalProperties": true
     }

@@ -1,0 +1,12 @@
+{
+  "changeKind": "OPERATOR_ACCESS",
+  "principalRef": "PRN-0P31",
+  "authorityVersion": 90500,
+  "operatorAccessRecord": {
+    "caseRef": "CASE-2041",
+    "role": "platform.support",
+    "state": "ENDED",
+    "permissions": [],
+    "validUntil": "2026-11-11T09:15:00Z"
+  }
+}
