@@ -224,7 +224,7 @@ class PeriodSpansBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-457 with an event of 1 Jan to 31 Mar and 1 Apr to 30 Jun the weekly window is split at 31 Mar`(
+    fun `INV-AC-14492 with an event of 1 Jan to 31 Mar and 1 Apr to 30 Jun the weekly window is split at 31 Mar`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
@@ -241,7 +241,7 @@ class PeriodSpansBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-457 before any event the window stays open and nothing is created`(
+    fun `INV-AC-14492 before any event the window stays open and nothing is created`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
