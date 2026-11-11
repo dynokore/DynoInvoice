@@ -58,12 +58,16 @@ open class IntakeController(
             }
 
             is IntakeOutcome.SourceRevisionLower -> {
-                problem(IngestionErrorCode.SOURCE_REVISION_LOWER)
+                problem<AggregationReceipt>(IngestionErrorCode.SOURCE_REVISION_LOWER)
+            }
+
+            is IntakeOutcome.CrossesPeriodBoundary -> {
+                problem<AggregationReceipt>(IngestionErrorCode.CROSSES_PERIOD_BOUNDARY)
             }
 
             is IntakeOutcome.NumberNotBuildable -> {
                 log.error("ING-022: the aggregate number cannot be built, {} has no usable short code", outcome.reason)
-                problem(IngestionErrorCode.AGGREGATE_NUMBER_NOT_BUILDABLE)
+                problem<AggregationReceipt>(IngestionErrorCode.AGGREGATE_NUMBER_NOT_BUILDABLE)
             }
         }
     }
@@ -95,12 +99,12 @@ open class IntakeController(
      * of the operation's generic response, as [NotAggregatableAdvice] does for ING-006.
      */
     @Suppress("UNCHECKED_CAST")
-    private fun problem(code: IngestionErrorCode): ResponseEntity<AggregationReceipt> {
+    protected fun <T : Any> problem(code: IngestionErrorCode): ResponseEntity<T> {
         val rendered = Problems.renderIngestion(code, correlationId())
         return ResponseEntity
             .status(rendered.status)
             .headers { headers -> rendered.headers.forEach { (name, value) -> headers.set(name, value) } }
-            .body(rendered.body) as ResponseEntity<AggregationReceipt>
+            .body(rendered.body) as ResponseEntity<T>
     }
 
     private fun correlationId(): String =

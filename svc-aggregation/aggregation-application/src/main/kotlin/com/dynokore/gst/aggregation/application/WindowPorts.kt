@@ -114,6 +114,12 @@ interface TransactionRepository {
         sourceRevision: Long,
     ): List<PlacedTransaction>?
 
+    /** The highest sourceRevision stored for the entity and sourceKey within the tenant; null when none is stored. */
+    fun highestRevision(
+        entityRef: String,
+        sourceKey: String,
+    ): Long?
+
     fun store(
         entityRef: String,
         sourceKey: String,

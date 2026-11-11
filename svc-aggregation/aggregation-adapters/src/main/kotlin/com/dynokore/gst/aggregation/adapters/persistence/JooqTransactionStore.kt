@@ -11,6 +11,7 @@ import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 
 /**
  * The dated transactions of `aggregation.aggregate_transaction` (INV-REQ-435, INV-REQ-434). A transaction keeps the
@@ -38,6 +39,11 @@ class JooqTransactionStore(
             sourceKey: String,
             sourceRevision: Long,
         ): List<PlacedTransaction>? = this@JooqTransactionStore.find(entityRef, sourceKey, sourceRevision)
+
+        override fun highestRevision(
+            entityRef: String,
+            sourceKey: String,
+        ): Long? = this@JooqTransactionStore.highestRevision(entityRef, sourceKey)
 
         override fun store(
             entityRef: String,
@@ -78,6 +84,20 @@ class JooqTransactionStore(
                         ),
                     )
                 }.ifEmpty { null }
+        }
+
+    private fun highestRevision(
+        entityRef: String,
+        sourceKey: String,
+    ): Long? =
+        runner.inTransaction {
+            dsl
+                .select(DSL.max(AGGREGATE_TRANSACTION.SOURCE_REVISION))
+                .from(AGGREGATE_TRANSACTION)
+                .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenants.current().value))
+                .and(AGGREGATE_TRANSACTION.ENTITY_REF.eq(entityRef))
+                .and(AGGREGATE_TRANSACTION.SOURCE_KEY.eq(sourceKey))
+                .fetchOne(0, Long::class.javaObjectType)
         }
 
     /** A row already stored under the same key is left as it is: the first intake wins, a repeat stores nothing. */

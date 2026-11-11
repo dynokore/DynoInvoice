@@ -1,8 +1,22 @@
 package com.dynokore.gst.aggregation.adapters
 
 import com.dynokore.gst.aggregation.adapters.periods.NoPeriodBoundaries
+import com.dynokore.gst.aggregation.adapters.persistence.JooqTransactionStore
+import com.dynokore.gst.aggregation.application.DatedTransaction
+import com.dynokore.gst.aggregation.application.PlacedTransaction
+import com.dynokore.gst.aggregation.application.Placement
+import com.dynokore.gst.aggregation.application.TransactionRepository
+import com.dynokore.gst.aggregation.domain.AggregateType
+import com.dynokore.gst.aggregation.domain.AggregationWindow
+import com.dynokore.gst.aggregation.domain.WindowState
+import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import org.jooq.ConnectionProvider
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 import java.sql.SQLException
@@ -128,4 +142,90 @@ class TransactionStoreTest {
             source.spans(entity, LocalDate.of(2022, 3, 28), LocalDate.of(2022, 4, 3)) shouldBe Spans.Unknown
         }
     }
+
+    private fun placed(ref: String) =
+        PlacedTransaction(
+            DatedTransaction(ref, LocalDate.of(2022, 3, 31), "SR-STD", "10.00"),
+            Placement(AggregationWindow(LocalDate.of(2022, 3, 28), LocalDate.of(2022, 4, 3)), WindowState.OPEN),
+        )
+
+    private fun TransactionRepository.put(
+        entity: String,
+        key: String,
+        revision: Long,
+    ) = store(entity, key, revision, listOf(placed("T-$revision")))
+
+    @Test
+    fun `INV-AC-20110 highestRevision is the highest stored revision of the entity and sourceKey, null when none`() {
+        val tenant = UUID.randomUUID()
+        val repo = transactionStoreOf(tenant).scoped("BU-01", AggregateType.PCP)
+        repo.highestRevision("E-HR", "K-HR") shouldBe null
+        repo.put("E-HR", "K-HR", 2)
+        repo.put("E-HR", "K-HR", 7)
+        repo.put("E-HR", "K-HR", 5)
+        repo.highestRevision("E-HR", "K-HR") shouldBe 7L
+    }
+
+    @Test
+    fun `INV-AC-20110 highestRevision does not read another entity or another sourceKey`() {
+        val repo = transactionStoreOf(UUID.randomUUID()).scoped("BU-01", AggregateType.PCP)
+        repo.put("E-A", "K-A", 9)
+        repo.put("E-A", "K-B", 3)
+        repo.put("E-B", "K-A", 4)
+        repo.highestRevision("E-A", "K-A") shouldBe 9L
+        repo.highestRevision("E-A", "K-B") shouldBe 3L
+        repo.highestRevision("E-B", "K-A") shouldBe 4L
+        repo.highestRevision("E-B", "K-B") shouldBe null
+        repo.highestRevision("E-a", "K-A") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-20110 highestRevision does not read the revisions of another tenant`() {
+        val mine = transactionStoreOf(UUID.randomUUID()).scoped("BU-01", AggregateType.PCP)
+        val other = transactionStoreOf(UUID.randomUUID()).scoped("BU-01", AggregateType.PCP)
+        other.put("E-T", "K-T", 11)
+        mine.highestRevision("E-T", "K-T") shouldBe null
+        mine.put("E-T", "K-T", 2)
+        mine.highestRevision("E-T", "K-T") shouldBe 2L
+        other.highestRevision("E-T", "K-T") shouldBe 11L
+    }
+}
+
+private val open = ThreadLocal<Connection>()
+
+/** A store over the real database: each call runs in one transaction bound to [tenant] as a signing runner does. */
+internal fun transactionStoreOf(tenant: UUID): JooqTransactionStore {
+    val runner =
+        object : TransactionRunner {
+            override fun <T> inTransaction(block: () -> T): T =
+                AggregationDb.connect(AggregationDb.RUNTIME, AggregationDb.RUNTIME_PASSWORD).use { connection ->
+                    connection.autoCommit = false
+                    SignedBindings.bind(connection, tenant)
+                    open.set(connection)
+                    try {
+                        block().also { connection.commit() }
+                    } finally {
+                        open.remove()
+                    }
+                }
+        }
+    val tenants =
+        object : TenantContext {
+            override fun current() = TenantId(tenant)
+
+            override fun currentActor(): String = SignedBindings.ACTOR
+
+            override fun <T> bind(
+                tenant: TenantId,
+                actor: String,
+                block: () -> T,
+            ): T = block()
+        }
+    val provider =
+        object : ConnectionProvider {
+            override fun acquire(): Connection = checkNotNull(open.get()) { "no open transaction" }
+
+            override fun release(connection: Connection) = Unit
+        }
+    return JooqTransactionStore(DSL.using(provider, SQLDialect.POSTGRES), runner, tenants)
 }

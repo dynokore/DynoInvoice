@@ -7,12 +7,14 @@ import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.IntakeTransactions
 import com.dynokore.gst.aggregation.application.PlacedTransaction
 import com.dynokore.gst.aggregation.application.TransactionsCommand
+import com.dynokore.gst.aggregation.application.TransactionsOutcome
 import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsReceipt
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsRequest
 import com.dynokore.gst.aggregation.domain.AggregateIntakeCheck
 import com.dynokore.gst.aggregation.domain.IntakeVerdict
 import com.dynokore.gst.aggregation.domain.WindowState
+import com.dynokore.platform.serviceruntime.http.IngestionErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -57,6 +59,9 @@ open class TransactionIntakeController(
                             },
                     ),
                 )
+        if (outcome is TransactionsOutcome.SourceRevisionLower) {
+            return problem(IngestionErrorCode.SOURCE_REVISION_LOWER)
+        }
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(
             AggregationTransactionsReceipt(
                 entityRef = request.entityRef,

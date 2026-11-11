@@ -1,12 +1,14 @@
 package com.dynokore.gst.aggregation.application
 
 import com.dynokore.gst.aggregation.application.IntakeOutcome.Created
+import com.dynokore.gst.aggregation.application.IntakeOutcome.CrossesPeriodBoundary
 import com.dynokore.gst.aggregation.application.IntakeOutcome.NumberNotBuildable
 import com.dynokore.gst.aggregation.application.IntakeOutcome.Replayed
 import com.dynokore.gst.aggregation.application.IntakeOutcome.SourceRevisionLower
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.gst.aggregation.domain.Cadence.MONTHLY
+import com.dynokore.gst.aggregation.domain.PeriodSpan
 import com.dynokore.gst.aggregation.domain.WindowState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -289,7 +291,7 @@ class IntakeAggregateTest {
     @Test
     fun `with a window repository a created intake is placed in the window of its period end`() {
         val windows = Windows(com.dynokore.gst.aggregation.domain.WindowState.LATE)
-        val placing = IntakeAggregate(codes, repo, windows) { _, _, _ -> MONTHLY }
+        val placing = IntakeAggregate(codes, repo, windows, cadences = { _, _, _ -> MONTHLY })
         (placing.execute(command()) as Created).aggregate.aggregate.let {
             it.windowStart shouldBe LocalDate.of(2027, 3, 1)
             it.windowEnd shouldBe end
@@ -301,7 +303,7 @@ class IntakeAggregateTest {
     @Test
     fun `a replay with a window repository returns the stored placement and places nothing again`() {
         val windows = Windows(com.dynokore.gst.aggregation.domain.WindowState.OPEN)
-        val placing = IntakeAggregate(codes, repo, windows) { _, _, _ -> MONTHLY }
+        val placing = IntakeAggregate(codes, repo, windows, cadences = { _, _, _ -> MONTHLY })
         val first = placing.execute(command()) as Created
         val replay = placing.execute(command()) as Replayed
         replay.aggregate shouldBe first.aggregate
@@ -333,10 +335,95 @@ class IntakeAggregateTest {
 
     @Test
     fun `the placement uses the cadence that cadences answers`() {
-        val placing = IntakeAggregate(codes, repo, Windows(WindowState.OPEN)) { _, _, _ -> Cadence.WEEKLY }
+        val placing = IntakeAggregate(codes, repo, Windows(WindowState.OPEN), cadences = { _, _, _ -> Cadence.WEEKLY })
         (placing.execute(command()) as Created).aggregate.aggregate.let {
             it.windowStart shouldBe LocalDate.of(2027, 3, 29)
             it.windowEnd shouldBe LocalDate.of(2027, 4, 4)
         }
+    }
+
+    private val q1 = PeriodSpan(LocalDate.of(2027, 1, 1), LocalDate.of(2027, 3, 31), "2027-Q1")
+    private val q2 = PeriodSpan(LocalDate.of(2027, 4, 1), LocalDate.of(2027, 6, 30), "2027-Q2")
+
+    private fun withPeriods(
+        spans: PeriodSpans,
+        asked: MutableList<Triple<String, LocalDate, LocalDate>> = mutableListOf(),
+    ) = IntakeAggregate(codes, repo, periods = { entity, from, to ->
+        asked += Triple(entity, from, to)
+        spans
+    })
+
+    private fun window(
+        start: LocalDate,
+        end: LocalDate,
+        revision: Long = 1,
+    ) = IntakeCommand("ent-1", "bu-1", AggregateType.POS, start, end, "K", revision)
+
+    @Test
+    fun `ING-018 a call from 28 Mar to 3 Apr across two quarter spans is refused and stores nothing`() {
+        val checked = withPeriods(PeriodSpans.Known(listOf(q1, q2)))
+        checked.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3))) shouldBe CrossesPeriodBoundary
+        repo.rows.size shouldBe 0
+        repo.calls.contains("store") shouldBe false
+        codes.calls shouldBe emptyList()
+    }
+
+    @Test
+    fun `ING-018 the same call inside one span is accepted`() {
+        val checked = withPeriods(PeriodSpans.Known(listOf(q1)))
+        (checked.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 3, 31))) is Created) shouldBe true
+        repo.rows.size shouldBe 1
+    }
+
+    @Test
+    fun `ING-018 a call whose end lies in no span is refused, as is one whose start lies in no span`() {
+        val checked = withPeriods(PeriodSpans.Known(listOf(q1)))
+        checked.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3))) shouldBe CrossesPeriodBoundary
+        checked.execute(window(LocalDate.of(2026, 12, 30), LocalDate.of(2027, 1, 2))) shouldBe CrossesPeriodBoundary
+        repo.rows.size shouldBe 0
+    }
+
+    @Test
+    fun `ING-018 known but empty spans leave both dates in no span and refuse`() {
+        withPeriods(PeriodSpans.Known(emptyList()))
+            .execute(window(LocalDate.of(2027, 3, 1), end)) shouldBe CrossesPeriodBoundary
+    }
+
+    @Test
+    fun `ING-018 unknown spans are accepted`() {
+        val checked = withPeriods(PeriodSpans.Unknown)
+        (checked.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3))) is Created) shouldBe true
+    }
+
+    @Test
+    fun `ING-018 a replay of a stored aggregate is answered first and the spans are not asked`() {
+        (intake.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3))) is Created) shouldBe true
+        val asked = mutableListOf<Triple<String, LocalDate, LocalDate>>()
+        val checked = withPeriods(PeriodSpans.Known(listOf(q1, q2)), asked)
+        (checked.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3))) is Replayed) shouldBe true
+        asked shouldBe emptyList()
+    }
+
+    @Test
+    fun `ING-018 a lower revision is answered ING-002 before the spans are asked`() {
+        intake.execute(window(LocalDate.of(2027, 3, 1), end, revision = 5))
+        val asked = mutableListOf<Triple<String, LocalDate, LocalDate>>()
+        val checked = withPeriods(PeriodSpans.Known(listOf(q1, q2)), asked)
+        checked.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3), revision = 4)) shouldBe
+            SourceRevisionLower(5)
+        asked shouldBe emptyList()
+    }
+
+    @Test
+    fun `ING-018 the source is asked once for the entity and the two dates, before the short codes`() {
+        val asked = mutableListOf<Triple<String, LocalDate, LocalDate>>()
+        val checked = withPeriods(PeriodSpans.Known(listOf(q1)), asked)
+        checked.execute(window(LocalDate.of(2027, 3, 1), end))
+        asked shouldBe listOf(Triple("ent-1", LocalDate.of(2027, 3, 1), end))
+    }
+
+    @Test
+    fun `ING-018 a crossing call with a null source is accepted as before`() {
+        (intake.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3))) is Created) shouldBe true
     }
 }

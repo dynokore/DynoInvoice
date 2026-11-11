@@ -51,6 +51,11 @@ class IntakeTransactionsTest {
             sourceRevision: Long,
         ) = rows[Triple(entityRef, sourceKey, sourceRevision)]
 
+        override fun highestRevision(
+            entityRef: String,
+            sourceKey: String,
+        ): Long? = rows.keys.filter { it.first == entityRef && it.second == sourceKey }.maxOfOrNull { it.third }
+
         override fun store(
             entityRef: String,
             sourceKey: String,
@@ -109,5 +114,54 @@ class IntakeTransactionsTest {
         intake.execute(command(tx("T1", LocalDate.of(2027, 3, 31))))
         val second = intake.execute(command(tx("T1", LocalDate.of(2027, 3, 31))).copy(sourceRevision = 2))
         (second is TransactionsOutcome.Created) shouldBe true
+    }
+
+    private fun stored5() = intake.execute(command(tx("T1", LocalDate.of(2027, 3, 31))).copy(sourceRevision = 5))
+
+    @Test
+    fun `INV-AC-20110 a lower revision is refused with the highest stored one and stores nothing`() {
+        stored5()
+        val windowCalls = windows.placed.size
+        val outcome = intake.execute(command(tx("T2", LocalDate.of(2027, 3, 31))).copy(sourceRevision = 4))
+        outcome shouldBe TransactionsOutcome.SourceRevisionLower(5)
+        store.stores shouldBe 1
+        store.rows.keys.map { it.third } shouldBe listOf(5L)
+        windows.placed.size shouldBe windowCalls
+    }
+
+    @Test
+    fun `INV-AC-20110 an equal revision is the replay of the stored triple and stores nothing again`() {
+        val first = stored5()
+        val repeat = intake.execute(command(tx("T9", LocalDate.of(2027, 4, 9))).copy(sourceRevision = 5))
+        (repeat is TransactionsOutcome.Replayed) shouldBe true
+        repeat.placed shouldBe first.placed
+        store.stores shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-20110 a higher revision is stored as a new intake`() {
+        stored5()
+        val higher = intake.execute(command(tx("T1", LocalDate.of(2027, 3, 31))).copy(sourceRevision = 6))
+        (higher is TransactionsOutcome.Created) shouldBe true
+        store.rows.keys
+            .map { it.third }
+            .sorted() shouldBe listOf(5L, 6L)
+    }
+
+    @Test
+    fun `INV-AC-20110 a replay of an older stored revision is answered before the lower-revision check`() {
+        intake.execute(command(tx("T1", LocalDate.of(2027, 3, 31))).copy(sourceRevision = 4))
+        stored5()
+        val replay = intake.execute(command(tx("T7", LocalDate.of(2027, 3, 31))).copy(sourceRevision = 4))
+        (replay is TransactionsOutcome.Replayed) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-20110 another sourceKey or entity is not judged against the stored revision`() {
+        stored5()
+        val otherKey = intake.execute(command(tx("T1", LocalDate.of(2027, 3, 31))).copy(sourceKey = "K2"))
+        val otherEntity = intake.execute(command(tx("T1", LocalDate.of(2027, 3, 31))).copy(entityRef = "ent-2"))
+        (otherKey is TransactionsOutcome.Created) shouldBe true
+        (otherEntity is TransactionsOutcome.Created) shouldBe true
     }
 }

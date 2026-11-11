@@ -90,6 +90,9 @@ sealed interface IntakeOutcome {
         val highestRevision: Long,
     ) : IntakeOutcome
 
+    /** The window [periodStart, periodEnd] is not inside one prescribed period (ING-018); nothing is stored. */
+    data object CrossesPeriodBoundary : IntakeOutcome
+
     data class NumberNotBuildable(
         val reason: NotBuildableReason,
     ) : IntakeOutcome
@@ -105,12 +108,25 @@ class IntakeAggregate(
     private val repository: AggregateRepository,
     private val windows: WindowRepository? = null,
     private val cadences: CadenceSource? = null,
+    private val periods: PeriodBoundarySource? = null,
 ) {
     init {
         require((windows == null) == (cadences == null)) { "windows and cadences are set together or not at all" }
     }
 
-    fun execute(command: IntakeCommand): IntakeOutcome = alreadyKnown(command) ?: create(command)
+    fun execute(command: IntakeCommand): IntakeOutcome =
+        alreadyKnown(command) ?: if (crossesBoundary(command)) IntakeOutcome.CrossesPeriodBoundary else create(command)
+
+    /**
+     * ING-018 (INV-REQ-435): with a source, known spans must hold both dates in one and the same span; a date in no
+     * span fails closed. Unknown spans are accepted (no crossing can be judged; the window is held, never split on a
+     * guess). Without a source nothing is checked.
+     */
+    private fun crossesBoundary(command: IntakeCommand): Boolean {
+        val known = periods?.spans(command.entityRef, command.periodStart, command.periodEnd)
+        return known is PeriodSpans.Known &&
+            known.spans.none { command.periodStart in it.start..it.end && command.periodEnd in it.start..it.end }
+    }
 
     /** Steps 1 and 2: a replay of the triple, or a revision lower than a recorded one; null when neither. */
     private fun alreadyKnown(command: IntakeCommand): IntakeOutcome? {
