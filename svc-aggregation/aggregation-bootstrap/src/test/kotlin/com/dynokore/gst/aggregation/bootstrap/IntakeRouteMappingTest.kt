@@ -16,7 +16,8 @@ import java.nio.file.Path
 /**
  * One handler per route (INV-T-14463): a web context that scans both `IntakeController` and
  * `TransactionIntakeController` maps `/internal/v1/aggregation/batches` and `/internal/v1/aggregation/transactions`
- * to exactly one handler method each, and starts. `IntakeController` carries no stereotype, so only its subclass is a bean.
+ * to exactly one handler method each, and starts. `IntakeController` carries no stereotype, so only its subclass
+ * is a bean.
  */
 class IntakeRouteMappingTest {
     private fun runner(mountRoot: Path): WebApplicationContextRunner {
