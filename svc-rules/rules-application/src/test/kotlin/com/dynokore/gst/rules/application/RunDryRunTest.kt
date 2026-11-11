@@ -291,6 +291,15 @@ class RunDryRunTest {
     }
 
     @Test
+    fun `INV-AC-20125 the dry run use case does not depend on the sample request port`() {
+        val type = RunDryRun::class.java
+        val constructorTypes = type.declaredConstructors.flatMap { it.parameterTypes.toList() }
+        val fieldTypes = type.declaredFields.map { it.type }
+        (SampleRequestPort::class.java in constructorTypes) shouldBe false
+        (SampleRequestPort::class.java in fieldTypes) shouldBe false
+    }
+
+    @Test
     fun `INV-AC-20125 the sample request port has one entry point`() {
         val methods = SampleRequestPort::class.java.methods
         methods.map { it.name } shouldBe listOf("request")
