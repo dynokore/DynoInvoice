@@ -222,3 +222,4 @@ receiveSignedLinkIssued	asyncapi_operation	asyncapi.yaml	INV-REQ-901
 receiveSignedLinkInvalidated	asyncapi_operation	asyncapi.yaml	INV-REQ-901
 ImportRatesRequest.entityRef	schema_property	openapi.yaml	INV-REQ-957
 entityRef	query_parameter	openapi.yaml	INV-REQ-469
+SendCounterpartyRequestBody.entityRef	schema_property	openapi.yaml	INV-REQ-957

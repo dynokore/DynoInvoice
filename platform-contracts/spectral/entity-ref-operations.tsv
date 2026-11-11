@@ -18,3 +18,4 @@ masterdata	POST	/internal/v1/masterdata/counterparties/import	entityRef
 masterdata	POST	/internal/v1/masterdata/counterparties/bulk-resolution	entityRef
 transport	POST	/internal/v1/transport/adapters/{adapterRef}/failovers	entityRef
 masterdata	POST	/internal/v1/masterdata/exchange-rates/import	entityRef
+masterdata	POST	/internal/v1/masterdata/counterparties/{counterpartyRef}/requests	entityRef
