@@ -2,7 +2,9 @@ package com.dynokore.gst.access.bootstrap
 
 import com.nimbusds.jose.jwk.Curve
 import com.nimbusds.jose.jwk.ECKey
+import com.nimbusds.jose.jwk.RSAKey
 import com.nimbusds.jose.jwk.gen.ECKeyGenerator
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -49,6 +51,12 @@ object TestSecrets {
 
     fun newSigningKey(): ECKey = ECKeyGenerator(Curve.P_256).generate()
 
+    /** A link-session signing key (RSA 2048, the RS256 key of use LINK_SESSION). */
+    fun newLinkKey(): RSAKey = RSAKeyGenerator(2048).generate()
+
+    /** The link-session key of every mount that does not name one, generated once for the run. */
+    val defaultLinkKey: RSAKey by lazy { newLinkKey() }
+
     @Suppress("LongParameterList") // one optional secret per mounted file, each defaulted
     fun mount(
         databasePassword: String = "unused-in-composition-tests",
@@ -57,6 +65,8 @@ object TestSecrets {
         deliveryKeyPem: String? = pem(deliveryKeyPair.public),
         operatorKey: ECKey? = null,
         operatorNextKey: ECKey? = null,
+        linkKey: RSAKey? = defaultLinkKey,
+        linkNextKey: RSAKey? = null,
     ): Path {
         val root = Files.createTempDirectory("access-secrets")
         write(root, "tenancy/binding-key-current", bindingKey)
@@ -67,6 +77,8 @@ object TestSecrets {
         signingKey?.let { replaceSigningKey(root, it) }
         operatorKey?.let { write(root, "access/operator-session-signing-key", it.toJSONString()) }
         operatorNextKey?.let { write(root, "access/operator-session-signing-key-next", it.toJSONString()) }
+        linkKey?.let { write(root, "access/link-session-signing-key", it.toJSONString()) }
+        linkNextKey?.let { write(root, "access/link-session-signing-key-next", it.toJSONString()) }
         root.toFile().deleteOnExit()
         return root
     }

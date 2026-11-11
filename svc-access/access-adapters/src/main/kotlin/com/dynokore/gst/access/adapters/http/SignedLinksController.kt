@@ -2,6 +2,8 @@ package com.dynokore.gst.access.adapters.http
 
 import com.dynokore.gst.access.adapters.persistence.SignatoryEvidenceRefs
 import com.dynokore.gst.access.application.consent.ConsentRepository
+import com.dynokore.gst.access.application.link.LinkSession
+import com.dynokore.gst.access.application.link.LinkSessionIssuer
 import com.dynokore.gst.access.application.link.LinkTenants
 import com.dynokore.gst.access.application.link.RecordSignatoryActionUseCase
 import com.dynokore.gst.access.application.link.SignatoryAction
@@ -11,6 +13,7 @@ import com.dynokore.gst.access.application.link.SignatoryActionOutcome
 import com.dynokore.gst.access.application.link.SignedLinks
 import com.dynokore.gst.access.application.link.VerifyLinkOutcome
 import com.dynokore.gst.access.application.link.VerifySignatoryLinkUseCase
+import com.dynokore.gst.access.application.token.SigningKeyUnavailable
 import com.dynokore.gst.access.contract.api.SignedLinksApi
 import com.dynokore.gst.access.contract.model.SignatoryActionRequest
 import com.dynokore.gst.access.contract.model.SignatoryActionResponse
@@ -26,6 +29,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
+import java.time.Clock
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -49,6 +53,8 @@ open class SignedLinksController(
     private val links: SignedLinks,
     private val consents: ConsentRepository,
     private val tx: TransactionRunner,
+    private val sessions: LinkSessionIssuer,
+    private val clock: Clock,
 ) : SignedLinksApi {
     override fun verifySignatoryLink(
         linkRef: String,
@@ -61,7 +67,15 @@ open class SignedLinksController(
         val outcome = tenants.bind(tenant, actor) { verify.handle(ref, verifySignatoryLinkRequest.passcode) }
         return when (outcome) {
             is VerifyLinkOutcome.Verified -> {
-                ResponseEntity.ok(answer(outcome.ref, verified = true, outcome.wrongEntries, invalidated = false))
+                val session = sessionOf(ref, tenant, actor, outcome)
+                ResponseEntity.ok(
+                    answer(outcome.ref, verified = true, outcome.wrongEntries, invalidated = false).copy(
+                        sessionToken = session?.token,
+                        // a JWT holds whole seconds: the field is then the token exp exactly
+                        sessionExpiresAt =
+                            session?.expiresAt?.truncatedTo(ChronoUnit.SECONDS)?.atOffset(ZoneOffset.UTC),
+                    ),
+                )
             }
 
             is VerifyLinkOutcome.Wrong -> {
@@ -113,6 +127,25 @@ open class SignedLinksController(
                 handoverStatementRef = handoverStatementOf(tenant, actor, action),
             ),
         )
+    }
+
+    /**
+     * The link-session token of a verified link (INV-T-17805, ruling option A of the owner): only a verified outcome of
+     * a usable link gives one. The signing publishes its key first in its own committed transaction, so it runs outside
+     * the bound command. A key that cannot sign is ISSUER_UNAVAILABLE.
+     */
+    private fun sessionOf(
+        ref: LinkRef,
+        tenant: TenantId,
+        actor: String,
+        outcome: VerifyLinkOutcome.Verified,
+    ): LinkSession? {
+        val link = tenants.bind(tenant, actor) { tx.inTransaction { links.find(ref) } } ?: return null
+        return try {
+            sessions.sessionFor(link, outcome, clock.instant())
+        } catch (_: SigningKeyUnavailable) {
+            throw ApiRefusal(ClosedErrorCode.ISSUER_UNAVAILABLE)
+        }
     }
 
     /** Present on WITHDRAW only: the stored reference of the withdrawn consent of the link, the same on a repeat. */

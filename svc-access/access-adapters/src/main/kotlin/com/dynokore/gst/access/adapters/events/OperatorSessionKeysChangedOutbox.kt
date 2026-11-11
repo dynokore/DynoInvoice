@@ -1,6 +1,8 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.domain.revocation.VerificationKey
+import org.slf4j.LoggerFactory
+import java.time.Instant
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -9,6 +11,21 @@ import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+
+/** One item of the key feed: a public key with the `use` it verifies (`LINK_SESSION` has no domain enum value). */
+data class PublishedKey(
+    val kid: String,
+    val use: String,
+    val alg: String,
+    val publicKey: String,
+    val validFrom: Instant,
+    val validUntil: Instant,
+) {
+    companion object {
+        fun of(key: VerificationKey) =
+            PublishedKey(key.kid, key.use.name, key.alg, key.publicKey, key.validFrom, key.validUntil)
+    }
+}
 
 /**
  * TPL-05: maps the verification keys that are valid to the contract event OperatorSessionKeysChanged on
@@ -21,10 +38,14 @@ class OperatorSessionKeysChangedOutbox(
     private val outbox: OutboxWriter,
     private val mapper: ObjectMapper,
 ) {
-    fun publish(valid: List<VerificationKey>) {
+    fun publish(valid: List<VerificationKey>) = publishAll(valid.map(PublishedKey::of))
+
+    /** Publishes [valid] of every use; a kid under two uses, or an item without its use, publishes nothing. */
+    fun publishAll(valid: List<PublishedKey>) {
+        requireOneUsePerKid(valid)
         val context = EventContexts.forAggregate(TenantId.PLATFORM, EntityRef.PLATFORM, AGGREGATE_KEY)
-        val payload = payload(valid)
-        requireUses(payload, valid)
+        val payload = payloadOf(valid)
+        requireUsesOf(payload, valid)
         outbox.append(listOf(OutboundEvent(EVENT_TYPE, payload.toString())), context)
     }
 
@@ -35,12 +56,26 @@ class OperatorSessionKeysChangedOutbox(
     internal fun requireUses(
         payload: ObjectNode,
         valid: List<VerificationKey>,
+    ) = requireUsesOf(payload, valid.map(PublishedKey::of))
+
+    internal fun requireUsesOf(
+        payload: ObjectNode,
+        valid: List<PublishedKey>,
     ) {
         valid.forEach { key ->
             val item = payload["keys"].singleOrNull { it["kid"]?.asString() == key.kid }
-            check(item != null && item["use"]?.asString() == key.use.name) {
-                "the item of key ${key.kid} lacks use ${key.use.name}; the event is not published"
+            check(item != null && item["use"]?.asString() == key.use) {
+                "the item of key ${key.kid} lacks use ${key.use}; the event is not published"
             }
+        }
+    }
+
+    /** A kid is never published under two uses (NIST SP 800-57 key separation): nothing is emitted, an error is logged. */
+    private fun requireOneUsePerKid(valid: List<PublishedKey>) {
+        val shared = valid.groupBy { it.kid }.filterValues { items -> items.map { it.use }.distinct().size > 1 }.keys
+        if (shared.isNotEmpty()) {
+            log.error("key publication refused: kid {} is held under two uses", shared.sorted())
+            error("a kid is held under two uses: ${shared.sorted()}; the event is not published")
         }
     }
 
@@ -48,9 +83,16 @@ class OperatorSessionKeysChangedOutbox(
     fun carries(
         recordJson: String,
         valid: List<VerificationKey>,
-    ): Boolean = mapper.readTree(recordJson) == payload(valid)
+    ): Boolean = carriesAll(recordJson, valid.map(PublishedKey::of))
 
-    internal fun payload(valid: List<VerificationKey>): ObjectNode {
+    fun carriesAll(
+        recordJson: String,
+        valid: List<PublishedKey>,
+    ): Boolean = mapper.readTree(recordJson) == payloadOf(valid)
+
+    internal fun payload(valid: List<VerificationKey>): ObjectNode = payloadOf(valid.map(PublishedKey::of))
+
+    internal fun payloadOf(valid: List<PublishedKey>): ObjectNode {
         check(valid.size in 1..MAX_KEYS) {
             "an OperatorSessionKeysChanged carries 1 to $MAX_KEYS keys, not ${valid.size}"
         }
@@ -59,7 +101,7 @@ class OperatorSessionKeysChangedOutbox(
         valid.sortedBy { it.kid }.forEach { key ->
             val node = items.addObject()
             node.put("kid", key.kid)
-            node.put("use", key.use.name)
+            node.put("use", key.use)
             node.put("alg", key.alg)
             node.put("publicKey", key.publicKey)
             node.put("validFrom", ISO.format(key.validFrom.atOffset(ZoneOffset.UTC)))
@@ -73,7 +115,8 @@ class OperatorSessionKeysChangedOutbox(
         const val CHANNEL = "accessOperatorSessionKeysChanged"
         const val EVENT_TYPE = "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1"
         const val TOPIC = "gst.platform.operator-session-keys-changed.v1"
-        const val MAX_KEYS = 4
+        const val MAX_KEYS = 6
+        private val log = LoggerFactory.getLogger(OperatorSessionKeysChangedOutbox::class.java)
         private const val AGGREGATE_KEY = "operator-session-keys"
         private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     }

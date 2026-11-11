@@ -398,11 +398,27 @@ object BoundaryFixture {
         operatorNextKey: com.nimbusds.jose.jwk.ECKey? = null,
     ) = TestSecrets.mount(RUNTIME_PASSWORD, operatorKey = operatorKey, operatorNextKey = operatorNextKey)
 
+    /** A mounted directory with the link-session key and, optionally, the next one (INV-T-17805). */
+    fun mountLink(
+        linkKey: com.nimbusds.jose.jwk.RSAKey?,
+        linkNextKey: com.nimbusds.jose.jwk.RSAKey? = null,
+    ) = TestSecrets.mount(RUNTIME_PASSWORD, linkKey = linkKey, linkNextKey = linkNextKey)
+
+    /** Removes the stored link-session keys of earlier tests, so a test can state the exact set (INV-T-17805). */
+    fun deleteLinkSessionKeys() =
+        asSuperuser {
+            it.createStatement().use { statement ->
+                statement.execute("DELETE FROM access.link_session_key")
+            }
+        }
+
     /** Removes the published verification keys of earlier tests, so a test can state the exact set (INV-T-8850). */
     fun deleteVerificationKeys() =
         asSuperuser {
             it.createStatement().use { statement ->
                 statement.execute("DELETE FROM access.verification_key")
+                // the key event carries the link-session keys too (INV-T-17805)
+                statement.execute("DELETE FROM access.link_session_key")
             }
         }
 
@@ -411,6 +427,7 @@ object BoundaryFixture {
         asSuperuser {
             it.createStatement().use { statement ->
                 statement.execute("DELETE FROM access.verification_key WHERE use = 'OPERATOR_SESSION'")
+                statement.execute("DELETE FROM access.link_session_key")
             }
         }
 
