@@ -139,3 +139,4 @@ caseRef	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
 permissions	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
 elevation	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
 elevationRef	property	schemas/authority-changed-payload.schema.json	INV-REQ-862
+LINK_SESSION	enum_value	schemas/operator-session-keys-changed-payload.schema.json	INV-REQ-1202
