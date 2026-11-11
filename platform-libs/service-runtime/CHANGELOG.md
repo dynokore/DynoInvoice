@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.11.0] - 2026-11-11
+### Added
+- `IngestionErrorCode.CROSSES_PERIOD_BOUNDARY` (`ING-018`, HTTP 422, owner Integration) after `AGGREGATE_NUMBER_NOT_BUILDABLE`: a pre-aggregated call whose period crosses a prescribed-period boundary (INV-REQ-435, FR-AE.49; status per INV-Q-1841; added by the ruling that split ING-018 out of INV-T-14463; INV-T-20101, INV-AC-20108).
+
 ## [13.10.0] - 2026-11-11
 ### Added
 - `KeyUse.LINK_SESSION` and `AuthorityReplica.linkSessionKeys`: a third key set for items whose `use` is exactly `LINK_SESSION`; a kid published under two uses drops all its items (INV-T-17803, INV-AC-17808; owner ruling 2026-11-07).

@@ -47,7 +47,7 @@ class IngestionErrorCodeTest {
     @Test
     fun `the snapshot holds exactly one ING-006 row and the enum exactly one entry`() {
         rows.size shouldBe 1
-        IngestionErrorCode.entries.size shouldBe 3
+        IngestionErrorCode.entries.size shouldBe 4
         IngestionErrorCode.Owner.entries.size shouldBe 1
     }
 
@@ -83,8 +83,8 @@ class IngestionErrorCodeTest {
     }
 
     @Test
-    fun `the entries are ING-006, ING-002 and ING-022 in this order`() {
-        IngestionErrorCode.entries.map { it.code } shouldBe listOf("ING-006", "ING-002", "ING-022")
+    fun `the entries are ING-006, ING-002, ING-022 and ING-018 in this order`() {
+        IngestionErrorCode.entries.map { it.code } shouldBe listOf("ING-006", "ING-002", "ING-022", "ING-018")
     }
 
     @Test
@@ -105,6 +105,17 @@ class IngestionErrorCodeTest {
     @Test
     fun `renderIngestion gives a 422 envelope for ING-022 that validates`() {
         assertRendered(IngestionErrorCode.AGGREGATE_NUMBER_NOT_BUILDABLE, "ING-022", 422)
+    }
+
+    @Test
+    fun `INV-AC-20108 ING-018 is the row's code, title and owner with the declared 422`() {
+        rowsOf("ING-018").size shouldBe 1
+        assertEntry(IngestionErrorCode.CROSSES_PERIOD_BOUNDARY, "ING-018", 422)
+    }
+
+    @Test
+    fun `INV-AC-20108 renderIngestion gives a 422 envelope for ING-018 that validates`() {
+        assertRendered(IngestionErrorCode.CROSSES_PERIOD_BOUNDARY, "ING-018", 422)
     }
 
     private fun assertEntry(
