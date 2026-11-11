@@ -1857,6 +1857,7 @@ components:
         status:
           type: string
           enum: [available, planned, retired]
+          x-enum-varnames: [AVAILABLE, PLANNED, RETIRED]
           x-extensible-enum: true
         mode:
           type: string
