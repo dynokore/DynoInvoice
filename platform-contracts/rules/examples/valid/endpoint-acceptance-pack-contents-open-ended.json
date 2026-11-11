@@ -1,0 +1,13 @@
+{
+  "acceptances": [
+    {
+      "specVersion": "1.0",
+      "accepted_from": "2026-01-01",
+      "accepted_to": "2027-03-31"
+    },
+    {
+      "specVersion": "1.1",
+      "accepted_from": "2027-01-01"
+    }
+  ]
+}

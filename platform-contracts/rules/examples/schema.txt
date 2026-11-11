@@ -27,3 +27,5 @@
 ../openapi.yaml#/components/schemas/MappingPackActivation pack-activation-*.json
 ../openapi.yaml#/components/schemas/ActiveRegulatoryPackPage active-regulatory-pack-*.json
 ../schemas/mapping-pack-contents.schema.json mapping-pack-contents-*.json
+../schemas/schematron-pack-contents.schema.json schematron-pack-contents-*.json
+../schemas/endpoint-acceptance-pack-contents.schema.json endpoint-acceptance-pack-contents-*.json

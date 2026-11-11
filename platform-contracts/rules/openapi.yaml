@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.27.0
+  version: 1.28.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1118,6 +1118,67 @@ paths:
                   value: { packType: "SCOPE", version: "2026.4", status: "ARMED", effectiveFrom: "2026-04-01" }
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/rules/regulatory-packs/{packType}/{version}/approval:
+    post:
+      operationId: approveRegulatoryPack
+      summary: Approve a staged regulatory pack's dry-run delta
+      description: >-
+        Approval command to console-bff (INV-REQ-489, INV-REQ-1166): the
+        regulatory-pack counterpart of `approvePack`. It asks access-svc
+        the same permission decision (`decidePackApproval`) and applies the
+        same no-self-approval rule: a DENY, or an approver who is the user
+        who staged the pack, is refused with 403 SRT-004 and a detail that
+        names no person. The audit record keeps the user ID and never a
+        role. A repeat answers 200 and changes nothing. How ARMED and
+        ACKNOWLEDGED consume APPROVED is decided by the arming task. The
+        closed SRT refusals are not listed in `x-error-codes`.
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-489, INV-REQ-1166]
+      x-operation:
+        role: tax.approver
+        scope: tenant
+        precondition: "The pack is STAGED, its dry-run delta exists and the approver is not the user who staged it."
+        reversibility: UNDOABLE
+        repeatKey: "(packType, version) — no-op if already approved."
+      parameters:
+        - name: packType
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: version
+          in: path
+          required: true
+          schema: { type: string, maxLength: 16 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The pack, APPROVED; a repeat answers 200 and changes nothing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegulatoryPack'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", status: "APPROVED" }
+        '403':
+          description: Permission DENY, or the approver is the user who staged the pack (SRT-004); the detail names no person.
+          $ref: '#/components/responses/Error'
+        '404':
+          description: The pack does not exist (SRT-005).
+          $ref: '#/components/responses/Error'
+        '409':
+          description: The pack is not STAGED or its dry-run delta is missing (SRT-008).
+          $ref: '#/components/responses/Error'
+        '503':
+          description: A dependency is unavailable (SRT-013). Nothing is decided or changed; the caller retries later.
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/rules/regulatory-packs/{packType}/rollback:
     post:
       operationId: rollbackPack
@@ -2076,13 +2137,14 @@ components:
           maxLength: 16
         status:
           type: string
-          enum: [STAGED, ACKNOWLEDGED, ARMED, IMPORTING, FAILED, ACTIVE, SUPERSEDED, ABORTED]
+          enum: [STAGED, ACKNOWLEDGED, ARMED, IMPORTING, FAILED, ACTIVE, SUPERSEDED, ABORTED, APPROVED]
           x-extensible-enum: true
           description: >-
             IMPORTING while an import that answered `202` runs; FAILED when
             the import failed, with `failureCode` (INV-Q-3478). The lifecycle is STAGED,
             ACKNOWLEDGED, ARMED, ACTIVE, SUPERSEDED, ABORTED (INV-REQ-1166); ABORTED is an
-            activation the fence abandoned with RUL-005.
+            activation the fence abandoned with RUL-005. APPROVED is a STAGED pack whose dry-run
+            delta a second user approved (`approveRegulatoryPack`, INV-REQ-489).
         effectiveFrom:
           type: string
           format: date

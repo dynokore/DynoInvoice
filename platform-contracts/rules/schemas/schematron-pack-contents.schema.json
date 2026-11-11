@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/schematron-pack-contents.schema.json",
+  "title": "SchematronPackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly schematron (INV-REQ-471, INV-REQ-482): the Schematron files of the target PINT-SG version's resources.zip, held byte for byte, each with its SHA-256 and its content as base64. Rules JSON Schema cannot express, checked by rules-svc at import, at the pack dry run and by the seed content test, not here: the sha256 of each file equals the SHA-256 of its decoded content; a name appears once. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "The target PINT-SG version label of the Schematron files.",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "files": {
+      "type": "array",
+      "description": "The Schematron files of the target version, byte for byte.",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The file name, with no path.",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "The SHA-256 of the decoded content, 64 lowercase hexadecimal characters.",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "content": {
+            "type": "string",
+            "description": "The file bytes, base64 encoded.",
+            "minLength": 1,
+            "contentEncoding": "base64"
+          }
+        },
+        "required": [
+          "name",
+          "sha256",
+          "content"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "version",
+    "files"
+  ],
+  "additionalProperties": true
+}

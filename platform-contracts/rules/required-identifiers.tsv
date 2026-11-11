@@ -395,3 +395,13 @@ appliedCount	property	openapi.yaml	INV-REQ-833
 rejectedRows	property	openapi.yaml	INV-REQ-833
 CLEAN	enum_value	openapi.yaml	INV-REQ-833
 REJECTED	enum_value	openapi.yaml	INV-REQ-833
+# INV-T-20460. `resources.zip` and `endpoint-acceptance` are names in descriptions (a file and a pack type), not elements of a schema; `tax.approver` is a role.
+files	property	schemas/schematron-pack-contents.schema.json	INV-REQ-482
+sha256	property	schemas/schematron-pack-contents.schema.json	INV-REQ-482
+content	property	schemas/schematron-pack-contents.schema.json	INV-REQ-482
+acceptances	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
+specVersion	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
+accepted_from	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
+accepted_to	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
+approveRegulatoryPack	operation	openapi.yaml	INV-REQ-489
+APPROVED	enum_value	openapi.yaml	INV-REQ-489

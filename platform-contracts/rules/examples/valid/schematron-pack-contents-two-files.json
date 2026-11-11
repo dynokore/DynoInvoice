@@ -1,0 +1,15 @@
+{
+  "version": "1.4.1",
+  "files": [
+    {
+      "name": "PINT-UBL-validation.sch",
+      "sha256": "65a8fcf0cf2a47e9dd2136cdbaee048f965cbb3830443622ff866637b7c8ed0d",
+      "content": "PHNjaGVtYS8+"
+    },
+    {
+      "name": "PINT-SG-validation.sch",
+      "sha256": "e78c1830429bd8d8a7c90f7eae83ddc82291ea2ba77ba9ca04d11bbeb506f1b3",
+      "content": "PHNjaGVtYS8+Cg=="
+    }
+  ]
+}

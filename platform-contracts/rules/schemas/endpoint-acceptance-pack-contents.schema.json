@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/endpoint-acceptance-pack-contents.schema.json",
+  "title": "EndpointAcceptancePackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly endpoint-acceptance (INV-REQ-589): the accepted specification versions with the dates they are accepted from and to. A version is accepted on a date D when accepted_from is on or before D and accepted_to is absent or on or after D; both ends are inclusive (Inference: the example of INV-AC-7967 gives no edge date). An absent accepted_to means the version is accepted with no end date (Inference: INV-REQ-589 names both dates and says nothing about an open end). Rules JSON Schema cannot express, checked by rules-svc at import, at the pack dry run and by the seed content test, not here: accepted_to is not before accepted_from; a pair (specVersion, accepted_from) appears once. A consumer ignores any property this schema does not name (API-41, FR-K.4); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "acceptances": {
+      "type": "array",
+      "description": "The accepted specification versions with their dates.",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "properties": {
+          "specVersion": {
+            "type": "string",
+            "description": "The specification version label (PINT-SG or SG Peppol BIS release).",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "accepted_from": {
+            "type": "string",
+            "description": "The first date the version is accepted, inclusive.",
+            "format": "date",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          },
+          "accepted_to": {
+            "type": "string",
+            "description": "The last date the version is accepted, inclusive; absent means no end date.",
+            "format": "date",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          }
+        },
+        "required": [
+          "specVersion",
+          "accepted_from"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "acceptances"
+  ],
+  "additionalProperties": true
+}
