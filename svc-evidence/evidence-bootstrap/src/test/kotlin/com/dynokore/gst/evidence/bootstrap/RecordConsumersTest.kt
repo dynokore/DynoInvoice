@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
+import com.dynokore.gst.evidence.adapters.events.EvidenceArtefactRecordedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.AppliedRecord.Companion.APPLIED_RECORD
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.EventDeadLetter.Companion.EVENT_DEAD_LETTER
@@ -21,6 +22,7 @@ import com.dynokore.platform.outboxandqueue.EnvelopeJson
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.EventLogReader
+import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.outboxandqueue.PollResult
@@ -29,6 +31,7 @@ import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -354,35 +357,37 @@ class RecordConsumersTest {
     }
 
     @Test
-    fun `INV-AC-20319 the registry lists exactly one evidence artefact subscription and keeps the two record ones`() {
-        val topic = "gst.platform.evidence-artefact-recorded.v1"
-        val type = "com.dynokore.gst.platform.EvidenceArtefactRecorded.v1"
-        val listed = RecordConsumerConfiguration.subscriptions
-        listed.count { it.topic == topic && it.eventType == type } shouldBe 1
-        listed.any {
-            it.topic == "gst.canonical.decision-trace-recorded.v1" &&
-                it.eventType == "com.dynokore.gst.canonical.DecisionTraceRecorded.v1"
-        } shouldBe true
-        listed.any {
-            it.topic == "gst.platform.audit-entry-recorded.v1" &&
-                it.eventType == "com.dynokore.gst.platform.AuditEntryRecorded.v1"
-        } shouldBe true
-        // look-alikes are not this subscription: a v2 topic, a v2 type, the same topic with another event type
-        listed.count { it.topic == "gst.platform.evidence-artefact-recorded.v2" } shouldBe 0
-        listed.count { it.eventType == "com.dynokore.gst.platform.EvidenceArtefactRecorded.v2" } shouldBe 0
-        listed.count { it.topic == topic && it.eventType != type } shouldBe 0
-    }
-
-    @Test
-    fun `INV-AC-20319 the consumer bean of the evidence artefact subscription is composed by the bootstrap module`(
+    fun `INV-AC-20319 the registry the beans are built from holds one evidence artefact subscription`(
         @TempDir dir: Path,
     ) {
+        val topic = "gst.platform.evidence-artefact-recorded.v1"
+        val type = "com.dynokore.gst.platform.EvidenceArtefactRecorded.v1"
+        val registry = RecordConsumerConfiguration.REGISTRY
+        // a handler is made from a jOOQ context and a clock only; none of them is used by the constructors
+        val dsl =
+            org.jooq.impl.DSL
+                .using(org.jooq.SQLDialect.POSTGRES)
+        val clock = Clock.systemUTC()
+
+        fun handlerOf(topic: String) = registry.single { it.topic == topic }.handler(dsl, clock)
+
+        registry.count { it.topic == topic } shouldBe 1
+        registry.count { it.topic == "gst.platform.evidence-artefact-recorded.v2" } shouldBe 0
+        handlerOf(topic).javaClass shouldBe EvidenceArtefactRecordedHandler::class.java
+        handlerOf(RecordConsumerConfiguration.DECISION_TRACE_TOPIC).javaClass shouldBe
+            ChainWiring.decisionTraceHandler(dsl, clock).javaClass
+        handlerOf(RecordConsumerConfiguration.AUDIT_ENTRY_TOPIC).javaClass shouldBe
+            ChainWiring.auditEntryHandler(dsl, clock).javaClass
+        handlerOf(RecordConsumerConfiguration.DECISION_TRACE_TOPIC).javaClass shouldNotBe
+            EvidenceArtefactRecordedHandler::class.java
+        registry.map { it.topic }.toSet().size shouldBe registry.size
+
         EvidenceContext.offline(dir).run { context ->
-            val names = context.getBeanNamesForType(com.dynokore.platform.outboxandqueue.InboxConsumer::class.java)
-            RecordConsumerConfiguration.subscriptions.map { it.bean }.forEach {
-                names.toList().contains(it) shouldBe
-                    true
-            }
+            val catalogue = context.getBean(EventCatalogue::class.java)
+            catalogue.topic(topic)?.eventType shouldBe type
+            catalogue.topic("gst.platform.evidence-artefact-recorded.v2") shouldBe null
+            val names = context.getBeanNamesForType(InboxConsumer::class.java).toSet()
+            registry.forEach { (it.bean in names) shouldBe true }
         }
     }
 

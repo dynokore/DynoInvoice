@@ -3,6 +3,7 @@ package com.dynokore.gst.evidence.bootstrap
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogPositions
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.InboxConsumer
@@ -36,24 +37,26 @@ class RecordConsumerConfiguration {
         dsl: DSLContext,
         positions: EventLogPositions,
         meters: MeterRegistry,
-    ): InboxConsumer =
-        recording(
-            DECISION_TRACE_TOPIC,
+    ): InboxConsumer {
+        val entry = entry(DECISION_TRACE_BEAN)
+        return recording(
+            entry.topic,
             scope,
             dsl,
             positions,
             meters,
             JdbcInboxConsumer(
-                ConsumerSubscription(LocatorConsumerConfiguration.CONSUMER, DECISION_TRACE_TOPIC, ChainWiring.SCHEMA),
+                ConsumerSubscription(LocatorConsumerConfiguration.CONSUMER, entry.topic, ChainWiring.SCHEMA),
                 catalogue,
                 reader,
                 scope,
                 dsl,
-                ChainWiring.decisionTraceHandler(dsl, clock),
+                entry.handler(dsl, clock),
                 rebuildRequired,
                 clock,
             ),
         )
+    }
 
     @Bean
     @Suppress("LongParameterList")
@@ -66,24 +69,26 @@ class RecordConsumerConfiguration {
         dsl: DSLContext,
         positions: EventLogPositions,
         meters: MeterRegistry,
-    ): InboxConsumer =
-        recording(
-            AUDIT_ENTRY_TOPIC,
+    ): InboxConsumer {
+        val entry = entry(AUDIT_ENTRY_BEAN)
+        return recording(
+            entry.topic,
             scope,
             dsl,
             positions,
             meters,
             JdbcInboxConsumer(
-                ConsumerSubscription(LocatorConsumerConfiguration.CONSUMER, AUDIT_ENTRY_TOPIC, ChainWiring.SCHEMA),
+                ConsumerSubscription(LocatorConsumerConfiguration.CONSUMER, entry.topic, ChainWiring.SCHEMA),
                 catalogue,
                 reader,
                 scope,
                 dsl,
-                ChainWiring.auditEntryHandler(dsl, clock),
+                entry.handler(dsl, clock),
                 rebuildRequired,
                 clock,
             ),
         )
+    }
 
     /**
      * The subscription to `gst.platform.evidence-artefact-recorded.v1` (INV-REQ-1036 behavior 2): an ordinary inbox
@@ -98,17 +103,19 @@ class RecordConsumerConfiguration {
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
         dsl: DSLContext,
-    ): InboxConsumer =
-        JdbcInboxConsumer(
-            ConsumerSubscription(LocatorConsumerConfiguration.CONSUMER, EVIDENCE_ARTEFACT_TOPIC, ChainWiring.SCHEMA),
+    ): InboxConsumer {
+        val entry = entry(EVIDENCE_ARTEFACT_BEAN)
+        return JdbcInboxConsumer(
+            ConsumerSubscription(LocatorConsumerConfiguration.CONSUMER, entry.topic, ChainWiring.SCHEMA),
             catalogue,
             reader,
             scope,
             dsl,
-            ChainWiring.evidenceArtefactHandler(dsl, clock),
+            entry.handler(dsl, clock),
             rebuildRequired,
             clock,
         )
+    }
 
     @Suppress("LongParameterList")
     private fun recording(
@@ -128,25 +135,31 @@ class RecordConsumerConfiguration {
         const val DECISION_TRACE_TOPIC = "gst.canonical.decision-trace-recorded.v1"
         const val AUDIT_ENTRY_TOPIC = "gst.platform.audit-entry-recorded.v1"
         const val EVIDENCE_ARTEFACT_TOPIC = "gst.platform.evidence-artefact-recorded.v1"
-        const val EVIDENCE_ARTEFACT_TYPE = "com.dynokore.gst.platform.EvidenceArtefactRecorded.v1"
 
-        /** A subscription of this registry: the topic and the event type its handler takes. */
-        data class Registered(
+        const val DECISION_TRACE_BEAN = "decisionTraceConsumer"
+        const val AUDIT_ENTRY_BEAN = "auditEntryConsumer"
+        const val EVIDENCE_ARTEFACT_BEAN = "evidenceArtefactConsumer"
+
+        /** One subscription of the registry: the consumer bean, its topic and the handler made for it. */
+        internal class Entry(
             val bean: String,
             val topic: String,
-            val eventType: String,
+            val handler: (DSLContext, Clock) -> EventHandler,
         )
 
-        /** The subscriptions this configuration registers, one per consumer bean. */
-        val subscriptions: List<Registered> =
+        /** The one registry the three consumer beans are built from: each bean takes its topic and handler here. */
+        internal val REGISTRY: List<Entry> =
             listOf(
-                Registered(
-                    "decisionTraceConsumer",
+                Entry(
+                    DECISION_TRACE_BEAN,
                     DECISION_TRACE_TOPIC,
-                    "com.dynokore.gst.canonical.DecisionTraceRecorded.v1",
-                ),
-                Registered("auditEntryConsumer", AUDIT_ENTRY_TOPIC, "com.dynokore.gst.platform.AuditEntryRecorded.v1"),
-                Registered("evidenceArtefactConsumer", EVIDENCE_ARTEFACT_TOPIC, EVIDENCE_ARTEFACT_TYPE),
+                ) { dsl, clock -> ChainWiring.decisionTraceHandler(dsl, clock) },
+                Entry(AUDIT_ENTRY_BEAN, AUDIT_ENTRY_TOPIC) { dsl, clock -> ChainWiring.auditEntryHandler(dsl, clock) },
+                Entry(EVIDENCE_ARTEFACT_BEAN, EVIDENCE_ARTEFACT_TOPIC) { dsl, clock ->
+                    ChainWiring.evidenceArtefactHandler(dsl, clock)
+                },
             )
+
+        private fun entry(bean: String): Entry = REGISTRY.single { it.bean == bean }
     }
 }
