@@ -19,6 +19,7 @@ import com.dynokore.gst.controlPlane.domain.schedule.CustodyHolder
 import com.dynokore.gst.controlPlane.domain.schedule.TenantSchedule
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Assertions.fail
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
@@ -108,6 +109,7 @@ class TenantSchedulePermissionKeysTest {
     ): List<Boolean> = operations(commandActor).map { it(permissions) }
 
     @Test
+    @DisplayName("INV-AC-19761 each of the five operations asks the permission port for its own key and no other")
     fun `INV-AC-19761 each of the five operations asks the permission port for its own key and no other`() {
         SchedulePermission.SET shouldBe "tenant-schedule.set"
         SchedulePermission.CHANGE shouldBe "tenant-schedule.change"
@@ -136,6 +138,7 @@ class TenantSchedulePermissionKeysTest {
     }
 
     @Test
+    @DisplayName("INV-AC-19761 an actor allowed only one of the other four keys is refused by each operation")
     fun `INV-AC-19761 an actor allowed only one of the other four keys is refused by each operation`() {
         keys.forEachIndexed { operation, _ ->
             keys.forEachIndexed { other, key ->
@@ -147,6 +150,7 @@ class TenantSchedulePermissionKeysTest {
     }
 
     @Test
+    @DisplayName("INV-AC-19761 the look-alike keys tenant-schedule.sets and Tenant-schedule.set allow no operation")
     fun `INV-AC-19761 the look-alike keys tenant-schedule_sets and Tenant-schedule_set allow no operation`() {
         val lookAlikes =
             keys.flatMap { listOf(it + "s", it.replaceFirstChar(Char::uppercaseChar), "commercial.admin") } +
@@ -155,6 +159,9 @@ class TenantSchedulePermissionKeysTest {
     }
 
     @Test
+    @DisplayName(
+        "INV-AC-19761 an actor allowed the key of an operation is allowed and an actor allowed nothing is refused",
+    )
     fun `INV-AC-19761 an actor allowed the key of an operation is allowed and an actor allowed nothing is refused`() {
         keys.forEachIndexed { operation, key ->
             val expected = List(5) { it == operation }
