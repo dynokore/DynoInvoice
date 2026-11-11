@@ -61,3 +61,5 @@ ConfigurationDiff.changes	schema_property	openapi.yaml	INV-REQ-1128
 ConfigurationDiff.approvalPath	schema_property	openapi.yaml	INV-REQ-1128
 previewConfigurationPromotion.SRT-004	operation_error_code	openapi.yaml	INV-REQ-1128
 previewConfigurationPromotion.SRT-005	operation_error_code	openapi.yaml	INV-REQ-1128
+# INV-T-15842. Operation applyOperatingProfile (INV-REQ-1255, INV-Q-15834 A).
+applyOperatingProfile	operation	openapi.yaml	INV-REQ-1255

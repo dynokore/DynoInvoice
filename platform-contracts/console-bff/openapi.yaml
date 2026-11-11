@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -77,6 +77,8 @@ tags:
     description: Shared deferral of a document or group, held in console-bff's exception read model (INV-REQ-960, SCR-01.5).
   - name: documents
     description: Document search across the entities in the caller's scope (INV-REQ-1037, SCR-03.1).
+  - name: profiles
+    description: Operating profiles console-bff previews and applies (INV-REQ-1245, INV-REQ-1255, SCR-40.2).
 paths:
   /v1/exceptions:
     get:
@@ -1164,6 +1166,90 @@ paths:
                     approvalPath: "MAPPING_DRY_RUN_AND_APPROVAL"
         default:
           $ref: '#/components/responses/Error'
+  /bff/entities/{entityRef}/operating-profile:
+    post:
+      operationId: applyOperatingProfile
+      summary: Preview or apply a versioned operating profile to the tenant or an entity
+      description: >-
+        Previews or applies a versioned operating profile (INV-REQ-1245
+        behavior 2, INV-REQ-1255, INV-AC-15839, SCR-40.2). For mode PREVIEW,
+        `changes` lists every value that would change; for mode APPLY it
+        lists the values applied. console-bff owns no policy value: it calls
+        each owning service's `setPolicy` and then tenancy's
+        `recordAppliedOperatingProfile`.
+
+
+        APPLY of a profile whose `status` is not `available` is refused with
+        409; it applies nothing and records nothing. PREVIEW of a planned
+        profile answers its values. An unknown profile or version is 404.
+        The runtime check is the scoped permission key decided per request by
+        AuthorityReplica.decide; `x-operation.role` is the published role
+        text only.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 3 s (x-timeout 3000).
+      tags: [profiles]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1245, INV-REQ-1255]
+      x-operation:
+        role: tenant.admin for scope TENANT, entity.admin for scope ENTITY
+        scope: tenant
+        precondition: "The profile exists in the catalogue and, for mode APPLY, its status is available."
+        reversibility: COMPENSABLE
+        repeatKey: "(entityRef, scope, profileRef, profileVersion, mode)"
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyOperatingProfileRequest'
+            examples:
+              default:
+                value:
+                  mode: "PREVIEW"
+                  scope: "ENTITY"
+                  profileRef: "PRF-4"
+                  profileVersion: 1
+      responses:
+        '200':
+          description: The values that would change (PREVIEW) or were applied (APPLY).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingProfileApplication'
+              examples:
+                default:
+                  value:
+                    profileRef: "PRF-4"
+                    profileVersion: 1
+                    status: "planned"
+                    mode: "PREVIEW"
+                    changes:
+                      - variationPoint: "VP-14"
+                        proposed: "BLOCKING"
+                      - variationPoint: "VP-15"
+                        proposed: "second-approver-above-amount"
+                      - variationPoint: "VP-32"
+                        proposed: "SUB-005,PER-003"
+                      - variationPoint: "VP-46"
+                        proposed: "webhook"
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   schemas:
     Exception:
@@ -1733,6 +1819,54 @@ components:
         outcome:
           $ref: '#/components/schemas/ComparisonOutcome'
       required: [docUuid, fromVersion, toVersion, transmitted, changed, fields]
+    ApplyOperatingProfileRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [PREVIEW, APPLY]
+          x-extensible-enum: true
+        scope:
+          type: string
+          enum: [TENANT, ENTITY]
+        profileRef:
+          type: string
+          maxLength: 20
+        profileVersion:
+          type: integer
+          minimum: 1
+      required: [mode, scope, profileRef, profileVersion]
+    ProfileValueChange:
+      type: object
+      properties:
+        variationPoint:
+          type: string
+          pattern: '^VP-\d{2,3}$'
+        current:
+          type: string
+        proposed:
+          type: string
+      required: [variationPoint, proposed]
+    OperatingProfileApplication:
+      type: object
+      properties:
+        profileRef:
+          type: string
+        profileVersion:
+          type: integer
+        status:
+          type: string
+          enum: [available, planned, retired]
+          x-extensible-enum: true
+        mode:
+          type: string
+          enum: [PREVIEW, APPLY]
+          x-extensible-enum: true
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileValueChange'
+      required: [profileRef, profileVersion, status, mode, changes]
   responses:
     Error:
       description: Error (API-20 envelope)
