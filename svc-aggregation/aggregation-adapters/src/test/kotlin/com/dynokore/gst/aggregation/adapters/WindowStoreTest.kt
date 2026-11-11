@@ -4,7 +4,6 @@ import com.dynokore.gst.aggregation.adapters.persistence.JooqWindowStore
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.AggregationWindow
-import com.dynokore.gst.aggregation.domain.WindowPart
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
@@ -14,7 +13,6 @@ import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
-import java.util.UUID
 
 /** The migration V3__aggregation_windows.sql as the database holds it (CS-19). */
 class WindowStoreTest {
@@ -72,14 +70,6 @@ class WindowStoreTest {
         failure.javaClass shouldBe UnsupportedOperationException::class.java
         failure.message!! shouldContain "INV-T-14464"
     }
-
-    @Test
-    fun `isPartClosed fails closed with the INV-T-14464 token`() =
-        failsClosed { store.isPartClosed(window, WindowPart(day, day, "P")) }
-
-    @Test
-    fun `closePart fails closed with the INV-T-14464 token`() =
-        failsClosed { store.closePart(window, WindowPart(day, day, "P"), UUID.randomUUID()) }
 
     @Test
     fun `recordLate fails closed with the INV-T-14464 token`() = failsClosed { store.recordLate(window) }

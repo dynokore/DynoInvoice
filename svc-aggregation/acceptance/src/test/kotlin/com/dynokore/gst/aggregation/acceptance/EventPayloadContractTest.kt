@@ -41,6 +41,10 @@ class EventPayloadContractTest {
                 """{"entityRef":"E-001","prescribedPeriod":"2026-Q1","window":{"from":"2026-03-20","to":"2026-03-20"},
                 |"state":"OPEN"}
                 """.trimMargin(),
+            "ShortCodeUsed" to
+                """{"code":"E","nodeKind":"ENTITY","nodeRef":"E-001","aggregateId":"AGG-1",
+                |"documentNumber":"AGG-E-POS-B-20260320-1"}
+                """.trimMargin(),
             // the scaffold placeholder of the contract (no task names it, see operations.tsv)
             "ExampleHappened" to """{"entityRef":"E-001"}""",
         )
