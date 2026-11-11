@@ -29,22 +29,12 @@ class PeriodRecordsChangedHandler(
         require(event.type == ConsumedPeriodEvents.PERIOD_RECORDS_CHANGED) { "unexpected ${event.type}" }
         val data = mapper.readTree(event.dataJson)
         val entityRef = data.text("entityRef")
-        val version = version(data)
-        val periods = periods(data)
-        return if (spans.replace(entityRef, version, periods)) HandleOutcome.APPLIED else HandleOutcome.IGNORED
-    }
-
-    private fun version(data: JsonNode): Long {
         val version = data["version"]?.takeIf { it.isIntegralNumber }?.asLong() ?: throw ContractViolation("version")
         if (version < 1) throw ContractViolation("version must be at least 1")
-        return version
-    }
-
-    private fun periods(data: JsonNode): List<PeriodSpan> {
         val items = data["periods"]?.takeIf { it.isArray } ?: throw ContractViolation("periods is required")
         val periods = items.values().map { period(it) }
         if (periods.map { it.periodRef }.toSet().size != periods.size) throw ContractViolation("periodRef repeats")
-        return periods
+        return if (spans.replace(entityRef, version, periods)) HandleOutcome.APPLIED else HandleOutcome.IGNORED
     }
 
     private fun period(node: JsonNode): PeriodSpan {
