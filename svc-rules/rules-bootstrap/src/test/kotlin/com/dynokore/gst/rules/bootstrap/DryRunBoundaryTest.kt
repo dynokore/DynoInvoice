@@ -94,6 +94,19 @@ class DryRunFixtures {
     @Bean fun fixturePeriods() = FixtureLastCompletePeriodPort()
 
     @Bean fun fixtureEvaluation() = FixtureEvaluation()
+
+    @Bean fun clock(): SwitchableClock = SwitchableClock()
+}
+
+/** The system clock until a test pins it to an instant (the day with no mapping pack in force). */
+class SwitchableClock : java.time.Clock() {
+    @Volatile var pinned: java.time.Instant? = null
+
+    override fun getZone(): java.time.ZoneId = java.time.ZoneOffset.UTC
+
+    override fun withZone(zone: java.time.ZoneId): java.time.Clock = this
+
+    override fun instant(): java.time.Instant = pinned ?: java.time.Instant.now()
 }
 
 /** The fixture samples and evaluation, and the default period calendar (no `LastCompletePeriodPort` bean). */
@@ -194,6 +207,24 @@ open class DryRunSupport(
         error("the dry run $id did not end")
     }
 
+    /** Polls the status resource until the run has ended and answers the last raw response. */
+    protected fun pollRaw(
+        packId: String,
+        id: String,
+    ): HttpResponse<String> {
+        repeat(POLL_LIMIT) {
+            val read = getRun(packId, id)
+            if (read.statusCode() != 200 || json(read).get("state").asString() != "RUNNING") return read
+            Thread.sleep(POLL_MILLIS)
+        }
+        error("the dry run $id did not end")
+    }
+
+    protected fun pollEnd(
+        packId: String,
+        id: String,
+    ): JsonNode = json(pollRaw(packId, id))
+
     protected fun lastRunId(packId: String): String =
         value(
             TENANT_A,
@@ -283,10 +314,12 @@ class DryRunBoundaryTest(
     @Autowired private val samples: FixtureHistoricalSamplePort,
     @Autowired private val periods: FixtureLastCompletePeriodPort,
     @Autowired private val evaluation: FixtureEvaluation,
+    @Autowired private val clock: SwitchableClock,
 ) : DryRunSupport(port) {
     @BeforeEach
     @AfterEach
     fun reset() {
+        clock.pinned = null
         samples.clear()
         periods.reset()
         evaluation.reset()
@@ -486,6 +519,84 @@ class DryRunBoundaryTest(
         refused(approve(p3), 409, "SRT-008", snapshot())
     }
 
+    // ---- a mapping pack with no pack in force (Inference: SRT-008) ----
+
+    @Test
+    fun `a candidate of a tenant with no mapping pack in force is refused 409 SRT-008 and a day with one is accepted`() {
+        val packId = candidate()
+        val before = snapshot()
+        clock.pinned = java.time.Instant.parse("2000-01-01T00:00:00Z")
+        val refusal = dryRun(packId)
+        refused(refusal, 409, "SRT-008", before)
+        json(refusal).get("detail").asString() shouldBe "no mapping pack is in force to compare the candidate with"
+        clock.pinned = null
+        val accepted = dryRun(packId)
+        withClue(accepted.body()) { (accepted.statusCode() == 200 || accepted.statusCode() == 202) shouldBe true }
+    }
+
+    // ---- the end time of a run (contract: completedAt present when the state is not RUNNING) ----
+
+    @Test
+    fun `a run that ends SAMPLE_UNAVAILABLE reads FAILED with completedAt not before startedAt and a stored end time`() {
+        samples.pagesOverride = listOf(SamplePage(2, true, listOf(item(D1, "2026-Q3"))))
+        val packId = candidate()
+        val status = finished(packId)
+        status.get("state").asString() shouldBe "FAILED"
+        val started = java.time.OffsetDateTime.parse(status.get("startedAt").asString())
+        val completed = java.time.OffsetDateTime.parse(status.get("completedAt").asString())
+        (completed.isBefore(started)) shouldBe false
+        value(
+            TENANT_A,
+            "select count(*) from rules.dry_run_delta where id = ?::uuid and completed_at is not null",
+            status.get("dryRunId").asString(),
+        ).toString() shouldBe "1"
+    }
+
+    @Test
+    fun `a COMPLETE run keeps the completedAt of complete and a RUNNING run has none`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3")))
+        samples.delayMillis = SLOW_RUN_MILLIS
+        val packId = candidate()
+        val running = dryRun(packId)
+        running.statusCode() shouldBe 202
+        val node = json(running)
+        node.get("state").asString() shouldBe "RUNNING"
+        node.has("completedAt") shouldBe false
+        val id = node.get("dryRunId").asString()
+        val status = pollEnd(packId, id)
+        status.get("state").asString() shouldBe "SUCCEEDED"
+        value(
+            TENANT_A,
+            "select count(*) from rules.dry_run_delta where id = ?::uuid and " +
+                "completed_at = ?::timestamptz",
+            id,
+            status.get("completedAt").asString(),
+        ).toString() shouldBe "1"
+    }
+
+    // ---- a changed document with no supply type fails closed ----
+
+    @Test
+    fun `a changed document with no supply type makes getDryRun answer a server error with no result`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3") - "supplyType"))
+        evaluation.candidate[D1] = DocumentOutcome("ZR")
+        val packId = candidate()
+        val run = dryRun(packId)
+        val id = if (run.statusCode() == 202) json(run).get("dryRunId").asString() else lastRunId(packId)
+        val read = pollRaw(packId, id)
+        withClue("${read.statusCode()} ${read.body()}") { (read.statusCode() in 500..599) shouldBe true }
+        json(read).has("result") shouldBe false
+    }
+
+    @Test
+    fun `a changed document with the supply type STANDARD_RATED answers 200 with totals adding up to changedCount`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3")))
+        evaluation.candidate[D1] = DocumentOutcome("ZR")
+        val result = finished(candidate()).get("result")
+        result.get("changedCount").asInt() shouldBe 1
+        elements(result.get("supplyTypeTotals")).sumOf { it.get("documentCount").asInt() } shouldBe 1
+    }
+
     // ---- 202, the status resource and who may read it (INV-API-3473, INV-TS-3474) ----
 
     @Test
@@ -644,12 +755,14 @@ class DryRunCalendarWiringTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [WAIT_PROPERTY, IDEMPOTENCY, CALLER_0, SUBJECT_0, CALLER_1, SUBJECT_1],
 )
+@org.springframework.test.context.ActiveProfiles("prod")
 class DryRunWithoutSampleAdapterTest(
     @LocalServerPort port: Int,
     @Autowired private val context: ApplicationContext,
 ) : DryRunSupport(port) {
     @Test
     fun `no sample adapter leaves the context started and dryRun refused 503 SRT-013 naming the sample`() {
+        context.environment.activeProfiles.contains("prod") shouldBe true
         context.getBeansOfType(HistoricalSamplePort::class.java).size shouldBe 0
         val packId = candidate()
         val before = snapshot()

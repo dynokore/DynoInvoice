@@ -32,6 +32,7 @@ import java.util.UUID
 class JooqDryRunDeltaStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
+    private val clock: java.time.Clock,
 ) : DryRunDeltaStore {
     override fun begin(start: DryRunStart) {
         dsl
@@ -80,6 +81,7 @@ class JooqDryRunDeltaStore(
                 .update(DRY_RUN_DELTA)
                 .set(DRY_RUN_DELTA.STATE, DryRunState.SAMPLE_UNAVAILABLE.name)
                 .set(DRY_RUN_DELTA.UNAVAILABLE_REASON, reason)
+                .set(DRY_RUN_DELTA.COMPLETED_AT, clock.instant().atOffset(ZoneOffset.UTC))
                 .where(DRY_RUN_DELTA.ID.eq(UUID.fromString(dryRunId)))
                 .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
                 .and(DRY_RUN_DELTA.STATE.eq(DryRunState.RUNNING.name))

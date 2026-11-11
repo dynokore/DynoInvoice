@@ -314,7 +314,8 @@ class RulesConfiguration {
     fun dryRunDeltaStore(
         dsl: DSLContext,
         tenants: TenantContext,
-    ): DryRunDeltaStore = JooqDryRunDeltaStore(dsl, tenants)
+        clock: Clock,
+    ): DryRunDeltaStore = JooqDryRunDeltaStore(dsl, tenants, clock)
 
     /**
      * The dry-run use case. Absent (null) when no [HistoricalSamplePort] exists, so that the service still starts and

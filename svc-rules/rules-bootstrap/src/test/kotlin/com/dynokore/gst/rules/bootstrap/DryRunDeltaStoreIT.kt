@@ -58,7 +58,7 @@ class DryRunDeltaStoreIT(
     private val runtime: TenancyProbe = TenancyProbe.connect(pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
     private val tenant = TenantId(UUID.randomUUID())
     private val other = TenantId(UUID.randomUUID())
-    private val store = JooqDryRunDeltaStore(db, tenants)
+    private val store = JooqDryRunDeltaStore(db, tenants, Clock.systemUTC())
 
     private fun <T> asTenant(
         who: TenantId = tenant,
