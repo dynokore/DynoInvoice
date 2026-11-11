@@ -34,6 +34,7 @@ class CreditNoteMdeTest {
                 Direction.SALE,
                 SpecificationFamily.PINT_SG,
                 SubmissionType.TYPE_2,
+                EndpointInputs(true, MdePackOffNetworkPrefix("{}")),
             )
         return (result as BuildResult.Built).xml
     }
