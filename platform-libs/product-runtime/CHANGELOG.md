@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-11-11
+### Added
+- New generated module `product-runtime-operator-session-keys-events` (INV-T-20240, INV-AC-20239): the `OperatorSessionKeysChangedPayload` type generated from `platform-contracts:service-runtime:schemas/operator-session-keys-changed-payload.schema.json`, its own module because `gst.event-types` takes one `generatorSource` per module; shipped inside the impl artefact.
+### Changed
+- `platformContractsBundle` pin moves to `0.0.0-dev+9a9676d6`, which carries platform-contracts 5fc7c78a and 9a9676d6.
+
 ## [2.17.8] - 2026-11-11
 ### Changed
 - Dependency step only: `service-runtime` 13.12.0 (operator access record in the authority replica, INV-T-16968); no change to this module's code (coordinator rule G-DVS).

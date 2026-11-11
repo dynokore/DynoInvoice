@@ -192,6 +192,7 @@ listOf(
     "product-runtime-profile-events" to "profile-events",
     "product-runtime-authority-events" to "authority-events",
     "product-runtime-authority-head-events" to "authority-head-events",
+    "product-runtime-operator-session-keys-events" to "operator-session-keys-events",
     "product-runtime-policy-events" to "policy-events",
 ).forEach { (name, dir) ->
     include(name)

@@ -125,6 +125,7 @@ val generatedContracts =
         ":product-runtime-profile-events",
         ":product-runtime-authority-events",
         ":product-runtime-authority-head-events",
+        ":product-runtime-operator-session-keys-events",
         ":product-runtime-policy-events",
     )
 

@@ -29,6 +29,7 @@ import java.io.File
  * negative test plants a forbidden import and requires this case to fail). The other cases are the rules' self-test,
  * against small fixture repositories ([Repo]).
  */
+@Suppress("LargeClass") // one self-test per rule case; INV-AC-20239 names its case here (CS-50)
 class L1DependencyOrderTest {
     @Test
     fun `the real modules keep the L1 order`() {
@@ -475,6 +476,28 @@ class L1DependencyOrderTest {
                     "product-runtime-profile-events",
                     "product-runtime-authority-events",
                     "product-runtime-authority-head-events",
+                    "product-runtime-operator-session-keys-events",
+                    "product-runtime-policy-events",
+                    "testcontainers-pins",
+                ),
+        )
+    }
+
+    @Test
+    fun `INV-AC-20239 the unlayered allowlist of the layer rule holds product-runtime-operator-session-keys-events`() {
+        assertTrue(UNLAYERED.any { it == "product-runtime-operator-session-keys-events" })
+        assertTrue(
+            UNLAYERED ==
+                setOf(
+                    "platform-libs-bom",
+                    "contract-tests",
+                    "product-runtime-tenancy-client",
+                    "product-runtime-access-client",
+                    "product-runtime-structure-events",
+                    "product-runtime-profile-events",
+                    "product-runtime-authority-events",
+                    "product-runtime-authority-head-events",
+                    "product-runtime-operator-session-keys-events",
                     "product-runtime-policy-events",
                     "testcontainers-pins",
                 ),
@@ -599,6 +622,7 @@ internal val UNLAYERED =
         "product-runtime-profile-events",
         "product-runtime-authority-events",
         "product-runtime-authority-head-events",
+        "product-runtime-operator-session-keys-events",
         "product-runtime-policy-events",
     )
 
