@@ -1,0 +1,204 @@
+{
+  "rows": [
+    {
+      "businessTermId": "IBT-001",
+      "canonicalSource": "canonicalDocument.documentNumber.value",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "NOT_MDE",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): contract canonical/schemas/canonical-version-created-payload.schema.json (platform-contracts e92e0736)",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:ID"
+        },
+        {
+          "specificationVersion": "SG-PEPPOL-BIS-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:ID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-002",
+      "canonicalSource": "canonicalDocument.documentDate.value",
+      "dataType": "DATE",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "NOT_MDE",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): contract canonical/schemas/canonical-version-created-payload.schema.json (platform-contracts e92e0736)",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:IssueDate"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-047",
+      "canonicalSource": "canonicalDocument.parties.value.buyer.identifierValue",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-485 and INV-REQ-463",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-030",
+      "canonicalSource": "canonicalDocument.identityTriple.value.supplierId",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-485 and INV-REQ-463",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-031",
+      "canonicalSource": "canonicalDocument.identityTriple.value.supplierGstn",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-485 and INV-REQ-463",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-023",
+      "canonicalSource": "directionFamilySubmissionType.profileId",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-508 and INV-Q-7180 A; the paths are the EN 16931 UBL syntax bindings",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:ProfileID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-024",
+      "canonicalSource": "directionFamilySubmissionType.customizationId",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-508 and INV-Q-7180 A; the paths are the EN 16931 UBL syntax bindings",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cbc:CustomizationID"
+        }
+      ]
+    },
+    {
+      "businessTermId": "IBT-049",
+      "canonicalSource": "endpointId.built",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-321 and INV-Q-7189 A (added by INV-T-7193); the path is the EN 16931 UBL syntax binding",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingCustomerParty/cac:Party/cbc:EndpointID"
+        }
+      ]
+    }
+  ],
+  "offNetworkEndpoint": {
+    "prefix": "XXUID"
+  }
+}

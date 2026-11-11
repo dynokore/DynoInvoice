@@ -36,6 +36,7 @@ class DocumentHeaderProjectionTest {
                 Direction.SALE,
                 SpecificationFamily.PINT_SG,
                 SubmissionType.TYPE_2,
+                EndpointInputs(true, MdePackOffNetworkPrefix("{}")),
             )
 
     private fun texts(

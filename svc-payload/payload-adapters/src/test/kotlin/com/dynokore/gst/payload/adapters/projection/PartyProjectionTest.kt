@@ -1,6 +1,7 @@
 package com.dynokore.gst.payload.adapters.projection
 
 import com.dynokore.gst.payload.domain.Direction
+import com.dynokore.gst.payload.domain.EndpointIdResult
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
@@ -31,6 +32,7 @@ class PartyProjectionTest {
             Direction.SALE,
             SpecificationFamily.PINT_SG,
             SubmissionType.TYPE_2,
+            EndpointInputs(true, MdePackOffNetworkPrefix("{}")),
         )
     }
 
@@ -69,9 +71,9 @@ class PartyProjectionTest {
     fun `INV-AC-1503 another scheme, a case variant or a padded scheme gives no IBT-047 and no UEN text`() {
         for (scheme in listOf("sg_uen", "SG_UEN2", "SG_UEN ", "")) {
             for (code in listOf("380", "381")) {
-                val xml = built(build(code, PartyInput(scheme, "201888888A"))).xml
-                nodes(xml, "//cac:AccountingCustomerParty//cbc:CompanyID", code).length shouldBe 0
-                texts(xml).none { it.contains("201888888A") } shouldBe true
+                // INV-T-7193: a non-UEN buyer has no endpoint ID, so no XML is built and no UEN text can be written.
+                build(code, PartyInput(scheme, "201888888A")) shouldBe
+                    BuildResult.EndpointRefused(EndpointIdResult.NoUenToAppend)
             }
         }
     }
@@ -107,7 +109,7 @@ class PartyProjectionTest {
         }
         // Built is the only member that carries XML
         BuildResult::class.sealedSubclasses.map { it.simpleName }.toSet() shouldBe
-            setOf("Built", "Refused", "CustomizationIdUnpublished")
+            setOf("Built", "Refused", "CustomizationIdUnpublished", "EndpointRefused")
         BuildResult.Refused::class.java.declaredFields.map { it.name } shouldBe listOf("reason")
     }
 

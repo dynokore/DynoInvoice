@@ -1,14 +1,20 @@
 package com.dynokore.gst.payload.adapters.projection
 
+import com.dynokore.gst.payload.domain.EndpointId
+import com.dynokore.gst.payload.domain.EndpointIdResult
+import com.dynokore.gst.payload.domain.SubmissionType
+import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyIdentifierRules
 import com.dynokore.gst.payload.domain.party.PartyIdentifiers
+import com.dynokore.gst.payload.domain.party.RefusalReason
 import com.dynokore.gst.payload.ubl.ubl_21.cac.CustomerPartyType
 import com.dynokore.gst.payload.ubl.ubl_21.cac.PartyLegalEntityType
 import com.dynokore.gst.payload.ubl.ubl_21.cac.PartyTaxSchemeType
 import com.dynokore.gst.payload.ubl.ubl_21.cac.PartyType
 import com.dynokore.gst.payload.ubl.ubl_21.cac.SupplierPartyType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.CompanyIDType
+import com.dynokore.gst.payload.ubl.ubl_21.cbc.EndpointIDType
 import com.dynokore.platform.integrationcanon.xml.HardenedXml
 import jakarta.xml.bind.JAXBContext
 import jakarta.xml.bind.JAXBElement
@@ -25,6 +31,28 @@ internal object PartyXml {
         val supplier: SupplierPartyType,
         val senderId: String,
     )
+
+    /** The endpoint ID (IBT-049) of the buyer, or the result that refuses it (INV-Q-7189 A). */
+    fun endpoint(
+        input: PartyIdentifierInput,
+        submissionType: SubmissionType,
+        endpoint: EndpointInputs,
+    ): EndpointIdResult =
+        EndpointId.construct(
+            endpoint.onNetwork,
+            submissionType,
+            input.buyer.identifierScheme,
+            input.buyer.identifierValue,
+            if (endpoint.onNetwork == false) endpoint.offNetworkPrefix.prefix() else null,
+        )
+
+    /** The refusal of the document number or date, number first; null when both are present. */
+    fun headerRefusal(header: DocumentHeaderInput): RefusalReason? =
+        when {
+            header.documentNumber.isNullOrBlank() -> RefusalReason.DOCUMENT_NUMBER_ABSENT
+            header.documentDate == null -> RefusalReason.DOCUMENT_DATE_ABSENT
+            else -> null
+        }
 
     fun parties(input: PartyIdentifierInput): Pair<Parties?, PartyIdentifiers> {
         val resolved = PartyIdentifierRules.resolve(input)
@@ -44,6 +72,11 @@ internal object PartyXml {
             senderId = resolved.senderId,
         ) to resolved
     }
+
+    fun withEndpoint(
+        buyer: CustomerPartyType,
+        value: String,
+    ): CustomerPartyType = buyer.apply { party.endpointID = EndpointIDType().apply { this.value = value } }
 
     private fun company(value: String) = CompanyIDType().apply { this.value = value }
 

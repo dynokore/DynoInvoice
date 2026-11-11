@@ -93,7 +93,7 @@ class MdePackFixtureSchemaTest {
             .values()
             .map { str(it.path("businessTermId")) }
             .toSet() shouldBe
-            setOf("IBT-001", "IBT-002", "IBT-023", "IBT-024", "IBT-030", "IBT-031", "IBT-047")
+            setOf("IBT-001", "IBT-002", "IBT-023", "IBT-024", "IBT-030", "IBT-031", "IBT-047", "IBT-049")
     }
 
     @Test

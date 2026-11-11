@@ -1,6 +1,8 @@
 package com.dynokore.gst.payload.adapters.projection
 
 import com.dynokore.gst.payload.domain.Direction
+import com.dynokore.gst.payload.domain.EndpointIdResult
+import com.dynokore.gst.payload.domain.OffNetworkPrefixSource
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
@@ -27,6 +29,11 @@ sealed interface BuildResult {
         val reason: RefusalReason,
     ) : BuildResult
 
+    /** The endpoint ID (IBT-049) is not built (INV-Q-7189 A): no XML; nothing is held and no PAY code is raised. */
+    data class EndpointRefused(
+        val result: EndpointIdResult,
+    ) : BuildResult
+
     /** The pair has no published Customization ID (INV-Q-7180 A): no XML, no IBT-024 and no default. */
     data class CustomizationIdUnpublished(
         val family: SpecificationFamily,
@@ -34,16 +41,27 @@ sealed interface BuildResult {
     ) : BuildResult
 }
 
+/**
+ * What the endpoint ID (IBT-049) needs besides the buyer and the submission type: `counterpartyOnNetwork` of the
+ * canonical version and the off-network prefix source of the active pack version (INV-Q-7189 A).
+ */
+data class EndpointInputs(
+    val onNetwork: Boolean?,
+    val offNetworkPrefix: OffNetworkPrefixSource,
+)
+
 /** A hand-written builder that writes the generated JAXB objects of one specification family and document type. */
 interface DocumentBuilder {
     val key: BuilderKey
 
+    @Suppress("LongParameterList") // the five inputs of INV-T-7178 plus the endpoint inputs of INV-T-7193
     fun build(
         input: PartyIdentifierInput,
         header: DocumentHeaderInput,
         direction: Direction,
         family: SpecificationFamily,
         submissionType: SubmissionType,
+        endpoint: EndpointInputs,
     ): BuildResult
 }
 

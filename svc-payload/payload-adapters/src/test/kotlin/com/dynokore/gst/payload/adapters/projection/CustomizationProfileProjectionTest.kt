@@ -36,7 +36,7 @@ class CustomizationProfileProjectionTest {
     ): BuildResult =
         (registry.find(BuilderKey(SpecificationFamily.PINT_SG, code)) as BuilderLookup.Found)
             .builder
-            .build(party, header, direction, family, type)
+            .build(party, header, direction, family, type, EndpointInputs(true, MdePackOffNetworkPrefix("{}")))
 
     private fun texts(
         xml: String,

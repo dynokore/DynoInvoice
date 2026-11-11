@@ -21,7 +21,8 @@ class TableConformanceGateTest {
         )
     private val spec = "PINT-SG-1.0"
     private val registry = DocumentBuilderRegistry.standard()
-    private val partyTerms = setOf("IBT-001", "IBT-002", "IBT-023", "IBT-024", "IBT-030", "IBT-031", "IBT-047")
+    private val partyTerms =
+        setOf("IBT-001", "IBT-002", "IBT-023", "IBT-024", "IBT-030", "IBT-031", "IBT-047", "IBT-049")
     private val input =
         PartyIdentifierInput(
             PartyInput("SG_UEN", "201888888A"),
@@ -41,6 +42,7 @@ class TableConformanceGateTest {
                 Direction.SALE,
                 SpecificationFamily.PINT_SG,
                 SubmissionType.TYPE_2,
+                EndpointInputs(true, MdePackOffNetworkPrefix("{}")),
             ) as BuildResult.Built
         ).xml
 

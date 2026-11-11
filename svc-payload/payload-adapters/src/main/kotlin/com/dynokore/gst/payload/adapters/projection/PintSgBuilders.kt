@@ -3,13 +3,13 @@ package com.dynokore.gst.payload.adapters.projection
 import com.dynokore.gst.payload.domain.CustomizationId
 import com.dynokore.gst.payload.domain.CustomizationIdResult
 import com.dynokore.gst.payload.domain.Direction
+import com.dynokore.gst.payload.domain.EndpointIdResult
 import com.dynokore.gst.payload.domain.ProfileId
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyIdentifiers
-import com.dynokore.gst.payload.domain.party.RefusalReason
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.CustomizationIDType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.IDType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.IssueDateType
@@ -45,28 +45,25 @@ private fun addNote(
 class PintSgInvoiceBuilder : DocumentBuilder {
     override val key = BuilderKey(SpecificationFamily.PINT_SG, "380")
 
-    /** Refusal order: identity triple, document number, document date, Customization ID (INV-Q-7180 A). */
+    /** Refusal order: identity triple, document number, document date, Customization ID, endpoint ID. */
     override fun build(
         input: PartyIdentifierInput,
         header: DocumentHeaderInput,
         direction: Direction,
         family: SpecificationFamily,
         submissionType: SubmissionType,
+        endpoint: EndpointInputs,
     ): BuildResult {
         val (parties, resolved) = PartyXml.parties(input)
         val customization = CustomizationId.expected(family, submissionType)
-        val date = header.documentDate
+        val headerRefusal = PartyXml.headerRefusal(header)
         return when {
             parties == null -> {
                 BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
             }
 
-            header.documentNumber.isNullOrBlank() -> {
-                BuildResult.Refused(RefusalReason.DOCUMENT_NUMBER_ABSENT)
-            }
-
-            date == null -> {
-                BuildResult.Refused(RefusalReason.DOCUMENT_DATE_ABSENT)
+            headerRefusal != null -> {
+                BuildResult.Refused(headerRefusal)
             }
 
             customization !is CustomizationIdResult.Selected -> {
@@ -76,14 +73,16 @@ class PintSgInvoiceBuilder : DocumentBuilder {
             }
 
             else -> {
+                val endpointId = PartyXml.endpoint(input, submissionType, endpoint)
+                if (endpointId !is EndpointIdResult.Built) return BuildResult.EndpointRefused(endpointId)
                 val invoice =
                     InvoiceType().apply {
                         id = IDType().apply { value = header.documentNumber }
-                        issueDate = IssueDateType().apply { value = xsdDate(date) }
+                        issueDate = IssueDateType().apply { value = xsdDate(checkNotNull(header.documentDate)) }
                         customizationID = CustomizationIDType().apply { value = customization.value }
                         addNote(note, header.invoiceNote)
                         profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
-                        accountingCustomerParty = parties.buyer
+                        accountingCustomerParty = PartyXml.withEndpoint(parties.buyer, endpointId.value)
                         accountingSupplierParty = parties.supplier
                     }
                 val xml = PartyXml.marshal(InvoiceFactory().createInvoice(invoice), InvoiceFactory::class.java)
@@ -97,28 +96,25 @@ class PintSgInvoiceBuilder : DocumentBuilder {
 class PintSgCreditNoteBuilder : DocumentBuilder {
     override val key = BuilderKey(SpecificationFamily.PINT_SG, "381")
 
-    /** Refusal order: identity triple, document number, document date, Customization ID (INV-Q-7180 A). */
+    /** Refusal order: identity triple, document number, document date, Customization ID, endpoint ID. */
     override fun build(
         input: PartyIdentifierInput,
         header: DocumentHeaderInput,
         direction: Direction,
         family: SpecificationFamily,
         submissionType: SubmissionType,
+        endpoint: EndpointInputs,
     ): BuildResult {
         val (parties, resolved) = PartyXml.parties(input)
         val customization = CustomizationId.expected(family, submissionType)
-        val date = header.documentDate
+        val headerRefusal = PartyXml.headerRefusal(header)
         return when {
             parties == null -> {
                 BuildResult.Refused((resolved as PartyIdentifiers.Refused).reason)
             }
 
-            header.documentNumber.isNullOrBlank() -> {
-                BuildResult.Refused(RefusalReason.DOCUMENT_NUMBER_ABSENT)
-            }
-
-            date == null -> {
-                BuildResult.Refused(RefusalReason.DOCUMENT_DATE_ABSENT)
+            headerRefusal != null -> {
+                BuildResult.Refused(headerRefusal)
             }
 
             customization !is CustomizationIdResult.Selected -> {
@@ -128,14 +124,16 @@ class PintSgCreditNoteBuilder : DocumentBuilder {
             }
 
             else -> {
+                val endpointId = PartyXml.endpoint(input, submissionType, endpoint)
+                if (endpointId !is EndpointIdResult.Built) return BuildResult.EndpointRefused(endpointId)
                 val note =
                     CreditNoteType().apply {
                         id = IDType().apply { value = header.documentNumber }
-                        issueDate = IssueDateType().apply { value = xsdDate(date) }
+                        issueDate = IssueDateType().apply { value = xsdDate(checkNotNull(header.documentDate)) }
                         customizationID = CustomizationIDType().apply { value = customization.value }
                         addNote(note, header.invoiceNote)
                         profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
-                        accountingCustomerParty = parties.buyer
+                        accountingCustomerParty = PartyXml.withEndpoint(parties.buyer, endpointId.value)
                         accountingSupplierParty = parties.supplier
                     }
                 val xml = PartyXml.marshal(CreditNoteFactory().createCreditNote(note), CreditNoteFactory::class.java)

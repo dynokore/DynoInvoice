@@ -172,6 +172,33 @@
           "syntaxPath": "/Invoice/cbc:CustomizationID"
         }
       ]
+    },
+    {
+      "businessTermId": "IBT-049",
+      "canonicalSource": "endpointId.built",
+      "dataType": "IDENTIFIER",
+      "documentTypeCodes": [
+        "380",
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7178; not product reference data): INV-REQ-321 and INV-Q-7189 A (added by INV-T-7193); the path is the EN 16931 UBL syntax binding",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "EXACTLY_ONE",
+          "syntaxPath": "/Invoice/cac:AccountingCustomerParty/cac:Party/cbc:EndpointID"
+        }
+      ]
     }
-  ]
+  ],
+  "offNetworkEndpoint": {
+    "prefix": "C5UID"
+  }
 }
