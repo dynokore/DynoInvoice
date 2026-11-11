@@ -125,7 +125,10 @@ private class OneEntity(
         delegate.openWindowsStartingOnOrBefore(date).filter { it.entityRef == entityRef }
 }
 
-/** Registers the job and announces it once at start-up (INV-REQ-1226 b6); [fire] is one scheduled firing. */
+/**
+ * Registers the job at start-up, as svc-evidence does: the registration needs no database, so offline contexts start.
+ * [fire] is one scheduled firing.
+ */
 class WindowCloseJob(
     private val jobs: JobRuntime,
     private val entities: JobEntitySource,
@@ -133,7 +136,6 @@ class WindowCloseJob(
 ) : SmartInitializingSingleton {
     override fun afterSingletonsInstantiated() {
         jobs.register(DEFINITION, entities, body)
-        jobs.announce()
     }
 
     fun fire() {
