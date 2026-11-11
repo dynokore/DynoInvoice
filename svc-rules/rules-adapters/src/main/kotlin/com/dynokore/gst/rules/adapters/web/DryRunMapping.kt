@@ -1,7 +1,7 @@
 package com.dynokore.gst.rules.adapters.web
 
-import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.persistence.ArmedPackLookup
+import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.DRY_RUN_DELTA
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_REGISTRY
 import com.dynokore.gst.rules.application.DryRunDeltaStore
@@ -29,9 +29,11 @@ import com.dynokore.gst.rules.contract.model.DryRunSupplyTypeTotal
 import com.dynokore.gst.rules.contract.model.ErrorEnvelope
 import com.dynokore.gst.rules.contract.model.OperationState
 import com.dynokore.gst.rules.contract.model.RulesDryRunStatus
+import com.dynokore.gst.rules.domain.dryrun.ChangeTypeTotal
 import com.dynokore.gst.rules.domain.dryrun.DeltaListing
-import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
 import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
+import com.dynokore.gst.rules.domain.dryrun.DryRunDelta
+import com.dynokore.gst.rules.domain.dryrun.PeriodDelta
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
@@ -47,6 +49,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.ExecutorService
@@ -54,7 +57,6 @@ import java.util.concurrent.Future
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.time.OffsetDateTime
 
 /** How far a `dryRun` got within the synchronous window (API-17): finished, or running on at its status resource. */
 sealed interface DryRunStarted {
@@ -114,29 +116,35 @@ class DryRunCalls(
         val target = transactions.inTransaction { targetOf(packRef, tenant) }
         val resolved = window ?: lastCompletePeriod(tenant, target.entityRef)
         if (!capacity.tryAcquire()) throw unavailable("the dry-run capacity of the service is in use")
-        val future =
-            try {
-                val dryRunId = UUID.randomUUID().toString()
-                val command = commandOf(dryRunId, tenant, target, resolved, actor)
-                transactions.inTransaction {
-                    store.begin(command.start)
-                    requests.request(
-                        DryRunSampleRequest(
-                            dryRunId,
-                            tenant,
-                            target.entityRef,
-                            resolved,
-                            target.currentVersion,
-                            target.candidateVersion,
-                        ),
-                    )
-                }
-                dryRunId to executor.submit { background(run, command, actor) }
-            } catch (e: RuntimeException) {
-                capacity.release()
-                throw e
-            }
-        return wait(future)
+        var submitted = false
+        try {
+            val dryRunId = UUID.randomUUID().toString()
+            val command = commandOf(dryRunId, tenant, target, resolved, actor)
+            store(command, target)
+            val future = executor.submit { background(run, command, actor) }
+            submitted = true
+            return wait(dryRunId to future)
+        } finally {
+            if (!submitted) capacity.release()
+        }
+    }
+
+    /** The command transaction: the run row and the sample request commit together, or neither exists. */
+    private fun store(
+        command: RunDryRunCommand,
+        target: Target,
+    ) = transactions.inTransaction {
+        store.begin(command.start)
+        requests.request(
+            DryRunSampleRequest(
+                command.dryRunId,
+                command.tenant,
+                target.entityRef,
+                command.window,
+                target.currentVersion,
+                target.candidateVersion,
+            ),
+        )
     }
 
     private fun wait(started: Pair<String, Future<*>>): DryRunStarted =
@@ -147,6 +155,11 @@ class DryRunCalls(
             DryRunStarted.Running(started.first)
         }
 
+    /**
+     * The last-resort barrier of the background thread: whatever the run throws, the run row must not stay RUNNING, so
+     * the fault ends it SAMPLE_UNAVAILABLE naming its class (fail closed) and is logged without its message.
+     */
+    @Suppress("TooGenericExceptionCaught") // the barrier of a background thread: nothing may escape and leave RUNNING
     private fun background(
         run: RunDryRun,
         command: RunDryRunCommand,
@@ -156,11 +169,11 @@ class DryRunCalls(
             tenants.bind(command.tenant, actor) {
                 PoolLanes.inLane(PoolLane.BACKGROUND) {
                     try {
-                        val outcome = run.run(command)
-                        if (outcome is DryRunOutcome.Unavailable) log.warn("dry run {} ended unavailable", command.dryRunId)
+                        run.run(command)
                     } catch (e: RuntimeException) {
                         log.error("dry run {} failed: {}", command.dryRunId, e.javaClass.simpleName)
-                        transactions.inTransaction { store.unavailable(command.dryRunId, "run failed: ${e.javaClass.simpleName}") }
+                        val reason = "run failed: ${e.javaClass.simpleName}"
+                        transactions.inTransaction { store.unavailable(command.dryRunId, reason) }
                     }
                 }
             }
@@ -179,7 +192,11 @@ class DryRunCalls(
         packRef: String,
         tenant: TenantId,
     ): Target {
-        val pack = packs.find(packRef) ?: throw checkNotNull(MappingPackMapping.refusalOf(com.dynokore.gst.rules.application.MappingPackResult.NotFound))
+        val pack =
+            packs.find(packRef)
+                ?: throw checkNotNull(
+                    MappingPackMapping.refusalOf(com.dynokore.gst.rules.application.MappingPackResult.NotFound),
+                )
         val today = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC)
         val current =
             ArmedPackLookup(dsl).resolve(PackType(PACK_TYPE), tenant, today)
@@ -231,25 +248,31 @@ class DryRunCalls(
         dryRunId: String,
     ): DryRunRecord? {
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
-        val id = runCatching { UUID.fromString(dryRunId) }.getOrNull() ?: return null
-        val stored = store.find(dryRunId) ?: return null
-        if (stored.startedBy != actor) return null
-        val row =
-            dsl
-                .select(DRY_RUN_DELTA.STARTED_AT, DRY_RUN_DELTA.COMPLETED_AT)
-                .from(DRY_RUN_DELTA)
-                .join(PACK_REGISTRY)
-                .on(
-                    PACK_REGISTRY.TENANT_ID
-                        .eq(DRY_RUN_DELTA.TENANT_ID)
-                        .and(PACK_REGISTRY.PACK_TYPE.eq(DRY_RUN_DELTA.PACK_TYPE))
-                        .and(PACK_REGISTRY.PACK_VERSION.eq(DRY_RUN_DELTA.PACK_VERSION)),
-                ).where(DRY_RUN_DELTA.ID.eq(id))
-                .and(PACK_REGISTRY.PACK_ID.eq(packRef))
-                .fetchOne() ?: return null
-        val startedAt = checkNotNull(row.get(DRY_RUN_DELTA.STARTED_AT)) { "dry_run_delta.started_at is NOT NULL" }
-        return DryRunRecord(stored, startedAt, row.get(DRY_RUN_DELTA.COMPLETED_AT))
+        val id = runCatching { UUID.fromString(dryRunId) }.getOrNull()
+        val stored = id?.let { store.find(dryRunId) }?.takeIf { it.startedBy == actor }
+        val row = stored?.let { dates(id, packRef) }
+        return row?.let {
+            val startedAt = checkNotNull(it.get(DRY_RUN_DELTA.STARTED_AT)) { "dry_run_delta.started_at is NOT NULL" }
+            DryRunRecord(checkNotNull(stored), startedAt, it.get(DRY_RUN_DELTA.COMPLETED_AT))
+        }
     }
+
+    /** The two dates of the run, only when it belongs to the pack [packRef] of the bound tenant. */
+    private fun dates(
+        id: UUID,
+        packRef: String,
+    ) = dsl
+        .select(DRY_RUN_DELTA.STARTED_AT, DRY_RUN_DELTA.COMPLETED_AT)
+        .from(DRY_RUN_DELTA)
+        .join(PACK_REGISTRY)
+        .on(
+            PACK_REGISTRY.TENANT_ID
+                .eq(DRY_RUN_DELTA.TENANT_ID)
+                .and(PACK_REGISTRY.PACK_TYPE.eq(DRY_RUN_DELTA.PACK_TYPE))
+                .and(PACK_REGISTRY.PACK_VERSION.eq(DRY_RUN_DELTA.PACK_VERSION)),
+        ).where(DRY_RUN_DELTA.ID.eq(id))
+        .and(PACK_REGISTRY.PACK_ID.eq(packRef))
+        .fetchOne()
 
     private companion object {
         const val PACK_TYPE = "MAPPING"
@@ -357,42 +380,42 @@ object DryRunMapping {
             packRef = packRef,
             changedCount = delta.changedCount,
             sample = delta.sample.map(::sampleOf),
-            changeTypeTotals =
-                delta.changeTypeTotals.map {
-                    DryRunChangeTypeTotal(
-                        DryRunChangeTypeTotal.ChangeType.forValue(it.changeType.name),
-                        it.documentCount,
-                        java.math.BigDecimal(it.taxableValue),
-                        java.math.BigDecimal(it.gstValue),
-                        it.valuesAbsentCount,
-                    )
-                },
+            changeTypeTotals = delta.changeTypeTotals.map(::changeTypeOf),
             supplyTypeTotals = supplyTotals(delta),
-            byPeriod =
-                delta.byPeriod.map {
-                    DryRunPeriodDelta(
-                        it.periodRef,
-                        it.documentCount,
-                        java.math.BigDecimal(it.taxableValue),
-                        java.math.BigDecimal(it.gstValue),
-                        it.valuesAbsentCount,
-                    )
-                },
-            straddlingCreditNotes =
-                delta.straddlingCreditNotes.map {
-                    DryRunStraddlingCreditNote(
-                        UUID.fromString(it.docUuid),
-                        it.transactionDate,
-                        checkNotNull(it.precedingDocumentDate) { "a straddling credit note has a preceding date" },
-                        it.oldCategoryCode,
-                        it.newCategoryCode,
-                        java.math.BigDecimal(it.taxableValue),
-                        java.math.BigDecimal(it.gstValue),
-                        it.sgdValuesAbsent,
-                    )
-                },
+            byPeriod = delta.byPeriod.map(::periodOf),
+            straddlingCreditNotes = delta.straddlingCreditNotes.map(::straddlingOf),
         )
     }
+
+    private fun changeTypeOf(total: ChangeTypeTotal) =
+        DryRunChangeTypeTotal(
+            DryRunChangeTypeTotal.ChangeType.forValue(total.changeType.name),
+            total.documentCount,
+            java.math.BigDecimal(total.taxableValue),
+            java.math.BigDecimal(total.gstValue),
+            total.valuesAbsentCount,
+        )
+
+    private fun periodOf(period: PeriodDelta) =
+        DryRunPeriodDelta(
+            period.periodRef,
+            period.documentCount,
+            java.math.BigDecimal(period.taxableValue),
+            java.math.BigDecimal(period.gstValue),
+            period.valuesAbsentCount,
+        )
+
+    private fun straddlingOf(note: DeltaListing) =
+        DryRunStraddlingCreditNote(
+            UUID.fromString(note.docUuid),
+            note.transactionDate,
+            checkNotNull(note.precedingDocumentDate) { "a straddling credit note has a preceding date" },
+            note.oldCategoryCode,
+            note.newCategoryCode,
+            java.math.BigDecimal(note.taxableValue),
+            java.math.BigDecimal(note.gstValue),
+            note.sgdValuesAbsent,
+        )
 
     private fun sampleOf(listing: DeltaListing) =
         DryRunResultSampleInner(

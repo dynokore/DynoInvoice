@@ -17,6 +17,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
 import org.springframework.boot.test.context.SpringBootTest
@@ -36,7 +37,6 @@ import java.util.concurrent.CopyOnWriteArrayList
 private const val CONSOLE_BFF = "console-bff"
 private const val SUFFIX_ALT = "-alt"
 private const val DRY_RUNS = "/internal/v1/rules/packs"
-private const val MAPPING_PACKS = "/internal/v1/rules/mapping-packs"
 private const val ENTITY_E1 = "E-1"
 private const val USER_B_BEARER = "Bearer token-user-b"
 private const val CURRENT_PREFIX = "cur-4974"
@@ -119,8 +119,7 @@ class DryRunWithoutSampleAdapter {
                 }
             }
 
-            override fun postProcessBeanFactory(beanFactory: org.springframework.beans.factory.config.ConfigurableListableBeanFactory) =
-                Unit
+            override fun postProcessBeanFactory(beanFactory: ConfigurableListableBeanFactory) = Unit
         }
 }
 
@@ -196,7 +195,8 @@ open class DryRunSupport(
     protected fun lastRunId(packId: String): String =
         value(
             TENANT_A,
-            "select d.id::text from rules.dry_run_delta d join rules.pack_registry r on r.pack_version = d.pack_version " +
+            "select d.id::text from rules.dry_run_delta d join rules.pack_registry r " +
+                "on r.pack_version = d.pack_version " +
                 "and r.pack_type = d.pack_type and r.tenant_id = d.tenant_id where r.pack_id = ? " +
                 "order by d.started_at desc limit 1",
             packId,
@@ -214,7 +214,11 @@ open class DryRunSupport(
 
     protected fun windowOf(label: String): Triple<String, String, Int> {
         val event = requested(label).single()
-        return Triple(event.get("firstPeriodRef").asString(), event.get("lastPeriodRef").asString(), event.get("periodCount").asInt())
+        return Triple(
+            event.get("firstPeriodRef").asString(),
+            event.get("lastPeriodRef").asString(),
+            event.get("periodCount").asInt(),
+        )
     }
 
     protected fun refused(
@@ -411,8 +415,10 @@ class DryRunBoundaryTest(
         ok(submit(packId))
         ok(approve(packId))
         val deltaId = lastRunId(packId)
-        rows(TENANT_A, "select dry_run_delta_id::text as i from rules.mapping_pack_approval where pack_version = '$label'")
-            .single()["i"] shouldBe deltaId
+        rows(
+            TENANT_A,
+            "select dry_run_delta_id::text as i from rules.mapping_pack_approval where pack_version = '$label'",
+        ).single()["i"] shouldBe deltaId
         val stored =
             rows(
                 TENANT_A,
@@ -435,7 +441,11 @@ class DryRunBoundaryTest(
     fun `INV-AC-10767 the stored delta lists D1 and D2 and not D3 and approval of P1 succeeds while P2 is refused`() {
         samples.serve(
             "2026-Q3",
-            listOf(item(D1, "2026-Q3", "1000.00", "90.00"), item(D2, "2026-Q3", "500.00", "45.00"), item(D3, "2026-Q3")),
+            listOf(
+                item(D1, "2026-Q3", "1000.00", "90.00"),
+                item(D2, "2026-Q3", "500.00", "45.00"),
+                item(D3, "2026-Q3"),
+            ),
         )
         evaluation.candidate[D1] = DocumentOutcome("ZR")
         evaluation.candidate[D2] = DocumentOutcome("RUL-002", "BLOCK")
@@ -449,7 +459,8 @@ class DryRunBoundaryTest(
         d1.get("taxableValue").asString() shouldBe "1000.00"
         d1.get("gstValue").asString() shouldBe "90.00"
         val totals = elements(result.get("changeTypeTotals"))
-        totals.map { it.get("changeType").asString() } shouldBe listOf("CODE_CHANGED", "NEWLY_REFUSED", "NEWLY_ACCEPTED")
+        totals.map { it.get("changeType").asString() } shouldBe
+            listOf("CODE_CHANGED", "NEWLY_REFUSED", "NEWLY_ACCEPTED")
         totals.sumOf { it.get("documentCount").asInt() } shouldBe 2
         ok(submit(p1))
         val approved = ok(approve(p1))
@@ -460,7 +471,7 @@ class DryRunBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-10770 a mapping pack change lists the changed document and not the unchanged one and P3 with no dry run is refused`() {
+    fun `INV-AC-10770 a mapping pack change lists the changed document only and P3 with no dry run is refused`() {
         samples.serve("2026-Q3", listOf(item(D1, "2026-Q3", "250.00", "22.50"), item(D3, "2026-Q3")))
         evaluation.candidate[D1] = DocumentOutcome("ZR")
         val result = finished(candidate()).get("result")
@@ -563,7 +574,7 @@ class DryRunBoundaryTest(
     }
 }
 
-/** The default period calendar (no `LastCompletePeriodPort` bean) refuses a body-less call and serves explicit windows. */
+/** The default period calendar (no `LastCompletePeriodPort` bean): a body-less call is refused, a window is served. */
 @SpringBootTest(
     classes = [DryRunFixturesWithoutCalendar::class, RulesApplication::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -612,9 +623,15 @@ class DryRunCalendarWiringTest(
 ) : DryRunSupport(port) {
     @Test
     fun `the fixture calendar is the only calendar bean and the default backs off`() {
-        context.getBeansOfType(LastCompletePeriodPort::class.java).values.single()
+        context
+            .getBeansOfType(LastCompletePeriodPort::class.java)
+            .values
+            .single()
             .javaClass.simpleName shouldBe "FixtureLastCompletePeriodPort"
-        context.getBeansOfType(HistoricalSamplePort::class.java).values.single()
+        context
+            .getBeansOfType(HistoricalSamplePort::class.java)
+            .values
+            .single()
             .javaClass.simpleName shouldBe "FixtureHistoricalSamplePort"
     }
 }

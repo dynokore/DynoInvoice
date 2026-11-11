@@ -95,14 +95,6 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import java.time.Clock
-import java.time.Duration
-import java.time.LocalDate
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Semaphore
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import org.jooq.DSLContext
 import org.jooq.JSONB
 import org.jooq.Schema
@@ -119,6 +111,14 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
+import java.time.Clock
+import java.time.Duration
+import java.time.LocalDate
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Semaphore
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
@@ -339,8 +339,9 @@ class RulesConfiguration {
         }
 
     /**
-     * The background capacity of dry runs: a fixed pool of `rules.dry-run.parallelism` platform threads whose queue holds no more
-     * than the pool can start, so a run never waits unbounded; a call finding no free slot is refused 503 SRT-013.
+     * The background capacity of dry runs: a fixed pool of `rules.dry-run.parallelism` platform threads whose queue
+     * holds no more than the pool can start, so a run never waits unbounded; a call finding no free slot is refused
+     * 503 SRT-013.
      * The connections it takes count against the background lane of the service's one pool.
      */
     @Bean(destroyMethod = "shutdown")
@@ -371,11 +372,22 @@ class RulesConfiguration {
         clock: Clock,
         executor: ExecutorService,
         @Value("\${rules.dry-run.parallelism}") parallelism: Int,
-        @Value("\${rules.dry-run.sample-wait}") sampleWait: Duration,
+        @Value("\${rules.dry-run.sample-wait}") sampleWait: String,
     ): DryRunCalls =
         DryRunCalls(
-            runs, store, requests, periods, packs, dsl, tenants, transactions, clock, executor,
-            Semaphore(parallelism), sampleWait, SYNC_WAIT,
+            runs,
+            store,
+            requests,
+            periods,
+            packs,
+            dsl,
+            tenants,
+            transactions,
+            clock,
+            executor,
+            Semaphore(parallelism),
+            sampleWait,
+            SYNC_WAIT,
         )
 
     /**

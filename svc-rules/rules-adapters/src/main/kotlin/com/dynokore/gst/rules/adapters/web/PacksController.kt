@@ -72,7 +72,7 @@ import java.util.UUID
  * Spring MVC refuses to start), and Kotlin requires it to restate those two operations. They are stated here as the
  * explicit 501 and nowhere else; the operations gate (operations.tsv) reads such a body as a stub.
  */
-@Suppress("TooManyFunctions", "LongParameterList") // one handler per operation; the wired use cases
+@Suppress("TooManyFunctions", "LongParameterList", "LargeClass") // one handler per operation; the wired use cases
 @RestController
 open class PacksController(
     private val listActive: ListActiveRegulatoryPacks,

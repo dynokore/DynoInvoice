@@ -7,7 +7,8 @@ import java.io.File
 /**
  * The layer rule of the dry run (INV-T-4974, owner ruling INV-Q-4870 B): the classes of `rules-domain` and the engine
  * classes of `rules-application` (`RunDryRun`, `DryRunPorts`, `PackDocumentEvaluation`) know the ports and nothing of
- * an adapter or an event. Deny by default (P140): an import outside the small allowlist is a finding, and so is a use of
+ * an adapter or an event. Deny by default (P140): an import outside the small allowlist is a finding, and so is a
+ * use of
  * an event type that needs no import because it lives in the same package.
  */
 class DryRunPortLayerTest {
@@ -71,7 +72,12 @@ class DryRunPortLayerTest {
     fun `probe - an adapter import in an engine class is a finding`(
         @TempDir dir: File,
     ) {
-        planted(dir, "rules-application", "application/RunDryRun.kt", "import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents")
+        planted(
+            dir,
+            "rules-application",
+            "application/RunDryRun.kt",
+            "import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents",
+        )
         check(findings(dir).any { it.contains("DryRunSampleEvents") })
     }
 
@@ -79,7 +85,12 @@ class DryRunPortLayerTest {
     fun `probe - an event class import or use in an engine class is a finding`(
         @TempDir dir: File,
     ) {
-        planted(dir, "rules-application", "application/DryRunPorts.kt", "import com.dynokore.platform.outboxandqueue.OutboxWriter")
+        planted(
+            dir,
+            "rules-application",
+            "application/DryRunPorts.kt",
+            "import com.dynokore.platform.outboxandqueue.OutboxWriter",
+        )
         planted(dir, "rules-application", "application/PackDocumentEvaluation.kt", "val e: PackEventEmitter? = null")
         val found = findings(dir)
         check(found.any { it.contains("OutboxWriter") } && found.any { it.contains("PackEventEmitter") }) { "$found" }
@@ -89,7 +100,12 @@ class DryRunPortLayerTest {
     fun `look-alike - the same imports in rules-adapters are no finding`(
         @TempDir dir: File,
     ) {
-        planted(dir, "rules-adapters", "adapters/RunDryRun.kt", "import com.dynokore.gst.rules.adapters.web.PacksController")
+        planted(
+            dir,
+            "rules-adapters",
+            "adapters/RunDryRun.kt",
+            "import com.dynokore.gst.rules.adapters.web.PacksController",
+        )
         check(findings(dir).isEmpty())
     }
 
@@ -97,7 +113,12 @@ class DryRunPortLayerTest {
     fun `look-alike - a comment or a string naming an adapter is no finding`(
         @TempDir dir: File,
     ) {
-        planted(dir, "rules-domain", "domain/Planted.kt", "// import com.dynokore.gst.rules.adapters.web.X\n/* PackEventEmitter */")
+        planted(
+            dir,
+            "rules-domain",
+            "domain/Planted.kt",
+            "// import com.dynokore.gst.rules.adapters.web.X\n/* PackEventEmitter */",
+        )
         check(findings(dir).isEmpty())
     }
 
