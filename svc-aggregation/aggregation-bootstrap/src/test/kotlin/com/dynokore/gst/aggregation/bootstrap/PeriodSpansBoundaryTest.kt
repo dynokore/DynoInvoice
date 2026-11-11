@@ -19,8 +19,8 @@ import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
-import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.TenantScope
@@ -220,12 +220,7 @@ class PeriodSpansBoundaryTest {
                 )
             subscription.topic shouldBe "gst.tenancy.period-records-changed.v1"
             ConsumedPeriodEvents.PERIOD_RECORDS_CHANGED shouldBe "com.dynokore.gst.tenancy.PeriodRecordsChanged.v1"
-            boundary.context
-                .getBeansOfType(
-                    EventHandler::class.java,
-                ).keys
-                .count { it == "periodRecordsChangedHandler" } shouldBe
-                1
+            boundary.context.getBeansOfType(EventHandler::class.java).keys.count { it == "periodRecordsChangedHandler" } shouldBe 1
         }
 
     @Test
