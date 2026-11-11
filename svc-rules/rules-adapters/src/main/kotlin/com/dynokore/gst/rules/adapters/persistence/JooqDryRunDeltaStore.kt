@@ -58,52 +58,104 @@ class JooqDryRunDeltaStore(
             val tx = DSL.using(configuration)
             val straddling = delta.straddlingCreditNotes.map { it.docUuid }.toSet()
             delta.documents.forEachIndexed { index, doc ->
-                insertDocument(tx, tenant, id, index + 1, doc, doc.docUuid in straddling)
+                DeltaWriter.document(tx, tenant, id, index + 1, doc, doc.docUuid in straddling)
             }
             delta.changeTypeTotals.forEachIndexed { index, t ->
-                insertTotal(
-                    tx,
-                    tenant,
-                    id,
-                    CHANGE_TYPE,
-                    t.changeType.name,
-                    index + 1,
-                    t.documentCount,
-                    t.valuesAbsentCount,
-                    t.taxableValue,
-                    t.gstValue,
-                )
+                val sums = TotalRow(t.documentCount, t.valuesAbsentCount, t.taxableValue, t.gstValue)
+                DeltaWriter.total(tx, tenant, id, TotalKey(DeltaRows.CHANGE_TYPE, t.changeType.name, index + 1), sums)
             }
             delta.byPeriod.forEachIndexed { index, p ->
-                insertTotal(
-                    tx,
-                    tenant,
-                    id,
-                    PERIOD,
-                    p.periodRef,
-                    index + 1,
-                    p.documentCount,
-                    p.valuesAbsentCount,
-                    p.taxableValue,
-                    p.gstValue,
-                )
+                val sums = TotalRow(p.documentCount, p.valuesAbsentCount, p.taxableValue, p.gstValue)
+                DeltaWriter.total(tx, tenant, id, TotalKey(DeltaRows.PERIOD, p.periodRef, index + 1), sums)
             }
-            val updated =
-                tx
-                    .update(DRY_RUN_DELTA)
-                    .set(DRY_RUN_DELTA.STATE, DryRunState.COMPLETE.name)
-                    .set(DRY_RUN_DELTA.COMPLETED_AT, completedAt.atOffset(ZoneOffset.UTC))
-                    .set(DRY_RUN_DELTA.CHANGED_COUNT, delta.documents.size)
-                    .where(DRY_RUN_DELTA.ID.eq(id))
-                    .and(DRY_RUN_DELTA.TENANT_ID.eq(tenant))
-                    .and(DRY_RUN_DELTA.STATE.eq(DryRunState.RUNNING.name))
-                    .execute()
-            check(updated == 1) { "dry run $dryRunId is not a RUNNING run of this tenant" }
+            DeltaWriter.markComplete(tx, tenant, id, completedAt, delta.documents.size)
         }
     }
 
-    @Suppress("LongParameterList")
-    private fun insertDocument(
+    override fun unavailable(
+        dryRunId: String,
+        reason: String,
+    ) {
+        val updated =
+            dsl
+                .update(DRY_RUN_DELTA)
+                .set(DRY_RUN_DELTA.STATE, DryRunState.SAMPLE_UNAVAILABLE.name)
+                .set(DRY_RUN_DELTA.UNAVAILABLE_REASON, reason)
+                .where(DRY_RUN_DELTA.ID.eq(UUID.fromString(dryRunId)))
+                .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
+                .and(DRY_RUN_DELTA.STATE.eq(DryRunState.RUNNING.name))
+                .execute()
+        check(updated == 1) { "dry run $dryRunId is not a RUNNING run of this tenant" }
+    }
+
+    override fun find(dryRunId: String): StoredDryRun? {
+        val id = runCatching { UUID.fromString(dryRunId) }.getOrNull()
+        val run =
+            id?.let {
+                dsl
+                    .selectFrom(DRY_RUN_DELTA)
+                    .where(DRY_RUN_DELTA.ID.eq(it))
+                    .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
+                    .fetchOne()
+            }
+        return run?.let {
+            val state = DryRunState.valueOf(DeltaRows.req(it, DRY_RUN_DELTA.STATE))
+            StoredDryRun(
+                dryRunId = DeltaRows.req(it, DRY_RUN_DELTA.ID).toString(),
+                startedBy = DeltaRows.req(it, DRY_RUN_DELTA.STARTED_BY),
+                state = state,
+                reason = it.unavailableReason,
+                delta = if (state == DryRunState.COMPLETE) rebuild(DeltaRows.req(it, DRY_RUN_DELTA.ID)) else null,
+            )
+        }
+    }
+
+    private fun rebuild(id: UUID): DryRunDelta {
+        val rows =
+            dsl
+                .selectFrom(DRY_RUN_DELTA_DOCUMENT)
+                .where(DRY_RUN_DELTA_DOCUMENT.DELTA_ID.eq(id))
+                .orderBy(DRY_RUN_DELTA_DOCUMENT.POSITION)
+                .fetch()
+        val documents = rows.map(DeltaRows::document)
+        val straddling =
+            rows
+                .filter { DeltaRows.req(it, DRY_RUN_DELTA_DOCUMENT.STRADDLING_CREDIT_NOTE) }
+                .map { DeltaRows.req(it, DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString() }
+                .toSet()
+        val totals =
+            dsl
+                .selectFrom(DRY_RUN_DELTA_TOTAL)
+                .where(DRY_RUN_DELTA_TOTAL.DELTA_ID.eq(id))
+                .orderBy(DRY_RUN_DELTA_TOTAL.KIND, DRY_RUN_DELTA_TOTAL.POSITION)
+                .fetch()
+        return DryRunDelta(
+            changedCount = documents.size,
+            documents = documents,
+            changeTypeTotals = totals.filter { it.kind == DeltaRows.CHANGE_TYPE }.map(DeltaRows::changeTypeTotal),
+            byPeriod = totals.filter { it.kind == DeltaRows.PERIOD }.map(DeltaRows::period),
+            straddlingCreditNotes = documents.filter { it.docUuid in straddling }.map(DeltaRows::listing),
+            sample = documents.filter { it.docUuid !in straddling }.map(DeltaRows::listing),
+        )
+    }
+}
+
+private data class TotalKey(
+    val kind: String,
+    val key: String,
+    val position: Int,
+)
+
+private data class TotalRow(
+    val documentCount: Int,
+    val valuesAbsentCount: Int,
+    val taxableValue: String,
+    val gstValue: String,
+)
+
+/** The writes of one `complete`, all on the transaction it opens. */
+private object DeltaWriter {
+    fun document(
         tx: DSLContext,
         tenant: UUID,
         id: UUID,
@@ -134,138 +186,97 @@ class JooqDryRunDeltaStore(
             .execute()
     }
 
-    @Suppress("LongParameterList")
-    private fun insertTotal(
+    fun total(
         tx: DSLContext,
         tenant: UUID,
         id: UUID,
-        kind: String,
-        key: String,
-        position: Int,
-        documentCount: Int,
-        valuesAbsentCount: Int,
-        taxable: String,
-        gst: String,
+        key: TotalKey,
+        sums: TotalRow,
     ) {
         tx
             .insertInto(DRY_RUN_DELTA_TOTAL)
             .set(DRY_RUN_DELTA_TOTAL.TENANT_ID, tenant)
             .set(DRY_RUN_DELTA_TOTAL.DELTA_ID, id)
-            .set(DRY_RUN_DELTA_TOTAL.KIND, kind)
-            .set(DRY_RUN_DELTA_TOTAL.KEY, key)
-            .set(DRY_RUN_DELTA_TOTAL.POSITION, position)
-            .set(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT, documentCount)
-            .set(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT, valuesAbsentCount)
-            .set(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE, BigDecimal(taxable))
-            .set(DRY_RUN_DELTA_TOTAL.GST_VALUE, BigDecimal(gst))
+            .set(DRY_RUN_DELTA_TOTAL.KIND, key.kind)
+            .set(DRY_RUN_DELTA_TOTAL.KEY, key.key)
+            .set(DRY_RUN_DELTA_TOTAL.POSITION, key.position)
+            .set(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT, sums.documentCount)
+            .set(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT, sums.valuesAbsentCount)
+            .set(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE, BigDecimal(sums.taxableValue))
+            .set(DRY_RUN_DELTA_TOTAL.GST_VALUE, BigDecimal(sums.gstValue))
             .execute()
     }
 
-    override fun unavailable(
-        dryRunId: String,
-        reason: String,
+    fun markComplete(
+        tx: DSLContext,
+        tenant: UUID,
+        id: UUID,
+        completedAt: Instant,
+        changedCount: Int,
     ) {
         val updated =
-            dsl
+            tx
                 .update(DRY_RUN_DELTA)
-                .set(DRY_RUN_DELTA.STATE, DryRunState.SAMPLE_UNAVAILABLE.name)
-                .set(DRY_RUN_DELTA.UNAVAILABLE_REASON, reason)
-                .where(DRY_RUN_DELTA.ID.eq(UUID.fromString(dryRunId)))
-                .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
+                .set(DRY_RUN_DELTA.STATE, DryRunState.COMPLETE.name)
+                .set(DRY_RUN_DELTA.COMPLETED_AT, completedAt.atOffset(ZoneOffset.UTC))
+                .set(DRY_RUN_DELTA.CHANGED_COUNT, changedCount)
+                .where(DRY_RUN_DELTA.ID.eq(id))
+                .and(DRY_RUN_DELTA.TENANT_ID.eq(tenant))
                 .and(DRY_RUN_DELTA.STATE.eq(DryRunState.RUNNING.name))
                 .execute()
-        check(updated == 1) { "dry run $dryRunId is not a RUNNING run of this tenant" }
+        check(updated == 1) { "dry run $id is not a RUNNING run of this tenant" }
     }
+}
 
-    override fun find(dryRunId: String): StoredDryRun? {
-        val id = runCatching { UUID.fromString(dryRunId) }.getOrNull()
-        val run =
-            id?.let {
-                dsl
-                    .selectFrom(DRY_RUN_DELTA)
-                    .where(DRY_RUN_DELTA.ID.eq(it))
-                    .and(DRY_RUN_DELTA.TENANT_ID.eq(tenants.current().value))
-                    .fetchOne()
-            }
-        return run?.let {
-            val state = DryRunState.valueOf(it.req(DRY_RUN_DELTA.STATE))
-            StoredDryRun(
-                dryRunId = it.req(DRY_RUN_DELTA.ID).toString(),
-                startedBy = it.req(DRY_RUN_DELTA.STARTED_BY),
-                state = state,
-                reason = it.unavailableReason,
-                delta = if (state == DryRunState.COMPLETE) rebuild(it.req(DRY_RUN_DELTA.ID)) else null,
-            )
-        }
-    }
+/** The rebuilding of the delta from its rows. */
+private object DeltaRows {
+    const val CHANGE_TYPE = "CHANGE_TYPE"
+    const val PERIOD = "PERIOD"
+    private const val ZERO_MONEY = "0.00"
 
-    private fun rebuild(id: UUID): DryRunDelta {
-        val rows =
-            dsl
-                .selectFrom(DRY_RUN_DELTA_DOCUMENT)
-                .where(DRY_RUN_DELTA_DOCUMENT.DELTA_ID.eq(id))
-                .orderBy(DRY_RUN_DELTA_DOCUMENT.POSITION)
-                .fetch()
-        val documents = rows.map(::documentOf)
-        val straddling =
-            rows
-                .filter { it.req(DRY_RUN_DELTA_DOCUMENT.STRADDLING_CREDIT_NOTE) }
-                .map { it.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString() }
-                .toSet()
-        val totals =
-            dsl
-                .selectFrom(DRY_RUN_DELTA_TOTAL)
-                .where(DRY_RUN_DELTA_TOTAL.DELTA_ID.eq(id))
-                .orderBy(DRY_RUN_DELTA_TOTAL.KIND, DRY_RUN_DELTA_TOTAL.POSITION)
-                .fetch()
-        return DryRunDelta(
-            changedCount = documents.size,
-            documents = documents,
-            changeTypeTotals = totals.filter { it.kind == CHANGE_TYPE }.map(::changeTypeTotalOf),
-            byPeriod = totals.filter { it.kind == PERIOD }.map(::periodOf),
-            straddlingCreditNotes = documents.filter { it.docUuid in straddling }.map(::listing),
-            sample = documents.filter { it.docUuid !in straddling }.map(::listing),
-        )
-    }
+    fun <T : Any> req(
+        row: Record,
+        field: Field<T?>,
+    ): T = checkNotNull(row.get(field)) { "${field.name} is null" }
 
-    private fun documentOf(r: Record) =
+    fun document(r: Record) =
         ChangedDocument(
-            docUuid = r.req(DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString(),
-            periodRef = r.req(DRY_RUN_DELTA_DOCUMENT.PERIOD_REF),
-            transactionDate = r.req(DRY_RUN_DELTA_DOCUMENT.TRANSACTION_DATE),
+            docUuid = req(r, DRY_RUN_DELTA_DOCUMENT.DOC_UUID).toString(),
+            periodRef = req(r, DRY_RUN_DELTA_DOCUMENT.PERIOD_REF),
+            transactionDate = req(r, DRY_RUN_DELTA_DOCUMENT.TRANSACTION_DATE),
             precedingDocumentDate = r.get(DRY_RUN_DELTA_DOCUMENT.PRECEDING_DOCUMENT_DATE),
-            documentFunction = r.req(DRY_RUN_DELTA_DOCUMENT.DOCUMENT_FUNCTION),
+            documentFunction = req(r, DRY_RUN_DELTA_DOCUMENT.DOCUMENT_FUNCTION),
             supplyType = r.get(DRY_RUN_DELTA_DOCUMENT.SUPPLY_TYPE),
             oldOutcome =
-                DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.OLD_CODE), r.get(DRY_RUN_DELTA_DOCUMENT.OLD_SEVERITY)),
+                DocumentOutcome(req(r, DRY_RUN_DELTA_DOCUMENT.OLD_CODE), r.get(DRY_RUN_DELTA_DOCUMENT.OLD_SEVERITY)),
             newOutcome =
-                DocumentOutcome(r.req(DRY_RUN_DELTA_DOCUMENT.NEW_CODE), r.get(DRY_RUN_DELTA_DOCUMENT.NEW_SEVERITY)),
-            changeType = ChangeType.valueOf(r.req(DRY_RUN_DELTA_DOCUMENT.CHANGE_TYPE)),
-            taxableValue = r.req(DRY_RUN_DELTA_DOCUMENT.TAXABLE_VALUE).toPlainString(),
-            gstValue = r.req(DRY_RUN_DELTA_DOCUMENT.GST_VALUE).toPlainString(),
-            sgdValuesAbsent = r.req(DRY_RUN_DELTA_DOCUMENT.VALUES_ABSENT),
+                DocumentOutcome(req(r, DRY_RUN_DELTA_DOCUMENT.NEW_CODE), r.get(DRY_RUN_DELTA_DOCUMENT.NEW_SEVERITY)),
+            changeType = ChangeType.valueOf(req(r, DRY_RUN_DELTA_DOCUMENT.CHANGE_TYPE)),
+            taxableValue = req(r, DRY_RUN_DELTA_DOCUMENT.TAXABLE_VALUE).toPlainString(),
+            gstValue = req(r, DRY_RUN_DELTA_DOCUMENT.GST_VALUE).toPlainString(),
+            sgdValuesAbsent = req(r, DRY_RUN_DELTA_DOCUMENT.VALUES_ABSENT),
         )
 
-    private fun changeTypeTotalOf(r: Record) =
+    fun changeTypeTotal(r: Record) =
         ChangeTypeTotal(
-            ChangeType.valueOf(r.req(DRY_RUN_DELTA_TOTAL.KEY)),
-            r.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
-            r.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
-            r.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
-            r.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
+            ChangeType.valueOf(req(r, DRY_RUN_DELTA_TOTAL.KEY)),
+            req(r, DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
+            req(r, DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
+            req(r, DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
+            req(r, DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
         )
 
-    private fun periodOf(r: Record) =
+    fun period(r: Record) =
         PeriodDelta(
-            r.req(DRY_RUN_DELTA_TOTAL.KEY),
-            r.req(DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
-            r.req(DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
-            r.req(DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
-            r.req(DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
+            req(r, DRY_RUN_DELTA_TOTAL.KEY),
+            req(r, DRY_RUN_DELTA_TOTAL.DOCUMENT_COUNT),
+            req(r, DRY_RUN_DELTA_TOTAL.TAXABLE_VALUE).toPlainString(),
+            req(r, DRY_RUN_DELTA_TOTAL.GST_VALUE).toPlainString(),
+            req(r, DRY_RUN_DELTA_TOTAL.VALUES_ABSENT_COUNT),
         )
 
     /** The listing of a changed document as the computation builds it: `0.00` money and a true flag when flagged. */
-    private fun listing(d: ChangedDocument) =
+    fun listing(d: ChangedDocument) =
         DeltaListing(
             d.docUuid,
             d.transactionDate,
@@ -277,12 +288,4 @@ class JooqDryRunDeltaStore(
             d.supplyType,
             if (d.sgdValuesAbsent) true else null,
         )
-
-    private fun <T : Any> Record.req(field: Field<T?>): T = checkNotNull(get(field)) { "${field.name} is null" }
-
-    private companion object {
-        const val CHANGE_TYPE = "CHANGE_TYPE"
-        const val PERIOD = "PERIOD"
-        const val ZERO_MONEY = "0.00"
-    }
 }
