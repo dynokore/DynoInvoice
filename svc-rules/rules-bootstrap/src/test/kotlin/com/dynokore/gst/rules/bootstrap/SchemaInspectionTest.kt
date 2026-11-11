@@ -27,6 +27,8 @@ class SchemaInspectionTest {
             Table("rules", "mapping_import_record"),
             Table("rules", "dry_run_delta_document"),
             Table("rules", "dry_run_delta_total"),
+            Table("rules", "dry_run_sample_page"),
+            Table("rules", "dry_run_sample_item"),
         )
     private val holderColumns = SchemaInspection.HOLDER_COLUMNS.map { Column(holder, it, "text") }
     private val good = registry + holder + Table("rules", "outbox")
@@ -74,7 +76,7 @@ class SchemaInspectionTest {
     }
 
     @Test
-    fun `the registry tables are exactly the eight names`() {
+    fun `the registry tables are exactly the ten names`() {
         SchemaInspection.REGISTRY_TABLES shouldBe
             setOf(
                 "pack_registry",
@@ -85,6 +87,8 @@ class SchemaInspectionTest {
                 "mapping_import_record",
                 "dry_run_delta_document",
                 "dry_run_delta_total",
+                "dry_run_sample_page",
+                "dry_run_sample_item",
             )
     }
 
@@ -94,11 +98,18 @@ class SchemaInspectionTest {
         SchemaInspection.REGISTRY_TABLES.contains("dry_run_delta_totals") shouldBe false
         findings(good + Table("rules", "dry_run_delta_documents")).shouldNotBeEmpty()
         findings(good + Table("rules", "dry_run_delta_totals")).shouldNotBeEmpty()
+        SchemaInspection.REGISTRY_TABLES.contains("dry_run_sample_items") shouldBe false
+        findings(good + Table("rules", "dry_run_sample_items")).shouldNotBeEmpty()
     }
 
     @Test
     fun `probe - a document-typed column on a new dry-run table fails`() {
-        for (name in listOf("dry_run_delta_document", "dry_run_delta_total")) {
+        for (name in listOf(
+            "dry_run_delta_document",
+            "dry_run_delta_total",
+            "dry_run_sample_page",
+            "dry_run_sample_item",
+        )) {
             for (type in listOf("json", "jsonb", "bytea")) {
                 findings(columns = holderColumns + Column(Table("rules", name), "extra", type)).shouldNotBeEmpty()
             }

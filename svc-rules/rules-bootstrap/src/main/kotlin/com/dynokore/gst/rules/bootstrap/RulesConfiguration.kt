@@ -1,6 +1,9 @@
 package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.clients.AccessSvcClient
+import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
+import com.dynokore.gst.rules.adapters.events.DryRunSampleRecordedHandler
+import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.packs.EngineVersion
@@ -16,6 +19,7 @@ import com.dynokore.gst.rules.adapters.persistence.JooqActivePackReader
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingImportRecordStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
+import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
@@ -29,6 +33,7 @@ import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DryRunDeltaPort
 import com.dynokore.gst.rules.application.EvaluateDocument
+import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.HolderCopyPort
 import com.dynokore.gst.rules.application.InstallationApproverFactPort
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
@@ -83,6 +88,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Profile
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import java.time.Clock
@@ -105,6 +111,8 @@ class RulesConfiguration {
     fun eventCatalogue(): EventCatalogue =
         EventCatalogue(
             RulesEventCatalogue.entries() +
+                // the sample request of a dry run (INV-T-19903): published through the outbox of the command
+                DryRunSampleEvents.requestedEntry() +
                 listOf(
                     PlatformEventCatalogue.AUDIT_ENTRY_RECORDED,
                     PlatformEventCatalogue.POLICY_CHANGED,
@@ -225,6 +233,51 @@ class RulesConfiguration {
             scope,
             TenancyJooq.dslContext(OutboxSchema.jooqTables(SCHEMA), scope.tenants, scope.transactions),
             handler,
+            rebuildRequired,
+            clock,
+        )
+
+    /** The stored pages of the dry-run samples (INV-T-19903); the pages are deleted when the run ends. */
+    @Bean
+    fun jooqSamplePageStore(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): JooqSamplePageStore = JooqSamplePageStore(dsl, tenants)
+
+    /** Publishes `PackDryRunSampleRequested` in the command transaction of `dryRun` (INV-Q-4995). */
+    @Bean
+    fun dryRunSampleEvents(writer: OutboxWriter): DryRunSampleEvents = DryRunSampleEvents(writer)
+
+    /** Outside the test profile the sample comes from the pages canonical-svc published (INV-Q-4995, INV-Q-4870 B). */
+    @Bean
+    @Profile("!test")
+    fun historicalSamplePort(
+        store: JooqSamplePageStore,
+        clock: Clock,
+    ): HistoricalSamplePort = EventHistoricalSamplePort(store, clock)
+
+    /**
+     * rules-svc is the subscriber of `gst.platform.pack-dry-run-sample-recorded.v1` (platform-contracts
+     * event-log/topics.yaml): the handler stores each page in the consumer's transaction, with its own catalogue like
+     * the entity-profile consumer above.
+     */
+    @Bean
+    @Suppress("LongParameterList") // the consumer's collaborators are all injected platform beans
+    fun dryRunSampleConsumer(
+        reader: EventLogReader,
+        scope: TenantScope,
+        rebuildRequired: RebuildRequiredSink,
+        clock: Clock,
+        dsl: DSLContext,
+        store: JooqSamplePageStore,
+    ): JdbcInboxConsumer =
+        JdbcInboxConsumer(
+            ConsumerSubscription(RulesEventCatalogue.SERVICE, DryRunSampleEvents.RECORDED_TOPIC, SCHEMA),
+            EventCatalogue(listOf(DryRunSampleEvents.recordedEntry())),
+            reader,
+            scope,
+            dsl,
+            DryRunSampleRecordedHandler(store, clock),
             rebuildRequired,
             clock,
         )

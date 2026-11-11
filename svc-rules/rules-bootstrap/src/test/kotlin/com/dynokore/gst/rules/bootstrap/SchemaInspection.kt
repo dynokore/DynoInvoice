@@ -35,7 +35,7 @@ internal object SchemaInspection {
     /**
      * The metadata tables: registry and activation state, the entries, the acceptances, the approvals, the dry-run
      * deltas of a mapping pack and their document and total rows (V1, INV-Q-14648 A, INV-Q-14646 A,
-     * INV-T-19902), all relational, no document-shaped
+     * INV-T-19902) and the pages and items of a dry-run sample (INV-T-19903), all relational, no document-shaped
      * column.
      */
     val REGISTRY_TABLES =
@@ -48,6 +48,8 @@ internal object SchemaInspection {
             "mapping_import_record",
             "dry_run_delta_document",
             "dry_run_delta_total",
+            "dry_run_sample_page",
+            "dry_run_sample_item",
         )
 
     /** The columns of the kernel's registry table (`PackRegistryMigration.ddl`), `pack_version` and not `version`. */
