@@ -4,6 +4,7 @@ import com.dynokore.gst.consoleBff.adapters.ConsoleDb
 import com.dynokore.gst.consoleBff.domain.session.SessionId
 import com.dynokore.gst.consoleBff.domain.session.SessionIdHash
 import com.dynokore.gst.consoleBff.domain.session.SessionIdParse
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import io.kotest.matchers.shouldBe
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
@@ -26,11 +27,44 @@ class SessionSweeperTest {
             val clock = Clock.fixed(now, ZoneOffset.UTC)
             val sweeper =
                 SessionSweeper(store, fakes.binding, fakes.runner, clock, Duration.ofMinutes(30), Duration.ofHours(12))
+            val bindsBefore = fakes.actors.size
+            val transactionsBefore = fakes.transactions
             sweeper.sweep() shouldBe 1
+            (fakes.actors.size - bindsBefore) shouldBe 1
+            (fakes.transactions - transactionsBefore) shouldBe 1
             store.find(hash(old.cookieValue)) shouldBe null
             (store.find(hash(fresh.cookieValue)) != null) shouldBe true
             store.delete(hash(fresh.cookieValue))
         }
+    }
+
+    @Test
+    fun `INV-AC-14457 a failing sweep is logged by class only and the next run still happens`() {
+        var calls = 0
+        val failing =
+            object : PlatformTenantBinding {
+                override fun <T> bindPlatform(
+                    actor: String,
+                    block: () -> T,
+                ): T {
+                    calls++
+                    error("secret-row-data")
+                }
+            }
+        val fakes = PlatformFakes()
+        val store = fakes.store(DSL.using(SQLDialect.POSTGRES))
+        val sweeper =
+            SessionSweeper(
+                store,
+                failing,
+                fakes.runner,
+                Clock.systemUTC(),
+                Duration.ofMinutes(30),
+                Duration.ofHours(12),
+            )
+        sweeper.sweepLogged() shouldBe null
+        sweeper.sweepLogged() shouldBe null
+        calls shouldBe 2
     }
 
     private fun hash(value: String) = SessionIdHash.of((SessionId.parse(value) as SessionIdParse.Parsed).id)

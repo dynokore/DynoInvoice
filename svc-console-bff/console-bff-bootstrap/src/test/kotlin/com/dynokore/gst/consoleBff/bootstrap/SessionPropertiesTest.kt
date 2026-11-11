@@ -23,6 +23,20 @@ class SessionPropertiesTest {
     }
 
     @Test
+    fun `INV-AC-14457 closing the context stops the sweep thread`(
+        @TempDir dir: Path,
+    ) {
+        var schedule: java.util.concurrent.ScheduledExecutorService? = null
+        ConsoleContext.offline(dir).run { context ->
+            context.startupFailure shouldBe null
+            schedule =
+                context.getBean("sessionSweepSchedule", java.util.concurrent.ScheduledExecutorService::class.java)
+            schedule.isShutdown shouldBe false
+        }
+        schedule!!.isShutdown shouldBe true
+    }
+
+    @Test
     fun `INV-AC-14457 a run with idle-timeout PT10M binds 10 minutes`(
         @TempDir dir: Path,
     ) {

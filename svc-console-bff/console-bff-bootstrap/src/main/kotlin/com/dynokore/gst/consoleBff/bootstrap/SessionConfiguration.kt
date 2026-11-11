@@ -82,7 +82,7 @@ class SessionConfiguration {
     ): ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor(SWEEP_THREADS).also {
             val interval = properties.sweepInterval.toMillis()
-            it.scheduleWithFixedDelay({ runCatching { sweeper.sweep() } }, interval, interval, TimeUnit.MILLISECONDS)
+            it.scheduleWithFixedDelay({ sweeper.sweepLogged() }, interval, interval, TimeUnit.MILLISECONDS)
         }
 
     private companion object {

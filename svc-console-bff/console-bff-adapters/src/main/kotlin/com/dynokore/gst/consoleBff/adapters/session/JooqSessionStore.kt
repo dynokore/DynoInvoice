@@ -114,16 +114,21 @@ class JooqSessionStore(
         now: Instant,
         idle: Duration,
         absolute: Duration,
+    ): Int = platform { deleteExpiredBound(now, idle, absolute) }
+
+    /** The delete without its own binding or transaction: the sweeper holds the one bind and transaction. */
+    internal fun deleteExpiredBound(
+        now: Instant,
+        idle: Duration,
+        absolute: Duration,
     ): Int =
-        platform {
-            dsl
-                .deleteFrom(CONSOLE_SESSION)
-                .where(
-                    CONSOLE_SESSION.LAST_SEEN_AT
-                        .le(now.minus(idle).atOffset(ZoneOffset.UTC))
-                        .or(CONSOLE_SESSION.OPENED_AT.le(now.minus(absolute).atOffset(ZoneOffset.UTC))),
-                ).execute()
-        }
+        dsl
+            .deleteFrom(CONSOLE_SESSION)
+            .where(
+                CONSOLE_SESSION.LAST_SEEN_AT
+                    .le(now.minus(idle).atOffset(ZoneOffset.UTC))
+                    .or(CONSOLE_SESSION.OPENED_AT.le(now.minus(absolute).atOffset(ZoneOffset.UTC))),
+            ).execute()
 
     private fun <T> platform(block: () -> T): T = binding.bindPlatform(ACTOR) { transactions.inTransaction(block) }
 

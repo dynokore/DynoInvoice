@@ -3,6 +3,8 @@ package com.dynokore.gst.consoleBff.adapters.session
 import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
 
@@ -25,8 +27,25 @@ class SessionSweeper(
     /** Deletes the expired rows and returns how many. */
     fun sweep(): Int =
         binding.bindPlatform(JooqSessionStore.ACTOR) {
-            transactions.inTransaction { store.deleteExpired(clock.instant(), idle, absolute) }
+            transactions.inTransaction { store.deleteExpiredBound(clock.instant(), idle, absolute) }
         }
+
+    /**
+     * One scheduled run: a failure is logged at WARN (exception class only, no row data) and swallowed so the schedule
+     * goes on; returns the deleted count, or null when the sweep failed.
+     */
+    @Suppress("TooGenericExceptionCaught") // a scheduled run must survive any failure; it is logged
+    fun sweepLogged(): Int? =
+        try {
+            sweep()
+        } catch (e: Exception) {
+            LOG.warn("console session sweep failed: {}", e.javaClass.name)
+            null
+        }
+
+    private companion object {
+        val LOG: Logger = LoggerFactory.getLogger(SessionSweeper::class.java)
+    }
 }
 
 /** The sweeper over the service's `TenantContext` bean (the composition root names no binding type). */
