@@ -75,15 +75,15 @@ class JooqSessionStore(
                 .where(CONSOLE_SESSION.SESSION_ID_HASH.eq(hash))
                 .fetchOne()
         }?.let {
-                SessionRow(
-                    hash = checkNotNull(it.sessionIdHash),
-                    principalId = checkNotNull(it.principalId),
-                    tenantId = checkNotNull(it.boundTenantId).toString(),
-                    authorityVersionAtOpen = checkNotNull(it.authorityVersion),
-                    openedAt = checkNotNull(it.openedAt).toInstant(),
-                    lastSeenAt = checkNotNull(it.lastSeenAt).toInstant(),
-                )
-            }
+            SessionRow(
+                hash = checkNotNull(it.sessionIdHash),
+                principalId = checkNotNull(it.principalId),
+                tenantId = checkNotNull(it.boundTenantId).toString(),
+                authorityVersionAtOpen = checkNotNull(it.authorityVersion),
+                openedAt = checkNotNull(it.openedAt).toInstant(),
+                lastSeenAt = checkNotNull(it.lastSeenAt).toInstant(),
+            )
+        }
 
     /** Sets `last_seen_at` in one update; the number of rows changed is returned (0 for an unknown hash). */
     fun touchRows(

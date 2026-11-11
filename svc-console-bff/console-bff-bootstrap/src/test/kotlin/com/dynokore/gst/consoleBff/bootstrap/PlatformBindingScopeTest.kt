@@ -22,7 +22,10 @@ class PlatformBindingScopeTest {
 
     private fun repoRoot(): Path {
         var dir: Path = Path.of("").toAbsolutePath()
-        while (!Files.exists(dir.resolve("settings.gradle.kts"))) dir = checkNotNull(dir.parent) { "no repository root" }
+        while (!Files.exists(dir.resolve("settings.gradle.kts"))) {
+            dir =
+                checkNotNull(dir.parent) { "no repository root" }
+        }
         return dir
     }
 

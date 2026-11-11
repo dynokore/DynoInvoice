@@ -24,7 +24,8 @@ class SessionSweeperTest {
             store.touchRows(hash(old.cookieValue), now)
             val fresh = store.create("11111111-1111-1111-1111-111111111111", "fresh", 1, now.minusSeconds(60))
             val clock = Clock.fixed(now, ZoneOffset.UTC)
-            val sweeper = SessionSweeper(store, fakes.binding, fakes.runner, clock, Duration.ofMinutes(30), Duration.ofHours(12))
+            val sweeper =
+                SessionSweeper(store, fakes.binding, fakes.runner, clock, Duration.ofMinutes(30), Duration.ofHours(12))
             sweeper.sweep() shouldBe 1
             store.find(hash(old.cookieValue)) shouldBe null
             (store.find(hash(fresh.cookieValue)) != null) shouldBe true
