@@ -32,8 +32,10 @@ class JooqOperatorKeyPublication(
     private val ids: UuidV7 = UuidV7(),
 ) : OperatorKeyPublication {
     override fun publish(candidates: List<VerificationKey>): List<VerificationKey> {
-        val stored = publishItems(candidates.map(PublishedKey::of))
-        return candidates.indices.map { candidates[it].copy(use = KeyUse.valueOf(stored[it].use)) }
+        // the stored rows are returned: a kid stored earlier keeps its original validity window
+        return publishItems(candidates.map(PublishedKey::of)).map {
+            VerificationKey(it.kid, it.alg, it.publicKey, it.validFrom, it.validUntil, KeyUse.valueOf(it.use))
+        }
     }
 
     /**
