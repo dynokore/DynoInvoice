@@ -5,7 +5,9 @@ plugins {
 }
 
 springBoot { mainClass.set("com.dynokore.gst.rules.bootstrap.RulesApplicationKt") }
-springBoot { buildInfo() }
+// STK-72: build-info.properties carries `build.time` (the build clock) by default, which differs between the image build
+// and the reproducibility rebuild and changes one application layer. EngineVersion reads only `version`: drop the time.
+springBoot { buildInfo { excludes.set(setOf("time")) } }
 
 dependencies {
     implementation(platform(libs.platform.bom))
