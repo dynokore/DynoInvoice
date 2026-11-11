@@ -12,6 +12,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
+import org.slf4j.LoggerFactory
 import java.time.ZoneOffset
 
 /**
@@ -59,7 +60,10 @@ class JooqOperatorKeyPublication(
                 val stored =
                     candidates.map { candidate ->
                         rows.singleOrNull { it.kid == candidate.kid && it.use == candidate.use }
-                            ?: throw SigningKeyUnavailable("the key ${candidate.kid} is stored under another use")
+                            ?: run {
+                                log.error("key publication refused: kid {} is stored under another use", candidate.kid)
+                                throw SigningKeyUnavailable("the key ${candidate.kid} is stored under another use")
+                            }
                     }
                 val now = candidates.maxOf { it.validFrom }
                 val valid = rows.filter { it.validUntil.isAfter(now) }
@@ -68,6 +72,10 @@ class JooqOperatorKeyPublication(
                 stored
             }
         }
+
+    private companion object {
+        private val log = LoggerFactory.getLogger(JooqOperatorKeyPublication::class.java)
+    }
 
     private fun lastPublishedCarries(valid: List<VerificationKey>): Boolean {
         val last =
