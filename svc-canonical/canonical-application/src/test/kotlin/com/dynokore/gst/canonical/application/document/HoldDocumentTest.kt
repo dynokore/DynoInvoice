@@ -160,6 +160,26 @@ class HoldDocumentTest {
     }
 
     @Test
+    fun `empty reason list is refused before any port call`() {
+        assertThrows<IllegalArgumentException> { useCase.hold(u, GateDecision.Held(emptyList())) }
+        tx.calls shouldBe 0
+        log shouldBe emptyList()
+    }
+
+    @Test
+    fun `unknown document is refused and nothing is written`() {
+        assertThrows<IllegalStateException> {
+            useCase.hold(
+                UUID.fromString("00000000-0000-0000-0000-0000000000ff"),
+                held,
+            )
+        }
+        store.marks.size shouldBe 0
+        pub.events.size shouldBe 0
+        tx.rollbacks shouldBe 1
+    }
+
+    @Test
     fun `call order is markHeld before stage`() {
         useCase.hold(u, held)
         log shouldBe listOf("markHeld", "stage")
