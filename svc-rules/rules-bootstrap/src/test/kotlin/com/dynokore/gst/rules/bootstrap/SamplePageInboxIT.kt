@@ -2,11 +2,13 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
 import com.dynokore.gst.rules.adapters.events.DryRunSampleRecordedHandler
-import com.dynokore.gst.rules.adapters.events.DryRunSampleRequest
 import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
 import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
+import com.dynokore.gst.rules.application.DryRunSampleRequest
 import com.dynokore.gst.rules.application.DryRunWindow
+import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.SamplePage
+import com.dynokore.gst.rules.application.SampleRequestPort
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -20,6 +22,7 @@ import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.tenancyjooq.TenancyProbe
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
@@ -30,6 +33,9 @@ import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.ApplicationContext
+import org.springframework.context.annotation.Bean
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import tools.jackson.databind.json.JsonMapper
@@ -37,6 +43,8 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import com.dynokore.platform.serviceruntime.logging.CausationId as LogCausationId
+import com.dynokore.platform.serviceruntime.logging.CorrelationId as LogCorrelationId
 
 private const val COUNT_PAGES = "select count(*) from rules.dry_run_sample_page where dry_run_id = ?"
 private const val COUNT_ITEMS = "select count(*) from rules.dry_run_sample_item where dry_run_id = ?"
@@ -44,6 +52,8 @@ private const val OUTBOX_ROWS = "select count(*) from rules.outbox where type = 
 private const val OUTBOX_DATA = "select data::text from rules.outbox where type = ? and subject = ?"
 private const val OUTBOX_TENANT = "select tenant_id::text from rules.outbox where type = ? and subject = ?"
 private const val OUTBOX_ENTITY = "select entity_ref from rules.outbox where type = ? and subject = ?"
+private const val OUTBOX_CORRELATION = "select correlation_id from rules.outbox where type = ? and subject = ?"
+private const val OUTBOX_CAUSATION = "select causation_id from rules.outbox where type = ? and subject = ?"
 private const val OUTBOX_TOPIC = "select topic from rules.outbox where type = ? and subject = ?"
 private const val ENTITY = "ENT-3F2A9C"
 private const val DOC_A = "0b1f2c3d-0000-4000-8000-000000000001"
@@ -66,6 +76,7 @@ class SamplePageInboxIT(
     @Autowired private val scope: TenantScope,
     @Autowired private val sink: RebuildRequiredSink,
     @Autowired private val events: DryRunSampleEvents,
+    @Autowired private val context: ApplicationContext,
 ) {
     private val runtime: TenancyProbe = TenancyProbe.connect(pg.jdbcUrl, "rules_runtime", "rules_runtime_pw")
     private val json = EnvelopeJson()
@@ -330,34 +341,89 @@ class SamplePageInboxIT(
         asTenant { port().pages(run, window, Duration.ofSeconds(30)) }.map { it.number } shouldBe listOf(1, 2, 3)
     }
 
+    private fun request(run: String) = DryRunSampleRequest(run, tenant, ENTITY, window, "current-1", "candidate-2")
+
     @Test
     fun `INV-AC-19905 the request carries run, tenant, entity, window and pack versions in the command transaction`() {
         val run = UUID.randomUUID().toString()
-        val request =
-            DryRunSampleRequest(run, tenant, ENTITY, window, "current-1", "candidate-2", "corr-9", "cause-9")
-        asTenant { events.publish(request) }
+        val request = request(run)
+        val port: SampleRequestPort = events
+        CorrelationContext.withCorrelation(LogCorrelationId("corr-9")) {
+            CorrelationContext.withCausation(LogCausationId("cause-9")) { asTenant { port.request(request) } }
+        }
         outbox(OUTBOX_ROWS, run) shouldBe "1"
         outbox(OUTBOX_TOPIC, run) shouldBe DryRunSampleEvents.REQUESTED_TOPIC
-        outbox(OUTBOX_TENANT, run) shouldBe tenant.value.toString()
-        outbox(OUTBOX_ENTITY, run) shouldBe ENTITY
+        outbox(OUTBOX_TENANT, run) shouldBe request.tenant.value.toString()
+        outbox(OUTBOX_ENTITY, run) shouldBe request.entityRef
+        outbox(OUTBOX_CORRELATION, run) shouldBe "corr-9"
+        outbox(OUTBOX_CAUSATION, run) shouldBe "cause-9"
         val data = mapper.readTree(outbox(OUTBOX_DATA, run))
         data.size() shouldBe 7
-        data.get("dryRunId").asString() shouldBe run
-        data.get("entityRef").asString() shouldBe ENTITY
-        data.get("firstPeriodRef").asString() shouldBe "2026-01"
-        data.get("lastPeriodRef").asString() shouldBe "2026-03"
-        data.get("periodCount").asInt() shouldBe 3
-        data.get("currentPackVersion").asString() shouldBe "current-1"
-        data.get("candidatePackVersion").asString() shouldBe "candidate-2"
+        data.get("dryRunId").asString() shouldBe request.dryRunId
+        data.get("entityRef").asString() shouldBe request.entityRef
+        data.get("firstPeriodRef").asString() shouldBe request.window.firstPeriodRef
+        data.get("lastPeriodRef").asString() shouldBe request.window.lastPeriodRef
+        data.get("periodCount").asInt() shouldBe request.window.periodCount
+        data.get("currentPackVersion").asString() shouldBe request.currentPackVersion
+        data.get("candidatePackVersion").asString() shouldBe request.candidatePackVersion
+        // only a correlation is ambient: the causation equals it
+        val onlyCorrelation = UUID.randomUUID().toString()
+        CorrelationContext.withCorrelation(LogCorrelationId("corr-10")) {
+            asTenant { port.request(request(onlyCorrelation)) }
+        }
+        outbox(OUTBOX_CORRELATION, onlyCorrelation) shouldBe "corr-10"
+        outbox(OUTBOX_CAUSATION, onlyCorrelation) shouldBe "corr-10"
         // probe: a command that rolls back leaves no request row
         val rolledBack = UUID.randomUUID().toString()
         shouldThrow<IllegalStateException> {
             asTenant {
-                events.publish(request.copy(dryRunId = rolledBack))
+                port.request(request(rolledBack))
                 error("the command fails after it published the request")
             }
         }
         outbox(OUTBOX_ROWS, rolledBack) shouldBe "0"
+    }
+
+    @Test
+    fun `INV-AC-19905 the adapter has no publish method and no request method but the port's`() {
+        DryRunSampleEvents::class.java.methods.count { it.name == "publish" } shouldBe 0
+        val requests = DryRunSampleEvents::class.java.methods.filter { it.name == "request" }
+        requests.filter { it.parameterCount != 1 } shouldBe emptyList()
+        requests.all { m -> m.parameterTypes.all { it == DryRunSampleRequest::class.java } } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-19905 a non-string periodRef or docUuid is dead-lettered and never stored`() {
+        val cases: List<Pair<String, Map<String, Any?>>> =
+            listOf(
+                "periodRef" to mapOf("periodRef" to 5),
+                "docUuid" to mapOf("docUuid" to 7),
+                "periodRef" to mapOf("periodRef" to true),
+                "periodRef" to mapOf("periodRef" to emptyMap<String, Any?>()),
+            )
+        for ((_, extra) in cases) {
+            val run = UUID.randomUUID().toString()
+            val h = Harness()
+            h.publish(tenant, run, SamplePage(1, true, listOf(item(DOC_A, "2026-01", extra = extra))))
+            h.poll().deadLettered shouldBe 1
+            count(COUNT_PAGES, run) shouldBe "0"
+            count(COUNT_ITEMS, run) shouldBe "0"
+        }
+        // look-alikes stored and returned as received: a numeric-looking string and a missing docUuid
+        val run = UUID.randomUUID().toString()
+        val h = Harness()
+        val stored = SamplePage(1, true, listOf(item(DOC_A, "5"), item(null, "2026-01")))
+        h.publish(tenant, run, stored)
+        h.poll().applied shouldBe 1
+        asTenant { port().pages(run, window, Duration.ZERO) } shouldBe listOf(stored)
+    }
+
+    @Test
+    fun `INV-AC-19905 the production composition binds the event adapter as the only sample port`() {
+        val beans = context.getBeansOfType(HistoricalSamplePort::class.java)
+        beans.size shouldBe 1
+        beans.values.single().javaClass shouldBe EventHistoricalSamplePort::class.java
+        context.getBeansOfType(SampleRequestPort::class.java).values.single() shouldBe events
     }
 
     @Test
@@ -373,6 +439,42 @@ class SamplePageInboxIT(
     companion object {
         private val pg get() = PostgresRules.pg
 
+        @JvmStatic
+        @DynamicPropertySource
+        fun properties(registry: DynamicPropertyRegistry) = PostgresRules.register(registry)
+    }
+}
+
+/** A fixture sample port of the test composition, registered before the production configuration. */
+@TestConfiguration(proxyBeanMethods = false)
+class FixtureSamplePortConfiguration {
+    @Bean
+    fun fixtureSamplePort(): HistoricalSamplePort =
+        object : HistoricalSamplePort {
+            override fun pages(
+                dryRunId: String,
+                window: DryRunWindow,
+                wait: Duration,
+            ): List<SamplePage> = emptyList()
+
+            override fun release(dryRunId: String) = Unit
+        }
+}
+
+/** INV-AC-19905 bean back-off: a context that supplies its own sample port keeps it (the production one backs off). */
+@SpringBootTest(classes = [FixtureSamplePortConfiguration::class, RulesApplication::class])
+class SamplePortBackOffIT(
+    @Autowired private val context: ApplicationContext,
+) {
+    @Test
+    fun `INV-AC-19905 a context with a fixture sample port keeps exactly that one`() {
+        val beans = context.getBeansOfType(HistoricalSamplePort::class.java)
+        beans.size shouldBe 1
+        beans.values.single() shouldBe context.getBean("fixtureSamplePort")
+        beans.keys.single() shouldBe "fixtureSamplePort"
+    }
+
+    companion object {
         @JvmStatic
         @DynamicPropertySource
         fun properties(registry: DynamicPropertyRegistry) = PostgresRules.register(registry)

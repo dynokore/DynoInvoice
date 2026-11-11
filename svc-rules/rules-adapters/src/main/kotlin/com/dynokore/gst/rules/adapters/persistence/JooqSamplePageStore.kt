@@ -124,7 +124,7 @@ class JooqSamplePageStore(
 
 /**
  * The columns of one page item. The members the contract requires must be present and well typed, else the event breaks
- * the contract ([ContractViolation]); `periodRef` and `docUuid` are taken as they are, whatever they hold.
+ * the contract ([ContractViolation]); `periodRef` and `docUuid` are taken as they are when they are strings, whatever they hold; a non-string is refused.
  */
 @Suppress("LongParameterList") // one parameter per column of the item row
 private class SampleItemColumns(
@@ -154,8 +154,8 @@ private class SampleItemColumns(
                 taxableValue = money(raw, "taxableValue"),
                 gstValue = money(raw, "gstValue"),
                 sgdValuesAbsent = flag(raw),
-                periodRef = raw["periodRef"]?.let { it as? String ?: it.toString() },
-                docUuid = raw["docUuid"]?.let { it as? String ?: it.toString() },
+                periodRef = rawText(raw, "periodRef"),
+                docUuid = rawText(raw, "docUuid"),
             )
 
         /** The page item as the producer published it: the members that were present, absent ones left out. */
@@ -173,6 +173,13 @@ private class SampleItemColumns(
                 r.get(DRY_RUN_SAMPLE_ITEM.PERIOD_REF)?.let { put("periodRef", it) }
                 r.get(DRY_RUN_SAMPLE_ITEM.DOC_UUID)?.let { put("docUuid", it) }
             }
+
+        /** A present, non-null member must be a JSON string; it is never converted (validate at the edge). */
+        private fun rawText(
+            raw: Map<String, Any?>,
+            name: String,
+        ): String? =
+            raw[name]?.let { it as? String ?: throw ContractViolation("page item member $name is not a string") }
 
         private fun missing(name: String): Nothing = throw ContractViolation("page item member $name is missing")
 

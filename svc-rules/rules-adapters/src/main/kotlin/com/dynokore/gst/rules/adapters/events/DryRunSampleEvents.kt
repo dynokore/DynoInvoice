@@ -1,8 +1,9 @@
 package com.dynokore.gst.rules.adapters.events
 
 import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
-import com.dynokore.gst.rules.application.DryRunWindow
+import com.dynokore.gst.rules.application.DryRunSampleRequest
 import com.dynokore.gst.rules.application.SamplePage
+import com.dynokore.gst.rules.application.SampleRequestPort
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ContractViolation
@@ -14,26 +15,12 @@ import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
-import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
-
-/**
- * What the sample request of a dry run carries (platform-contracts `pack-dry-run-sample-requested-payload.schema.json`,
- * INV-Q-4870 B): the dry-run id, the tenant (the envelope's), the entity, the window and both pack versions.
- */
-data class DryRunSampleRequest(
-    val dryRunId: String,
-    val tenant: TenantId,
-    val entityRef: String,
-    val window: DryRunWindow,
-    val currentPackVersion: String,
-    val candidatePackVersion: String,
-    val correlation: String,
-    val causation: String,
-)
+import java.util.UUID
 
 /**
  * The two platform events of the dry-run sample (INV-T-4915 contract, INV-Q-4995): rules-svc publishes
@@ -43,9 +30,11 @@ data class DryRunSampleRequest(
 class DryRunSampleEvents(
     private val writer: OutboxWriter,
     private val mapper: JsonMapper = JsonMapper.builder().build(),
-) {
+) : SampleRequestPort {
     /** Appends the request to the outbox in the caller's open transaction; a rolled-back command leaves no row. */
-    fun publish(request: DryRunSampleRequest) {
+    override fun request(request: DryRunSampleRequest) {
+        val correlation = CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
+        val causation = CorrelationContext.currentCausationId()?.value ?: correlation
         val payload =
             linkedMapOf(
                 "dryRunId" to request.dryRunId,
@@ -65,8 +54,8 @@ class DryRunSampleEvents(
                 transactionDate = null,
                 aggregateKey = request.dryRunId,
                 aggregateVersion = null,
-                correlation = CorrelationId(request.correlation),
-                causation = CausationId(request.causation),
+                correlation = CorrelationId(correlation),
+                causation = CausationId(causation),
             ),
         )
     }
@@ -137,7 +126,7 @@ class DryRunSampleRecordedHandler(
             value.isString -> value.asString()
             value.isBoolean -> value.asBoolean()
             value.isNumber -> value.numberValue()
-            else -> value.toString()
+            else -> value // an object or an array stays a node, never text: the store refuses it where it matters
         }
 
     private fun parse(text: String): JsonNode =
