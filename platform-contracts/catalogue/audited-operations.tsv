@@ -77,3 +77,4 @@ rotateCredential	rotateCredential	masterdata	-
 rotateCredential	rotateCredential	transport	-
 testConnection	testConnection	masterdata	-
 testConnection	testConnection	transport	-
+applyOperatingProfile	applyOperatingProfile	console-bff	-
