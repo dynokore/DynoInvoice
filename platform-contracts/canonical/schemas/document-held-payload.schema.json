@@ -52,7 +52,26 @@
     "invoiceIssuedOrReceived": {
       "type": "boolean",
       "description": "Optional (INV-REQ-570). True when a tax invoice is issued (or required) for a supply or a supplier invoice is received for a purchase; false when none exists; absent when not yet known. It is the case input of the section 10.1 table of INV-NOTE-2, read by submission-svc to place the provisional register entry. prescribedPeriodRef is unchanged."
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "Optional (INV-REQ-940). The error-catalogue code that opened the exception. Absent when the producer does not know it; never guessed by the consumer."
+    },
+    "remediationOwner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Optional (INV-REQ-940). The effective owner of that code, as Exception.remediationOwner of console-bff/openapi.yaml. Absent when the producer does not know it; never guessed by the consumer."
+    },
+    "disposition": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "Optional (INV-REQ-940). The base disposition of the code in the error catalogue, read as Exception.disposition of console-bff/openapi.yaml (AUTO_RELEASE, AUTO_RETRY, MANUAL, OVERRIDABLE, TERMINAL; extensible). Absent when the producer does not know it; never guessed by the consumer."
     }
+
   },
   "required": [
     "docUuid",
