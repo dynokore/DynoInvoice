@@ -35,7 +35,8 @@ sealed interface DryRunOutcome {
 /**
  * Runs one dry run (INV-REQ-772, INV-REQ-1352, INV-REQ-1303): reads the sample, evaluates every document under the
  * current and the candidate pack, and hands the delta to the store. Fail closed: an incomplete sample, an item that is
- * not attributable or a fault of the sample or evaluation port ends SAMPLE_UNAVAILABLE and stores no delta.
+ * not attributable, a changed document without a supply type or a fault of the sample or evaluation port ends
+ * SAMPLE_UNAVAILABLE and stores no delta.
  * The sample is released
  * exactly once at the end of every run.
  */
@@ -99,6 +100,14 @@ class RunDryRun(
             documents.map { d ->
                 val old = outcomeOf(command, command.currentVersion, d)
                 Triple(d, old, outcomeOf(command, command.candidateVersion, d))
+            }
+        outcomes
+            .firstOrNull { (d, old, new) -> d.supplyType == null && DryRunComputation.changeTypeOf(old, new) != null }
+            ?.let { (d) ->
+                throw SampleUnavailable(
+                    "sample item without supplyType for a changed document: dry run ${command.dryRunId}, " +
+                        "page ${d.pageNumber}, entityRef ${d.entityRef}",
+                )
             }
         val effectiveFrom = evaluation.effectiveFrom(command.tenant, command.packType, command.candidateVersion)
         return DryRunComputation.delta(outcomes, effectiveFrom)

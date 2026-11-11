@@ -36,6 +36,7 @@ class RunDryRunTest {
             put("transactionDate", date.toString())
             put("internalTaxCode", code)
             put("documentFunction", "BILL_FOR_PAYMENT")
+            put("supplyType", "STANDARD_RATED")
             put("taxableValue", "100.00")
             put("gstValue", "9.00")
             putAll(extra)
@@ -444,5 +445,62 @@ class RunDryRunTest {
 
     private companion object {
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC)
+    }
+
+    private fun noSupplyRun(vararg pages: SamplePage): Pair<Rig, DryRunOutcome> {
+        val r = rig(*pages)
+        return r to r.run()
+    }
+
+    private fun Pair<Rig, DryRunOutcome>.refusedNaming(
+        page: Int,
+        entity: String,
+    ) {
+        val out = second.shouldBeInstanceOf<DryRunOutcome.Unavailable>()
+        out.reason shouldContain "dry run dr-1"
+        out.reason shouldContain "page $page,"
+        out.reason shouldContain "entityRef $entity"
+        first.store.run!!.state shouldBe DryRunState.SAMPLE_UNAVAILABLE
+        first.store.run!!.delta shouldBe null
+        first.store.completes shouldBe 0
+        first.samples.released shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-20340 a changed item without supplyType ends SAMPLE_UNAVAILABLE naming it and stores no delta`() {
+        noSupplyRun(page(1, true, item(1, extra = mapOf("entityRef" to "E-9")) - "supplyType")).refusedNaming(1, "E-9")
+    }
+
+    @Test
+    fun `INV-AC-20340 the same item unchanged lets the run complete`() {
+        val r = rig(page(1, true, item(1, code = "U") - "supplyType", item(2)))
+        r.run().shouldBeInstanceOf<DryRunOutcome.Complete>().changedCount shouldBe 1
+        r.store.run!!.state shouldBe DryRunState.COMPLETE
+    }
+
+    @Test
+    fun `INV-AC-20340 two items without supplyType on pages 1 and 2 name the first in page order`() {
+        noSupplyRun(
+            page(2, true, item(2, extra = mapOf("entityRef" to "E-2")) - "supplyType"),
+            page(1, false, item(1, extra = mapOf("entityRef" to "E-1")) - "supplyType"),
+        ).refusedNaming(1, "E-1")
+    }
+
+    @Test
+    fun `INV-AC-20340 the member supplyTypes in place of supplyType on a changed item counts as missing`() {
+        noSupplyRun(
+            page(
+                1,
+                true,
+                item(1, extra = mapOf("entityRef" to "E-3", "supplyTypes" to "STANDARD_RATED")) - "supplyType",
+            ),
+        ).refusedNaming(1, "E-3")
+    }
+
+    @Test
+    fun `INV-AC-20340 an empty string supplyType on a changed item counts as missing`() {
+        noSupplyRun(
+            page(1, true, item(1, extra = mapOf("entityRef" to "E-4", "supplyType" to ""))),
+        ).refusedNaming(1, "E-4")
     }
 }

@@ -585,16 +585,79 @@ class DryRunBoundaryTest(
 
     // ---- a changed document with no supply type fails closed ----
 
+    private fun assertFailedNoSupplyType(
+        packId: String,
+        page: Int,
+        entity: String,
+    ) {
+        val status = finished(packId)
+        status.get("state").asString() shouldBe "FAILED"
+        status.has("result") shouldBe false
+        status.get("error").get("code").asString() shouldBe "SRT-013"
+        val detail = status.get("error").get("detail").asString()
+        detail shouldContain status.get("dryRunId").asString()
+        detail shouldContain "page $page,"
+        detail shouldContain "entityRef $entity"
+        val id = status.get("dryRunId").asString()
+        value(
+            TENANT_A,
+            "select count(*) from rules.dry_run_delta_document where delta_id = ?::uuid",
+            id,
+        ).toString() shouldBe
+            "0"
+        value(
+            TENANT_A,
+            "select count(*) from rules.dry_run_delta_total where delta_id = ?::uuid",
+            id,
+        ).toString() shouldBe
+            "0"
+        value(TENANT_A, "select state from rules.dry_run_delta where id = ?::uuid", id).toString() shouldBe
+            "SAMPLE_UNAVAILABLE"
+        submit(packId).statusCode() shouldBe 409
+    }
+
     @Test
-    fun `a changed document with no supply type makes getDryRun answer a server error with no result`() {
-        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3") - "supplyType"))
+    fun `INV-AC-20340 a changed document with no supply type ends FAILED with SRT-013 and no stored delta`() {
+        samples.serve("2026-Q3", listOf((item(D1, "2026-Q3") - "supplyType") + ("entityRef" to "E-9")))
         evaluation.candidate[D1] = DocumentOutcome("ZR")
-        val packId = candidate()
-        val run = dryRun(packId)
-        val id = if (run.statusCode() == 202) json(run).get("dryRunId").asString() else lastRunId(packId)
-        val read = pollRaw(packId, id)
-        withClue("${read.statusCode()} ${read.body()}") { (read.statusCode() in 500..599) shouldBe true }
-        json(read).has("result") shouldBe false
+        assertFailedNoSupplyType(candidate(), 1, "E-9")
+    }
+
+    @Test
+    fun `INV-AC-20340 the same item unchanged lets the run complete`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3") - "supplyType"))
+        val status = finished(candidate())
+        status.get("state").asString() shouldBe "SUCCEEDED"
+        status.get("result").get("changedCount").asInt() shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-20340 two items without supplyType on pages 1 and 2 name the first in page order`() {
+        samples.pagesOverride =
+            listOf(
+                SamplePage(2, true, listOf((item(D2, "2026-Q3") - "supplyType") + ("entityRef" to "E-2"))),
+                SamplePage(1, false, listOf((item(D1, "2026-Q3") - "supplyType") + ("entityRef" to "E-1"))),
+            )
+        evaluation.candidate[D1] = DocumentOutcome("ZR")
+        evaluation.candidate[D2] = DocumentOutcome("ZR")
+        assertFailedNoSupplyType(candidate(), 1, "E-1")
+    }
+
+    @Test
+    fun `INV-AC-20340 the member supplyTypes in place of supplyType on a changed item counts as missing`() {
+        samples.serve(
+            "2026-Q3",
+            listOf((item(D1, "2026-Q3") - "supplyType") + ("supplyTypes" to "STANDARD_RATED") + ("entityRef" to "E-3")),
+        )
+        evaluation.candidate[D1] = DocumentOutcome("ZR")
+        assertFailedNoSupplyType(candidate(), 1, "E-3")
+    }
+
+    @Test
+    fun `INV-AC-20340 an empty string supplyType on a changed item counts as missing`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3") + ("supplyType" to "") + ("entityRef" to "E-4")))
+        evaluation.candidate[D1] = DocumentOutcome("ZR")
+        assertFailedNoSupplyType(candidate(), 1, "E-4")
     }
 
     @Test
