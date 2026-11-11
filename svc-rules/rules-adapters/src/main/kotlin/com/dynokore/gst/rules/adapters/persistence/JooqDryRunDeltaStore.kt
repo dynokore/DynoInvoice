@@ -18,7 +18,6 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Record
-import org.jooq.impl.DSL
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneOffset
@@ -55,7 +54,7 @@ class JooqDryRunDeltaStore(
         val id = UUID.fromString(dryRunId)
         val tenant = tenants.current().value
         dsl.transaction { configuration ->
-            val writer = DeltaWriter(DSL.using(configuration), tenant, id)
+            val writer = DeltaWriter(configuration.dsl(), tenant, id)
             val straddling = delta.straddlingCreditNotes.map { it.docUuid }.toSet()
             delta.documents.forEachIndexed { index, doc ->
                 writer.document(index + 1, doc, doc.docUuid in straddling)

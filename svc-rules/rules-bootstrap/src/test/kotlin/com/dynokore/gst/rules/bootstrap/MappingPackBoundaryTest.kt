@@ -1466,6 +1466,7 @@ class MappingPackSchemaTest(
                 "started_at",
                 "completed_at",
                 "changed_count",
+                "unavailable_reason",
             )
     }
 
