@@ -7,15 +7,14 @@ import com.dynokore.gst.submission.domain.readiness.CompletenessState
 import com.dynokore.gst.submission.domain.readiness.PeriodVerdict
 import com.dynokore.gst.submission.domain.readiness.ReadinessEntry
 import com.dynokore.gst.submission.domain.readiness.ReadinessResult
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 class RunReadinessTest {
     private val now = Instant.parse("2026-11-12T08:00:00Z")
@@ -73,25 +72,25 @@ class RunReadinessTest {
         val recorder = FakeRecorder()
         val run = useCase(recorder, mixed).run("E", "P", "U")
 
-        val determined = assertIs<ReadinessRunResult.Determined>(run)
-        val verdict = assertIs<PeriodVerdict.NotReady>(determined.verdict)
-        assertEquals(setOf(BlockCode.PER_001), verdict.codes)
-        val result = assertIs<ReadinessResult.Blocked>(determined.result)
-        assertEquals(3, result.counts.inScope)
-        assertEquals(1, result.counts.acknowledged)
-        assertEquals(1, result.counts.queued)
-        assertEquals(1, result.counts.blockedOrError)
-        assertEquals(2, result.counts.unsubmitted)
-        assertEquals(listOf("D2", "D3"), result.residual.map { it.docUuid })
-        assertEquals(1, recorder.appended.size)
+        val determined = run.shouldBeInstanceOf<ReadinessRunResult.Determined>()
+        val verdict = determined.verdict.shouldBeInstanceOf<PeriodVerdict.NotReady>()
+        verdict.codes shouldBe setOf(BlockCode.PER_001)
+        val result = determined.result.shouldBeInstanceOf<ReadinessResult.Blocked>()
+        result.counts.inScope shouldBe 3
+        result.counts.acknowledged shouldBe 1
+        result.counts.queued shouldBe 1
+        result.counts.blockedOrError shouldBe 1
+        result.counts.unsubmitted shouldBe 2
+        result.residual.map { it.docUuid } shouldBe listOf("D2", "D3")
+        recorder.appended.size shouldBe 1
         val check = recorder.appended.single()
-        assertEquals(determined.check, check)
-        assertEquals(CheckVerdict.NOT_READY, check.verdict)
-        assertEquals("U", check.approver)
-        assertEquals(now, check.checkedAt)
-        assertEquals(null, check.outcomeValues)
-        assertEquals("E", check.entityRef)
-        assertEquals("P", check.periodRef)
+        check shouldBe determined.check
+        check.verdict shouldBe CheckVerdict.NOT_READY
+        check.approver shouldBe "U"
+        check.checkedAt shouldBe now
+        check.outcomeValues shouldBe null
+        check.entityRef shouldBe "E"
+        check.periodRef shouldBe "P"
     }
 
     @Test
@@ -99,16 +98,16 @@ class RunReadinessTest {
         val recorder = FakeRecorder()
         val run = useCase(recorder, listOf(entry("D1", LifecycleState.ACKNOWLEDGED))).run("E", "P", "U")
 
-        val determined = assertIs<ReadinessRunResult.Determined>(run)
-        assertEquals(PeriodVerdict.Ready, determined.verdict)
-        assertEquals(listOf(CheckVerdict.READY), recorder.appended.map { it.verdict })
+        val determined = run.shouldBeInstanceOf<ReadinessRunResult.Determined>()
+        determined.verdict shouldBe PeriodVerdict.Ready
+        recorder.appended.map { it.verdict } shouldBe listOf(CheckVerdict.READY)
     }
 
     @Test
     fun `INV-AC-20474 unavailable entry data gives Undetermined and no check`() {
         val recorder = FakeRecorder()
-        assertEquals(ReadinessRunResult.Undetermined, useCase(recorder, null).run("E", "P2", "U"))
-        assertTrue(recorder.appended.isEmpty())
+        useCase(recorder, null).run("E", "P2", "U") shouldBe ReadinessRunResult.Undetermined
+        recorder.appended.isEmpty() shouldBe true
     }
 
     @Test
@@ -118,11 +117,11 @@ class RunReadinessTest {
             useCase(recorder, listOf(entry("D1", LifecycleState.ACKNOWLEDGED)), CompletenessState.Failed(listOf("C1")))
                 .run("E", "P", "U")
 
-        val determined = assertIs<ReadinessRunResult.Determined>(run)
-        val verdict = assertIs<PeriodVerdict.NotReady>(determined.verdict)
-        assertEquals(setOf(BlockCode.PER_002), verdict.codes)
-        assertEquals(listOf("C1"), verdict.failedControls)
-        assertEquals(listOf(CheckVerdict.NOT_READY), recorder.appended.map { it.verdict })
+        val determined = run.shouldBeInstanceOf<ReadinessRunResult.Determined>()
+        val verdict = determined.verdict.shouldBeInstanceOf<PeriodVerdict.NotReady>()
+        verdict.codes shouldBe setOf(BlockCode.PER_002)
+        verdict.failedControls shouldBe listOf("C1")
+        recorder.appended.map { it.verdict } shouldBe listOf(CheckVerdict.NOT_READY)
     }
 
     @Test
@@ -130,26 +129,27 @@ class RunReadinessTest {
         val recorder = FakeRecorder()
         val run = useCase(recorder, mixed, CompletenessState.Failed(listOf("C1"))).run("E", "P", "U")
 
-        val verdict = assertIs<PeriodVerdict.NotReady>(assertIs<ReadinessRunResult.Determined>(run).verdict)
-        assertEquals(setOf(BlockCode.PER_001, BlockCode.PER_002), verdict.codes)
+        val determined = run.shouldBeInstanceOf<ReadinessRunResult.Determined>()
+        val verdict = determined.verdict.shouldBeInstanceOf<PeriodVerdict.NotReady>()
+        verdict.codes shouldBe setOf(BlockCode.PER_001, BlockCode.PER_002)
     }
 
     @Test
     fun `INV-AC-20474 unavailable completeness gives Undetermined and no check`() {
         val recorder = FakeRecorder()
         val run = useCase(recorder, mixed, CompletenessState.Unavailable).run("E", "P", "U")
-        assertEquals(ReadinessRunResult.Undetermined, run)
-        assertTrue(recorder.appended.isEmpty())
+        run shouldBe ReadinessRunResult.Undetermined
+        recorder.appended.isEmpty() shouldBe true
     }
 
     @Test
     fun `INV-AC-20474 blank approver entity or period raises and appends nothing`() {
         val recorder = FakeRecorder()
         val useCase = useCase(recorder, mixed)
-        assertThrows<IllegalArgumentException> { useCase.run("E", "P", " ") }
-        assertThrows<IllegalArgumentException> { useCase.run("", "P", "U") }
-        assertThrows<IllegalArgumentException> { useCase.run("E", "\t", "U") }
-        assertTrue(recorder.appended.isEmpty())
+        shouldThrow<IllegalArgumentException> { useCase.run("E", "P", " ") }
+        shouldThrow<IllegalArgumentException> { useCase.run("", "P", "U") }
+        shouldThrow<IllegalArgumentException> { useCase.run("E", "\t", "U") }
+        recorder.appended.isEmpty() shouldBe true
     }
 
     private object EntriesFixture : ReadinessEntrySource {
@@ -170,7 +170,7 @@ class RunReadinessTest {
     fun `INV-AC-20474 port shapes are callable through the port types`() {
         val entriesPort: ReadinessEntrySource = EntriesFixture
         val inputsPort: ReadinessInputSource = InputsFixture
-        assertEquals(null, entriesPort.entries("E", "P"))
-        assertEquals(ReadinessInputs(null, CompletenessState.Passed), inputsPort.inputs("E", "P"))
+        entriesPort.entries("E", "P") shouldBe null
+        inputsPort.inputs("E", "P") shouldBe ReadinessInputs(null, CompletenessState.Passed)
     }
 }

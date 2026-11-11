@@ -61,17 +61,29 @@ class RunReadiness(
         require(periodRef.isNotBlank()) { "periodRef must not be blank" }
         require(approver.isNotBlank()) { "approver must not be blank" }
 
-        val register = entries.entries(entityRef, periodRef) ?: return ReadinessRunResult.Undetermined
+        val register = entries.entries(entityRef, periodRef)
         val input = inputs.inputs(entityRef, periodRef)
-        val counted = ReadinessCounter.evaluate(register, input.obligationStartDate, dataAvailable = true)
+        val counted =
+            if (register == null) {
+                ReadinessResult.UnableToDetermine
+            } else {
+                ReadinessCounter.evaluate(register, input.obligationStartDate, dataAvailable = true)
+            }
         val verdict = CompletenessGate.decide(counted, input.completeness)
         val checkVerdict =
             when (verdict) {
                 PeriodVerdict.Ready -> CheckVerdict.READY
                 is PeriodVerdict.NotReady -> CheckVerdict.NOT_READY
-                PeriodVerdict.UnableToDetermine -> return ReadinessRunResult.Undetermined
+                PeriodVerdict.UnableToDetermine -> null
             }
-        val check = recorder.append(entityRef, periodRef, checkVerdict, clock.instant(), approver, null)
-        return ReadinessRunResult.Determined(verdict, counted, check)
+        return if (checkVerdict == null) {
+            ReadinessRunResult.Undetermined
+        } else {
+            ReadinessRunResult.Determined(
+                verdict,
+                counted,
+                recorder.append(entityRef, periodRef, checkVerdict, clock.instant(), approver, null),
+            )
+        }
     }
 }
