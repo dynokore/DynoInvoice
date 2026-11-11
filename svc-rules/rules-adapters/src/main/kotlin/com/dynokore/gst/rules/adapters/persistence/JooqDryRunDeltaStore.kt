@@ -55,20 +55,20 @@ class JooqDryRunDeltaStore(
         val id = UUID.fromString(dryRunId)
         val tenant = tenants.current().value
         dsl.transaction { configuration ->
-            val tx = DSL.using(configuration)
+            val writer = DeltaWriter(DSL.using(configuration), tenant, id)
             val straddling = delta.straddlingCreditNotes.map { it.docUuid }.toSet()
             delta.documents.forEachIndexed { index, doc ->
-                DeltaWriter.document(tx, tenant, id, index + 1, doc, doc.docUuid in straddling)
+                writer.document(index + 1, doc, doc.docUuid in straddling)
             }
             delta.changeTypeTotals.forEachIndexed { index, t ->
                 val sums = TotalRow(t.documentCount, t.valuesAbsentCount, t.taxableValue, t.gstValue)
-                DeltaWriter.total(tx, tenant, id, TotalKey(DeltaRows.CHANGE_TYPE, t.changeType.name, index + 1), sums)
+                writer.total(TotalKey(DeltaRows.CHANGE_TYPE, t.changeType.name, index + 1), sums)
             }
             delta.byPeriod.forEachIndexed { index, p ->
                 val sums = TotalRow(p.documentCount, p.valuesAbsentCount, p.taxableValue, p.gstValue)
-                DeltaWriter.total(tx, tenant, id, TotalKey(DeltaRows.PERIOD, p.periodRef, index + 1), sums)
+                writer.total(TotalKey(DeltaRows.PERIOD, p.periodRef, index + 1), sums)
             }
-            DeltaWriter.markComplete(tx, tenant, id, completedAt, delta.documents.size)
+            writer.markComplete(completedAt, delta.documents.size)
         }
     }
 
@@ -154,11 +154,12 @@ private data class TotalRow(
 )
 
 /** The writes of one `complete`, all on the transaction it opens. */
-private object DeltaWriter {
+private class DeltaWriter(
+    private val tx: DSLContext,
+    private val tenant: UUID,
+    private val id: UUID,
+) {
     fun document(
-        tx: DSLContext,
-        tenant: UUID,
-        id: UUID,
         position: Int,
         doc: ChangedDocument,
         straddling: Boolean,
@@ -187,9 +188,6 @@ private object DeltaWriter {
     }
 
     fun total(
-        tx: DSLContext,
-        tenant: UUID,
-        id: UUID,
         key: TotalKey,
         sums: TotalRow,
     ) {
@@ -208,9 +206,6 @@ private object DeltaWriter {
     }
 
     fun markComplete(
-        tx: DSLContext,
-        tenant: UUID,
-        id: UUID,
         completedAt: Instant,
         changedCount: Int,
     ) {
