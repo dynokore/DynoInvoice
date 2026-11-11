@@ -6,6 +6,7 @@ import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.AuditLog.Compa
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.DecisionTrace.Companion.DECISION_TRACE
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.DocumentLocator.Companion.DOCUMENT_LOCATOR
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.EvidencePayload.Companion.EVIDENCE_PAYLOAD
+import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.PayloadQuarantine.Companion.PAYLOAD_QUARANTINE
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.PendingRecord.Companion.PENDING_RECORD
 import com.dynokore.gst.evidence.application.archive.ArchiveVolumeLedger
 import com.dynokore.gst.evidence.application.archive.StoredContentBytes
@@ -21,9 +22,11 @@ import java.util.UUID
 /**
  * The bytes of retained content one entity holds in the database (INV-Q-12681 A, INV-Q-12683 A): the sum of
  * `octet_length` over exactly the covered content columns `evidence_payload.content`, `acknowledgement.content`,
- * `decision_trace.content`, `audit_log.content` and `pending_record.event_json` (a pending record belongs to the
- * entity of the document locator of its tenant, document and version). jOOQ only, over the service's tenant-bound
- * [DSLContext]; row-level security limits every read to the bound tenant, and each query also names the tenant.
+ * `decision_trace.content`, `audit_log.content`, `pending_record.event_json` and `payload_quarantine.payload_bytes`
+ * (a pending record or a quarantined payload belongs to the entity of the document locator of its tenant, document
+ * and version). `held_payload.payload_bytes` is transient working state and is never read. jOOQ only, over the
+ * service's tenant-bound [DSLContext]; row-level security limits every read to the bound tenant, and each query
+ * also names the tenant.
  */
 class JooqStoredContentBytes(
     private val dsl: DSLContext,
@@ -48,7 +51,8 @@ class JooqStoredContentBytes(
         tenant: TenantId,
         entityRef: String,
     ): Long {
-        val total = columns.sumOf { sum(it, tenant, entityRef) } + pending(tenant, entityRef)
+        val total =
+            columns.sumOf { sum(it, tenant, entityRef) } + pending(tenant, entityRef) + quarantined(tenant, entityRef)
         check(total >= 0) { "the stored content bytes are negative" }
         return total
     }
@@ -78,6 +82,23 @@ class JooqStoredContentBytes(
                 DOCUMENT_LOCATOR.VERSION.eq(PENDING_RECORD.VERSION),
             ).where(
                 PENDING_RECORD.TENANT_ID.eq(tenant.value),
+                DOCUMENT_LOCATOR.ENTITY_REF.eq(entityRef),
+            ).fetchOne(0, Long::class.java) ?: 0L
+
+    private fun quarantined(
+        tenant: TenantId,
+        entityRef: String,
+    ): Long =
+        dsl
+            .select(octetSum(PAYLOAD_QUARANTINE.PAYLOAD_BYTES))
+            .from(PAYLOAD_QUARANTINE)
+            .join(DOCUMENT_LOCATOR)
+            .on(
+                DOCUMENT_LOCATOR.TENANT_ID.eq(PAYLOAD_QUARANTINE.TENANT_ID),
+                DOCUMENT_LOCATOR.DOC_UUID.eq(PAYLOAD_QUARANTINE.DOC_UUID),
+                DOCUMENT_LOCATOR.VERSION.eq(PAYLOAD_QUARANTINE.VERSION),
+            ).where(
+                PAYLOAD_QUARANTINE.TENANT_ID.eq(tenant.value),
                 DOCUMENT_LOCATOR.ENTITY_REF.eq(entityRef),
             ).fetchOne(0, Long::class.java) ?: 0L
 
