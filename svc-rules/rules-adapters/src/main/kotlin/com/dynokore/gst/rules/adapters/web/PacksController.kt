@@ -40,6 +40,7 @@ import com.dynokore.gst.rules.contract.model.MappingImportRecord
 import com.dynokore.gst.rules.contract.model.MappingImportRecordPage
 import com.dynokore.gst.rules.contract.model.MappingImportRecordRejectedRowsInner
 import com.dynokore.gst.rules.contract.model.MappingPack
+import com.dynokore.gst.rules.contract.model.RegulatoryPack
 import com.dynokore.gst.rules.contract.model.RulesDryRunStatus
 import com.dynokore.gst.rules.domain.pack.PackStatus
 import com.dynokore.gst.rules.domain.pack.SourceClass
@@ -283,6 +284,13 @@ open class PacksController(
             repeatable(authoring.approve(PackActionCommand(actor(), entityRef.orEmpty(), packId)), PackStatus.APPROVED)
             ResponseEntity.ok(packAnswer(packId, withApprovals = true))
         }
+
+    /** Implemented by INV-T-4975; the contract added the operation, so the generated interface needs this override. */
+    override fun approveRegulatoryPack(
+        packType: String,
+        version: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<RegulatoryPack> = ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
 
     override fun activateMappingPack(
         packId: String,

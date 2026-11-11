@@ -19,6 +19,8 @@ class PackLayersTest {
             PackTypes.SCENARIO,
             PackTypes.CALENDAR,
             PackTypes.MAPPING,
+            PackTypes.RETURN_MAPPING,
+            PackTypes.ENDPOINT_ACCEPTANCE,
         ).map { it.value }
 
     @Test
@@ -27,9 +29,9 @@ class PackLayersTest {
     }
 
     @Test
-    fun `INV-AC-14160 each of the seven other pack types is regulatory`() {
+    fun `INV-AC-14160 each of the nine other pack types is regulatory`() {
         val others = allTypes.filter { it != "MAPPING" }
-        others.size shouldBe 7
+        others.size shouldBe 9
         others.forEach { PackLayers.of(it) shouldBe PackLayer.REGULATORY }
     }
 
@@ -67,8 +69,14 @@ class PackLayersTest {
     }
 
     @Test
-    fun `INV-AC-14160 pin only MAPPING among the eight pack types is tenant mapping`() {
-        allTypes.size shouldBe 8
+    fun `INV-AC-14160 pin only MAPPING among the ten pack types is tenant mapping`() {
+        allTypes.size shouldBe 10
         allTypes.filter { PackLayers.of(it) == PackLayer.TENANT_MAPPING }.toSet() shouldBe setOf("MAPPING")
+    }
+
+    @Test
+    fun `INV-AC-7963 the two new pack types are regulatory`() {
+        PackLayers.of(PackTypes.RETURN_MAPPING.value) shouldBe PackLayer.REGULATORY
+        PackLayers.of(PackTypes.ENDPOINT_ACCEPTANCE.value) shouldBe PackLayer.REGULATORY
     }
 }

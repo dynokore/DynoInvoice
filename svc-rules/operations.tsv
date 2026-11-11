@@ -11,6 +11,7 @@ operation	listMappingImportRecords	INV-T-4973
 operation	acceptSourceClassEntry	INV-T-4972
 operation	submitForApproval	INV-T-4972
 operation	approvePack	INV-T-4972
+operation	approveRegulatoryPack	INV-T-4975
 operation	activateMappingPack	INV-T-4972
 operation	importRegulatoryPack	INV-T-4976
 operation	getRegulatoryPack	INV-T-4976
