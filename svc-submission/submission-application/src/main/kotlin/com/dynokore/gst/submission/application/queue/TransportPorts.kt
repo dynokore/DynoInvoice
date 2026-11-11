@@ -31,7 +31,9 @@ sealed interface TransportResult {
         override val responseBytes: ByteArray,
     ) : TransportResult
 
+    /** [code] is the catalogue code the classifier at the transport boundary assigned to the failure. */
     class TransientFailure(
+        val code: String,
         override val responseBytes: ByteArray,
     ) : TransportResult
 }

@@ -9,6 +9,7 @@ import com.dynokore.gst.submission.application.queue.AttemptOutcomeApplier
 import com.dynokore.gst.submission.application.queue.DespatchCycle
 import com.dynokore.gst.submission.application.queue.DueRetryRunner
 import com.dynokore.gst.submission.application.queue.DueTenantSource
+import com.dynokore.gst.submission.application.queue.FailureReporting
 import com.dynokore.gst.submission.application.queue.InFlightStore
 import com.dynokore.gst.submission.application.queue.JitterSource
 import com.dynokore.gst.submission.application.queue.NewAttempt
@@ -83,6 +84,7 @@ class OutcomeFixture(
     val scan: RetryDueScan = context.getBean(RetryDueScan::class.java)
     val scope: TenantTransactions = context.getBean(TenantTransactions::class.java)
     val realDueTenants: DueTenantSource = context.getBean(DueTenantSource::class.java)
+    private val bean: FailureReporting = context.getBean(FailureReporting::class.java)
     private val boundaries = RetryBoundarySource { _, _ -> boundary }
     private val jitter = JitterSource { 0.0 }
 
@@ -96,7 +98,8 @@ class OutcomeFixture(
     fun applier(
         over: SubmissionStore = store,
         releasing: SubmissionQueue = queue,
-    ) = AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue, releasing)
+        failures: FailureReporting = bean,
+    ) = AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue, releasing, failures)
 
     fun recovery() = SentRecovery(clock, scope, store, workQueue, sent)
 

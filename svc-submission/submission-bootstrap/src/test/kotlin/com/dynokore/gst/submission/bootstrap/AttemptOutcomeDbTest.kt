@@ -21,7 +21,7 @@ import java.util.UUID
 
 /** The outcome of a transmission attempt against a real database (INV-REQ-540 behaviour 3, INV-Q-7266 A step (5)). */
 class AttemptOutcomeDbTest {
-    private val timeout = TransportResult.TransientFailure("timeout".toByteArray())
+    private val timeout = TransportResult.TransientFailure("SUB-001", "timeout".toByteArray())
     private val accepted = TransportResult.Accepted("AP-1", Instant.parse("2026-11-01T10:00:05Z"), "ok".toByteArray())
 
     private fun run(

@@ -19,8 +19,10 @@ import java.time.Clock
  * `FOR UPDATE` it records the response of the attempt and applies the outcome; in every case it completes the queue
  * item in the same transaction, so a failure of any write leaves response, state and item unchanged. The same pair
  * (Doc UUID, version) is re-sent by a retry and no identifier is minted (INV-REQ-541). A state or decision outside
- * the expected one throws and rolls back: a stop for the caller to report. The signals of a decision are not emitted
- * here.
+ * the expected one throws and rolls back: a stop for the caller to report. The failure code of a rejected or
+ * transiently failed attempt is recorded where the outcome is classified, and a REJECTED or DEAD_LETTERED version is
+ * reported through [FailureReporting] after its state write, in the same transaction; an accepted or retried outcome
+ * reports nothing.
  */
 @Suppress("LongParameterList")
 class AttemptOutcomeApplier(
@@ -31,6 +33,7 @@ class AttemptOutcomeApplier(
     private val store: SubmissionStore,
     private val queue: WorkQueue,
     private val submissions: SubmissionQueue,
+    private val failures: FailureReporting,
 ) {
     fun apply(
         dispatch: Dispatch,
@@ -75,7 +78,7 @@ class AttemptOutcomeApplier(
         when (result) {
             is TransportResult.Accepted -> accepted(dispatch, now)
             is TransportResult.Rejected -> rejected(dispatch, result)
-            is TransportResult.TransientFailure -> transientFailure(dispatch, row)
+            is TransportResult.TransientFailure -> transientFailure(dispatch, row, result.code)
         }
         queue.complete(dispatch.item)
         val after = checkNotNull(store.lockForUpdate(tenant, doc, version)).state
@@ -101,6 +104,7 @@ class AttemptOutcomeApplier(
         dispatch: Dispatch,
         result: TransportResult.Rejected,
     ) {
+        val code = checkNotNull(result.reasons.firstOrNull()?.code) { "rejection of ${dispatch.docUuid} has no reason" }
         val decision =
             VersionTransitions.decide(
                 listOf(VersionRecord(dispatch.version, LifecycleState.SENT)),
@@ -112,11 +116,14 @@ class AttemptOutcomeApplier(
             "rejection of ${dispatch.docUuid} version ${dispatch.version}: unexpected decision $decision"
         }
         store.setState(scope.current(), dispatch.docUuid, dispatch.version, LifecycleState.REJECTED)
+        failures.attemptFailed(dispatch, code)
+        failures.versionFailed(dispatch, LifecycleState.REJECTED, code)
     }
 
     private fun transientFailure(
         dispatch: Dispatch,
         row: LockedSubmission,
+        code: String,
     ) {
         val tenant = scope.current()
         val now = clock.instant()
@@ -136,10 +143,13 @@ class AttemptOutcomeApplier(
             is FailureResult.Retry -> {
                 val schedule = RetrySchedule(planned.nextAttemptAt, planned.attempt, row.retryFirstFailureAt ?: now)
                 store.scheduleRetry(tenant, dispatch.docUuid, dispatch.version, schedule)
+                failures.attemptFailed(dispatch, code)
             }
 
             is FailureResult.DeadLetter -> {
                 store.setState(tenant, dispatch.docUuid, dispatch.version, LifecycleState.DEAD_LETTERED)
+                failures.attemptFailed(dispatch, code)
+                failures.versionFailed(dispatch, LifecycleState.DEAD_LETTERED, null)
             }
 
             is FailureResult.Anomaly -> {

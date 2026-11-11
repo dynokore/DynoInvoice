@@ -5,8 +5,10 @@ import com.dynokore.gst.submission.adapters.persistence.JooqWaitingTenantSource
 import com.dynokore.gst.submission.adapters.queue.ConfiguredRetryBoundary
 import com.dynokore.gst.submission.adapters.queue.RandomJitter
 import com.dynokore.gst.submission.application.queue.AttemptOutcomeApplier
+import com.dynokore.gst.submission.application.queue.Dispatch
 import com.dynokore.gst.submission.application.queue.DueRetryRunner
 import com.dynokore.gst.submission.application.queue.DueTenantSource
+import com.dynokore.gst.submission.application.queue.FailureReporting
 import com.dynokore.gst.submission.application.queue.InFlightStore
 import com.dynokore.gst.submission.application.queue.JitterSource
 import com.dynokore.gst.submission.application.queue.RetryBoundarySource
@@ -18,6 +20,7 @@ import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.application.queue.TenantTransactions
 import com.dynokore.gst.submission.application.queue.WaitingSweeper
 import com.dynokore.gst.submission.application.queue.WaitingTenantSource
+import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.identity.WorkloadPrincipal
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
@@ -85,6 +88,10 @@ class OutcomeConfiguration(
         scan: RetryDueScan,
     ): DueRetryRunner = DueRetryRunner(source, scope, scan)
 
+    /** Interim (until the adapters slice wires `DefaultFailureReporting`): nothing is emitted, as before. */
+    @Bean
+    fun failureReporting(): FailureReporting = NoFailureReporting
+
     @Bean
     @Suppress("LongParameterList")
     fun attemptOutcomeApplier(
@@ -94,8 +101,9 @@ class OutcomeConfiguration(
         store: SubmissionStore,
         queue: WorkQueue,
         submissions: SubmissionQueue,
+        failures: FailureReporting,
     ): AttemptOutcomeApplier =
-        AttemptOutcomeApplier(Clock.systemUTC(), boundaries, jitter, scope, store, queue, submissions)
+        AttemptOutcomeApplier(Clock.systemUTC(), boundaries, jitter, scope, store, queue, submissions, failures)
 
     @Bean
     fun sentRecovery(
@@ -119,4 +127,17 @@ class OutcomeConfiguration(
         versions: InFlightStore,
         queue: SubmissionQueue,
     ): WaitingSweeper = WaitingSweeper(source, scope, versions, queue)
+}
+
+private object NoFailureReporting : FailureReporting {
+    override fun attemptFailed(
+        dispatch: Dispatch,
+        code: String,
+    ) = Unit
+
+    override fun versionFailed(
+        dispatch: Dispatch,
+        state: LifecycleState,
+        rejectedCode: String?,
+    ) = Unit
 }
