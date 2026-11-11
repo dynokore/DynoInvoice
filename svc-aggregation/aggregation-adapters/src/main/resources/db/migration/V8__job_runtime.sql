@@ -1,4 +1,4 @@
--- V7__job_runtime.sql (INV-T-14464, INV-REQ-413 item 2, INV-REQ-1136, INV-REQ-2405; INV-Q-14448 A).
+-- V8__job_runtime.sql (INV-T-14464, INV-REQ-413 item 2, INV-REQ-1136, INV-REQ-2405; INV-Q-14448 A).
 -- The job runtime tables of service-runtime: JobSchema.ddl("aggregation", "aggregation_runtime", "aggregation_sys").
 -- The service has no scheduler table of its own: shedlock, job_run, job_pause and job_retention come from that call.
 create table aggregation.shedlock (

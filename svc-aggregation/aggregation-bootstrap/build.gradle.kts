@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":aggregation-contract"))
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.configResolver.impl)
+    implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.tenancyKernel.impl)
@@ -32,5 +33,16 @@ dependencies {
     testImplementation(libs.postgresql)
     testImplementation(libs.spring.test)
     testImplementation(libs.jackson.databind)
+    testImplementation(libs.jsonSchemaValidator)
     testImplementation(testFixtures(project(":aggregation-adapters")))
+}
+
+// WindowChangedEventBoundaryTest validates the payload against the pinned contract schema staged by aggregation-contract.
+tasks.withType<Test>().configureEach {
+    dependsOn(":aggregation-contract:generateContractServer")
+    val contractDir =
+        project(":aggregation-contract").layout.buildDirectory.dir(
+            "contracts-repo/platform-contracts/aggregation/${libs.versions.platformContractsBundle.get()}",
+        )
+    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
 }

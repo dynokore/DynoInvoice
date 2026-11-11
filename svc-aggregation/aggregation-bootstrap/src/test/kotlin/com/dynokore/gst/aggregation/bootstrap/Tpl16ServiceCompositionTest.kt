@@ -1,6 +1,7 @@
 package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.CurrentConnection
@@ -32,7 +33,11 @@ class Tpl16ServiceCompositionTest {
             ).forEach { context.getBean(it.java) }
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:aggregation-svc"
-            catalogueTypes(context) shouldBe AggregationEvents.entries.map { it.eventType }.toSet()
+            catalogueTypes(context) shouldBe
+                (
+                    AggregationEvents.entries.map { it.eventType } +
+                        PlatformEventCatalogue.ALL.filter { it.topic != null }.map { it.eventType }
+                ).toSet()
         }
     }
 

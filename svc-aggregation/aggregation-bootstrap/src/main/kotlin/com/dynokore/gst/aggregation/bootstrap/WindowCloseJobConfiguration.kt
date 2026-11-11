@@ -44,7 +44,7 @@ import java.util.UUID
 /**
  * The scheduled closing run (INV-REQ-413 item 2, INV-Q-14448 A). One ENTITY-scoped job of service-runtime's
  * [JobRuntime] is registered; its body calls [CloseWindows] for the entity and the business date of the tick. Every
- * instance fires the tick from [WindowCloseSchedule]; ShedLock over the `shedlock` table of `V7__job_runtime.sql`
+ * instance fires the tick from [WindowCloseSchedule]; ShedLock over the `shedlock` table of `V8__job_runtime.sql`
  * elects the leader and the `job_run` key makes one run per tick and entity. The service has no scheduler table of its
  * own. Until INV-T-16565 the [PeriodBoundarySource] knows no span, so every window is held and nothing closes.
  */
@@ -118,8 +118,8 @@ private class OneEntity(
     private val delegate: WindowRepository,
     private val entityRef: String,
 ) : WindowRepository by delegate {
-    override fun openWindowsEndingOnOrBefore(date: LocalDate): List<OpenWindow> =
-        delegate.openWindowsEndingOnOrBefore(date).filter { it.entityRef == entityRef }
+    override fun openWindowsStartingOnOrBefore(date: LocalDate): List<OpenWindow> =
+        delegate.openWindowsStartingOnOrBefore(date).filter { it.entityRef == entityRef }
 }
 
 /** Registers the job and announces it once at start-up (INV-REQ-1226 b6); [fire] is one scheduled firing. */
