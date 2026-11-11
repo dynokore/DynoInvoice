@@ -13,13 +13,21 @@ import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
+import com.networknt.schema.SpecificationVersion
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
+import java.io.File
 import java.time.LocalDate
 import java.util.UUID
 
@@ -64,6 +72,20 @@ class WindowChangedEventBoundaryTest {
         )
     private val part = WindowPart(LocalDate.of(2022, 3, 28), LocalDate.of(2022, 3, 31), "2022-Q1")
 
+    /** Fails closed when the property is missing: the schema is the oracle, read from the contract bundle. */
+    private val schema =
+        SchemaRegistry
+            .withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
+                it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
+            }.getSchema(
+                File(
+                    checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is not set" },
+                    "schemas/aggregate-window-changed-payload.schema.json",
+                ).readText(),
+            )
+
+    private fun schemaErrors(body: JsonNode): List<String> = schema.validate(body).map { it.toString() }
+
     private fun payload(): JsonNode = mapper.readTree(appended.single().first.dataJson)
 
     @Test
@@ -80,6 +102,7 @@ class WindowChangedEventBoundaryTest {
         body["state"].asString() shouldBe "CLOSED"
         body["aggregateId"].asString() shouldBe aggregateId.toString()
         appended.single().second.tenant shouldBe tenant
+        schemaErrors(body).shouldBeEmpty()
     }
 
     @Test
@@ -87,6 +110,14 @@ class WindowChangedEventBoundaryTest {
         publisher.changed(WindowChange(window, part, WindowState.LATE, null))
         payload()["state"].asString() shouldBe "LATE"
         payload().has("aggregateId") shouldBe false
+        schemaErrors(payload()).shouldBeEmpty()
+    }
+
+    @Test
+    fun `a payload without state fails the schema`() {
+        publisher.changed(WindowChange(window, part, WindowState.CLOSED, UUID.randomUUID()))
+        val without = (payload().deepCopy() as ObjectNode).also { it.remove("state") }
+        schemaErrors(without).shouldNotBeEmpty()
     }
 
     @Test
@@ -108,5 +139,7 @@ class WindowChangedEventBoundaryTest {
     fun `the type of the event is a catalogued type of the service`() {
         AggregationEvents.topicByType.keys shouldContain WindowChangedOutbox.TYPE
         AggregationEvents.topicByType[WindowChangedOutbox.TYPE] shouldBe "gst.aggregation.aggregate-window-changed.v1"
+        // the emission guard reads the catalogue the service composes
+        EventConfiguration().eventCatalogue().find(WindowChangedOutbox.TYPE) shouldNotBe null
     }
 }

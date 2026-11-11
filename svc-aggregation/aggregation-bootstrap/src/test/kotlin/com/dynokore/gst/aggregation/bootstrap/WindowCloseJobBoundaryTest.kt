@@ -7,15 +7,12 @@ import com.dynokore.gst.aggregation.application.PeriodSpans
 import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.gst.aggregation.domain.PeriodSpan
 import com.dynokore.platform.auditlog.AuditWriter
-import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.jobs.DeadlineSource
-import com.dynokore.platform.serviceruntime.jobs.FireResult
 import com.dynokore.platform.serviceruntime.jobs.JobCommandAuthorizer
 import com.dynokore.platform.serviceruntime.jobs.JobEntitySource
 import com.dynokore.platform.serviceruntime.jobs.JobRuntime
-import com.dynokore.platform.serviceruntime.jobs.JobTarget
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
 import com.dynokore.platform.serviceruntime.replica.StructureNode
@@ -33,15 +30,31 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The scheduled closing run under two [JobRuntime] instances over one database (INV-REQ-413 item 2, INV-Q-14448 A):
  * the window of the week 28 Mar to 3 Apr 2022, the spans of the quarters ending 31 Mar and 30 Jun, WEEKLY cadence.
  */
 class WindowCloseJobBoundaryTest {
+    /** One injected clock for both instances and the service (ARC-13, P160): the ticks are fixed 2022 instants. */
+    private class TestClock : Clock() {
+        val now = AtomicReference(Instant.parse("2022-03-31T00:00:00Z"))
+
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+
+        override fun withZone(zone: ZoneId): Clock = this
+
+        override fun instant(): Instant = now.get()
+    }
+
+    private val clock = TestClock()
+
     private val spans =
         listOf(
             PeriodSpan(LocalDate.of(2022, 1, 1), LocalDate.of(2022, 3, 31), "2022-Q1"),
@@ -74,6 +87,7 @@ class WindowCloseJobBoundaryTest {
                     known
                 }
             })
+            .withBean("clock", Clock::class.java, { clock })
             .withBean("cadenceSource", CadenceSource::class.java, { CadenceSource { _, _, _ -> Cadence.WEEKLY } })
             .run { context ->
                 context.startupFailure?.let { throw it }
@@ -125,7 +139,7 @@ class WindowCloseJobBoundaryTest {
                 context.getBean(AuditWriter::class.java),
                 context.getBean(JobCommandAuthorizer::class.java),
                 context.getBean(DeadlineSource::class.java),
-                Clock.systemUTC(),
+                clock,
                 Executors.newVirtualThreadPerTaskExecutor(),
                 Duration.ofDays(30),
             )
@@ -166,33 +180,70 @@ class WindowCloseJobBoundaryTest {
 
     private fun events(tenant: UUID) =
         query(
-            "select data->>'state' from aggregation.outbox " +
+            "select (data->>'state') || ':' || (data->'window'->>'to') from aggregation.outbox " +
                 "where tenant_id = ? and type like '%AggregateWindowChanged%'",
             tenant,
         ) {
             it.getString(1)
         }
 
+    /**
+     * The lease times of ShedLock come from the database clock (real time), not from the injected clock, so the days
+     * between two fixed ticks are simulated by lapsing the leases: only the `job_run` key then stops a repeated tick.
+     */
+    private fun expireLeases() =
+        AggregationDb.superuser().use { connection ->
+            connection.createStatement().use {
+                it.executeUpdate("update aggregation.shedlock set lock_until = lock_until - interval '3 days'")
+            }
+        }
+
+    /** Both instances fire the same tick at once: a barrier makes the lock contended. */
+    private fun fireBoth(
+        runtimes: List<JobRuntime>,
+        at: Instant,
+    ) {
+        clock.now.set(at)
+        expireLeases()
+        val barrier = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(runtimes.size)
+        try {
+            runtimes
+                .map { runtime ->
+                    pool.submit {
+                        barrier.await()
+                        runtime.fire(WindowCloseJob.NAME, at)
+                    }
+                }.also { barrier.countDown() }
+                .forEach { it.get() }
+        } finally {
+            pool.shutdown()
+        }
+    }
+
     @Test
-    fun `INV-AC-1574 the registered job runs once per tick over two instances and a second firing closes nothing again`(
+    fun `INV-AC-1574 the part up to 31 Mar closes on its tick, the part from 1 Apr on the tick of 3 Apr, once per tick`(
         @TempDir dir: Path,
     ): Unit =
         run(dir, PeriodSpans.Known(spans)) { context, tenant, second ->
-            val first = context.getBean(JobRuntime::class.java)
-            val at = tickOf(LocalDate.of(2022, 4, 3))
-            val results = listOf(first.fire(WindowCloseJob.NAME, at), second.fire(WindowCloseJob.NAME, at))
-            val target = JobTarget.Entity(TenantId(tenant), EntityRef("E-001"))
-            results.map { it[target] }.count { it == FireResult.RAN } shouldBe 1
+            val runtimes = listOf(context.getBean(JobRuntime::class.java), second)
+
+            fireBoth(runtimes, tickOf(LocalDate.of(2022, 3, 31)))
             jobRuns(tenant) shouldContainExactly listOf("SUCCEEDED")
-            val closed = aggregates(tenant)
-            events(tenant).sorted() shouldContainExactly List(closed.size) { "CLOSED" }
+            aggregates(tenant) shouldContainExactly listOf("2022-03-28..2022-03-31")
+            events(tenant) shouldContainExactly listOf("CLOSED:2022-03-31")
 
             // the same tick again, from either instance: no run, no aggregate, no event
-            first.fire(WindowCloseJob.NAME, at)
-            second.fire(WindowCloseJob.NAME, at)
+            fireBoth(runtimes, tickOf(LocalDate.of(2022, 3, 31)))
             jobRuns(tenant) shouldContainExactly listOf("SUCCEEDED")
-            aggregates(tenant) shouldContainExactly closed
-            events(tenant).size shouldBe closed.size
+            aggregates(tenant) shouldContainExactly listOf("2022-03-28..2022-03-31")
+            events(tenant) shouldContainExactly listOf("CLOSED:2022-03-31")
+
+            // the part from 1 Apr closes on the tick of 3 Apr only
+            fireBoth(runtimes, tickOf(LocalDate.of(2022, 4, 3)))
+            jobRuns(tenant) shouldContainExactly listOf("SUCCEEDED", "SUCCEEDED")
+            aggregates(tenant) shouldContainExactly listOf("2022-03-28..2022-03-31", "2022-04-01..2022-04-03")
+            events(tenant).sorted() shouldContainExactly listOf("CLOSED:2022-03-31", "CLOSED:2022-04-03")
         }
 
     @Test
@@ -200,7 +251,9 @@ class WindowCloseJobBoundaryTest {
         @TempDir dir: Path,
     ): Unit =
         run(dir, PeriodSpans.Unknown) { context, tenant, _ ->
-            context.getBean(JobRuntime::class.java).fire(WindowCloseJob.NAME, tickOf(LocalDate.of(2022, 4, 3)))
+            val at = tickOf(LocalDate.of(2022, 4, 3))
+            clock.now.set(at)
+            context.getBean(JobRuntime::class.java).fire(WindowCloseJob.NAME, at)
             jobRuns(tenant) shouldContainExactly listOf("SUCCEEDED")
             aggregates(tenant) shouldContainExactly emptyList()
             events(tenant) shouldContainExactly emptyList()
