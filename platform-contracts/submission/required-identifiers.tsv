@@ -229,3 +229,7 @@ previewDrainPeriod	operation	openapi.yaml	INV-REQ-1012
 previewReplayScope	operation	openapi.yaml	INV-REQ-1012
 IrreversibleImpact.documentCount	schema_property	openapi.yaml	INV-REQ-1012
 IrreversibleImpact.totalAmount	schema_property	openapi.yaml	INV-REQ-1012
+# INV-T-20614 (INV-REQ-940). Optional exception members of the SubmissionFailed payload.
+code	property	schemas/submission-failed-payload.schema.json	INV-REQ-940
+remediationOwner	property	schemas/submission-failed-payload.schema.json	INV-REQ-940
+disposition	property	schemas/submission-failed-payload.schema.json	INV-REQ-940

@@ -22,3 +22,4 @@
 ../openapi.yaml#/components/schemas/ReplayScopeRequest replay-scope-request-*.json
 ../openapi.yaml#/components/schemas/ReplayScopeResult replay-scope-result-*.json
 ../schemas/obligation-register-entry.schema.json obligation-register-entry-*.json
+../schemas/submission-failed-payload.schema.json submission-failed-*.json
