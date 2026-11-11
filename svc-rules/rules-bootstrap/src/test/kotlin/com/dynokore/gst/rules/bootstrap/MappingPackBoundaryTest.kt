@@ -343,12 +343,14 @@ open class MappingPackSupport(
             tenant,
             "insert into rules.dry_run_delta (id, tenant_id, pack_type, pack_version, state, started_by, " +
                 "completed_at, " +
-                "changed_count) values (?::uuid, ?::uuid, 'MAPPING', ?, ?, 'user-a', " +
+                "changed_count, unavailable_reason) values (?::uuid, ?::uuid, 'MAPPING', ?, ?, 'user-a', " +
                 "case when ? = 'COMPLETE' then clock_timestamp() end, " +
-                "case when ? = 'COMPLETE' then 3 end) returning id",
+                "case when ? = 'COMPLETE' then 3 end, " +
+                "case when ? = 'SAMPLE_UNAVAILABLE' then 'sample incomplete' end) returning id",
             UUID.randomUUID().toString(),
             tenant.toString(),
             version,
+            state,
             state,
             state,
             state,

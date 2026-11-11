@@ -25,6 +25,8 @@ class SchemaInspectionTest {
             Table("rules", "mapping_pack_approval"),
             Table("rules", "dry_run_delta"),
             Table("rules", "mapping_import_record"),
+            Table("rules", "dry_run_delta_document"),
+            Table("rules", "dry_run_delta_total"),
         )
     private val holderColumns = SchemaInspection.HOLDER_COLUMNS.map { Column(holder, it, "text") }
     private val good = registry + holder + Table("rules", "outbox")
@@ -72,7 +74,7 @@ class SchemaInspectionTest {
     }
 
     @Test
-    fun `the registry tables are exactly the six names`() {
+    fun `the registry tables are exactly the eight names`() {
         SchemaInspection.REGISTRY_TABLES shouldBe
             setOf(
                 "pack_registry",
@@ -81,7 +83,27 @@ class SchemaInspectionTest {
                 "mapping_pack_approval",
                 "dry_run_delta",
                 "mapping_import_record",
+                "dry_run_delta_document",
+                "dry_run_delta_total",
             )
+    }
+
+    @Test
+    fun `probe - the plural look-alike of a new dry-run table is not in the set and is reported`() {
+        SchemaInspection.REGISTRY_TABLES.contains("dry_run_delta_documents") shouldBe false
+        SchemaInspection.REGISTRY_TABLES.contains("dry_run_delta_totals") shouldBe false
+        findings(good + Table("rules", "dry_run_delta_documents")).shouldNotBeEmpty()
+        findings(good + Table("rules", "dry_run_delta_totals")).shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `probe - a document-typed column on a new dry-run table fails`() {
+        for (name in listOf("dry_run_delta_document", "dry_run_delta_total")) {
+            for (type in listOf("json", "jsonb", "bytea")) {
+                findings(columns = holderColumns + Column(Table("rules", name), "extra", type)).shouldNotBeEmpty()
+            }
+            findings(columns = holderColumns + Column(Table("rules", name), "extra", "numeric")).shouldBeEmpty()
+        }
     }
 
     @Test
