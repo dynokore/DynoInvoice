@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.elevation.ElevationController
+import com.dynokore.gst.access.adapters.events.OperatorSessionKeysChangedOutbox
 import com.dynokore.gst.access.adapters.http.ApiRefusal
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
@@ -509,7 +510,7 @@ class OperatorSessionTest {
             assertThat(row.topic).isEqualTo("gst.platform.operator-session-keys-changed.v1")
             assertThat(row.tenant).isEqualTo(platform)
             assertThat(row.subject).isEqualTo("operator-session-keys")
-            assertThat(row.data["keys"].toList().size).isBetween(1, 4)
+            assertThat(row.data["keys"].toList().size).isBetween(1, OperatorSessionKeysChangedOutbox.MAX_KEYS)
             env.open(env.support)
             assertThat(outboxRows("type like '%OperatorSessionKeysChanged%'")).hasSize(before + 1)
         }
