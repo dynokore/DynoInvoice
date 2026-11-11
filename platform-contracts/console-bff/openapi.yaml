@@ -1200,6 +1200,7 @@ paths:
         scope: tenant
         precondition: "The profile exists in the catalogue and, for mode APPLY, its status is available."
         reversibility: COMPENSABLE
+        compensationCost: "Compensated by applying the previous values through each owning service's setPolicy (INV-NOTE-7 §7 row applyOperatingProfile); both applications remain in the audit trail."
         repeatKey: "(entityRef, scope, profileRef, profileVersion, mode)"
       parameters:
         - name: entityRef
