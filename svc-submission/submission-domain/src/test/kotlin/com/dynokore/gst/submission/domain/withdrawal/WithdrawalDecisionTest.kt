@@ -42,7 +42,10 @@ class WithdrawalDecisionTest {
     private val withdrawable = setOf(INGESTED, HELD, BLOCKED, READY, AWAITING_PRECEDING, QUEUED)
 
     @ParameterizedTest(name = "INV-AC-617 {0} alone gives Withdraw")
-    @EnumSource(value = LifecycleState::class, names = ["QUEUED", "READY", "HELD", "BLOCKED", "INGESTED", "AWAITING_PRECEDING"])
+    @EnumSource(
+        value = LifecycleState::class,
+        names = ["QUEUED", "READY", "HELD", "BLOCKED", "INGESTED", "AWAITING_PRECEDING"],
+    )
     fun `INV-AC-617 a withdrawable single version gives Withdraw`(state: LifecycleState) {
         decide(listOf(state)) shouldBe Withdraw
     }
@@ -76,7 +79,8 @@ class WithdrawalDecisionTest {
     fun `INV-AC-1774 the 18 states fall into five sets`() {
         val transmitted = LifecycleState.entries.filter(::isTransmitted).toSet()
         transmitted.size shouldBe 8
-        val sets = listOf(transmitted, setOf(REJECTED), setOf(CANCELLED, NOT_SUBMITTABLE), setOf(WITHDRAWN), withdrawable)
+        val sets =
+            listOf(transmitted, setOf(REJECTED), setOf(CANCELLED, NOT_SUBMITTABLE), setOf(WITHDRAWN), withdrawable)
         sets.sumOf { it.size } shouldBe 18
         sets.flatten().toSet() shouldBe LifecycleState.entries.toSet()
     }
@@ -187,7 +191,12 @@ class WithdrawalDecisionTest {
     fun `INV-AC-20073 WITHDRAWN is the one member of WithdrawResult state`() {
         val block = openApi.substringAfter("\n    WithdrawResult:\n").substringBefore("\n    ", "")
         val state = openApi.substringAfter("\n    WithdrawResult:\n").substringAfter("\n        state:\n")
-        val members = Regex("enum:\\s*\\[([^\\]]*)]").find(state)!!.groupValues[1].split(',').map { it.trim() }
+        val members =
+            Regex("enum:\\s*\\[([^\\]]*)]")
+                .find(state)!!
+                .groupValues[1]
+                .split(',')
+                .map { it.trim() }
         block.isNotEmpty() shouldBe true
         members shouldBe listOf(WITHDRAWN.name)
     }

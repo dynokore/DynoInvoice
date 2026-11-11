@@ -9,15 +9,20 @@ const val WITHDRAW_PERMISSION = "submission.withdraw"
 /** The longest reason, in code points (WithdrawRequest.reason maxLength, JSON Schema counts code points). */
 private const val MAX_REASON_CODE_POINTS = 500
 
+private const val HTTP_BAD_REQUEST = 400
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_NOT_FOUND = 404
+private const val HTTP_CONFLICT = 409
+
 /** The refusals of `withdrawSubmission`: catalogue string and HTTP status (INV-Q-6942 A). */
 enum class RefusalCode(
     val code: String,
     val httpStatus: Int,
 ) {
-    SRT_001("SRT-001", 400),
-    SRT_004("SRT-004", 403),
-    SRT_005("SRT-005", 404),
-    SUB_021("SUB-021", 409),
+    SRT_001("SRT-001", HTTP_BAD_REQUEST),
+    SRT_004("SRT-004", HTTP_FORBIDDEN),
+    SRT_005("SRT-005", HTTP_NOT_FOUND),
+    SUB_021("SUB-021", HTTP_CONFLICT),
 }
 
 /**
@@ -43,20 +48,26 @@ sealed interface WithdrawalDecision {
     ) : WithdrawalDecision
 
     companion object {
-        /** Pure: no state, no clock; equal input gives equal output. The first rule that applies wins (INV-Q-6942 A). */
+        /**
+         * Pure: no state, no clock; equal input gives equal output. The first rule that applies wins (INV-Q-6942 A):
+         * no document, no permission, bad reason, already withdrawn, sent to the Access Point, last version not open.
+         */
         fun decide(input: WithdrawalInput): WithdrawalDecision {
             val versions = input.versions
-            if (versions.isEmpty()) return Refused(RefusalCode.SRT_005)
-            if (!input.callerHoldsPermission) return Refused(RefusalCode.SRT_004)
-            if (!validReason(input.reason)) return Refused(RefusalCode.SRT_001)
-            val last = versions.last()
-            if (last == LifecycleState.WITHDRAWN) return AlreadyWithdrawn
-            if (versions.any(::wasSentToAccessPoint)) return Refused(RefusalCode.SUB_021)
-            return if (withdrawable(last)) Withdraw else Refused(RefusalCode.SUB_021)
+            return when {
+                versions.isEmpty() -> Refused(RefusalCode.SRT_005)
+                !input.callerHoldsPermission -> Refused(RefusalCode.SRT_004)
+                !validReason(input.reason) -> Refused(RefusalCode.SRT_001)
+                versions.last() == LifecycleState.WITHDRAWN -> AlreadyWithdrawn
+                versions.any(::wasSentToAccessPoint) -> Refused(RefusalCode.SUB_021)
+                withdrawable(versions.last()) -> Withdraw
+                else -> Refused(RefusalCode.SUB_021)
+            }
         }
 
         /** A REJECTED version reached the Access Point; [isTransmitted] itself keeps its eight states. */
-        fun wasSentToAccessPoint(state: LifecycleState): Boolean = isTransmitted(state) || state == LifecycleState.REJECTED
+        fun wasSentToAccessPoint(state: LifecycleState): Boolean =
+            isTransmitted(state) || state == LifecycleState.REJECTED
 
         private fun validReason(reason: String?): Boolean =
             reason != null && reason.isNotBlank() && reason.codePointCount(0, reason.length) <= MAX_REASON_CODE_POINTS
