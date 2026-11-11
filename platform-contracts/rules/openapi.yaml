@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.26.0
+  version: 1.27.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -2223,8 +2223,7 @@ components:
                 description: Money as a decimal string (API-12).
               supplyType:
                 type: string
-                enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
-                x-extensible-enum: true
+                x-extensible-enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
                 description: >-
                   GST supply type of the document, as the sample page stated it
                   (`PackDryRunSampleRecorded`, INV-T-10746); the producer sets it
@@ -2424,8 +2423,10 @@ components:
       properties:
         supplyType:
           type: string
-          enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
-          x-extensible-enum: true
+          x-extensible-enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
+          description: >-
+            The known members are listed in `x-extensible-enum`; a consumer
+            carries any other member unchanged.
         documentCount:
           type: integer
           minimum: 1

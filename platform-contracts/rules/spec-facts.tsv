@@ -5,3 +5,9 @@ openapi.yaml	/paths/~1internal~1v1~1rules~1mapping-packs~1{packId}~1submissions/
 openapi.yaml	/paths/~1internal~1v1~1rules~1mapping-packs~1{packId}~1approval/post/parameters	contains	{"name":"entityRef","in":"query","required":false,"schema":{"type":"string","minLength":1,"maxLength":64}}	INV-REQ-380
 openapi.yaml	/components/schemas/MappingPack/properties/entityRef/maxLength	equals	64	INV-REQ-380
 openapi.yaml	/paths/~1internal~1v1~1rules~1regulatory-packs~1{packType}~1{version}~1arming/post/x-operation/compensationCost	equals	"Correctable by a superseding pack (rollbackPack, then reprocessPopulation), but both activations remain in the audit trail; there is no un-arm."	INV-REQ-1014
+openapi.yaml	/components/schemas/DryRunResult/properties/sample/items/properties/supplyType/type	equals	"string"	INV-REQ-997
+openapi.yaml	/components/schemas/DryRunResult/properties/sample/items/properties/supplyType/x-extensible-enum	equals	["STANDARD_RATED","ZERO_RATED","EXEMPT","OUT_OF_SCOPE","IMPORTS"]	INV-REQ-997
+openapi.yaml	/components/schemas/DryRunResult/properties/sample/items/properties/supplyType/enum	absent	-	INV-REQ-997
+openapi.yaml	/components/schemas/DryRunSupplyTypeTotal/properties/supplyType/type	equals	"string"	INV-REQ-997
+openapi.yaml	/components/schemas/DryRunSupplyTypeTotal/properties/supplyType/x-extensible-enum	equals	["STANDARD_RATED","ZERO_RATED","EXEMPT","OUT_OF_SCOPE","IMPORTS"]	INV-REQ-997
+openapi.yaml	/components/schemas/DryRunSupplyTypeTotal/properties/supplyType/enum	absent	-	INV-REQ-997
