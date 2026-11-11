@@ -24,12 +24,14 @@ class JooqAuthorityVersions(
     }
 
     companion object {
+        private const val BYTE_MASK = 0xffL
+
         /** The 64-bit advisory lock key of an aggregate key: the first 8 bytes of the SHA-256 of its tagged text. */
         fun lockKey(aggregateKey: String): Long =
             MessageDigest
                 .getInstance("SHA-256")
                 .digest("authority-version:$aggregateKey".toByteArray(Charsets.UTF_8))
                 .take(Long.SIZE_BYTES)
-                .fold(0L) { acc, b -> (acc shl Byte.SIZE_BITS) or (b.toLong() and 0xff) }
+                .fold(0L) { acc, b -> (acc shl Byte.SIZE_BITS) or (b.toLong() and BYTE_MASK) }
     }
 }
