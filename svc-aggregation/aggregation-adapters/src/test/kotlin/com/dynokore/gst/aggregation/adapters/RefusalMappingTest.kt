@@ -111,24 +111,25 @@ class RefusalMappingTest {
 
     @Test
     fun `INV-AC-20110 a lower revision is answered 409 with the Problem code ING-002 and stored nothing`() {
-        val store = transactionStoreOf(UUID.randomUUID())
-        val controller =
-            TransactionIntakeController(
-                IntakeAggregate(codes, noAggregates),
-                { _, _, _ -> Cadence.MONTHLY },
-                windows,
-                store,
-            )
-        send(controller, 5) shouldBe 202
+        withTransactionStore(UUID.randomUUID()) { store ->
+            val controller =
+                TransactionIntakeController(
+                    IntakeAggregate(codes, noAggregates),
+                    { _, _, _ -> Cadence.MONTHLY },
+                    windows,
+                    store,
+                )
+            send(controller, 5) shouldBe 202
 
-        val refused = controller.intakeAggregationTransactions(UUID.randomUUID(), transactionsRequest(4))
-        refused.statusCode.value() shouldBe 409
-        code(refused.body) shouldBe "ING-002"
-        store.scoped("BU-01", AggregateType.PCP).highestRevision("E-RM", "K-RM") shouldBe 5L
+            val refused = controller.intakeAggregationTransactions(UUID.randomUUID(), transactionsRequest(4))
+            refused.statusCode.value() shouldBe 409
+            code(refused.body) shouldBe "ING-002"
+            store.scoped("BU-01", AggregateType.PCP).highestRevision("E-RM", "K-RM") shouldBe 5L
 
-        send(controller, 5) shouldBe 202
-        send(controller, 6) shouldBe 202
-        store.scoped("BU-01", AggregateType.PCP).highestRevision("E-RM", "K-RM") shouldBe 6L
+            send(controller, 5) shouldBe 202
+            send(controller, 6) shouldBe 202
+            store.scoped("BU-01", AggregateType.PCP).highestRevision("E-RM", "K-RM") shouldBe 6L
+        }
     }
 
     @Test
