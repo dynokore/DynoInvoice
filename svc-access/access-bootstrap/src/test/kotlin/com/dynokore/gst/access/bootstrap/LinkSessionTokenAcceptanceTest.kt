@@ -82,11 +82,12 @@ class LinkSessionTokenAcceptanceTest {
     private fun run(
         linkKey: RSAKey = TestSecrets.defaultLinkKey,
         next: RSAKey? = null,
+        mounted: java.nio.file.Path = BoundaryFixture.mountLink(linkKey, next),
         block: (Env) -> Unit,
     ) {
         BoundaryFixture.deleteLinkSessionKeys()
         BoundaryFixture
-            .runner(catalogueMatrix = true, mounted = BoundaryFixture.mountLink(linkKey, next), requirements = null)
+            .runner(catalogueMatrix = true, mounted = mounted, requirements = null)
             .run { context ->
                 context.startupFailure?.let { throw it }
                 block(Env(context))
@@ -255,6 +256,132 @@ class LinkSessionTokenAcceptanceTest {
             val body = env.enter(seed(expiresAt = soon), passcode).body!!
             assertThat(body.sessionExpiresAt!!.toInstant()).isBeforeOrEqualTo(soon)
             assertThat(body.sessionExpiresAt!!.toInstant()).isAfter(Instant.now())
+        }
+
+    private fun storedRows(): Map<String, String> =
+        BoundaryFixture.asSuperuser { c ->
+            c.createStatement().use { st ->
+                st.executeQuery("select kid, public_key from access.link_session_key").use { rs ->
+                    buildMap { while (rs.next()) put(rs.getString(1), rs.getString(2)) }
+                }
+            }
+        }
+
+    private fun insertRow(
+        key: RSAKey,
+        validFrom: Instant,
+    ) = superuserUpdate(
+        "insert into access.link_session_key (id, tenant_id, kid, alg, public_key, valid_from, valid_until) " +
+            "values (?, ?, ?, 'RS256', ?, ?, ?)",
+        UUID.randomUUID(),
+        UUID.fromString(TenantId.PLATFORM.toString()),
+        kidOf(key),
+        Base64.getEncoder().encodeToString(key.toRSAPublicKey().encoded),
+        Timestamp.from(validFrom),
+        Timestamp.from(Instant.now().plus(Duration.ofDays(1))),
+    )
+
+    private fun assertUnavailable(
+        env: Env,
+        ref: String,
+    ) {
+        assertThatThrownBy { env.enter(ref, passcode) }
+            .isInstanceOfSatisfying(ApiRefusal::class.java) {
+                assertThat(it.code).isEqualTo(ClosedErrorCode.ISSUER_UNAVAILABLE)
+            }
+    }
+
+    private val secretName = "access/link-session-signing-key"
+
+    @Test
+    fun `INV-AC-17810 an absent key secret is ISSUER_UNAVAILABLE, a retry once it is back gives a token`() {
+        val root = BoundaryFixture.mountLink(null)
+        run(mounted = root) { env ->
+            val ref = seed()
+            assertUnavailable(env, ref)
+            java.nio.file.Files
+                .writeString(root.resolve(secretName), TestSecrets.defaultLinkKey.toJSONString())
+            assertThat(env.enter(ref, passcode).body!!.sessionToken).isNotNull()
+        }
+    }
+
+    @Test
+    fun `INV-AC-17810 an unreadable key secret is ISSUER_UNAVAILABLE, a retry once it is back gives a token`() {
+        val root = BoundaryFixture.mountLink(TestSecrets.defaultLinkKey)
+        val file = root.resolve(secretName)
+        java.nio.file.Files
+            .writeString(file, "this is not a key")
+        run(mounted = root) { env ->
+            val ref = seed()
+            assertUnavailable(env, ref)
+            // a public-only key and an RSA key below 2048 bits are not signing keys either
+            java.nio.file.Files
+                .writeString(file, TestSecrets.defaultLinkKey.toPublicJWK().toJSONString())
+            assertUnavailable(env, ref)
+            java.nio.file.Files.writeString(
+                file,
+                com.nimbusds.jose.jwk.gen
+                    .RSAKeyGenerator(1024, true)
+                    .generate()
+                    .toJSONString(),
+            )
+            assertUnavailable(env, ref)
+            java.nio.file.Files
+                .writeString(file, TestSecrets.defaultLinkKey.toJSONString())
+            assertThat(env.enter(ref, passcode).body!!.sessionToken).isNotNull()
+        }
+    }
+
+    @Test
+    fun `INV-AC-17810 a key outside its signing interval is ISSUER_UNAVAILABLE and the next key is published first`() {
+        val current = TestSecrets.newLinkKey()
+        val next = TestSecrets.newLinkKey()
+        run(current, next) { env ->
+            // PT1H interval: a row valid from two hours ago is past its signing interval
+            insertRow(current, Instant.now().minus(Duration.ofHours(2)))
+            assertUnavailable(env, seed())
+            // the next key's row exists although the current key did not sign
+            assertThat(storedRows().keys).contains(kidOf(next))
+        }
+        run(current) { env ->
+            insertRow(current, Instant.now().minus(Duration.ofHours(2)))
+            assertUnavailable(env, seed())
+        }
+    }
+
+    @Test
+    fun `INV-AC-17810 the stored kid is the key thumbprint and no next secret gives one row`() {
+        val current = TestSecrets.newLinkKey()
+        val next = TestSecrets.newLinkKey()
+        run(current, next) { env ->
+            env.enter(seed(), passcode)
+            val rows = storedRows()
+            assertThat(rows.keys).containsExactlyInAnyOrder(kidOf(current), kidOf(next))
+            listOf(current, next).forEach {
+                assertThat(rows.getValue(kidOf(it)))
+                    .isEqualTo(Base64.getEncoder().encodeToString(it.toRSAPublicKey().encoded))
+            }
+            // probe: the thumbprint of another key is not a stored kid
+            assertThat(rows.keys).doesNotContain(kidOf(TestSecrets.newLinkKey()))
+        }
+        run(current) { env ->
+            assertThat(env.enter(seed(), passcode).body!!.sessionToken).isNotNull()
+            assertThat(storedRows().keys).containsExactly(kidOf(current))
+        }
+    }
+
+    @Test
+    fun `INV-AC-17810 sessionExpiresAt is whole seconds and equals the token exp`() =
+        run { env ->
+            val expires = Instant.now().plusSeconds(120).plusMillis(437)
+            val body = env.enter(seed(expiresAt = expires), passcode).body!!
+            val exp =
+                SignedJWT
+                    .parse(body.sessionToken!!)
+                    .jwtClaimsSet.expirationTime
+                    .toInstant()
+            assertThat(body.sessionExpiresAt!!.toInstant().nano).isZero()
+            assertThat(body.sessionExpiresAt!!.toInstant()).isEqualTo(exp)
         }
 
     @Test
