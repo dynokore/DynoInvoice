@@ -104,7 +104,6 @@ import org.jooq.impl.SQLDataType
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.info.BuildProperties
@@ -345,11 +344,10 @@ class RulesConfiguration {
      * 503 SRT-013.
      * The connections it takes count against the background lane of the service's one pool.
      */
-    @Bean(destroyMethod = "shutdown")
-    fun dryRunExecutor(
-        @Value("\${rules.dry-run.parallelism}") parallelism: Int,
-    ): ExecutorService =
-        ThreadPoolExecutor(
+    @Bean
+    fun dryRunExecutor(environment: Environment): ExecutorService {
+        val parallelism = environment.getRequiredProperty(DRY_RUN_PARALLELISM, Int::class.java)
+        return ThreadPoolExecutor(
             parallelism,
             parallelism,
             0L,
@@ -357,6 +355,7 @@ class RulesConfiguration {
             ArrayBlockingQueue(parallelism),
             { r -> Thread(r, "dry-run").also { it.isDaemon = true } },
         )
+    }
 
     /** The calls of `dryRun` and `getDryRun`; the sample wait comes from `rules.dry-run.sample-wait`. */
     @Bean
@@ -372,8 +371,7 @@ class RulesConfiguration {
         transactions: TransactionRunner,
         clock: Clock,
         executor: ExecutorService,
-        @Value("\${rules.dry-run.parallelism}") parallelism: Int,
-        @Value("\${rules.dry-run.sample-wait}") sampleWait: String,
+        environment: Environment,
     ): DryRunCalls =
         DryRunCalls(
             runs,
@@ -386,8 +384,8 @@ class RulesConfiguration {
             transactions,
             clock,
             executor,
-            Semaphore(parallelism),
-            Duration.parse(sampleWait),
+            Semaphore(environment.getRequiredProperty(DRY_RUN_PARALLELISM, Int::class.java)),
+            Duration.parse(environment.getRequiredProperty(DRY_RUN_SAMPLE_WAIT)),
             SYNC_WAIT,
         )
 
@@ -614,6 +612,8 @@ class AccessSvcEdge(
 )
 
 private const val MAPPING_PACK_TYPE = "MAPPING"
+private const val DRY_RUN_PARALLELISM = "rules.dry-run.parallelism"
+private const val DRY_RUN_SAMPLE_WAIT = "rules.dry-run.sample-wait"
 
 /** `dryRun` answers 202 when the run outlasts this (API-17, x-timeout 2000 ms of the contract). */
 private val SYNC_WAIT: Duration = Duration.ofMillis(2000)
