@@ -46,3 +46,18 @@ fun interface FilingDeadlineSource {
 fun interface DocumentKindResolver {
     fun kindOf(data: CanonicalVersionCreatedData): RowKind?
 }
+
+/** The Doc UUID and due date of one register entry. */
+data class RegisterDueDate(
+    val docUuid: String,
+    val dueDate: LocalDate,
+)
+
+/** Reads the due dates of the register entries of an entity and period; read only (INV-REQ-81). */
+fun interface RegisterDueDateReader {
+    fun forPeriod(
+        tenant: TenantId,
+        entityRef: String,
+        periodRef: String,
+    ): List<RegisterDueDate>
+}
