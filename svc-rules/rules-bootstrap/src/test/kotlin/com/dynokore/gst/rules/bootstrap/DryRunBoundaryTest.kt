@@ -157,7 +157,7 @@ open class DryRunSupport(
         if (!currentPack) {
             synchronized(DryRunSupport::class.java) {
                 if (!currentPack) {
-                    fullFlow("$CURRENT_PREFIX-${UUID.randomUUID().toString().take(6)}", "2026-11-01")
+                    fullFlow("$CURRENT_PREFIX-${UUID.randomUUID().toString().take(6)}", "2026-01-01")
                     currentPack = true
                 }
             }
