@@ -45,14 +45,15 @@ class ListFactsTest {
                     if (number != null) put("documentNumber", mapOf("value" to number))
                     put("documentTypeCode", mapOf("value" to "380"))
                     put("invoiceNote", "CANARY-NOTE")
+                    put("currency", mapOf("value" to currency))
+                    val both = mapOf("supplier" to party("SUP", scheme), "buyer" to party("BUY", scheme))
+                    put("parties", mapOf("value" to both))
+                    put("totals", mapOf("value" to totals))
+                    val lines =
+                        taxCodes.map { mapOf("taxCode" to it, "description" to "CANARY-DESC", "quantity" to "7") }
+                    put("lines", mapOf("value" to lines))
                 },
             )
-            put("currency", mapOf("value" to currency))
-            val both = mapOf("supplier" to party("SUP", scheme), "buyer" to party("BUY", scheme))
-            put("parties", mapOf("value" to both))
-            put("totals", mapOf("value" to totals))
-            val lines = taxCodes.map { mapOf("taxCode" to it, "description" to "CANARY-DESC", "quantity" to "7") }
-            put("lines", mapOf("value" to lines))
             if (direction != null) put("routingFacts", mapOf("direction" to direction))
         }
 
@@ -173,8 +174,8 @@ class ListFactsTest {
 
     @Test
     fun `INV-AC-16320 absent or non-list lines is incomplete and an empty list is complete`() {
-        missing(ListFactsPolicy.extract(payload() - "lines")) shouldBe setOf("categoryCodes")
-        val stringLines = payload() + ("lines" to mapOf("value" to "SR"))
+        missing(ListFactsPolicy.extract(withDoc(payload()) { it - "lines" })) shouldBe setOf("categoryCodes")
+        val stringLines = withDoc(payload()) { it + ("lines" to mapOf("value" to "SR")) }
         missing(ListFactsPolicy.extract(stringLines)) shouldBe setOf("categoryCodes")
         complete(ListFactsPolicy.extract(payload(taxCodes = emptyList()))).categoryCodes shouldBe emptySet()
     }
@@ -185,5 +186,47 @@ class ListFactsTest {
         missing(ListFactsPolicy.extract(payload(totals = bad))) shouldBe setOf("taxableAmount")
         val ok = mapOf("sgdTotalExcludingTax" to "9.100", "sgdTotalTax" to "1.00")
         complete(ListFactsPolicy.extract(payload(totals = ok))).taxableAmount shouldBe BigDecimal("9.1")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun withDoc(
+        p: Map<String, Any?>,
+        change: (Map<String, Any?>) -> Map<String, Any?>,
+    ): Map<String, Any?> = p + ("canonicalDocument" to change(p["canonicalDocument"] as Map<String, Any?>))
+
+    @Suppress("UNCHECKED_CAST")
+    private fun moveToTop(
+        p: Map<String, Any?>,
+        vararg keys: String,
+    ): Map<String, Any?> {
+        val doc = (p["canonicalDocument"] as Map<String, Any?>).filterKeys { it !in keys }
+        return p.filterKeys { it != "canonicalDocument" } +
+            mapOf("canonicalDocument" to doc) +
+            (p["canonicalDocument"] as Map<String, Any?>).filterKeys { it in keys }
+    }
+
+    @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
+    fun `INV-AC-20150 a payload with the four members under canonicalDocument and routingFacts at the top level is complete`() {
+        val f = complete(ListFactsPolicy.extract(payload()))
+        f.counterpartyName shouldBe "BUY"
+        f.taxableAmount shouldBe BigDecimal("100.00")
+        f.gstAmount shouldBe BigDecimal("9.00")
+        f.categoryCodes shouldBe setOf("SR", "ZR")
+    }
+
+    @Test
+    fun `INV-AC-20150 the four members at the top level only are missing`() {
+        val p = moveToTop(payload(), "currency", "parties", "totals", "lines")
+        val r = ListFactsPolicy.extract(p)
+        (r is ListFactsResult.Incomplete) shouldBe true
+        missing(r) shouldBe setOf("counterpartyName", "counterpartyUen", "taxableAmount", "gstAmount", "categoryCodes")
+    }
+
+    @Test
+    fun `INV-AC-20150 a single member left at the top level is missing on its own`() {
+        val r = ListFactsPolicy.extract(moveToTop(payload(), "totals"))
+        (r is ListFactsResult.Incomplete) shouldBe true
+        missing(r) shouldBe setOf("taxableAmount", "gstAmount")
     }
 }

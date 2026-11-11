@@ -63,13 +63,18 @@ object ListFactsPolicy {
             ListFactField("categoryCodes", ListFactClass.NONE, true),
         )
 
+    /**
+     * Reads the facts from the published CanonicalVersionCreated payload shape: documentNumber, documentTypeCode,
+     * currency, parties, totals and lines under canonicalDocument and routingFacts at the top level, as in
+     * canonical/schemas/canonical-version-created-payload.schema.json of platform-contracts.
+     */
     fun extract(payload: Map<String, Any?>): ListFactsResult {
         val doc = payload.map("canonicalDocument")
         val name = payload.map("routingFacts").text("direction")
         val direction = Direction.entries.firstOrNull { it.name == name }
-        val party = counterparty(payload.map("parties").map("value"), direction)
-        val sgd = payload.map("currency").text("value") == SGD
-        val totals = payload.map("totals").map("value")
+        val party = counterparty(doc.map("parties").map("value"), direction)
+        val sgd = doc.map("currency").text("value") == SGD
+        val totals = doc.map("totals").map("value")
         val uen = party.text("identifierValue")?.takeIf { party.text("identifierScheme") == SG_UEN }
         val missing = mutableSetOf<String>()
 
@@ -93,7 +98,7 @@ object ListFactsPolicy {
                         BigDecimal.ZERO,
                     ),
                 gstAmount = need("gstAmount", amount(totals, "sgdTotalTax", "totalTax", sgd), BigDecimal.ZERO),
-                categoryCodes = need("categoryCodes", categories(payload.map("lines")["value"]), emptySet()),
+                categoryCodes = need("categoryCodes", categories(doc.map("lines")["value"]), emptySet()),
             )
         return if (missing.isEmpty()) ListFactsResult.Complete(facts) else ListFactsResult.Incomplete(missing)
     }
