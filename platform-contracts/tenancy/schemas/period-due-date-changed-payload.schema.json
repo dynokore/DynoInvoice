@@ -46,6 +46,11 @@
         }
       },
       "additionalProperties": true
+    },
+    "dueDateVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The version of the period's filing due date, kept by tenancy-svc per tenant, entity and period, increased by one for every change of that period's filing due date in the transaction that changes it and appends the event, so the first event of a period carries 1. A consumer applies an event only when its version is greater than the version it holds for that entity and period, and ignores an equal or lower one. A producer always sends it, and an event without it is refused by a consumer; the member is optional in the schema only because the schema is additive-only within a major version (API-41). Requirement INV-REQ-88."
     }
   },
   "required": [

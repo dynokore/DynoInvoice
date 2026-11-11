@@ -1,0 +1,12 @@
+{
+  "entityRef": "E-001",
+  "period": "2026-Q1",
+  "oldFilingDueDate": "2026-04-30",
+  "newFilingDueDate": "2026-05-14",
+  "cause": {
+    "packIdentifier": "CAL-SG",
+    "packVersion": "2026.2",
+    "effectiveDate": "2026-04-01"
+  },
+  "dueDateVersion": "3"
+}

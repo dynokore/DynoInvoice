@@ -226,3 +226,5 @@ CalendarPackDeltaItem.oldFilingDueDate	schema_property	openapi.yaml	INV-REQ-88
 CalendarPackDeltaItem.newFilingDueDate	schema_property	openapi.yaml	INV-REQ-88
 openTenant.TNC-012	operation_error_code	openapi.yaml	INV-REQ-8100
 closeTenant.TNC-014	operation_error_code	openapi.yaml	INV-REQ-8100
+# INV-T-20667 adds the dueDateVersion row (INV-REQ-88): the optional per-period version member of the PeriodDueDateChanged payload schema.
+dueDateVersion	property	schemas/period-due-date-changed-payload.schema.json	INV-REQ-88
