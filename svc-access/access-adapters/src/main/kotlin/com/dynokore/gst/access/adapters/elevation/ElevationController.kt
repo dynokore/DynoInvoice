@@ -52,6 +52,7 @@ import java.util.UUID
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
 // template)
+@Suppress("LongParameterList") // one collaborator per use case of the controller
 open class ElevationController(
     private val open: OpenElevationUseCase,
     private val decide: DecideElevationUseCase,

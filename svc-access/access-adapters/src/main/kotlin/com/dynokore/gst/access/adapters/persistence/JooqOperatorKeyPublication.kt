@@ -10,6 +10,8 @@ import com.dynokore.platform.outboxandqueue.UuidV7
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.time.ZoneOffset
 
 /**
@@ -59,11 +61,24 @@ class JooqOperatorKeyPublication(
                         rows.singleOrNull { it.kid == candidate.kid && it.use == candidate.use }
                             ?: throw SigningKeyUnavailable("the key ${candidate.kid} is stored under another use")
                     }
-                if (inserted > 0) {
-                    val now = candidates.maxOf { it.validFrom }
-                    outbox.publish(rows.filter { it.validUntil.isAfter(now) })
-                }
+                val now = candidates.maxOf { it.validFrom }
+                val valid = rows.filter { it.validUntil.isAfter(now) }
+                // a new row or an expired key leaving the valid set changes what replicas must hold
+                if (inserted > 0 || !lastPublishedCarries(valid)) outbox.publish(valid)
                 stored
             }
         }
+
+    private fun lastPublishedCarries(valid: List<VerificationKey>): Boolean {
+        val last =
+            dsl
+                .select(DSL.field(DSL.name("data"), SQLDataType.JSONB))
+                .from(DSL.table(DSL.name("access", "outbox")))
+                .where(DSL.field(DSL.name("type"), SQLDataType.CLOB).eq(OperatorSessionKeysChangedOutbox.EVENT_TYPE))
+                .orderBy(DSL.field(DSL.name("seq"), SQLDataType.BIGINT).desc())
+                .limit(1)
+                .fetchOne(0, org.jooq.JSONB::class.java)
+                ?.data()
+        return last != null && outbox.carries(last, valid)
+    }
 }

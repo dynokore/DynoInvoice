@@ -26,6 +26,12 @@ class OperatorSessionKeysChangedOutbox(
         outbox.append(listOf(OutboundEvent(EVENT_TYPE, payload(valid).toString())), context)
     }
 
+    /** True when [recordJson], an earlier record of this event, carries exactly the key set [valid] would publish. */
+    fun carries(
+        recordJson: String,
+        valid: List<VerificationKey>,
+    ): Boolean = mapper.readTree(recordJson) == payload(valid)
+
     internal fun payload(valid: List<VerificationKey>): ObjectNode {
         check(valid.size in 1..MAX_KEYS) {
             "an OperatorSessionKeysChanged carries 1 to $MAX_KEYS keys, not ${valid.size}"

@@ -516,6 +516,43 @@ class OperatorSessionTest {
     }
 
     @Test
+    fun `the key set record is published again when an expired key leaves the set and not otherwise`() {
+        val first = TestSecrets.newSigningKey()
+        val second = TestSecrets.newSigningKey()
+        run(operatorKey = first) { env, _ ->
+            val type = "type like '%OperatorSessionKeysChanged%'"
+            env.open(env.support)
+            // thirty minutes later the swapped-in key adds a row: the set is then {first, second}
+            env.clock.advance(Duration.ofMinutes(30))
+            TestSecrets.replaceOperatorKey(env.mount, second)
+            env.open(env.support)
+            val both =
+                outboxRows(type)
+                    .last()
+                    .data["keys"]
+                    .toList()
+                    .map { it["kid"].asString() }
+            assertThat(both).contains(kidOf(first), kidOf(second))
+            // the first key passes its validUntil (interval 1 hour plus the token lifetime); the second still signs
+            env.clock.advance(Duration.ofMinutes(45))
+            val before = outboxRows(type).size
+            env.open(env.support)
+            val rows = outboxRows(type)
+            assertThat(rows).hasSize(before + 1)
+            val kids =
+                rows
+                    .last()
+                    .data["keys"]
+                    .toList()
+                    .map { it["kid"].asString() }
+            assertThat(kids).contains(kidOf(second)).doesNotContain(kidOf(first))
+            // nothing changed since: no record
+            env.open(env.support)
+            assertThat(outboxRows(type)).hasSize(before + 1)
+        }
+    }
+
+    @Test
     fun `an elevation for another tenant keeps the content masked`() =
         run { env, _ ->
             val other = TenantId(UUID.randomUUID())

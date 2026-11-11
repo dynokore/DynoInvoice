@@ -100,9 +100,9 @@ fun interface OperatorAccessPublisher {
     fun publish(record: OperatorAccessRecord)
 }
 
-/** The next value of access-svc's one authority sequence. */
+/** The next value of access-svc's one authority sequence, drawn under a lock on the aggregate key of the event. */
 fun interface AuthorityVersions {
-    fun next(): Long
+    fun next(aggregateKey: String): Long
 }
 
 sealed interface SessionPreparation {
@@ -252,7 +252,7 @@ class OpenOperatorSessionUseCase(
     ) = OperatorAccessRecord(
         tenant = ready.tenant,
         operatorRef = ready.actor.value,
-        authorityVersion = versions.next(),
+        authorityVersion = versions.next(ready.actor.value),
         caseRef = ready.caseId,
         role = ready.role.wire,
         permissions = OperatorSessionAccess.metadataKeys { matrix.allowance(ready.role, it) }.map { it.value },
