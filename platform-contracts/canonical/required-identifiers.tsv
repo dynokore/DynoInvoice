@@ -201,3 +201,6 @@ ReleasedDocument.holdCode	schema_property	openapi.yaml	INV-REQ-1315
 ReleasedDocument.releasedBy	schema_property	openapi.yaml	INV-REQ-1315
 ReleaseHeldDocumentRequest.holdCode.ING-017	schema_enum_value	openapi.yaml	INV-REQ-1315
 ReleaseHeldDocumentRequest.holdCode.ING-024	schema_enum_value	openapi.yaml	INV-REQ-1315
+# INV-T-20523: optional postingTimestamp and invoiceIssuedOrReceived on the DocumentHeld payload (INV-REQ-570)
+postingTimestamp	property	schemas/document-held-payload.schema.json	INV-REQ-570
+invoiceIssuedOrReceived	property	schemas/document-held-payload.schema.json	INV-REQ-570

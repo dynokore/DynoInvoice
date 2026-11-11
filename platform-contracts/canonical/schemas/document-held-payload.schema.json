@@ -42,6 +42,16 @@
     "prescribedPeriodRef": {
       "type": "string",
       "description": "A provisional prescribed period reference: the period of the provisional transaction date built from what is known at ingestion, or the earliest candidate period where that date cannot yet be determined (FR-AE.9; added 25 Sep 2026, Keel INV-Q-1679)."
+    },
+    "postingTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40,
+      "description": "Optional (INV-REQ-570). The time the source system posted the document, as the record request's postingTimestamp of INV-REQ-67: an ISO 8601 date-time whose offset is optional. Absent when the source gave none; never replaced by the processing date. Read by submission-svc to place the provisional register entry."
+    },
+    "invoiceIssuedOrReceived": {
+      "type": "boolean",
+      "description": "Optional (INV-REQ-570). True when a tax invoice is issued (or required) for a supply or a supplier invoice is received for a purchase; false when none exists; absent when not yet known. It is the case input of the section 10.1 table of INV-NOTE-2, read by submission-svc to place the provisional register entry. prescribedPeriodRef is unchanged."
     }
   },
   "required": [
