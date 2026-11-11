@@ -2,7 +2,7 @@
   "keys": [
     {
       "kid": "k1",
-      "use": "link_session",
+      "use": "link-session",
       "alg": "RS256",
       "publicKey": "U0lHTkVELVBMQUNFSE9MREVSCg==",
       "validFrom": "2026-10-01T00:00:00Z",
