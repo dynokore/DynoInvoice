@@ -193,6 +193,27 @@ class JooqRenditionHistoryTest {
     }
 
     @Test
+    fun `INV-AC-20308 the catalog grants tenancy_runtime SELECT and INSERT and no UPDATE DELETE or TRUNCATE`() {
+        fun table(privilege: String) =
+            Db.superuser {
+                it.fetchValue(
+                    "select has_table_privilege('tenancy_runtime', 'tenancy.rendition_attestation_history', ?)",
+                    privilege,
+                ) as Boolean
+            }
+        table("SELECT") shouldBe true
+        table("INSERT") shouldBe true
+        table("UPDATE") shouldBe false
+        table("DELETE") shouldBe false
+        table("TRUNCATE") shouldBe false
+        Db.superuser {
+            it.fetchValue(
+                "select has_any_column_privilege('tenancy_runtime', 'tenancy.rendition_attestation_history', 'UPDATE')",
+            ) as Boolean
+        } shouldBe false
+    }
+
+    @Test
     fun `INV-AC-20308 the trigger refuses UPDATE DELETE and TRUNCATE even for the owner`() {
         val s = seed()
         attest(s, "U1", d1)
