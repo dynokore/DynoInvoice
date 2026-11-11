@@ -69,9 +69,9 @@ class DocumentHeaderProjectionTest {
     }
 
     @Test
-    fun `INV-AC-766 the header input has exactly the two parameters`() {
+    fun `INV-AC-766 the header input has exactly the three parameters`() {
         DocumentHeaderInput::class.primaryConstructor!!.parameters.map { it.name } shouldBe
-            listOf("documentNumber", "documentDate")
+            listOf("documentNumber", "documentDate", "invoiceNote")
     }
 
     @Test

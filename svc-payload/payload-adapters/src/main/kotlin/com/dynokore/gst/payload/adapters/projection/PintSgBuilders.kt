@@ -13,6 +13,7 @@ import com.dynokore.gst.payload.domain.party.RefusalReason
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.CustomizationIDType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.IDType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.IssueDateType
+import com.dynokore.gst.payload.ubl.ubl_21.cbc.NoteType
 import com.dynokore.gst.payload.ubl.ubl_21.cbc.ProfileIDType
 import com.dynokore.gst.payload.ubl.ubl_21.creditnote.CreditNoteType
 import com.dynokore.gst.payload.ubl.ubl_21.invoice.InvoiceType
@@ -31,6 +32,14 @@ private fun xsdDate(value: LocalDate): XMLGregorianCalendar =
         value.dayOfMonth,
         DatatypeConstants.FIELD_UNDEFINED,
     )
+
+/** Writes one cbc:Note with [text] exactly as given (no trimming); a null text writes none (IBT-022, INV-REQ-695). */
+private fun addNote(
+    notes: MutableList<NoteType>,
+    text: String?,
+) {
+    if (text != null) notes.add(NoteType().apply { value = text })
+}
 
 /** Document type code 380, root Invoice, specification PINT-SG-1.0 of the fixture (INV-Q-7106 A item 3). */
 class PintSgInvoiceBuilder : DocumentBuilder {
@@ -72,6 +81,7 @@ class PintSgInvoiceBuilder : DocumentBuilder {
                         id = IDType().apply { value = header.documentNumber }
                         issueDate = IssueDateType().apply { value = xsdDate(date) }
                         customizationID = CustomizationIDType().apply { value = customization.value }
+                        addNote(note, header.invoiceNote)
                         profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
                         accountingCustomerParty = parties.buyer
                         accountingSupplierParty = parties.supplier
@@ -123,6 +133,7 @@ class PintSgCreditNoteBuilder : DocumentBuilder {
                         id = IDType().apply { value = header.documentNumber }
                         issueDate = IssueDateType().apply { value = xsdDate(date) }
                         customizationID = CustomizationIDType().apply { value = customization.value }
+                        addNote(note, header.invoiceNote)
                         profileID = ProfileIDType().apply { value = ProfileId.expected(direction, family) }
                         accountingCustomerParty = parties.buyer
                         accountingSupplierParty = parties.supplier

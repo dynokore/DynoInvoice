@@ -1,0 +1,27 @@
+{
+  "rows": [
+    {
+      "businessTermId": "IBT-022",
+      "canonicalSource": "canonicalDocument.invoiceNote.value",
+      "dataType": "STRING",
+      "documentTypeCodes": [
+        "381"
+      ],
+      "submissionTypes": [
+        "TYPE_1A",
+        "TYPE_1B",
+        "TYPE_2",
+        "TYPE_3"
+      ],
+      "irasStatus": "MANDATORY",
+      "sourceReference": "FIXTURE-ONLY (INV-T-7187; not product reference data): INV-REQ-695",
+      "specifications": [
+        {
+          "specificationVersion": "PINT-SG-1.0",
+          "pintCardinality": "ZERO_OR_ONE",
+          "syntaxPath": "/CreditNote/cbc:Note"
+        }
+      ]
+    }
+  ]
+}
