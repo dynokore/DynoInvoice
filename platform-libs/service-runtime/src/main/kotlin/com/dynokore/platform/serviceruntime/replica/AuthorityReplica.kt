@@ -337,14 +337,19 @@ data class OperatorSessionKeysChanged(
 )
 
 /** Which key set an item belongs to (coordinator ruling INV-Q-9028 A). */
-enum class KeyUse { OPERATOR_SESSION, MACHINE_ACCESS }
+enum class KeyUse {
+    OPERATOR_SESSION,
+    MACHINE_ACCESS,
+    LINK_SESSION,
+}
 
 /**
- * The two key sets the authority replica holds from `OperatorSessionKeysChanged` (coordinator rulings INV-Q-4162,
- * INV-Q-4171, INV-Q-9028 A). Each event carries the whole of both sets and replaces them. An item's `use` is
- * matched by exact string equality: `MACHINE_ACCESS` is a machine key, `OPERATOR_SESSION` or an absent `use` an
- * operator-session key, any other string drops the item, logging its kid and counting it. A kid published under
- * both uses drops both of its items and counts a refused publication. A key is in exactly one set.
+ * The three key sets the authority replica holds from `OperatorSessionKeysChanged` (coordinator rulings INV-Q-4162,
+ * INV-Q-4171, INV-Q-9028 A). Each event carries the whole of all sets and replaces them. An item's `use` is
+ * matched by exact string equality: `MACHINE_ACCESS` is a machine key, `LINK_SESSION` a link-session key,
+ * `OPERATOR_SESSION` or an absent `use` an operator-session key, any other string drops the item, logging its kid
+ * and counting it. A kid published under two uses drops both of its items and counts a refused publication. A key
+ * is in exactly one set.
  */
 class AuthorityKeySets(
     private val clock: Clock,
@@ -352,9 +357,10 @@ class AuthorityKeySets(
     private class Held(
         val operator: List<OperatorSessionKey>,
         val machine: List<OperatorSessionKey>,
+        val link: List<OperatorSessionKey>,
     )
 
-    @Volatile private var held = Held(emptyList(), emptyList())
+    @Volatile private var held = Held(emptyList(), emptyList(), emptyList())
     private val dropped = AtomicLong()
     private val refused = AtomicLong()
 
@@ -370,9 +376,13 @@ class AuthorityKeySets(
     /** The machine-access set; empty until a machine key is published, so a verifier on it refuses (fail closed). */
     val machine = KeySet(KeyUse.MACHINE_ACCESS)
 
+    /** The link-session set; empty until a LINK_SESSION key is published, so a verifier on it refuses (fail closed). */
+    val link = KeySet(KeyUse.LINK_SESSION)
+
     fun accept(event: OperatorSessionKeysChanged) {
         val operatorItems = mutableListOf<OperatorSessionKey>()
         val machineItems = mutableListOf<OperatorSessionKey>()
+        val linkItems = mutableListOf<OperatorSessionKey>()
         for (key in event.keys) {
             when (key.use) {
                 null, OPERATOR_SESSION_USE -> {
@@ -381,6 +391,10 @@ class AuthorityKeySets(
 
                 MACHINE_ACCESS_USE -> {
                     machineItems += key
+                }
+
+                LINK_SESSION_USE -> {
+                    linkItems += key
                 }
 
                 else -> {
@@ -393,23 +407,23 @@ class AuthorityKeySets(
                 }
             }
         }
-        val both =
-            operatorItems.mapTo(mutableSetOf()) { it.kid } intersect machineItems.mapTo(mutableSetOf()) { it.kid }
+        val sets = listOf(operatorItems, machineItems, linkItems)
+        val kidCounts = sets.flatten().groupingBy { it.kid }.eachCount()
+        val both = kidCounts.filterValues { it > 1 }.keys
         for (kid in both) {
             refused.incrementAndGet()
-            LOG.log(System.Logger.Level.WARNING, "key publication refused, kid under both uses, kid={0}", kid)
+            LOG.log(System.Logger.Level.WARNING, "key publication refused, kid under two uses, kid={0}", kid)
         }
-        dropped.addAndGet(
-            (operatorItems.count { it.kid in both } + machineItems.count { it.kid in both }).toLong(),
-        )
+        dropped.addAndGet(sets.sumOf { items -> items.count { it.kid in both } }.toLong())
         held =
             Held(
                 operatorItems.filter { it.kid !in both },
                 machineItems.filter { it.kid !in both },
+                linkItems.filter { it.kid !in both },
             )
     }
 
-    /** One of the two sets, answering [valid]. [accept] feeds both sets, since one event carries both. */
+    /** One of the three sets, answering [valid]. [accept] feeds all sets, since one event carries them. */
     inner class KeySet internal constructor(
         private val use: KeyUse,
     ) {
@@ -418,7 +432,12 @@ class AuthorityKeySets(
         /** The held key [kid] when valid now; null otherwise, so the token is refused (fail closed, INV-Q-4162). */
         fun valid(kid: String): OperatorSessionKey? {
             val now = clock.instant()
-            val keys = if (use == KeyUse.OPERATOR_SESSION) held.operator else held.machine
+            val keys =
+                when (use) {
+                    KeyUse.OPERATOR_SESSION -> held.operator
+                    KeyUse.MACHINE_ACCESS -> held.machine
+                    KeyUse.LINK_SESSION -> held.link
+                }
             return keys.firstOrNull { it.kid == kid && it.isValidAt(now) }
         }
     }
@@ -426,6 +445,7 @@ class AuthorityKeySets(
     private companion object {
         const val OPERATOR_SESSION_USE = "OPERATOR_SESSION"
         const val MACHINE_ACCESS_USE = "MACHINE_ACCESS"
+        const val LINK_SESSION_USE = "LINK_SESSION"
         val LOG: System.Logger = System.getLogger(AuthorityKeySets::class.java.name)
     }
 }
@@ -523,6 +543,9 @@ class AuthorityReplica(
 
     /** The machine-access signing keys; a key is in exactly one of the two sets (INV-Q-9028 A). */
     val machineAccessKeys = keySets.machine
+
+    /** The link-session signing keys (use LINK_SESSION; owner ruling 2026-11-07, INV-T-17803). */
+    val linkSessionKeys = keySets.link
 
     fun decide(
         request: AuthorizationRequest,

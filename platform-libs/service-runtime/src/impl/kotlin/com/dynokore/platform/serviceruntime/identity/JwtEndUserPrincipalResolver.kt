@@ -14,6 +14,9 @@ import java.text.ParseException
 import java.time.Clock
 
 /**
+ * A token whose unverified `sub` starts with `link:` is a link-session token: verified only against the
+ * link-session keys ([LinkSessionTokens]), never the identity provider.
+ *
  * The default [EndUserPrincipalResolver] (owner ruling INV-Q-3716, INV-REQ-1202 b4, CS-23). [jwtDecoder]
  * verifies the propagated end-user token against the `IdentityProvider` binding's issuer (signature, issuer,
  * expiry, audience; STK-27). `sub` is the actor and `tenant_id` the tenant, absent for a platform operator,
@@ -28,7 +31,7 @@ import java.time.Clock
  * verified only against access-svc's operator-session keys held by the [authority] replica ([OperatorSessionTokens],
  * coordinator rulings INV-Q-4162, INV-Q-4171), never against the identity provider, and must carry `sub` and a
  * `tenant_id`; it resolves to a tenant principal with its [OperatorSession]. Every other token is verified by
- * [jwtDecoder] only, so a token from an operator-session key without `act` fails there, and an identity-provider
+ * [jwtDecoder] only (and refused when its `sub` starts with the reserved `link:`), so a token from an operator-session key without `act` fails there, and an identity-provider
  * token with `act` is refused. Each refusal is null (401).
  */
 class JwtEndUserPrincipalResolver(
@@ -37,12 +40,14 @@ class JwtEndUserPrincipalResolver(
     clock: Clock = Clock.systemUTC(),
 ) : EndUserPrincipalResolver {
     private val operatorSessions = OperatorSessionTokens(authority, clock)
+    private val linkSessions = LinkSessionTokens(authority, clock)
 
     override fun resolve(authorization: String?): EndUserPrincipal? {
         val token = bearer(authorization)
         val parsed = token?.let(::parseOrNull)
         return when {
             token == null || parsed == null -> null
+            hasLinkSubject(parsed) -> linkPrincipal(parsed)
             carriesAct(parsed) -> operatorPrincipal(parsed)
             else -> identityProviderPrincipal(token)
         }
@@ -63,6 +68,21 @@ class JwtEndUserPrincipalResolver(
             false
         }
 
+    /** The unverified `sub` starts with the reserved prefix `link:`: only the link-session keys may verify it. */
+    private fun hasLinkSubject(parsed: JWT): Boolean =
+        try {
+            parsed.jwtClaimsSet?.subject?.startsWith(LinkSessionTokens.SUBJECT_PREFIX) == true
+        } catch (malformed: ParseException) {
+            false
+        }
+
+    private fun linkPrincipal(parsed: JWT): EndUserPrincipal? {
+        val claims = (parsed as? SignedJWT)?.let(linkSessions::verify) ?: return null
+        val actor = claims.subject?.takeIf(BlankText::isActor)
+        val tenant = (claims.getClaim(TENANT_CLAIM) as? String)?.let(::tenantOf)
+        return if (actor != null && tenant != null) principalIn(tenant, actor) else null
+    }
+
     private fun operatorPrincipal(parsed: JWT): EndUserPrincipal? {
         val (claims, session) = (parsed as? SignedJWT)?.let(operatorSessions::verify) ?: return null
         val actor = claims.subject?.takeIf(BlankText::isActor)
@@ -80,7 +100,12 @@ class JwtEndUserPrincipalResolver(
                 // not a bad token: the issuer's keys could not be obtained and no cached key verified it
                 throw TokenIssuerUnavailableException(unavailable)
             }
-        val actor = jwt?.subject?.takeIf(BlankText::isActor)
+        // `link:` is the reserved subject space of link principals (RFC 8725 section 3.9)
+        val actor =
+            jwt
+                ?.subject
+                ?.takeIf(BlankText::isActor)
+                ?.takeUnless { it.startsWith(LinkSessionTokens.SUBJECT_PREFIX) }
         val claim = jwt?.getClaimAsString(TENANT_CLAIM)
         // an identity-provider token never carries `act` (owner ruling INV-Q-4119)
         val act = jwt?.hasClaim(OperatorSessionTokens.ACT_CLAIM) == true

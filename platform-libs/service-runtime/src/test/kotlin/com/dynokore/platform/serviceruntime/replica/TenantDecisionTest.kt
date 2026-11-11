@@ -197,6 +197,7 @@ class TenantDecisionTest {
                 "getConsents",
                 "getKeySets",
                 "getLagBound",
+                "getLinkSessionKeys", // INV-T-17803: the link-session key set
                 "getMachineAccessKeys",
                 "getOperatorSessionKeys",
                 "getPrincipals",

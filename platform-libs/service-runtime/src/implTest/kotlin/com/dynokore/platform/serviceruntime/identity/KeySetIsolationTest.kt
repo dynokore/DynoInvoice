@@ -150,6 +150,45 @@ class KeySetIsolationTest {
         replica.operatorSessionKeys.valid("op") shouldBe null
     }
 
+    @Test
+    fun `INV-AC-17808 a LINK_SESSION key is found by linkSessionKeys only`() {
+        publish(
+            item(operatorPair, "op", null),
+            item(machinePair, "mk", "MACHINE_ACCESS"),
+            item(operatorPair, "lk", "LINK_SESSION"),
+        )
+        (replica.linkSessionKeys.valid("lk") != null) shouldBe true
+        replica.operatorSessionKeys.valid("lk") shouldBe null
+        replica.machineAccessKeys.valid("lk") shouldBe null
+        replica.linkSessionKeys.valid("op") shouldBe null
+        replica.linkSessionKeys.valid("mk") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-17808 the same kid as an operator-session and a link-session key drops both`() {
+        publish(item(operatorPair, "dup", "OPERATOR_SESSION"), item(operatorPair, "dup", "LINK_SESSION"))
+        replica.operatorSessionKeys.valid("dup") shouldBe null
+        replica.linkSessionKeys.valid("dup") shouldBe null
+        replica.keySets.droppedItems shouldBe 2
+        replica.keySets.refusedPublications shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-17808 link_session and Link_Session are dropped and counted`() {
+        publish(item(operatorPair, "l1", "link_session"), item(operatorPair, "l2", "Link_Session"))
+        listOf("l1", "l2").forEach {
+            replica.linkSessionKeys.valid(it) shouldBe null
+            replica.operatorSessionKeys.valid(it) shouldBe null
+        }
+        replica.keySets.droppedItems shouldBe 2
+    }
+
+    @Test
+    fun `INV-AC-17808 an empty link set refuses every link token`() {
+        publish(item(operatorPair, "op", null))
+        replica.linkSessionKeys.valid("op") shouldBe null
+    }
+
     private companion object {
         fun rsa(): KeyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
     }

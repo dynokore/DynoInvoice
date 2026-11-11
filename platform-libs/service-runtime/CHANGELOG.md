@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.10.0] - 2026-11-11
+### Added
+- `KeyUse.LINK_SESSION` and `AuthorityReplica.linkSessionKeys`: a third key set for items whose `use` is exactly `LINK_SESSION`; a kid published under two uses drops all its items (INV-T-17803, INV-AC-17808; owner ruling 2026-11-07).
+- `JwtEndUserPrincipalResolver` verifies a token whose `sub` starts with `link:` only against the link-session keys (`typ` `link-session+jwt`, lifetime at most 15 minutes, no `act`, `sub` `link:LNK-` plus 22 characters), and refuses an identity-provider token with a `link:` subject (RFC 8725 section 3.9).
+
 ## [13.9.0] - 2026-11-10
 ### Added
 - `TenancyErrorCode` gains `TENANT_NOT_CLOSABLE` (`TNC-014`, HTTP 409, "Tenant close refused", owner Platform) after `ELECTION_CHANGE_PENDING`; the catalogue snapshot is re-vendored from platform-contracts 6c2b7fdd (INV-T-19788, INV-AC-19782; ruling of breakdown tooling/gap8179-gap.md).

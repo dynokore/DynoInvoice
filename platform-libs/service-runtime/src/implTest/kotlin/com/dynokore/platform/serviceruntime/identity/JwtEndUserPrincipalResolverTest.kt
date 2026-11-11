@@ -178,6 +178,13 @@ class JwtEndUserPrincipalResolverTest {
     }
 
     @Test
+    fun `INV-AC-17808 an identity-provider sub with the reserved link prefix resolves to null`() {
+        resolver.resolve(token(subject = "link:LNK-aaaaaaaaaaaaaaaaaaaaaa")) shouldBe null
+        resolver.resolve(token(subject = "linkx:abc"))?.actor shouldBe "linkx:abc"
+        resolver.resolve(token(subject = "user:link:abc"))?.actor shouldBe "user:link:abc"
+    }
+
+    @Test
     fun `a missing, invalid, expired or foreign token resolves to null`() {
         val other = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
         resolver.resolve(null) shouldBe null
