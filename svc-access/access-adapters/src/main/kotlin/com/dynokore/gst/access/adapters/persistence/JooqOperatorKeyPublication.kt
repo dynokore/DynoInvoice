@@ -46,17 +46,7 @@ class JooqOperatorKeyPublication(
                             .onConflictDoNothing()
                             .execute()
                     }
-                val rows =
-                    dsl.selectFrom(VERIFICATION_KEY).orderBy(VERIFICATION_KEY.KID).fetch().map {
-                        VerificationKey(
-                            it.kid.column("kid"),
-                            it.alg.column("alg"),
-                            it.publicKey.column("publicKey"),
-                            it.validFrom.column("validFrom").toInstant(),
-                            it.validUntil.column("validUntil").toInstant(),
-                            KeyUse.valueOf(it.use.column("use")),
-                        )
-                    }
+                val rows = storedKeys()
                 val stored =
                     candidates.map { candidate ->
                         rows.singleOrNull { it.kid == candidate.kid && it.use == candidate.use }
@@ -71,6 +61,18 @@ class JooqOperatorKeyPublication(
                 if (inserted > 0 || !lastPublishedCarries(valid)) outbox.publish(valid)
                 stored
             }
+        }
+
+    private fun storedKeys(): List<VerificationKey> =
+        dsl.selectFrom(VERIFICATION_KEY).orderBy(VERIFICATION_KEY.KID).fetch().map {
+            VerificationKey(
+                it.kid.column("kid"),
+                it.alg.column("alg"),
+                it.publicKey.column("publicKey"),
+                it.validFrom.column("validFrom").toInstant(),
+                it.validUntil.column("validUntil").toInstant(),
+                KeyUse.valueOf(it.use.column("use")),
+            )
         }
 
     private companion object {

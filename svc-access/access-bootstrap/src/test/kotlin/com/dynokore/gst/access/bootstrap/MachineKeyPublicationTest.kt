@@ -74,10 +74,17 @@ class MachineKeyPublicationTest {
         kid: String,
         use: KeyUse,
         at: Instant,
-    ) = VerificationKey(kid, "ES256", "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE-$kid", at, at.plus(Duration.ofHours(2)), use)
+    ) = VerificationKey(
+        kid,
+        "ES256",
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE-$kid",
+        at,
+        at.plus(Duration.ofHours(2)),
+        use,
+    )
 
     @Test
-    fun `INV-AC-9147 the event holds the machine key with use MACHINE_ACCESS equal to the getVerificationKeys item`() =
+    fun `INV-AC-9147 the event holds the machine key with use MACHINE_ACCESS equal to the stored key`() =
         run { t ->
             t.kit.clock.freeze()
             val before = events().size
@@ -90,7 +97,11 @@ class MachineKeyPublicationTest {
             assertThat(machine["use"].asString()).isEqualTo("MACHINE_ACCESS")
             val body = t.published().single { it.kid == issued.keyId }
             assertThat(machine["alg"].asString()).isEqualTo(body.alg)
-            assertThat(java.util.Base64.getDecoder().decode(machine["publicKey"].asString())).isEqualTo(body.publicKey)
+            assertThat(
+                java.util.Base64
+                    .getDecoder()
+                    .decode(machine["publicKey"].asString()),
+            ).isEqualTo(body.publicKey)
             val (from, until) = storedWindow(issued.keyId!!)
             assertThat(Instant.parse(machine["validFrom"].asString())).isEqualTo(from)
             assertThat(Instant.parse(machine["validUntil"].asString())).isEqualTo(until)
@@ -104,7 +115,7 @@ class MachineKeyPublicationTest {
         }
 
     @Test
-    fun `INV-AC-9147 the machine key is published before its first token and a rotation emits one event with both keys`() =
+    fun `INV-AC-9147 the machine key is published before its first token, a rotation emits both keys`() =
         run { t ->
             val t0 = t.kit.clock.freeze()
             val before = events().size
@@ -152,7 +163,13 @@ class MachineKeyPublicationTest {
     fun `INV-AC-9147 probe a kid shared by an operator key and a machine key fails the publication`() =
         run { t ->
             val now = t.kit.clock.freeze()
-            val shared = "shared" + java.util.UUID.randomUUID().toString().replace("-", "").take(10)
+            val shared =
+                "shared" +
+                    java.util.UUID
+                        .randomUUID()
+                        .toString()
+                        .replace("-", "")
+                        .take(10)
             publication(t).publish(listOf(candidate(shared, KeyUse.OPERATOR_SESSION, now)))
             val before = events().size
             val lines = t.logLines().size

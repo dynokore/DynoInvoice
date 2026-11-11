@@ -114,11 +114,11 @@ class OperatorSessionKeysChangedPayloadTest {
     }
 
     @Test
-    fun `INV-AC-9147 probe a machine key item that lost its use reads as an operator key, so none is ever written so`() {
+    fun `INV-AC-9147 probe a machine key item always carries its use`() {
         val payload = outbox.payload(listOf(key("fedcba9876543210", KeyUse.MACHINE_ACCESS)))
         val item = payload["keys"][0] as tools.jackson.databind.node.ObjectNode
         assertTrue(item.has("use"))
-        // the channel schema leaves `use` optional, an item without it being an operator-session key: the writer must set it
+        // the schema leaves `use` optional and reads an item without it as an operator-session key: always set it
         val stripped = item.deepCopy().also { it.remove("use") }
         assertTrue(schema.validate(mapper.readTree("""{"keys":[$stripped]}""")).isEmpty())
         assertFalse(stripped.has("use"))
@@ -126,7 +126,7 @@ class OperatorSessionKeysChangedPayloadTest {
     }
 
     @Test
-    fun `INV-AC-9147 probe a machine key item is written with use MACHINE_ACCESS and never with OPERATOR_SESSION`() {
+    fun `INV-AC-9147 probe a machine key item is written with use MACHINE_ACCESS`() {
         val payload = outbox.payload(listOf(key("fedcba9876543210", KeyUse.MACHINE_ACCESS)))
         assertEquals("MACHINE_ACCESS", payload["keys"][0]["use"].asString())
     }
