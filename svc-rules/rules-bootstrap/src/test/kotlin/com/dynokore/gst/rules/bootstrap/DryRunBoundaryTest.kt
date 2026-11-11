@@ -522,7 +522,7 @@ class DryRunBoundaryTest(
     // ---- a mapping pack with no pack in force (Inference: SRT-008) ----
 
     @Test
-    fun `a candidate of a tenant with no mapping pack in force is refused 409 SRT-008 and a day with one is accepted`() {
+    fun `a tenant with no mapping pack in force is refused 409 SRT-008 and a day with one is accepted`() {
         val packId = candidate()
         val before = snapshot()
         clock.pinned = java.time.Instant.parse("2000-01-01T00:00:00Z")
@@ -537,7 +537,7 @@ class DryRunBoundaryTest(
     // ---- the end time of a run (contract: completedAt present when the state is not RUNNING) ----
 
     @Test
-    fun `a run that ends SAMPLE_UNAVAILABLE reads FAILED with completedAt not before startedAt and a stored end time`() {
+    fun `a run that ends SAMPLE_UNAVAILABLE reads FAILED with completedAt not before startedAt`() {
         samples.pagesOverride = listOf(SamplePage(2, true, listOf(item(D1, "2026-Q3"))))
         val packId = candidate()
         val status = finished(packId)
