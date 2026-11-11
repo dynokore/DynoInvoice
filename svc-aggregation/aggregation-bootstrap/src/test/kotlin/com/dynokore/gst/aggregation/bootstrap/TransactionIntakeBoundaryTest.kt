@@ -4,7 +4,7 @@ import com.dynokore.gst.aggregation.adapters.AggregationDb
 import com.dynokore.gst.aggregation.adapters.http.IntakeBodyCachingFilter
 import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
 import com.dynokore.gst.aggregation.adapters.http.TransactionIntakeController
-import com.dynokore.gst.aggregation.adapters.periods.NoPeriodBoundaries
+import com.dynokore.gst.aggregation.adapters.periods.StoredPeriodBoundaries
 import com.dynokore.gst.aggregation.adapters.persistence.JooqTransactionStore
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CadenceSource
@@ -44,7 +44,7 @@ import java.util.UUID
 /**
  * The dated-transaction intake and the split of a closed window at the prescribed-period boundaries (INV-REQ-435
  * items 1 and 2, INV-REQ-434), over the composed service and the database. The cadence and the period spans are test
- * doubles of the two ports; the production source of spans is [NoPeriodBoundaries] until INV-T-16565.
+ * doubles of the two ports; the production source of spans is [StoredPeriodBoundaries] (INV-T-16565).
  */
 class TransactionIntakeBoundaryTest {
     private val mapper = ObjectMapper()
@@ -199,11 +199,11 @@ class TransactionIntakeBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-457 with the production NoPeriodBoundaries the window is held and no aggregate is made`(
+    fun `INV-AC-457 with the production StoredPeriodBoundaries and no stored set the window is held and no aggregate is made`(
         @TempDir dir: Path,
     ): Unit =
         run(dir, Cadence.WEEKLY) { boundary ->
-            boundary.context.getBean(PeriodBoundarySource::class.java).javaClass shouldBe NoPeriodBoundaries::class.java
+            boundary.context.getBean(PeriodBoundarySource::class.java).javaClass shouldBe StoredPeriodBoundaries::class.java
             boundary.send(week).status shouldBe 202
             val production = boundary.context.getBean(PeriodBoundarySource::class.java)
             val result = boundary.close(production, LocalDate.of(2022, 4, 4))
@@ -265,7 +265,7 @@ class TransactionIntakeBoundaryTest {
         }
 
     @Test
-    fun `the production source of period spans is NoPeriodBoundaries`(
+    fun `the production source of period spans is StoredPeriodBoundaries`(
         @TempDir dir: Path,
     ): Unit =
         run(dir, Cadence.DAILY) { boundary ->
@@ -273,6 +273,6 @@ class TransactionIntakeBoundaryTest {
                 .getBeansOfType(PeriodBoundarySource::class.java)
                 .values
                 .map { it.javaClass } shouldBe
-                listOf(NoPeriodBoundaries::class.java)
+                listOf(StoredPeriodBoundaries::class.java)
         }
 }
