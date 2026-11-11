@@ -1,9 +1,9 @@
 package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.platform.outboxandqueue.EventCatalogue
-import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.nulls.shouldBeNull

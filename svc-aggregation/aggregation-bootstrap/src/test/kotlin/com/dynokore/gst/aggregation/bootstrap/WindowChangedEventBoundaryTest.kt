@@ -24,7 +24,8 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * The payload of `AggregateWindowChanged` that [WindowChangedOutbox] appends (channel `aggregationAggregateWindowChanged`):
+ * The payload of `AggregateWindowChanged` that [WindowChangedOutbox] appends (channel
+ * `aggregationAggregateWindowChanged`):
  * the fields and enum of `aggregate-window-changed-payload.schema.json`, and the catalogue entry of its type.
  */
 class WindowChangedEventBoundaryTest {

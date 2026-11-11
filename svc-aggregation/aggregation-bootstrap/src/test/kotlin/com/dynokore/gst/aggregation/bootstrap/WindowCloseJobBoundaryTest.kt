@@ -166,7 +166,8 @@ class WindowCloseJobBoundaryTest {
 
     private fun events(tenant: UUID) =
         query(
-            "select data->>'state' from aggregation.outbox where tenant_id = ? and type like '%AggregateWindowChanged%'",
+            "select data->>'state' from aggregation.outbox " +
+                "where tenant_id = ? and type like '%AggregateWindowChanged%'",
             tenant,
         ) {
             it.getString(1)

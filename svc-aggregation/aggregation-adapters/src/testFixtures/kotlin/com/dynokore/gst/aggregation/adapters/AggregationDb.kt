@@ -78,7 +78,8 @@ object AggregationDb {
             .baselineVersion("0")
             .load()
             .migrate()
-        // The row the migration runner writes at install (INV-Q-4346 A): JobRuntime.announce refuses to start without it.
+        // The row the migration runner writes at install (INV-Q-4346 A): JobRuntime.announce refuses to start without
+        // it.
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.createStatement().use {
                 it.execute(

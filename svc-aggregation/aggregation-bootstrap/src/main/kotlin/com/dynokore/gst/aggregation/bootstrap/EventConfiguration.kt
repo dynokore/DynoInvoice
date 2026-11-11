@@ -10,7 +10,8 @@ import org.springframework.context.annotation.Configuration
  * The events aggregation-svc may emit (INV-REQ-815 behaviour 2): the two of model/architecture/events.yaml it
  * produces, each on the topic its AsyncAPI channel names. The scaffold placeholder `ExampleHappened` of the contract is
  * not catalogued and is not emitted. The platform events with a fixed topic are catalogued too, produced by every
- * service (INV-REQ-815 behaviour 4), so the job runtime's events pass the emission guard. The emission guard of the outbox refuses any other type.
+ * service (INV-REQ-815 behaviour 4), so the job runtime's events pass the emission guard. The emission guard of the
+ * outbox refuses any other type.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {

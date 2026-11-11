@@ -35,8 +35,10 @@ class WindowStoreTest {
             "select relrowsecurity::text || relforcerowsecurity::text from pg_class " +
                 "where oid = 'aggregation.aggregate_window'::regclass",
         ) shouldBe listOf("truetrue")
-        query("select polname from pg_policy where polrelid = 'aggregation.aggregate_window'::regclass") shouldBe
-            listOf("aggregate_window_tenant_isolation")
+        // The second policy is the select policy of aggregation_sys that open_window_entities() needs (V8, INV-T-14464).
+        query(
+            "select polname from pg_policy where polrelid = 'aggregation.aggregate_window'::regclass order by 1",
+        ) shouldBe listOf("aggregate_window_sys_select", "aggregate_window_tenant_isolation")
     }
 
     @Test
