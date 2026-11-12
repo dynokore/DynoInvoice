@@ -59,7 +59,13 @@ object SubmissionEvents {
 
     const val PAYLOAD_READY_TOPIC = "gst.payload.payload-ready.v1"
 
-    /** `PayloadReady` (topics.yaml: producer payload-svc, content topic); submission-svc is only its subscriber. */
+    const val PERIOD_EXTENDED_TOPIC = "gst.tenancy.period-extended.v1"
+    const val PERIOD_EXTENDED_TYPE = "com.dynokore.gst.tenancy.PeriodExtended.v1"
+
+    /**
+     * `PayloadReady` (topics.yaml: producer payload-svc, content topic) and `PeriodExtended` (producer tenancy-svc, no
+     * content topic, INV-REQ-81); submission-svc is only their subscriber.
+     */
     val consumed: List<CatalogueEntry> =
         listOf(
             CatalogueEntry(
@@ -67,6 +73,13 @@ object SubmissionEvents {
                 PAYLOAD_READY_TOPIC,
                 setOf("payload-svc"),
                 contentTopic = true,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                PERIOD_EXTENDED_TYPE,
+                PERIOD_EXTENDED_TOPIC,
+                setOf("tenancy-svc"),
+                contentTopic = false,
                 retainedWhileResolvable = false,
             ),
         )
