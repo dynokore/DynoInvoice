@@ -30,9 +30,9 @@ class TestWorkloadVerifier {
         }
 
     /**
-     * Any `Authorization` header is the end user of one tenant, so a request past the caller check is served. Its entity
-     * set holds every entity reference that the request examples of the contract document carry, read from the
-     * document and never typed here, so that the entity-reference check does not refuse a valid request.
+     * Any `Authorization` header is the end user of one tenant, so a request past the caller check is served.
+     * Its entity set holds every entity reference that the request examples of the contract document carry,
+     * read from the document and never typed here, so the entity-reference check does not refuse a valid request.
      */
     @Bean
     @Primary

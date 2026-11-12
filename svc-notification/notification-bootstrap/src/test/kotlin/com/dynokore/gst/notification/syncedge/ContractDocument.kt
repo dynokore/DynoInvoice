@@ -49,33 +49,33 @@ object ContractDocument {
         val factory = YamlMapFactoryBean()
         factory.setResources(ByteArrayResource(text.toByteArray()))
         val document = checkNotNull(factory.getObject()) { "the contract document is empty" }
-        val found = linkedSetOf<String>()
-        (document["paths"] as Map<*, *>).values.filterIsInstance<Map<*, *>>().forEach { item ->
-            item.values.filterIsInstance<Map<*, *>>().forEach { operation ->
-                val declared = operation["x-entity-ref"]
-                val names =
-                    if (declared is List<*>) {
-                        declared.map { it.toString() }
-                    } else {
-                        listOfNotNull(
-                            declared?.toString(),
-                        )
-                    }
-                val content = (operation["requestBody"] as? Map<*, *>)?.get("content") as? Map<*, *>
-                val examples = ((content?.get("application/json") as? Map<*, *>)?.get("examples") as? Map<*, *>)?.values
-                examples.orEmpty().filterIsInstance<Map<*, *>>().forEach { example ->
-                    val value = example["value"] as? Map<*, *>
-                    names.forEach { name ->
-                        when (val held = value?.get(name)) {
-                            is String -> found += held
-                            is List<*> -> held.filterIsInstance<String>().forEach { found += it }
-                        }
-                    }
-                }
-            }
-        }
-        return found
+        return (document["paths"] as Map<*, *>)
+            .values
+            .filterIsInstance<Map<*, *>>()
+            .flatMap { item -> item.values.filterIsInstance<Map<*, *>>() }
+            .flatMap(::exampleRefs)
+            .toSet()
     }
+
+    /** The strings held by the `x-entity-ref` properties in the request-body examples of one operation. */
+    private fun exampleRefs(operation: Map<*, *>): List<String> {
+        val declared = operation["x-entity-ref"]
+        val names = if (declared is List<*>) declared.map { it.toString() } else listOfNotNull(declared?.toString())
+        val content = (operation["requestBody"] as? Map<*, *>)?.get("content") as? Map<*, *>
+        val json = content?.get("application/json") as? Map<*, *>
+        val examples = (json?.get("examples") as? Map<*, *>)?.values.orEmpty()
+        return examples
+            .filterIsInstance<Map<*, *>>()
+            .mapNotNull { it["value"] as? Map<*, *> }
+            .flatMap { value -> names.flatMap { name -> strings(value[name]) } }
+    }
+
+    private fun strings(held: Any?): List<String> =
+        when (held) {
+            is String -> listOf(held)
+            is List<*> -> held.filterIsInstance<String>()
+            else -> emptyList()
+        }
 
     private fun operation(
         samples: SampleValues,
