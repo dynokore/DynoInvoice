@@ -96,4 +96,17 @@ class NotificationEventCatalogueTest {
             )
         }
     }
+
+    @Test
+    fun `INV-AC-20820 the consumed backlog event is listed with its topic and producer and the own entries are unchanged`() {
+        val entries = NotificationEventCatalogue.load().entries()
+        val entry = entries.single { it.eventType == "com.dynokore.gst.submission.BacklogValuesMeasured.v1" }
+        entry.topic shouldBe "gst.submission.backlog-values-measured.v1"
+        entry.producers shouldBe setOf("submission-svc")
+        entries.any { it.eventType == "com.dynokore.gst.submission.BacklogValuesMeasured.v2" } shouldBe false
+        entries
+            .filter { it.producers == setOf(NotificationEventCatalogue.SERVICE) }
+            .map { it.eventType }
+            .toSet() shouldBe messageNames(asyncApi)
+    }
 }

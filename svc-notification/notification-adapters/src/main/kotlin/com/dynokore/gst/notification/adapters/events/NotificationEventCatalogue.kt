@@ -54,8 +54,17 @@ object NotificationEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + platform)
+        return EventCatalogue(own + consumed + platform + backlogValuesMeasured)
     }
+
+    /** The consumed BacklogValuesMeasured event (INV-REQ-1370); its producer is submission-svc. */
+    private val backlogValuesMeasured =
+        CatalogueEntry(
+            BacklogValuesMeasuredHandler.EVENT_TYPE,
+            BacklogValuesMeasuredHandler.TOPIC,
+            setOf("submission-svc"),
+            contentTopic = false,
+        )
 
     /** A channel message is either inline or a `$ref` to `#/components/messages/<name>`. */
     private fun resolve(
