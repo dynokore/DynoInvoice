@@ -256,6 +256,30 @@ object Problems {
     }
 
     /**
+     * The submission refusal [code] (SUB-008, SUB-025; INV-T-21366) as a complete response: the status of the entry,
+     * the headers of [renderPeriod] (never `Retry-After`) and the API-20 envelope with the code's severity and
+     * disposition, with [detail] as a client error carries it (API-22).
+     */
+    fun renderSubmission(
+        code: SubmissionErrorCode,
+        correlationId: String,
+        detail: String? = null,
+    ): ProblemResponse {
+        val response =
+            coded(
+                code.httpStatus,
+                code.title,
+                detail,
+                correlationId,
+                code.code,
+                code.disposition,
+                code.owner.text,
+                code.severity,
+            )
+        return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
+    }
+
+    /**
      * A downstream owner's [refusal] relayed as a complete response (coordinator ruling, round zq of 2026-11-12;
      * INV-T-21194): the owner's status, the headers of [renderPeriod] (never `Retry-After`) and the API-20 envelope
      * with the owner's members. An absent optional member is omitted, never defaulted. The builder knows no

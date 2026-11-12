@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 0a3dcc90467b4325597eaaa26935083dfb3072c9 (2026-11-10), the merge of invoice-docs INV-T-19786 adding TNC-014, tenant close refused while SCHEDULED or CLOSED (INV-T-19787, coordinator ruling of breakdown tooling/gap8179-gap.md; this re-vendor also brings CPL-010 and CPL-011 from INV-T-19763);
+# pinned at commit 5b5ef83811591636c5b5f45829a436d57884bd0f (2026-11-12), invoice-docs INV-T-20618 adding SUB-025, replay refused, version not replayable (INV-T-21366, coordinator ruling of breakdown tooling/t20607-gap.md);
+# previously pinned at 0a3dcc90467b4325597eaaa26935083dfb3072c9 (2026-11-10), the merge of invoice-docs INV-T-19786 adding TNC-014, tenant close refused while SCHEDULED or CLOSED (INV-T-19787, coordinator ruling of breakdown tooling/gap8179-gap.md; this re-vendor also brings CPL-010 and CPL-011 from INV-T-19763);
 # previously pinned at 2e75aa4e9274fc6664fd09a392c5c56dab24c14d (2026-11-10), the merge of invoice-docs INV-T-19491 adding TNC-013 (INV-T-19492, coordinator ruling of breakdown tooling/gap15888-gap.md);
 # previously pinned at 92ad97b4853360b6fef30cef44c6ed5ea4cd6cb0 (2026-11-09), the merge of invoice-docs INV-T-19381 adding TNC-012, tenant open refused (INV-T-19382, coordinator ruling of breakdown tooling/gap8142-gap.md);
 # previously pinned at 03bf5b6ed7232362ceb836094380637c1934b66a (2026-11-09), the merge of invoice-docs INV-T-18946 adding MDM-016 to MDM-018, the connection error codes (INV-T-18947, coordinator ruling of breakdown tooling/gap18774-gap.md);
@@ -527,6 +528,11 @@ error_codes:
   owner: Platform
 - code: SUB-024
   condition: 'An Access Point notification of kind INBOUND_NETWORK_DOCUMENT is not accepted yet: inbound network documents are received in Wave 3; nothing is recorded and the Access Point retries (HTTP 503; INV-REQ-585, INV-Q-9676)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SUB-025
+  condition: 'Replay refused: the version is in a state other than DEAD_LETTERED or QUEUED, so it is not replayable; its state is unchanged and nothing is enqueued (HTTP 409; INV-REQ-575)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform

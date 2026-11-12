@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.16.0] - 2026-11-12
+### Added
+- `SubmissionErrorCode` with the entries `IN_FLIGHT_BREACH` (SUB-008) and `VERSION_NOT_REPLAYABLE` (SUB-025), both 409, severity BLOCK, disposition TERMINAL, owner Platform, and `Problems.renderSubmission`, the public builder of their envelope beside `renderPeriod`, so that svc-submission answers `replaySubmissions` without a private copy (coordinator ruling at the reviewer stop of INV-T-20607, option A; INV-T-21366, INV-AC-21365). The catalogue snapshot now holds SUB-025 (invoice-docs 5b5ef838).
+
 ## [13.15.0] - 2026-11-12
 ### Added
 - `RelayedRefusal` and `Problems.renderRelayed`, the one public builder of the API-20 envelope for a downstream refusal relayed with the owner's status and members (any catalogue family; absent optional members omitted; a 5xx, 429 or malformed refusal is refused), so that svc-console-bff relays PAY-017 and SRT codes without a private copy (coordinator ruling round zq, 2026-11-12; INV-T-21194, INV-AC-21193).
