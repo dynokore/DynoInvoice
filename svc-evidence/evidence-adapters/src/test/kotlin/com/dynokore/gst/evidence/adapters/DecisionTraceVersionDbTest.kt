@@ -121,35 +121,9 @@ class DecisionTraceVersionDbTest {
         }
     }
 
-    private fun append(
-        ledger: JdbcEvidenceLedger,
-        tenant: TenantId,
-        type: EvidenceType,
-    ) = ledger.append(
-        tenant,
-        EntityRef("ENT-1"),
-        PeriodRef("2026-Q1"),
-        type,
-        content,
-        EvidenceIndex(docUuid = doc, version = 3),
-    )
-
-    private fun countOf(
-        table: String,
-        tenant: UUID,
-    ): Int =
-        EvidenceDb.superuser().use { c ->
-            c.prepareStatement("select count(*) from evidence.$table where tenant_id = ?").use {
-                it.setObject(1, tenant)
-                it.executeQuery().use { rows ->
-                    rows.next()
-                    rows.getInt(1)
-                }
-            }
-        }
-
     @Test
-    fun `INV-AC-20715 the other three chain tables have no version column`() {
+    fun `INV-AC-20715 the other three chain tables have no version column and their ledgers refuse one`() {
+        val t = UUID.randomUUID()
         EvidenceDb.superuser().use { c ->
             RecordKind.entries.filter { it != RecordKind.DECISION_TRACE }.forEach { kind ->
                 c
@@ -165,36 +139,55 @@ class DecisionTraceVersionDbTest {
                     }
             }
         }
-    }
-
-    @Test
-    fun `INV-AC-20715 a ledger built without the version column refuses a version`() {
-        tx(UUID.randomUUID()) { dsl, tenant ->
-            // the wiring builds the DECISION_TRACE ledger alone with the column
+        tx(t) { dsl, tenant ->
+            // the wiring builds the DECISION_TRACE ledger alone with the column: a version through any other is refused
             shouldThrow<IllegalArgumentException> {
-                append(JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, "evidence_payload"), tenant, EvidenceType.PAYLOAD)
-            }
-            shouldThrow<IllegalArgumentException> {
-                append(
-                    JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, "decision_trace"),
+                JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, "evidence_payload").append(
                     tenant,
-                    EvidenceType.DECISION_TRACE,
+                    EntityRef("ENT-1"),
+                    PeriodRef("2026-Q1"),
+                    EvidenceType.PAYLOAD,
+                    content,
+                    EvidenceIndex(docUuid = doc, version = 3),
                 )
             }
-            shouldThrow<IllegalArgumentException> { append(traceLedger(dsl), tenant, EvidenceType.PAYLOAD) }
+            shouldThrow<IllegalArgumentException> {
+                JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, "decision_trace").append(
+                    tenant,
+                    EntityRef("ENT-1"),
+                    PeriodRef("2026-Q1"),
+                    EvidenceType.DECISION_TRACE,
+                    content,
+                    EvidenceIndex(docUuid = doc, version = 3),
+                )
+            }
+            shouldThrow<IllegalArgumentException> {
+                traceLedger(dsl).append(
+                    tenant,
+                    EntityRef("ENT-1"),
+                    PeriodRef("2026-Q1"),
+                    EvidenceType.PAYLOAD,
+                    content,
+                    EvidenceIndex(docUuid = doc, version = 3),
+                )
+            }
         }
-    }
-
-    @Test
-    fun `INV-AC-20715 an EVIDENCE_PAYLOAD record for the same version is stored through the wiring`() {
-        val t = UUID.randomUUID()
+        // an EVIDENCE_PAYLOAD record for the same version through the wiring is stored, with no version column
         locate(t, 3)
         tx(t) { dsl, tenant ->
             ChainWiring
                 .recordAppender(dsl)
                 .appendBound(tenant, RecordKind.EVIDENCE_PAYLOAD, doc, 3, "P1", content, at)
         }
-        countOf("evidence_payload", t) shouldBe 1
+        EvidenceDb.superuser().use { c ->
+            c.prepareStatement("select count(*) from evidence.evidence_payload where tenant_id = ?").use {
+                it.setObject(1, t)
+                it.executeQuery().use { rows ->
+                    rows.next()
+                    rows.getInt(1) shouldBe 1
+                }
+            }
+        }
     }
 
     private fun ownerInsert(
