@@ -17,6 +17,8 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.exception.DataAccessException
 import org.postgresql.util.PSQLException
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 /**
  * [ReplayRequeue] (INV-REQ-575 behaviours 2 and 3, delegated ruling of owner 2026-10-14): in one tenant transaction
@@ -86,6 +88,7 @@ class JooqReplayRequeue(
                 dsl
                     .update(s)
                     .set(s.STATE, LifecycleState.QUEUED.name)
+                    .set(s.QUEUED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                     .set(s.RETRY_FAILURES, 0)
                     .setNull(s.RETRY_FIRST_FAILURE_AT)
                     .setNull(s.NEXT_ATTEMPT_AT)
