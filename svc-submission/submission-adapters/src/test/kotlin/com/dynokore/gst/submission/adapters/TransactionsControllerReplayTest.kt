@@ -9,6 +9,7 @@ import com.dynokore.gst.submission.application.replay.ReplayActions
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplayCandidateSource
 import com.dynokore.gst.submission.application.replay.ReplayRequeue
+import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.RequeueOutcome
 import com.dynokore.gst.submission.contract.model.ReplayScopeRequest
 import com.dynokore.gst.submission.contract.model.ReplayScopeResult
@@ -146,6 +147,7 @@ class TransactionsControllerReplayTest {
         val controller =
             TransactionsController(
                 ReplayBySelection(replica(holder), source, requeue),
+                ReplaySingleVersion(replica(holder), { _, _, _ -> null }, requeue),
                 clock,
                 object : ObjectProvider<HttpServletRequest> {
                     override fun getObject(): HttpServletRequest = request
@@ -261,9 +263,9 @@ class TransactionsControllerReplayTest {
     }
 
     @Test
-    fun `INV-AC-20588 the look-alike operation replaySubmissions still answers 501`() {
+    fun `INV-AC-20588 the look-alike operation getTransaction still answers 501`() {
         val f = fixture(user())
-        val response = f.controller.replaySubmissions(UUID.fromString(docA), 1)
+        val response = f.controller.getTransaction(UUID.fromString(docA))
         response.statusCode.value() shouldBe 501
         f.source.calls shouldBe 0
     }

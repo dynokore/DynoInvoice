@@ -2,10 +2,13 @@ package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayCandidateSource
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayRequeue
+import com.dynokore.gst.submission.adapters.persistence.JooqReplayVersionLookup
 import com.dynokore.gst.submission.application.queue.InFlightStore
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplayCandidateSource
 import com.dynokore.gst.submission.application.replay.ReplayRequeue
+import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
+import com.dynokore.gst.submission.application.replay.ReplayVersionLookup
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -36,4 +39,17 @@ class ReplayConfiguration {
         source: ReplayCandidateSource,
         requeue: ReplayRequeue,
     ): ReplayBySelection = ReplayBySelection(replica, source, requeue)
+
+    @Bean
+    fun replayVersionLookup(
+        dsl: DSLContext,
+        runner: TransactionRunner,
+    ): ReplayVersionLookup = JooqReplayVersionLookup(dsl, runner)
+
+    @Bean
+    fun replaySingleVersion(
+        replica: AuthorityReplica,
+        lookup: ReplayVersionLookup,
+        requeue: ReplayRequeue,
+    ): ReplaySingleVersion = ReplaySingleVersion(replica, lookup, requeue)
 }

@@ -4,6 +4,9 @@ import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionRequest
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionResult
 import com.dynokore.gst.submission.application.replay.ReplayFailureClasses
+import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
+import com.dynokore.gst.submission.application.replay.ReplaySingleVersionRequest
+import com.dynokore.gst.submission.application.replay.ReplaySingleVersionResult
 import com.dynokore.gst.submission.contract.api.TransactionsApi
 import com.dynokore.gst.submission.contract.model.ReplayResult
 import com.dynokore.gst.submission.contract.model.ReplayScopeRequest
@@ -15,6 +18,7 @@ import com.dynokore.gst.submission.domain.replay.ReplayScope
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.http.SubmissionErrorCode
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
@@ -32,6 +36,11 @@ import java.time.Clock
 import java.time.OffsetDateTime
 import java.util.UUID
 
+/** A refusal with a code of the submission family (SUB-008, SUB-025), rendered by [TransactionsRefusalAdvice]. */
+class SubmissionRefusal(
+    val code: SubmissionErrorCode,
+) : RuntimeException(code.code)
+
 /** ARC-19, CS-14: the one place a [ComplianceRefusal] of [TransactionsController] becomes the API-20 envelope. */
 @RestControllerAdvice(assignableTypes = [TransactionsController::class])
 class TransactionsRefusalAdvice {
@@ -46,6 +55,18 @@ class TransactionsRefusalAdvice {
         headers.set(HttpHeaders.CONTENT_TYPE, Problems.CONTENT_TYPE)
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
     }
+
+    @ExceptionHandler(SubmissionRefusal::class)
+    fun refuse(refusal: SubmissionRefusal): ResponseEntity<String> {
+        val problem =
+            Problems.renderSubmission(
+                refusal.code,
+                CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
+            )
+        val headers = HttpHeaders()
+        problem.headers.forEach { (name, value) -> headers.set(name, value) }
+        return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
+    }
 }
 
 /**
@@ -57,6 +78,7 @@ class TransactionsRefusalAdvice {
 @RestController
 open class TransactionsController(
     private val replay: ReplayBySelection,
+    private val replayOne: ReplaySingleVersion,
     private val clock: Clock,
     private val requests: ObjectProvider<HttpServletRequest>,
 ) : TransactionsApi {
@@ -79,6 +101,57 @@ open class TransactionsController(
             is ReplayBySelectionResult.Done -> ResponseEntity.ok(render(entityRef, result))
         }
     }
+
+    /**
+     * `replaySubmissions` (INV-REQ-575). The acting user id of the principal (never a role) is what the use case
+     * receives; a version outside the caller's entity set is decided by the use case through the replica.
+     */
+    override fun replaySubmissions(
+        docUuid: UUID,
+        version: Int,
+    ): ResponseEntity<ReplayResult> {
+        val caller = caller()
+        val tenant = verifiedTenant(caller)
+        requirePositive(version)
+        val result =
+            replayGuarded(
+                ReplaySingleVersionRequest(
+                    tenant,
+                    Principal(caller.actor, PrincipalKind.HUMAN),
+                    docUuid.toString(),
+                    version,
+                ),
+            )
+        refusalOf(result)?.let { throw it }
+        val at = OffsetDateTime.ofInstant(clock.instant(), clock.zone)
+        return ResponseEntity.ok(ReplayResult(docUuid, version, ReplayResult.State.QUEUED, at))
+    }
+
+    private fun verifiedTenant(caller: EndUserPrincipal) =
+        caller.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
+
+    /** A version below 1 is SRT-001 before any read. */
+    private fun requirePositive(version: Int) {
+        if (version < 1) throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+    }
+
+    /** An exception from the use case is SRT-010 (API-22: no detail). */
+    private fun replayGuarded(request: ReplaySingleVersionRequest): ReplaySingleVersionResult =
+        try {
+            replayOne.handle(request, CurrentDeadline.current() ?: error("no call deadline is bound"))
+        } catch (_: Exception) {
+            throw ComplianceRefusal(ClosedErrorCode.INTERNAL_ERROR)
+        }
+
+    /** The refusal a use-case result stands for; null for Requeued and AlreadyQueued, which answer 200. */
+    private fun refusalOf(result: ReplaySingleVersionResult): RuntimeException? =
+        when (result) {
+            ReplaySingleVersionResult.Requeued, ReplaySingleVersionResult.AlreadyQueued -> null
+            ReplaySingleVersionResult.InFlightConflict -> SubmissionRefusal(SubmissionErrorCode.IN_FLIGHT_BREACH)
+            ReplaySingleVersionResult.NotFound -> ComplianceRefusal(ClosedErrorCode.NOT_FOUND)
+            is ReplaySingleVersionResult.NotReplayable -> SubmissionRefusal(SubmissionErrorCode.VERSION_NOT_REPLAYABLE)
+            is ReplaySingleVersionResult.Forbidden -> ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
+        }
 
     /** API-24: an entityRef outside the token's current entity set is SRT-005 (the contract). */
     private fun refuseOutsideScope(

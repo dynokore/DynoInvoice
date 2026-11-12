@@ -28,6 +28,9 @@ class JacksonDocumentHeldDataReaderTest {
             LocalDate.of(2026, 7, 2)
         held.read(heldJson(extra = ""","postingTimestamp":"2026-07-02T23:30:00"""")).postingDate shouldBe
             LocalDate.of(2026, 7, 2)
+        // 00:30+08:00 is 16:30 of the previous day in UTC: a zone conversion would change the date.
+        held.read(heldJson(extra = ""","postingTimestamp":"2026-07-02T00:30:00+08:00"""")).postingDate shouldBe
+            LocalDate.of(2026, 7, 2)
         held.read(heldJson()).postingDate shouldBe null
     }
 

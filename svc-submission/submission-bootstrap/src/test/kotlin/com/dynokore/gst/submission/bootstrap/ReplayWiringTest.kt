@@ -6,10 +6,13 @@ import com.dynokore.gst.submission.adapters.http.TransactionsController
 import com.dynokore.gst.submission.adapters.persistence.JooqInFlightStore
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayCandidateSource
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayRequeue
+import com.dynokore.gst.submission.adapters.persistence.JooqReplayVersionLookup
 import com.dynokore.gst.submission.application.replay.ReplayActions
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionRequest
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionResult
+import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
+import com.dynokore.gst.submission.application.replay.ReplaySingleVersionRequest
 import com.dynokore.gst.submission.domain.replay.ReplayScope
 import com.dynokore.platform.outboxandqueue.ClaimedItem
 import com.dynokore.platform.outboxandqueue.QueueEntry
@@ -83,6 +86,48 @@ class ReplayWiringTest {
                 ),
                 Deadline.after(Duration.ofSeconds(5), clock),
             ).shouldBeInstanceOf<ReplayBySelectionResult.Forbidden>()
+    }
+
+    @Test
+    fun `INV-AC-20606 the ReplaySingleVersion bean is built over the lookup and requeue beans`() {
+        val dsl = DSL.using(SQLDialect.POSTGRES)
+        val runner =
+            object : TransactionRunner {
+                override fun <T> inTransaction(block: () -> T): T = error("no database in this test")
+            }
+        val queue =
+            object : WorkQueue {
+                override fun enqueue(entry: QueueEntry): Long = error("no queue in this test")
+
+                override fun claimNext(): ClaimedItem? = null
+
+                override fun payloadOf(item: ClaimedItem): String = error("not used")
+
+                override fun complete(item: ClaimedItem) = Unit
+
+                override fun release(item: ClaimedItem) = Unit
+            }
+        val config = ReplayConfiguration()
+        val lookup = config.replayVersionLookup(dsl, runner)
+        val requeue = config.replayRequeue(dsl, runner, JooqInFlightStore(dsl), queue)
+        lookup.shouldBeInstanceOf<JooqReplayVersionLookup>()
+        val replica = AuthorityReplica(clock, roleMap).also { it.onSnapshotComplete(0) }
+        val bean = config.replaySingleVersion(replica, lookup) { _, _, _ -> error("requeue is not reached") }
+        bean.shouldBeInstanceOf<ReplaySingleVersion>()
+        requeue.shouldBeInstanceOf<JooqReplayRequeue>()
+        // The lookup is the first step: a real lookup bean over the missing database fails, so it is the one called.
+        runCatching {
+            bean.handle(
+                ReplaySingleVersionRequest(
+                    TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a")),
+                    Principal("nobody", PrincipalKind.HUMAN),
+                    "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    1,
+                ),
+                Deadline.after(Duration.ofSeconds(5), clock),
+            )
+        }.exceptionOrNull()
+            .shouldBeInstanceOf<IllegalStateException>()
     }
 
     @Test
