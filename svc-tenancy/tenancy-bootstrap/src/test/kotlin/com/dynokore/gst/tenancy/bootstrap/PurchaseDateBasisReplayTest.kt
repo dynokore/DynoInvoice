@@ -43,50 +43,55 @@ class PurchaseDateBasisReplayTest {
 
     private fun run(block: (ProfileEnv, Seed) -> Unit) {
         // the writer's business date is 2026-01-01, so both election dates of the criterion are writable (not back-dated)
-        BoundaryFixture.runner().withBean(Clock::class.java, { Clock.fixed(Instant.parse("2026-01-01T01:00:00Z"), ZoneOffset.UTC) }).run { context ->
-            context.startupFailure?.let { throw it }
-            val env = ProfileEnv(context)
-            val store = context.getBean(ElectionPolicyStore::class.java)
+        BoundaryFixture
+            .runner()
+            .withBean(Clock::class.java, {
+                Clock.fixed(Instant.parse("2026-01-01T01:00:00Z"), ZoneOffset.UTC)
+            })
+            .run { context ->
+                context.startupFailure?.let { throw it }
+                val env = ProfileEnv(context)
+                val store = context.getBean(ElectionPolicyStore::class.java)
 
-            fun elect(
-                tenant: TenantId,
-                group: GroupResponse,
-                entity: EntityResponse,
-                value: String,
-                from: String,
-            ) = env.inTenant(tenant) {
-                env.inTx {
-                    store.write(
-                        entity.entityRef,
-                        group.groupRef,
-                        ElectionKind.PURCHASE_DATE_BASIS,
-                        value,
-                        null,
-                        day(from),
-                        "identity:USR-001",
-                        "seed",
-                    )
+                fun elect(
+                    tenant: TenantId,
+                    group: GroupResponse,
+                    entity: EntityResponse,
+                    value: String,
+                    from: String,
+                ) = env.inTenant(tenant) {
+                    env.inTx {
+                        store.write(
+                            entity.entityRef,
+                            group.groupRef,
+                            ElectionKind.PURCHASE_DATE_BASIS,
+                            value,
+                            null,
+                            day(from),
+                            "identity:USR-001",
+                            "seed",
+                        )
+                    }
+                }
+                val (t2, e3) =
+                    env.withTenant { tenant ->
+                        val group = env.group(tenant)
+                        val entity = env.entity(tenant, group)
+                        env.set(entity, exempt("2026-03-01"))
+                        elect(tenant, group, entity, "INVOICE_DATE", "2026-02-01")
+                        tenant to entity
+                    }
+                env.withTenant { t1 ->
+                    val g1 = env.group(t1)
+                    val e1 = env.entity(t1, g1)
+                    val e2 = env.entity(t1, g1)
+                    env.set(e1, exempt("2026-03-01"))
+                    env.set(e2, exempt("2026-03-01"))
+                    elect(t1, g1, e1, "INVOICE_DATE", "2026-01-01")
+                    elect(t1, g1, e1, "POSTING_DATE", "2026-07-01")
+                    block(env, Seed(t1, t2, e1, e2, e3, g1))
                 }
             }
-            val (t2, e3) =
-                env.withTenant { tenant ->
-                    val group = env.group(tenant)
-                    val entity = env.entity(tenant, group)
-                    env.set(entity, exempt("2026-03-01"))
-                    elect(tenant, group, entity, "INVOICE_DATE", "2026-02-01")
-                    tenant to entity
-                }
-            env.withTenant { t1 ->
-                val g1 = env.group(t1)
-                val e1 = env.entity(t1, g1)
-                val e2 = env.entity(t1, g1)
-                env.set(e1, exempt("2026-03-01"))
-                env.set(e2, exempt("2026-03-01"))
-                elect(t1, g1, e1, "INVOICE_DATE", "2026-01-01")
-                elect(t1, g1, e1, "POSTING_DATE", "2026-07-01")
-                block(env, Seed(t1, t2, e1, e2, e3, g1))
-            }
-        }
     }
 
     private fun states(

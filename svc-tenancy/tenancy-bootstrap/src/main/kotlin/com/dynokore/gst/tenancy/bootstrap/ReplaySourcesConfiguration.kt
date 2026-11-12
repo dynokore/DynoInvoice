@@ -1,8 +1,8 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.election.PurchaseDateBasisProfileExtras
 import com.dynokore.gst.tenancy.adapters.events.EntityProfileReplaySource
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureReplaySource
-import com.dynokore.gst.tenancy.adapters.election.PurchaseDateBasisProfileExtras
 import com.dynokore.gst.tenancy.adapters.persistence.JooqReplayReader
 import com.dynokore.gst.tenancy.adapters.persistence.ReplayReader
 import com.dynokore.gst.tenancy.application.election.ElectionPolicyStore
