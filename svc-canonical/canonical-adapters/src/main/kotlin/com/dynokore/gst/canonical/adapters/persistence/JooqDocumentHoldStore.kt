@@ -1,6 +1,7 @@
 package com.dynokore.gst.canonical.adapters.persistence
 
 import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT
+import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT_PARTY_REF
 import com.dynokore.gst.canonical.application.document.DocumentHoldStore
 import com.dynokore.gst.canonical.application.document.DocumentStates
 import com.dynokore.gst.canonical.application.document.HoldableDocument
@@ -29,10 +30,15 @@ class JooqDocumentHoldStore(
                 DOCUMENT.HOLD_REASONS,
                 DOCUMENT.POSTING_TIMESTAMP,
                 DOCUMENT.INVOICE_ISSUED_OR_RECEIVED,
+                DOCUMENT_PARTY_REF.PARTY_REF,
             ).from(DOCUMENT)
+            .leftJoin(DOCUMENT_PARTY_REF)
+            .on(DOCUMENT_PARTY_REF.TENANT_ID.eq(DOCUMENT.TENANT_ID))
+            .and(DOCUMENT_PARTY_REF.DOC_UUID.eq(DOCUMENT.DOC_UUID))
             .where(DOCUMENT.TENANT_ID.eq(tenants.current().value))
             .and(DOCUMENT.DOC_UUID.eq(docUuid))
             .forUpdate()
+            .of(DOCUMENT)
             .fetchOne()
             ?.let { row ->
                 HoldableDocument(
@@ -46,6 +52,7 @@ class JooqDocumentHoldStore(
                     holdReasons = row.get(DOCUMENT.HOLD_REASONS)?.filterNotNull().orEmpty(),
                     postingTimestamp = row.get(DOCUMENT.POSTING_TIMESTAMP),
                     invoiceIssuedOrReceived = row.get(DOCUMENT.INVOICE_ISSUED_OR_RECEIVED),
+                    partyRef = row.get(DOCUMENT_PARTY_REF.PARTY_REF),
                 )
             }
 

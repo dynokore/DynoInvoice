@@ -43,7 +43,12 @@ class DocumentHoldStoreDbTest {
         TenancyJooq
             .configure(
                 DefaultConfiguration().set(SQLDialect.POSTGRES),
-                TenancyTables.declared(mapOf(DSL.name("canonical", "document") to TableClass.TENANT)),
+                TenancyTables.declared(
+                    mapOf(
+                        DSL.name("canonical", "document") to TableClass.TENANT,
+                        DSL.name("canonical", "document_party_ref") to TableClass.TENANT,
+                    ),
+                ),
                 tenants,
                 transaction,
             ).dsl()
@@ -123,5 +128,22 @@ class DocumentHoldStoreDbTest {
             .message!! shouldContain "document_date"
         shouldThrow<IllegalStateException> { asTenant(tenant) { store.lockForHold(noPeriod) } }
             .message!! shouldContain "prescribed_period_ref"
+    }
+
+    @Test
+    fun `INV-AC-21358 the hold read returns the stored party reference or null and nothing else changes`() {
+        val withRef = insert(tenant, posting = "2026-03-21T09:30:00+08:00", invoice = true)
+        val without = insert(tenant)
+        DocumentSql.execute(
+            "insert into canonical.document_party_ref (tenant_id, doc_uuid, party_ref) " +
+                "values ('$tenant', '$withRef', 'CTP-118')",
+        )
+        val held = asTenant(tenant) { store.lockForHold(withRef) }!!
+        held.partyRef shouldBe "CTP-118"
+        held.entityRef shouldBe "E-001"
+        held.state shouldBe DocumentStates.INGESTED
+        held.invoiceIssuedOrReceived shouldBe true
+        asTenant(tenant) { store.lockForHold(without) }!!.partyRef shouldBe null
+        asTenant(other) { store.lockForHold(withRef) } shouldBe null
     }
 }
