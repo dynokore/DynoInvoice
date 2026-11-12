@@ -133,9 +133,19 @@ class ChainRecordReaderDbTest {
 
     @Test
     fun `INV-AC-20574 a missing applied_record row is reported as incomplete, never skipped`() {
+        // a locator whose ACKNOWLEDGEMENT applied_record row is absent: the locator is written straight
         val noAck = UUID.randomUUID()
         locate(noAck)
         seal(noAck, 2, "P1")
+        tx(noAck) { dsl, tenant ->
+            dsl.execute(
+                "insert into evidence.acknowledgement_locator " +
+                    "(tenant_id, ack_id, doc_uuid, version, source_event_id, recorded_at) " +
+                    "values (?, 'A9', ?, 2, 'GHOST-ACK', now())",
+                tenant.value,
+                doc,
+            )
+        }
         read(noAck, "A9", 2) shouldBe ChainRecords.Incomplete
         // a sealed_payload link whose applied_record row is absent: written straight, as a repair-gap fixture
         val t = UUID.randomUUID()
