@@ -26,6 +26,7 @@ import org.jooq.DSLContext
 import java.time.Clock
 
 /** The appender over one [JdbcEvidenceLedger] per chain table and the three stores, on a tenant-bound [DSLContext]. */
+@Suppress("TooManyFunctions") // one factory per handler of the chain consumers
 object ChainWiring {
     const val SCHEMA = "evidence"
 

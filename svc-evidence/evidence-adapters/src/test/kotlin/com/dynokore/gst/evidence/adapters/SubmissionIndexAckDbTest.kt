@@ -36,8 +36,8 @@ class SubmissionIndexAckDbTest {
 
     private fun document(tenant: UUID) =
         tx(tenant) { dsl, t ->
-            JooqSubmissionIndexStore(dsl)
-                .upsertDocument(t, SubmissionIndexRow(doc, 1, "ENT-1", "2026-Q1", "INV-1", LocalDate.of(2026, 1, 15), "201912345A", at))
+            val row = SubmissionIndexRow(doc, 1, "ENT-1", "2026-Q1", "INV-1", LocalDate.of(2026, 1, 15), "201912345A", at)
+            JooqSubmissionIndexStore(dsl).upsertDocument(t, row)
         }
 
     private fun despatch(tenant: UUID) =

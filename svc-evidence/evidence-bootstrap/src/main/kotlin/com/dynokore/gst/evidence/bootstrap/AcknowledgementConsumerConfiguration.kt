@@ -32,8 +32,7 @@ class AcknowledgementConsumerConfiguration {
     fun submissionAcknowledgedHandler(
         dsl: DSLContext,
         clock: Clock,
-    ): SubmissionAcknowledgedHandler =
-        SubmissionAcknowledgedHandler(ChainWiring.acknowledgementRecorder(dsl, clock))
+    ): SubmissionAcknowledgedHandler = SubmissionAcknowledgedHandler(ChainWiring.acknowledgementRecorder(dsl, clock))
 
     @Bean
     @Suppress("LongParameterList")
