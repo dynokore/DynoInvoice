@@ -109,4 +109,19 @@ class NotificationEventCatalogueTest {
             .map { it.eventType }
             .toSet() shouldBe messageNames(asyncApi)
     }
+
+    @Test
+    fun `INV-AC-20913 the consumed pack currency event is listed and the own entries are unchanged`() {
+        val entries = NotificationEventCatalogue.load().entries()
+        val entry = entries.single { it.eventType == "com.dynokore.gst.rules.PackCurrencyChanged.v1" }
+        entry.topic shouldBe "gst.rules.pack-currency-changed.v1"
+        entry.producers shouldBe setOf("rules-svc")
+        entry.contentTopic shouldBe false
+        entries.any { it.eventType == "com.dynokore.gst.rules.PackCurrencyChanged" } shouldBe false
+        entries.any { it.eventType == "com.dynokore.gst.submission.BacklogValuesMeasured.v1" } shouldBe true
+        entries
+            .filter { it.producers == setOf(NotificationEventCatalogue.SERVICE) }
+            .map { it.eventType }
+            .toSet() shouldBe messageNames(asyncApi)
+    }
 }

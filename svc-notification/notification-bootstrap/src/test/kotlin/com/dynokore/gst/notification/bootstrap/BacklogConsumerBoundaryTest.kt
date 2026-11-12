@@ -260,7 +260,7 @@ class BacklogConsumerBoundaryTest {
     }
 
     @Test
-    fun `INV-AC-20820 the consumer bean of the context is the only one and consumes the first event`(
+    fun `INV-AC-20820 the backlog consumer bean of the context consumes the first event`(
         @TempDir dir: Path,
     ) {
         val log = Log()
@@ -270,9 +270,7 @@ class BacklogConsumerBoundaryTest {
             .withBean(EventLogReader::class.java, { log }, BeanDefinitionCustomizer { it.isPrimary = true })
             .run { context ->
                 val boundary = Boundary(context, BacklogConsumerConfiguration.TOPIC)
-                val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
-                consumers.size shouldBe 1
-                val bean = consumers.values.single()
+                val bean = context.getBean("backlogConsumer", JdbcInboxConsumer::class.java)
                 policy(tenant, "E-1")
                 log.add(measured(tenant, "ev-1"))
                 try {

@@ -54,7 +54,7 @@ object NotificationEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + platform + backlogValuesMeasured)
+        return EventCatalogue(own + consumed + platform + backlogValuesMeasured + packCurrencyChanged)
     }
 
     /** The consumed BacklogValuesMeasured event (INV-REQ-1370); its producer is submission-svc. */
@@ -63,6 +63,15 @@ object NotificationEventCatalogue {
             BacklogValuesMeasuredHandler.EVENT_TYPE,
             BacklogValuesMeasuredHandler.TOPIC,
             setOf("submission-svc"),
+            contentTopic = false,
+        )
+
+    /** The consumed PackCurrencyChanged event (INV-REQ-1080); its producer is rules-svc. */
+    private val packCurrencyChanged =
+        CatalogueEntry(
+            PackCurrencyChangedHandler.EVENT_TYPE,
+            PackCurrencyChangedHandler.TOPIC,
+            setOf("rules-svc"),
             contentTopic = false,
         )
 
