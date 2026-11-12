@@ -5,3 +5,4 @@
 ../openapi.yaml#/components/schemas/ReleaseHeldDocumentRequest release-held-document-request-*.json
 ../openapi.yaml#/components/schemas/ReleasedDocument released-document-*.json
 ../schemas/document-held-payload.schema.json document-held-payload-*.json
+../schemas/decision-trace-recorded-payload.schema.json decision-trace-recorded-*.json

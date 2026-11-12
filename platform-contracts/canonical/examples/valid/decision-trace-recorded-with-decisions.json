@@ -1,0 +1,1 @@
+{"docUuid":"3fa85f64-5717-4562-b3fc-2c963f66afa6","version":1,"traceReference":"evd-1","decisionTrace":{"decisions":[{"code":"VAL-203","ruleId":"R-1","packVersions":[{"packIdentifier":"gst-core","version":"1.0.0"}],"inputs":[{"name":"gstRate","value":"9","businessTermId":"IBT-152"}]}]}}

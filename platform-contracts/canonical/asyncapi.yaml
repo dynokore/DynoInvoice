@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: canonical events
-  version: 1.13.0
+  version: 1.14.0
   description: >-
     Every event canonical produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -13,6 +13,9 @@ info:
     breaking structural change under this repository's additive-only
     asyncapi-breaking-gate — its removal is a follow-up outside T10's
     declared scope (spectral/ is not in it), named in the INV-T-2854 MR.
+
+    Version 1.14.0 adds the optional member decisions of decisionTrace to the
+    DecisionTraceRecorded payload (INV-REQ-942).
   contact:
     name: canonical (see CODEOWNERS)
   license:

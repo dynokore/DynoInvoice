@@ -23,6 +23,79 @@
     "decisionTrace": {
       "type": "object",
       "description": "The decision trace itself (opaque to this envelope; interpreted by evidence-svc and console-bff, FR-B.6).",
+      "properties": {
+        "decisions": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Optional. The decisions behind the verdict, one entry per decision, in the shape of DecisionTraceEntry of evidence/openapi.yaml (INV-REQ-942). Readers tolerate its absence.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}-[0-9]{3}$"
+              },
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "packVersions": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "packIdentifier": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "version": {
+                      "type": "string",
+                      "maxLength": 40
+                    }
+                  },
+                  "required": [
+                    "packIdentifier",
+                    "version"
+                  ]
+                }
+              },
+              "inputs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "value": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "businessTermId": {
+                      "type": "string",
+                      "pattern": "^IBT-[0-9]{3}$"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "code",
+              "ruleId",
+              "packVersions",
+              "inputs"
+            ]
+          }
+        }
+      },
       "additionalProperties": true
     }
   },

@@ -208,3 +208,7 @@ invoiceIssuedOrReceived	property	schemas/document-held-payload.schema.json	INV-R
 code	property	schemas/document-held-payload.schema.json	INV-REQ-940
 remediationOwner	property	schemas/document-held-payload.schema.json	INV-REQ-940
 disposition	property	schemas/document-held-payload.schema.json	INV-REQ-940
+# INV-T-20802: optional decisions member of decisionTrace on the DecisionTraceRecorded payload (INV-REQ-942)
+decisions	property	schemas/decision-trace-recorded-payload.schema.json	INV-REQ-942
+ruleId	property	schemas/decision-trace-recorded-payload.schema.json	INV-REQ-942
+packVersions	property	schemas/decision-trace-recorded-payload.schema.json	INV-REQ-942
