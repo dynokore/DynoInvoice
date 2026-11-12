@@ -8,6 +8,7 @@ data class PeriodRecord(
     val periodRef: String,
     val periodStart: LocalDate,
     val periodEnd: LocalDate,
+    val filingDueDate: LocalDate? = null,
 )
 
 /** The data of a `PeriodRecordsChanged` event: the complete set of period records in force at [version]. */
