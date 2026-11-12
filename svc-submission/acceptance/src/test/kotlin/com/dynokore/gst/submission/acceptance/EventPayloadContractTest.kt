@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import org.yaml.snakeyaml.Yaml
 import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
 import java.io.File
 
 /**
@@ -46,10 +47,6 @@ class EventPayloadContractTest {
                 """.trimMargin(),
             "ReadinessChanged" to
                 """{"entityRef":"E-001","period":"2026-Q3","verdict":"READY","countsByState":{"ACKNOWLEDGED":1}}""",
-            "BacklogValuesMeasured" to
-                """{"entityRef":"E-001","periodRef":"2026Q1","queueDepth":2,"failureRate":0.5,"unacknowledgedCount":1,
-                |"measuredAt":"2026-10-29T08:00:00Z"}
-                """.trimMargin(),
             "ComplianceAlertValuesMeasured" to
                 """{"entityRef":"E-001","periodRef":"2026Q1","measuredOn":"2026-10-29","documentsWithoutSubmission":1,
                 |"documentsPastDue":0,"daysToNearestDeadline":3}
@@ -61,6 +58,10 @@ class EventPayloadContractTest {
             "PeriodFilingStatusChanged" to
                 """{"entityRef":"E-001","period":"2026-07","submissionLate":false,"recordedAt":"2026-08-15T09:00:00Z",
                 |"governingFiledAt":"2026-07-20T10:30:00Z","conflict":false}
+                """.trimMargin(),
+            "BacklogValuesMeasured" to
+                """{"entityRef":"E-001","periodRef":"2026Q1","queueDepth":4,"failureRate":0.25,"unacknowledgedCount":2,
+                |"oldestUnsentAgeSeconds":90,"measuredAt":"2026-11-13T08:00:00Z"}
                 """.trimMargin(),
             "ExampleHappened" to """{"entityRef":"E-001"}""",
         )
@@ -116,6 +117,20 @@ class EventPayloadContractTest {
                 }
             }
         }
+
+    @Test
+    fun `INV-AC-21642 the BacklogValuesMeasured sample validates and fails without each required member or with failureRate 1_5 or queueDepth -1`() {
+        val sample = samples.getValue("BacklogValuesMeasured")
+        errors("BacklogValuesMeasured", sample).shouldBeEmpty()
+        listOf("entityRef", "periodRef", "queueDepth", "failureRate", "unacknowledgedCount", "measuredAt").forEach {
+            val without = mapper.readTree(sample).also { n -> (n as ObjectNode).remove(it) }
+            errors("BacklogValuesMeasured", without.toString()).shouldNotBeEmpty()
+        }
+        listOf("failureRate" to "1.5", "queueDepth" to "-1").forEach { (member, value) ->
+            val bad = mapper.readTree(sample.replace(Regex("\"$member\":[^,]+"), "\"$member\":$value"))
+            errors("BacklogValuesMeasured", bad.toString()).shouldNotBeEmpty()
+        }
+    }
 
     @Test
     fun `every sample belongs to a channel of the contract`() {
