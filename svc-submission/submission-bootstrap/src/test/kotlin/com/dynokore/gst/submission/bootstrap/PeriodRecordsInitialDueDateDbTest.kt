@@ -133,16 +133,18 @@ class PeriodRecordsInitialDueDateDbTest {
     @Test
     fun `INV-AC-20795 the consumer stores the initial value but never overwrites a later one`(
         @TempDir dir: Path,
-    ) = SubmissionContext.online(dir).run { context ->
-        val tenant = UUID.randomUUID()
-        seed(context, tenant, "2026-07", "2026-08-20", 3)
-        seed(context, tenant, "2026-06", "2026-07-22", 1)
+    ) {
+        SubmissionContext.online(dir).run { context ->
+            val tenant = UUID.randomUUID()
+            seed(context, tenant, "2026-07", "2026-08-20", 3)
+            seed(context, tenant, "2026-06", "2026-07-22", 1)
 
-        consumer(context, envelope(tenant)).pollOnce().applied shouldBe 1
+            consumer(context, envelope(tenant)).pollOnce().applied shouldBe 1
 
-        row(context, tenant, "2026-06") shouldBe "2026-07-22:1"
-        row(context, tenant, "2026-07") shouldBe "2026-08-20:3"
-        row(context, tenant, "2026-08") shouldBe null
-        row(context, tenant, "2026-09") shouldBe "2026-10-20:0"
+            row(context, tenant, "2026-06") shouldBe "2026-07-22:1"
+            row(context, tenant, "2026-07") shouldBe "2026-08-20:3"
+            row(context, tenant, "2026-08") shouldBe null
+            row(context, tenant, "2026-09") shouldBe "2026-10-20:0"
+        }
     }
 }
