@@ -41,6 +41,42 @@ object ContractDocument {
         }
     }
 
+    /**
+     * Every string that a property named by `x-entity-ref` holds in a request-body example of the document: the
+     * entity set a test principal needs so that a valid request is not refused by the entity-reference check.
+     */
+    fun entityRefs(text: String): Set<String> {
+        val factory = YamlMapFactoryBean()
+        factory.setResources(ByteArrayResource(text.toByteArray()))
+        val document = checkNotNull(factory.getObject()) { "the contract document is empty" }
+        return (document["paths"] as Map<*, *>)
+            .values
+            .filterIsInstance<Map<*, *>>()
+            .flatMap { item -> item.values.filterIsInstance<Map<*, *>>() }
+            .flatMap(::exampleRefs)
+            .toSet()
+    }
+
+    /** The strings held by the `x-entity-ref` properties in the request-body examples of one operation. */
+    private fun exampleRefs(operation: Map<*, *>): List<String> {
+        val declared = operation["x-entity-ref"]
+        val names = if (declared is List<*>) declared.map { it.toString() } else listOfNotNull(declared?.toString())
+        val content = (operation["requestBody"] as? Map<*, *>)?.get("content") as? Map<*, *>
+        val json = content?.get("application/json") as? Map<*, *>
+        val examples = (json?.get("examples") as? Map<*, *>)?.values.orEmpty()
+        return examples
+            .filterIsInstance<Map<*, *>>()
+            .mapNotNull { it["value"] as? Map<*, *> }
+            .flatMap { value -> names.flatMap { name -> strings(value[name]) } }
+    }
+
+    private fun strings(held: Any?): List<String> =
+        when (held) {
+            is String -> listOf(held)
+            is List<*> -> held.filterIsInstance<String>()
+            else -> emptyList()
+        }
+
     private fun operation(
         samples: SampleValues,
         method: String,
