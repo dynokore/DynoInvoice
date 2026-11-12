@@ -17,7 +17,7 @@ class PackContractTest {
         return value as Map<String, Any?>
     }
 
-    /** The domain constant, read by reflection: acceptance does not compile against the domain module. */
+    /** The domain constant, read by reflection: acceptance has no compile dependency on the domain module (declared scope). */
     private val packAlertTrigger: String =
         Class
             .forName("com.dynokore.gst.notification.domain.alerting.PackStalenessKt")
