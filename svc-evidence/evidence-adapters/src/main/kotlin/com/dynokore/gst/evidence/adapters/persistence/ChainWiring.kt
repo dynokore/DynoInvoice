@@ -28,12 +28,15 @@ import java.time.Clock
 object ChainWiring {
     const val SCHEMA = "evidence"
 
+    /** Only `decision_trace` has the nullable `version` column (V17); the other chain tables have none. */
+    private fun versionColumn(kind: RecordKind): Boolean = kind == RecordKind.DECISION_TRACE
+
     fun recordAppender(
         dsl: DSLContext,
         clock: Clock = Clock.systemUTC(),
     ): RecordAppender =
         RecordAppender(
-            RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table) },
+            RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table, versionColumn(it)) },
             JooqLocatorStore(dsl),
             JooqPendingStore(dsl),
             JooqAppliedStore(dsl),
@@ -85,7 +88,7 @@ object ChainWiring {
         dsl: DSLContext,
         copies: DigestCopies,
     ): ChainVerification {
-        val ledgers = RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table) }
+        val ledgers = RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table, versionColumn(it)) }
         return ChainVerification(
             { tenant, entityRef, period, kind ->
                 ledgers.getValue(kind).verifyChain(tenant, EntityRef(entityRef), PeriodRef(period))

@@ -157,6 +157,22 @@ object EvidenceDb {
             .baselineVersion("0")
             .load()
             .migrate()
+        seedJobRetention(postgres)
+    }
+
+    /**
+     * The row the production migration runner's afterMigrate callback writes (INV-Q-5113, default 30 days): the
+     * job runtime refuses to announce without it (INV-Q-4346).
+     */
+    private fun seedJobRetention(postgres: PostgreSQLContainer<*>) {
+        DriverManager.getConnection(postgres.jdbcUrl, MIGRATE, MIGRATE_PASSWORD).use { connection ->
+            connection.createStatement().use {
+                it.execute(
+                    "insert into $SCHEMA.job_retention (id, job_window, updated_at) " +
+                        "values (true, interval '30 days', now()) on conflict (id) do nothing",
+                )
+            }
+        }
     }
 }
 

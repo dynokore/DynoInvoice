@@ -50,6 +50,10 @@ class ChainTablesTest {
         return items + text.substring(start).trim()
     }
 
+    /** The columns a chain table must have: `COLUMNS`, and for `decision_trace` alone the nullable `version` (V17). */
+    private fun expectedColumnsOf(table: String): List<String> =
+        if (table == RecordKind.DECISION_TRACE.table) expectedColumns() + "version" else expectedColumns()
+
     private fun columnsOf(
         connection: Connection,
         table: String,
@@ -69,7 +73,7 @@ class ChainTablesTest {
     private fun columnFindings(connection: Connection): List<String> =
         chainTables.mapNotNull { table ->
             val actual = columnsOf(connection, table)
-            if (actual == expectedColumns()) null else "$table: $actual"
+            if (actual == expectedColumnsOf(table)) null else "$table: $actual"
         }
 
     @Test
@@ -90,9 +94,24 @@ class ChainTablesTest {
     }
 
     @Test
-    fun `each chain table has exactly the columns of JdbcEvidenceLedger COLUMNS`() {
+    fun `each chain table has exactly the columns of JdbcEvidenceLedger COLUMNS, decision_trace also version`() {
         expectedColumns().size shouldBe 14
+        expectedColumnsOf("decision_trace").size shouldBe 15
+        expectedColumnsOf("evidence_payload").size shouldBe 14
         EvidenceDb.superuser().use { columnFindings(it).shouldBeEmpty() }
+    }
+
+    @Test
+    fun `a chain table with an added x column is a finding`() {
+        EvidenceDb.withScratchDatabase(
+            foreignSetup = "select 1",
+            probeMigration = "alter table evidence.decision_trace add column x text;",
+        ) { url ->
+            EvidenceDb.superuserOf(url).use {
+                columnFindings(it) shouldBe
+                    listOf("decision_trace: ${columnsOf(it, "decision_trace")}")
+            }
+        }
     }
 
     @Test
