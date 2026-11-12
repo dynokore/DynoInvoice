@@ -4,7 +4,8 @@ package com.dynokore.platform.serviceruntime.http
  * A downstream owner's refusal that a caller relays unchanged (coordinator ruling, round zq of 2026-11-12; INV-T-21194):
  * the owner's status, catalogue code and members. Absent optional members stay absent. A malformed refusal is refused
  * with [IllegalArgumentException]: a 5xx answer is never relayed (the caller maps it to the closed 503) and a 429
- * needs a `Retry-After` this type does not carry.
+ * needs a `Retry-After` this type does not carry. [extensions] are RFC 9457 extension members (non-negative numbers
+ * such as `submittedCount`) written after the envelope members (INV-T-21287).
  */
 data class RelayedRefusal(
     val status: Int,
@@ -14,6 +15,7 @@ data class RelayedRefusal(
     val disposition: String? = null,
     val remediationOwner: String? = null,
     val detail: String? = null,
+    val extensions: Map<String, Long> = emptyMap(),
 ) {
     init {
         require(status in CLIENT_ERROR_RANGE && status != HTTP_TOO_MANY_REQUESTS) {
@@ -24,9 +26,29 @@ data class RelayedRefusal(
         require(severity == null || severity in SEVERITIES) { "Severity is one of $SEVERITIES, not '$severity'" }
         require(disposition == null || disposition.isNotBlank()) { "A present disposition is not blank" }
         require(remediationOwner == null || remediationOwner.isNotBlank()) { "A present remediationOwner is not blank" }
+        extensions.forEach { (key, value) ->
+            require(EXTENSION_KEY_PATTERN.matches(key)) {
+                "An extension key matches ${EXTENSION_KEY_PATTERN.pattern}, not '$key'"
+            }
+            require(key !in RESERVED_MEMBERS) { "Extension key '$key' is a reserved envelope member" }
+            require(value >= 0) { "Extension '$key' is not negative, not $value" }
+        }
     }
 
     private companion object {
+        val EXTENSION_KEY_PATTERN = Regex("^[a-z][A-Za-z0-9]{0,31}$")
+        val RESERVED_MEMBERS =
+            setOf(
+                "type",
+                "title",
+                "status",
+                "detail",
+                "correlationId",
+                "code",
+                "severity",
+                "disposition",
+                "remediationOwner",
+            )
         val CLIENT_ERROR_RANGE = 400..499
         const val HTTP_TOO_MANY_REQUESTS = 429
         val CODE_PATTERN = Regex("^[A-Z]{2,10}-[0-9]{3}$")

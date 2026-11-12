@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.17.0] - 2026-11-13
+### Added
+- `RelayedRefusal.extensions`: optional map of non-negative numeric RFC 9457 extension members (such as `submittedCount`) that `Problems.renderRelayed` writes after the envelope members; a key outside `^[a-z][A-Za-z0-9]{0,31}$`, a reserved envelope member name or a negative value is refused; an empty map leaves the output unchanged (coordinator ruling round zu, 2026-11-12; INV-T-21287, INV-AC-21286).
+
 ## [13.16.0] - 2026-11-12
 ### Added
 - `SubmissionErrorCode` with the entries `IN_FLIGHT_BREACH` (SUB-008) and `VERSION_NOT_REPLAYABLE` (SUB-025), both 409, severity BLOCK, disposition TERMINAL, owner Platform, and `Problems.renderSubmission`, the public builder of their envelope beside `renderPeriod`, so that svc-submission answers `replaySubmissions` without a private copy (coordinator ruling at the reviewer stop of INV-T-20607, option A; INV-T-21366, INV-AC-21365). The catalogue snapshot now holds SUB-025 (invoice-docs 5b5ef838).

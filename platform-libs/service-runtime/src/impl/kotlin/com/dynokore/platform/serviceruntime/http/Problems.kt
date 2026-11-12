@@ -300,6 +300,7 @@ object Problems {
                 refusal.severity?.let { put("severity", it) }
                 refusal.disposition?.let { put("disposition", it) }
                 refusal.remediationOwner?.let { put("remediationOwner", it) }
+                refusal.extensions.forEach { (key, value) -> put(key, value) }
             }
         return ProblemResponse(
             refusal.status,
