@@ -228,3 +228,5 @@ openTenant.TNC-012	operation_error_code	openapi.yaml	INV-REQ-8100
 closeTenant.TNC-014	operation_error_code	openapi.yaml	INV-REQ-8100
 # INV-T-20667 adds the dueDateVersion row (INV-REQ-88): the optional per-period version member of the PeriodDueDateChanged payload schema.
 dueDateVersion	property	schemas/period-due-date-changed-payload.schema.json	INV-REQ-88
+# INV-T-20742 adds one row (INV-REQ-88): filingDueDate is the optional per-period member of the PeriodRecordsChanged payload schema.
+filingDueDate	property	schemas/period-records-changed-payload.schema.json	INV-REQ-88

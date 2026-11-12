@@ -35,6 +35,11 @@
             "type": "string",
             "format": "date",
             "description": "Last day of the period."
+          },
+          "filingDueDate": {
+            "type": "string",
+            "format": "date",
+            "description": "The filing due date of that period as tenancy-svc stores it when the event is appended. A consumer uses it only to initialise the due date of a period for which it holds none, and every later change of the due date arrives as PeriodDueDateChanged. A producer always sends it (the member is optional in the schema only because the schema is additive-only within a major version); a consumer treats a period item without it as having no known due date, never computing one."
           }
         },
         "required": [
