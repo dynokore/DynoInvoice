@@ -100,6 +100,14 @@ class CanonicalVersionCreatedCategoryTest {
                 docUuid: UUID,
                 version: Int,
             ) = false
+
+            override fun upsertAcknowledgement(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+                ackId: String,
+                acknowledgedAt: Instant,
+            ): Boolean = false
         }
     private val categories =
         object : SubmissionIndexCategoryStore {
