@@ -40,6 +40,8 @@ class ArchiveVolumeContentColumnsTest {
             "event_dead_letter.raw" to "a transient failed delivery, not retained evidence",
             "held_payload.payload_bytes" to
                 "a transient copy held until its despatch arrives; the sealed content is the evidence_payload record",
+            "submission_index.document_number" to SUBMISSION_INDEX_REASON,
+            "submission_index.counterparty_uen" to SUBMISSION_INDEX_REASON,
             "config_setting.reason" to CONFIG_REASON,
             "config_installation_setting.reason" to CONFIG_REASON,
             "config_relaxation_acknowledgement.reason" to CONFIG_REASON,
@@ -366,3 +368,7 @@ class ArchiveVolumeContentColumnsTest {
 private const val CONFIG_REASON =
     "the justification stored with a configuration setting, not archived evidence content; " +
         "the audit entry of the change carries the reason"
+
+private const val SUBMISSION_INDEX_REASON =
+    "a derived read-model copy of the document number and counterparty held by the locator and the sealed payload " +
+        "record; the reverse-lookup table is not retained evidence"
