@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.events.JacksonPeriodRecordsChangedDataReader
+import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
 import com.dynokore.gst.submission.adapters.persistence.JooqPeriodRecordStore
 import com.dynokore.gst.submission.application.period.PeriodOfDate
 import com.dynokore.gst.submission.application.period.PeriodRecordsChangedDataReader
@@ -49,7 +50,10 @@ class PeriodRecordsConsumer {
         tenants: TenantContext,
         reader: PeriodRecordsChangedDataReader,
         store: JooqPeriodRecordStore,
-    ): PeriodRecordsChangedHandler = PeriodRecordsChangedHandler(tenants, reader, store)
+        dsl: DSLContext,
+        runner: TransactionRunner,
+    ): PeriodRecordsChangedHandler =
+        PeriodRecordsChangedHandler(tenants, reader, store, JooqPeriodDueDateStore(dsl, runner))
 
     @Bean
     @Suppress("LongParameterList")

@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.adapters.persistence
 
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.PeriodDueDate
+import com.dynokore.gst.submission.application.period.InitialFilingDueDates
 import com.dynokore.gst.submission.application.register.PeriodDueDates
 import com.dynokore.gst.submission.application.register.UpsertResult
 import com.dynokore.platform.tenancykernel.TenantId
@@ -12,12 +13,14 @@ import java.time.LocalDate
  * [PeriodDueDates] over `submission.period_due_date` in one transaction of the bound tenant: `insert ... on conflict
  * do nothing` (INSERTED), else an `update` guarded by a lower stored due date version (UPDATED, or UNCHANGED). No
  * select before the write, so concurrent writers cannot race the result; forced row level security applies. Values
- * are never logged.
+ * are never logged. [initialise] stores the PeriodRecordsChanged initial value with version 0 by `insert ... on
+ * conflict do nothing` (INV-AC-20795).
  */
 class JooqPeriodDueDateStore(
     private val dsl: DSLContext,
     private val runner: TransactionRunner,
-) : PeriodDueDates {
+) : PeriodDueDates,
+    InitialFilingDueDates {
     private val p = PeriodDueDate.PERIOD_DUE_DATE
 
     override fun upsert(
@@ -55,6 +58,26 @@ class JooqPeriodDueDateStore(
                 if (updated == 1) UpsertResult.UPDATED else UpsertResult.UNCHANGED
             }
         }
+
+    override fun initialise(
+        tenant: TenantId,
+        entityRef: String,
+        periodRef: String,
+        dueDate: LocalDate,
+    ) {
+        runner.inTransaction {
+            dsl
+                .insertInto(p)
+                .set(p.TENANT_ID, tenant.value)
+                .set(p.ENTITY_REF, entityRef)
+                .set(p.PERIOD_REF, periodRef)
+                .set(p.FILING_DUE_DATE, dueDate)
+                .set(p.DUE_DATE_VERSION, 0L)
+                .onConflict(p.TENANT_ID, p.ENTITY_REF, p.PERIOD_REF)
+                .doNothing()
+                .execute()
+        }
+    }
 
     override fun find(
         tenant: TenantId,

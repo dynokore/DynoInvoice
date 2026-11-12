@@ -12,7 +12,8 @@ import java.time.format.DateTimeParseException
 
 /**
  * [PeriodRecordsChangedDataReader] over Jackson. Reads `entityRef`, `version` (an integer of at least 1) and the
- * `periods` with `periodRef`, `periodStart` and `periodEnd` by exact member name; unknown members are ignored. A
+ * `periods` with `periodRef`, `periodStart` and `periodEnd` and the optional
+ * `filingDueDate` by exact member name; unknown members are ignored. A
  * missing or malformed member is a [ContractViolation] whose message names the member, never its value.
  */
 class JacksonPeriodRecordsChangedDataReader : PeriodRecordsChangedDataReader {
@@ -50,8 +51,15 @@ class JacksonPeriodRecordsChangedDataReader : PeriodRecordsChangedDataReader {
             periodRef = node.text("periodRef"),
             periodStart = dateOf(node, "periodStart"),
             periodEnd = dateOf(node, "periodEnd"),
+            filingDueDate = optionalDateOf(node, "filingDueDate"),
         )
     }
+
+    /** Absent gives null; JSON null, a non-string and a string that is not an ISO date are rejected, not repaired. */
+    private fun optionalDateOf(
+        node: JsonNode,
+        name: String,
+    ): LocalDate? = if (node.has(name)) dateOf(node, name) else null
 
     private fun JsonNode.text(name: String): String {
         val node = get(name)
