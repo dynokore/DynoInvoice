@@ -162,6 +162,19 @@ class RegulatoryPackApprovalPostgresIT(
         shouldThrow<Exception> { store.markApproved(PACK_TYPE, armed, "u-approver") }
         column("status", armed) shouldBe "ARMED"
         column("approved_by", armed) shouldBe null
+        // The registry trigger already freezes an ARMED row, so the function itself is proved on the states it alone
+        // guards: ACKNOWLEDGED does not move to APPROVED, and an APPROVED row keeps its first approver.
+        val acknowledged = version()
+        seed(acknowledged, "ACKNOWLEDGED")
+        shouldThrow<Exception> { store.markApproved(PACK_TYPE, acknowledged, "u-approver") }
+        column("status", acknowledged) shouldBe "ACKNOWLEDGED"
+        column("approved_by", acknowledged) shouldBe null
+        val approved = version()
+        seed(approved)
+        addDryRun(approved)
+        store.markApproved(PACK_TYPE, approved, "u-first")
+        shouldThrow<Exception> { store.markApproved(PACK_TYPE, approved, "u-second") }
+        column("approved_by", approved) shouldBe "u-first"
         val staged = version()
         seed(staged)
         shouldThrow<Exception> {
