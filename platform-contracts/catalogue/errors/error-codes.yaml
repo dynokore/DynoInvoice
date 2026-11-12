@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 5b5ef83811591636c5b5f45829a436d57884bd0f (2026-11-12), the merge of invoice-docs INV-T-20618 adding SUB-025, replay refused, version not replayable (INV-T-20619, coordinator ruling of breakdown tooling/req-breakdown-138.md round d);
+# pinned at commit 0d26d2de1cdc959de01882fe034ee56cdf42c1bd (2026-11-12), the merge of invoice-docs INV-T-21274 adding SRT-015, group has members already submitted (INV-T-21276, coordinator ruling round zt of tooling/wave1/crun/chains/req137-pending-rulings.txt);
+# previously pinned at 5b5ef83811591636c5b5f45829a436d57884bd0f (2026-11-12), the merge of invoice-docs INV-T-20618 adding SUB-025, replay refused, version not replayable (INV-T-20619, coordinator ruling of breakdown tooling/req-breakdown-138.md round d);
 # previously pinned at 0a3dcc90467b4325597eaaa26935083dfb3072c9 (2026-11-10), the merge of invoice-docs INV-T-19786 adding TNC-014, tenant close refused while SCHEDULED or CLOSED (INV-T-19787, coordinator ruling of breakdown tooling/gap8179-gap.md; this re-vendor also brings CPL-010 and CPL-011 from INV-T-19763);
 # previously pinned at 2e75aa4e9274fc6664fd09a392c5c56dab24c14d (2026-11-10), the merge of invoice-docs INV-T-19491 adding TNC-013 (INV-T-19492, coordinator ruling of breakdown tooling/gap15888-gap.md);
 # previously pinned at 92ad97b4853360b6fef30cef44c6ed5ea4cd6cb0 (2026-11-09), the merge of invoice-docs INV-T-19381 adding TNC-012, tenant open refused (INV-T-19382, coordinator ruling of breakdown tooling/gap8142-gap.md);
@@ -807,6 +808,11 @@ error_codes:
   owner: Platform
 - code: SRT-014
   condition: "Request over a size or count limit of its operation: a body or an array above the operation's cap (API-49) is refused and nothing is changed or recorded (HTTP 413; INV-REQ-830, INV-REQ-941 b8, INV-Q-17287)"
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: SRT-015
+  condition: "The bulk action is refused as a whole: at least one document of the group has a version at SENT or beyond, nothing is applied, and the problem carries the submitted count in the extension member submittedCount (HTTP 409; INV-REQ-959, INV-REQ-941, coordinator ruling round zt)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
