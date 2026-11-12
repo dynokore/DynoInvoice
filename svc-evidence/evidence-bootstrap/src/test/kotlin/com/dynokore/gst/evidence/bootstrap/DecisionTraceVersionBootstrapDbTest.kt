@@ -8,9 +8,9 @@ import com.dynokore.platform.evidencestore.EntityRef
 import com.dynokore.platform.evidencestore.EvidenceRecord
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
 import com.dynokore.platform.evidencestore.PeriodRef
+import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.dynokore.platform.outboxandqueue.TenantScope
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
@@ -117,12 +117,20 @@ class DecisionTraceVersionBootstrapDbTest {
         chain(tenant, RecordKind.EVIDENCE_PAYLOAD).map { it.index.version } shouldBe listOf(null)
         tx(tenant) {
             dsl.fetchCount(
-                org.jooq.impl.DSL.table("information_schema.columns"),
+                org.jooq.impl.DSL
+                    .table("information_schema.columns"),
                 org.jooq.impl.DSL
                     .field("table_schema")
                     .eq("evidence")
-                    .and(org.jooq.impl.DSL.field("table_name").eq("evidence_payload"))
-                    .and(org.jooq.impl.DSL.field("column_name").eq("version")),
+                    .and(
+                        org.jooq.impl.DSL
+                            .field("table_name")
+                            .eq("evidence_payload"),
+                    ).and(
+                        org.jooq.impl.DSL
+                            .field("column_name")
+                            .eq("version"),
+                    ),
             )
         } shouldBe 0
     }

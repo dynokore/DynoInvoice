@@ -141,7 +141,10 @@ class RecordAppenderVersionTest {
         received[RecordKind.EVIDENCE_PAYLOAD] shouldBe listOf(EvidenceIndex(doc, "INV-9"))
         received[RecordKind.ACKNOWLEDGEMENT] shouldBe listOf(EvidenceIndex(doc, "INV-9"))
         received[RecordKind.AUDIT_LOG] shouldBe listOf(EvidenceIndex.EMPTY)
-        received.values.flatten().map { it.version }.toSet() shouldBe setOf(null)
+        received.values
+            .flatten()
+            .map { it.version }
+            .toSet() shouldBe setOf(null)
     }
 
     @Test

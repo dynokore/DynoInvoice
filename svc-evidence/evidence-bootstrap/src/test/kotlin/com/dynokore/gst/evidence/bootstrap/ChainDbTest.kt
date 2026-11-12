@@ -53,7 +53,13 @@ class ChainDbTest {
         val recorder: LocatorRecorder = ChainWiring.locatorRecorder(dsl)
         val handler = CanonicalVersionCreatedHandler(recorder)
 
-        fun ledger(kind: RecordKind) = JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table, kind == RecordKind.DECISION_TRACE)
+        fun ledger(kind: RecordKind) =
+            JdbcEvidenceLedger(
+                dsl,
+                ChainWiring.SCHEMA,
+                kind.table,
+                kind == RecordKind.DECISION_TRACE,
+            )
     }
 
     private fun run(
