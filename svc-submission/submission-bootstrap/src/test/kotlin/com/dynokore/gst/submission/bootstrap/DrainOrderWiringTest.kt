@@ -75,6 +75,16 @@ class DrainOrderWiringTest {
                 }
             columns(free) shouldBe (1 to 4)
             columns(taken) shouldBe (3 to null)
+            deleteItemsOf(tenant)
         }
     }
+
+    /** The queue is shared by the other tests of this JVM: leave no item behind. */
+    private fun deleteItemsOf(tenant: UUID) =
+        SubmissionDb.superuser().use { c ->
+            c.prepareStatement("delete from submission.work_queue where tenant_id = ?").use {
+                it.setObject(1, tenant)
+                it.executeUpdate()
+            }
+        }
 }
