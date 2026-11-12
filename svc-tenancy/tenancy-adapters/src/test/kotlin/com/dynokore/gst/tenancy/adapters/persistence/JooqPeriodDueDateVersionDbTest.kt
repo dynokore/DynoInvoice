@@ -58,6 +58,28 @@ class JooqPeriodDueDateVersionDbTest {
     private fun period(periodRef: String = ref) =
         StoredPeriod(periodRef, start, start.plusMonths(3).minusDays(1), "F5", start.plusMonths(4), emptySet())
 
+    private fun insertEntity(
+        dsl: DSLContext,
+        tenant: TenantId,
+        group: UUID,
+        id: UUID,
+        label: String,
+    ) {
+        dsl
+            .insertInto(ENTITY)
+            .set(ENTITY.ID, id)
+            .set(ENTITY.TENANT_ID, tenant.value)
+            .set(ENTITY.REF, "e-$label")
+            .set(ENTITY.GROUP_ID, group)
+            .set(ENTITY.LEGAL_NAME, "Entity $label")
+            .set(ENTITY.CONSTITUTION, "COMPANY")
+            .set(ENTITY.CODE, "E$label".uppercase())
+            .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
+            .set(ENTITY.STRUCTURE_VERSION, dsl.fetchValue("select nextval('tenancy.structure_version_seq')") as Long)
+            .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .execute()
+    }
+
     /** A tenant with one group and two entities, each with one period record in force. */
     private fun seed(): Seed {
         val tag = UUID.randomUUID().toString().take(8)
@@ -86,21 +108,7 @@ class JooqPeriodDueDateVersionDbTest {
                 .set(TENANT_GROUP.STRUCTURE_VERSION, version())
                 .set(TENANT_GROUP.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute()
-            ids.forEachIndexed { index, id ->
-                dsl
-                    .insertInto(ENTITY)
-                    .set(ENTITY.ID, id)
-                    .set(ENTITY.TENANT_ID, tenant.value)
-                    .set(ENTITY.REF, "e$index-$tag")
-                    .set(ENTITY.GROUP_ID, group)
-                    .set(ENTITY.LEGAL_NAME, "Entity $index")
-                    .set(ENTITY.CONSTITUTION, "COMPANY")
-                    .set(ENTITY.CODE, "E$index$tag".uppercase())
-                    .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
-                    .set(ENTITY.STRUCTURE_VERSION, version())
-                    .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-                    .execute()
-            }
+            ids.forEachIndexed { index, id -> insertEntity(dsl, tenant, group, id, "$index$tag") }
         }
         Db.bound(tenant) { dsl -> ids.forEach { JooqPeriodRecordStore(dsl, context(tenant)).insert(it, period()) } }
         return Seed(tenant, ids[0], ids[1])
