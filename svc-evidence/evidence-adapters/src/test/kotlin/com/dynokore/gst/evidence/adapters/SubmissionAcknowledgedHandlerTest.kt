@@ -61,6 +61,12 @@ class SubmissionAcknowledgedHandlerTest {
                 row: SubmissionIndexRow,
             ): Boolean = error("not used")
 
+            override fun markDespatched(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+            ): Boolean = error("not used")
+
             override fun upsertAcknowledgement(
                 tenant: TenantId,
                 docUuid: UUID,

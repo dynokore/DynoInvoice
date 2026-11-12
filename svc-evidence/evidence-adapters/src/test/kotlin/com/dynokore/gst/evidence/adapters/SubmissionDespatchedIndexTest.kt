@@ -44,6 +44,14 @@ class SubmissionDespatchedIndexTest {
             docUuid: UUID,
             version: Int,
         ): Boolean = calls.add(Triple(tenant, docUuid, version))
+
+        override fun upsertAcknowledgement(
+            tenant: TenantId,
+            docUuid: UUID,
+            version: Int,
+            ackId: String,
+            acknowledgedAt: Instant,
+        ): Boolean = false
     }
 
     private class Parked : ParkedDespatchStore {
