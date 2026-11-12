@@ -77,13 +77,11 @@ class ExtensionWiringTest {
         ): List<DueDateExtension> = rows
     }
 
-    private fun <T> withContext(
+    private fun withContext(
         dir: Path,
-        block: (ApplicationContext) -> T,
-    ): T {
-        var result: T? = null
-        SubmissionContext.offline(dir).run { result = block(it) }
-        return checkNotNull(result)
+        block: (ApplicationContext) -> Unit,
+    ) {
+        SubmissionContext.offline(dir).run { block(it) }
     }
 
     private fun consumer(
@@ -212,7 +210,6 @@ class ExtensionWiringTest {
     ) = withContext(dir) { context ->
         consumer(context, context.getBean(EventCatalogue::class.java)) // the full catalogue builds
         shouldThrow<IllegalStateException> { consumer(context, EventCatalogue(without(context))) }
-        Unit
     }
 
     @Test
@@ -223,6 +220,5 @@ class ExtensionWiringTest {
         shouldThrow<IllegalStateException> { consumer(context, lookAlike) }
         val otherType = EventCatalogue(without(context) + entry("$type.x", topic))
         shouldThrow<IllegalStateException> { consumer(context, otherType) }
-        Unit
     }
 }
