@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/document-code-raised-payload.schema.json",
+  "title": "DocumentCodeRaisedPayload",
+  "description": "Payload of the DocumentCodeRaised event (catalogued in model/architecture/events.yaml; class: domain; INV-REQ-79). Within a major version this schema is additive-only (API-41, FR-K.4). An optional member is absent when the catalogue gives none and is never guessed by the consumer.",
+  "type": "object",
+  "properties": {
+    "docUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The document's Doc UUID (INV-REQ-79)."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The canonical/payload/submission version number (INV-REQ-79)."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The entity the document belongs to (INV-REQ-79)."
+    },
+    "periodRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The filing period of the document (INV-REQ-79)."
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The error-catalogue code raised on the document (INV-REQ-79)."
+    },
+    "remediationOwner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The effective owner of the code in the error catalogue (INV-REQ-79). Absent when the catalogue gives none; never guessed by the consumer."
+    },
+    "disposition": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The base disposition of the code in the error catalogue: AUTO_RELEASE, AUTO_RETRY, MANUAL, OVERRIDABLE, TERMINAL; extensible (INV-REQ-79). Absent when the catalogue gives none; never guessed by the consumer."
+    }
+  },
+  "required": [
+    "docUuid",
+    "version",
+    "entityRef",
+    "periodRef",
+    "code"
+  ],
+  "additionalProperties": true
+}

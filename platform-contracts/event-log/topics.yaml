@@ -701,6 +701,15 @@ topics:
       - submission-svc
     subscribers:
       - notification-svc
+  - topic: gst.submission.document-code-raised.v1
+    event_type: com.dynokore.gst.submission.DocumentCodeRaised.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - submission-svc
+    subscribers:
+      []
   - topic: gst.submission.period-filing-status-changed.v1
     event_type: com.dynokore.gst.submission.PeriodFilingStatusChanged.v1
     content_topic: false

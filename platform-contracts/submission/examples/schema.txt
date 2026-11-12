@@ -24,3 +24,4 @@
 ../schemas/obligation-register-entry.schema.json obligation-register-entry-*.json
 ../schemas/submission-failed-payload.schema.json submission-failed-*.json
 ../schemas/backlog-values-measured-payload.schema.json backlog-values-measured-*.json
+../schemas/document-code-raised-payload.schema.json document-code-raised-*.json

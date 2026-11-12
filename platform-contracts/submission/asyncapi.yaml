@@ -42,6 +42,12 @@ channels:
       SubmissionFailed:
         $ref: '#/components/messages/SubmissionFailed'
 
+  submissionDocumentCodeRaised:
+    address: 'gst.submission.document-code-raised.v1'
+    messages:
+      DocumentCodeRaised:
+        $ref: '#/components/messages/DocumentCodeRaised'
+
   submissionReadinessChanged:
     address: 'gst.submission.readiness-changed.v1'
     messages:
@@ -96,6 +102,14 @@ operations:
       $ref: '#/channels/submissionSubmissionFailed'
     messages:
       - $ref: '#/channels/submissionSubmissionFailed/messages/SubmissionFailed'
+
+  publishDocumentCodeRaised:
+    action: send
+    description: DocumentCodeRaised — catalogued in model/architecture/events.yaml (INV-REQ-79).
+    channel:
+      $ref: '#/channels/submissionDocumentCodeRaised'
+    messages:
+      - $ref: '#/channels/submissionDocumentCodeRaised/messages/DocumentCodeRaised'
 
   publishReadinessChanged:
     action: send
@@ -179,6 +193,19 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/submission-failed-payload.schema.json'
+
+    DocumentCodeRaised:
+      name: com.dynokore.gst.submission.DocumentCodeRaised.v1
+      title: DocumentCodeRaised
+      summary: DocumentCodeRaised — catalogued in model/architecture/events.yaml (INV-REQ-79).
+      description: >-
+        Catalogued event DocumentCodeRaised (model/architecture/events.yaml, INV-REQ-79; class: domain).
+        Emitted by: submission-svc. Consumed by: none. Delivery: At-least-once. Payload: docUuid, version,
+        entityRef, periodRef, code; optional remediationOwner and disposition from the error catalogue entry
+        of the code, absent when the catalogue gives none. Authored by INV-T-20982.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/document-code-raised-payload.schema.json'
 
     ReadinessChanged:
       name: com.dynokore.gst.submission.ReadinessChanged.v1

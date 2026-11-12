@@ -244,3 +244,11 @@ oldestUnsentAgeSeconds	property	schemas/backlog-values-measured-payload.schema.j
 failureRate	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
 unacknowledgedCount	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
 measuredAt	property	schemas/backlog-values-measured-payload.schema.json	INV-REQ-1370
+# INV-T-20982 (INV-REQ-79). Members of the DocumentCodeRaised payload.
+docUuid	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
+version	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
+entityRef	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
+periodRef	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
+code	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
+remediationOwner	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
+disposition	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
