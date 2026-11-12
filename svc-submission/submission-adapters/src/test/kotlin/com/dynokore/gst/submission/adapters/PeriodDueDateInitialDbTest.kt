@@ -6,6 +6,8 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import org.jooq.exception.DataAccessException
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterEach
@@ -108,20 +110,29 @@ class PeriodDueDateInitialDbTest {
         find(b, "2026-06") shouldBe LocalDate.of(2026, 7, 30)
     }
 
-    @Test
-    fun `INV-AC-20795 a direct insert with version -1 is refused by the table check`() {
-        val t = UUID.randomUUID()
-        shouldThrow<Exception> {
-            asTenant(t) {
-                try {
-                    dsl.execute(
-                        "insert into submission.period_due_date values (?, 'E1', 'P', date '2026-07-20', -1)",
-                        t,
-                    )
-                } finally {
-                    connection.rollback()
-                }
-            }
+    private fun insertDirect(
+        t: UUID,
+        period: String,
+        version: Int,
+    ) = asTenant(t) {
+        runner.inTransaction {
+            dsl.execute(
+                "insert into submission.period_due_date values (?, 'E1', ?, date '2026-07-20', ?)",
+                t,
+                period,
+                version,
+            )
         }
+    }
+
+    @Test
+    fun `INV-AC-20795 a direct insert with version -1 is refused by the table check and version 0 is accepted`() {
+        val t = UUID.randomUUID()
+        insertDirect(t, "P0", 0) shouldBe 1
+        val e = shouldThrow<DataAccessException> { insertDirect(t, "P1", -1) }
+        connection.rollback()
+        e.sqlState() shouldBe "23514"
+        (e.message ?: "") shouldContain "period_due_date_due_date_version_check"
+        find(t, "P1") shouldBe null
     }
 }
