@@ -90,8 +90,8 @@ class ExtensionConsumerConfiguration {
         private const val SCHEMA = "submission"
 
         /**
-         * Not a bean: [ConsumerConfiguration.payloadReadyConsumer] takes the one `ConsumerSubscription` bean by
-         * type, so a second bean would make it ambiguous. [BreakGlassFeed] builds its subscription inline too.
+         * Not a bean: [ConsumerConfiguration.payloadReadyConsumer] takes the one `ConsumerSubscription` bean by type,
+         * so a second bean would make it ambiguous. [BreakGlassFeed] builds its subscription inline for the same reason.
          */
         fun subscription(): ConsumerSubscription =
             ConsumerSubscription(CONSUMER, SubmissionEvents.PERIOD_EXTENDED_TOPIC, SCHEMA)

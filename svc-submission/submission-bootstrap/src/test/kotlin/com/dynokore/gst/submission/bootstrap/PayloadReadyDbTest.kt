@@ -321,7 +321,7 @@ class PayloadReadyDbTest {
     }
 
     @Test
-    fun `the service declares one JdbcInboxConsumer for the PayloadReady topic and one for BreakGlassSessionChanged`(
+    fun `the service declares one JdbcInboxConsumer for each of the three consumed topics`(
         @TempDir dir: Path,
     ) = run(dir) {
         val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)

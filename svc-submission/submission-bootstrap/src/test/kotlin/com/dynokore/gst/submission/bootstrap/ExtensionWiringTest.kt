@@ -47,41 +47,13 @@ class ExtensionWiringTest {
     private val type = "com.dynokore.gst.tenancy.PeriodExtended.v1"
     private val config = ExtensionConsumerConfiguration()
 
-    private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-000000020598"))
-
-    private val tenants =
-        object : TenantContext {
-            override fun current(): TenantId = tenant
-
-            override fun currentActor(): String? = null
-
-            override fun <T> bind(
-                tenant: TenantId,
-                actor: String,
-                block: () -> T,
-            ): T = block()
-        }
-
-    private class Store : DueDateExtensions {
-        val rows = mutableListOf<DueDateExtension>()
-
-        override fun insert(
-            tenant: TenantId,
-            row: DueDateExtension,
-        ): Boolean = rows.add(row)
-
-        override fun forPeriod(
-            tenant: TenantId,
-            entityRef: String,
-            periodRef: String,
-        ): List<DueDateExtension> = rows
-    }
-
-    private fun withContext(
+    private fun <T> withContext(
         dir: Path,
-        block: (ApplicationContext) -> Unit,
-    ) {
-        SubmissionContext.offline(dir).run { block(it) }
+        block: (ApplicationContext) -> T,
+    ): T {
+        var result: T? = null
+        SubmissionContext.offline(dir).run { result = block(it) }
+        return checkNotNull(result)
     }
 
     private fun consumer(
@@ -148,26 +120,21 @@ class ExtensionWiringTest {
         BreakGlassFeed.TOPIC shouldBe "gst.platform.break-glass-session-changed.v1"
     }
 
-    private fun envelope(): Envelope =
-        Envelope(
-            id = EventId("e-1"),
-            source = "/gst/tenancy-svc",
-            type = type,
-            subject = "E",
-            time = Instant.parse("2026-10-19T08:00:00Z"),
-            tenant = tenant,
-            entity = EntityRef("E"),
-            docUuid = DocUuid(UUID.fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6")),
-            transactionDate = LocalDate.parse("2026-03-20"),
-            docSequence = 1,
-            instanceId = "tenancy-svc-0",
-            correlation = CorrelationId("c"),
-            causation = CausationId("c"),
-            dataJson = "{}",
-        )
-
     @Test
     fun `INV-AC-20597 the handler bean is a PeriodExtendedHandler built over the RegisterDueDateReader bean`() {
+        val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-000000020598"))
+        val tenants =
+            object : TenantContext {
+                override fun current(): TenantId = tenant
+
+                override fun currentActor(): String? = null
+
+                override fun <T> bind(
+                    tenant: TenantId,
+                    actor: String,
+                    block: () -> T,
+                ): T = block()
+            }
         val asked = mutableListOf<Pair<String, String>>()
         val register =
             RegisterDueDateReader {
@@ -178,7 +145,20 @@ class ExtensionWiringTest {
                 asked += e to p
                 listOf(RegisterDueDate("d1", LocalDate.of(2026, 4, 30)))
             }
-        val store = Store()
+        val rows = mutableListOf<DueDateExtension>()
+        val store =
+            object : DueDateExtensions {
+                override fun insert(
+                    tenant: TenantId,
+                    row: DueDateExtension,
+                ): Boolean = rows.add(row)
+
+                override fun forPeriod(
+                    tenant: TenantId,
+                    entityRef: String,
+                    periodRef: String,
+                ): List<DueDateExtension> = rows
+            }
         val data =
             PeriodExtendedData(
                 "E",
@@ -190,19 +170,35 @@ class ExtensionWiringTest {
                 "IRAS-1",
             )
         val handler: PeriodExtendedHandler = config.periodExtendedHandler(tenants, { data }, register, store)
-        handler.handle(envelope()) shouldBe HandleOutcome.APPLIED
+        val envelope =
+            Envelope(
+                id = EventId("e-1"),
+                source = "/gst/tenancy-svc",
+                type = type,
+                subject = "E",
+                time = Instant.parse("2026-10-19T08:00:00Z"),
+                tenant = tenant,
+                entity = EntityRef("E"),
+                docUuid = DocUuid(UUID.fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6")),
+                transactionDate = LocalDate.parse("2026-03-20"),
+                docSequence = 1,
+                instanceId = "tenancy-svc-0",
+                correlation = CorrelationId("c"),
+                causation = CausationId("c"),
+                dataJson = "{}",
+            )
+        handler.handle(envelope) shouldBe HandleOutcome.APPLIED
         asked shouldBe listOf("E" to "P")
-        store.rows.single().originalDueDate shouldBe LocalDate.of(2026, 4, 30)
+        rows.single().originalDueDate shouldBe LocalDate.of(2026, 4, 30)
     }
 
     @Test
     fun `INV-AC-20597 the production beans are the Jooq register reader and extension store`(
         @TempDir dir: Path,
-    ): Unit =
-        withContext(dir) { context ->
-            context.getBean(RegisterDueDateReader::class.java).javaClass.simpleName shouldBe "JooqRegisterDueDateReader"
-            context.getBean(DueDateExtensions::class.java).javaClass.simpleName shouldBe "JooqDueDateExtensionStore"
-        }
+    ) = withContext(dir) { context ->
+        context.getBean(RegisterDueDateReader::class.java).javaClass.simpleName shouldBe "JooqRegisterDueDateReader"
+        context.getBean(DueDateExtensions::class.java).javaClass.simpleName shouldBe "JooqDueDateExtensionStore"
+    }
 
     @Test
     fun `INV-AC-20597 a catalogue without the entry makes the construction fail`(
@@ -210,6 +206,7 @@ class ExtensionWiringTest {
     ) = withContext(dir) { context ->
         consumer(context, context.getBean(EventCatalogue::class.java)) // the full catalogue builds
         shouldThrow<IllegalStateException> { consumer(context, EventCatalogue(without(context))) }
+        Unit
     }
 
     @Test
@@ -220,5 +217,6 @@ class ExtensionWiringTest {
         shouldThrow<IllegalStateException> { consumer(context, lookAlike) }
         val otherType = EventCatalogue(without(context) + entry("$type.x", topic))
         shouldThrow<IllegalStateException> { consumer(context, otherType) }
+        Unit
     }
 }
