@@ -17,6 +17,7 @@ import com.dynokore.gst.submission.contract.model.ReplayResult
 import com.dynokore.gst.submission.domain.ordering.InFlight
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.http.SubmissionErrorCode
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
@@ -35,7 +36,9 @@ import io.kotest.matchers.shouldBe
 import jakarta.servlet.http.HttpServletRequest
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.core.MethodParameter
 import org.springframework.http.ResponseEntity
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import java.lang.reflect.Proxy
 import java.time.Clock
 import java.time.Duration
@@ -157,6 +160,16 @@ class TransactionsControllerSingleReplayTest {
         return Triple(response.statusCode.value(), code, body)
     }
 
+    /** The string value of a top-level member of the problem body. */
+    private fun member(
+        body: String,
+        name: String,
+    ) = Regex("\"$name\"\\s*:\\s*\"([^\"]*)\"")
+        .find(body)
+        ?.groupValues
+        ?.get(1)
+        .orEmpty()
+
     private fun refused(
         f: Fixture,
         version: Int = 1,
@@ -222,6 +235,49 @@ class TransactionsControllerSingleReplayTest {
         val f = fixture(user())
         listOf(0, -1).forEach { refused(f, it) shouldBe (400 to "SRT-001") }
         f.lookup.reads shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-20606 a malformed Doc UUID answers 400 SRT-001 and no lookup is read`() {
+        val f = fixture(user())
+        val mismatch =
+            MethodArgumentTypeMismatchException(
+                "not-a-uuid",
+                UUID::class.java,
+                "docUuid",
+                MethodParameter(
+                    TransactionsController::class.java.getMethod(
+                        "replaySubmissions",
+                        UUID::class.java,
+                        Int::class.java,
+                    ),
+                    0,
+                ),
+                null,
+            )
+        val response = TransactionsRefusalAdvice().refuse(mismatch)
+        response.statusCode.value() shouldBe 400
+        member(response.body!!, "code") shouldBe "SRT-001"
+        f.lookup.reads shouldBe 0
+        f.requeue.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-20606 the 409 answers carry the API-20 envelope with the content type and a correlation id`() {
+        listOf(
+            fixture(user(), outcome = { RequeueOutcome.IN_FLIGHT_CONFLICT }) to "SUB-008",
+            fixture(user(), state = LifecycleState.SENT) to "SUB-025",
+        ).forEach { (f, expected) ->
+            val thrown = runCatching { call(f) }.exceptionOrNull() as SubmissionRefusal
+            val response = TransactionsRefusalAdvice().refuse(thrown)
+            response.statusCode.value() shouldBe 409
+            response.headers.getFirst("Content-Type") shouldBe Problems.CONTENT_TYPE
+            val body = response.body!!
+            member(body, "code") shouldBe expected
+            member(body, "severity") shouldBe "BLOCK"
+            Regex("\"status\"\\s*:\\s*409").containsMatchIn(body) shouldBe true
+            member(body, "correlationId").isNotEmpty() shouldBe true
+        }
     }
 
     @Test

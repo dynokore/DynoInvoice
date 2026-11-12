@@ -32,6 +32,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import java.time.Clock
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -66,6 +67,15 @@ class TransactionsRefusalAdvice {
         val headers = HttpHeaders()
         problem.headers.forEach { (name, value) -> headers.set(name, value) }
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
+    }
+
+    /** A path variable that does not parse (a malformed Doc UUID) is SRT-001, before any read. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun refuse(mismatch: MethodArgumentTypeMismatchException): ResponseEntity<String> {
+        System
+            .getLogger(TransactionsRefusalAdvice::class.java.name)
+            .log(System.Logger.Level.WARNING, "malformed path variable ${mismatch.name}")
+        return refuse(ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION))
     }
 }
 
@@ -136,10 +146,13 @@ open class TransactionsController(
     }
 
     /** An exception from the use case is SRT-010 (API-22: no detail). */
+    @Suppress("TooGenericExceptionCaught") // any use-case failure is SRT-010; the cause is logged, never returned
     private fun replayGuarded(request: ReplaySingleVersionRequest): ReplaySingleVersionResult =
         try {
             replayOne.handle(request, CurrentDeadline.current() ?: error("no call deadline is bound"))
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // NIST SP 800-92: the server-side cause is logged; the response carries no detail (API-22).
+            LOG.log(System.Logger.Level.ERROR, "replaySubmissions: use case failed for version ${request.version}", e)
             throw ComplianceRefusal(ClosedErrorCode.INTERNAL_ERROR)
         }
 
@@ -201,5 +214,6 @@ open class TransactionsController(
 
     private companion object {
         const val MAX_LIMIT = 500
+        val LOG: System.Logger = System.getLogger(TransactionsController::class.java.name)
     }
 }
