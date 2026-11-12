@@ -17,8 +17,12 @@ object ConsoleDb {
     const val SCHEMA = "console_bff"
     const val MIGRATE = "console_bff_migrate"
     const val RUNTIME = "console_bff_runtime"
+    const val SYS = "console_bff_sys"
     const val MIGRATE_PASSWORD = "console_bff_migrate_pw"
     const val RUNTIME_PASSWORD = "console_bff_runtime_pw"
+
+    /** The value of the `tenancy/binding-key-current` secret: the key is its UTF-8 bytes (service-runtime README). */
+    const val BINDING_SECRET = "console-bff-test-binding-key-0001"
 
     /** postgres:18 pinned by digest, as platform-libs' testcontainers-pins table pins it (INV-T-5604). */
     private const val IMAGE = "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"
@@ -50,6 +54,9 @@ object ConsoleDb {
 
     val jdbcUrl: String get() = container.jdbcUrl
 
+    /** The installation key the runners sign with and the schema's `bound_tenant()` verifies. */
+    val bindingKey: ByteArray = BINDING_SECRET.toByteArray(Charsets.UTF_8)
+
     fun superuser(): Connection = DriverManager.getConnection(container.jdbcUrl, container.username, container.password)
 
     fun connect(
@@ -64,6 +71,9 @@ object ConsoleDb {
             .schemas(SCHEMA)
             .defaultSchema(SCHEMA)
             .locations("classpath:db/migration")
+            // provisioning left the binding functions in the schema: baseline it at 0 so V1 still runs
+            .baselineOnMigrate(true)
+            .baselineVersion("0")
             .load()
             .migrate()
     }

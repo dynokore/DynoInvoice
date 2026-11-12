@@ -29,8 +29,20 @@ class Tpl16ServiceCompositionTest {
             context.getBeanNamesForType(DataSource::class.java).toList().size shouldBe 1
             val schemas = context.getBeansOfType(Schema::class.java).values.toList()
             schemas.size shouldBe 1
-            schemas.single().tables.map { it.name } shouldBe listOf("console_session")
+            schemas.single().tables.map { it.name }.toSet() shouldBe EXPECTED_TABLES
             context.environment.getProperty("gst.service") shouldBe "console-bff"
+        }
+    }
+
+    @Test
+    fun `INV-AC-21022 the context starts on the migrated database and its Schema bean holds the expected tables`(
+        @TempDir dir: Path,
+    ) {
+        ConsoleContext.online(dir).run { context ->
+            context.startupFailure.shouldBeNull()
+            val schemas = context.getBeansOfType(Schema::class.java).values.toList()
+            schemas.size shouldBe 1
+            schemas.single().tables.map { it.name }.toSet() shouldBe EXPECTED_TABLES
         }
     }
 
@@ -98,5 +110,26 @@ class Tpl16ServiceCompositionTest {
             environment.getProperty("management.endpoints.web.exposure.include") shouldBe
                 "health,prometheus,diagnostics"
         }
+    }
+
+    private companion object {
+        /** `console_session` plus what code generation adds for the tables, views and table functions of OutboxSchema.ddl. */
+        val EXPECTED_TABLES =
+            setOf(
+                "console_session",
+                "consumer_offset",
+                "consumer_replay",
+                "consumer_replay_marker",
+                "consumer_sequence",
+                "consumer_source_seen",
+                "event_dead_letter",
+                "event_dead_letter_triage_page",
+                "event_dead_letter_triage_v",
+                "inbox",
+                "outbox",
+                "outbox_claim_page",
+                "outbox_claim_v",
+                "outbox_sequence",
+            )
     }
 }

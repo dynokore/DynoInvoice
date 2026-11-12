@@ -5,12 +5,25 @@ plugins {
     `java-test-fixtures`
 }
 
+// The jars that hold BindingKeyMigration: gst.jooq-codegen installs the signed-binding functions from them before
+// the first migration runs (INV-Q-7418 A, platform-build INV-T-7430). Build time only; who installs the functions
+// in an installation is the service-runtime migration runner step, not this module.
+val bindingKernel: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
 gstJooqCodegen {
     schema = "console_bff"
     initScripts.from("src/testFixtures/resources/db/roles.sql")
+    bindingSource.from(bindingKernel)
+    bindingSysRole = "console_bff_sys"
+    bindingRuntimeRole = "console_bff_runtime"
 }
 
 dependencies {
+    bindingKernel(platform(libs.platform.bom))
+    bindingKernel(libs.platform.tenancyKernel.impl)
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":console-bff-application"))
@@ -22,6 +35,8 @@ dependencies {
     implementation(libs.flyway.core)
     implementation(libs.flyway.databasePostgresql)
     testFixturesImplementation(platform(libs.platform.bom))
+    testFixturesImplementation(libs.platform.tenancyKernel.api)
+    testFixturesImplementation(libs.platform.tenancyKernel.impl)
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.postgresql)
     testFixturesImplementation(libs.flyway.core)
@@ -34,4 +49,7 @@ dependencies {
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
     testImplementation(libs.platform.serviceRuntime.api)
+    testImplementation(libs.platform.tenancyKernel.api)
+    testImplementation(libs.platform.tenancyKernel.impl)
+    testImplementation(libs.platform.outboxAndQueue.impl)
 }
