@@ -32,5 +32,6 @@ class PermissionConfiguration {
         replica: ObjectProvider<AuthorityReplica>,
         tenants: TenantContext,
         @Value("\${ingestion.permission.decision-budget:PT2S}") budget: String,
-    ): EntityPermission = ReplicaEntityPermission(replica.getIfAvailable(), tenants, Clock.systemUTC(), Duration.parse(budget))
+    ): EntityPermission =
+        ReplicaEntityPermission(replica.getIfAvailable(), tenants, Clock.systemUTC(), Duration.parse(budget))
 }

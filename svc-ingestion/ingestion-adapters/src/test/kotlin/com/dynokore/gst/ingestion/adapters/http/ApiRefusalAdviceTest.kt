@@ -27,7 +27,8 @@ class ApiRefusalAdviceTest {
     fun `INV-AC-20953 UNAUTHENTICATED is 401 SRT-003 in the API-20 envelope`() {
         val response = mvc.perform(get("/unauthenticated")).andReturn().response
         response.status shouldBe 401
-        MediaType.parseMediaType(response.contentType!!).isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) shouldBe true
+        MediaType.parseMediaType(response.contentType!!).isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) shouldBe
+            true
         response.contentAsString shouldContain "SRT-003"
     }
 
@@ -35,7 +36,8 @@ class ApiRefusalAdviceTest {
     fun `INV-AC-20953 ACCESS_DENIED is 403 SRT-004 in the API-20 envelope`() {
         val response = mvc.perform(get("/denied")).andReturn().response
         response.status shouldBe 403
-        MediaType.parseMediaType(response.contentType!!).isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) shouldBe true
+        MediaType.parseMediaType(response.contentType!!).isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) shouldBe
+            true
         response.contentAsString shouldContain "SRT-004"
     }
 }

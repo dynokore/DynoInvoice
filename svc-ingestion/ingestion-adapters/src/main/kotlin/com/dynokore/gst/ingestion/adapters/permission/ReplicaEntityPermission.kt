@@ -23,7 +23,7 @@ class ReplicaEntityPermission(
     private val clock: Clock,
     private val budget: Duration,
 ) : EntityPermission {
-    @Suppress("TooGenericExceptionCaught")
+    @Suppress("TooGenericExceptionCaught", "SwallowedException") // fail closed: any failure is a refusal
     override fun holds(
         actor: String,
         entityRef: String,
