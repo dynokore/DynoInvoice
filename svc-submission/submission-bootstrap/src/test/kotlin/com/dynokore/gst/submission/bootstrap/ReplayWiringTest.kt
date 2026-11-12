@@ -97,14 +97,15 @@ class ReplayWiringTest {
     }
 
     @Test
-    fun `INV-AC-20588 the permission string comes from ReplayActions and no role name is in the wiring or controller`() {
+    fun `INV-AC-20588 the permission string is the ReplayActions constant and no role name is in the wiring`() {
         ReplayActions.REPLAY shouldBe "submission.replay"
         val roles = roleMap.rolesFor(ReplayActions.REPLAY).keys
         (roles.isNotEmpty()) shouldBe true
         val files =
             listOf(
                 "src/main/kotlin/com/dynokore/gst/submission/bootstrap/ReplayConfiguration.kt",
-                "../submission-adapters/src/main/kotlin/com/dynokore/gst/submission/adapters/http/TransactionsController.kt",
+                "../submission-adapters/src/main/kotlin/com/dynokore/gst/submission/adapters/http" +
+                    "/TransactionsController.kt",
             )
         files.forEach { file ->
             val text = Files.readString(Path.of(file))

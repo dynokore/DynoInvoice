@@ -62,7 +62,7 @@ class CallerChecks(
             val answer = send(operation, headers)
             val once = Doubles.reached.size - before == 1
             "${operation.label} ($what): ${answer.statusCode()} reached $once ${answer.body().take(BODY_SHOWN)}"
-                .takeUnless { answer.statusCode() == 501 && once }
+                .takeUnless { once && (answer.statusCode() == 501 || operation.label in IMPLEMENTED) }
         }
     }
 
@@ -142,6 +142,12 @@ class CallerChecks(
         const val END_USER = "Bearer ${TestIdentity.USER_TOKEN}"
         const val UNMAPPED = "token-unmapped"
         private const val BODY_SHOWN = 120
+
+        /**
+         * Internal operations a task has built (their `operations.tsv` row names a task): the handler answers by its
+         * own rules, so reaching it exactly once is the proof, not 501. Exact label equality; a stub is not listed.
+         */
+        private val IMPLEMENTED = setOf("POST /internal/v1/entities/{entityRef}/replay")
         private val COUNTS =
             "select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', " +
                 "table_schema, table_name), false, true, '')))[1]::text::bigint " +

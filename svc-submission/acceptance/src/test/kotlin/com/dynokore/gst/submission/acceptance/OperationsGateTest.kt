@@ -34,13 +34,21 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi) shouldContain "getFilingGateOverrides"
         OperationsGate.contractChannels(asyncapi).size shouldBe 7
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe ""
+        doneText shouldBe "INV-T-20589\n"
     }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        // getComplianceMetrics is implemented by INV-T-12844, so it no longer answers 501.
-        stubs shouldBe OperationsGate.contractOperations(openapi) - "getComplianceMetrics"
+        // getComplianceMetrics is implemented by INV-T-12844 and replaySubmissionsByScope by INV-T-20589, so they
+        // no longer answer 501.
+        stubs shouldBe OperationsGate.contractOperations(openapi) - "getComplianceMetrics" - "replaySubmissionsByScope"
+    }
+
+    @Test
+    fun `the real done set names the row of replaySubmissionsByScope and a look-alike key fails`() {
+        run(done = "INV-T-20589\n", stubSet = stubs - "replaySubmissionsByScope").shouldBeEmpty()
+        run(done = "INV-T-20590\n") shouldContain "done-tasks.txt: INV-T-20590 names no row of operations.tsv"
+        run(done = "INV-T-205890\n") shouldContain "done-tasks.txt: INV-T-205890 names no row of operations.tsv"
     }
 
     @Test

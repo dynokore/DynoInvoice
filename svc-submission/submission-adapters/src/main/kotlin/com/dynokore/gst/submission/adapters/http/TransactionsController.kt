@@ -49,10 +49,10 @@ class TransactionsRefusalAdvice {
 }
 
 /**
- * The submission-list, transaction and replay operations of the submission contract (TPL-08). `replaySubmissionsByScope`
- * (INV-REQ-575) is served here; the permission is decided by [ReplayBySelection] through `AuthorityReplica.decide`
- * and this class reads no role name and holds no permission string. Every other operation answers 501 until the task
- * named for it in `operations.tsv` overrides its method.
+ * The submission-list, transaction and replay operations of the submission contract (TPL-08).
+ * `replaySubmissionsByScope` (INV-REQ-575) is served here; the permission is decided by [ReplayBySelection]
+ * through `AuthorityReplica.decide`, and this class reads no role name and holds no permission string. Every other
+ * operation answers 501 until the task named for it in `operations.tsv` overrides its method.
  */
 @RestController
 open class TransactionsController(
@@ -68,9 +68,7 @@ open class TransactionsController(
         val tenant = caller.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
         val limit = replayScopeRequest.limit ?: MAX_LIMIT
         val scope = validated(entityRef, replayScopeRequest, limit)
-        if (caller.entitySetCurrent && !caller.covers(EntityRef(entityRef))) {
-            throw ComplianceRefusal(ClosedErrorCode.NOT_FOUND)
-        }
+        refuseOutsideScope(caller, entityRef)
         val result =
             replay.handle(
                 ReplayBySelectionRequest(tenant, Principal(caller.actor, PrincipalKind.HUMAN), scope, limit),
@@ -79,6 +77,16 @@ open class TransactionsController(
         return when (result) {
             is ReplayBySelectionResult.Forbidden -> throw ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
             is ReplayBySelectionResult.Done -> ResponseEntity.ok(render(entityRef, result))
+        }
+    }
+
+    /** API-24: an entityRef outside the token's current entity set is SRT-005 (the contract). */
+    private fun refuseOutsideScope(
+        caller: EndUserPrincipal,
+        entityRef: String,
+    ) {
+        if (caller.entitySetCurrent && !caller.covers(EntityRef(entityRef))) {
+            throw ComplianceRefusal(ClosedErrorCode.NOT_FOUND)
         }
     }
 

@@ -100,12 +100,17 @@ class TransactionsControllerReplayTest {
             OperationRoles.rolesFor(DeploymentForm.SAAS, key).mapValues { CellAllowance.valueOf(it.value.name) }
         }
 
-    /** The replica holds one entity-scoped grant of the role the catalogue lists for the replay key (read, not named). */
+    /** One entity-scoped grant of the role the catalogue lists for the replay key (read, not named). */
     private fun replica(holder: String?) =
         AuthorityReplica(clock, roleMap).also { replica ->
             replica.onSnapshotComplete(0)
             if (holder != null) {
-                val role = roleMap.rolesFor(ReplayActions.REPLAY).keys.sorted().first()
+                val role =
+                    roleMap
+                        .rolesFor(ReplayActions.REPLAY)
+                        .keys
+                        .sorted()
+                        .first()
                 val grant = RoleGrant(role, GrantScope.ENTITY, "e1", clock.instant().minusSeconds(60))
                 val record = AuthorityRecord.RoleGrantRecord("$role-e1", RoleGrantState.ACTIVE, grant)
                 replica.accept(AuthorityChanged(tenant, holder, 1, record))
@@ -169,7 +174,8 @@ class TransactionsControllerReplayTest {
         val thrown = runCatching(block).exceptionOrNull()
         val refused = thrown as? ComplianceRefusal ?: throw AssertionError("expected ComplianceRefusal, got $thrown")
         val response = TransactionsRefusalAdvice().refuse(refused)
-        return response.statusCode.value() to Regex("\"code\"\\s*:\\s*\"([^\"]*)\"").find(response.body!!)!!.groupValues[1]
+        val code = Regex("\"code\"\\s*:\\s*\"([^\"]*)\"").find(response.body!!)!!.groupValues[1]
+        return response.statusCode.value() to code
     }
 
     private fun refused(
@@ -188,7 +194,9 @@ class TransactionsControllerReplayTest {
         body.matchedCount shouldBe 2
         body.truncated shouldBe false
         body.replayed.map { it.docUuid.toString() } shouldBe listOf(docA)
-        body.replayed.single().state.value shouldBe "QUEUED"
+        body.replayed
+            .single()
+            .state.value shouldBe "QUEUED"
         body.skipped.map { it.docUuid.toString() to it.reasonCode } shouldBe listOf(docC to "SUB-008")
         f.requeue.calls shouldBe listOf(docA, docC)
     }
@@ -211,7 +219,7 @@ class TransactionsControllerReplayTest {
     }
 
     @Test
-    fun `INV-AC-20588 a malformed class an unstorable class and limits 0 and 501 each answer 400 SRT-001 before any read`() {
+    fun `INV-AC-20588 malformed and unstorable classes and limits 0 and 501 each answer 400 SRT-001`() {
         val f = fixture(user())
         listOf(
             ReplayScopeRequest(failureClass = "sub-001"),
@@ -243,7 +251,7 @@ class TransactionsControllerReplayTest {
     }
 
     @Test
-    fun `INV-AC-20588 the look-alike code SRT-0040 is not the code of the 403 and SRT-004 is not the code of the 400`() {
+    fun `INV-AC-20588 look-alike codes SRT-0040 and SRT-004 do not stand in for each other`() {
         val denied = refused(fixture(user("stranger")), ReplayScopeRequest())
         (denied.second == "SRT-0040") shouldBe false
         denied.second shouldBe "SRT-004"
