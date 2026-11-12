@@ -31,7 +31,8 @@ dependencies {
 }
 
 // The services staged from the bundle; the marker covers the list, so a changed list restages. masterdata is staged
-// for the client of canonical-adapters (sync edge canonical-svc->masterdata-svc).
+// for the client of canonical-adapters (sync edge canonical-svc->masterdata-svc), rules for the
+// client of the sync edge canonical-svc->rules-svc.
 val stagedServices = listOf("canonical", "masterdata", "rules")
 
 // gst.contract-server resolves `platform-contracts:canonical:+` while the task graph is built, so the layout
