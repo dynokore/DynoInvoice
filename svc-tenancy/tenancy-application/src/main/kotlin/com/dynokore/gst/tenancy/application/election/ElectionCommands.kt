@@ -38,6 +38,9 @@ const val EXEMPT_PURCHASE_CODES_ATTRIBUTE = "exemptPurchaseCodes"
 /** The profile attribute the recorded basis of the exempt-purchase election is published under. */
 const val EXEMPT_PURCHASE_BASIS_ATTRIBUTE = "exemptPurchaseBasis"
 
+/** The profile attribute the elected purchase date basis is published under on EntityProfileChanged (INV-AC-21457). */
+const val PURCHASE_DATE_BASIS_ATTRIBUTE = "purchaseDateBasis"
+
 /** The codes of one stored election as published: ascending by code unit, joined by a comma without space. */
 fun exemptPurchaseCodesValue(row: ExemptPurchaseElectionRow): String = row.taxCodes.sorted().joinToString(",")
 
@@ -247,6 +250,9 @@ class ElectionCommands(
                 actor,
                 "${kind.variationPoint} election by $actor",
             )?.let { return@inTransaction it }
+            if (kind == ElectionKind.PURCHASE_DATE_BASIS) {
+                publishPurchaseDateBasis(entity.ref, before, election, effectiveFrom)
+            }
             ElectionOutcome.Done(elections.history(entity.ref, kind).single { it.effectiveFrom == effectiveFrom })
         }
 
@@ -322,7 +328,7 @@ class ElectionCommands(
                 )
             }
             valueRefusal(change)?.let { return@inTransaction it }
-            val rateHistory = elections.history(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE)
+            val kindHistory = elections.history(entity.ref, change.kind)
             store(
                 entity.ref,
                 entity.groupRef,
@@ -334,9 +340,7 @@ class ElectionCommands(
                 "${change.kind.variationPoint} election change ${change.changeRef} requested by " +
                     "${change.requestedBy}, approved by $approver",
             )?.let { return@inTransaction it }
-            if (change.kind == ElectionKind.EXCHANGE_RATE_SOURCE) {
-                publishRateSource(entity.ref, rateHistory, change.value, change.effectiveFrom)
-            }
+            publishApproved(entity.ref, change, kindHistory)
             val approval =
                 checkNotNull(changes.approve(entity.ref, change.changeRef, approver)) { "change not PENDING" }
             audit.approved(approval)
@@ -641,6 +645,46 @@ class ElectionCommands(
         effectiveFrom,
     )
 
+    /** The profile entry of an approved change: rate source or purchase date basis; other kinds publish none. */
+    private fun publishApproved(
+        entityRef: String,
+        change: PendingChange,
+        before: List<ElectionRecord>,
+    ) {
+        when (change.kind) {
+            ElectionKind.EXCHANGE_RATE_SOURCE -> {
+                publishRateSource(entityRef, before, change.value, change.effectiveFrom)
+            }
+
+            ElectionKind.PURCHASE_DATE_BASIS -> {
+                publishPurchaseDateBasis(entityRef, before, change.value, change.effectiveFrom)
+            }
+
+            else -> {
+                // the issuance mode and the apportionment mode publish no item here
+            }
+        }
+    }
+
+    /** EntityProfileChanged with the purchase date basis entry in changedAttributes and node.profile (INV-AC-21457). */
+    private fun publishPurchaseDateBasis(
+        entityRef: String,
+        before: List<ElectionRecord>,
+        value: String,
+        effectiveFrom: LocalDate,
+    ) = publishProfile(
+        tenants.current(),
+        entityRef,
+        listOf(
+            ChangedAttribute(
+                PURCHASE_DATE_BASIS_ATTRIBUTE,
+                StatusTimeline.inForceOn(before, effectiveFrom)?.value,
+                value,
+            ),
+        ),
+        effectiveFrom,
+    )
+
     /** One publish carries every profile entry, as a StructureNode replaces the node's whole state. */
     private fun publishProfile(
         tenant: TenantId,
@@ -656,6 +700,7 @@ class ElectionCommands(
                 statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
                     electionEntries(entity.ref, ElectionKind.ISSUANCE_MODE, ISSUANCE_MODE_ATTRIBUTE) +
                     electionEntries(entity.ref, ElectionKind.EXCHANGE_RATE_SOURCE, RATE_SOURCE_ATTRIBUTE) +
+                    electionEntries(entity.ref, ElectionKind.PURCHASE_DATE_BASIS, PURCHASE_DATE_BASIS_ATTRIBUTE) +
                     exemptPurchaseEntries(exemptPurchases.history(entity.ref)) +
                     migrationCutoverEntries(cutovers.find(entity.ref))
             ).sortedBy { it.effectiveDate }
