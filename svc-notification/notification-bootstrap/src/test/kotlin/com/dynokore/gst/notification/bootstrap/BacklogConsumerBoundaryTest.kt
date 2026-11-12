@@ -26,6 +26,7 @@ import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.beans.factory.config.BeanDefinitionCustomizer
 import org.springframework.context.ApplicationContext
 import java.nio.file.Path
 import java.time.Clock
@@ -239,7 +240,7 @@ class BacklogConsumerBoundaryTest {
     ) = run(dir) { tenant ->
         policy(tenant, "E-1")
         log.add(measured(tenant, "ev-6", type = "com.dynokore.gst.submission.BacklogValuesMeasured.v2"))
-        consumer.pollOnce().applied shouldBe 0
+        consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
         alerts(tenant) shouldBe emptyList()
     }
 
@@ -256,5 +257,41 @@ class BacklogConsumerBoundaryTest {
         log.add(measured(tenant, "ev-5", failureRate = 1.5))
         consumer.pollOnce() shouldBe PollResult(applied = 1, ignored = 3, duplicates = 1, stale = 0, deadLettered = 1)
         alerts(tenant) shouldBe listOf(raised)
+    }
+
+    @Test
+    fun `INV-AC-20820 the consumer bean of the context is the only one and consumes the first event`(
+        @TempDir dir: Path,
+    ) {
+        val log = Log()
+        val tenant = TenantId(UUID.randomUUID())
+        NotificationContext
+            .online(dir)
+            .withBean(EventLogReader::class.java, { log }, BeanDefinitionCustomizer { it.isPrimary = true })
+            .run { context ->
+                val boundary = Boundary(context, BacklogConsumerConfiguration.TOPIC)
+                val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
+                consumers.size shouldBe 1
+                val bean = consumers.values.single()
+                policy(tenant, "E-1")
+                log.add(measured(tenant, "ev-1"))
+                try {
+                    bean.pollOnce() shouldBe
+                        PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
+                    boundary.alerts(tenant) shouldBe listOf(raised)
+                    boundary.tx(tenant) {
+                        boundary.dsl.fetchCount(INBOX, INBOX.CONSUMER.eq(BacklogConsumerConfiguration.CONSUMER))
+                    } shouldBe 1
+                } finally {
+                    NotificationDb.superuser().use {
+                        it.createStatement().use { s ->
+                            s.execute(
+                                "delete from notification.consumer_offset " +
+                                    "where consumer = '${BacklogConsumerConfiguration.CONSUMER}'",
+                            )
+                        }
+                    }
+                }
+            }
     }
 }
