@@ -48,12 +48,36 @@ class CanonicalVersionCreatedHandler(
                 event.tenant,
                 event.id.value,
                 locator,
+                counterpartyUen(data),
             )
         ) {
             HandleOutcome.APPLIED
         } else {
             HandleOutcome.IGNORED
         }
+    }
+
+    /** The other party by direction (buyer for SALE, supplier for PURCHASE), only when its scheme is SG_UEN. */
+    private fun counterpartyUen(data: JsonNode): String? {
+        val party =
+            when (data.path("routingFacts").path("direction").asString("")) {
+                "SALE" -> "buyer"
+                "PURCHASE" -> "supplier"
+                else -> null
+            }
+        val node =
+            party?.let {
+                data
+                    .path("canonicalDocument")
+                    .path("parties")
+                    .path("value")
+                    .path(it)
+            }
+        return node
+            ?.takeIf { it.path("identifierScheme").asString("") == "SG_UEN" }
+            ?.path("identifierValue")
+            ?.takeIf { it.isString }
+            ?.asString()
     }
 
     private fun parse(text: String): JsonNode =

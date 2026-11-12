@@ -50,7 +50,13 @@ object ChainWiring {
     fun locatorRecorder(
         dsl: DSLContext,
         clock: Clock = Clock.systemUTC(),
-    ): LocatorRecorder = LocatorRecorder(JooqLocatorStore(dsl), recordAppender(dsl, clock), clock)
+    ): LocatorRecorder =
+        LocatorRecorder(
+            JooqLocatorStore(dsl),
+            recordAppender(dsl, clock),
+            JooqSubmissionIndexStore(dsl),
+            clock,
+        )
 
     /** The handler of `CanonicalVersionCreated`, to run inside the inbox consumer's transaction. */
     fun locatorHandler(

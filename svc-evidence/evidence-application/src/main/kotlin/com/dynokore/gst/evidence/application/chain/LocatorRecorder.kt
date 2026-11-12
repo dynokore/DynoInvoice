@@ -11,6 +11,7 @@ import java.time.Clock
 class LocatorRecorder(
     private val locators: LocatorStore,
     private val appender: RecordAppender,
+    private val index: SubmissionIndexStore,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     /** True when the locator was stored; a repeat (the same event id or the same version) stores and drains nothing. */
@@ -18,9 +19,23 @@ class LocatorRecorder(
         tenant: TenantId,
         eventId: String,
         locator: DocumentLocator,
+        counterpartyUen: String? = null,
     ): Boolean {
         locators.lock(tenant, locator.docUuid, locator.version)
         if (!locators.insert(tenant, eventId, locator, clock.instant())) return false
+        index.upsertDocument(
+            tenant,
+            SubmissionIndexRow(
+                docUuid = locator.docUuid,
+                version = locator.version,
+                entityRef = locator.entityRef,
+                periodRef = locator.periodRef,
+                documentNumber = locator.documentNumber,
+                documentDate = locator.transactionDate,
+                counterpartyUen = counterpartyUen,
+                recordedAt = clock.instant(),
+            ),
+        )
         appender.drainPending(tenant, locator.docUuid, locator.version)
         return true
     }
