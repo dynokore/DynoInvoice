@@ -83,3 +83,5 @@ BacklogThresholds.maxQueueDepth	schema_property	openapi.yaml	INV-REQ-1370
 BacklogThresholds.maxOldestUnsentAgeSeconds	schema_property	openapi.yaml	INV-REQ-1370
 BacklogThresholds.maxFailureRatio	schema_property	openapi.yaml	INV-REQ-1370
 BacklogThresholds.maxUnacknowledgedCount	schema_property	openapi.yaml	INV-REQ-1370
+BACKLOG_THRESHOLD	enum_value	openapi.yaml	INV-REQ-1370
+Alert.trigger.BACKLOG_THRESHOLD	schema_enum_value	openapi.yaml	INV-REQ-1370

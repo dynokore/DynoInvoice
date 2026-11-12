@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -64,6 +64,11 @@ info:
     Version 1.14.0 adds the alert trigger COVERAGE_GAP, the contract name of
     the coverage alert, an alert of the class COVERAGE (INV-Q-12767,
     INV-REQ-1069).
+
+
+    Version 1.16.0 adds the alert trigger BACKLOG_THRESHOLD, raised for an
+    alert of the class BACKLOG or MISSING_ACKNOWLEDGEMENT when a measured
+    backlog value passes its configured threshold (INV-REQ-1370).
   contact:
     name: notification (see CODEOWNERS)
 servers:
@@ -1355,7 +1360,7 @@ components:
           format: date-time
         trigger:
           type: string
-          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED, BREAK_GLASS_USED, COVERAGE_GAP]
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED, BREAK_GLASS_USED, COVERAGE_GAP, BACKLOG_THRESHOLD]
           x-extensible-enum: true
         caseId:
           type: string
