@@ -132,7 +132,7 @@ class PeriodDueDateChangedHandlerTest {
     fun `INV-AC-20513 a malformed event is a ContractViolation that writes nothing and logs no value`() {
         val h = PeriodDueDateChangedHandler(tenants, { throw ContractViolation("member is missing") }, store)
         val e = shouldThrow<ContractViolation> { h.handle(envelope()) }
-        e.message.orEmpty() shouldNotContain "2026"
+        (e.message ?: "") shouldNotContain "2026"
         store.writes shouldBe 0
     }
 }

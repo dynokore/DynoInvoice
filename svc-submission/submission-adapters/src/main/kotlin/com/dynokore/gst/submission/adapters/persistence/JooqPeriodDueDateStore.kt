@@ -10,9 +10,9 @@ import java.time.LocalDate
 
 /**
  * [PeriodDueDates] over `submission.period_due_date` in one transaction of the bound tenant: `insert ... on conflict
- * do nothing` (INSERTED), else an `update` guarded by a lower stored due date version (UPDATED, or UNCHANGED). No
- * select before the write, so concurrent writers cannot race the result; forced row level security applies. Values
- * are never logged.
+ * do nothing` (INSERTED), else an `update` guarded by a lower stored due date version (UPDATED, or UNCHANGED). No select
+ * before the write, so concurrent writers cannot race the result; forced row level security applies. Values are
+ * never logged.
  */
 class JooqPeriodDueDateStore(
     private val dsl: DSLContext,
