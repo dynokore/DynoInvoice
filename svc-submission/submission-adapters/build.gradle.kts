@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)
     implementation(libs.swagger.annotations)
+    implementation(libs.gstCatalogue)
     implementation(libs.jooq)
     implementation(libs.postgresql)
     implementation(libs.flyway.core)
@@ -82,7 +83,6 @@ dependencies {
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
     testImplementation(libs.platform.konsistRules)
-    testImplementation(libs.gstCatalogue)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
 }

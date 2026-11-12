@@ -148,7 +148,10 @@ class AttemptOutcomeDbTest {
         f.queued(tenant, doc)
         val body = """{"reasons":["R1"]}""".toByteArray()
 
-        f.cycle(FakeTransport(TransportResult.Rejected(listOf(RejectionReason("R1", null, "bad")), body))).runOnce()
+        f
+            .cycle(
+                FakeTransport(TransportResult.Rejected(listOf(RejectionReason("SUB-003", null, "bad")), body)),
+            ).runOnce()
 
         f.row(tenant, doc).state shouldBe "REJECTED"
         String(checkNotNull(f.attempts(tenant, doc)[0].response)) shouldBe String(body)
@@ -210,7 +213,7 @@ class AttemptOutcomeDbTest {
         f.queued(tenant, doc)
         f.waiting(tenant, doc)
 
-        val rejected = TransportResult.Rejected(listOf(RejectionReason("R1", null, "bad")), "x".toByteArray())
+        val rejected = TransportResult.Rejected(listOf(RejectionReason("SUB-003", null, "bad")), "x".toByteArray())
 
         f.cycle(FakeTransport(rejected)).runOnce()
 
@@ -261,7 +264,7 @@ class AttemptOutcomeDbTest {
         f.queued(tenant, doc)
         f.waiting(tenant, doc)
         val dispatch = (f.worker.takeNext() as SentResult.Sent).dispatch
-        val rejected = TransportResult.Rejected(listOf(RejectionReason("R1", null, "bad")), "x".toByteArray())
+        val rejected = TransportResult.Rejected(listOf(RejectionReason("SUB-003", null, "bad")), "x".toByteArray())
 
         f.applier(releasing = f.failingQueue()).apply(dispatch, rejected)
 
