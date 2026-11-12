@@ -85,7 +85,8 @@ class ArrivalPlanningTest {
 
     @Test
     fun `INV-AC-21091 version 2 is routine and calls no port and counts nothing`() {
-        planning.plan(tenant, "D1", listOf(LifecycleState.READY)) shouldBe ArrivalPlan(Lane.LIVE, emptyList(), null, null)
+        planning.plan(tenant, "D1", listOf(LifecycleState.READY)) shouldBe
+            ArrivalPlan(Lane.LIVE, emptyList(), null, null)
         findCalls shouldBe 0
         filedCalls shouldBe 0
         unknownEntries shouldBe 0
