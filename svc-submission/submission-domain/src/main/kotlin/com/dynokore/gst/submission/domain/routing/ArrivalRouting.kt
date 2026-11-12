@@ -3,16 +3,23 @@ package com.dynokore.gst.submission.domain.routing
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.ordering.isTransmitted
 
-enum class ChangeClass { NON_MONETARY, IDENTITY, PERIOD_SHIFTING, MONETARY, STRUCTURAL }
+/** A fact the arrival path may not know; UNKNOWN is never guessed into YES or NO. */
+enum class Fact { YES, NO, UNKNOWN }
 
-/** [changeClass] is null exactly when [earlierVersions] is empty. */
+/** UNKNOWN is the class of a later version whose class has no stored source yet; it never rejects. */
+enum class ChangeClass { NON_MONETARY, IDENTITY, PERIOD_SHIFTING, MONETARY, STRUCTURAL, UNKNOWN }
+
+/** The inputs that were unknown to a routing decision, in declaration order. */
+enum class UnresolvedInput { PRECEDING_PRE_OBLIGATION, CHANGE_CLASS, TYPE2_RENDITION_ISSUED }
+
+/** [changeClass] is null exactly when [earlierVersions] is empty (an unknown class of a later version is UNKNOWN). */
 data class ArrivalInput(
     val creditNote: Boolean,
     val periodFiled: Boolean,
-    val precedingPreObligation: Boolean,
+    val precedingPreObligation: Fact,
     val earlierVersions: List<LifecycleState>,
     val changeClass: ChangeClass?,
-    val type2RenditionIssued: Boolean,
+    val type2RenditionIssued: Fact,
 )
 
 enum class RejectionCode(
@@ -48,6 +55,7 @@ data class Routed(
     val amendment: Amendment,
     val codes: List<ArrivalCode>,
     val warnings: List<ArrivalWarning>,
+    val unresolved: List<UnresolvedInput>,
 ) : ArrivalResult
 
 /**
@@ -62,21 +70,22 @@ object ArrivalRouting {
         if (input.changeClass == ChangeClass.STRUCTURAL) {
             return Rejected(RejectionCode.ING_012)
         }
-        val standalone = input.creditNote && input.precedingPreObligation
+        val standalone = input.creditNote && input.precedingPreObligation != Fact.NO
         val amendment = amendmentOf(input.earlierVersions)
         val codes =
             buildList {
                 if (input.periodFiled) add(ArrivalCode.SUB_010)
                 if (standalone) add(ArrivalCode.PER_007)
             }
-        val warn =
-            amendment == Amendment.SUPERSEDE && input.changeClass == ChangeClass.MONETARY && input.type2RenditionIssued
+        val warn = warnsType2(input, amendment)
+        val unresolved = unresolvedOf(input, amendment)
         return Routed(
             timing = if (input.periodFiled) Timing.IMMEDIATE else Timing.ROUTINE,
             ordering = if (standalone) Ordering.STANDALONE else Ordering.NORMAL,
             amendment = amendment,
             codes = codes,
             warnings = if (warn) listOf(ArrivalWarning.TYPE2_RENDITION_ISSUED) else emptyList(),
+            unresolved = unresolved,
         )
     }
 
@@ -85,5 +94,31 @@ object ArrivalRouting {
             earlier.isEmpty() -> Amendment.NONE
             earlier.any(::isTransmitted) -> Amendment.AFTER_TRANSMISSION
             else -> Amendment.SUPERSEDE
+        }
+
+    private fun type2Relevant(
+        input: ArrivalInput,
+        amendment: Amendment,
+    ): Boolean =
+        amendment == Amendment.SUPERSEDE &&
+            (input.changeClass == ChangeClass.MONETARY || input.changeClass == ChangeClass.UNKNOWN)
+
+    private fun warnsType2(
+        input: ArrivalInput,
+        amendment: Amendment,
+    ): Boolean = type2Relevant(input, amendment) && input.type2RenditionIssued != Fact.NO
+
+    private fun unresolvedOf(
+        input: ArrivalInput,
+        amendment: Amendment,
+    ): List<UnresolvedInput> =
+        buildList {
+            if (input.creditNote && input.precedingPreObligation == Fact.UNKNOWN) {
+                add(UnresolvedInput.PRECEDING_PRE_OBLIGATION)
+            }
+            if (input.changeClass == ChangeClass.UNKNOWN) add(UnresolvedInput.CHANGE_CLASS)
+            if (type2Relevant(input, amendment) && input.type2RenditionIssued == Fact.UNKNOWN) {
+                add(UnresolvedInput.TYPE2_RENDITION_ISSUED)
+            }
         }
 }

@@ -20,12 +20,12 @@ class ArrivalRoutingTest {
     private fun input(
         creditNote: Boolean = false,
         periodFiled: Boolean = false,
-        pre: Boolean = false,
+        pre: Fact = Fact.NO,
         earlier: List<LifecycleState> = emptyList(),
         change: ChangeClass? = if (earlier.isEmpty()) null else ChangeClass.NON_MONETARY,
-    ) = ArrivalInput(creditNote, periodFiled, pre, earlier, change, false)
+    ) = ArrivalInput(creditNote, periodFiled, pre, earlier, change, Fact.NO)
 
-    private fun ArrivalInput.type2() = copy(type2RenditionIssued = true)
+    private fun ArrivalInput.type2() = copy(type2RenditionIssued = Fact.YES)
 
     private fun routed(
         timing: Timing,
@@ -33,7 +33,9 @@ class ArrivalRoutingTest {
         amendment: Amendment,
         codes: List<ArrivalCode> = emptyList(),
         warnings: List<ArrivalWarning> = emptyList(),
-    ) = Routed(timing, ordering, amendment, codes, warnings)
+    ) = Routed(timing, ordering, amendment, codes, warnings, emptyList())
+
+    private fun Routed.naming(vararg names: UnresolvedInput) = copy(unresolved = names.toList())
 
     private val routine = routed(Timing.ROUTINE, Ordering.NORMAL, Amendment.SUPERSEDE)
     private val after = routed(Timing.ROUTINE, Ordering.NORMAL, Amendment.AFTER_TRANSMISSION)
@@ -59,20 +61,20 @@ class ArrivalRoutingTest {
 
     @Test
     fun `INV-AC-355 a credit note on a PRE_OBLIGATION original is standalone with PER_007`() {
-        ArrivalRouting.decide(input(creditNote = true, pre = true)) shouldBe
+        ArrivalRouting.decide(input(creditNote = true, pre = Fact.YES)) shouldBe
             routed(Timing.ROUTINE, Ordering.STANDALONE, Amendment.NONE, listOf(ArrivalCode.PER_007))
     }
 
     @Test
     fun `INV-AC-355 look-alikes without both facts are normal with no PER_007`() {
         val normal = routed(Timing.ROUTINE, Ordering.NORMAL, Amendment.NONE)
-        ArrivalRouting.decide(input(creditNote = true, pre = false)) shouldBe normal
-        ArrivalRouting.decide(input(creditNote = false, pre = true)) shouldBe normal
+        ArrivalRouting.decide(input(creditNote = true, pre = Fact.NO)) shouldBe normal
+        ArrivalRouting.decide(input(creditNote = false, pre = Fact.YES)) shouldBe normal
     }
 
     @Test
     fun `INV-AC-355 a filed period lists SUB_010 before PER_007`() {
-        ArrivalRouting.decide(input(creditNote = true, pre = true, periodFiled = true)) shouldBe
+        ArrivalRouting.decide(input(creditNote = true, pre = Fact.YES, periodFiled = true)) shouldBe
             routed(
                 Timing.IMMEDIATE,
                 Ordering.STANDALONE,
@@ -163,5 +165,125 @@ class ArrivalRoutingTest {
         listOf(SENT, ACKNOWLEDGED).forEach {
             ArrivalRouting.decide(input(earlier = listOf(it))) shouldBe after
         }
+    }
+
+    private fun later(
+        change: ChangeClass,
+        type2: Fact,
+        periodFiled: Boolean = false,
+    ) = input(periodFiled = periodFiled, earlier = listOf(QUEUED), change = change).copy(type2RenditionIssued = type2)
+
+    private val warn = listOf(ArrivalWarning.TYPE2_RENDITION_ISSUED)
+
+    @Test
+    fun `INV-AC-21008 a credit note with UNKNOWN is standalone with PER_007 and names the input`() {
+        val unknown = ArrivalRouting.decide(input(creditNote = true, pre = Fact.UNKNOWN))
+        unknown shouldBe
+            routed(
+                Timing.ROUTINE,
+                Ordering.STANDALONE,
+                Amendment.NONE,
+                listOf(ArrivalCode.PER_007),
+            ).naming(UnresolvedInput.PRECEDING_PRE_OBLIGATION)
+        unknown shouldBe
+            (ArrivalRouting.decide(input(creditNote = true, pre = Fact.YES)) as Routed)
+                .copy(unresolved = listOf(UnresolvedInput.PRECEDING_PRE_OBLIGATION))
+    }
+
+    @Test
+    fun `INV-AC-21008 a credit note with NO is normal with no code and nothing unresolved`() {
+        ArrivalRouting.decide(input(creditNote = true, pre = Fact.NO)) shouldBe
+            routed(Timing.ROUTINE, Ordering.NORMAL, Amendment.NONE)
+    }
+
+    @Test
+    fun `INV-AC-21008 a credit note with YES is standalone with nothing unresolved`() {
+        ArrivalRouting.decide(input(creditNote = true, pre = Fact.YES)) shouldBe
+            routed(Timing.ROUTINE, Ordering.STANDALONE, Amendment.NONE, listOf(ArrivalCode.PER_007))
+    }
+
+    @Test
+    fun `INV-AC-21008 MONETARY with the type 2 fact UNKNOWN warns and names it`() {
+        ArrivalRouting.decide(later(ChangeClass.MONETARY, Fact.UNKNOWN)) shouldBe
+            routed(
+                Timing.ROUTINE,
+                Ordering.NORMAL,
+                Amendment.SUPERSEDE,
+                warnings = warn,
+            ).naming(UnresolvedInput.TYPE2_RENDITION_ISSUED)
+    }
+
+    @Test
+    fun `INV-AC-21008 MONETARY with the type 2 fact NO has no warning and nothing unresolved`() {
+        ArrivalRouting.decide(later(ChangeClass.MONETARY, Fact.NO)) shouldBe routine
+    }
+
+    @Test
+    fun `INV-AC-21008 MONETARY with the type 2 fact YES warns with nothing unresolved`() {
+        ArrivalRouting.decide(later(ChangeClass.MONETARY, Fact.YES)) shouldBe
+            routed(Timing.ROUTINE, Ordering.NORMAL, Amendment.SUPERSEDE, warnings = warn)
+    }
+
+    @Test
+    fun `INV-AC-21008 an UNKNOWN class with type 2 YES warns and names the class`() {
+        ArrivalRouting.decide(later(ChangeClass.UNKNOWN, Fact.YES)) shouldBe
+            routed(
+                Timing.ROUTINE,
+                Ordering.NORMAL,
+                Amendment.SUPERSEDE,
+                warnings = warn,
+            ).naming(UnresolvedInput.CHANGE_CLASS)
+    }
+
+    @Test
+    fun `INV-AC-21008 NON_MONETARY with the type 2 fact UNKNOWN has no warning and nothing unresolved`() {
+        ArrivalRouting.decide(later(ChangeClass.NON_MONETARY, Fact.UNKNOWN)) shouldBe routine
+    }
+
+    @Test
+    fun `INV-AC-21008 an UNKNOWN class with an UNKNOWN type 2 fact names both in order`() {
+        ArrivalRouting.decide(later(ChangeClass.UNKNOWN, Fact.UNKNOWN)) shouldBe
+            routed(
+                Timing.ROUTINE,
+                Ordering.NORMAL,
+                Amendment.SUPERSEDE,
+                warnings = warn,
+            ).naming(UnresolvedInput.CHANGE_CLASS, UnresolvedInput.TYPE2_RENDITION_ISSUED)
+    }
+
+    @Test
+    fun `INV-AC-21008 a filed period is IMMEDIATE with SUB_010 together with an unknown input`() {
+        ArrivalRouting.decide(input(creditNote = true, periodFiled = true, pre = Fact.UNKNOWN)) shouldBe
+            routed(
+                Timing.IMMEDIATE,
+                Ordering.STANDALONE,
+                Amendment.NONE,
+                listOf(ArrivalCode.SUB_010, ArrivalCode.PER_007),
+            ).naming(UnresolvedInput.PRECEDING_PRE_OBLIGATION)
+        ArrivalRouting.decide(later(ChangeClass.UNKNOWN, Fact.UNKNOWN, periodFiled = true)) shouldBe
+            routed(
+                Timing.IMMEDIATE,
+                Ordering.NORMAL,
+                Amendment.SUPERSEDE,
+                listOf(ArrivalCode.SUB_010),
+                warn,
+            ).naming(UnresolvedInput.CHANGE_CLASS, UnresolvedInput.TYPE2_RENDITION_ISSUED)
+    }
+
+    @Test
+    fun `INV-AC-21008 a document that is not a credit note does not report the preceding fact`() {
+        ArrivalRouting.decide(input(creditNote = false, pre = Fact.UNKNOWN)) shouldBe
+            routed(Timing.ROUTINE, Ordering.NORMAL, Amendment.NONE)
+    }
+
+    @Test
+    fun `INV-AC-21008 STRUCTURAL still rejects and an UNKNOWN class is not a rejection`() {
+        ArrivalRouting.decide(later(ChangeClass.STRUCTURAL, Fact.UNKNOWN)) shouldBe Rejected(RejectionCode.ING_012)
+        (ArrivalRouting.decide(later(ChangeClass.UNKNOWN, Fact.NO)) is Routed) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-21008 an UNKNOWN class with no earlier versions is refused`() {
+        assertThrows<IllegalArgumentException> { ArrivalRouting.decide(input(change = ChangeClass.UNKNOWN)) }
     }
 }
