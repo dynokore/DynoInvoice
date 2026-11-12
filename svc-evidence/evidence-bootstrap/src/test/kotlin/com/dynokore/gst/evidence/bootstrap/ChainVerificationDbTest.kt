@@ -123,7 +123,7 @@ class ChainVerificationDbTest {
         val outbox: OutboxWriter = context.getBean(OutboxWriter::class.java)
         val objects = Objects()
         val ledgers: Map<RecordKind, EvidenceLedger> =
-            RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, it.table) }
+            RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, it.table, it == RecordKind.DECISION_TRACE) }
 
         fun verification(ledgers: Map<RecordKind, EvidenceLedger> = this.ledgers) =
             ChainVerification(

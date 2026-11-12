@@ -56,7 +56,7 @@ class RecordAppender(
         } else {
             append(
                 tenant,
-                Target(kind, locator.chain, EvidenceIndex(docUuid, locator.documentNumber)),
+                Target(kind, locator.chain, indexOf(kind, docUuid, locator.documentNumber, version)),
                 eventId,
                 content,
             )
@@ -90,7 +90,7 @@ class RecordAppender(
             checkNotNull(locators.find(tenant, docUuid, version)) { "no locator for $docUuid version $version" }
         val records = pending.unapplied(tenant, docUuid, version)
         records.forEach {
-            val target = Target(it.kind, locator.chain, EvidenceIndex(docUuid, locator.documentNumber))
+            val target = Target(it.kind, locator.chain, indexOf(it.kind, docUuid, locator.documentNumber, it.version))
             append(tenant, target, it.eventId, it.eventJson.toByteArray(Charsets.UTF_8))
         }
         return records.size
@@ -102,6 +102,19 @@ class RecordAppender(
         val chain: ChainKey,
         val index: EvidenceIndex,
     )
+
+    /** Only a DECISION_TRACE record carries the locator version (INV-REQ-942); every other kind has none. */
+    private fun indexOf(
+        kind: RecordKind,
+        docUuid: UUID,
+        documentNumber: String?,
+        version: Int,
+    ): EvidenceIndex =
+        if (kind == RecordKind.DECISION_TRACE) {
+            EvidenceIndex(docUuid, documentNumber, version = version)
+        } else {
+            EvidenceIndex(docUuid, documentNumber)
+        }
 
     private fun append(
         tenant: TenantId,

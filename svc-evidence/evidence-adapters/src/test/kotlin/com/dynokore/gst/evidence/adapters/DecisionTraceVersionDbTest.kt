@@ -70,7 +70,7 @@ class DecisionTraceVersionDbTest {
     private fun traceLedger(dsl: DSLContext) = JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, "decision_trace", true)
 
     @Test
-    fun `INV-AC-20715 a DECISION_TRACE record through ChainWiring recordAppender has a null version, read back`() {
+    fun `INV-AC-20715 a DECISION_TRACE record through recordAppender carries version 3, read back`() {
         val t = UUID.randomUUID()
         locate(t, 3)
         tx(t) { dsl, tenant ->
@@ -78,17 +78,17 @@ class DecisionTraceVersionDbTest {
                 .recordAppender(dsl)
                 .appendBound(tenant, RecordKind.DECISION_TRACE, doc, 3, "E1", content, at)
         }
-        versions(t) shouldBe listOf(null)
+        versions(t) shouldBe listOf(3)
         tx(t) { dsl, tenant ->
             val read = traceLedger(dsl).findByEntityAndPeriod(tenant, EntityRef("ENT-1"), PeriodRef("2026-Q1"))
             read.size shouldBe 1
-            read.single().index.version shouldBe null
+            read.single().index.version shouldBe 3
             read.single().index.docUuid shouldBe doc
         }
     }
 
     @Test
-    fun `INV-AC-20715 a pending DECISION_TRACE record drained after the locator has a null version`() {
+    fun `INV-AC-20715 a pending DECISION_TRACE record drained after the locator carries the locator version 3`() {
         val t = UUID.randomUUID()
         tx(t) { dsl, tenant ->
             ChainWiring
@@ -98,7 +98,7 @@ class DecisionTraceVersionDbTest {
         versions(t) shouldBe emptyList()
         locate(t, 3)
         tx(t) { dsl, tenant -> ChainWiring.recordAppender(dsl).drainPending(tenant, doc, 3) } shouldBe 1
-        versions(t) shouldBe listOf(null)
+        versions(t) shouldBe listOf(3)
     }
 
     @Test

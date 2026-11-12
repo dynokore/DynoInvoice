@@ -108,7 +108,7 @@ class LocatorConsumerTest {
         kind: RecordKind,
     ): List<EvidenceRecord> =
         tx(tenant) {
-            JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table)
+            JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table, kind == RecordKind.DECISION_TRACE)
                 .findByEntityAndPeriod(tenant, EntityRef("ENT-3F2A9C"), PeriodRef("2026-Q1"))
         }
 

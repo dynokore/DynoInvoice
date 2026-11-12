@@ -186,7 +186,7 @@ class PeriodDigestConsumerTest {
         count: Int,
         forPeriod: String = period,
     ) = tx(tenant) {
-        val ledger = JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table)
+        val ledger = JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table, kind == RecordKind.DECISION_TRACE)
         repeat(count) {
             ledger.append(tenant, EntityRef(entity), PeriodRef(forPeriod), type, """{"n":$it}""".toByteArray())
         }
@@ -332,7 +332,7 @@ class PeriodDigestConsumerTest {
     ): ChainTail {
         val last =
             tx(tenant) {
-                JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table)
+                JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table, kind == RecordKind.DECISION_TRACE)
                     .findByEntityAndPeriod(tenant, EntityRef(entity), PeriodRef(period))
                     .last()
             }

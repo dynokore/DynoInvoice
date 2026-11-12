@@ -137,7 +137,7 @@ class RecordConsumersTest {
         period: String,
     ): List<EvidenceRecord> =
         tx(tenant) {
-            JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table)
+            JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table, kind == RecordKind.DECISION_TRACE)
                 .findByEntityAndPeriod(tenant, EntityRef(entityRef), PeriodRef(period))
         }
 
