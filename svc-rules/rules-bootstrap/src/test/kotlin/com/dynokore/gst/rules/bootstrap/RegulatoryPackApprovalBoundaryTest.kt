@@ -43,9 +43,9 @@ private const val PACK_TYPE = "SCHEMATRON"
 
 /**
  * INV-T-4975 (INV-REQ-489): the served `approveRegulatoryPack` over the wired context on real PostgreSQL and a replica
- * fixture. The permission is the scoped key `regulatory-pack.approve` decided by `AuthorityReplica`, the approver is the
- * authenticated user ID, and the activation fence is not built yet (INV-T-4977): the first two requests of INV-AC-7966
- * are asserted through [ArmingGate] on the stored status and delta.
+ * fixture. The permission is the scoped key `regulatory-pack.approve` decided by `AuthorityReplica`, the approver is
+ * the authenticated user ID, and the activation fence is not built yet (INV-T-4977): the first two requests of
+ * INV-AC-7966 are asserted through [ArmingGate] on the stored status and delta.
  */
 @SpringBootTest(
     classes = [PolicyFixtures::class, RulesApplication::class],
@@ -176,8 +176,7 @@ class RegulatoryPackApprovalBoundaryTest(
         return http.send(request, HttpResponse.BodyHandlers.ofString())
     }
 
-    private fun gate(version: String) =
-        ArmingGate.check(PackStatus.valueOf(status(version)), hasDryRun(version))
+    private fun gate(version: String) = ArmingGate.check(PackStatus.valueOf(status(version)), hasDryRun(version))
 
     private fun refused(
         answer: HttpResponse<String>,

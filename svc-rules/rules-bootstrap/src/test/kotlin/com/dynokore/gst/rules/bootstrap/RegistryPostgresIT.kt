@@ -362,6 +362,7 @@ class RegistryPostgresIT(
     }
 
     @Test
+    @Suppress("LongMethod") // the column lists of the metadata tables
     fun `INV-AC-2182 the metadata tables keep their columns`() {
         columnsOf("pack_registry") shouldBe
             setOf(
@@ -384,6 +385,8 @@ class RegistryPostgresIT(
                 "activated_at",
                 "no_distinct_approver",
                 "content_changed_at",
+                "approved_by",
+                "approved_at",
             )
         columnsOf("pack_entry_source") shouldBe
             setOf(

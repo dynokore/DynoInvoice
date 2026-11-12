@@ -131,7 +131,8 @@ import java.util.concurrent.TimeUnit
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
-@Suppress("TooManyFunctions") // one bean method per wired port; the composition root is the single place (TPL-18)
+// one bean method per wired port; the composition root is the single place (TPL-18)
+@Suppress("TooManyFunctions", "LargeClass")
 class RulesConfiguration {
     /** The generated schema, checked at start-up against the table classes (INV-Q-4815, INV-ADR-3968 item 4a). */
     @Bean

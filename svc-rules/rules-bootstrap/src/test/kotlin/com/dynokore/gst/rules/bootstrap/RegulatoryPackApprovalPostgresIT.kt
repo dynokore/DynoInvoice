@@ -96,7 +96,11 @@ class RegulatoryPackApprovalPostgresIT(
     private fun column(
         name: String,
         version: String,
-    ) = platformValue("select $name from rules.pack_registry where pack_type = ? and pack_version = ?", PACK_TYPE, version)
+    ) = platformValue(
+        "select $name from rules.pack_registry where pack_type = ? and pack_version = ?",
+        PACK_TYPE,
+        version,
+    )
 
     private fun approve(
         version: String,
@@ -137,7 +141,7 @@ class RegulatoryPackApprovalPostgresIT(
     }
 
     @Test
-    fun `INV-AC-7966 the approval by a user whose ID differs from registered_by is recorded and the same ID is refused`() {
+    fun `INV-AC-7966 the approval by a user other than registered_by is recorded, the same ID is refused`() {
         val v = version()
         seed(v)
         addDryRun(v)
@@ -151,7 +155,7 @@ class RegulatoryPackApprovalPostgresIT(
     }
 
     @Test
-    fun `INV-AC-7966 the function approves only a STAGED pack, only under the platform tenant and only with an actor`() {
+    fun `INV-AC-7966 the function approves only a STAGED pack and only under the platform tenant`() {
         val armed = version()
         seed(armed, "ARMED")
         addDryRun(armed)
@@ -176,8 +180,16 @@ class RegulatoryPackApprovalPostgresIT(
     }
 
     @Test
-    fun `INV-AC-7962 two SCHEMATRON versions resolve by their effective dates and the context is unchanged by the approval`() {
-        val type = PackType("SCHEMATRON_" + UUID.randomUUID().toString().take(8).uppercase())
+    fun `INV-AC-7962 two SCHEMATRON versions resolve by effective date and the context is unchanged`() {
+        val type =
+            PackType(
+                "SCHEMATRON_" +
+                    UUID
+                        .randomUUID()
+                        .toString()
+                        .take(8)
+                        .uppercase(),
+            )
         val earlier = verified(type, "e1", "2026-01-01", "2026-07-01")
         val later = verified(type, "l1", "2026-07-01", null)
         val registry = PersistedPackRegistry(db, tenants)
