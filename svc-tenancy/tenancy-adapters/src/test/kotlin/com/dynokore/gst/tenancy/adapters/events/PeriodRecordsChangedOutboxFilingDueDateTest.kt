@@ -51,8 +51,9 @@ class PeriodRecordsChangedOutboxFilingDueDateTest {
         val node = outbox.payload(change)
         node.get("entityRef").asString() shouldBe "E-001"
         node.get("version").asLong() shouldBe 7L
-        val items = node.get("periods")
-        items.size() shouldBe 2
+        val periods = node.get("periods")
+        periods.size() shouldBe 2
+        val items = (0 until periods.size()).map { periods.get(it) }
         items.map { it.get("periodRef").asString() } shouldBe listOf("P1", "P2")
         items.map { it.get("periodStart").asString() } shouldBe listOf("2026-01-01", "2026-04-01")
         items.map { it.get("periodEnd").asString() } shouldBe listOf("2026-03-31", "2026-06-30")
