@@ -212,7 +212,8 @@ class SealingStoresDbTest {
         repeat(2) { tx(t) { tenant -> sink.append(tenant, doc, 1, "E1", """{"id":"E1"}""".toByteArray(), at) } }
         count("select count(*) from evidence.evidence_payload where tenant_id = ?", t) shouldBe 1
         count("select count(*) from evidence.sealed_payload where tenant_id = ?", t) shouldBe 1
-        count("select count(*) from evidence.sealed_payload where tenant_id = ? and source_event_id = 'E1'", t) shouldBe 1
+        count("select count(*) from evidence.sealed_payload where tenant_id = ? and source_event_id = 'E1'", t) shouldBe
+            1
     }
 
     @Test

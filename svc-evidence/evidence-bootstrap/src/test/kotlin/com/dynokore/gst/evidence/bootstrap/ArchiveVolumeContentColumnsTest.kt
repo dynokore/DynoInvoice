@@ -29,6 +29,7 @@ class ArchiveVolumeContentColumnsTest {
             "acknowledgement.content",
             "audit_log.content",
             "pending_record.event_json",
+            "payload_quarantine.payload_bytes",
         )
 
     /** Excluded from the retained volume, each with its reason. */
@@ -37,6 +38,8 @@ class ArchiveVolumeContentColumnsTest {
             "outbox.data" to
                 "transport copy of an event whose content is held by its owner and is deleted once published",
             "event_dead_letter.raw" to "a transient failed delivery, not retained evidence",
+            "held_payload.payload_bytes" to
+                "a transient copy held until its despatch arrives; the sealed content is the evidence_payload record",
             "config_setting.reason" to CONFIG_REASON,
             "config_installation_setting.reason" to CONFIG_REASON,
             "config_relaxation_acknowledgement.reason" to CONFIG_REASON,
@@ -255,6 +258,108 @@ class ArchiveVolumeContentColumnsTest {
         seedPendingRecord(tenant, doc)
         seedApplied(tenant, doc, "E-1")
         bytesOf(dir, tenant, "E-1") shouldBe listOf(50L)
+    }
+
+    // ---- quarantined payloads (INV-AC-20663): counted for the entity of their locator; held payloads never ----
+
+    private fun seedQuarantine(
+        tenant: UUID,
+        doc: UUID,
+        version: Int = 1,
+    ) = EvidenceDb.superuser().use {
+        it.run(
+            "insert into evidence.payload_quarantine (tenant_id, caused_by_event_id, origin, doc_uuid, version, " +
+                "payload_bytes, payload_sha256, recorded_at) values ('$tenant', 'q-$doc', 'RECEIVED', '$doc', " +
+                "$version, convert_to(repeat('q', 40), 'UTF8'), repeat('a', 64), now())",
+        )
+    }
+
+    private fun seedHeld(
+        tenant: UUID,
+        doc: UUID,
+    ) = EvidenceDb.superuser().use {
+        it.run(
+            "insert into evidence.held_payload (tenant_id, doc_uuid, version, event_id, payload_bytes, " +
+                "payload_sha256, recorded_at) values ('$tenant', '$doc', 1, 'h-$doc', " +
+                "convert_to(repeat('h', 30), 'UTF8'), repeat('a', 64), now())",
+        )
+    }
+
+    @Test
+    fun `INV-AC-20663 a quarantined payload counts for the entity of its locator only and is listed`(
+        @TempDir dir: Path,
+    ) {
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID()
+        seedLocator(tenant, doc, 1, "E-1")
+        seedQuarantine(tenant, doc)
+        bytesOf(dir, tenant, "E-1", "E-2") shouldBe listOf(40L, 0L)
+        listed(tenant) shouldBe setOf("E-1")
+    }
+
+    @Test
+    fun `INV-AC-20663 a quarantine row with no locator counts for no entity`(
+        @TempDir dir: Path,
+    ) {
+        val tenant = UUID.randomUUID()
+        seedQuarantine(tenant, UUID.randomUUID())
+        bytesOf(dir, tenant, "E-1", "") shouldBe listOf(0L, 0L)
+        listed(tenant) shouldBe emptySet()
+    }
+
+    @Test
+    fun `INV-AC-20663 a quarantine row whose locator is only at another version counts for nobody`(
+        @TempDir dir: Path,
+    ) {
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID()
+        seedLocator(tenant, doc, 2, "E-1")
+        seedQuarantine(tenant, doc)
+        bytesOf(dir, tenant, "E-1") shouldBe listOf(0L)
+        listed(tenant) shouldBe emptySet()
+    }
+
+    @Test
+    fun `INV-AC-20663 a locator of another tenant gives the quarantine row no pair`(
+        @TempDir dir: Path,
+    ) {
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID()
+        seedLocator(UUID.randomUUID(), doc, 1, "E-1")
+        seedQuarantine(tenant, doc)
+        listed(tenant) shouldBe emptySet()
+        bytesOf(dir, tenant, "E-1") shouldBe listOf(0L)
+    }
+
+    @Test
+    fun `INV-AC-20663 a held payload adds nothing to the sum and no pair`(
+        @TempDir dir: Path,
+    ) {
+        val tenant = UUID.randomUUID()
+        val doc = UUID.randomUUID()
+        seedLocator(tenant, doc, 1, "E-1")
+        seedHeld(tenant, doc)
+        bytesOf(dir, tenant, "E-1") shouldBe listOf(0L)
+        listed(tenant) shouldBe emptySet()
+    }
+
+    @Test
+    fun `INV-AC-20663 a covered list without the quarantine column reports it as unlisted`() {
+        EvidenceDb.superuser().use { connection ->
+            drift(connection, coveredList = covered - "payload_quarantine.payload_bytes") shouldBe
+                setOf("unlisted:payload_quarantine.payload_bytes")
+        }
+    }
+
+    @Test
+    fun `INV-AC-20663 an excluded list with the look-alike payload_quarantine payload_byte reports drift`() {
+        EvidenceDb.superuser().use { connection ->
+            drift(
+                connection,
+                excludedList = excluded.keys - "held_payload.payload_bytes" + "payload_quarantine.payload_byte",
+            ) shouldBe
+                setOf("unlisted:held_payload.payload_bytes", "vanished:payload_quarantine.payload_byte")
+        }
     }
 }
 

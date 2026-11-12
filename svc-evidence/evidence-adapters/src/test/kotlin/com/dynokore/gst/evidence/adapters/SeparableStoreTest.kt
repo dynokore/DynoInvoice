@@ -57,6 +57,7 @@ class SeparableStoreTest {
             "idempotency_key.status" to 200,
             "period_digest.digest" to "sha256:" + "a".repeat(HASH_LENGTH),
             "evidence_artefact.hash" to "a".repeat(HASH_LENGTH),
+            "payload_quarantine.origin" to "RECEIVED",
             "period_digest_chain.evidence_type" to "PAYLOAD",
             "period_digest_chain.tail_hash" to "a".repeat(HASH_LENGTH),
             "integrity_run.result" to "VERIFIED",
