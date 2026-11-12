@@ -29,7 +29,11 @@ class Tpl16ServiceCompositionTest {
             context.getBeanNamesForType(DataSource::class.java).toList().size shouldBe 1
             val schemas = context.getBeansOfType(Schema::class.java).values.toList()
             schemas.size shouldBe 1
-            schemas.single().tables.map { it.name }.toSet() shouldBe EXPECTED_TABLES
+            schemas
+                .single()
+                .tables
+                .map { it.name }
+                .toSet() shouldBe EXPECTED_TABLES
             context.environment.getProperty("gst.service") shouldBe "console-bff"
         }
     }
@@ -42,7 +46,11 @@ class Tpl16ServiceCompositionTest {
             context.startupFailure.shouldBeNull()
             val schemas = context.getBeansOfType(Schema::class.java).values.toList()
             schemas.size shouldBe 1
-            schemas.single().tables.map { it.name }.toSet() shouldBe EXPECTED_TABLES
+            schemas
+                .single()
+                .tables
+                .map { it.name }
+                .toSet() shouldBe EXPECTED_TABLES
         }
     }
 
