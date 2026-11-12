@@ -10,6 +10,7 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantContext
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Stages DocumentHeld through the transactional outbox in the caller's transaction (INV-REQ-479, INV-REQ-1221). The
@@ -65,7 +66,7 @@ class OutboxHeldEventPublisher(
                 when {
                     c == '"' -> append("\\\"")
                     c == '\\' -> append("\\\\")
-                    c < ' ' -> append("\\u%04x".format(c.code))
+                    c < ' ' -> append(String.format(Locale.ROOT, "\\u%04x", c.code))
                     else -> append(c)
                 }
             }

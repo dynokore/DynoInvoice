@@ -66,6 +66,7 @@ class DocumentHoldStoreDbTest {
         invoice: Boolean? = null,
     ): UUID {
         val doc = UUID.randomUUID()
+
         fun lit(value: String?) = value?.let { "'$it'" } ?: "null"
         DocumentSql.execute(
             "insert into canonical.document (doc_uuid, tenant_id, entity_id, direction, document_type_code, " +
