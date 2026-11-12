@@ -18,7 +18,7 @@ class EventConfiguration {
     fun eventCatalogue(): EventCatalogue =
         EventCatalogue(
             EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries +
-                EvidenceEvents.platformEntries + EvidenceEvents.acknowledgementEntries,
+                EvidenceEvents.platformEntries + EvidenceEvents.acknowledgementEntries + EvidenceEvents.sealingEntries,
         )
 }
 
@@ -109,6 +109,31 @@ object EvidenceEvents {
                 AcknowledgementConsumerConfiguration.EVENT_TYPE,
                 AcknowledgementConsumerConfiguration.TOPIC,
                 setOf(AcknowledgementConsumerConfiguration.PRODUCER),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+        )
+
+    /**
+     * `PayloadReady` (content topic) and `SubmissionDespatched` (INV-REQ-645, platform-contracts
+     * `event-log/topics.yaml`): ordinary topics of payload-svc and submission-svc that evidence-svc subscribes to, so
+     * the consumers keep the `docsequence` check.
+     */
+    val sealingEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                SealingConsumerConfiguration.PAYLOAD_READY_TYPE,
+                SealingConsumerConfiguration.PAYLOAD_READY_TOPIC,
+                setOf(SealingConsumerConfiguration.PAYLOAD_READY_PRODUCER),
+                contentTopic = true,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                SealingConsumerConfiguration.DESPATCHED_TYPE,
+                SealingConsumerConfiguration.DESPATCHED_TOPIC,
+                setOf(SealingConsumerConfiguration.DESPATCHED_PRODUCER),
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,
