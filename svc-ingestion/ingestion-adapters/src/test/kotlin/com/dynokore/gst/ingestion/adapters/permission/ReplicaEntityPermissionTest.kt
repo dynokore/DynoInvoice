@@ -105,13 +105,16 @@ class ReplicaEntityPermissionTest {
 
     @Test
     fun `INV-AC-20953 a decide that throws is refused`() {
-        // an entity ref the replica rejects as invalid would be one cause; here the tenant context throws
-        val failing =
-            object : TenantContext by tenants {
-                override fun current(): TenantId = error("no tenant bound")
+        var entered = 0
+        val throwing =
+            ReplicaFallback<AuthorizationRequest, AuthorityVerdict> { _, _ ->
+                entered++
+                error("the fallback fails")
             }
-        ReplicaEntityPermission(replica(true, true), failing, clock, Duration.ofSeconds(30))
-            .holds(actor, entity, key) shouldBe false
+        // a replica with no feed asks its fallback inside decide, so decide itself is entered and fails
+        val degraded = AuthorityReplica(clock, roles, fallback = throwing)
+        permission(degraded).holds(actor, entity, key) shouldBe false
+        entered shouldBe 1
     }
 
     @Test

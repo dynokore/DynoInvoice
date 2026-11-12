@@ -15,7 +15,9 @@ class ApiRefusalAdviceTest {
         val response = advice.refuse(ApiRefusal(ClosedErrorCode.UNAUTHENTICATED))
         response.statusCode.value() shouldBe 401
         response.headers.getFirst(HttpHeaders.CONTENT_TYPE) shouldContain "json"
-        response.body!! shouldContain "SRT-003"
+        response.body!! shouldContain "\"code\":\"SRT-003\""
+        response.body!! shouldContain "\"status\":401"
+        response.body!! shouldContain "correlationId"
     }
 
     @Test
@@ -23,6 +25,8 @@ class ApiRefusalAdviceTest {
         val response = advice.refuse(ApiRefusal(ClosedErrorCode.ACCESS_DENIED))
         response.statusCode.value() shouldBe 403
         response.headers.getFirst(HttpHeaders.CONTENT_TYPE) shouldContain "json"
-        response.body!! shouldContain "SRT-004"
+        response.body!! shouldContain "\"code\":\"SRT-004\""
+        response.body!! shouldContain "\"status\":403"
+        response.body!! shouldContain "correlationId"
     }
 }
