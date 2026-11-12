@@ -3,6 +3,7 @@ package com.dynokore.gst.rules.application
 import com.dynokore.gst.rules.domain.pack.PackStatus
 import com.dynokore.gst.rules.domain.pack.RegulatoryCommand
 import com.dynokore.gst.rules.domain.pack.RegulatoryPackLifecycle
+import com.dynokore.gst.rules.domain.pack.RegulatoryPackLifecycle.Transition
 
 /** The answer of the approval of a regulatory pack; every refusal is typed and changes nothing (INV-AC-20459). */
 sealed interface ApproveRegulatoryPackResult {
@@ -35,18 +36,32 @@ class ApproveRegulatoryPack(
         version: String,
         approver: String,
     ): ApproveRegulatoryPackResult {
-        if (!permission.mayApprove(approver)) return ApproveRegulatoryPackResult.Denied
-        val pack = store.find(packType, version) ?: return ApproveRegulatoryPackResult.NotFound
-        if (pack.status == PackStatus.APPROVED) {
-            return ApproveRegulatoryPackResult.AlreadyApproved
+        val answer = refusal(packType, version, approver)
+        if (answer == null) store.markApproved(packType, version, approver)
+        return answer ?: ApproveRegulatoryPackResult.Approved
+    }
+
+    /** The first failing check in the ruled order, or null when the approval may be recorded. */
+    private fun refusal(
+        packType: String,
+        version: String,
+        approver: String,
+    ): ApproveRegulatoryPackResult? {
+        val allowed = permission.mayApprove(approver)
+        val pack = if (allowed) store.find(packType, version) else null
+        val stager = pack?.stagedByUserId
+        val stageable =
+            pack != null &&
+                RegulatoryPackLifecycle.next(pack.status, RegulatoryCommand.APPROVE) is Transition.To
+        return when {
+            !allowed -> ApproveRegulatoryPackResult.Denied
+            pack == null -> ApproveRegulatoryPackResult.NotFound
+            pack.status == PackStatus.APPROVED -> ApproveRegulatoryPackResult.AlreadyApproved
+            !stageable -> ApproveRegulatoryPackResult.NotStaged
+            !pack.dryRunDeltaExists -> ApproveRegulatoryPackResult.NoDryRun
+            stager == null -> ApproveRegulatoryPackResult.RequesterUnknown
+            stager == approver -> ApproveRegulatoryPackResult.SelfApproval
+            else -> null
         }
-        if (RegulatoryPackLifecycle.next(pack.status, RegulatoryCommand.APPROVE) !is RegulatoryPackLifecycle.Transition.To) {
-            return ApproveRegulatoryPackResult.NotStaged
-        }
-        if (!pack.dryRunDeltaExists) return ApproveRegulatoryPackResult.NoDryRun
-        val stager = pack.stagedByUserId ?: return ApproveRegulatoryPackResult.RequesterUnknown
-        if (stager == approver) return ApproveRegulatoryPackResult.SelfApproval
-        store.markApproved(packType, version, approver)
-        return ApproveRegulatoryPackResult.Approved
     }
 }

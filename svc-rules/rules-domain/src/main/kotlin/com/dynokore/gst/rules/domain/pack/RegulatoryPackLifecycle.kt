@@ -33,7 +33,7 @@ object RegulatoryPackLifecycle {
     ): Transition = ALLOWED[status to command]?.let { Transition.To(it) } ?: Transition.Refused(status, command)
 }
 
-/** The arming check that runs before the activation fence (INV-REQ-1166); refusals are typed values, never error codes. */
+/** The arming check before the activation fence (INV-REQ-1166); refusals are typed values, no error codes. */
 object ArmingGate {
     enum class Reason {
         NO_DRY_RUN,
