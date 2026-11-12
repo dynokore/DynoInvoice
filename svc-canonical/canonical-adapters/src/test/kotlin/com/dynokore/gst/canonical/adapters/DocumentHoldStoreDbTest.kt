@@ -146,4 +146,19 @@ class DocumentHoldStoreDbTest {
         asTenant(tenant) { store.lockForHold(without) }!!.partyRef shouldBe null
         asTenant(other) { store.lockForHold(withRef) } shouldBe null
     }
+
+    @Test
+    fun `INV-AC-21358 without row security the read joins the party reference of its own tenant only`() {
+        val doc = insert(tenant)
+        DocumentSql.execute(
+            "insert into canonical.document_party_ref (tenant_id, doc_uuid, party_ref) " +
+                "values ('$other', '$doc', 'LEAK')",
+        )
+        CanonicalDb.superuser().use { connection ->
+            val bare = DSL.using(connection, SQLDialect.POSTGRES)
+            tenants.bind(TenantId(tenant), SignedBindings.ACTOR) {
+                JooqDocumentHoldStore(bare, tenants).lockForHold(doc)!!.partyRef shouldBe null
+            }
+        }
+    }
 }
