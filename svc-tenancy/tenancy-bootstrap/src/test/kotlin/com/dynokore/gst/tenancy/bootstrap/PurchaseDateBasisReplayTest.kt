@@ -42,7 +42,7 @@ class PurchaseDateBasisReplayTest {
         )
 
     private fun run(block: (ProfileEnv, Seed) -> Unit) {
-        // the writer's business date is 2026-01-01, so both election dates of the criterion are writable (not back-dated)
+        // the writer business date is 2026-01-01, so both election dates of the criterion can be written
         BoundaryFixture
             .runner()
             .withBean(Clock::class.java, {
