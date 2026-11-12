@@ -54,6 +54,10 @@ class EventPayloadContractTest {
                 """{"docUuid":"7d0c1c55-2b1a-4c47-9d40-5f5f1b7f3c01","version":1,"docsequence":1,
                 |"submissionType":"TYPE_1A"}
                 """.trimMargin(),
+            "PeriodFilingStatusChanged" to
+                """{"entityRef":"E-001","period":"2026-07","submissionLate":false,"recordedAt":"2026-08-15T09:00:00Z",
+                |"governingFiledAt":"2026-07-20T10:30:00Z","conflict":false}
+                """.trimMargin(),
             "ExampleHappened" to """{"entityRef":"E-001"}""",
         )
 
