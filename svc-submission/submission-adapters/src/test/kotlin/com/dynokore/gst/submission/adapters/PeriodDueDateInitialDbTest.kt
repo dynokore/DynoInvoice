@@ -7,8 +7,8 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
-import org.jooq.exception.DataAccessException
 import org.jooq.SQLDialect
+import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -132,7 +132,7 @@ class PeriodDueDateInitialDbTest {
         val e = shouldThrow<DataAccessException> { insertDirect(t, "P1", -1) }
         connection.rollback()
         e.sqlState() shouldBe "23514"
-        (e.message ?: "") shouldContain "period_due_date_due_date_version_check"
+        e.message.orEmpty() shouldContain "period_due_date_due_date_version_check"
         find(t, "P1") shouldBe null
     }
 }
