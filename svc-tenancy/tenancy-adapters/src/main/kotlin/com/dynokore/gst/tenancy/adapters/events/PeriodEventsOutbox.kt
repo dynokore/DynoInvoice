@@ -24,8 +24,10 @@ class PeriodEventsOutbox(
 ) : PeriodEventPublisher {
     override fun extended(event: PeriodExtension) = append(EXTENDED_TYPE, event.entityRef, extendedPayload(event))
 
-    override fun dueDateChanged(change: PeriodDueDateChange) =
-        append(DUE_DATE_CHANGED_TYPE, change.entityRef, dueDatePayload(change))
+    override fun dueDateChanged(
+        change: PeriodDueDateChange,
+        dueDateVersion: Long,
+    ) = append(DUE_DATE_CHANGED_TYPE, change.entityRef, dueDatePayload(change, dueDateVersion))
 
     private fun append(
         type: String,
@@ -58,8 +60,12 @@ class PeriodEventsOutbox(
         return root
     }
 
-    internal fun dueDatePayload(change: PeriodDueDateChange): ObjectNode {
+    internal fun dueDatePayload(
+        change: PeriodDueDateChange,
+        dueDateVersion: Long,
+    ): ObjectNode {
         val root = mapper.createObjectNode()
+        root.put("dueDateVersion", dueDateVersion)
         root.put("entityRef", change.entityRef)
         root.put("period", change.periodRef)
         root.put("oldFilingDueDate", change.oldFilingDueDate.toString())

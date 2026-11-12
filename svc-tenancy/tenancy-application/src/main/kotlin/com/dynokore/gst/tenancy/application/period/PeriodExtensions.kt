@@ -112,7 +112,10 @@ data class PeriodDueDateChange(
 interface PeriodEventPublisher {
     fun extended(event: PeriodExtension)
 
-    fun dueDateChanged(change: PeriodDueDateChange)
+    fun dueDateChanged(
+        change: PeriodDueDateChange,
+        dueDateVersion: Long,
+    )
 }
 
 sealed interface ExtensionOutcome {
@@ -211,7 +214,7 @@ class RecordExtension(
         )
         val inForce = recomputation.dueDateInForce(entity, period, now().atZone(SINGAPORE).toLocalDate())
         if (inForce != period.dueDate) {
-            periods.setDueDate(entity.id, period.periodRef, inForce)
+            val version = periods.setDueDate(entity.id, period.periodRef, inForce)
             publisher.dueDateChanged(
                 PeriodDueDateChange(
                     entity.ref,
@@ -220,6 +223,7 @@ class RecordExtension(
                     inForce,
                     DueDateCause.Extension(request.irasReference),
                 ),
+                version,
             )
         }
         publisher.extended(PeriodExtension(entity.ref, period.periodRef, request))

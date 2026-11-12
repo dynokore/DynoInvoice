@@ -156,12 +156,15 @@ interface PeriodRecordStore {
         periodRef: String,
     )
 
-    /** Sets the filing due date of the record in force (an extension or a recomputation: the only two writers). */
+    /**
+     * Sets the filing due date of the record in force (an extension or a recomputation: the only two writers) and
+     * returns the per-period due date version after its increment in the same transaction (INV-AC-20668).
+     */
     fun setDueDate(
         entityId: UUID,
         periodRef: String,
         dueDate: LocalDate,
-    )
+    ): Long
 
     /** The references of the entities that have at least one record in force. */
     fun entityRefsWithRecords(): List<String>

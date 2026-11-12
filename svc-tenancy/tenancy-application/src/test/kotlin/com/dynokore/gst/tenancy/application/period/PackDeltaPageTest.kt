@@ -113,6 +113,7 @@ private class Structure(
 private class PdPeriods : PeriodRecordStore {
     val rows = mutableMapOf<UUID, MutableList<StoredPeriod>>()
     var writes = 0
+    private var versions = 0L
 
     override fun inForce(entityId: UUID): List<StoredPeriod> = rows[entityId].orEmpty().sortedBy { it.start }
 
@@ -141,8 +142,9 @@ private class PdPeriods : PeriodRecordStore {
         entityId: UUID,
         periodRef: String,
         dueDate: LocalDate,
-    ) {
+    ): Long {
         writes++
+        return ++versions
     }
 
     override fun entityRefsWithRecords(): List<String> = emptyList()
@@ -186,7 +188,10 @@ private class Outbox : PeriodEventPublisher {
         events += event
     }
 
-    override fun dueDateChanged(change: PeriodDueDateChange) {
+    override fun dueDateChanged(
+        change: PeriodDueDateChange,
+        dueDateVersion: Long,
+    ) {
         events += change
     }
 }

@@ -116,6 +116,7 @@ private class FakeStructure(
 
 private class FakePeriods : PeriodRecordStore {
     private val rows = mutableListOf<Pair<StoredPeriod, Boolean>>()
+    private var counter = 0L
 
     override fun inForce(entityId: UUID): List<StoredPeriod> =
         rows
@@ -151,7 +152,7 @@ private class FakePeriods : PeriodRecordStore {
         entityId: UUID,
         periodRef: String,
         dueDate: LocalDate,
-    ) = Unit
+    ): Long = ++counter
 
     override fun entityRefsWithRecords(): List<String> = emptyList()
 

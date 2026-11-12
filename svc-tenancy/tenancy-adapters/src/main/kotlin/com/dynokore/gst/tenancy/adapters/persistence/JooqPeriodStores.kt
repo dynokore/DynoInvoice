@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.adapters.persistence
 
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY
+import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.PERIOD_DUE_DATE_VERSION
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.PERIOD_RECORD
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.PROPOSED_PERIOD
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.RAISED_ITEM
@@ -108,7 +109,7 @@ class JooqPeriodRecordStore(
         entityId: UUID,
         periodRef: String,
         dueDate: LocalDate,
-    ) {
+    ): Long {
         val updated =
             dsl
                 .update(PERIOD_RECORD)
@@ -120,6 +121,24 @@ class JooqPeriodRecordStore(
                         .and(PERIOD_RECORD.RECORD_STATE.eq(IN_FORCE)),
                 ).execute()
         check(updated == 1) { "period $periodRef of the entity is not in force" }
+        // The row lock of the upsert serialises concurrent changes of one period: distinct, commit-ordered versions.
+        return checkNotNull(
+            dsl
+                .insertInto(PERIOD_DUE_DATE_VERSION)
+                .set(PERIOD_DUE_DATE_VERSION.TENANT_ID, tenants.current().value)
+                .set(PERIOD_DUE_DATE_VERSION.ENTITY_ID, entityId)
+                .set(PERIOD_DUE_DATE_VERSION.PERIOD_REF, periodRef)
+                .set(PERIOD_DUE_DATE_VERSION.VERSION, 1L)
+                .onConflict(
+                    PERIOD_DUE_DATE_VERSION.TENANT_ID,
+                    PERIOD_DUE_DATE_VERSION.ENTITY_ID,
+                    PERIOD_DUE_DATE_VERSION.PERIOD_REF,
+                ).doUpdate()
+                .set(PERIOD_DUE_DATE_VERSION.VERSION, PERIOD_DUE_DATE_VERSION.VERSION.plus(1L))
+                .returning(PERIOD_DUE_DATE_VERSION.VERSION)
+                .fetchOne()
+                ?.version,
+        ) { "no due date version returned for period $periodRef" }
     }
 
     override fun entityRefsWithRecords(): List<String> =

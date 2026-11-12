@@ -245,8 +245,8 @@ class DueDateRecomputation(
         cause: DueDateCause,
     ): List<PeriodDueDateChange> =
         changes(entity, from, null, cause).onEach {
-            periods.setDueDate(entity.id, it.periodRef, it.newFilingDueDate)
-            publisher.dueDateChanged(it)
+            val version = periods.setDueDate(entity.id, it.periodRef, it.newFilingDueDate)
+            publisher.dueDateChanged(it, version)
         }
 
     /** Applies the recomputation to the entity named [entityRef]; absent entities change nothing. */
