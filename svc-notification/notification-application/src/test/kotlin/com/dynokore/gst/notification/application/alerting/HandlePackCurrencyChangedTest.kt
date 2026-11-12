@@ -52,7 +52,8 @@ class HandlePackCurrencyChangedTest {
     @Test
     fun `INV-AC-20909 first raise creates one tier 2 draft at the tenant-wide reference`() {
         handler.handle(tenant, payload()) shouldBe HandlePackCurrencyChangedResult.Raised
-        raised shouldBe listOf(PackAlertDraft(AlertClass.PACK_STALENESS, "PACK_NOT_ACTIVATED", 2, TENANT_WIDE_ENTITY_REF))
+        raised shouldBe
+            listOf(PackAlertDraft(AlertClass.PACK_STALENESS, "PACK_NOT_ACTIVATED", 2, TENANT_WIDE_ENTITY_REF))
     }
 
     @Test
@@ -64,15 +65,17 @@ class HandlePackCurrencyChangedTest {
     @Test
     fun `INV-AC-20909 CLEARED resolves an open alert and reports NOTHING_OPEN when none`() {
         handler.handle(tenant, payload())
-        handler.handle(tenant, payload(status = "CLEARED", days = null)) shouldBe HandlePackCurrencyChangedResult.Resolved
-        handler.handle(tenant, payload(status = "CLEARED", days = null)) shouldBe HandlePackCurrencyChangedResult.NothingOpen
+        val cleared = payload(status = "CLEARED", days = null)
+        handler.handle(tenant, cleared) shouldBe HandlePackCurrencyChangedResult.Resolved
+        handler.handle(tenant, cleared) shouldBe HandlePackCurrencyChangedResult.NothingOpen
         reads shouldBe listOf(tenant)
     }
 
     @Test
     fun `INV-AC-20909 DEP-002 touches neither port`() {
-        handler.handle(tenant, payload(dep = "DEP-002")) shouldBe HandlePackCurrencyChangedResult.Ignored
-        handler.handle(tenant, payload(dep = "DEP-002", status = "CLEARED")) shouldBe HandlePackCurrencyChangedResult.Ignored
+        val ignored = HandlePackCurrencyChangedResult.Ignored
+        handler.handle(tenant, payload(dep = "DEP-002")) shouldBe ignored
+        handler.handle(tenant, payload(dep = "DEP-002", status = "CLEARED")) shouldBe ignored
         reads shouldBe emptyList()
         raised shouldBe emptyList()
         resolves shouldBe 0

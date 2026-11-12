@@ -13,7 +13,9 @@ class PackStalenessTest {
     ) = PackStaleness.decide(PackCurrency("DEP-001", PackStatus.RAISED, days), t)
 
     private fun draft(tier: Int) =
-        PackDecision.Raise(PackAlertDraft(AlertClass.PACK_STALENESS, "PACK_NOT_ACTIVATED", tier, TENANT_WIDE_ENTITY_REF))
+        PackDecision.Raise(
+            PackAlertDraft(AlertClass.PACK_STALENESS, "PACK_NOT_ACTIVATED", tier, TENANT_WIDE_ENTITY_REF),
+        )
 
     @Test
     fun `INV-AC-20908 days 40 30 20 and absent give tier 1`() {

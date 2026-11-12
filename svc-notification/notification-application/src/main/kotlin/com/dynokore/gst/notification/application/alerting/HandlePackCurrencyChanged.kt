@@ -39,16 +39,16 @@ class PackAlertNotDelivered(
     val reason: String,
 ) : RuntimeException("pack staleness alert not delivered: $reason")
 
-sealed class HandlePackCurrencyChangedResult {
-    data object Raised : HandlePackCurrencyChangedResult()
+sealed interface HandlePackCurrencyChangedResult {
+    data object Raised : HandlePackCurrencyChangedResult
 
-    data object AlreadyOpen : HandlePackCurrencyChangedResult()
+    data object AlreadyOpen : HandlePackCurrencyChangedResult
 
-    data object Resolved : HandlePackCurrencyChangedResult()
+    data object Resolved : HandlePackCurrencyChangedResult
 
-    data object NothingOpen : HandlePackCurrencyChangedResult()
+    data object NothingOpen : HandlePackCurrencyChangedResult
 
-    data object Ignored : HandlePackCurrencyChangedResult()
+    data object Ignored : HandlePackCurrencyChangedResult
 }
 
 /** Handles PackCurrencyChanged (INV-Q-20864 A). Idempotency comes from the platform inbox of the consumer. */
@@ -61,26 +61,28 @@ class HandlePackCurrencyChanged(
         payload: Map<String, Any?>,
     ): HandlePackCurrencyChangedResult {
         val event = read(payload)
-        if (event.depCode == DEP_UNACTIVATED_PACK && event.status == PackStatus.RAISED) {
-            val stored = policy.policy(tenant) ?: throw PackAlertNotDelivered("no PACK_STALENESS policy")
-            if (stored.recipients.isEmpty()) throw PackAlertNotDelivered("PACK_STALENESS policy has no recipient")
-            return when (val decision = PackStaleness.decide(event, stored.tiers)) {
-                is PackDecision.Raise -> if (store.raise(tenant, decision.draft)) {
-                    HandlePackCurrencyChangedResult.Raised
-                } else {
-                    HandlePackCurrencyChangedResult.AlreadyOpen
-                }
-                else -> HandlePackCurrencyChangedResult.Ignored
-            }
+        if (event.depCode != DEP_UNACTIVATED_PACK) return HandlePackCurrencyChangedResult.Ignored
+        return if (event.status == PackStatus.CLEARED) resolve(tenant) else raise(tenant, event)
+    }
+
+    private fun resolve(tenant: TenantId): HandlePackCurrencyChangedResult =
+        if (store.resolveOpen(tenant)) {
+            HandlePackCurrencyChangedResult.Resolved
+        } else {
+            HandlePackCurrencyChangedResult.NothingOpen
         }
-        return when (PackStaleness.decide(event, emptyList())) {
-            PackDecision.Resolve ->
-                if (store.resolveOpen(tenant)) {
-                    HandlePackCurrencyChangedResult.Resolved
-                } else {
-                    HandlePackCurrencyChangedResult.NothingOpen
-                }
-            else -> HandlePackCurrencyChangedResult.Ignored
+
+    private fun raise(
+        tenant: TenantId,
+        event: PackCurrency,
+    ): HandlePackCurrencyChangedResult {
+        val stored = policy.policy(tenant) ?: throw PackAlertNotDelivered("no PACK_STALENESS policy")
+        if (stored.recipients.isEmpty()) throw PackAlertNotDelivered("PACK_STALENESS policy has no recipient")
+        val decision = PackStaleness.decide(event, stored.tiers) as PackDecision.Raise
+        return if (store.raise(tenant, decision.draft)) {
+            HandlePackCurrencyChangedResult.Raised
+        } else {
+            HandlePackCurrencyChangedResult.AlreadyOpen
         }
     }
 
@@ -90,15 +92,14 @@ class HandlePackCurrencyChanged(
         val status =
             PackStatus.entries.firstOrNull { it.name == payload["status"] }
                 ?: throw ContractViolation("status must be RAISED or CLEARED")
-        val days =
-            when (val raw = payload["daysToEffectiveDate"]) {
-                null -> null
-                is Int -> raw
-                is Long -> raw.takeIf { it in 0..Int.MAX_VALUE }?.toInt()
-                else -> null
-            }
-        val present = payload["daysToEffectiveDate"] != null
-        if (present && (days == null || days < 0)) throw ContractViolation("daysToEffectiveDate must be a non-negative integer")
-        return PackCurrency(depCode, status, days)
+        return PackCurrency(depCode, status, days(payload["daysToEffectiveDate"]))
     }
+
+    private fun days(raw: Any?): Int? =
+        when (raw) {
+            null -> null
+            is Int -> raw.takeIf { it >= 0 }
+            is Long -> raw.takeIf { it in 0..Int.MAX_VALUE }?.toInt()
+            else -> null
+        } ?: raw?.let { throw ContractViolation("daysToEffectiveDate must be a non-negative integer") }
 }
