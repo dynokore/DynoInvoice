@@ -23,18 +23,19 @@ sealed interface TriggerCoverageEntry {
         }
     }
 
-    /** Covered by another solution: needs evidence and an `entity.admin` acknowledgement (INV-REQ-1322). */
+    /**
+     * Covered by another solution: needs an evidence reference and the acting user id (INV-REQ-1322).
+     * Whether the acknowledging user may record this is decided by the calling service, per request, from the
+     * scoped permission key the generated operation-to-roles map names for the operation, through
+     * `AuthorityReplica.decide` (INV-Q-10027). [acknowledgedBy] is the acting user id, never a role (INV-Q-10647).
+     */
     data class CoveredElsewhere(
         val evidenceRef: String,
         val acknowledgedBy: String,
-        val acknowledgerRoles: Set<String>,
     ) : TriggerCoverageEntry {
         init {
             require(evidenceRef.isNotBlank()) { "evidenceRef must not be blank" }
             require(acknowledgedBy.isNotBlank()) { "acknowledgedBy must not be blank" }
-            require(TriggerCoverage.ENTITY_ADMIN in acknowledgerRoles) {
-                "covering a class by another solution needs ${TriggerCoverage.ENTITY_ADMIN} acknowledgement"
-            }
         }
     }
 }

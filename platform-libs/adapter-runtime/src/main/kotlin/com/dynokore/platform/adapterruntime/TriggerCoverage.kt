@@ -15,11 +15,10 @@ sealed interface CoverageVerdict {
 
 /**
  * Pure trigger-class coverage decision (INV-REQ-788, INV-REQ-953, INV-REQ-1322).
- * Holds no default and reads no clock.
+ * Holds no default and reads no clock. Who may record a class as covered elsewhere is decided by the calling
+ * service from a scoped permission key through `AuthorityReplica.decide` (INV-Q-10027), not here.
  */
 object TriggerCoverage {
-    const val ENTITY_ADMIN: String = "entity.admin"
-
     /** Waivers are re-presented at readiness checks 1 to this number inclusive (INV-REQ-953). */
     private const val REPRESENT_CHECKS = 4
 

@@ -45,8 +45,15 @@ class ModuleApiConsumerContractTest {
             TriggerClass.entries.associateWith { TriggerCoverageEntry.Mapped("erp") } -
                 TriggerClass.INBOUND_RECORDED
         TriggerCoverage.evaluate(entries) shouldBe CoverageVerdict.Incomplete(listOf(TriggerClass.INBOUND_RECORDED))
-        val elsewhere = TriggerCoverageEntry.CoveredElsewhere("ev", "a", setOf(TriggerCoverage.ENTITY_ADMIN))
+        val elsewhere = TriggerCoverageEntry.CoveredElsewhere("ev", "a")
         TriggerCoverage.evaluate(entries + (TriggerClass.INBOUND_RECORDED to elsewhere)) shouldBe
             CoverageVerdict.Complete(TriggerClass.entries.toSet() - TriggerClass.INBOUND_RECORDED)
+    }
+
+    @Test
+    fun `INV-AC-20901 CoveredElsewhere takes exactly evidenceRef and acknowledgedBy`() {
+        val entry = TriggerCoverageEntry.CoveredElsewhere(evidenceRef = "ev", acknowledgedBy = "a")
+        entry.evidenceRef shouldBe "ev"
+        entry.acknowledgedBy shouldBe "a"
     }
 }

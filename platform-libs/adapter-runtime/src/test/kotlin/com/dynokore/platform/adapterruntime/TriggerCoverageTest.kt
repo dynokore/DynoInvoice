@@ -54,26 +54,23 @@ class TriggerCoverageTest {
     }
 
     @Test
-    fun `covered elsewhere needs exactly entity admin and evidence`() {
-        CoveredElsewhere("ev-1", "alice", setOf("entity.admin")).acknowledgedBy shouldBe "alice"
-        CoveredElsewhere("ev-1", "alice", setOf("tax.approver", "entity.admin")).evidenceRef shouldBe "ev-1"
-        listOf(
-            emptySet(),
-            setOf("tax.approver"),
-            setOf("entity.administrator"),
-            setOf("Entity.Admin"),
-            setOf(" entity.admin"),
-        ).forEach { roles ->
-            shouldThrow<IllegalArgumentException> { CoveredElsewhere("ev-1", "alice", roles) }
-        }
-        shouldThrow<IllegalArgumentException> { CoveredElsewhere("", "alice", setOf("entity.admin")) }
-        shouldThrow<IllegalArgumentException> { CoveredElsewhere(" ", "alice", setOf("entity.admin")) }
-        shouldThrow<IllegalArgumentException> { CoveredElsewhere("ev-1", " ", setOf("entity.admin")) }
+    fun `INV-AC-20901 covered elsewhere keeps evidence and acting user id`() {
+        val entry = CoveredElsewhere("ev-1", "alice")
+        entry.acknowledgedBy shouldBe "alice"
+        entry.evidenceRef shouldBe "ev-1"
     }
 
     @Test
-    fun `covered elsewhere is complete but not a system class, waived is`() {
-        val elsewhere = CoveredElsewhere("ev-1", "alice", setOf("entity.admin"))
+    fun `INV-AC-20901 covered elsewhere refuses blank evidence or blank acting user id`() {
+        shouldThrow<IllegalArgumentException> { CoveredElsewhere("", "alice") }
+        shouldThrow<IllegalArgumentException> { CoveredElsewhere(" ", "alice") }
+        shouldThrow<IllegalArgumentException> { CoveredElsewhere("ev-1", " ") }
+        shouldThrow<IllegalArgumentException> { CoveredElsewhere("ev-1", "") }
+    }
+
+    @Test
+    fun `INV-AC-20901 covered elsewhere is complete but not a system class, waived is`() {
+        val elsewhere = CoveredElsewhere("ev-1", "alice")
         TriggerCoverage.evaluate(full(TriggerClass.INBOUND_RECORDED to elsewhere)) shouldBe
             CoverageVerdict.Complete(all.toSet() - TriggerClass.INBOUND_RECORDED)
         TriggerCoverage.evaluate(full(TriggerClass.JOURNAL_ONLY_SUPPLY to Waived("none", review))) shouldBe
