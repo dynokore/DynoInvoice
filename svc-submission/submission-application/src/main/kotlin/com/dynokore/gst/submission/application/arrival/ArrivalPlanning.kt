@@ -6,7 +6,6 @@ import com.dynokore.gst.submission.domain.routing.ArrivalCode
 import com.dynokore.gst.submission.domain.routing.ArrivalInput
 import com.dynokore.gst.submission.domain.routing.ArrivalRouting
 import com.dynokore.gst.submission.domain.routing.Fact
-import com.dynokore.gst.submission.domain.routing.Rejected
 import com.dynokore.gst.submission.domain.routing.Routed
 import com.dynokore.gst.submission.domain.routing.Timing
 import com.dynokore.platform.outboxandqueue.Lane
@@ -28,11 +27,12 @@ class ArrivalPlanning(
         earlierStates: List<LifecycleState>,
     ): ArrivalPlan {
         if (earlierStates.isNotEmpty()) return routine()
-        val entry =
-            documents.find(tenant, docUuid) ?: run {
-                metrics.unknownRegisterEntry()
-                return routine()
-            }
+        val entry = documents.find(tenant, docUuid)
+        if (entry == null) metrics.unknownRegisterEntry()
+        return if (entry == null) routine() else planFirst(entry)
+    }
+
+    private fun planFirst(entry: RegisteredDocument): ArrivalPlan {
         val input =
             ArrivalInput(
                 creditNote = entry.kind == RowKind.CREDIT_NOTE,
@@ -42,11 +42,7 @@ class ArrivalPlanning(
                 changeClass = null,
                 type2RenditionIssued = Fact.UNKNOWN,
             )
-        val routed =
-            when (val result = ArrivalRouting.decide(input)) {
-                is Routed -> result
-                is Rejected -> throw IllegalStateException("Arrival rejected with ${result.code.code}")
-            }
+        val routed = checkNotNull(ArrivalRouting.decide(input) as? Routed) { "Arrival of a first version was rejected" }
         routed.unresolved.forEach(metrics::unresolvedInput)
         return ArrivalPlan(
             lane = if (routed.timing == Timing.IMMEDIATE) Lane.DEADLINE_NEAR else Lane.LIVE,
