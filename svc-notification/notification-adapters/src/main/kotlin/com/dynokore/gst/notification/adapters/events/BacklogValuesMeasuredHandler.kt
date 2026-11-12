@@ -23,12 +23,7 @@ class BacklogValuesMeasuredHandler(
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
         if (event.type != EVENT_TYPE) throw ContractViolation("unexpected event type ${event.type}", null)
-        val payload: Map<String, Any?> =
-            try {
-                mapper.readValue(event.dataJson, object : TypeReference<Map<String, Any?>>() {})
-            } catch (e: JacksonException) {
-                throw ContractViolation("payload is not a JSON object", e)
-            }
+        val payload = parse(event.dataJson)
         val result =
             try {
                 useCase.handle(event.tenant, payload)
@@ -36,14 +31,18 @@ class BacklogValuesMeasuredHandler(
                 throw ContractViolation(e.message ?: "payload refused", e)
             }
         result.results.filter { it.kind == BacklogResultKind.NOT_CONFIGURED }.forEach {
-            LOG.info(
-                "no backlog threshold configured: entity={} class={}",
-                payload["entityRef"],
-                it.alertClass,
-            )
+            LOG.info("no backlog threshold configured: entity={} class={}", payload["entityRef"], it.alertClass)
         }
-        return if (result.results.any { it.kind == BacklogResultKind.RAISED }) HandleOutcome.APPLIED else HandleOutcome.IGNORED
+        val raised = result.results.any { it.kind == BacklogResultKind.RAISED }
+        return if (raised) HandleOutcome.APPLIED else HandleOutcome.IGNORED
     }
+
+    private fun parse(dataJson: String): Map<String, Any?> =
+        try {
+            mapper.readValue(dataJson, object : TypeReference<Map<String, Any?>>() {})
+        } catch (e: JacksonException) {
+            throw ContractViolation("payload is not a JSON object", e)
+        }
 
     companion object {
         const val EVENT_TYPE = "com.dynokore.gst.submission.BacklogValuesMeasured.v1"

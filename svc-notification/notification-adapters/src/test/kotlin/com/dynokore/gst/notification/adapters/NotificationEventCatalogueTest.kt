@@ -98,7 +98,7 @@ class NotificationEventCatalogueTest {
     }
 
     @Test
-    fun `INV-AC-20820 the consumed backlog event is listed with its topic and producer and the own entries are unchanged`() {
+    fun `INV-AC-20820 the consumed backlog event is listed and the own entries are unchanged`() {
         val entries = NotificationEventCatalogue.load().entries()
         val entry = entries.single { it.eventType == "com.dynokore.gst.submission.BacklogValuesMeasured.v1" }
         entry.topic shouldBe "gst.submission.backlog-values-measured.v1"

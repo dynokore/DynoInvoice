@@ -102,7 +102,8 @@ class BacklogConsumerBoundaryTest {
         it.createStatement().use { s ->
             s.execute(
                 "insert into notification.alert_policy (tenant_id, entity_ref, alert_class, recipients, channels, " +
-                    "updated_at, max_queue_depth) values ('${tenant.value}', '$entity', 'BACKLOG', '[]', '[]', now(), 10)",
+                    "updated_at, max_queue_depth) values ('${tenant.value}', '$entity', 'BACKLOG', '[]', '[]', " +
+                    "now(), 10)",
             )
         }
     }
@@ -151,7 +152,8 @@ class BacklogConsumerBoundaryTest {
                 .map { listOf(it.state, it.alertClass, it.trigger, it.entityRef, it.periodRef) }
         }
 
-    private fun Boundary.inboxRows(tenant: TenantId) = tx(tenant) { dsl.fetchCount(INBOX, INBOX.CONSUMER.eq(consumerName)) }
+    private fun Boundary.inboxRows(tenant: TenantId) =
+        tx(tenant) { dsl.fetchCount(INBOX, INBOX.CONSUMER.eq(consumerName)) }
 
     private val raised = listOf("RAISED", "BACKLOG", "BACKLOG_THRESHOLD", "E-1", "2026-Q1")
 
