@@ -17,19 +17,27 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
+import com.dynokore.platform.outboxandqueue.JdbcWorkQueue
+import com.dynokore.platform.outboxandqueue.Lane
+import com.dynokore.platform.outboxandqueue.LaneRateLimiter
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.outboxandqueue.PollResult
+import com.dynokore.platform.outboxandqueue.QueueEntry
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
+import com.dynokore.platform.outboxandqueue.ReplayDelivery
+import com.dynokore.platform.outboxandqueue.ReplayOutcome
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.config.BeanDefinitionCustomizer
 import org.springframework.context.ApplicationContext
+import tools.jackson.databind.ObjectMapper
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Instant
@@ -102,8 +110,9 @@ class PackConsumerBoundaryTest {
         NotificationDb.superuser().use {
             it.createStatement().use { s ->
                 s.execute(
-                    "insert into notification.alert_policy (tenant_id, entity_ref, alert_class, recipients, channels, " +
-                        "escalation_tiers, updated_at) values ('${tenant.value}', '$WIDE', 'PACK_STALENESS', " +
+                    "insert into notification.alert_policy (tenant_id, entity_ref, alert_class, recipients, " +
+                        "channels, escalation_tiers, updated_at) values ('${tenant.value}', '$WIDE', " +
+                        "'PACK_STALENESS', " +
                         "'[\"u1\",\"u2\"]', '[]', '[{\"tier\":1,\"daysToDue\":30}]', now())",
                 )
             }
@@ -294,6 +303,124 @@ class PackConsumerBoundaryTest {
                     }
                 }
             }
+    }
+
+    private fun backlogPolicy(tenant: TenantId) =
+        NotificationDb.superuser().use {
+            it.createStatement().use { s ->
+                s.execute(
+                    "insert into notification.alert_policy (tenant_id, entity_ref, alert_class, recipients, " +
+                        "channels, updated_at, max_queue_depth) values ('${tenant.value}', 'E-1', 'BACKLOG', " +
+                        "'[]', '[]', now(), 10)",
+                )
+            }
+        }
+
+    private fun backlogEvent(tenant: TenantId): String =
+        json.write(
+            Envelope(
+                id = EventId("b1"),
+                source = "/gst/submission-svc",
+                type = "com.dynokore.gst.submission.BacklogValuesMeasured.v1",
+                subject = "E-1",
+                time = at,
+                tenant = tenant,
+                entity = EntityRef("E-1"),
+                docUuid = DocUuid(UUID.randomUUID()),
+                transactionDate = LocalDate.of(2026, 1, 15),
+                docSequence = ++sequence,
+                instanceId = "submission-svc-0",
+                correlation = CorrelationId("corr-1"),
+                causation = CausationId("cause-1"),
+                dataJson =
+                    """{"entityRef":"E-1","periodRef":"2026-Q1","measuredAt":"2026-11-12T09:59:00Z",""" +
+                        """"queueDepth":11,"oldestUnsentAgeSeconds":5,"failureRate":0.1,"unacknowledgedCount":0}""",
+            ),
+        )
+
+    /** Queues one replay item for notification-svc whose payload names [topic] and carries [raw]. */
+    private fun Boundary.enqueueReplay(
+        context: ApplicationContext,
+        tenant: TenantId,
+        topic: String,
+        raw: String,
+    ) {
+        val queue =
+            JdbcWorkQueue(
+                scope,
+                dsl,
+                PackConsumerConfiguration.SCHEMA,
+                context.getBean(LaneRateLimiter::class.java),
+                Clock.systemUTC(),
+                PackConsumerConfiguration.CONSUMER,
+            )
+        val payload = ObjectMapper().writeValueAsString(mapOf("deadLetterId" to 1, "topic" to topic, "raw" to raw))
+        val entry = QueueEntry("p-${UUID.randomUUID()}", Lane.REPLAY, payload, PackConsumerConfiguration.CONSUMER)
+        tx(tenant) { queue.enqueue(entry) }
+    }
+
+    /** The queue is shared by the tests of the database: an item left released by one test would be claimed by another. */
+    private fun Boundary.purgeReplayQueue(tenant: TenantId) =
+        tx(tenant) { dsl.deleteFrom(DSL.table(DSL.name("notification", "work_queue"))).execute() }
+
+    private fun Boundary.classes(tenant: TenantId) = alerts(tenant).map { it[1] }
+
+    @Test
+    fun `INV-AC-20913 a replayed pack letter reaches only the pack consumer`(
+        @TempDir dir: Path,
+    ) {
+        NotificationContext.online(dir).run { context ->
+            val b = Boundary(context, PackConsumerConfiguration.TOPIC)
+            val tenant = TenantId(UUID.randomUUID())
+            policy(tenant)
+            backlogPolicy(tenant)
+            b.enqueueReplay(context, tenant, PackConsumerConfiguration.TOPIC, changed(tenant, "r1"))
+            context.getBean(ReplayDelivery::class.java).runOnce() shouldBe ReplayOutcome.APPLIED
+            b.alerts(tenant) shouldBe listOf(raised())
+        }
+    }
+
+    @Test
+    fun `INV-AC-20913 a replayed backlog letter reaches only the backlog consumer`(
+        @TempDir dir: Path,
+    ) {
+        NotificationContext.online(dir).run { context ->
+            val b = Boundary(context, PackConsumerConfiguration.TOPIC)
+            val tenant = TenantId(UUID.randomUUID())
+            policy(tenant)
+            backlogPolicy(tenant)
+            b.enqueueReplay(context, tenant, BacklogConsumerConfiguration.TOPIC, backlogEvent(tenant))
+            context.getBean(ReplayDelivery::class.java).runOnce() shouldBe ReplayOutcome.APPLIED
+            b.classes(tenant) shouldBe listOf("BACKLOG")
+        }
+    }
+
+    @Test
+    fun `INV-AC-20913 a replay item of a topic no consumer owns is refused and applied by neither consumer`(
+        @TempDir dir: Path,
+    ) {
+        NotificationContext.online(dir).run { context ->
+            val b = Boundary(context, PackConsumerConfiguration.TOPIC)
+            val tenant = TenantId(UUID.randomUUID())
+            policy(tenant)
+            backlogPolicy(tenant)
+            b.enqueueReplay(context, tenant, "gst.rules.rule-pack-activated.v1", changed(tenant, "r2"))
+            try {
+                shouldThrow<UnroutableReplayItem> { context.getBean(ReplayDelivery::class.java).runOnce() }
+                b.alerts(tenant) shouldBe emptyList()
+            } finally {
+                b.purgeReplayQueue(tenant)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-20913 the only ReplayDelivery bean is notificationReplayDelivery`(
+        @TempDir dir: Path,
+    ) {
+        NotificationContext.online(dir).run { context ->
+            context.getBeansOfType(ReplayDelivery::class.java).keys shouldBe setOf("notificationReplayDelivery")
+        }
     }
 
     private companion object {
