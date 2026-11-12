@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.16.0
+  version: 1.17.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -69,6 +69,12 @@ info:
     Version 1.16.0 adds the alert trigger BACKLOG_THRESHOLD, raised for an
     alert of the class BACKLOG or MISSING_ACKNOWLEDGEMENT when a measured
     backlog value passes its configured threshold (INV-REQ-1370).
+
+
+    Version 1.17.0 adds the alert trigger PACK_NOT_ACTIVATED and the alert
+    state RESOLVED, raised and ended for an alert of the class PACK_STALENESS
+    at the tenant-wide reference when a newer rule pack is not activated
+    (INV-REQ-1080).
   contact:
     name: notification (see CODEOWNERS)
 servers:
@@ -102,6 +108,10 @@ paths:
         `x-operation.role` is a single string today, so only the primary
         actor is declared here — the multi-role format is tracked
         separately by the coordinator.
+
+        For the class PACK_STALENESS the policy of a tenant is held at the
+        reserved tenant-wide reference `00000000-0000-0000-0000-000000000000`
+        as `entityRef` (INV-REQ-1080).
 
 
         Deadline thresholds: `thresholdDays` is the first-alert number of days
@@ -240,7 +250,10 @@ paths:
         cursor is refused with 400); the order is total, the documented sort
         is `alertClass` ascending and `alertClass` is the identifier that
         breaks ties (one policy per class per entity); `nextCursor` is omitted
-        on the last page; there is no offset and no total count.
+        on the last page; there is no offset and no total count. For the class
+        PACK_STALENESS the policy of a tenant is held at the reserved
+        tenant-wide reference `00000000-0000-0000-0000-000000000000` as
+        `entityRef` (INV-REQ-1080).
       tags: [policies]
       x-principal: reporting
       x-caller-auth: end-user
@@ -1171,7 +1184,7 @@ components:
           type: integer
           minimum: -366
           maximum: 366
-          description: Days to the due date at which the tier applies; a negative value is days after the due date (INV-REQ-1113).
+          description: Days to the due date at which the tier applies; a negative value is days after the due date (INV-REQ-1113). For the class PACK_STALENESS it is the days to the effective date of the unactivated pack (INV-REQ-1080).
       required: [tier, afterMinutes]
     BacklogThresholds:
       type: object
@@ -1353,14 +1366,15 @@ components:
             (INV-Q-7316, INV-REQ-1365).
         state:
           type: string
-          enum: [RAISED, ACKNOWLEDGED, SNOOZED]
+          enum: [RAISED, ACKNOWLEDGED, SNOOZED, RESOLVED]
+          description: The condition that raised the alert ended; no acknowledgement is implied (INV-REQ-1080)
           x-extensible-enum: true
         raisedAt:
           type: string
           format: date-time
         trigger:
           type: string
-          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED, BREAK_GLASS_USED, COVERAGE_GAP, BACKLOG_THRESHOLD]
+          enum: [DUE_DATE_THRESHOLD, READINESS_CHECK_INVOKED, RETURN_FIGURES_UPLOADED, PAST_DUE, FILING_FACT_NOT_RECORDED, PRIVACY_NOTICE_DUE, ACCREDITATION_LAPSED, REASSESSMENT_NEEDED, BREAK_GLASS_USED, COVERAGE_GAP, BACKLOG_THRESHOLD, PACK_NOT_ACTIVATED]
           x-extensible-enum: true
         caseId:
           type: string

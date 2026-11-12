@@ -85,3 +85,7 @@ BacklogThresholds.maxFailureRatio	schema_property	openapi.yaml	INV-REQ-1370
 BacklogThresholds.maxUnacknowledgedCount	schema_property	openapi.yaml	INV-REQ-1370
 BACKLOG_THRESHOLD	enum_value	openapi.yaml	INV-REQ-1370
 Alert.trigger.BACKLOG_THRESHOLD	schema_enum_value	openapi.yaml	INV-REQ-1370
+PACK_NOT_ACTIVATED	enum_value	openapi.yaml	INV-REQ-1080
+Alert.trigger.PACK_NOT_ACTIVATED	schema_enum_value	openapi.yaml	INV-REQ-1080
+RESOLVED	enum_value	openapi.yaml	INV-REQ-1080
+Alert.state.RESOLVED	schema_enum_value	openapi.yaml	INV-REQ-1080
