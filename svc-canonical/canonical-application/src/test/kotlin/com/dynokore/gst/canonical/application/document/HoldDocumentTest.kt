@@ -22,6 +22,7 @@ class HoldDocumentTest {
         state: String,
         optional: Boolean = true,
         reasons: List<String> = emptyList(),
+        partyRef: String? = null,
     ) = HoldableDocument(
         id,
         "E-001",
@@ -32,6 +33,7 @@ class HoldDocumentTest {
         reasons,
         if (optional) posting else null,
         if (optional) true else null,
+        partyRef,
     )
 
     private inner class FakeStore(
@@ -81,7 +83,16 @@ class HoldDocumentTest {
     }
 
     private val held = GateDecision.Held(listOf("ING-016", "PER-009"))
-    private val store = FakeStore(doc(u, "INGESTED"), doc(u2, "INGESTED", optional = false), doc(u3, "READY"))
+    private val u4 = UUID.fromString("00000000-0000-0000-0000-0000000000a4")
+    private val u5 = UUID.fromString("00000000-0000-0000-0000-0000000000a5")
+    private val store =
+        FakeStore(
+            doc(u, "INGESTED"),
+            doc(u2, "INGESTED", optional = false),
+            doc(u3, "READY"),
+            doc(u4, "INGESTED", partyRef = "P1"),
+            doc(u5, "HELD", reasons = listOf("ING-016", "PER-009"), partyRef = "P1"),
+        )
     private val pub = FakePublisher()
     private val tx = FakeTx()
     private val useCase = HoldDocument(store, pub, tx)
@@ -192,5 +203,48 @@ class HoldDocumentTest {
         store.marks.size shouldBe 2
         pub.events.size shouldBe 2
         store.docs.getValue(u).holdReasons shouldBe listOf("ING-016", "PER-009")
+    }
+
+    @Test
+    fun `INV-AC-21340 a document with partyRef P1 stages one event carrying P1 and the other members as before`() {
+        useCase.hold(u4, held)
+        pub.events shouldBe
+            listOf(
+                HeldEvent(
+                    u4,
+                    listOf("ING-016", "PER-009"),
+                    "E-001",
+                    Direction.SALE,
+                    LocalDate.parse("2026-03-20"),
+                    "2026-Q1",
+                    posting,
+                    true,
+                    "P1",
+                ),
+            )
+        pub.events.single().partyRef shouldBe "P1"
+        store.marks.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-21340 a document without partyRef stages one event whose partyRef is null`() {
+        useCase.hold(u, held)
+        pub.events.single().partyRef shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-21340 a replay of a HELD document with equal reasons stages and writes nothing`() {
+        useCase.hold(u5, held)
+        pub.events.size shouldBe 0
+        store.marks.size shouldBe 0
+        log shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21340 a document in another state is refused as before and stages nothing`() {
+        assertThrows<IllegalStateException> { useCase.hold(u3, held) }
+        pub.events.size shouldBe 0
+        store.marks.size shouldBe 0
+        tx.rollbacks shouldBe 1
     }
 }

@@ -43,6 +43,7 @@ class HoldDocument(
                     prescribedPeriodRef = doc.prescribedPeriodRef,
                     postingTimestamp = doc.postingTimestamp,
                     invoiceIssuedOrReceived = doc.invoiceIssuedOrReceived,
+                    partyRef = doc.partyRef,
                 ),
             )
         }

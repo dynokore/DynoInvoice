@@ -22,6 +22,8 @@ data class HoldableDocument(
     val holdReasons: List<String>,
     val postingTimestamp: OffsetDateTime? = null,
     val invoiceIssuedOrReceived: Boolean? = null,
+    /** The masterdata party reference the record step stored; null when none (never guessed). */
+    val partyRef: String? = null,
 )
 
 /** The members of one DocumentHeld event; the adapter slice builds the payload and the `docsequence`. */
@@ -34,6 +36,7 @@ data class HeldEvent(
     val prescribedPeriodRef: String,
     val postingTimestamp: OffsetDateTime?,
     val invoiceIssuedOrReceived: Boolean?,
+    val partyRef: String? = null,
 )
 
 /** Port of the hold columns of the `canonical.document` table. Called inside the caller's transaction. */
