@@ -1,5 +1,6 @@
 package com.dynokore.gst.evidence.bootstrap
 
+import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqLocatorStore
 import com.dynokore.gst.evidence.domain.chain.DocumentLocator
@@ -115,24 +116,18 @@ class DecisionTraceVersionBootstrapDbTest {
             appender.appendBound(tenant, RecordKind.EVIDENCE_PAYLOAD, doc, 3, "P3", content, at)
         }
         chain(tenant, RecordKind.EVIDENCE_PAYLOAD).map { it.index.version } shouldBe listOf(null)
-        tx(tenant) {
-            dsl.fetchCount(
-                org.jooq.impl.DSL
-                    .table("information_schema.columns"),
-                org.jooq.impl.DSL
-                    .field("table_schema")
-                    .eq("evidence")
-                    .and(
-                        org.jooq.impl.DSL
-                            .field("table_name")
-                            .eq("evidence_payload"),
-                    ).and(
-                        org.jooq.impl.DSL
-                            .field("column_name")
-                            .eq("version"),
-                    ),
-            )
-        } shouldBe 0
+        EvidenceDb.superuser().use { c ->
+            c
+                .prepareStatement(
+                    "select count(*) from information_schema.columns where table_schema = 'evidence' " +
+                        "and table_name = 'evidence_payload' and column_name = 'version'",
+                ).use {
+                    it.executeQuery().use { rows ->
+                        rows.next()
+                        rows.getInt(1) shouldBe 0
+                    }
+                }
+        }
     }
 
     @Test

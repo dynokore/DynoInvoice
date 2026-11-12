@@ -154,6 +154,6 @@ class RecordAppenderVersionTest {
         a.bound(RecordKind.EVIDENCE_PAYLOAD, "P1")
         locators.stored = locator
         a.drainPending(tenant, doc, 3) shouldBe 1
-        received[RecordKind.EVIDENCE_PAYLOAD]!!.single().version shouldBe null
+        received.getValue(RecordKind.EVIDENCE_PAYLOAD).single().version shouldBe null
     }
 }
