@@ -1,6 +1,8 @@
 package com.dynokore.gst.submission.application.backlog
 
+import com.dynokore.gst.submission.domain.metrics.BacklogValues
 import com.dynokore.gst.submission.domain.metrics.BacklogVersion
+import com.dynokore.gst.submission.domain.metrics.Ratio
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
@@ -9,6 +11,7 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -104,5 +107,25 @@ class BacklogValuesPublicationTest {
                     "src/main/kotlin/com/dynokore/gst/submission/application/backlog/BacklogValuesPublication.kt",
                 ).readText()
         Regex("(?i)\\blog(ger)?\\b|println|slf4j").containsMatchIn(source) shouldBe false
+    }
+
+    private fun rateOf(
+        numerator: Int,
+        denominator: Int,
+    ): String =
+        BacklogValuesPublication
+            .data(BacklogValues("E", "P", 0, Duration.ZERO, Ratio(numerator, denominator), 0, emptyList()), now)
+            .substringAfter("\"failureRate\":")
+            .substringBefore(",")
+
+    @Test
+    fun `INV-AC-20581 failureRate is the decimal at 6 places rounded HALF_EVEN with trailing zeros stripped`() {
+        rateOf(0, 0) shouldBe "0"
+        rateOf(1, 3) shouldBe "0.333333"
+        rateOf(2, 3) shouldBe "0.666667"
+        rateOf(1, 2) shouldBe "0.5"
+        rateOf(1, 1) shouldBe "1"
+        rateOf(1, 128) shouldBe "0.007812"
+        rateOf(3, 128) shouldBe "0.023438"
     }
 }
