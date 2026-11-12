@@ -12,7 +12,7 @@ operation	withdrawSubmission	UNASSIGNED
 operation	overrideFilingGate	UNASSIGNED
 operation	checkSubmissionBoundary	UNASSIGNED
 operation	replaySubmissions	UNASSIGNED
-operation	replaySubmissionsByScope	UNASSIGNED
+operation	replaySubmissionsByScope	INV-T-20589
 channel	gst.submission.submission-despatched.v1	UNASSIGNED
 channel	gst.submission.submission-acknowledged.v1	UNASSIGNED
 channel	gst.submission.submission-failed.v1	UNASSIGNED
