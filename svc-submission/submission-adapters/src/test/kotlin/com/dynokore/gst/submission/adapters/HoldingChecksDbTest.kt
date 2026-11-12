@@ -91,6 +91,7 @@ class HoldingChecksDbTest {
         inTx(t) { holding.holdingCheckId("E", "P", "33333333-3333-3333-3333-333333333333") } shouldBe null
         inTx(t) { holding.holdingCheckId("E", "P2", d1) } shouldBe null
         inTx(t) { holding.holdingCheckId("E2", "P", d1) } shouldBe null
+        inTx(t) { holding.holdingCheckId("E", "P", "x\") || true || (@ == \"y") } shouldBe null
     }
 
     @Test

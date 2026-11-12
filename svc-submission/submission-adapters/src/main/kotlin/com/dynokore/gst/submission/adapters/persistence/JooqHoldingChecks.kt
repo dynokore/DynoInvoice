@@ -5,20 +5,20 @@ import com.dynokore.gst.submission.application.readiness.HoldingChecks
 import com.dynokore.gst.submission.application.readiness.StoredReadinessCheck
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
-import tools.jackson.databind.ObjectMapper
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 
 /**
  * [HoldingChecks] over `submission.readiness_check.outcome_values` (INV-REQ-72): the highest seq of the bound tenant,
- * entity and period whose `heldDocUuids` array holds an element equal to the whole [docUuid] text. The rows of the
- * period that record a `heldDocUuids` key are read newest first and the array is compared as parsed JSON strings;
- * the project's raw-SQL placement gate refuses the jsonb containment operator in main code (INV-T-4135).
+ * entity and period whose `heldDocUuids` array holds an element equal to the whole [docUuid] text. The predicate runs
+ * in the database through jOOQ's typed `jsonbExists` (a jsonpath equality, bound as a parameter), so one document costs
+ * one aggregate row, never the history. Plain SQL is refused by the placement gate and by tenancy-jooq (INV-T-4135).
  */
 class JooqHoldingChecks(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
 ) : HoldingChecks {
     private val t = ReadinessCheck.READINESS_CHECK
-    private val mapper = ObjectMapper()
 
     override fun holdingCheckId(
         entityRef: String,
@@ -26,23 +26,19 @@ class JooqHoldingChecks(
         docUuid: String,
     ): String? =
         dsl
-            .select(t.SEQ, t.OUTCOME_VALUES)
+            .select(DSL.max(t.SEQ))
             .from(t)
             .where(t.TENANT_ID.eq(tenants.current().value))
             .and(t.ENTITY_REF.eq(entityRef))
             .and(t.PERIOD_REF.eq(periodRef))
-            .and(t.OUTCOME_VALUES.isNotNull)
-            .orderBy(t.SEQ.desc())
-            .fetch()
-            .firstOrNull { r -> holds(r.get(t.OUTCOME_VALUES)?.data(), docUuid) }
-            ?.let { StoredReadinessCheck.checkIdOf(checkNotNull(it.get(t.SEQ))) }
+            .and(DSL.jsonbExists(t.OUTCOME_VALUES, DSL.`val`(pathOf(docUuid), SQLDataType.VARCHAR)))
+            .fetchOne()
+            ?.get(0, Long::class.javaObjectType)
+            ?.let { StoredReadinessCheck.checkIdOf(it) }
 
-    private fun holds(
-        outcome: String?,
-        docUuid: String,
-    ): Boolean {
-        if (outcome == null) return false
-        val held = mapper.readTree(outcome).get("heldDocUuids")
-        return held != null && held.isArray && held.any { it.isString && it.stringValue() == docUuid }
+    /** `$.heldDocUuids[*] ? (@ == "<uuid>")` with the uuid as a jsonpath string literal (backslash and quote escaped). */
+    private fun pathOf(docUuid: String): String {
+        val literal = docUuid.replace("\\", "\\\\").replace("\"", "\\\"")
+        return "\$.heldDocUuids[*] ? (@ == \"$literal\")"
     }
 }
