@@ -16,6 +16,7 @@ data class RaisedCode(
     val disposition: String?,
 ) {
     companion object {
+        @Suppress("LongParameterList")
         fun of(
             docUuid: String,
             version: Int,

@@ -15,6 +15,7 @@ class CodeRaising(
     private val clock: Clock,
 ) {
     /** Appends and stages each code, in the given order, that is new; returns the number staged. */
+    @Suppress("LongParameterList")
     fun raise(
         tenant: TenantId,
         docUuid: String,
