@@ -359,7 +359,7 @@ class PackConsumerBoundaryTest {
         tx(tenant) { queue.enqueue(entry) }
     }
 
-    /** The queue is shared by the tests of the database: an item left released by one test would be claimed by another. */
+    /** The queue is shared by the tests: an item left released by one test would be claimed by another. */
     private fun Boundary.purgeReplayQueue(tenant: TenantId) =
         tx(tenant) { dsl.deleteFrom(DSL.table(DSL.name("notification", "work_queue"))).execute() }
 
