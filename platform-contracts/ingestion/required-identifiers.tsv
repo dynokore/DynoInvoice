@@ -119,3 +119,15 @@ DraftDocument.documentFunction.ADJUSTMENT	schema_enum_value	openapi.yaml	INV-REQ
 DraftDocument.documentFunction.NOT_A_BILL	schema_enum_value	openapi.yaml	INV-REQ-371
 # INV-T-13720 (INV-Q-13717 A): the kind root_property pins documentFunction to the top-level properties of the request schema; the kind property also matches the properties inside the allOf pair.
 documentFunction	root_property	schemas/transaction-request.schema.json	INV-REQ-371
+entityRef	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+triggerClass	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+status	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+adapterRef	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+reviewDate	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+coveringSolution	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+evidenceReference	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+changedAt	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+actorUserId	property	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+MAPPED	enum_value	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+WAIVED	enum_value	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
+COVERED_BY_OTHER_SOLUTION	enum_value	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788

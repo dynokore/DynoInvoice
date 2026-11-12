@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: ingestion events
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Every event ingestion produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -33,6 +33,11 @@ channels:
     messages:
       FeedHealthChanged:
         $ref: '#/components/messages/FeedHealthChanged'
+  ingestionTriggerCoverageChanged:
+    address: 'gst.ingestion.trigger-coverage-changed.v1'
+    messages:
+      TriggerCoverageChanged:
+        $ref: '#/components/messages/TriggerCoverageChanged'
   ingestionExampleHappened:
     address: 'gst.ingestion.example-happened.v1'
     messages:
@@ -46,6 +51,15 @@ operations:
       $ref: '#/channels/ingestionFeedHealthChanged'
     messages:
       - $ref: '#/channels/ingestionFeedHealthChanged/messages/FeedHealthChanged'
+  publishTriggerCoverageChanged:
+    action: send
+    description: >-
+      TriggerCoverageChanged — published in the transaction that stores a trigger-class mapping or waiver
+      (INV-REQ-788; model/architecture/events.yaml).
+    channel:
+      $ref: '#/channels/ingestionTriggerCoverageChanged'
+    messages:
+      - $ref: '#/channels/ingestionTriggerCoverageChanged/messages/TriggerCoverageChanged'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -68,6 +82,17 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/feed-health-changed-payload.schema.json'
+    TriggerCoverageChanged:
+      name: com.dynokore.gst.ingestion.TriggerCoverageChanged.v1
+      title: TriggerCoverageChanged
+      summary: The stored trigger-class coverage of an entity changed (INV-REQ-788).
+      description: >-
+        Event TriggerCoverageChanged (model/architecture/events.yaml, INV-REQ-788; class: domain).
+        Event-carried state transfer of one row of ingestion.trigger_coverage for an entity and trigger class.
+        Emitted by: ingestion-svc. Consumed by: tenancy-svc. Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/trigger-coverage-changed-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.ingestion.ExampleHappened.v1
       title: ExampleHappened

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/ingestion/schemas/trigger-coverage-changed-payload.schema.json",
+  "title": "TriggerCoverageChangedPayload",
+  "description": "Payload of the TriggerCoverageChanged event (model/architecture/events.yaml; INV-REQ-788; class: domain). One stored row of ingestion.trigger_coverage for an entity and a trigger class (event-carried state transfer). The tenant travels in the CloudEvents envelope. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered entity."
+    },
+    "triggerClass": {
+      "type": "string",
+      "enum": [
+        "OUTBOUND_DOCUMENT_ISSUED",
+        "INBOUND_DOCUMENT_RECORDED",
+        "AGGREGABLE_BATCH_CLOSED",
+        "JOURNAL_ONLY_SUPPLY",
+        "THIRD_PARTY_ISSUANCE"
+      ],
+      "description": "The trigger class whose coverage changed."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "MAPPED",
+        "WAIVED",
+        "COVERED_BY_OTHER_SOLUTION"
+      ],
+      "description": "How the class is covered."
+    },
+    "adapterRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The adapter the class is mapped to. Present when status is MAPPED."
+    },
+    "reviewDate": {
+      "type": "string",
+      "format": "date",
+      "description": "The review date of the waiver. Present when status is WAIVED."
+    },
+    "coveringSolution": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The other solution that covers the class. Present when status is COVERED_BY_OTHER_SOLUTION."
+    },
+    "evidenceReference": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The evidence of the other solution (INV-REQ-1322). Present when status is COVERED_BY_OTHER_SOLUTION."
+    },
+    "changedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the row was stored."
+    },
+    "actorUserId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The id of the acting user, never a role."
+    }
+  },
+  "required": [
+    "entityRef",
+    "triggerClass",
+    "status",
+    "changedAt"
+  ],
+  "additionalProperties": true
+}
