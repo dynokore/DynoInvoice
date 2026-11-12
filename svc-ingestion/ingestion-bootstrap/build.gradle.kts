@@ -9,7 +9,6 @@ dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":ingestion-adapters"))
-    implementation(project(":ingestion-application"))
     implementation(project(":ingestion-contract"))
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
