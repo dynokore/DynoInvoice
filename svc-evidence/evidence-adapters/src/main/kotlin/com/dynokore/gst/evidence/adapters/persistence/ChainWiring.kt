@@ -6,6 +6,7 @@ import com.dynokore.gst.evidence.adapters.events.DecisionTraceRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.EvidenceArtefactRecordedHandler
 import com.dynokore.gst.evidence.adapters.events.GstReturnRecordedHandler
 import com.dynokore.gst.evidence.application.artefact.ArtefactRecorder
+import com.dynokore.gst.evidence.application.chain.AcknowledgementRecorder
 import com.dynokore.gst.evidence.application.chain.LocatorRecorder
 import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.application.digest.DigestObjects
@@ -53,6 +54,17 @@ object ChainWiring {
     ): LocatorRecorder =
         LocatorRecorder(
             JooqLocatorStore(dsl),
+            recordAppender(dsl, clock),
+            JooqSubmissionIndexStore(dsl),
+            clock,
+        )
+
+    fun acknowledgementRecorder(
+        dsl: DSLContext,
+        clock: Clock = Clock.systemUTC(),
+    ): AcknowledgementRecorder =
+        AcknowledgementRecorder(
+            JooqAcknowledgementLocatorStore(dsl),
             recordAppender(dsl, clock),
             JooqSubmissionIndexStore(dsl),
             clock,

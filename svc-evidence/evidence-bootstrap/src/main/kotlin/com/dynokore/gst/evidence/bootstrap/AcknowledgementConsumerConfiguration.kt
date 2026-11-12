@@ -2,7 +2,6 @@ package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.events.SubmissionAcknowledgedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
-import com.dynokore.gst.evidence.adapters.persistence.JooqAcknowledgementLocatorStore
 import com.dynokore.gst.evidence.application.chain.AcknowledgementRecorder
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -34,13 +33,7 @@ class AcknowledgementConsumerConfiguration {
         dsl: DSLContext,
         clock: Clock,
     ): SubmissionAcknowledgedHandler =
-        SubmissionAcknowledgedHandler(
-            AcknowledgementRecorder(
-                JooqAcknowledgementLocatorStore(dsl),
-                ChainWiring.recordAppender(dsl, clock),
-                clock,
-            ),
-        )
+        SubmissionAcknowledgedHandler(ChainWiring.acknowledgementRecorder(dsl, clock))
 
     @Bean
     @Suppress("LongParameterList")

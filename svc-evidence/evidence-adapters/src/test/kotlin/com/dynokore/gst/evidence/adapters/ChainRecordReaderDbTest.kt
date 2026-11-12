@@ -1,11 +1,9 @@
 package com.dynokore.gst.evidence.adapters
 
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
-import com.dynokore.gst.evidence.adapters.persistence.JooqAcknowledgementLocatorStore
 import com.dynokore.gst.evidence.adapters.persistence.JooqChainRecordReader
 import com.dynokore.gst.evidence.adapters.persistence.JooqLocatorStore
 import com.dynokore.gst.evidence.adapters.persistence.JooqSealedPayloadSink
-import com.dynokore.gst.evidence.application.chain.AcknowledgementRecorder
 import com.dynokore.gst.evidence.application.lookup.ChainItemKind
 import com.dynokore.gst.evidence.application.lookup.ChainRecords
 import com.dynokore.gst.evidence.domain.chain.DocumentLocator
@@ -75,8 +73,9 @@ class ChainRecordReaderDbTest {
         appliedAt: Instant = at,
     ) = tx(tenant) { dsl, t ->
         val clock = Clock.fixed(appliedAt, ZoneOffset.UTC)
-        AcknowledgementRecorder(JooqAcknowledgementLocatorStore(dsl), ChainWiring.recordAppender(dsl, clock), clock)
-            .record(t, eventId, ackId, doc, version, "{\"ack\":\"$ackId\"}".toByteArray())
+        ChainWiring
+            .acknowledgementRecorder(dsl, clock)
+            .record(t, eventId, ackId, doc, version, "{\"ack\":\"$ackId\"}".toByteArray(), appliedAt)
     }
 
     private fun read(

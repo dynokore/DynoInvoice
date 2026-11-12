@@ -7,6 +7,7 @@ import com.dynokore.gst.evidence.application.chain.SubmissionIndexStore
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
+import java.time.Instant
 import java.util.UUID
 
 /** `submission_index` over the service's tenant-bound [DSLContext] (jOOQ only, STK §3). */
@@ -57,6 +58,32 @@ class JooqSubmissionIndexStore(
             .doUpdate()
             .set(t.STATE, SubmissionIndexState.SENT)
             .where(t.STATE.isNull)
+            .execute() == 1
+    }
+
+    override fun upsertAcknowledgement(
+        tenant: TenantId,
+        docUuid: UUID,
+        version: Int,
+        ackId: String,
+        acknowledgedAt: Instant,
+    ): Boolean {
+        val t = SUBMISSION_INDEX
+        return dsl
+            .insertInto(t)
+            .set(t.TENANT_ID, tenant.value)
+            .set(t.DOC_UUID, docUuid)
+            .set(t.VERSION, version)
+            .set(t.ACK_ID, ackId)
+            .set(t.ACKNOWLEDGED_AT, acknowledgedAt.utc())
+            .set(t.STATE, SubmissionIndexState.ACKNOWLEDGED)
+            .set(t.RECORDED_AT, acknowledgedAt.utc())
+            .onConflict(t.TENANT_ID, t.DOC_UUID, t.VERSION)
+            .doUpdate()
+            .set(t.ACK_ID, DSL.excluded(t.ACK_ID))
+            .set(t.ACKNOWLEDGED_AT, DSL.excluded(t.ACKNOWLEDGED_AT))
+            .set(t.STATE, DSL.excluded(t.STATE))
+            .where(t.ACK_ID.isNull)
             .execute() == 1
     }
 }

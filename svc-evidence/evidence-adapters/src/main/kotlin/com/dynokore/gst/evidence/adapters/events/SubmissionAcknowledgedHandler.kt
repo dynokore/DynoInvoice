@@ -7,6 +7,7 @@ import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -34,6 +35,7 @@ class SubmissionAcknowledgedHandler(
             docUuid = uuid(data),
             version = version(data),
             content = CanonicalJson.bytes(data),
+            acknowledgedAt = timestamp(data),
         )
         return HandleOutcome.APPLIED
     }
@@ -44,6 +46,10 @@ class SubmissionAcknowledgedHandler(
         } catch (e: tools.jackson.core.JacksonException) {
             throw ContractViolation("the payload is not JSON", e)
         }
+
+    private fun timestamp(data: JsonNode): Instant =
+        runCatching { Instant.parse(data.get("timestamp")?.takeIf { it.isString }?.asString()) }
+            .getOrElse { throw ContractViolation("timestamp is missing or not a date-time", it) }
 
     private fun uuid(data: JsonNode): UUID =
         runCatching { UUID.fromString(data.get("docUuid")?.takeIf { it.isString }?.asString()) }

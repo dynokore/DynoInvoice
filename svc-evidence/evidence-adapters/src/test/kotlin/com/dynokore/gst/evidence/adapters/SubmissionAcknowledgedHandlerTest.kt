@@ -10,6 +10,8 @@ import com.dynokore.gst.evidence.application.chain.LocatorStore
 import com.dynokore.gst.evidence.application.chain.PendingRecord
 import com.dynokore.gst.evidence.application.chain.PendingStore
 import com.dynokore.gst.evidence.application.chain.RecordAppender
+import com.dynokore.gst.evidence.application.chain.SubmissionIndexRow
+import com.dynokore.gst.evidence.application.chain.SubmissionIndexStore
 import com.dynokore.gst.evidence.domain.chain.DocumentLocator
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.EvidenceLedger
@@ -49,6 +51,24 @@ class SubmissionAcknowledgedHandlerTest {
             ackId: String,
         ): AcknowledgementLocator? = null
     }
+
+    private val acks = mutableListOf<List<Any>>()
+
+    private val index =
+        object : SubmissionIndexStore {
+            override fun upsertDocument(
+                tenant: TenantId,
+                row: SubmissionIndexRow,
+            ): Boolean = error("not used")
+
+            override fun upsertAcknowledgement(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+                ackId: String,
+                acknowledgedAt: Instant,
+            ): Boolean = acks.add(listOf(ackId, acknowledgedAt))
+        }
 
     private val store = Store()
     private val tenant = TenantId(UUID.randomUUID())
@@ -106,7 +126,7 @@ class SubmissionAcknowledgedHandlerTest {
                 ) = Unit
             }
         val appender = RecordAppender(RecordKind.entries.associateWith { ledger }, locators, pending, applied)
-        return SubmissionAcknowledgedHandler(AcknowledgementRecorder(store, appender))
+        return SubmissionAcknowledgedHandler(AcknowledgementRecorder(store, appender, index))
     }
 
     private fun envelope(data: String) =
@@ -136,6 +156,7 @@ class SubmissionAcknowledgedHandlerTest {
     private fun refused(data: String) {
         shouldThrow<ContractViolation> { handler().handle(envelope(data)) }
         store.inserts shouldBe emptyList()
+        acks shouldBe emptyList()
     }
 
     @Test
@@ -165,5 +186,26 @@ class SubmissionAcknowledgedHandlerTest {
         refused(data(version = "-1"))
         refused(data(version = "1.5"))
         refused(data(version = """"2""""))
+    }
+
+    @Test
+    fun `INV-AC-20720 the timestamp of the payload reaches the index`() {
+        handler().handle(envelope(data())) shouldBe HandleOutcome.APPLIED
+        acks shouldBe listOf(listOf("A1", Instant.parse("2026-01-15T00:00:00Z")))
+    }
+
+    @Test
+    fun `INV-AC-20720 a payload without timestamp is a ContractViolation and writes nothing`() {
+        refused("""{"docUuid":"$doc","version":2,"acknowledgementId":"A1"}""")
+    }
+
+    @Test
+    fun `INV-AC-20720 the look-alike member acknowledgedAt in place of timestamp is refused`() {
+        refused("""{"docUuid":"$doc","version":2,"acknowledgementId":"A1","acknowledgedAt":"2026-01-15T00:00:00Z"}""")
+    }
+
+    @Test
+    fun `INV-AC-20720 a timestamp that is not a date-time is refused`() {
+        refused("""{"docUuid":"$doc","version":2,"acknowledgementId":"A1","timestamp":"yesterday"}""")
     }
 }

@@ -45,4 +45,18 @@ interface SubmissionIndexStore {
         docUuid: UUID,
         version: Int,
     ): Boolean
+
+    /**
+     * Upserts the acknowledgement columns on (tenant, docUuid, version): sets ack_id, acknowledged_at and state
+     * ACKNOWLEDGED (replacing SENT or null) only where ack_id is still null; a new row holds only these columns and
+     * stays a partial row. Never touches the document columns. True when written, false when an acknowledgement was
+     * already set.
+     */
+    fun upsertAcknowledgement(
+        tenant: TenantId,
+        docUuid: UUID,
+        version: Int,
+        ackId: String,
+        acknowledgedAt: Instant,
+    ): Boolean
 }

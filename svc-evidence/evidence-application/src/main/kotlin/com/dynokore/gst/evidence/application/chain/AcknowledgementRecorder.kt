@@ -35,7 +35,8 @@ interface AcknowledgementLocatorStore {
 
 /**
  * Handles one SubmissionAcknowledged event (INV-REQ-691, ruling of 2026-10-14 case 1) in the caller's transaction:
- * writes the locator row and appends one ACKNOWLEDGEMENT record to the chain of (docUuid, version).
+ * writes the locator row, appends one ACKNOWLEDGEMENT record to the chain of (docUuid, version) and sets the
+ * acknowledgement columns of the `submission_index` row (INV-REQ-724; the first acknowledgement of a version stays).
  *
  * A re-delivered event id, or the same acknowledgement for the same version in a new event, writes nothing. An
  * Acknowledgement ID already stored for another (docUuid, version) is a [ContractViolation], checked before any write.
@@ -43,6 +44,7 @@ interface AcknowledgementLocatorStore {
 class AcknowledgementRecorder(
     private val locators: AcknowledgementLocatorStore,
     private val appender: RecordAppender,
+    private val index: SubmissionIndexStore,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     /** True when the locator and the record were written. */
@@ -54,6 +56,7 @@ class AcknowledgementRecorder(
         docUuid: UUID,
         version: Int,
         content: ByteArray,
+        acknowledgedAt: Instant,
     ): Boolean {
         val known = locators.find(tenant, ackId)
         if (known != null) {
@@ -74,6 +77,7 @@ class AcknowledgementRecorder(
                     content,
                     now,
                 )
+                index.upsertAcknowledgement(tenant, docUuid, version, ackId, acknowledgedAt)
             }
         }
     }

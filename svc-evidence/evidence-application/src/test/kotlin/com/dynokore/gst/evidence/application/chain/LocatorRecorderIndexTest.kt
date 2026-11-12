@@ -87,6 +87,14 @@ class LocatorRecorderIndexTest {
                 docUuid: UUID,
                 version: Int,
             ): Boolean = false
+
+            override fun upsertAcknowledgement(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+                ackId: String,
+                acknowledgedAt: Instant,
+            ): Boolean = error("not used")
         }
     private val recorder =
         LocatorRecorder(
