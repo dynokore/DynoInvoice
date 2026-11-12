@@ -1,5 +1,6 @@
 package com.dynokore.gst.ingestion.bootstrap
 
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -11,13 +12,18 @@ class CanonicalUrlRequiredTest {
     fun `the context starts with the url and fails when it is blank or unresolved`(
         @TempDir dir: Path,
     ) {
-        IngestionContext.offline(dir).run { (it.startupFailure == null) shouldBe true }
         IngestionContext
             .offline(dir)
+            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
+            .run { (it.startupFailure == null) shouldBe true }
+        IngestionContext
+            .offline(dir)
+            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
             .withPropertyValues("ingestion.canonical-svc-url=")
             .run { (it.startupFailure != null) shouldBe true }
         IngestionContext
             .offline(dir)
+            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
             .withPropertyValues("ingestion.canonical-svc-url=\${INGESTION_CANONICAL_SVC_URL_UNSET_IN_TEST}")
             .run { (it.startupFailure != null) shouldBe true }
     }

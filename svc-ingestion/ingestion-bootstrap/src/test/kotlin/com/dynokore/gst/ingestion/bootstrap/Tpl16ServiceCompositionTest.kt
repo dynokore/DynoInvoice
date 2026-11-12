@@ -3,6 +3,7 @@ package com.dynokore.gst.ingestion.bootstrap
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.tenancykernel.CurrentConnection
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.nulls.shouldBeNull
@@ -22,31 +23,37 @@ class Tpl16ServiceCompositionTest {
     fun `every port the service injects is a bean over the one application DataSource`(
         @TempDir dir: Path,
     ) {
-        IngestionContext.offline(dir).run { context ->
-            context.startupFailure.shouldBeNull()
-            listOf(
-                TransactionRunner::class,
-                CurrentConnection::class,
-                TenantScope::class,
-                OutboxWriter::class,
-            ).forEach { context.getBean(it.java) }
-            context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
-            context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:ingestion-svc"
-            catalogueTypes(context) shouldBe IngestionEvents.entries.map { it.eventType }.toSet()
-        }
+        IngestionContext
+            .offline(dir)
+            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
+            .run { context ->
+                context.startupFailure.shouldBeNull()
+                listOf(
+                    TransactionRunner::class,
+                    CurrentConnection::class,
+                    TenantScope::class,
+                    OutboxWriter::class,
+                ).forEach { context.getBean(it.java) }
+                context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
+                context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:ingestion-svc"
+                catalogueTypes(context) shouldBe IngestionEvents.entries.map { it.eventType }.toSet()
+            }
     }
 
     @Test
     fun `the management port and the health groups are configured`(
         @TempDir dir: Path,
     ) {
-        IngestionContext.offline(dir).run { context ->
-            val environment = context.environment
-            environment.getProperty("management.server.port") shouldBe "8081"
-            environment.getProperty("management.endpoint.health.group.live.include") shouldBe "livenessState"
-            environment.getProperty("management.endpoints.web.exposure.include") shouldBe
-                "health,prometheus,diagnostics"
-        }
+        IngestionContext
+            .offline(dir)
+            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
+            .run { context ->
+                val environment = context.environment
+                environment.getProperty("management.server.port") shouldBe "8081"
+                environment.getProperty("management.endpoint.health.group.live.include") shouldBe "livenessState"
+                environment.getProperty("management.endpoints.web.exposure.include") shouldBe
+                    "health,prometheus,diagnostics"
+            }
     }
 
     private fun catalogueTypes(context: ApplicationContext): Set<String> =

@@ -9,6 +9,7 @@ import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
@@ -41,7 +42,10 @@ class IngestionBoundaryDbTest {
         dir: Path,
         block: (Boundary) -> Unit,
     ) {
-        IngestionContext.online(dir).run { context -> block(Boundary(context)) }
+        IngestionContext
+            .online(dir)
+            .withBean(EndUserPrincipalResolver::class.java, { EndUserPrincipalResolver { null } })
+            .run { context -> block(Boundary(context)) }
     }
 
     private fun Boundary.emit(

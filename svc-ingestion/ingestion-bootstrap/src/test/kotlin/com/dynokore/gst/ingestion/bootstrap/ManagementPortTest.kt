@@ -1,6 +1,7 @@
 package com.dynokore.gst.ingestion.bootstrap
 
 import com.dynokore.gst.ingestion.adapters.IngestionDb
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.context.annotation.Bean
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -35,7 +37,7 @@ class ManagementPortTest {
         Files.writeString(dir.resolve("db/ingestion_runtime"), IngestionDb.RUNTIME_PASSWORD)
         Files.writeString(dir.resolve("tenancy/binding-key-current"), IngestionDb.BINDING_SECRET)
         val app =
-            SpringApplicationBuilder(IngestionApplication::class.java)
+            SpringApplicationBuilder(IngestionApplication::class.java, NoUserBeans::class.java)
                 .web(WebApplicationType.SERVLET)
                 .properties(
                     "server.port=0",
@@ -70,4 +72,13 @@ class ManagementPortTest {
             get("http://localhost:$main/metrics").statusCode() shouldBeIn listOf(401, 404)
         }
     }
+}
+
+/**
+ * The permission wiring (INV-T-21565) needs the end-user resolver that a deployment binds. Not @Configuration: a
+ * component scan of this package must not pick it up for the other contexts.
+ */
+class NoUserBeans {
+    @Bean
+    fun resolver(): EndUserPrincipalResolver = EndUserPrincipalResolver { null }
 }
