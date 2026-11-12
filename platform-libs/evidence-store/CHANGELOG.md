@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-12
+### Added
+- `EvidenceIndex.version` (optional `Int?`, default null) and `JdbcEvidenceLedger(versionColumn = false)`: a ledger told its table has a nullable `version` column stores and reads back the document version of a DECISION_TRACE record; `append` refuses a version on another record type, a version below 1, or a version on a ledger not told of the column, with `IllegalArgumentException` before any statement. The version is outside the content hash; with `versionColumn` false the statements and `COLUMNS` are unchanged (INV-REQ-942, INV-T-20747; INV-AC-20746).
+
 ## [2.4.1] - 2026-11-04
 ### Fixed
 - Metadata-only change (CI-FAST, G-DVS): depends on `tenancy-kernel 4.2.1` and `tenancy-jooq 1.4.4`, whose versions step; no production code change. The `testFixtures` PostgreSQL fixture now starts with a 3 min startup timeout, 3 start attempts and fsync off (CI-FAST); the `-test-fixtures` jar bytes change, test-fixtures only.

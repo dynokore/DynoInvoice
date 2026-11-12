@@ -22,6 +22,10 @@ import java.util.UUID
  * consuming service's own migration created with a `CREATE TABLE` matching
  * [COLUMNS] plus [EvidenceLedgerSchema.trailerDdl] appended (TPL-12).
  *
+ * [versionColumn] declares that the table also has a nullable `version integer` column
+ * (INV-REQ-942; the service's own migration adds it, null or at least 1): the ledger is told,
+ * not guessing from the schema. When false, the statements are exactly the 14-column ones.
+ *
  * Every method assumes it runs inside the caller's
  * [com.dynokore.platform.tenancykernel.TransactionRunner] block (ARC-21): it
  * statements run on the connection that block bound (tenancy-jooq's connection
@@ -31,6 +35,7 @@ class JdbcEvidenceLedger(
     private val dsl: DSLContext,
     schema: String,
     table: String,
+    private val versionColumn: Boolean = false,
 ) : EvidenceLedger {
     // INV-REQ-854 b5 (coordinator ruling INV-Q-4036): the names enter SQL only through SqlIdentifier.require.
     private val schemaName = SqlIdentifier.require(schema, "schema")
@@ -55,6 +60,7 @@ class JdbcEvidenceLedger(
         content: ByteArray,
         index: EvidenceIndex,
     ): EvidenceRecord {
+        requireVersionAllowed(type, index)
         acquireChainLock(tenant, entity, period)
         val tail = readTail(tenant, entity, period)
         val sequence = (tail?.first ?: -1L) + 1
@@ -70,10 +76,21 @@ class JdbcEvidenceLedger(
         return record
     }
 
+    private fun requireVersionAllowed(
+        type: EvidenceType,
+        index: EvidenceIndex,
+    ) {
+        val version = index.version ?: return
+        require(
+            type == EvidenceType.DECISION_TRACE,
+        ) { "a version is allowed on DECISION_TRACE records only, not $type" }
+        require(version >= 1) { "version must be at least 1, was $version" }
+        require(versionColumn) { "this ledger was not told its table has a version column" }
+    }
+
     private fun insert(record: EvidenceRecord) {
-        dsl
-            .insertInto(ledger)
-            .columns(
+        val columns =
+            listOf(
                 ID,
                 TENANT_ID,
                 ENTITY_REF,
@@ -88,7 +105,9 @@ class JdbcEvidenceLedger(
                 INVOICE_NUMBER,
                 COUNTERPARTY_UEN,
                 CATEGORY_CODE,
-            ).values(
+            ) + if (versionColumn) listOf(VERSION) else emptyList()
+        val values =
+            listOf<Any?>(
                 UUID.randomUUID(),
                 record.tenantId.value,
                 record.entityRef.value,
@@ -103,7 +122,12 @@ class JdbcEvidenceLedger(
                 record.index.invoiceNumber,
                 record.index.counterpartyUen,
                 record.index.categoryCode,
-            ).execute()
+            ) + if (versionColumn) listOf(record.index.version) else emptyList()
+        dsl
+            .insertInto(ledger)
+            .columns(columns)
+            .values(values)
+            .execute()
     }
 
     override fun findByEntityAndPeriod(
@@ -113,16 +137,18 @@ class JdbcEvidenceLedger(
     ): List<EvidenceRecord> =
         dsl
             .select(
-                SEQ,
-                EVIDENCE_TYPE,
-                CONTENT,
-                CONTENT_HASH,
-                PREVIOUS_HASH,
-                RECORDED_AT,
-                DOC_UUID,
-                INVOICE_NUMBER,
-                COUNTERPARTY_UEN,
-                CATEGORY_CODE,
+                listOf(
+                    SEQ,
+                    EVIDENCE_TYPE,
+                    CONTENT,
+                    CONTENT_HASH,
+                    PREVIOUS_HASH,
+                    RECORDED_AT,
+                    DOC_UUID,
+                    INVOICE_NUMBER,
+                    COUNTERPARTY_UEN,
+                    CATEGORY_CODE,
+                ) + if (versionColumn) listOf(VERSION) else emptyList(),
             ).from(ledger)
             .where(TENANT_ID.eq(tenant.value), ENTITY_REF.eq(entity.value), PERIOD_REF.eq(period.value))
             .orderBy(SEQ.asc())
@@ -210,6 +236,7 @@ class JdbcEvidenceLedger(
                     invoiceNumber = get(INVOICE_NUMBER),
                     counterpartyUen = get(COUNTERPARTY_UEN),
                     categoryCode = get(CATEGORY_CODE),
+                    version = if (versionColumn) get(VERSION) else null,
                 ),
         )
 
@@ -241,3 +268,4 @@ private val DOC_UUID = DSL.field(DSL.name("doc_uuid"), SQLDataType.UUID)
 private val INVOICE_NUMBER = DSL.field(DSL.name("invoice_number"), SQLDataType.CLOB)
 private val COUNTERPARTY_UEN = DSL.field(DSL.name("counterparty_uen"), SQLDataType.CLOB)
 private val CATEGORY_CODE = DSL.field(DSL.name("category_code"), SQLDataType.CLOB)
+private val VERSION = DSL.field(DSL.name("version"), SQLDataType.INTEGER)

@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.13.1] - 2026-11-12
+### Changed
+- Its compiled call of the `JdbcEvidenceLedger` constructor in `EvidenceStoreWiring.kt` follows the new constructor of `evidence-store` 2.5.0; no behaviour change (INV-T-20747).
+
 ## [13.13.0] - 2026-11-12
 ### Added
 - `JobAnnouncement`, an `ApplicationListener<ApplicationReadyEvent>` defined by `ServiceRuntimeWiring` (`jobAnnouncement`, `@ConditionalOnMissingBean`): it calls `JobRuntime.announce()` when the application is ready if the context holds a `JobRuntime`, so a service calls nothing; a retention mismatch or missing row fails the start (INV-REQ-1226; INV-T-20639, INV-AC-20638).

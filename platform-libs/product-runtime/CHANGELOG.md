@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.2] - 2026-11-12
+### Changed
+- POM only: depends on `service-runtime` 13.13.1 (INV-T-20747, rule G-DVS); no code change.
+
 ## [2.19.1] - 2026-11-12
 ### Changed
 - POM only: depends on `service-runtime` 13.13.0 (INV-T-20639, rule G-DVS); no code change.
