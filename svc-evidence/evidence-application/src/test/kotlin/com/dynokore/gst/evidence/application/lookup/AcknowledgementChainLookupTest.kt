@@ -43,8 +43,16 @@ class AcknowledgementChainLookupTest {
     private val at = Instant.parse("2026-03-20T03:10:00Z")
     private val calls = mutableListOf<String>()
 
-    private val payload = ChainItem(ChainItemKind.PAYLOAD, at, "payload/$doc/v2/1", 1)
-    private val ack = ChainItem(ChainItemKind.ACKNOWLEDGEMENT, at, "A1", 2)
+    private fun item(
+        kind: ChainItemKind,
+        reference: String,
+        rank: Long,
+        seconds: Long,
+    ) = ChainItem(kind, at, reference, rank, ChainCursor(at.plusSeconds(seconds), kind, 0))
+
+    private val payload = item(ChainItemKind.PAYLOAD, "payload/$doc/v2/0", 1, 0)
+    private val ack = item(ChainItemKind.ACKNOWLEDGEMENT, "A1", 2, 1)
+    private val third = item(ChainItemKind.ACKNOWLEDGEMENT, "A1", 3, 2)
 
     private inner class Locators : AcknowledgementLocatorStore {
         override fun insert(
@@ -105,6 +113,8 @@ class AcknowledgementChainLookupTest {
     private fun grant(
         tenant: TenantId,
         version: Long,
+        scope: GrantScope,
+        scopeRef: String?,
     ) = AuthorityChanged(
         tenant,
         user.id,
@@ -112,18 +122,20 @@ class AcknowledgementChainLookupTest {
         AuthorityRecord.RoleGrantRecord(
             "g$version",
             RoleGrantState.ACTIVE,
-            RoleGrant("auditor", GrantScope.TENANT, tenant.value.toString(), Instant.parse(SINCE), null),
+            RoleGrant("auditor", scope, scopeRef ?: tenant.value.toString(), Instant.parse(SINCE), null),
         ),
     )
 
     private fun replica(
         key: String = ENQUIRY_LOOKUP_BY_ACKNOWLEDGEMENT,
         current: Boolean = true,
+        scope: GrantScope = GrantScope.TENANT,
+        scopeRef: String? = null,
     ): AuthorityReplica {
         val roles = OperationRoleMap { if (it == key) mapOf("auditor" to CellAllowance.PERMITTED) else emptyMap() }
         val unavailable = ReplicaFallback<AuthorizationRequest, AuthorityVerdict> { _, _ -> FallbackResult.Unavailable }
         val replica = AuthorityReplica(clock, roles, fallback = unavailable)
-        listOf(t1, t2).forEachIndexed { i, tenant -> replica.accept(grant(tenant, i + 1L)) }
+        listOf(t1, t2).forEachIndexed { i, tenant -> replica.accept(grant(tenant, i + 1L, scope, scopeRef)) }
         if (current) {
             replica.onSnapshotComplete(2)
             replica.observeHead(2)
@@ -158,10 +170,31 @@ class AcknowledgementChainLookupTest {
     fun `INV-AC-20574 the page follows limit and cursor`() {
         val first = lookup(limit = 1).shouldBeInstanceOf<ChainLookupResult.Found>()
         first.items shouldBe listOf(payload)
-        first.nextCursor shouldBe ChainCursor(1, ChainItemKind.PAYLOAD)
+        first.nextCursor shouldBe payload.key
         val second = lookup(limit = 1, cursor = first.nextCursor).shouldBeInstanceOf<ChainLookupResult.Found>()
         second.items shouldBe listOf(ack)
         second.nextCursor shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-20574 three records with limit 2 give ranks 1 2 3 and the cursor of page one holds no rank`() {
+        val all = ChainRecords.Complete(listOf(third, payload, ack))
+        val first = lookup(records = all, limit = 2).shouldBeInstanceOf<ChainLookupResult.Found>()
+        first.items.map { it.sequence } shouldBe listOf(1L, 2L)
+        first.nextCursor shouldBe ack.key
+        val second =
+            lookup(records = all, limit = 2, cursor = first.nextCursor)
+                .shouldBeInstanceOf<ChainLookupResult.Found>()
+        second.items.map { it.sequence } shouldBe listOf(3L)
+        second.nextCursor shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-20574 a principal whose only grant of the key is of entity scope is Forbidden`() {
+        val entityOnly = replica(scope = GrantScope.ENTITY, scopeRef = "ENT-1")
+        lookup(replica = entityOnly) shouldBe ChainLookupResult.Forbidden
+        calls shouldBe emptyList()
+        lookup().shouldBeInstanceOf<ChainLookupResult.Found>()
     }
 
     @Test

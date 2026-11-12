@@ -16,17 +16,21 @@ const val ENQUIRY_LOOKUP_BY_ACKNOWLEDGEMENT = "enquiry-lookup.by-acknowledgement
 /** The kinds of chain item this slice answers; the decision-trace item waits for its own ruling (INV-REQ-942). */
 enum class ChainItemKind { PAYLOAD, ACKNOWLEDGEMENT }
 
-/** One item of the chain: [sequence] is the position in the chain table of the record's kind (`EvidenceChainItem`). */
+/**
+ * One item of the chain. [sequence] is the 1-based rank in the append order of the whole version (never the raw
+ * per-table `seq`); [key] is the order key the rank comes from and the page cursor carries.
+ */
 data class ChainItem(
     val kind: ChainItemKind,
     val recordedAt: Instant,
     val reference: String,
     val sequence: Long,
+    val key: ChainCursor,
 )
 
 /** The answer of [ChainRecordReader]: the items of the version, or a stored link whose record is missing. */
 sealed interface ChainRecords {
-    /** Every item of the version, ordered by [ChainItem.sequence] then kind. */
+    /** Every item of the version, ordered by [ChainItem.key], with [ChainItem.sequence] the rank in that order. */
     data class Complete(
         val items: List<ChainItem>,
     ) : ChainRecords
@@ -45,11 +49,18 @@ fun interface ChainRecordReader {
     ): ChainRecords
 }
 
-/** Where a page starts: strictly after the item at ([sequence], [kind]) in the total order of the chain. */
+/**
+ * The order key of an item: append instant, then kind (PAYLOAD before ACKNOWLEDGEMENT), then raw `seq`. A page starts
+ * strictly after the key in the cursor; the cursor never holds a rank.
+ */
 data class ChainCursor(
-    val sequence: Long,
+    val appliedAt: Instant,
     val kind: ChainItemKind,
-)
+    val seq: Long,
+) : Comparable<ChainCursor> {
+    override fun compareTo(other: ChainCursor): Int =
+        compareValuesBy(this, other, ChainCursor::appliedAt, ChainCursor::kind, ChainCursor::seq)
+}
 
 sealed interface ChainLookupResult {
     data class Found(
@@ -119,17 +130,12 @@ class AcknowledgementChainLookup(
         limit: Int,
         cursor: ChainCursor?,
     ): ChainLookupResult.Found {
-        val ordered = items.sortedWith(compareBy({ it.sequence }, { it.kind }))
-        val rest = if (cursor == null) ordered else ordered.filter { after(it, cursor) }
+        val ordered = items.sortedBy { it.key }
+        val rest = if (cursor == null) ordered else ordered.filter { it.key > cursor }
         val page = rest.take(limit)
-        val next = if (rest.size > limit) page.last().let { ChainCursor(it.sequence, it.kind) } else null
+        val next = if (rest.size > limit) page.last().key else null
         return ChainLookupResult.Found(ackId, docUuid, version, page, next)
     }
-
-    private fun after(
-        item: ChainItem,
-        cursor: ChainCursor,
-    ): Boolean = item.sequence > cursor.sequence || (item.sequence == cursor.sequence && item.kind > cursor.kind)
 
     companion object {
         /** The contract's `limit` maximum (`getAcknowledgementChain`). */

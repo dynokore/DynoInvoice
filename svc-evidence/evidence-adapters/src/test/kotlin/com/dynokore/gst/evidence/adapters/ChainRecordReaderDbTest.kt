@@ -18,8 +18,10 @@ import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 /** INV-AC-20574: the chain records of one version are found through the locator and `applied_record`. */
@@ -59,8 +61,9 @@ class ChainRecordReaderDbTest {
         tenant: UUID,
         version: Int,
         eventId: String,
+        appliedAt: Instant = at,
     ) = tx(tenant) { dsl, t ->
-        JooqSealedPayloadSink(dsl, ChainWiring.recordAppender(dsl))
+        JooqSealedPayloadSink(dsl, ChainWiring.recordAppender(dsl, Clock.fixed(appliedAt, ZoneOffset.UTC)))
             .append(t, doc, version, eventId, "{\"e\":\"$eventId\"}".toByteArray(), at)
     }
 
@@ -69,8 +72,10 @@ class ChainRecordReaderDbTest {
         ackId: String,
         version: Int,
         eventId: String,
+        appliedAt: Instant = at,
     ) = tx(tenant) { dsl, t ->
-        AcknowledgementRecorder(JooqAcknowledgementLocatorStore(dsl), ChainWiring.recordAppender(dsl))
+        val clock = Clock.fixed(appliedAt, ZoneOffset.UTC)
+        AcknowledgementRecorder(JooqAcknowledgementLocatorStore(dsl), ChainWiring.recordAppender(dsl, clock), clock)
             .record(t, eventId, ackId, doc, version, "{\"ack\":\"$ackId\"}".toByteArray())
     }
 
@@ -100,9 +105,9 @@ class ChainRecordReaderDbTest {
         seal(t, 2, "P2")
         acknowledge(t, "A1", 2, "ACK-E1")
         val items = complete(read(t, "A1", 2))
-        items.filter { it.kind == ChainItemKind.PAYLOAD }.map { it.sequence } shouldBe listOf(0L, 1L)
-        items.size shouldBe 3
-        items.map { it.sequence } shouldBe items.map { it.sequence }.sorted()
+        items.filter { it.kind == ChainItemKind.PAYLOAD }.map { it.reference } shouldBe
+            listOf("payload/$doc/v2/0", "payload/$doc/v2/1")
+        items.map { it.sequence } shouldBe listOf(1L, 2L, 3L)
     }
 
     @Test
@@ -145,5 +150,51 @@ class ChainRecordReaderDbTest {
             )
         }
         read(t, "A1", 2) shouldBe ChainRecords.Incomplete
+    }
+
+    private val early = Instant.parse("2026-10-20T10:00:00Z")
+    private val late = Instant.parse("2026-10-20T11:00:00Z")
+
+    @Test
+    fun `INV-AC-20574 equal raw seq in two chain tables gives ranks 1 and 2 by applied_at and reverses when swapped`() {
+        for ((ackAt, payAt, expected) in listOf(
+            Triple(late, early, listOf(ChainItemKind.PAYLOAD, ChainItemKind.ACKNOWLEDGEMENT)),
+            Triple(early, late, listOf(ChainItemKind.ACKNOWLEDGEMENT, ChainItemKind.PAYLOAD)),
+        )) {
+            val t = UUID.randomUUID()
+            locate(t)
+            seal(t, 2, "P1", payAt)
+            acknowledge(t, "A1", 2, "ACK-E1", ackAt)
+            val items = complete(read(t, "A1", 2))
+            items.map { it.kind } shouldBe expected
+            items.map { it.sequence } shouldBe listOf(1L, 2L)
+        }
+    }
+
+    @Test
+    fun `INV-AC-20574 equal applied_at orders PAYLOAD rows by raw seq and ranks are at least 1 and unique`() {
+        val t = UUID.randomUUID()
+        locate(t)
+        seal(t, 2, "P1")
+        seal(t, 2, "P2")
+        acknowledge(t, "A1", 2, "ACK-E1")
+        val items = complete(read(t, "A1", 2))
+        items.map { it.kind } shouldBe
+            listOf(ChainItemKind.PAYLOAD, ChainItemKind.PAYLOAD, ChainItemKind.ACKNOWLEDGEMENT)
+        items.map { it.reference } shouldBe listOf("payload/$doc/v2/0", "payload/$doc/v2/1", "A1")
+        items.map { it.sequence }.toSet().size shouldBe items.size
+        (items.minOf { it.sequence } >= 1L) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-20574 the PAYLOAD reference holds the raw seq, not the rank`() {
+        val t = UUID.randomUUID()
+        locate(t)
+        acknowledge(t, "A1", 2, "ACK-E1", early)
+        seal(t, 2, "P1", late)
+        val payload = complete(read(t, "A1", 2)).single { it.kind == ChainItemKind.PAYLOAD }
+        payload.sequence shouldBe 2L
+        payload.reference shouldBe "payload/$doc/v2/0"
+        (payload.reference == "payload/$doc/v2/2") shouldBe false
     }
 }

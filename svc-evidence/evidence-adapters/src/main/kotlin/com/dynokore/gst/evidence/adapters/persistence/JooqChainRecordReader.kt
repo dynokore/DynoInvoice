@@ -3,6 +3,7 @@ package com.dynokore.gst.evidence.adapters.persistence
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.AcknowledgementLocator.Companion.ACKNOWLEDGEMENT_LOCATOR
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.AppliedRecord.Companion.APPLIED_RECORD
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.SealedPayload.Companion.SEALED_PAYLOAD
+import com.dynokore.gst.evidence.application.lookup.ChainCursor
 import com.dynokore.gst.evidence.application.lookup.ChainItem
 import com.dynokore.gst.evidence.application.lookup.ChainItemKind
 import com.dynokore.gst.evidence.application.lookup.ChainRecordReader
@@ -10,9 +11,11 @@ import com.dynokore.gst.evidence.application.lookup.ChainRecords
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.EntityRef
 import com.dynokore.platform.evidencestore.EvidenceLedger
+import com.dynokore.platform.evidencestore.EvidenceRecord
 import com.dynokore.platform.evidencestore.PeriodRef
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -30,6 +33,7 @@ class JooqChainRecordReader(
         val entityRef: String,
         val periodRef: String,
         val seq: Long,
+        val appliedAt: Instant,
     )
 
     override fun read(
@@ -58,7 +62,9 @@ class JooqChainRecordReader(
         return if (acks == null || payloads == null) {
             ChainRecords.Incomplete
         } else {
-            ChainRecords.Complete((acks + payloads).sortedWith(compareBy({ it.sequence }, { it.kind })))
+            ChainRecords.Complete(
+                (acks + payloads).sortedBy { it.key }.mapIndexed { i, item -> item.copy(sequence = i + 1L) },
+            )
         }
     }
 
@@ -103,6 +109,7 @@ class JooqChainRecordReader(
                 APPLIED_RECORD.ENTITY_REF,
                 APPLIED_RECORD.PERIOD_REF,
                 APPLIED_RECORD.SEQ,
+                APPLIED_RECORD.APPLIED_AT,
             ).from(APPLIED_RECORD)
             .where(APPLIED_RECORD.TENANT_ID.eq(tenant.value))
             .and(APPLIED_RECORD.SOURCE_EVENT_ID.`in`(events))
@@ -114,6 +121,7 @@ class JooqChainRecordReader(
                         checkNotNull(it[APPLIED_RECORD.ENTITY_REF]),
                         checkNotNull(it[APPLIED_RECORD.PERIOD_REF]),
                         checkNotNull(it[APPLIED_RECORD.SEQ]),
+                        checkNotNull(it[APPLIED_RECORD.APPLIED_AT]).toInstant(),
                     )
             }
 
@@ -129,29 +137,30 @@ class JooqChainRecordReader(
     ): List<ChainItem>? {
         val expected =
             if (kind == ChainItemKind.ACKNOWLEDGEMENT) RecordKind.ACKNOWLEDGEMENT else RecordKind.EVIDENCE_PAYLOAD
-        val stored =
+        val items =
             if (located.any { it.kind != expected }) {
                 emptyList()
             } else {
                 located.groupBy { it.entityRef to it.periodRef }.flatMap { (chain, rows) ->
-                    val wanted = rows.map { it.seq }.toSet()
+                    val bySeq = rows.associateBy { it.seq }
                     checkNotNull(ledgers[expected])
                         .findByEntityAndPeriod(tenant, EntityRef(chain.first), PeriodRef(chain.second))
-                        .filter { it.sequence in wanted }
+                        .mapNotNull { rec -> bySeq[rec.sequence]?.let { item(kind, ackId, docUuid, version, it, rec) } }
                 }
             }
-        val items =
-            stored.map {
-                val ref =
-                    if (kind ==
-                        ChainItemKind.ACKNOWLEDGEMENT
-                    ) {
-                        ackId
-                    } else {
-                        "payload/$docUuid/v$version/${it.sequence}"
-                    }
-                ChainItem(kind, it.recordedAt, ref, it.sequence)
-            }
         return if (items.size == located.size) items else null
+    }
+
+    @Suppress("LongParameterList") // one item's identity and its two sources
+    private fun item(
+        kind: ChainItemKind,
+        ackId: String,
+        docUuid: UUID,
+        version: Int,
+        row: Located,
+        record: EvidenceRecord,
+    ): ChainItem {
+        val reference = if (kind == ChainItemKind.ACKNOWLEDGEMENT) ackId else "payload/$docUuid/v$version/${row.seq}"
+        return ChainItem(kind, record.recordedAt, reference, 0, ChainCursor(row.appliedAt, kind, row.seq))
     }
 }
