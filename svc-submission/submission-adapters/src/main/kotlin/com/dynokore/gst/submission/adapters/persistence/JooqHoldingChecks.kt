@@ -36,7 +36,7 @@ class JooqHoldingChecks(
             ?.get(0, Long::class.javaObjectType)
             ?.let { StoredReadinessCheck.checkIdOf(it) }
 
-    /** `$.heldDocUuids[*] ? (@ == "<uuid>")` with the uuid as a jsonpath string literal (backslash and quote escaped). */
+    /** `$.heldDocUuids[*] ? (@ == "<uuid>")`; the uuid is a jsonpath string literal, backslash and quote escaped. */
     private fun pathOf(docUuid: String): String {
         val literal = docUuid.replace("\\", "\\\\").replace("\"", "\\\"")
         return "\$.heldDocUuids[*] ? (@ == \"$literal\")"
