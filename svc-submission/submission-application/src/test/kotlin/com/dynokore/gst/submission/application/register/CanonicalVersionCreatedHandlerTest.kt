@@ -140,6 +140,15 @@ class CanonicalVersionCreatedHandlerTest {
     }
 
     @Test
+    fun `INV-AC-20479 the entry passed to the store carries the transaction date of the event`() {
+        val f = fixture()
+        f.handler.handle(envelope())
+        f.store.entries
+            .single()
+            .transactionDate shouldBe LocalDate.of(2026, 3, 20)
+    }
+
+    @Test
     fun `INV-AC-16339 the kind comes from the resolver`() {
         val f = fixture(kind = RowKind.CREDIT_NOTE)
         f.handler.handle(envelope())

@@ -52,6 +52,8 @@ class RegisterEntryStoreDbTest {
             "gst_amount",
             "category_codes",
             "source_version",
+            "transaction_date",
+            "reason_code",
         )
 
     @AfterEach
@@ -161,7 +163,7 @@ class RegisterEntryStoreDbTest {
         val text = row(a, doc)!!
         text.contains("INV-3") shouldBe true
         text.contains("2026-12-31") shouldBe true
-        text.endsWith(",3)") shouldBe true
+        text.endsWith(",3,,)") shouldBe true
         allOrNone(a, doc)
     }
 
@@ -277,7 +279,37 @@ class RegisterEntryStoreDbTest {
     }
 
     @Test
-    fun `INV-AC-16339 the column set is the seven original the eight list-fact columns and source_version`() {
+    fun `INV-AC-20479 the stored transaction date equals the entry's and an older version leaves it unchanged`() {
+        val a = UUID.randomUUID()
+        val doc = "d-$a"
+        val first = LocalDate.of(2026, 6, 20)
+        upsert(a, entry(doc, 2).copy(transactionDate = first)) shouldBe UpsertResult.INSERTED
+        transactionDateOf(a, doc) shouldBe first
+        upsert(a, entry(doc, 1).copy(transactionDate = LocalDate.of(2026, 1, 1))) shouldBe UpsertResult.UNCHANGED
+        transactionDateOf(a, doc) shouldBe first
+    }
+
+    private fun transactionDateOf(
+        tenant: UUID,
+        doc: String,
+    ): LocalDate? {
+        bound.set(tenant)
+        try {
+            return runner.inTransaction {
+                dsl
+                    .fetchOne(
+                        "select transaction_date from submission.obligation_register_entry where doc_uuid = ?",
+                        doc,
+                    )!!
+                    .get(0, LocalDate::class.java)
+            }
+        } finally {
+            bound.remove()
+        }
+    }
+
+    @Test
+    fun `INV-AC-16339 the column set is the original ones plus the readiness columns`() {
         val columns =
             SubmissionDb.superuser().use { c ->
                 c.createStatement().use { st ->

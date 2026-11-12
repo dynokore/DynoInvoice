@@ -15,6 +15,7 @@ data class RegisterEntry(
     val kind: RowKind,
     val facts: ListFacts,
     val sourceVersion: Int,
+    val transactionDate: LocalDate? = null,
 )
 
 enum class UpsertResult { INSERTED, UPDATED, UNCHANGED }

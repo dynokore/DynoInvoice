@@ -69,6 +69,7 @@ class JooqRegisterEntryStore(
             e.GST_AMOUNT to f.gstAmount,
             e.CATEGORY_CODES to f.categoryCodes.sorted().toTypedArray(),
             e.SOURCE_VERSION to entry.sourceVersion,
+            e.TRANSACTION_DATE to entry.transactionDate,
         )
     }
 }

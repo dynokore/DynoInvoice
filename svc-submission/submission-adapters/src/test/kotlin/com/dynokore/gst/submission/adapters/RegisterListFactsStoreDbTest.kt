@@ -46,6 +46,8 @@ class RegisterListFactsStoreDbTest {
     private val oldColumns =
         setOf("tenant_id", "doc_uuid", "entity_ref", "period_ref", "due_date", "in_scope", "kind", "source_version")
 
+    private val readinessColumns = setOf("transaction_date", "reason_code")
+
     @AfterEach
     fun close() = connection.close()
 
@@ -187,8 +189,8 @@ class RegisterListFactsStoreDbTest {
     @Test
     fun `INV-AC-16322 the column set is the seven old columns plus exactly the eight new names`() {
         val columns = schemaColumns("table_name = 'obligation_register_entry'").map { it.second }
-        columns.toSet() shouldBe oldColumns + newColumns
-        columns.size shouldBe oldColumns.size + newColumns.size
+        columns.toSet() shouldBe oldColumns + newColumns + readinessColumns
+        columns.size shouldBe oldColumns.size + newColumns.size + readinessColumns.size
     }
 
     @Test

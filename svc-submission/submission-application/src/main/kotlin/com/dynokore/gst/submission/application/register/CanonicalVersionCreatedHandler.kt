@@ -46,6 +46,7 @@ class CanonicalVersionCreatedHandler(
                 kind = kind,
                 facts = facts,
                 sourceVersion = data.version,
+                transactionDate = data.transactionDate,
             )
         return when (store.upsert(tenant, entry)) {
             UpsertResult.INSERTED, UpsertResult.UPDATED -> HandleOutcome.APPLIED
