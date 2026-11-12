@@ -1,9 +1,9 @@
 package com.dynokore.gst.rules.bootstrap
 
-import com.dynokore.gst.rules.adapters.web.PacksController
 import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.catalogue.RoleAllowance
+import com.dynokore.gst.rules.adapters.web.PacksController
 import com.dynokore.gst.rules.application.ApproveRegulatoryPack
 import com.dynokore.gst.rules.domain.pack.ArmingGate
 import com.dynokore.gst.rules.domain.pack.PackStatus
