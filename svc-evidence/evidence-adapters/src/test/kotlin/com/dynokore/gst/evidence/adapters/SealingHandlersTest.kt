@@ -3,6 +3,8 @@ package com.dynokore.gst.evidence.adapters
 import com.dynokore.gst.evidence.adapters.events.LoggingSealSignals
 import com.dynokore.gst.evidence.adapters.events.PayloadReadyHandler
 import com.dynokore.gst.evidence.adapters.events.SubmissionDespatchedHandler
+import com.dynokore.gst.evidence.application.chain.SubmissionIndexRow
+import com.dynokore.gst.evidence.application.chain.SubmissionIndexStore
 import com.dynokore.gst.evidence.application.payload.HeldPayloadStore
 import com.dynokore.gst.evidence.application.payload.ParkedDespatch
 import com.dynokore.gst.evidence.application.payload.ParkedDespatchStore
@@ -128,7 +130,22 @@ class SealingHandlersTest {
     private val clock = Clock.fixed(Instant.parse("2026-11-01T00:00:00Z"), ZoneOffset.UTC)
     private val sealer = TransmittedPayloadSealer(held, parked, quarantine, sink, LoggingSealSignals(logger), clock)
     private val ready = PayloadReadyHandler(sealer)
-    private val despatched = SubmissionDespatchedHandler(sealer)
+    private val despatched =
+        SubmissionDespatchedHandler(
+            sealer,
+            object : SubmissionIndexStore {
+                override fun upsertDocument(
+                    tenant: TenantId,
+                    row: SubmissionIndexRow,
+                ) = false
+
+                override fun markDespatched(
+                    tenant: TenantId,
+                    docUuid: UUID,
+                    version: Int,
+                ) = false
+            },
+        )
 
     private val tenant = TenantId(UUID.randomUUID())
     private val doc = UUID.randomUUID()

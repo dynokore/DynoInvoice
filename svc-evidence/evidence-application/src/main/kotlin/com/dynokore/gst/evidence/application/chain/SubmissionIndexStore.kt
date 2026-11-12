@@ -34,4 +34,15 @@ interface SubmissionIndexStore {
         tenant: TenantId,
         row: SubmissionIndexRow,
     ): Boolean
+
+    /**
+     * Despatch-time write (INV-REQ-724, slice E4f): upserts on (tenant, docUuid, version) and sets only `state` to
+     * [SubmissionIndexState.SENT], only where `state` is still null. Creates a row holding only the key and the state
+     * when none exists. True when the state was set, false when a state was already set (never lowers a state).
+     */
+    fun markDespatched(
+        tenant: TenantId,
+        docUuid: UUID,
+        version: Int,
+    ): Boolean
 }

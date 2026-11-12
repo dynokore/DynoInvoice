@@ -1,5 +1,6 @@
 package com.dynokore.gst.evidence.adapters.events
 
+import com.dynokore.gst.evidence.application.chain.SubmissionIndexStore
 import com.dynokore.gst.evidence.application.payload.TransmittedPayloadSealer
 import com.dynokore.gst.evidence.domain.payload.Despatch
 import com.dynokore.platform.outboxandqueue.ContractViolation
@@ -12,12 +13,14 @@ import java.util.UUID
 
 /**
  * The consumer of `gst.submission.submission-despatched.v1` (INV-REQ-645 behavior 1): seals the despatched version,
- * or parks the despatch until its PayloadReady arrives, through [TransmittedPayloadSealer]. `despatchedAt` is the
+ * or parks the despatch until its PayloadReady arrives, through [TransmittedPayloadSealer], and sets state SENT on
+ * the `submission_index` row of the version in the same transaction (INV-REQ-724). `despatchedAt` is the
  * CloudEvents `time` of the envelope (gap ruling, owner 2026-10-14, option A), never the consumer clock, so a
  * redelivery or replay seals the same bytes. A malformed payload is refused with [ContractViolation].
  */
 class SubmissionDespatchedHandler(
     private val sealer: TransmittedPayloadSealer,
+    private val index: SubmissionIndexStore,
 ) : EventHandler {
     private val json = JsonMapper.builder().build()
 
@@ -26,6 +29,7 @@ class SubmissionDespatchedHandler(
         val despatch =
             Despatch(uuid(data), version(data), attempt(data), digest(data), event.time)
         sealer.onDespatched(event.tenant, event.id.value, despatch)
+        index.markDespatched(event.tenant, despatch.docUuid, despatch.version)
         return HandleOutcome.APPLIED
     }
 

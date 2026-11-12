@@ -8,6 +8,7 @@ import com.dynokore.gst.evidence.adapters.persistence.JooqHeldPayloadStore
 import com.dynokore.gst.evidence.adapters.persistence.JooqParkedDespatchStore
 import com.dynokore.gst.evidence.adapters.persistence.JooqPayloadQuarantineStore
 import com.dynokore.gst.evidence.adapters.persistence.JooqSealedPayloadSink
+import com.dynokore.gst.evidence.adapters.persistence.JooqSubmissionIndexStore
 import com.dynokore.gst.evidence.application.payload.SealSignals
 import com.dynokore.gst.evidence.application.payload.TransmittedPayloadSealer
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -55,8 +56,10 @@ class SealingConsumerConfiguration {
     fun payloadReadyHandler(sealer: TransmittedPayloadSealer): PayloadReadyHandler = PayloadReadyHandler(sealer)
 
     @Bean
-    fun submissionDespatchedHandler(sealer: TransmittedPayloadSealer): SubmissionDespatchedHandler =
-        SubmissionDespatchedHandler(sealer)
+    fun submissionDespatchedHandler(
+        sealer: TransmittedPayloadSealer,
+        dsl: DSLContext,
+    ): SubmissionDespatchedHandler = SubmissionDespatchedHandler(sealer, JooqSubmissionIndexStore(dsl))
 
     @Bean
     @Suppress("LongParameterList")

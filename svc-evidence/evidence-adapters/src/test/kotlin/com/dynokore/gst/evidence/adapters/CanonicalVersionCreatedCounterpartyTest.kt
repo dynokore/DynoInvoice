@@ -93,6 +93,12 @@ class CanonicalVersionCreatedCounterpartyTest {
                 tenant: TenantId,
                 row: SubmissionIndexRow,
             ): Boolean = written.add(row)
+
+            override fun markDespatched(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+            ): Boolean = false
         }
     private val handler =
         CanonicalVersionCreatedHandler(

@@ -81,6 +81,12 @@ class LocatorRecorderIndexTest {
                 events += "index"
                 return rows.add(row)
             }
+
+            override fun markDespatched(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+            ): Boolean = false
         }
     private val recorder =
         LocatorRecorder(

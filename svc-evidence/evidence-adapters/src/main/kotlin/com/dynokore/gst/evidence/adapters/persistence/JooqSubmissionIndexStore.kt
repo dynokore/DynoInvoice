@@ -2,10 +2,12 @@ package com.dynokore.gst.evidence.adapters.persistence
 
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.SubmissionIndex.Companion.SUBMISSION_INDEX
 import com.dynokore.gst.evidence.application.chain.SubmissionIndexRow
+import com.dynokore.gst.evidence.application.chain.SubmissionIndexState
 import com.dynokore.gst.evidence.application.chain.SubmissionIndexStore
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
+import java.util.UUID
 
 /** `submission_index` over the service's tenant-bound [DSLContext] (jOOQ only, STK §3). */
 class JooqSubmissionIndexStore(
@@ -35,6 +37,26 @@ class JooqSubmissionIndexStore(
             .set(t.DOCUMENT_DATE, DSL.coalesce(t.DOCUMENT_DATE, DSL.excluded(t.DOCUMENT_DATE)))
             .set(t.COUNTERPARTY_UEN, DSL.coalesce(t.COUNTERPARTY_UEN, DSL.excluded(t.COUNTERPARTY_UEN)))
             .where(t.DOCUMENT_DATE.isNull)
+            .execute() == 1
+    }
+
+    override fun markDespatched(
+        tenant: TenantId,
+        docUuid: UUID,
+        version: Int,
+    ): Boolean {
+        val t = SUBMISSION_INDEX
+        return dsl
+            .insertInto(t)
+            .set(t.TENANT_ID, tenant.value)
+            .set(t.DOC_UUID, docUuid)
+            .set(t.VERSION, version)
+            .set(t.STATE, SubmissionIndexState.SENT)
+            .set(t.RECORDED_AT, DSL.currentOffsetDateTime())
+            .onConflict(t.TENANT_ID, t.DOC_UUID, t.VERSION)
+            .doUpdate()
+            .set(t.STATE, SubmissionIndexState.SENT)
+            .where(t.STATE.isNull)
             .execute() == 1
     }
 }

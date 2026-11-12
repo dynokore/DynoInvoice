@@ -68,7 +68,7 @@ class SealingWiringTest {
             RebuildRequiredSink { },
             clock,
             dsl,
-            configuration.submissionDespatchedHandler(sealer),
+            configuration.submissionDespatchedHandler(sealer, dsl),
         )
 
     @Test
