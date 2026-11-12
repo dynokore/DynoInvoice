@@ -2,10 +2,12 @@ package com.dynokore.gst.evidence.adapters
 
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqLocatorStore
+import com.dynokore.gst.evidence.application.chain.RecordAppender
 import com.dynokore.gst.evidence.domain.chain.DocumentLocator
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.EntityRef
 import com.dynokore.platform.evidencestore.EvidenceIndex
+import com.dynokore.platform.evidencestore.EvidenceLedger
 import com.dynokore.platform.evidencestore.EvidenceType
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
 import com.dynokore.platform.evidencestore.PeriodRef
@@ -195,6 +197,59 @@ class DecisionTraceVersionDbTest {
                 .appendBound(tenant, RecordKind.EVIDENCE_PAYLOAD, doc, 3, "P1", content, at)
         }
         countOf("evidence_payload", t) shouldBe 1
+    }
+
+    private fun refusesVersion(
+        ledgers: Map<RecordKind, EvidenceLedger>,
+        kind: RecordKind,
+        type: EvidenceType,
+        tenant: TenantId,
+    ): Boolean =
+        runCatching {
+            checkNotNull(ledgers[kind]).append(
+                tenant,
+                EntityRef("ENT-1"),
+                PeriodRef("2026-Q1"),
+                type,
+                content,
+                EvidenceIndex(docUuid = doc, version = 3),
+            )
+        }.exceptionOrNull() is IllegalArgumentException
+
+    private fun types() =
+        mapOf(
+            RecordKind.DECISION_TRACE to EvidenceType.DECISION_TRACE,
+            RecordKind.EVIDENCE_PAYLOAD to EvidenceType.PAYLOAD,
+            RecordKind.ACKNOWLEDGEMENT to EvidenceType.ACKNOWLEDGEMENT,
+            RecordKind.AUDIT_LOG to EvidenceType.AUDIT_LOG,
+        )
+
+    @Test
+    fun `INV-AC-20715 ChainWiring builds the version column for the DECISION_TRACE ledger only`() {
+        tx(UUID.randomUUID()) { dsl, tenant ->
+            val ledgers = ChainWiring.ledgers(dsl)
+            val refused = types().mapValues { (kind, type) -> refusesVersion(ledgers, kind, type, tenant) }
+            refused shouldBe
+                mapOf(
+                    RecordKind.DECISION_TRACE to false,
+                    RecordKind.EVIDENCE_PAYLOAD to true,
+                    RecordKind.ACKNOWLEDGEMENT to true,
+                    RecordKind.AUDIT_LOG to true,
+                )
+        }
+    }
+
+    @Test
+    fun `INV-AC-20715 recordAppender ledgers have the column on DECISION_TRACE only`() {
+        tx(UUID.randomUUID()) { dsl, tenant ->
+            val field = RecordAppender::class.java.getDeclaredField("ledgers").apply { isAccessible = true }
+
+            @Suppress("UNCHECKED_CAST")
+            val inside = field.get(ChainWiring.recordAppender(dsl)) as Map<RecordKind, EvidenceLedger>
+            inside.keys shouldBe RecordKind.entries.toSet()
+            val refused = types().mapValues { (kind, type) -> refusesVersion(inside, kind, type, tenant) }
+            refused.filterValues { !it }.keys shouldBe setOf(RecordKind.DECISION_TRACE)
+        }
     }
 
     private fun ownerInsert(
