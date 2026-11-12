@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.3] - 2026-11-12
+### Changed
+- Version step only: dependency `outbox-and-queue` rose to 6.21.0 (drain tier and rank of the work queue; see the answered design question at the body of INV-REQ-554 (tooling `scribe-req137/ans/20486.txt`, option A), INV-AC-20527, INV-T-20528).
+
 ## [2.19.2] - 2026-11-12
 ### Changed
 - POM only: depends on `service-runtime` 13.13.1 (INV-T-20747, rule G-DVS); no code change.

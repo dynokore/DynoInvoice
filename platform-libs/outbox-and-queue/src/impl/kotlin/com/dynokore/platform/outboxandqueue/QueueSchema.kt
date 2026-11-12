@@ -90,6 +90,33 @@ object QueueSchema {
         ).joinToString("\n")
     }
 
+    /**
+     * Idempotent upgrade text (expand-contract, INV-REQ-554) for a service schema whose `work_queue` was made by
+     * [ddl] before the drain order existed: adds `drain_tier` (default 3) and `drain_rank` (null last) with
+     * `add column if not exists`, widens the sys select grant to both, and replaces [CLAIM_DUE] with the version that
+     * orders candidates by tier, rank, then enqueue position. Existing rows read tier 3 and rank null, so they keep
+     * their order. A service migration (TPL-12) embeds it; [ddl] needs no upgrade for a new schema.
+     */
+    fun drainOrderUpgradeDdl(
+        schema: String,
+        runtimeRole: String,
+        sysRole: String,
+    ): String {
+        val s = SqlIdentifier.require(schema, "schema")
+        val runtime = SqlIdentifier.require(runtimeRole, "runtime role")
+        val sys = SqlIdentifier.require(sysRole, "sys role")
+        require(runtime != sys) { "the runtime login and the sys role must differ, both were '$runtime'" }
+        return listOf(
+            """
+            alter table $s.$WORK_QUEUE add column if not exists drain_tier smallint not null default 3
+                check (drain_tier in (1, 2, 3));
+            alter table $s.$WORK_QUEUE add column if not exists drain_rank int;
+            grant select (drain_tier, drain_rank) on $s.$WORK_QUEUE to $sys;
+            """.trimIndent(),
+            claimDue(schema, runtimeRole, sysRole),
+        ).joinToString("\n")
+    }
+
     private fun workQueueTable(schema: String): String {
         val s = SqlIdentifier.require(schema, "schema")
         return """
@@ -104,7 +131,9 @@ object QueueSchema {
                 attempts int not null default 0,
                 enqueued_at timestamptz not null default now(),
                 claimed_at timestamptz,
-                source_dead_letter_id bigint
+                source_dead_letter_id bigint,
+                drain_tier smallint not null default 3 check (drain_tier in (1, 2, 3)),
+                drain_rank int
             );
             create index ${WORK_QUEUE}_partition on $s.$WORK_QUEUE (tenant_id, partition_key, lane, seq);
             create index ${WORK_QUEUE}_lane on $s.$WORK_QUEUE (lane, seq);
@@ -128,8 +157,8 @@ object QueueSchema {
             grant usage on schema $s to $sys;
             create policy ${WORK_QUEUE}_sys_select on $s.$WORK_QUEUE for select to $sys using (true);
             create policy ${WORK_QUEUE}_sys_claim on $s.$WORK_QUEUE for update to $sys using (true) with check (true);
-            grant select (seq, tenant_id, partition_key, lane, consumer, state, attempts, claimed_at)
-                on $s.$WORK_QUEUE to $sys;
+            grant select (seq, tenant_id, partition_key, lane, consumer, state, attempts, claimed_at, drain_tier,
+                drain_rank) on $s.$WORK_QUEUE to $sys;
             grant update (state, attempts, claimed_at) on $s.$WORK_QUEUE to $sys;
             """.trimIndent()
     }
@@ -152,7 +181,7 @@ object QueueSchema {
     private fun claimDueCandidates(schema: String): String {
         val s = SqlIdentifier.require(schema, "schema")
         return """
-            create function $s.$CLAIM_DUE(p_lane text, p_consumer text, p_claimed_at timestamptz,
+            create or replace function $s.$CLAIM_DUE(p_lane text, p_consumer text, p_claimed_at timestamptz,
                 p_reclaim_before timestamptz)
             returns table (claimed_seq bigint, claimed_tenant uuid, claimed_partition text)
             language plpgsql security definer set search_path = pg_catalog, $s, pg_temp as $$
@@ -170,7 +199,7 @@ object QueueSchema {
                           select 1 from $s.$WORK_QUEUE p
                           where p.tenant_id = q.tenant_id and p.partition_key = q.partition_key and p.lane = q.lane
                             and p.consumer is not distinct from q.consumer and p.seq < q.seq)
-                    order by q.seq limit $CANDIDATES
+                    order by q.drain_tier, q.drain_rank nulls last, q.seq limit $CANDIDATES
             """.trimIndent()
     }
 

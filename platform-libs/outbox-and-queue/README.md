@@ -42,6 +42,18 @@ gauge `gst.platform.outbox.unrelayed.events.open`.
 `WorkQueue`/`JdbcWorkQueue` (`QueueSchema.ddl`), `Lane`, `LaneLimits`, `LaneRateLimiter`, `DeadLetterTriage`/`JdbcDeadLetterTriage`,
 `ReplayDelivery`/`JdbcReplayDelivery`, `StalenessMonitor`/`JdbcStalenessMonitor`, `EventLogLag`.
 
+## Drain order of the work queue (INV-REQ-554)
+
+`work_queue` has `drain_tier` (smallint, default 3, check 1 to 3: 1 a document inside its safety-margin window, 2 the
+backlog of the drained period, 3 routine traffic) and `drain_rank` (int, null last). `claim_due` orders the candidate
+partition heads by tier, rank, then enqueue position; the test that no earlier unfinished item of the partition exists is
+unchanged, so a tier never lets a later item of a partition overtake an earlier one. `DrainOrderAssigner.assignDrainOrder(
+partitionKey, tier, rank, lane)` (implemented by `JdbcWorkQueue`, in the caller's tenant transaction) sets both on the
+`PENDING` items of one partition of the bound tenant, optionally moving them to `lane`, and returns the count changed;
+a tier outside 1 to 3 or a negative rank is an `IllegalArgumentException`. `QueueSchema.ddl` creates the columns for a new
+schema; `QueueSchema.drainOrderUpgradeDdl(schema, runtimeRole, sysRole)` is the idempotent text a service migration embeds
+for an existing one.
+
 Consumer retry with bounded, jittered backoff is in 1.4.0 (`ConsumerRetryPolicy`); the attempt state lives on
 `consumer_offset`. Defaults: 8 attempts; the wait after failed attempt n is 1 s
 doubled each time (1, 2, 4 ... s), capped at 5 min, then shortened by a random share of up to 50 %; after the 8th failure

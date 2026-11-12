@@ -43,7 +43,8 @@ class JdbcWorkQueue(
     private val clock: Clock,
     private val consumer: String? = null,
     private val claimTimeout: Duration = Duration.ofMinutes(DEFAULT_CLAIM_TIMEOUT_MINUTES),
-) : WorkQueue {
+) : WorkQueue,
+    DrainOrderAssigner {
     private val schemaName = SqlIdentifier.require(schema, "schema")
     private val queue: Table<*> = DSL.table(DSL.name(schemaName, QueueSchema.WORK_QUEUE))
 
@@ -63,6 +64,27 @@ class JdbcWorkQueue(
                 ).returning(SEQ)
                 .fetchOne()
         return checkNotNull(seq) { "enqueue returned no row" }.get(SEQ)
+    }
+
+    override fun assignDrainOrder(
+        partitionKey: String,
+        tier: Int,
+        rank: Int?,
+        lane: Lane?,
+    ): Int {
+        require(tier in MIN_TIER..MAX_TIER) { "drain tier must be $MIN_TIER to $MAX_TIER, was $tier" }
+        require(rank == null || rank >= 0) { "drain rank must not be negative, was $rank" }
+        val tenant = scope.tenants.current()
+        val update =
+            dsl
+                .update(queue)
+                .set(DRAIN_TIER, tier.toShort())
+                .set(DRAIN_RANK, rank)
+        return (if (lane == null) update else update.set(LANE, lane.name))
+            .where(TENANT_ID.eq(tenant.value))
+            .and(PARTITION_KEY.eq(partitionKey))
+            .and(STATE.eq("PENDING"))
+            .execute()
     }
 
     override fun claimNext(): ClaimedItem? {
@@ -129,6 +151,10 @@ class JdbcWorkQueue(
         val PAYLOAD_TEXT = PAYLOAD.cast(SQLDataType.CLOB)
         val STATE = DSL.field(DSL.name("state"), SQLDataType.CLOB)
         val ENQUEUED_AT = DSL.field(DSL.name("enqueued_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
+        val DRAIN_TIER = DSL.field(DSL.name("drain_tier"), SQLDataType.SMALLINT)
+        val DRAIN_RANK = DSL.field(DSL.name("drain_rank"), SQLDataType.INTEGER)
+        const val MIN_TIER = 1
+        const val MAX_TIER = 3
         val CLAIMED_AT = DSL.field(DSL.name("claimed_at"), SQLDataType.TIMESTAMPWITHTIMEZONE)
     }
 }

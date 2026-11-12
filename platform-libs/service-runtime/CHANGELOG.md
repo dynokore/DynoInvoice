@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.13.2] - 2026-11-12
+### Changed
+- Version step only: dependency `outbox-and-queue` rose to 6.21.0 (drain tier and rank of the work queue; see the answered design question at the body of INV-REQ-554 (tooling `scribe-req137/ans/20486.txt`, option A), INV-AC-20527, INV-T-20528).
+
 ## [13.13.1] - 2026-11-12
 ### Changed
 - Its compiled call of the `JdbcEvidenceLedger` constructor in `EvidenceStoreWiring.kt` follows the new constructor of `evidence-store` 2.5.0; no behaviour change (INV-T-20747).
