@@ -42,6 +42,7 @@ class BacklogConsumerBoundaryTest {
     private val actor = "svc:notification-svc"
     private val at = Instant.parse("2026-11-12T10:00:00Z")
     private val json = EnvelopeJson()
+    private var sequence = 0L
 
     private class Log : EventLogReader {
         private val records = mutableListOf<LogRecord>()
@@ -127,7 +128,7 @@ class BacklogConsumerBoundaryTest {
                 entity = EntityRef(entity),
                 docUuid = DocUuid(UUID.randomUUID()),
                 transactionDate = LocalDate.of(2026, 1, 15),
-                docSequence = 1,
+                docSequence = ++sequence,
                 instanceId = "submission-svc-0",
                 correlation = CorrelationId("corr-1"),
                 causation = CausationId("cause-1"),

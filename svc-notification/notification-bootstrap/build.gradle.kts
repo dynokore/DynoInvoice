@@ -9,6 +9,7 @@ dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":notification-adapters"))
+    implementation(project(":notification-application"))
     implementation(project(":notification-contract"))
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
