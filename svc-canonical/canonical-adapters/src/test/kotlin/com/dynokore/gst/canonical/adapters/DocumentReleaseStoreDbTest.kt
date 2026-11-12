@@ -41,7 +41,12 @@ class DocumentReleaseStoreDbTest {
         TenancyJooq
             .configure(
                 DefaultConfiguration().set(SQLDialect.POSTGRES),
-                TenancyTables.declared(mapOf(DSL.name("canonical", "document") to TableClass.TENANT)),
+                TenancyTables.declared(
+                    mapOf(
+                        DSL.name("canonical", "document") to TableClass.TENANT,
+                        DSL.name("canonical", "document_party_ref") to TableClass.TENANT,
+                    ),
+                ),
                 tenants,
                 transaction,
             ).dsl()
