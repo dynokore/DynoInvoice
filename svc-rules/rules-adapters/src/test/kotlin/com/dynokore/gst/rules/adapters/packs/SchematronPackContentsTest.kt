@@ -10,7 +10,11 @@ import java.util.Base64
 /** The SCHEMATRON contents decoder (INV-REQ-471). */
 class SchematronPackContentsTest {
     private fun sha(bytes: ByteArray) =
-        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        MessageDigest.getInstance("SHA-256").digest(bytes).let {
+            java.util.HexFormat
+                .of()
+                .formatHex(it)
+        }
 
     private fun file(
         name: String,

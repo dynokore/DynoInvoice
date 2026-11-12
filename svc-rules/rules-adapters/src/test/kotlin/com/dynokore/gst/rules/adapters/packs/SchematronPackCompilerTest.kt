@@ -50,7 +50,11 @@ class SchematronPackCompilerTest {
     ): String {
         val bytes = text.toByteArray()
         val digest =
-            sha256 ?: MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            sha256 ?: MessageDigest.getInstance("SHA-256").digest(bytes).let {
+                java.util.HexFormat
+                    .of()
+                    .formatHex(it)
+            }
         return """{"name":"$name","sha256":"$digest","content":"${Base64.getEncoder().encodeToString(bytes)}"}"""
     }
 

@@ -42,7 +42,16 @@ object SchematronPackContents {
                     } catch (e: IllegalArgumentException) {
                         throw PackContentsFailure(PACK_TYPE, "$.files[$index].content", "is not base64", e)
                     }
-                val actual = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+                val actual =
+                    MessageDigest
+                        .getInstance(
+                            "SHA-256",
+                        ).digest(bytes)
+                        .let {
+                            java.util.HexFormat
+                                .of()
+                                .formatHex(it)
+                        }
                 if (actual != sha256) node.fail("sha256", "differs from the SHA-256 of the content of '$name'")
                 SchematronFile(name, bytes)
             }
