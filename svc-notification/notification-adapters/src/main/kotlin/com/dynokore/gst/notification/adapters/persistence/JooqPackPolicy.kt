@@ -40,5 +40,5 @@ class JooqPackPolicy(
 
     // A JSON document is a YAML flow document; the safe constructor builds plain lists, maps, strings and numbers only.
     private fun elements(json: String?): List<Any?> =
-        json?.let { Yaml(SafeConstructor(LoaderOptions())).load<Any?>(it) as? List<*> } ?: emptyList()
+        json?.let { Yaml(SafeConstructor(LoaderOptions())).load<Any?>(it) as? List<*> }.orEmpty()
 }
