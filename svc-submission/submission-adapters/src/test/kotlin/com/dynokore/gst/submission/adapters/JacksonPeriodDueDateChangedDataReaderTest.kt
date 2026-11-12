@@ -39,7 +39,7 @@ class JacksonPeriodDueDateChangedDataReaderTest {
     @Test
     fun `INV-AC-20513 a non-date newFilingDueDate is a ContractViolation without the value`() {
         val e = shouldThrow<ContractViolation> { reader.read(json(date = "\"SECRET-X\"")) }
-        (e.message ?: "").contains("SECRET-X") shouldBe false
+        e.message.orEmpty().contains("SECRET-X") shouldBe false
     }
 
     @Test
