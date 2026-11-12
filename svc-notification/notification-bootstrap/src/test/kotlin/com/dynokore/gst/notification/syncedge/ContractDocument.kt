@@ -41,6 +41,42 @@ object ContractDocument {
         }
     }
 
+    /**
+     * Every string that a property named by `x-entity-ref` holds in a request-body example of the document: the
+     * entity set a test principal needs so that a valid request is not refused by the entity-reference check.
+     */
+    fun entityRefs(text: String): Set<String> {
+        val factory = YamlMapFactoryBean()
+        factory.setResources(ByteArrayResource(text.toByteArray()))
+        val document = checkNotNull(factory.getObject()) { "the contract document is empty" }
+        val found = linkedSetOf<String>()
+        (document["paths"] as Map<*, *>).values.filterIsInstance<Map<*, *>>().forEach { item ->
+            item.values.filterIsInstance<Map<*, *>>().forEach { operation ->
+                val declared = operation["x-entity-ref"]
+                val names =
+                    if (declared is List<*>) {
+                        declared.map { it.toString() }
+                    } else {
+                        listOfNotNull(
+                            declared?.toString(),
+                        )
+                    }
+                val content = (operation["requestBody"] as? Map<*, *>)?.get("content") as? Map<*, *>
+                val examples = ((content?.get("application/json") as? Map<*, *>)?.get("examples") as? Map<*, *>)?.values
+                examples.orEmpty().filterIsInstance<Map<*, *>>().forEach { example ->
+                    val value = example["value"] as? Map<*, *>
+                    names.forEach { name ->
+                        when (val held = value?.get(name)) {
+                            is String -> found += held
+                            is List<*> -> held.filterIsInstance<String>().forEach { found += it }
+                        }
+                    }
+                }
+            }
+        }
+        return found
+    }
+
     private fun operation(
         samples: SampleValues,
         method: String,
