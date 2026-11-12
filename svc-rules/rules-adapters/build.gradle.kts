@@ -38,6 +38,7 @@ dependencies {
     implementation(libs.platform.crypto.impl)
     implementation(libs.platform.rulepackKernel.api)
     implementation(libs.platform.rulepackKernel.impl)
+    implementation(libs.platform.integrationCanon.impl) // SchematronRunner; Saxon-HE comes with it
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.platform.tenancyJooq.api)

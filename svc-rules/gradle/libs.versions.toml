@@ -40,6 +40,7 @@ platform-crypto-api = { module = "com.dynokore.platform:crypto-api" }
 platform-crypto-impl = { module = "com.dynokore.platform:crypto" }
 platform-rulepackKernel-api = { module = "com.dynokore.platform:rulepack-kernel-api" }
 platform-rulepackKernel-impl = { module = "com.dynokore.platform:rulepack-kernel" }
+platform-integrationCanon-impl = { module = "com.dynokore.platform:integration-canon" }
 platform-auditLog-api = { module = "com.dynokore.platform:audit-log-api" }
 platform-auditLog-impl = { module = "com.dynokore.platform:audit-log" }
 platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-api" }
