@@ -1,6 +1,9 @@
 package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.web.PacksController
+import com.dynokore.gst.catalogue.DeploymentForm
+import com.dynokore.gst.catalogue.OperationRoles
+import com.dynokore.gst.catalogue.RoleAllowance
 import com.dynokore.gst.rules.application.ApproveRegulatoryPack
 import com.dynokore.gst.rules.domain.pack.ArmingGate
 import com.dynokore.gst.rules.domain.pack.PackStatus
@@ -38,7 +41,9 @@ import java.util.concurrent.atomic.AtomicLong
 
 private const val STAGER = "tenancy-probe"
 private const val APPROVER = "u-approver"
-private const val APPROVE_ROLE = "regulatory.approver"
+private const val APPROVE_KEY = "regulatory-pack.approve"
+private const val AUTHOR_KEY = "regulatory-pack.author"
+private const val CONFIRM_KEY = "filing.confirm"
 private const val PACK_TYPE = "SCHEMATRON"
 
 /**
@@ -86,7 +91,30 @@ class RegulatoryPackApprovalBoundaryTest(
         replica.tracker.onApplied(versions.get())
     }
 
-    private fun grantApprover(user: String) {
+    /** The single role the catalogue holds for [key] in [form]; fails naming the form when it is not exactly one. */
+    private fun singleRole(
+        form: DeploymentForm,
+        key: String,
+    ): String {
+        val roles = OperationRoles.rolesFor(form, key).keys
+        check(roles.size == 1) { "$form: $key must have exactly one role, found $roles" }
+        return roles.single()
+    }
+
+    /** The approval role, read from the generated map; SAAS and PRIVATE must agree (no role literal in this test). */
+    private fun approveRole(): String {
+        val saas = singleRole(DeploymentForm.SAAS, APPROVE_KEY)
+        val private = singleRole(DeploymentForm.PRIVATE, APPROVE_KEY)
+        check(saas == private) { "$APPROVE_KEY differs between forms: SAAS=$saas PRIVATE=$private" }
+        return saas
+    }
+
+    private fun grantApprover(user: String) = grantRole(user, approveRole())
+
+    private fun grantRole(
+        user: String,
+        role: String,
+    ) {
         replica.accept(
             AuthorityChanged(
                 tenant,
@@ -96,7 +124,7 @@ class RegulatoryPackApprovalBoundaryTest(
                     "g-$user",
                     RoleGrantState.ACTIVE,
                     RoleGrant(
-                        APPROVE_ROLE,
+                        role,
                         GrantScope.TENANT,
                         tenant.toString(),
                         clock.instant().minus(Duration.ofHours(1)),
@@ -188,7 +216,7 @@ class RegulatoryPackApprovalBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-7966 activation before any dry run and before approval is refused, then the tax approver approves`() {
+    fun `INV-AC-7966 activation before any dry run and before approval is refused, then the approver approves`() {
         val version = seed()
         val controller = context.getBean(PacksController::class.java)
         val usecase = context.getBean(ApproveRegulatoryPack::class.java)
@@ -257,6 +285,37 @@ class RegulatoryPackApprovalBoundaryTest(
         val answer = approve("u-nobody", version)
         refused(answer, 403, "SRT-004")
         answer.body() shouldNotContain "u-nobody"
+        status(version) shouldBe "STAGED"
+    }
+
+    @Test
+    fun `INV-AC-7966 the approval role is one role in the catalogue for SAAS and for PRIVATE`() {
+        approveRole() shouldBe singleRole(DeploymentForm.SAAS, APPROVE_KEY)
+        singleRole(DeploymentForm.PRIVATE, APPROVE_KEY) shouldBe singleRole(DeploymentForm.SAAS, APPROVE_KEY)
+    }
+
+    @Test
+    fun `INV-AC-7966 a caller holding a filing confirm role that is not the approval role is refused 403 SRT-004`() {
+        val version = seed()
+        addDryRun(version)
+        val approvers = OperationRoles.rolesFor(DeploymentForm.SAAS, APPROVE_KEY).keys
+        val other =
+            OperationRoles
+                .rolesFor(DeploymentForm.SAAS, CONFIRM_KEY)
+                .filter { it.value == RoleAllowance.PERMITTED && it.key !in approvers }
+                .keys
+                .first()
+        grantRole("u-confirmer", other)
+        refused(approve("u-confirmer", version), 403, "SRT-004")
+        status(version) shouldBe "STAGED"
+    }
+
+    @Test
+    fun `INV-AC-7966 a caller holding the regulatory pack author role is refused 403 SRT-004`() {
+        val version = seed()
+        addDryRun(version)
+        grantRole("u-author", singleRole(DeploymentForm.SAAS, AUTHOR_KEY))
+        refused(approve("u-author", version), 403, "SRT-004")
         status(version) shouldBe "STAGED"
     }
 
