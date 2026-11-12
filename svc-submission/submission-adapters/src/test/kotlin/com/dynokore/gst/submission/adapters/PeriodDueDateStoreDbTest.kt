@@ -47,9 +47,9 @@ class PeriodDueDateStoreDbTest {
     private fun upsert(
         tenant: UUID,
         date: LocalDate,
-        sequence: Long,
+        dueDateVersion: Long,
         entity: String = "E",
-    ) = asTenant(tenant) { store.upsert(TenantId(tenant), entity, "P", date, sequence) }
+    ) = asTenant(tenant) { store.upsert(TenantId(tenant), entity, "P", date, dueDateVersion) }
 
     private fun find(
         tenant: UUID,
@@ -65,7 +65,7 @@ class PeriodDueDateStoreDbTest {
     }
 
     @Test
-    fun `INV-AC-20513 a higher sequence updates the date`() {
+    fun `INV-AC-20513 a higher version updates the date`() {
         val a = UUID.randomUUID()
         upsert(a, LocalDate.of(2026, 7, 31), 1)
         upsert(a, LocalDate.of(2026, 8, 31), 2) shouldBe UpsertResult.UPDATED
@@ -73,7 +73,7 @@ class PeriodDueDateStoreDbTest {
     }
 
     @Test
-    fun `INV-AC-20513 an equal or lower sequence changes nothing`() {
+    fun `INV-AC-20513 an equal or lower version changes nothing`() {
         val a = UUID.randomUUID()
         upsert(a, LocalDate.of(2026, 7, 31), 5)
         upsert(a, LocalDate.of(2026, 9, 30), 5) shouldBe UpsertResult.UNCHANGED

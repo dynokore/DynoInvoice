@@ -1,13 +1,13 @@
 SET lock_timeout = '5s';
 
 -- INV-T-20514, INV-REQ-570: the filing due date of a period as the PeriodDueDateChanged feed last set it. A row
--- changes only for a higher event sequence, so a re-delivery or an older event changes nothing.
+-- changes only for a higher due date version, so a re-delivery or an older event changes nothing.
 create table submission.period_due_date (
     tenant_id uuid not null,
     entity_ref text not null,
     period_ref text not null,
     filing_due_date date not null,
-    event_sequence bigint not null,
+    due_date_version bigint not null check (due_date_version >= 1),
     primary key (tenant_id, entity_ref, period_ref)
 );
 

@@ -28,7 +28,7 @@ class PeriodDueDateDeadlineSourceTest {
             entityRef: String,
             periodRef: String,
             dueDate: LocalDate,
-            sequence: Long,
+            dueDateVersion: Long,
         ): UpsertResult {
             rows[Triple(tenant, entityRef, periodRef)] = dueDate
             return UpsertResult.INSERTED

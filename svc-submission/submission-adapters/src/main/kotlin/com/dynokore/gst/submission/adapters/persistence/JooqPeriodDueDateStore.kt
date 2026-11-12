@@ -10,9 +10,9 @@ import java.time.LocalDate
 
 /**
  * [PeriodDueDates] over `submission.period_due_date` in one transaction of the bound tenant: `insert ... on conflict
- * do nothing` (INSERTED), else an `update` guarded by a lower stored event sequence (UPDATED, or UNCHANGED). No select
- * before the write, so concurrent writers cannot race the result; forced row level security applies. Values are
- * never logged.
+ * do nothing` (INSERTED), else an `update` guarded by a lower stored due date version (UPDATED, or UNCHANGED). No
+ * select before the write, so concurrent writers cannot race the result; forced row level security applies. Values
+ * are never logged.
  */
 class JooqPeriodDueDateStore(
     private val dsl: DSLContext,
@@ -25,7 +25,7 @@ class JooqPeriodDueDateStore(
         entityRef: String,
         periodRef: String,
         dueDate: LocalDate,
-        sequence: Long,
+        dueDateVersion: Long,
     ): UpsertResult =
         runner.inTransaction {
             val inserted =
@@ -35,7 +35,7 @@ class JooqPeriodDueDateStore(
                     .set(p.ENTITY_REF, entityRef)
                     .set(p.PERIOD_REF, periodRef)
                     .set(p.FILING_DUE_DATE, dueDate)
-                    .set(p.EVENT_SEQUENCE, sequence)
+                    .set(p.DUE_DATE_VERSION, dueDateVersion)
                     .onConflict(p.TENANT_ID, p.ENTITY_REF, p.PERIOD_REF)
                     .doNothing()
                     .execute()
@@ -46,11 +46,11 @@ class JooqPeriodDueDateStore(
                     dsl
                         .update(p)
                         .set(p.FILING_DUE_DATE, dueDate)
-                        .set(p.EVENT_SEQUENCE, sequence)
+                        .set(p.DUE_DATE_VERSION, dueDateVersion)
                         .where(p.TENANT_ID.eq(tenant.value))
                         .and(p.ENTITY_REF.eq(entityRef))
                         .and(p.PERIOD_REF.eq(periodRef))
-                        .and(p.EVENT_SEQUENCE.lt(sequence))
+                        .and(p.DUE_DATE_VERSION.lt(dueDateVersion))
                         .execute()
                 if (updated == 1) UpsertResult.UPDATED else UpsertResult.UNCHANGED
             }
