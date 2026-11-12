@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.nio.file.Path
+import java.time.Duration
 
 /** INV-T-21565: the composition root holds one replica, one role map, one permission and one caller source. */
 class PermissionWiringTest {
@@ -69,9 +70,19 @@ class PermissionWiringTest {
         }
     }
 
+    private fun budgetOf(permission: EntityPermission): Duration =
+        ReplicaEntityPermission::class.java
+            .getDeclaredField("budget")
+            .apply { isAccessible = true }
+            .get(permission) as Duration
+
     @Test
-    fun `INV-AC-21564 the decide budget defaults to one second and is read from the property`() {
-        PermissionConfiguration.DEFAULT_BUDGET shouldBe "PT1S"
-        java.time.Duration.parse(PermissionConfiguration.DEFAULT_BUDGET) shouldBe java.time.Duration.ofSeconds(1)
+    fun `INV-AC-21564 the decide budget of the context bean defaults to one second and is read from the property`(
+        @TempDir dir: Path,
+    ) {
+        runner(dir).run { ctx -> budgetOf(ctx.getBean(EntityPermission::class.java)) shouldBe Duration.ofSeconds(1) }
+        runner(dir)
+            .withPropertyValues("${PermissionConfiguration.BUDGET_PROPERTY}=PT3S")
+            .run { ctx -> budgetOf(ctx.getBean(EntityPermission::class.java)) shouldBe Duration.ofSeconds(3) }
     }
 }
