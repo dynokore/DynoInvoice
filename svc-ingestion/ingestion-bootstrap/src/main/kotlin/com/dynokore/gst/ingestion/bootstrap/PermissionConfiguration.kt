@@ -8,10 +8,10 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 import java.time.Clock
 import java.time.Duration
 
@@ -24,14 +24,26 @@ import java.time.Duration
 class PermissionConfiguration {
     @Bean
     @ConditionalOnMissingBean(CallerSource::class)
-    fun callerSource(principals: EndUserPrincipalResolver): CallerSource = RequestCallerSource(principals)
+    fun callerSource(principals: ObjectProvider<EndUserPrincipalResolver>): CallerSource =
+        // the platform binds a resolver only with an identity provider; with none every request is 401 (fail closed)
+        RequestCallerSource(principals.getIfAvailable { EndUserPrincipalResolver { null } })
 
     @Bean
     @ConditionalOnMissingBean(EntityPermission::class)
     fun entityPermission(
         replica: ObjectProvider<AuthorityReplica>,
         tenants: TenantContext,
-        @Value("\${ingestion.permission.decision-budget:PT2S}") budget: String,
+        environment: Environment,
     ): EntityPermission =
-        ReplicaEntityPermission(replica.getIfAvailable(), tenants, Clock.systemUTC(), Duration.parse(budget))
+        ReplicaEntityPermission(
+            replica.getIfAvailable(),
+            tenants,
+            Clock.systemUTC(),
+            Duration.parse(environment.getProperty(BUDGET_PROPERTY, DEFAULT_BUDGET)),
+        )
+
+    private companion object {
+        const val BUDGET_PROPERTY = "ingestion.permission.decision-budget"
+        const val DEFAULT_BUDGET = "PT2S"
+    }
 }
