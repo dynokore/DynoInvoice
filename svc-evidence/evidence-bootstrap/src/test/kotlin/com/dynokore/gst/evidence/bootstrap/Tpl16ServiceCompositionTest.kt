@@ -35,7 +35,7 @@ class Tpl16ServiceCompositionTest {
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:evidence-svc"
             val entries =
                 EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries +
-                    EvidenceEvents.platformEntries
+                    EvidenceEvents.platformEntries + EvidenceEvents.acknowledgementEntries
             catalogueTypes(context) shouldBe entries.map { it.eventType }.toSet()
         }
     }

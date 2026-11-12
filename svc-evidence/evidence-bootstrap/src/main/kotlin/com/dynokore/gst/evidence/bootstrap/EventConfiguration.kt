@@ -18,7 +18,7 @@ class EventConfiguration {
     fun eventCatalogue(): EventCatalogue =
         EventCatalogue(
             EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries +
-                EvidenceEvents.platformEntries,
+                EvidenceEvents.platformEntries + EvidenceEvents.acknowledgementEntries,
         )
 }
 
@@ -93,6 +93,22 @@ object EvidenceEvents {
                 "com.dynokore.gst.reconciliation.GstReturnRecorded.v1",
                 ReturnConsumerConfiguration.GST_RETURN_RECORDED_TOPIC,
                 setOf("reconciliation-svc"),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+        )
+
+    /**
+     * `SubmissionAcknowledged` (INV-REQ-691, platform-contracts `event-log/topics.yaml`): an ordinary topic of
+     * submission-svc that evidence-svc subscribes to, so the consumer keeps the `docsequence` check.
+     */
+    val acknowledgementEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                AcknowledgementConsumerConfiguration.EVENT_TYPE,
+                AcknowledgementConsumerConfiguration.TOPIC,
+                setOf(AcknowledgementConsumerConfiguration.PRODUCER),
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,
