@@ -11,3 +11,4 @@ channel	gst.canonical.document-held.v1	UNASSIGNED
 channel	gst.canonical.document-released.v1	UNASSIGNED
 channel	gst.canonical.period-reassigned.v1	UNASSIGNED
 channel	gst.canonical.example-happened.v1	UNASSIGNED
+operation	releaseHeldDocument	UNASSIGNED

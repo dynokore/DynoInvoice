@@ -50,7 +50,9 @@ class HoldDocumentOutboxDbTest {
     private fun run(
         dir: Path,
         block: (Boundary) -> Unit,
-    ) = CanonicalContext.online(dir).run { block(Boundary(it)) }
+    ) {
+        CanonicalContext.online(dir).run { block(Boundary(it)) }
+    }
 
     private fun Boundary.holdAs(
         tenant: UUID,
@@ -58,14 +60,26 @@ class HoldDocumentOutboxDbTest {
         use: HoldDocument = hold,
     ) = scope.bind(TenantId(tenant), actor) { use.hold(doc, held) }
 
+    /** Reads as the `canonical_runtime` login bound to the tenant (row security applies), not through the guarded jOOQ context. */
+    @Suppress("UnusedReceiverParameter")
     private fun Boundary.read(
         tenant: UUID,
         sql: String,
         vararg args: Any,
     ): List<List<String?>> =
-        scope.bind(TenantId(tenant), actor) {
-            runner.inTransaction {
-                dsl.fetch(sql, *args).map { record -> (0 until record.size()).map { record.get(it)?.toString() } }
+        CanonicalDb.connect(CanonicalDb.RUNTIME, CanonicalDb.RUNTIME_PASSWORD).use { connection ->
+            connection.autoCommit = false
+            SignedBindings.bind(connection, tenant)
+            try {
+                connection.prepareStatement(sql).use { statement ->
+                    args.forEachIndexed { index, arg -> statement.setObject(index + 1, arg) }
+                    statement.executeQuery().use { rows ->
+                        val width = rows.metaData.columnCount
+                        buildList { while (rows.next()) add((1..width).map { rows.getString(it) }) }
+                    }
+                }
+            } finally {
+                connection.rollback()
             }
         }
 
@@ -77,7 +91,7 @@ class HoldDocumentOutboxDbTest {
         "select type, topic, subject, docsequence::text, data->>'docsequence', data->>'docUuid', " +
             "data->'holdReasons', data->>'entityRef', data->>'direction', data->>'documentDate', " +
             "data->>'prescribedPeriodRef', data->>'postingTimestamp', data->>'invoiceIssuedOrReceived', " +
-            "data ? 'postingTimestamp', data ? 'invoiceIssuedOrReceived' " +
+            "jsonb_exists(data, 'postingTimestamp')::text, jsonb_exists(data, 'invoiceIssuedOrReceived')::text " +
             "from canonical.outbox where doc_uuid = ?::uuid order by seq",
         doc.toString(),
     )

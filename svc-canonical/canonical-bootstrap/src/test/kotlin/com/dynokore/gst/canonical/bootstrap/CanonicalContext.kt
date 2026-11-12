@@ -42,6 +42,8 @@ object CanonicalContext {
             "service-runtime.idempotency.schema=canonical",
             "service-runtime.datasource.credential=db/canonical_runtime",
             "gst.bindings.secret-store.mount-root=$mountRoot",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
         )
 
     private fun base(mountRoot: Path): ApplicationContextRunner =

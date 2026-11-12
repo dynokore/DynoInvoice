@@ -27,4 +27,6 @@ dependencies {
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
     testImplementation(testFixtures(project(":canonical-adapters")))
+    testImplementation(project(":canonical-application"))
+    testImplementation(project(":canonical-domain"))
 }
