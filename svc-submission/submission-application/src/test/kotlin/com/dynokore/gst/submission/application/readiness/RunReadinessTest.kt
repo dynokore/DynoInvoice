@@ -173,4 +173,32 @@ class RunReadinessTest {
         entriesPort.entries("E", "P") shouldBe null
         inputsPort.inputs("E", "P") shouldBe ReadinessInputs(null, CompletenessState.Passed)
     }
+
+    @Test
+    fun `INV-AC-20556 a run with two HELD residuals records exactly their uuids under heldDocUuids`() {
+        val recorder = FakeRecorder()
+        val entries =
+            listOf(
+                entry("D2", LifecycleState.HELD),
+                entry("D1", LifecycleState.HELD),
+                entry("D3", LifecycleState.QUEUED),
+                entry("D4", LifecycleState.ACKNOWLEDGED),
+            )
+        useCase(recorder, entries).run("E", "P", "U")
+        recorder.appended.single().outcomeValues shouldBe """{"heldDocUuids":["D1","D2"]}"""
+    }
+
+    @Test
+    fun `INV-AC-20556 a run with a QUEUED residual and no HELD one records null`() {
+        val recorder = FakeRecorder()
+        useCase(recorder, listOf(entry("D3", LifecycleState.QUEUED))).run("E", "P", "U")
+        recorder.appended.single().outcomeValues shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-20556 a uuid with a quote or backslash is escaped into valid json`() {
+        val recorder = FakeRecorder()
+        useCase(recorder, listOf(entry("a\"b\\c", LifecycleState.HELD))).run("E", "P", "U")
+        recorder.appended.single().outcomeValues shouldBe """{"heldDocUuids":["a\"b\\c"]}"""
+    }
 }

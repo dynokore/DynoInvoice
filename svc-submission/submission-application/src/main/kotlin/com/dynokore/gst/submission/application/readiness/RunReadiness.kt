@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.application.readiness
 
 import com.dynokore.gst.submission.domain.gate.CheckVerdict
+import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.readiness.CompletenessGate
 import com.dynokore.gst.submission.domain.readiness.CompletenessState
 import com.dynokore.gst.submission.domain.readiness.PeriodVerdict
@@ -9,6 +10,7 @@ import com.dynokore.gst.submission.domain.readiness.ReadinessEntry
 import com.dynokore.gst.submission.domain.readiness.ReadinessResult
 import java.time.Clock
 import java.time.LocalDate
+import java.util.Locale
 
 /** The register entries of a period; null means the register data for the period cannot be read. */
 fun interface ReadinessEntrySource {
@@ -82,8 +84,37 @@ class RunReadiness(
             ReadinessRunResult.Determined(
                 verdict,
                 counted,
-                recorder.append(entityRef, periodRef, checkVerdict, clock.instant(), approver, null),
+                recorder.append(entityRef, periodRef, checkVerdict, clock.instant(), approver, heldOutcome(counted)),
             )
         }
+    }
+
+    /** `{"heldDocUuids": [...]}` of the HELD residuals in residual order, or null when none is HELD (INV-REQ-72). */
+    private fun heldOutcome(counted: ReadinessResult): String? {
+        val residual =
+            when (counted) {
+                is ReadinessResult.Ready -> counted.residual
+                is ReadinessResult.Blocked -> counted.residual
+                else -> emptyList()
+            }
+        val held = residual.filter { it.state == LifecycleState.HELD }.map { it.docUuid }
+        return if (held.isEmpty()) null else """{"$HELD_KEY":[${held.joinToString(",") { quoted(it) }}]}"""
+    }
+
+    private fun quoted(text: String): String {
+        val out = StringBuilder("\"")
+        for (c in text) {
+            when {
+                c == '"' -> out.append("\\\"")
+                c == '\\' -> out.append("\\\\")
+                c < ' ' -> out.append("\\u%04x".format(Locale.ROOT, c.code))
+                else -> out.append(c)
+            }
+        }
+        return out.append('"').toString()
+    }
+
+    private companion object {
+        const val HELD_KEY = "heldDocUuids"
     }
 }
