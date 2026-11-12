@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.22.0] - 2026-11-12
+### Added
+- `OutboxWriter.appendSequenced(type, context, dataJson)`: appends one sequenced event whose payload is built from the `docsequence` reserved in the caller's transaction, so the column, the envelope and the payload member carry the same number; the default refuses with `UnsupportedOperationException`; `JdbcOutboxWriter` implements it with the emission checks of `append` first (INV-REQ-1221, INV-AC-20996, INV-T-20997).
+
 ## [6.21.0] - 2026-11-12
 ### Added
 - `work_queue` gains `drain_tier` (smallint, default 3, 1 to 3) and `drain_rank` (int, null last); `claim_due` orders candidates by `q.drain_tier, q.drain_rank nulls last, q.seq` with the partition-head test unchanged; new interface `DrainOrderAssigner` (`assignDrainOrder`), implemented by `JdbcWorkQueue`; `QueueSchema.drainOrderUpgradeDdl` for a service migration (see the answered design question at the body of INV-REQ-554 (tooling `scribe-req137/ans/20486.txt`, option A), INV-AC-20527, INV-T-20528).

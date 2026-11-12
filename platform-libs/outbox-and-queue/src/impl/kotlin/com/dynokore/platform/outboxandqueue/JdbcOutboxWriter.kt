@@ -72,6 +72,27 @@ class JdbcOutboxWriter(
         }
     }
 
+    override fun appendSequenced(
+        type: String,
+        context: EventContext,
+        dataJson: (docSequence: Long) -> String,
+    ): Envelope {
+        require(context.docUuid != null || context.aggregateVersion != null) {
+            "a sequenced append needs a Doc UUID or an aggregate version"
+        }
+        val entry = permitted(listOf(OutboundEvent(type, "{}")), context).single()
+        val sequence = reserveSequence(context, 1)
+        val envelope =
+            envelope(
+                OutboundEvent(type, dataJson(sequence)),
+                context,
+                clock.instant().truncatedTo(ChronoUnit.MICROS),
+                sequence,
+            )
+        insert(entry.topic, envelope)
+        return envelope
+    }
+
     /**
      * The rows [append] would write for unsequenced events, built and not written (coordinator ruling
      * INV-Q-4254 A): the same emission checks, the same envelope, the catalogued topic. It never touches the

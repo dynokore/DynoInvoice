@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.5] - 2026-11-12
+### Changed
+- Version step only: dependency `service-runtime` rose to 13.14.1 (which takes `outbox-and-queue` 6.22.0; INV-T-20997); no code change.
+
 ## [2.19.4] - 2026-11-12
 ### Changed
 - POM only: depends on `service-runtime` 13.14.0 (INV-T-20923, rule G-DVS); no code change.

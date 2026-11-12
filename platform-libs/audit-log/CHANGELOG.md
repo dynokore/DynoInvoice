@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.32] - 2026-11-12
+### Changed
+- Version step only: dependency `outbox-and-queue` rose to 6.22.0 (`OutboxWriter.appendSequenced`; INV-T-20997); no code change.
+
 ## [4.0.31] - 2026-11-12
 ### Changed
 - Version step only: dependency `outbox-and-queue` rose to 6.21.0 (drain tier and rank of the work queue; see the answered design question at the body of INV-REQ-554 (tooling `scribe-req137/ans/20486.txt`, option A), INV-AC-20527, INV-T-20528).

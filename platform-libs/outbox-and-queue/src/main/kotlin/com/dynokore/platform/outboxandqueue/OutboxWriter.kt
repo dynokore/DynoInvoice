@@ -40,6 +40,25 @@ interface OutboxWriter {
         events: List<OutboundEvent>,
         context: EventContext,
     ): List<StagedOutboxRow> = throw UnsupportedOperationException("${javaClass.name} does not stage outbox rows")
+
+    /**
+     * Writes one sequenced event whose payload is built from the `docsequence` reserved for it in the caller's open
+     * transaction (INV-REQ-1221, INV-AC-20996): [dataJson] is called once with the reserved value, and the row, the
+     * envelope and the payload all carry that same number. [context] must be sequenced (a Doc UUID or an aggregate
+     * version). Every refusal happens before the counter is touched; an exception from [dataJson] propagates
+     * unchanged and the caller's rollback undoes the reservation. [dataJson] must not use the connection.
+     *
+     * The default refuses, so a writer that does not append sequenced events can never be taken for one that does.
+     *
+     * @throws EmissionNotPermitted when [type] is not catalogued for the emitting service (INV-AC-1869).
+     * @throws IllegalArgumentException when [context] is unsequenced.
+     * @throws UnsupportedOperationException when this writer does not append sequenced events.
+     */
+    fun appendSequenced(
+        type: String,
+        context: EventContext,
+        dataJson: (docSequence: Long) -> String,
+    ): Envelope = throw UnsupportedOperationException("${javaClass.name} does not append sequenced events")
 }
 
 /**
