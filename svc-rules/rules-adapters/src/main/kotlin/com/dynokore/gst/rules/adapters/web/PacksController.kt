@@ -15,6 +15,7 @@ import com.dynokore.gst.rules.adapters.web.MappingPackMapping.statusOf
 import com.dynokore.gst.rules.application.AcceptEntryCommand
 import com.dynokore.gst.rules.application.ActivateCommand
 import com.dynokore.gst.rules.application.ActivePacksOutcome
+import com.dynokore.gst.rules.application.ApproveRegulatoryPack
 import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DraftCommand
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
@@ -87,6 +88,7 @@ open class PacksController(
     private val catalogues: CodeCataloguePort,
     private val clock: Clock,
     private val dryRuns: DryRunCalls,
+    private val approvals: ApproveRegulatoryPack,
 ) : MappingPacksApi,
     RegulatoryPacksApi {
     /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
@@ -285,12 +287,20 @@ open class PacksController(
             ResponseEntity.ok(packAnswer(packId, withApprovals = true))
         }
 
-    /** Implemented by INV-T-4975; the contract added the operation, so the generated interface needs this override. */
+    /**
+     * The approval of a STAGED regulatory pack (INV-T-4975; INV-REQ-489). The approver is the authenticated user ID;
+     * the permission decision, the no-self-approval rule and the dry-run check are the use case's, and a refusal
+     * changes nothing.
+     */
     override fun approveRegulatoryPack(
         packType: String,
         version: String,
         idempotencyKey: UUID,
-    ): ResponseEntity<RegulatoryPack> = ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    ): ResponseEntity<RegulatoryPack> {
+        // No transaction here: the store binds the platform tenant and opens its own, one for each call.
+        RegulatoryPackApprovalMapping.refusalOf(approvals.execute(packType, version, actor()))?.let { throw it }
+        return ResponseEntity.ok(RegulatoryPackApprovalMapping.approved(packType, version))
+    }
 
     override fun activateMappingPack(
         packId: String,

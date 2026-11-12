@@ -22,6 +22,7 @@ import com.dynokore.gst.rules.adapters.persistence.JooqMappingImportRecordStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
+import com.dynokore.gst.rules.adapters.persistence.PersistedRegulatoryPackStore
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_REGISTRY
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
@@ -34,7 +35,10 @@ import com.dynokore.gst.rules.adapters.web.DryRunCalls
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImporter
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImports
 import com.dynokore.gst.rules.adapters.web.RegistryNamedPackVersions
+import com.dynokore.gst.rules.adapters.web.unavailable
 import com.dynokore.gst.rules.application.ActivePackReader
+import com.dynokore.gst.rules.application.ApprovalPermissionPort
+import com.dynokore.gst.rules.application.ApproveRegulatoryPack
 import com.dynokore.gst.rules.application.ClassifyDocument
 import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DocumentCoder
@@ -58,6 +62,7 @@ import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.PeriodCalendarUnavailableException
 import com.dynokore.gst.rules.application.RateSourcePort
+import com.dynokore.gst.rules.application.RegulatoryPackStore
 import com.dynokore.gst.rules.application.RunDryRun
 import com.dynokore.gst.rules.application.SampleRequestPort
 import com.dynokore.gst.rules.domain.resolution.PackResolver
@@ -88,7 +93,11 @@ import com.dynokore.platform.serviceruntime.binding.GstProperties
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.DecisionSource
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.tenancyjooq.TenancyJooq
@@ -436,7 +445,44 @@ class RulesConfiguration {
         key: ListCursorKey,
     ): ListActiveRegulatoryPacks = ListActiveRegulatoryPacks(reader, key)
 
+    // ---- the approval of a STAGED regulatory pack (INV-T-4975; INV-REQ-489) ----
+
+    @Bean
+    fun regulatoryPackStore(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+    ): RegulatoryPackStore = PersistedRegulatoryPackStore(dsl, platform, transactions)
+
+    /**
+     * The scoped approval permission `regulatory-pack.approve`, decided by `AuthorityReplica.decideTenant` for the
+     * caller's tenant (INV-Q-10027): never a role name. A decision that is not answered from the local replica, and a
+     * context with no replica, is the 503 SRT-013 of the contract: nothing is read or changed.
+     */
+    @Bean
+    fun approvalPermissionPort(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+    ): ApprovalPermissionPort =
+        ApprovalPermissionPort { approver ->
+            val decision =
+                replica.ifAvailable?.decideTenant(
+                    tenants.current(),
+                    Principal(approver, PrincipalKind.HUMAN),
+                    REGULATORY_PACK_APPROVE,
+                ) ?: throw unavailable("the permission decision is not available")
+            if (decision.source != DecisionSource.LOCAL) throw unavailable("the permission decision is not available")
+            decision.allowed
+        }
+
+    @Bean
+    fun approveRegulatoryPack(
+        store: RegulatoryPackStore,
+        permission: ApprovalPermissionPort,
+    ): ApproveRegulatoryPack = ApproveRegulatoryPack(store, permission)
+
     private companion object {
+        const val REGULATORY_PACK_APPROVE = "regulatory-pack.approve"
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
         const val ACCESS_URL_PROPERTY = "rules.access-svc-url"
         const val SCHEMA = "rules"
