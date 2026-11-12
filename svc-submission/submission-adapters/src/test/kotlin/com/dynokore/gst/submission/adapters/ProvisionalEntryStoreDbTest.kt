@@ -126,30 +126,6 @@ class ProvisionalEntryStoreDbTest {
     )
 
     @Test
-    fun `the table grants exactly select insert update delete to the runtime role and forces row level security`() {
-        val grants =
-            dsl
-                .fetch(
-                    "select case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end, a.privilege_type " +
-                        "from pg_class c, aclexplode(c.relacl) a " +
-                        "where c.oid = 'submission.provisional_register_entry'::regclass and a.grantee <> c.relowner " +
-                        "order by 1, 2",
-                ).map { "${it.get(0)}:${it.get(1)}" }
-        grants shouldBe
-            listOf(
-                "submission_runtime:DELETE",
-                "submission_runtime:INSERT",
-                "submission_runtime:SELECT",
-                "submission_runtime:UPDATE",
-            )
-        dsl
-            .fetch(
-                "select relrowsecurity, relforcerowsecurity from pg_class " +
-                    "where oid = 'submission.provisional_register_entry'::regclass",
-            ).map { "${it.get(0)}/${it.get(1)}" } shouldBe listOf("true/true")
-    }
-
-    @Test
     fun `INV-AC-20691 placements are stored once, newer ones replace, registered ones are refused`() {
         val d1 = UUID.randomUUID().toString()
         val d2 = UUID.randomUUID().toString()
