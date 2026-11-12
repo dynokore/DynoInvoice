@@ -90,6 +90,21 @@ class DocumentReleaseStoreDbTest {
     }
 
     @Test
+    fun `INV-AC-21248 without row security the store itself still reads and releases no document of another tenant`() {
+        val theirs = insert(other, "HELD", "{MDM-001}")
+        CanonicalDb.superuser().use { connection ->
+            val bare = DSL.using(connection, SQLDialect.POSTGRES)
+            val unguarded = JooqDocumentReleaseStore(JooqDocumentHoldStore(bare, tenants), bare, tenants)
+            tenants.bind(TenantId(tenant), SignedBindings.ACTOR) {
+                unguarded.lockForRelease(theirs) shouldBe null
+                shouldThrow<IllegalStateException> { unguarded.markReleased(theirs) }
+            }
+        }
+        DocumentSql.documentColumn("state", theirs) shouldBe "HELD"
+        DocumentSql.documentColumn("hold_reasons", theirs) shouldBe "{MDM-001}"
+    }
+
+    @Test
     fun `INV-AC-21248 markReleased changes no row of a document that is not HELD`() {
         val doc = insert(tenant, "INGESTED", null)
         shouldThrow<IllegalStateException> { asTenant(tenant) { store.markReleased(doc) } }

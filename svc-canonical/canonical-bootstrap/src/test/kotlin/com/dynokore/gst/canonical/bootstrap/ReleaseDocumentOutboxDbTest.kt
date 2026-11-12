@@ -28,9 +28,9 @@ import java.nio.file.Path
 import java.util.UUID
 
 /**
- * The hold of a document against a real database (P109): the use case over the jOOQ store and the OutboxWriter in the
- * full TPL-18 context, as the `canonical_runtime` login bound to a tenant. State, reasons and the DocumentHeld outbox
- * row commit or roll back together (INV-REQ-479, INV-REQ-1221).
+ * The release of held documents against a real database (P109): the use case over the jOOQ store and the
+ * OutboxWriter in the full TPL-18 context, as the `canonical_runtime` login bound to a tenant. State, reasons and
+ * the DocumentReleased outbox row commit or roll back together (INV-REQ-479, INV-REQ-1221).
  */
 class ReleaseDocumentOutboxDbTest {
     private val actor = SignedBindings.ACTOR
@@ -215,9 +215,6 @@ class ReleaseDocumentOutboxDbTest {
             b.releaseAs(t1, listOf(d4), ReleaseMasterDataHold(b.releaseStore, failing, b.runner))
         }
 
-        shouldThrow<IllegalStateException> {
-            b.releaseAs(t1, listOf(d4), ReleaseMasterDataHold(b.releaseStore, failing, b.runner))
-        }
         b.stateOf(t1, d4) shouldBe listOf("HELD", "{MDM-001}")
         b.rowsOf(t1, d4).map { it[0] } shouldBe listOf("com.dynokore.gst.canonical.DocumentHeld.v1")
     }
