@@ -113,7 +113,7 @@ class Tpl16ServiceCompositionTest {
     }
 
     private companion object {
-        /** `console_session` plus what code generation adds for the tables, views and table functions of OutboxSchema.ddl. */
+        /** `console_session` plus what code generation adds for the tables, views and functions of OutboxSchema.ddl. */
         val EXPECTED_TABLES =
             setOf(
                 "console_session",

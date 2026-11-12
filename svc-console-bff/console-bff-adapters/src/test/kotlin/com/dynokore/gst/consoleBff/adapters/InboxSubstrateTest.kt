@@ -21,7 +21,9 @@ class InboxSubstrateTest {
         read: (java.sql.ResultSet) -> T,
     ): List<T> =
         ConsoleDb.superuser().use { c ->
-            c.createStatement().use { s -> s.executeQuery(sql).use { rs -> buildList { while (rs.next()) add(read(rs)) } } }
+            c.createStatement().use { s ->
+                s.executeQuery(sql).use { rs -> buildList { while (rs.next()) add(read(rs)) } }
+            }
         }
 
     @Test
@@ -29,7 +31,8 @@ class InboxSubstrateTest {
         val rows =
             query(
                 "select r.rolname, p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace " +
-                    "join pg_roles r on r.oid = p.proowner where n.nspname = 'console_bff' and p.proname = 'bound_tenant'",
+                    "join pg_roles r on r.oid = p.proowner " +
+                    "where n.nspname = 'console_bff' and p.proname = 'bound_tenant'",
             ) { it.getString(1) to it.getBoolean(2) }
         rows shouldBe listOf(ConsoleDb.SYS to true)
     }
@@ -40,7 +43,8 @@ class InboxSubstrateTest {
             query(
                 "select has_table_privilege('${ConsoleDb.RUNTIME}', 'console_bff.binding_key', " +
                     "'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'), " +
-                    "has_any_column_privilege('${ConsoleDb.RUNTIME}', 'console_bff.binding_key', 'SELECT,INSERT,UPDATE,REFERENCES')",
+                    "has_any_column_privilege('${ConsoleDb.RUNTIME}', 'console_bff.binding_key', " +
+                    "'SELECT,INSERT,UPDATE,REFERENCES')",
             ) { it.getBoolean(1) to it.getBoolean(2) }
         rows shouldBe listOf(false to false)
     }
@@ -154,7 +158,8 @@ class InboxSubstrateTest {
         var rows = emptyList<String>()
         runtime { c ->
             if (tenant != null) SignedBindings.bind(c, tenant)
-            c.prepareStatement("select event_id from console_bff.inbox where consumer = ? order by event_id").use { ps ->
+            val sql = "select event_id from console_bff.inbox where consumer = ? order by event_id"
+            c.prepareStatement(sql).use { ps ->
                 ps.setString(1, consumer)
                 ps.executeQuery().use { rs -> rows = buildList { while (rs.next()) add(rs.getString(1)) } }
             }
