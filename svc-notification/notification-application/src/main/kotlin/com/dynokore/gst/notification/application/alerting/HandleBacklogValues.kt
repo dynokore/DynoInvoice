@@ -139,10 +139,10 @@ class HandleBacklogValues(
     }
 
     private fun failureRate(payload: Map<String, Any?>): Double {
-        val value = payload["failureRate"] ?: throw ContractViolation("failureRate is required")
-        val number = (value as? Number)?.toDouble() ?: throw ContractViolation("failureRate must be a number")
-        if (number.isNaN() || number < 0.0 || number > 1.0) throw ContractViolation("failureRate must be within 0 to 1")
-        return number
+        val number =
+            (payload["failureRate"] as? Number)?.toDouble()
+                ?: throw ContractViolation("failureRate is required and must be a number")
+        return number.takeIf { it in 0.0..1.0 } ?: throw ContractViolation("failureRate must be within 0 to 1")
     }
 
     private fun instant(
