@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -1168,6 +1168,30 @@ components:
           maximum: 366
           description: Days to the due date at which the tier applies; a negative value is days after the due date (INV-REQ-1113).
       required: [tier, afterMinutes]
+    BacklogThresholds:
+      type: object
+      additionalProperties: false
+      description: >-
+        Alert thresholds for the four monitored backlog values (INV-REQ-1370).
+        Every member is optional; an absent member means no threshold.
+      properties:
+        maxQueueDepth:
+          type: integer
+          minimum: 1
+          description: Alert when the queue depth exceeds this count.
+        maxOldestUnsentAgeSeconds:
+          type: integer
+          minimum: 1
+          description: Alert when the oldest unsent item is older than this many seconds.
+        maxFailureRatio:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Alert when the failure ratio exceeds this value (0 to 1).
+        maxUnacknowledgedCount:
+          type: integer
+          minimum: 1
+          description: Alert when the unacknowledged count exceeds this count.
     AlertPolicyRequest:
       type: object
       properties:
@@ -1198,6 +1222,15 @@ components:
             First-alert days before the due date, for the class DEADLINE only.
             More days before the due date is tighter; a value smaller than the
             calendar-pack default is refused (POL-008).
+        backlogThresholds:
+          $ref: '#/components/schemas/BacklogThresholds'
+          description: >-
+            Backlog alert thresholds, valid for the alert classes BACKLOG and
+            MISSING_ACKNOWLEDGEMENT only; the service enforces this, because a
+            contract schema cannot tie it to the class. An absent member means
+            no threshold and no alert, and the service records that none is
+            configured. Thresholds are configuration (12-factor III), not
+            code (INV-REQ-1370).
         soleOperatorAcknowledgement:
           type: boolean
           description: Recorded when fewer than two recipients are named (FR-AE.69).
@@ -1252,6 +1285,15 @@ components:
           maximum: 365
           readOnly: true
           description: The default first-alert days of the entity's filing frequency, from the calendar pack (INV-REQ-1117).
+        backlogThresholds:
+          $ref: '#/components/schemas/BacklogThresholds'
+          description: >-
+            Backlog alert thresholds, valid for the alert classes BACKLOG and
+            MISSING_ACKNOWLEDGEMENT only; the service enforces this, because a
+            contract schema cannot tie it to the class. An absent member means
+            no threshold and no alert, and the service records that none is
+            configured. Thresholds are configuration (12-factor III), not
+            code (INV-REQ-1370).
         soleOperatorAcknowledgement:
           type: boolean
           description: Sent, with the four properties that follow, while a sole-operator acknowledgement is recorded, and none of the five otherwise (INV-REQ-1115).

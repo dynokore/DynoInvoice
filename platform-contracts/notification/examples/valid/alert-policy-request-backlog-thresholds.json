@@ -1,0 +1,1 @@
+{"recipients":["tax.approver:jane.tan"],"channels":["EMAIL"],"backlogThresholds":{"maxQueueDepth":500,"maxOldestUnsentAgeSeconds":3600,"maxFailureRatio":0.25,"maxUnacknowledgedCount":20}}
