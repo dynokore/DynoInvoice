@@ -99,6 +99,7 @@ class RegisterWriterWiringTest {
                 "com.dynokore.gst.tenancy.PeriodExtended.v1" to "gst.tenancy.period-extended.v1",
                 canonicalType to canonicalTopic,
                 dueDateType to dueDateTopic,
+                SubmissionEvents.PERIOD_RECORDS_CHANGED_TYPE to SubmissionEvents.PERIOD_RECORDS_CHANGED_TOPIC,
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
@@ -128,6 +129,7 @@ class RegisterWriterWiringTest {
                 "periodExtendedConsumer",
                 "canonicalVersionCreatedConsumer",
                 "periodDueDateChangedConsumer",
+                "periodRecordsChangedConsumer",
             )
     }
 
