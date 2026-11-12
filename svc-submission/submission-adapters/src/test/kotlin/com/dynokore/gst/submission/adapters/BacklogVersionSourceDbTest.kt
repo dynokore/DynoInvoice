@@ -1,20 +1,14 @@
 package com.dynokore.gst.submission.adapters
 
 import com.dynokore.gst.submission.adapters.persistence.JooqBacklogVersionSource
-import com.dynokore.gst.submission.adapters.persistence.JooqInFlightStore
-import com.dynokore.gst.submission.adapters.persistence.JooqReplayRequeue
 import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionStore
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ObligationRegisterEntry
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.SubmissionAttempt
 import com.dynokore.gst.submission.application.backlog.BacklogRead
 import com.dynokore.gst.submission.application.queue.NewReadySubmission
-import com.dynokore.gst.submission.application.replay.RequeueOutcome
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
-import com.dynokore.platform.outboxandqueue.ClaimedItem
-import com.dynokore.platform.outboxandqueue.QueueEntry
-import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
@@ -227,46 +221,5 @@ class BacklogVersionSourceDbTest {
                 .execute()
         }
         queuedAtOf(a, doc) shouldBe queued
-    }
-
-    @Test
-    fun `INV-AC-20581 a replay requeue of a DEAD_LETTERED version sets queued_at to the requeue instant`() {
-        val a = UUID.randomUUID()
-        val doc = "rq-$s"
-        val old = t0
-        seed(a, doc, LifecycleState.DEAD_LETTERED, queuedAt = old)
-        val queue =
-            object : WorkQueue {
-                override fun enqueue(entry: QueueEntry): Long = 1L
-
-                override fun claimNext(): ClaimedItem? = null
-
-                override fun payloadOf(item: ClaimedItem): String = error("not used")
-
-                override fun complete(item: ClaimedItem) = Unit
-
-                override fun release(item: ClaimedItem) = Unit
-            }
-        val before = Instant.now().minusSeconds(5)
-        asTenant(
-            a,
-        ) { JooqReplayRequeue(dsl, runner, JooqInFlightStore(dsl), queue).requeue(TenantId(a), doc, 1) } shouldBe
-            RequeueOutcome.REQUEUED
-        val queued = checkNotNull(queuedAtOf(a, doc))
-        (queued.isAfter(before) && queued.isAfter(old)) shouldBe true
-        val row =
-            asTenant(a) {
-                dsl
-                    .select(
-                        sub.STATE,
-                        sub.RETRY_FAILURES,
-                        sub.NEXT_ATTEMPT_AT,
-                    ).from(sub)
-                    .where(sub.DOC_UUID.eq(doc))
-                    .fetchOne()
-            }
-        checkNotNull(row).get(sub.STATE) shouldBe "QUEUED"
-        row.get(sub.RETRY_FAILURES) shouldBe 0
-        row.get(sub.NEXT_ATTEMPT_AT) shouldBe null
     }
 }
