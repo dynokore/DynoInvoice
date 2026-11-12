@@ -12,5 +12,5 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class PersistenceConfiguration {
     @Bean
-    fun consoleSchema(): Schema = DefaultCatalog.DEFAULT_CATALOG.CONSOLE
+    fun consoleSchema(): Schema = DefaultCatalog.DEFAULT_CATALOG.CONSOLE_BFF
 }

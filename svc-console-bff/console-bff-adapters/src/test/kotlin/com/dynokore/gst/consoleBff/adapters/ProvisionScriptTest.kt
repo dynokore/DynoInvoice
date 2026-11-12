@@ -9,8 +9,8 @@ class ProvisionScriptTest {
     private val roles = checkNotNull(javaClass.getResource("/db/roles.sql")).readText()
 
     @Test
-    fun `INV-AC-14457 provision creates the schema console owned by console_migrate`() {
-        provision.contains("create schema console authorization ${ConsoleDb.MIGRATE};") shouldBe true
+    fun `INV-AC-14457 provision creates the schema console_bff owned by console_bff_migrate`() {
+        provision.contains("create schema console_bff authorization ${ConsoleDb.MIGRATE};") shouldBe true
     }
 
     @Test

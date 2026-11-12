@@ -5,19 +5,19 @@ spring:
   threads.virtual.enabled: true # STK-03
   main.lazy-initialization: false # STK-06
   datasource:
-    username: console_runtime # the one runtime LOGIN: NOSUPERUSER, NOBYPASSRLS, owns no table (CS-19)
+    username: console_bff_runtime # the one runtime LOGIN: NOSUPERUSER, NOBYPASSRLS, owns no table (CS-19)
     hikari:
       minimum-idle: 1
       idle-timeout: 60000
       max-lifetime: 1800000
   flyway:
-    schemas: console
-    default-schema: console
-    user: console_migrate # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
+    schemas: console_bff
+    default-schema: console_bff
+    user: console_bff_migrate # read only by the migration Job's MigrationRunner (TPL-12, ARC-20)
 service-runtime:
-  datasource.credential: db/console_runtime
-  modules.schema: console
-  idempotency.schema: console
+  datasource.credential: db/console_bff_runtime
+  modules.schema: console_bff
+  idempotency.schema: console_bff
 console:
   session: # NIST SP 800-63B AAL2 (INV-Q-14429); 12-factor: overridable from the environment
     idle-timeout: PT30M
@@ -48,4 +48,4 @@ inv:
     # The session table is platform-scoped: the lookup runs before any tenant is known and the tenant is read from the row
     # (owner answer of 2026-11-11, INV-T-14458 option A; the table comment says the same).
     platform-scoped-tables:
-      - console.console_session
+      - console_bff.console_session

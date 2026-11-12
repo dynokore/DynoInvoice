@@ -6,9 +6,9 @@ import java.sql.Connection
 import java.sql.SQLException
 
 /**
- * The effective write privileges of the `console_runtime` role on a live PostgreSQL: no write grant outside the schema
- * `console`, and an INSERT into another service's schema is refused (INV-AC-1921; OWASP ASVS V4.1.3, NIST SP 800-53
- * AC-6). The test reads no SQL file text.
+ * The effective write privileges of the `console_bff_runtime` role on a live PostgreSQL: no write grant outside the
+ * schema `console_bff`, and an INSERT into another service's schema is refused (INV-AC-1921; OWASP ASVS V4.1.3,
+ * NIST SP 800-53 AC-6). The test reads no SQL file text.
  */
 class ConsoleRuntimeGrantsTest {
     private val writeListSql =
@@ -17,10 +17,10 @@ class ConsoleRuntimeGrantsTest {
         from pg_class c join pg_namespace n on n.oid = c.relnamespace
         where c.relkind in ('r', 'p')
           and n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast')
-          and (has_table_privilege('console_runtime', c.oid, 'INSERT')
-            or has_table_privilege('console_runtime', c.oid, 'UPDATE')
-            or has_table_privilege('console_runtime', c.oid, 'DELETE')
-            or has_table_privilege('console_runtime', c.oid, 'TRUNCATE'))
+          and (has_table_privilege('console_bff_runtime', c.oid, 'INSERT')
+            or has_table_privilege('console_bff_runtime', c.oid, 'UPDATE')
+            or has_table_privilege('console_bff_runtime', c.oid, 'DELETE')
+            or has_table_privilege('console_bff_runtime', c.oid, 'TRUNCATE'))
         order by 1, 2
         """.trimIndent()
 
@@ -49,44 +49,44 @@ class ConsoleRuntimeGrantsTest {
         ConsoleDb.superuser().use {
             exec(it, "create schema if not exists submission")
             exec(it, "create table if not exists submission.t (id int)")
-            exec(it, "create schema if not exists console_x")
-            exec(it, "create table if not exists console_x.t (id int)")
+            exec(it, "create schema if not exists console_bff_x")
+            exec(it, "create table if not exists console_bff_x.t (id int)")
         }
 
     @Test
-    fun `INV-AC-1921 console_runtime holds no write grant on any table outside the console schema`() {
+    fun `INV-AC-1921 console_bff_runtime holds no write grant on any table outside the console_bff schema`() {
         prepareForeign()
         val observed = writeList()
-        println("INV-AC-1921 observed write list of console_runtime: $observed")
-        observed.filter { it.first != "console" } shouldBe emptyList()
+        println("INV-AC-1921 observed write list of console_bff_runtime: $observed")
+        observed.filter { it.first != "console_bff" } shouldBe emptyList()
     }
 
     @Test
-    fun `INV-AC-1921 console_runtime INSERT into submission t fails with SQLSTATE 42501`() {
+    fun `INV-AC-1921 console_bff_runtime INSERT into submission t fails with SQLSTATE 42501`() {
         prepareForeign()
         sqlState { runtimeInsert("submission.t") } shouldBe "42501"
     }
 
     @Test
-    fun `INV-AC-1921 look-alike schema console_x refuses INSERT with 42501`() {
+    fun `INV-AC-1921 look-alike schema console_bff_x refuses INSERT with 42501`() {
         prepareForeign()
-        sqlState { runtimeInsert("console_x.t") } shouldBe "42501"
-        writeList().filter { it.first == "console_x" } shouldBe emptyList()
+        sqlState { runtimeInsert("console_bff_x.t") } shouldBe "42501"
+        writeList().filter { it.first == "console_bff_x" } shouldBe emptyList()
     }
 
     @Test
     fun `INV-AC-1921 positive control a console table is writable and appears in the write list`() {
         ConsoleDb.connect(ConsoleDb.MIGRATE, ConsoleDb.MIGRATE_PASSWORD).use {
-            exec(it, "create table if not exists console.grants_probe (id int)")
+            exec(it, "create table if not exists console_bff.grants_probe (id int)")
         }
         try {
-            sqlState { runtimeInsert("console.grants_probe") } shouldBe null
+            sqlState { runtimeInsert("console_bff.grants_probe") } shouldBe null
             val observed = writeList()
             println("INV-AC-1921 observed write list with control: $observed")
-            (("console" to "grants_probe") in observed) shouldBe true
+            (("console_bff" to "grants_probe") in observed) shouldBe true
         } finally {
             ConsoleDb.connect(ConsoleDb.MIGRATE, ConsoleDb.MIGRATE_PASSWORD).use {
-                exec(it, "drop table if exists console.grants_probe")
+                exec(it, "drop table if exists console_bff.grants_probe")
             }
         }
     }

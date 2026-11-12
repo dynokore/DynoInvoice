@@ -32,7 +32,7 @@ object ConsoleContext {
 
     private fun secrets(mountRoot: Path) {
         Files.createDirectories(mountRoot.resolve("db"))
-        Files.writeString(mountRoot.resolve("db/console_runtime"), ConsoleDb.RUNTIME_PASSWORD)
+        Files.writeString(mountRoot.resolve("db/console_bff_runtime"), ConsoleDb.RUNTIME_PASSWORD)
         Files.createDirectories(mountRoot.resolve("tenancy"))
         Files.writeString(mountRoot.resolve("tenancy/binding-key-current"), BINDING_SECRET)
     }

@@ -26,7 +26,7 @@ class JooqSessionStoreTest {
 
     @AfterEach
     fun clean() {
-        ConsoleDb.superuser().use { it.createStatement().execute("truncate console.console_session") }
+        ConsoleDb.superuser().use { it.createStatement().execute("truncate console_bff.console_session") }
         connection.close()
     }
 
@@ -34,7 +34,7 @@ class JooqSessionStoreTest {
 
     private fun count(): Int =
         ConsoleDb.superuser().use { c ->
-            c.createStatement().executeQuery("select count(*) from console.console_session").use {
+            c.createStatement().executeQuery("select count(*) from console_bff.console_session").use {
                 it.next()
                 it.getInt(1)
             }
@@ -44,7 +44,7 @@ class JooqSessionStoreTest {
     fun `INV-AC-14457 after create the table holds neither the cookie value nor the csrf token`() {
         val created = store.create(tenant, "p1", 7, now)
         ConsoleDb.superuser().use { c ->
-            c.createStatement().executeQuery("select * from console.console_session").use { rs ->
+            c.createStatement().executeQuery("select * from console_bff.console_session").use { rs ->
                 rs.next() shouldBe true
                 val texts = (1..rs.metaData.columnCount).map { rs.getString(it) }
                 texts.forEach {

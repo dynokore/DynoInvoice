@@ -17,7 +17,7 @@ class MigrationSchemaTest {
         seen: String = "2026-11-10T10:00:00Z",
     ) = ConsoleDb.connect(ConsoleDb.RUNTIME, ConsoleDb.RUNTIME_PASSWORD).use { c ->
         c.createStatement().execute(
-            "insert into console.console_session values ('$id', '11111111-1111-1111-1111-111111111111', 'p', " +
+            "insert into console_bff.console_session values ('$id', '11111111-1111-1111-1111-111111111111', 'p', " +
                 "'$opened', '$seen', 1, '$csrf')",
         )
     }
@@ -26,7 +26,8 @@ class MigrationSchemaTest {
         (runCatching(block).exceptionOrNull() is SQLException) shouldBe true
     }
 
-    private fun clean() = ConsoleDb.superuser().use { it.createStatement().execute("truncate console.console_session") }
+    private fun clean() =
+        ConsoleDb.superuser().use { it.createStatement().execute("truncate console_bff.console_session") }
 
     @Test
     fun `INV-AC-14457 a 63 and a 65 character hash and upper case hex are refused`() {
@@ -61,15 +62,15 @@ class MigrationSchemaTest {
     @Test
     fun `INV-AC-14457 the migration role holds no CREATE on the database and owns the schema`() {
         ConsoleDb.superuser().use { c ->
-            val privilege = "select has_database_privilege('console_migrate', current_database(), 'CREATE')"
+            val privilege = "select has_database_privilege('console_bff_migrate', current_database(), 'CREATE')"
             c.createStatement().executeQuery(privilege).use {
                 it.next()
                 it.getBoolean(1) shouldBe false
             }
-            val owner = "select schema_owner from information_schema.schemata where schema_name = 'console'"
+            val owner = "select schema_owner from information_schema.schemata where schema_name = 'console_bff'"
             c.createStatement().executeQuery(owner).use {
                 it.next()
-                it.getString(1) shouldBe "console_migrate"
+                it.getString(1) shouldBe "console_bff_migrate"
             }
         }
     }
@@ -80,9 +81,9 @@ class MigrationSchemaTest {
             c
                 .createStatement()
                 .executeQuery(
-                    "select obj_description('console.console_session'::regclass), " +
+                    "select obj_description('console_bff.console_session'::regclass), " +
                         "(select string_agg(column_name, ',') from information_schema.columns " +
-                        "where table_schema = 'console' and table_name = 'console_session')",
+                        "where table_schema = 'console_bff' and table_name = 'console_session')",
                 ).use { rs ->
                     rs.next() shouldBe true
                     rs.getString(1) shouldBe "platform-scoped: no tenant data"
@@ -90,6 +91,58 @@ class MigrationSchemaTest {
                     (columns.contains("bound_tenant_id")) shouldBe true
                     (columns.contains("tenant_id")) shouldBe false
                 }
+        }
+    }
+
+    @Test
+    fun `INV-AC-21019 the table console_bff console_session is owned by the migration role and commented`() {
+        ConsoleDb.superuser().use { c ->
+            c
+                .createStatement()
+                .executeQuery(
+                    "select pg_get_userbyid(c.relowner), obj_description(c.oid), " +
+                        "(select string_agg(column_name, ',') from information_schema.columns " +
+                        "where table_schema = 'console_bff' and table_name = 'console_session') " +
+                        "from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+                        "where n.nspname = 'console_bff' and c.relname = 'console_session'",
+                ).use { rs ->
+                    rs.next() shouldBe true
+                    rs.getString(1) shouldBe "console_bff_migrate"
+                    rs.getString(2) shouldBe "platform-scoped: no tenant data"
+                    val columns = rs.getString(3).split(",")
+                    columns.contains("bound_tenant_id") shouldBe true
+                    columns.contains("tenant_id") shouldBe false
+                }
+        }
+    }
+
+    @Test
+    fun `INV-AC-21019 the database holds no schema named console`() {
+        ConsoleDb.superuser().use { c ->
+            c.createStatement().executeQuery("select count(*) from pg_namespace where nspname = 'console'").use {
+                it.next()
+                it.getInt(1) shouldBe 0
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-21019 V1 text has no match of console dot and no match of schema console`() {
+        val v1 = Files.readString(Path.of("src/main/resources/db/migration/V1__create_console_session.sql"))
+        Regex("console\\.").containsMatchIn(v1) shouldBe false
+        Regex("schema console").containsMatchIn(v1) shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-21019 the migrations run as console_bff_migrate with the schema console_bff`() {
+        ConsoleDb.MIGRATE shouldBe "console_bff_migrate"
+        ConsoleDb.SCHEMA shouldBe "console_bff"
+        ConsoleDb.connect(ConsoleDb.MIGRATE, ConsoleDb.MIGRATE_PASSWORD).use { c ->
+            val history = "select count(*) from console_bff.flyway_schema_history where success"
+            c.createStatement().executeQuery(history).use {
+                it.next()
+                (it.getInt(1) >= 1) shouldBe true
+            }
         }
     }
 }

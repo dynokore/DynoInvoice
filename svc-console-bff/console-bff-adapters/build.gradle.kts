@@ -6,7 +6,7 @@ plugins {
 }
 
 gstJooqCodegen {
-    schema = "console"
+    schema = "console_bff"
     initScripts.from("src/testFixtures/resources/db/roles.sql")
 }
 

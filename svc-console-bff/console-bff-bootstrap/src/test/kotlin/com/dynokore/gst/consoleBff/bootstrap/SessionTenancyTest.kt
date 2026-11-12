@@ -31,25 +31,25 @@ import java.time.Instant
 class SessionTenancyTest {
     private val a = "11111111-1111-1111-1111-11111111aaaa"
     private val b = "22222222-2222-2222-2222-22222222bbbb"
-    private val table = DSL.name("console", "tenant_probe")
+    private val table = DSL.name("console_bff", "tenant_probe")
 
     private fun prepare() {
         ConsoleDb.superuser().use { c ->
             c.createStatement().execute(
                 """
-                create table if not exists console.tenant_probe (tenant_id uuid not null, note text not null);
-                alter table console.tenant_probe enable row level security;
-                grant select, insert, delete on console.tenant_probe to console_runtime;
-                truncate console.tenant_probe;
-                insert into console.tenant_probe values ('$a', 'note-a'), ('$b', 'note-b');
+                create table if not exists console_bff.tenant_probe (tenant_id uuid not null, note text not null);
+                alter table console_bff.tenant_probe enable row level security;
+                grant select, insert, delete on console_bff.tenant_probe to console_bff_runtime;
+                truncate console_bff.tenant_probe;
+                insert into console_bff.tenant_probe values ('$a', 'note-a'), ('$b', 'note-b');
                 """.trimIndent(),
             )
             c.createStatement().execute(
-                "drop policy if exists tenant_isolation on console.tenant_probe; " +
-                    "create policy tenant_isolation on console.tenant_probe " +
+                "drop policy if exists tenant_isolation on console_bff.tenant_probe; " +
+                    "create policy tenant_isolation on console_bff.tenant_probe " +
                     "using (tenant_id = current_setting('app.tenant_id')::uuid)",
             )
-            c.createStatement().execute("truncate console.console_session")
+            c.createStatement().execute("truncate console_bff.console_session")
         }
     }
 
@@ -75,7 +75,7 @@ class SessionTenancyTest {
 
             fun notes() =
                 dsl
-                    .select(DSL.field(DSL.name("console", "tenant_probe", "note"), String::class.java))
+                    .select(DSL.field(DSL.name("console_bff", "tenant_probe", "note"), String::class.java))
                     .from(DSL.table(table))
                     .fetch()
                     .map { it.value1() }

@@ -28,7 +28,7 @@ class CreatedSession(
 }
 
 /**
- * The session table `console.console_session` through the jOOQ DSL and the generated table class (TPL-11).
+ * The session table `console_bff.console_session` through the jOOQ DSL and the generated table class (TPL-11).
  *
  * Exception to the rule that an adapter that derives its tenant from a request never receives the platform binding
  * (`PlatformTenantBinding`): the session lookup runs before any tenant is known, because the tenant is read from the

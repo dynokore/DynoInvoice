@@ -9,16 +9,16 @@ import java.sql.DriverManager
 import java.time.Duration
 
 /**
- * A PostgreSQL 18 database with the roles of `db/roles.sql`, the schema `console` created by provisioning
- * (`db/provision.sql`, owned by `console_migrate`) and the Flyway migrations of this module applied by the same role
- * (TPL-12, TPL-14). The two SQL files are run by the postgres image as superuser when it initialises.
+ * A PostgreSQL 18 database with the roles of `db/roles.sql`, the schema `console_bff` created by provisioning
+ * (`db/provision.sql`, owned by `console_bff_migrate`) and the Flyway migrations of this module applied by the same
+ * role (TPL-12, TPL-14). The two SQL files are run by the postgres image as superuser when it initialises.
  */
 object ConsoleDb {
-    const val SCHEMA = "console"
-    const val MIGRATE = "console_migrate"
-    const val RUNTIME = "console_runtime"
-    const val MIGRATE_PASSWORD = "console_migrate_pw"
-    const val RUNTIME_PASSWORD = "console_runtime_pw"
+    const val SCHEMA = "console_bff"
+    const val MIGRATE = "console_bff_migrate"
+    const val RUNTIME = "console_bff_runtime"
+    const val MIGRATE_PASSWORD = "console_bff_migrate_pw"
+    const val RUNTIME_PASSWORD = "console_bff_runtime_pw"
 
     /** postgres:18 pinned by digest, as platform-libs' testcontainers-pins table pins it (INV-T-5604). */
     private const val IMAGE = "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"
