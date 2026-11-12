@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.15.0] - 2026-11-12
+### Added
+- `RelayedRefusal` and `Problems.renderRelayed`, the one public builder of the API-20 envelope for a downstream refusal relayed with the owner's status and members (any catalogue family; absent optional members omitted; a 5xx, 429 or malformed refusal is refused), so that svc-console-bff relays PAY-017 and SRT codes without a private copy (coordinator ruling round zq, 2026-11-12; INV-T-21194, INV-AC-21193).
+
 ## [13.14.1] - 2026-11-12
 ### Changed
 - Version step only: dependency `outbox-and-queue` rose to 6.22.0 (`OutboxWriter.appendSequenced`; INV-T-20997); no code change.

@@ -255,6 +255,35 @@ object Problems {
         return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
     }
 
+    /**
+     * A downstream owner's [refusal] relayed as a complete response (coordinator ruling, round zq of 2026-11-12;
+     * INV-T-21194): the owner's status, the headers of [renderPeriod] (never `Retry-After`) and the API-20 envelope
+     * with the owner's members. An absent optional member is omitted, never defaulted. The builder knows no
+     * catalogue, so it renders a code of any family.
+     */
+    fun renderRelayed(
+        refusal: RelayedRefusal,
+        correlationId: String,
+    ): ProblemResponse {
+        val node =
+            mapper.createObjectNode().apply {
+                put("type", typeOf(refusal.code))
+                put("title", refusal.title)
+                put("status", refusal.status)
+                refusal.detail?.let { put("detail", it) }
+                put("correlationId", correlationId)
+                put("code", refusal.code)
+                refusal.severity?.let { put("severity", it) }
+                refusal.disposition?.let { put("disposition", it) }
+                refusal.remediationOwner?.let { put("remediationOwner", it) }
+            }
+        return ProblemResponse(
+            refusal.status,
+            mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE),
+            mapper.writeValueAsString(node),
+        )
+    }
+
     fun contractViolation(
         detail: String,
         correlationId: String,
