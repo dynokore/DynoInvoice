@@ -202,6 +202,8 @@ data class PeriodSpanRecord(
     val periodRef: String,
     val periodStart: LocalDate,
     val periodEnd: LocalDate,
+    /** The due date stored for the period, read as is (an extension or recomputation that moved it is reflected). */
+    val filingDueDate: LocalDate,
 )
 
 /**
@@ -231,6 +233,10 @@ interface PeriodRecordsChangePublisher {
             version: Long,
             inForce: List<StoredPeriod>,
         ): PeriodRecordsChange =
-            PeriodRecordsChange(entityRef, version, inForce.map { PeriodSpanRecord(it.periodRef, it.start, it.end) })
+            PeriodRecordsChange(
+                entityRef,
+                version,
+                inForce.map { PeriodSpanRecord(it.periodRef, it.start, it.end, it.dueDate) },
+            )
     }
 }

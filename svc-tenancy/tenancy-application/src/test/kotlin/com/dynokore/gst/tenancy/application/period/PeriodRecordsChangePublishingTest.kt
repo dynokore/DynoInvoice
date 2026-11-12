@@ -279,7 +279,7 @@ private class Setup(
         )
     }
 
-    fun span(p: StoredPeriod) = PeriodSpanRecord(p.periodRef, p.start, p.end)
+    fun span(p: StoredPeriod) = PeriodSpanRecord(p.periodRef, p.start, p.end, p.dueDate)
 
     fun inForceSpans() = periods.inForce(entity.id).map(::span)
 
@@ -460,4 +460,22 @@ class PeriodRecordsChangePublishingTest {
     fun `INV-AC-18047 the default publisher is NONE and accepts a change`() {
         PeriodRecordsChangePublisher.NONE.publish(PeriodRecordsChange("ENT-1", 1, emptyList()))
     }
+
+    @Test
+    fun `INV-AC-20743 changeOf carries the stored dueDate of each period as filingDueDate`() {
+        val moved = LocalDate.of(2026, 8, 14)
+        val p1 = stored("2026Q1", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 3, 31), LocalDate.of(2026, 4, 30))
+        val p2 = stored("2026Q2", LocalDate.of(2026, 4, 1), LocalDate.of(2026, 6, 30), moved)
+        val change = PeriodRecordsChangePublisher.changeOf("E-001", 7, listOf(p1, p2))
+        assertEquals(listOf(p1, p2).map { it.dueDate }, change.periods.map { it.filingDueDate })
+        assertEquals(moved, change.periods[1].filingDueDate)
+        assertEquals(listOf("2026Q1", "2026Q2"), change.periods.map { it.periodRef })
+    }
+
+    private fun stored(
+        ref: String,
+        start: LocalDate,
+        end: LocalDate,
+        due: LocalDate,
+    ) = StoredPeriod(ref, start, end, "F5", due, emptySet())
 }
