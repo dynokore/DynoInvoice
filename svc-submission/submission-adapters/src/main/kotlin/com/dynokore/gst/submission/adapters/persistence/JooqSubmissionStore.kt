@@ -19,6 +19,7 @@ import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.postgresql.util.PSQLException
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
 /**
@@ -70,6 +71,7 @@ class JooqSubmissionStore(
             dsl
                 .update(Submission.SUBMISSION_)
                 .set(Submission.SUBMISSION_.STATE, "QUEUED")
+                .set(Submission.SUBMISSION_.QUEUED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .where(Submission.SUBMISSION_.TENANT_ID.eq(tenant.value))
                 .and(Submission.SUBMISSION_.DOC_UUID.eq(docUuid))
                 .and(Submission.SUBMISSION_.VERSION.eq(version))
