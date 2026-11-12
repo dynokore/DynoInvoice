@@ -2,8 +2,10 @@ package com.dynokore.gst.tenancy.bootstrap
 
 import com.dynokore.gst.tenancy.adapters.events.EntityProfileReplaySource
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureReplaySource
+import com.dynokore.gst.tenancy.adapters.election.PurchaseDateBasisProfileExtras
 import com.dynokore.gst.tenancy.adapters.persistence.JooqReplayReader
 import com.dynokore.gst.tenancy.adapters.persistence.ReplayReader
+import com.dynokore.gst.tenancy.application.election.ElectionPolicyStore
 import com.dynokore.platform.outboxandqueue.ReplayStateSource
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
@@ -22,7 +24,8 @@ class ReplaySourcesConfiguration {
     fun replayReader(
         dsl: DSLContext,
         tenants: TenantContext,
-    ): ReplayReader = JooqReplayReader(dsl, tenants)
+        elections: ElectionPolicyStore,
+    ): ReplayReader = JooqReplayReader(dsl, tenants, PurchaseDateBasisProfileExtras(elections)::entries)
 
     @Bean
     fun organisationStructureReplaySource(

@@ -8,6 +8,7 @@ import com.dynokore.gst.tenancy.adapters.election.ElectionPolicyWriterGuard
 import com.dynokore.gst.tenancy.adapters.election.GstSchemeEventDecorator
 import com.dynokore.gst.tenancy.adapters.election.GstSchemeProfileExtras
 import com.dynokore.gst.tenancy.adapters.election.IssuanceProfileExtras
+import com.dynokore.gst.tenancy.adapters.election.PurchaseDateBasisProfileExtras
 import com.dynokore.gst.tenancy.adapters.election.ReplicaActionAuthority
 import com.dynokore.gst.tenancy.adapters.election.RequestCallerSource
 import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
@@ -106,9 +107,10 @@ class ElectionUseCases {
         val schemes = GstSchemeProfileExtras(history, tenants)
         val exempt = ExemptPurchaseProfileExtras(exemptPurchases)
         val cutover = MigrationCutoverProfileExtras(cutovers)
+        val purchaseDateBasis = PurchaseDateBasisProfileExtras(elections)
         return ProfileExtras { entityRef ->
             issuance.entries(entityRef) + schemes.entries(entityRef) + exempt.entries(entityRef) +
-                cutover.entries(entityRef)
+                cutover.entries(entityRef) + purchaseDateBasis.entries(entityRef)
         }
     }
 

@@ -94,6 +94,8 @@ interface ReplayReader {
 class JooqReplayReader(
     private val dsl: DSLContext,
     tenants: TenantContext,
+    /** Further profile entries of an entity by its ref (the election entries), appended to the replay profile. */
+    private val extraEntries: (String) -> List<ProfileEntry> = { emptyList() },
 ) : ReplayReader {
     private val statuses = JooqEntityStatusStore(dsl, tenants)
     private val exemptPurchases = JooqExemptPurchaseElectionStore(dsl, tenants)
@@ -260,7 +262,8 @@ class JooqReplayReader(
         (
             statuses.history(entity.id).map { ProfileEntry(it.attribute, it.value, it.effectiveFrom) } +
                 exemptPurchaseEntries(exemptPurchases.history(entity.ref)) +
-                migrationCutoverEntries(cutovers.find(entity.ref))
+                migrationCutoverEntries(cutovers.find(entity.ref)) +
+                extraEntries(entity.ref)
         ).sortedBy { it.effectiveDate }
 
     private fun units(
