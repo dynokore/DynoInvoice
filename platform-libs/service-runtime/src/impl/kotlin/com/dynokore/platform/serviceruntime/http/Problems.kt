@@ -231,6 +231,30 @@ object Problems {
         return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
     }
 
+    /**
+     * The PER refusal [code] as a complete response (INV-T-20923): the code's own status, the headers of
+     * [renderIngestion] and the API-20 envelope with the code's severity and disposition, with [detail] as a client
+     * error carries it (API-22).
+     */
+    fun renderPeriod(
+        code: PeriodErrorCode,
+        correlationId: String,
+        detail: String? = null,
+    ): ProblemResponse {
+        val response =
+            coded(
+                code.httpStatus,
+                code.title,
+                detail,
+                correlationId,
+                code.code,
+                code.disposition,
+                code.owner.text,
+                code.severity,
+            )
+        return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
+    }
+
     fun contractViolation(
         detail: String,
         correlationId: String,

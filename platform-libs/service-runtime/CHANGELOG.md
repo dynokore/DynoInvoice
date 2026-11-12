@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.14.0] - 2026-11-12
+### Added
+- `PeriodErrorCode` with the one entry `PERIOD_NOT_READY` (PER-001, 422, severity BLOCK, disposition OVERRIDABLE, owner Tax operations) and `Problems.renderPeriod`, the public builder of the PER-001 envelope beside `renderIngestion`, so that svc-submission renders the `confirmFiling` refusal in the mode BLOCKING without a private copy (coordinator ruling round z, 2026-11-12; INV-T-20923, INV-AC-20922).
+
 ## [13.13.2] - 2026-11-12
 ### Changed
 - Version step only: dependency `outbox-and-queue` rose to 6.21.0 (drain tier and rank of the work queue; see the answered design question at the body of INV-REQ-554 (tooling `scribe-req137/ans/20486.txt`, option A), INV-AC-20527, INV-T-20528).
