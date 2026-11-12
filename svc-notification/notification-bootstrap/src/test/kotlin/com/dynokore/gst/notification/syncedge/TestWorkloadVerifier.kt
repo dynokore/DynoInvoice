@@ -1,6 +1,5 @@
 package com.dynokore.gst.notification.syncedge
 
-import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
@@ -29,21 +28,12 @@ class TestWorkloadVerifier {
             }
         }
 
-    /**
-     * Any `Authorization` header is the end user of one tenant, so a request past the caller check is served.
-     * Its entity set holds every entity reference that the request examples of the contract document carry,
-     * read from the document and never typed here, so the entity-reference check does not refuse a valid request.
-     */
+    /** Any `Authorization` header is the end user of one tenant, so a request past the caller check is served. */
     @Bean
     @Primary
     fun testEndUserResolver(): EndUserPrincipalResolver =
         EndUserPrincipalResolver { authorization ->
-            val entities =
-                ContractDocument
-                    .entityRefs(ContractDocument.text(TestWorkloadVerifier::class.java.classLoader))
-                    .map { EntityRef(it) }
-                    .toSet()
-            authorization?.let { EndUserPrincipal("end-user-1", TenantId.of(TENANT), entities) }
+            authorization?.let { EndUserPrincipal("end-user-1", TenantId.of(TENANT), emptySet()) }
         }
 
     private companion object {

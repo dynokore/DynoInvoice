@@ -42,15 +42,11 @@ class BacklogContractTest {
     @Test
     fun `INV-AC-20822 the contract info version is not lower than 1_15_0`() {
         val version = map(openapi["info"])["version"].toString()
-        val parts =
-            version
-                .substringBefore('-')
-                .substringBefore('+')
-                .split('.')
-                .map { it.toInt() }
+        val parts = version.substringBefore('-').substringBefore('+').split('.').map { it.toInt() }
         val floor = listOf(1, 15, 0)
-        val cmp = (0..2).map { parts[it].compareTo(floor[it]) }.firstOrNull { it != 0 } ?: 0
-        (cmp < 0) shouldBe false
+        val lower =
+            (0..2).map { parts[it].compareTo(floor[it]) }.firstOrNull { it != 0 }?.let { it < 0 } ?: false
+        lower shouldBe false
     }
 
     /** The properties of a schema node, following one level of a local `$ref`. */
