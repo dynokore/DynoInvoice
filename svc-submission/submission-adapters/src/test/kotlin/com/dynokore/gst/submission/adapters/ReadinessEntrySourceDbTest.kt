@@ -240,6 +240,17 @@ class ReadinessEntrySourceDbTest {
     }
 
     @Test
+    fun `INV-AC-20479 case 7b an undated out-of-scope entry makes the period unavailable and a dated one does not`() {
+        val tenant = UUID.randomUUID()
+        val dated = UUID.randomUUID().toString()
+        seed(tenant, "E1", listOf(Doc(dated, "P-a"), Doc(UUID.randomUUID().toString(), "P-a", inScope = false)))
+        read(source(), tenant, "E1", "P-a")!!.size shouldBe 2
+        seed(tenant, "E1", listOf(Doc(dated + "x", "P-b"), Doc("u-" + dated, "P-b", date = null, inScope = false)))
+        read(source(), tenant, "E1", "P-b") shouldBe null
+        read(source(), tenant, "E1", "P-a")!!.size shouldBe 2
+    }
+
+    @Test
     fun `INV-AC-20479 the criterion read returns the five entries of the bound tenant only`() {
         val w = world()
         val other = UUID.randomUUID()
