@@ -147,15 +147,35 @@ class AttemptOutcomeApplier(
             }
 
             is FailureResult.DeadLetter -> {
-                store.setState(tenant, dispatch.docUuid, dispatch.version, LifecycleState.DEAD_LETTERED)
-                failures.attemptFailed(dispatch, code)
-                failures.versionFailed(dispatch, LifecycleState.DEAD_LETTERED, null)
+                deadLettered(dispatch, planned, code)
             }
 
             is FailureResult.Anomaly -> {
                 error("transient failure of ${dispatch.docUuid} version ${dispatch.version}: anomaly ${planned.reason}")
             }
         }
+    }
+
+    /**
+     * Writes the dead letter: the failure class is the code of the one signal raised with it (INV-REQ-575, ruling of
+     * owner 2026-10-14). A dead letter with no signal or several throws before any write, and the transaction rolls
+     * back (fail closed).
+     */
+    internal fun deadLettered(
+        dispatch: Dispatch,
+        planned: FailureResult.DeadLetter,
+        code: String,
+    ) {
+        val tenant = scope.current()
+        val signal =
+            checkNotNull(planned.signals.singleOrNull()) {
+                "dead letter of ${dispatch.docUuid} version ${dispatch.version} carries ${planned.signals.size} " +
+                    "signals, expected one"
+            }
+        store.setState(tenant, dispatch.docUuid, dispatch.version, LifecycleState.DEAD_LETTERED)
+        store.recordFailureClass(tenant, dispatch.docUuid, dispatch.version, dispatch.attemptNumber, signal.code.value)
+        failures.attemptFailed(dispatch, code)
+        failures.versionFailed(dispatch, LifecycleState.DEAD_LETTERED, null)
     }
 
     private companion object {

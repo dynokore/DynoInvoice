@@ -21,7 +21,11 @@ import org.postgresql.util.PSQLException
 import java.time.Instant
 import java.time.ZoneOffset
 
-/** [SubmissionStore] over the generated jOOQ classes of `submission` (CS-18), in the open tenant transaction. */
+/**
+ * [SubmissionStore] over the generated jOOQ classes of `submission` (CS-18), in the open tenant transaction. One
+ * function per method of the port, which has 12.
+ */
+@Suppress("TooManyFunctions")
 class JooqSubmissionStore(
     private val dsl: DSLContext,
 ) : SubmissionStore {
@@ -140,6 +144,26 @@ class JooqSubmissionStore(
         check(updated == 1) {
             "no attempt row ${response.attemptNumber} of ${response.docUuid} version ${response.version}"
         }
+    }
+
+    override fun recordFailureClass(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+        attemptNumber: Int,
+        failureClass: String,
+    ) {
+        val a = SubmissionAttempt.SUBMISSION_ATTEMPT
+        val updated =
+            dsl
+                .update(a)
+                .set(a.FAILURE_CLASS, failureClass)
+                .where(a.TENANT_ID.eq(tenant.value))
+                .and(a.DOC_UUID.eq(docUuid))
+                .and(a.VERSION.eq(version))
+                .and(a.ATTEMPT_NUMBER.eq(attemptNumber))
+                .execute()
+        check(updated == 1) { "no attempt row $attemptNumber of $docUuid version $version" }
     }
 
     override fun setState(

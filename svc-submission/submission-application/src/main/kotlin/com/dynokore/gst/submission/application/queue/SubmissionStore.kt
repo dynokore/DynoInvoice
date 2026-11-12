@@ -11,6 +11,7 @@ import java.util.UUID
  * The state rows of `submission` the queue slices write, behind a port so `application` stays free of jOOQ (ARC-03).
  * Every method runs in the caller's open tenant transaction (ARC-21); none opens or commits one.
  */
+@Suppress("TooManyFunctions")
 interface SubmissionStore {
     /**
      * Inserts the version in state `READY` with `ON CONFLICT (doc_uuid, version) DO NOTHING` and returns the number of
@@ -68,6 +69,18 @@ interface SubmissionStore {
     fun recordResponse(
         tenant: TenantId,
         response: AttemptResponse,
+    )
+
+    /**
+     * Writes `failure_class` on the attempt row of (docUuid, version, attemptNumber), the class of a dead letter
+     * (INV-REQ-575). Throws when the row does not exist: nothing else is written then.
+     */
+    fun recordFailureClass(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+        attemptNumber: Int,
+        failureClass: String,
     )
 
     /** Writes the state of the locked row; `next_attempt_at` and the retry columns stay as they are. */
