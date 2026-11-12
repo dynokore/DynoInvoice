@@ -1,9 +1,9 @@
 package com.dynokore.gst.canonical.adapters.clients
 
-import com.dynokore.gst.canonical.adapters.clients.api.ResolutionApi
-import com.dynokore.gst.canonical.adapters.clients.model.Counterparty
-import com.dynokore.gst.canonical.adapters.clients.model.ErrorEnvelope
-import com.dynokore.gst.canonical.adapters.clients.model.IngestedCounterpartyRequest
+import com.dynokore.gst.canonical.adapters.clients.masterdata.api.ResolutionApi
+import com.dynokore.gst.canonical.adapters.clients.masterdata.model.Counterparty
+import com.dynokore.gst.canonical.adapters.clients.masterdata.model.ErrorEnvelope
+import com.dynokore.gst.canonical.adapters.clients.masterdata.model.IngestedCounterpartyRequest
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline

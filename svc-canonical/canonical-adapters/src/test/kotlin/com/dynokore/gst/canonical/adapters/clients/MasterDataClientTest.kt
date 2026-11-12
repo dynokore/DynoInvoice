@@ -3,8 +3,8 @@ package com.dynokore.gst.canonical.adapters.clients
 import com.dynokore.gst.canonical.adapters.clients.MasterDataAnswer.Answered
 import com.dynokore.gst.canonical.adapters.clients.MasterDataAnswer.Refused
 import com.dynokore.gst.canonical.adapters.clients.MasterDataAnswer.Unavailable
-import com.dynokore.gst.canonical.adapters.clients.model.Counterparty
-import com.dynokore.gst.canonical.adapters.clients.model.IngestedCounterpartyRequest
+import com.dynokore.gst.canonical.adapters.clients.masterdata.model.Counterparty
+import com.dynokore.gst.canonical.adapters.clients.masterdata.model.IngestedCounterpartyRequest
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.ResilientEdge
