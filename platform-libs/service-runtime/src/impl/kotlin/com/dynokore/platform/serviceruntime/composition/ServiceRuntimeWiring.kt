@@ -39,7 +39,8 @@ import java.util.concurrent.Executors
  * declares its [JobCommandAuthorizer] and [DeadlineSource] (no platform-libs implementation; the service's,
  * against its authority replica, CS-23), on its one application DataSource (INV-REQ-1230 b1) with the job retention
  * of `service-runtime.jobs.retention` ([JobProperties]); run-now bodies run on the service's `jobRunNowExecutor` when
- * it declares one, else on virtual threads. The job runtime refuses to start (`JobRuntime.announce`) when that
+ * it declares one, else on virtual threads. The job runtime refuses to start (`JobRuntime.announce`, which
+ * service-runtime itself calls on `ApplicationReadyEvent`) when that
  * retention differs from the migration-written job-retention row (coordinator ruling INV-Q-4346 (A)).
  */
 @Configuration(proxyBeanMethods = false)
@@ -111,6 +112,10 @@ class ServiceRuntimeWiring {
             executor.getIfAvailable { Executors.newVirtualThreadPerTaskExecutor() },
             jobs.retention,
         )
+
+    @Bean
+    @ConditionalOnMissingBean(JobAnnouncement::class)
+    fun jobAnnouncement(jobRuntime: ObjectProvider<JobRuntime>): JobAnnouncement = JobAnnouncement(jobRuntime)
 
     companion object {
         /** The bean name of the service's executor for run-now bodies (optional). */

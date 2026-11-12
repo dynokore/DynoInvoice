@@ -360,6 +360,17 @@ class CompositionRootTest {
         }
     }
 
+    @Test
+    fun `INV-AC-20638 the composition root defines the job announcement bean beside the job runtime`(
+        @TempDir mountRoot: Path,
+    ) {
+        Files.writeString(mountRoot.resolve("ap-token"), "s3cr3t")
+        base.withServiceInputs(mountRoot).run { context ->
+            context.startupFailure shouldBe null
+            assertServiceRuntimePorts(context)
+        }
+    }
+
     private fun assertTenancyAndOutbox(context: AssertableApplicationContext) {
         // tenancy-kernel
         context.getBean(TenantContext::class.java).shouldBeInstanceOf<TenantContextImpl>()
@@ -458,6 +469,7 @@ class CompositionRootTest {
             listOf("idempotency-key-purge")
         context.getBeansOfType(ServletRegistrationBean::class.java).keys shouldBe
             setOf("jobCommandServlet", "policyCommandServlet")
+        context.getBeansOfType(JobAnnouncement::class.java).keys shouldBe setOf("jobAnnouncement")
     }
 
     @Test

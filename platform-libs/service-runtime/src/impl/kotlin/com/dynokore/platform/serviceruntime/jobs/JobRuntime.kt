@@ -106,6 +106,10 @@ class JobRuntime(
         )
     private val runNowCommand = JobRunNowCommand(jobs, core, runs, runNowExecutor)
     private val pauseCommands = JobPauseCommands(jobs, core)
+    private val announceLock = Any()
+
+    @Volatile
+    private var announced = false
 
     /**
      * Registers [job] with its [body] (INV-REQ-1136 b1); an ENTITY-scoped job also names the [entities] it
@@ -136,11 +140,17 @@ class JobRuntime(
     /**
      * The job runtime's start, called when the service starts: refuses to start ([checkRetention]) when the configured
      * retention differs from the migration-written row (INV-Q-4346 (A)), then emits `JobRegistered` once per
-     * registered job (INV-REQ-1226 b6, INV-Q-2981).
+     * registered job (INV-REQ-1226 b6, INV-Q-2981). Runs at most once per instance: a later call returns without a
+     * check and without an emission, concurrent calls emit once, and a call that threw leaves the instance
+     * un-announced so the next call checks again.
      */
     fun announce() {
-        checkRetention()
-        core.records.announceRegistered(jobs.values, clock.instant())
+        synchronized(announceLock) {
+            if (announced) return
+            checkRetention()
+            core.records.announceRegistered(jobs.values, clock.instant())
+            announced = true
+        }
     }
 
     /**

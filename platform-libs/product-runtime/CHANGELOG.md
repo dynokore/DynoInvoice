@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.1] - 2026-11-12
+### Changed
+- POM only: depends on `service-runtime` 13.13.0 (INV-T-20639, rule G-DVS); no code change.
+
 ## [2.19.0] - 2026-11-11
 ### Added
 - `OperatorSessionKeysFeedHandler` and a `ReplicaFeeds` entry for `OperatorSessionKeysChanged` on the AUTHORITY replica with no fallback: the operator-session key sets are fed from the platform topic (INV-Q-16496 A, INV-AC-16966). `AuthorityFeedHandler` decodes `operatorAccessRecord` to the replica's operator access record; a second record, a look-alike type or a payload outside the schema bounds is a `ContractViolation`. `ReplicaFeeds.of(AUTHORITY)` now has two feeds.

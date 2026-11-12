@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.13.0] - 2026-11-12
+### Added
+- `JobAnnouncement`, an `ApplicationListener<ApplicationReadyEvent>` defined by `ServiceRuntimeWiring` (`jobAnnouncement`, `@ConditionalOnMissingBean`): it calls `JobRuntime.announce()` when the application is ready if the context holds a `JobRuntime`, so a service calls nothing; a retention mismatch or missing row fails the start (INV-REQ-1226; INV-T-20639, INV-AC-20638).
+- `JobRuntime.announce()` runs at most once per instance: a second call returns without a check or an emission, concurrent calls emit once, and a call that threw leaves the instance un-announced so the next call checks again. A service that already calls it (svc-transport) is unaffected.
+
 ## [13.12.0] - 2026-11-11
 ### Added
 - `AuthorityReplica` decides an operator-session request from the operator access record (coordinator ruling INV-Q-16496 A; owner answer INV-Q-4119 A; INV-REQ-862, INV-REQ-1201; INV-T-16968, INV-AC-16965). New `OperatorAccess` (`caseRef`, `role`, `state`, `permissions`, `validUntil`, optional `OperatorElevation`), `OperatorAccessState` (`ACTIVE` exactly, every other string `ENDED`), `OperatorAccessKey` and the record kind `AuthorityRecord.OperatorAccessRecord`, stored by `accept` per (tenant, principal, case) with the version rule of the other kinds (ENDED keeps its version as a tombstone, an expired entry is evicted on the next accept). `AuthorizationRequest.operatorSession` (default null) and the factory `AuthorizationRequest.of(EndUserPrincipal, ...)`. A request with a session is decided only from the record, never from grant records or the machine path: GRANTED for an ACTIVE, unexpired record of the same tenant, operator, case and role, not voided by the principal record (else REVOKED), with the action in `permissions` or `doc.view.content` inside the elevation window (`doc.view.content` in `permissions` never grants); otherwise NO_GRANT; beyond the lag bound or before the first version AUTHORITY_UNAVAILABLE with no fallback call. `JobCommandServlet` passes the session of its `EndUserPrincipal`. Additive; a hand-built request with no session is unchanged.
