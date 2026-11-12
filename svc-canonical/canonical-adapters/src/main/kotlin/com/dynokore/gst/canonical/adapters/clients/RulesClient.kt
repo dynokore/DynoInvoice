@@ -69,8 +69,8 @@ sealed interface RulesAnswer {
 }
 
 /**
- * TPL-07, ARC-08: the HTTP client of rules-svc for canonical-svc (`evaluateDocument`), over the client generated from the
- * owner's contract (STK-46) and the policy of the sync edge. Not a Spring component: the caller task wires it.
+ * TPL-07, ARC-08: the HTTP client of rules-svc for canonical-svc (`evaluateDocument`), over the client generated
+ * from the owner's contract (STK-46) and the policy of the sync edge. Not a Spring component: the caller wires it.
  */
 class RulesClient(
     builder: RestClient.Builder,
