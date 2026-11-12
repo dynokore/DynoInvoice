@@ -1433,21 +1433,24 @@ paths:
         capabilities, FR-C.8). Never allows two in-flight versions of one
         Doc UUID (submission-svc `must_not`, FR-C.2). Called by console-bff
         on behalf of an operator holding the "Replay a failed submission"
-        grant (INV-T-2858, T14).
+        grant (INV-T-2858, T14). A version in a state other than DEAD_LETTERED
+        or QUEUED is refused with SUB-025 (HTTP 409) and nothing is changed.
       tags: [transactions]
       x-principal: filing-workflow
       x-break-glass-action: REPLAY
       x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
-      x-error-codes: [SUB-008]
+      x-error-codes: [SUB-008, SUB-025]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-575]
       x-operation:
         role: operator
         scope: entity
         precondition: >-
           The version is DEAD_LETTERED (INV-REQ-575); no other version of the
-          same Doc UUID is currently in flight (FR-C.2, SUB-008).
+          same Doc UUID is currently in flight (FR-C.2, SUB-008). A version in a
+          state other than DEAD_LETTERED or QUEUED is refused with SUB-025
+          (HTTP 409) and nothing is changed.
         reversibility: IRREVERSIBLE
         repeatKey: >-
           (docUuid, version) — the repeat overwrites itself at IRAS
