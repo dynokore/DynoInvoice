@@ -29,7 +29,13 @@ object EntityConstitutionRule {
         current: EntityConstitutionRow?,
         fact: EntityConstitutionFact,
     ): EntityConstitutionRow? =
-        if (current != null && current.version >= fact.version) null else EntityConstitutionRow(fact.constitution, fact.version)
+        if (current != null &&
+            current.version >= fact.version
+        ) {
+            null
+        } else {
+            EntityConstitutionRow(fact.constitution, fact.version)
+        }
 }
 
 /** Port of the local entity constitution table, keyed by tenant and entity; the tenant is bound by the transaction. */

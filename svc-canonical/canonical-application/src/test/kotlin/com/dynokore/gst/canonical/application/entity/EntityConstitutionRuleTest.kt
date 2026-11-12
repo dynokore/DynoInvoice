@@ -68,7 +68,8 @@ class EntityConstitutionRuleTest {
     @Test
     fun `INV-AC-21398 version is compared as a number not as text`() {
         val nine = EntityConstitutionRow("A", 9)
-        EntityConstitutionRule.next(nine, EntityConstitutionFact(t1, "ENT-1", "B", 10)) shouldBe EntityConstitutionRow("B", 10)
+        EntityConstitutionRule.next(nine, EntityConstitutionFact(t1, "ENT-1", "B", 10)) shouldBe
+            EntityConstitutionRow("B", 10)
     }
 
     @Test
