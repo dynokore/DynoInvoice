@@ -101,6 +101,14 @@ class LocatorRecorderIndexTest {
             locators,
             RecordAppender(RecordKind.entries.associateWith { ledger }, locators, pending, applied),
             index,
+            object : SubmissionIndexCategoryStore {
+                override fun insertAll(
+                    tenant: TenantId,
+                    docUuid: UUID,
+                    version: Int,
+                    codes: Set<String>,
+                ) = Unit
+            },
         )
     private val locator =
         DocumentLocator(UUID.randomUUID(), 1, "ENT-1", "2026-Q1", LocalDate.of(2026, 1, 15), "tr", "INV-1")

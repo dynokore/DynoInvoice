@@ -57,6 +57,7 @@ object ChainWiring {
             JooqLocatorStore(dsl),
             recordAppender(dsl, clock),
             JooqSubmissionIndexStore(dsl),
+            JooqSubmissionIndexCategoryStore(dsl),
             clock,
         )
 

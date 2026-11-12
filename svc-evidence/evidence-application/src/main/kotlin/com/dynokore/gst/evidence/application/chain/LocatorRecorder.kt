@@ -12,6 +12,7 @@ class LocatorRecorder(
     private val locators: LocatorStore,
     private val appender: RecordAppender,
     private val index: SubmissionIndexStore,
+    private val categories: SubmissionIndexCategoryStore,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     /** True when the locator was stored; a repeat (the same event id or the same version) stores and drains nothing. */
@@ -20,6 +21,7 @@ class LocatorRecorder(
         eventId: String,
         locator: DocumentLocator,
         counterpartyUen: String? = null,
+        categoryCodes: Set<String> = emptySet(),
     ): Boolean {
         locators.lock(tenant, locator.docUuid, locator.version)
         if (!locators.insert(tenant, eventId, locator, clock.instant())) return false
@@ -36,6 +38,7 @@ class LocatorRecorder(
                 recordedAt = clock.instant(),
             ),
         )
+        if (categoryCodes.isNotEmpty()) categories.insertAll(tenant, locator.docUuid, locator.version, categoryCodes)
         appender.drainPending(tenant, locator.docUuid, locator.version)
         return true
     }

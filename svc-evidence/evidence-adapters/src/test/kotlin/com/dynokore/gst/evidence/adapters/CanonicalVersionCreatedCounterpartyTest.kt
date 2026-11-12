@@ -8,6 +8,7 @@ import com.dynokore.gst.evidence.application.chain.LocatorStore
 import com.dynokore.gst.evidence.application.chain.PendingRecord
 import com.dynokore.gst.evidence.application.chain.PendingStore
 import com.dynokore.gst.evidence.application.chain.RecordAppender
+import com.dynokore.gst.evidence.application.chain.SubmissionIndexCategoryStore
 import com.dynokore.gst.evidence.application.chain.SubmissionIndexRow
 import com.dynokore.gst.evidence.application.chain.SubmissionIndexStore
 import com.dynokore.gst.evidence.domain.chain.DocumentLocator
@@ -114,6 +115,14 @@ class CanonicalVersionCreatedCounterpartyTest {
                 locators,
                 RecordAppender(RecordKind.entries.associateWith { ledger }, locators, pending, applied),
                 index,
+                object : SubmissionIndexCategoryStore {
+                    override fun insertAll(
+                        tenant: TenantId,
+                        docUuid: UUID,
+                        version: Int,
+                        codes: Set<String>,
+                    ) = Unit
+                },
             ),
         )
 

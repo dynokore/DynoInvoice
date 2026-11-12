@@ -49,6 +49,7 @@ class CanonicalVersionCreatedHandler(
                 event.id.value,
                 locator,
                 counterpartyUen(data),
+                categoryCodes(data),
             )
         ) {
             HandleOutcome.APPLIED
@@ -56,6 +57,17 @@ class CanonicalVersionCreatedHandler(
             HandleOutcome.IGNORED
         }
     }
+
+    /** The distinct non-blank string `taxCode` values of the lines, as written, in first-seen order. */
+    private fun categoryCodes(data: JsonNode): Set<String> =
+        data
+            .path("canonicalDocument")
+            .path("lines")
+            .path("value")
+            .filter { it.path("taxCode").isString }
+            .map { it.path("taxCode").asString() }
+            .filter { it.isNotBlank() }
+            .toCollection(LinkedHashSet())
 
     /** The other party by direction (buyer for SALE, supplier for PURCHASE), only when its scheme is SG_UEN. */
     private fun counterpartyUen(data: JsonNode): String? {

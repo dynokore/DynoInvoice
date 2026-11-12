@@ -1,0 +1,134 @@
+package com.dynokore.gst.evidence.application.chain
+
+import com.dynokore.gst.evidence.domain.chain.DocumentLocator
+import com.dynokore.gst.evidence.domain.chain.RecordKind
+import com.dynokore.platform.evidencestore.EvidenceLedger
+import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Test
+import java.lang.reflect.Proxy
+import java.time.Instant
+import java.time.LocalDate
+import java.util.UUID
+
+/** INV-AC-20767: the category rows are written after the index row, before the drain, only for a stored locator. */
+class LocatorRecorderCategoryTest {
+    private val events = mutableListOf<String>()
+    private val written = mutableListOf<Set<String>>()
+    private var inserts = true
+    private var stored: DocumentLocator? = null
+
+    private val locators =
+        object : LocatorStore {
+            override fun find(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+            ): DocumentLocator? = stored
+
+            override fun insert(
+                tenant: TenantId,
+                eventId: String,
+                locator: DocumentLocator,
+                recordedAt: Instant,
+            ): Boolean {
+                events += "locator"
+                if (inserts) stored = locator
+                return inserts
+            }
+
+            override fun lock(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+            ) = Unit
+        }
+    private val pending =
+        object : PendingStore {
+            override fun insert(
+                tenant: TenantId,
+                record: PendingRecord,
+            ) = true
+
+            override fun unapplied(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+            ): List<PendingRecord> = emptyList<PendingRecord>().also { events += "drain" }
+        }
+    private val applied =
+        object : AppliedStore {
+            override fun isApplied(
+                tenant: TenantId,
+                eventId: String,
+            ) = false
+
+            override fun insert(
+                tenant: TenantId,
+                record: AppliedRecord,
+            ) = Unit
+        }
+    private val ledger =
+        Proxy.newProxyInstance(javaClass.classLoader, arrayOf(EvidenceLedger::class.java)) { _, _, _ ->
+            error("not reached")
+        } as EvidenceLedger
+    private val index =
+        object : SubmissionIndexStore {
+            override fun upsertDocument(
+                tenant: TenantId,
+                row: SubmissionIndexRow,
+            ): Boolean {
+                events += "index"
+                return true
+            }
+
+            override fun markDespatched(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+            ): Boolean = false
+        }
+    private val categories =
+        object : SubmissionIndexCategoryStore {
+            override fun insertAll(
+                tenant: TenantId,
+                docUuid: UUID,
+                version: Int,
+                codes: Set<String>,
+            ) {
+                events += "categories"
+                written += codes
+            }
+        }
+    private val recorder =
+        LocatorRecorder(
+            locators,
+            RecordAppender(RecordKind.entries.associateWith { ledger }, locators, pending, applied),
+            index,
+            categories,
+        )
+    private val locator =
+        DocumentLocator(UUID.randomUUID(), 1, "ENT-1", "2026-Q1", LocalDate.of(2026, 1, 15), "tr", "INV-1")
+
+    @Test
+    fun `INV-AC-20767 the categories are written after the index row and before the drain`() {
+        recorder.record(TenantId(UUID.randomUUID()), "e1", locator, "U1", linkedSetOf("SR", "ZR")) shouldBe true
+        events shouldBe listOf("locator", "index", "categories", "drain")
+        written shouldBe listOf(setOf("SR", "ZR"))
+    }
+
+    @Test
+    fun `INV-AC-20767 no category is written when the locator insert returned false`() {
+        inserts = false
+        recorder.record(TenantId(UUID.randomUUID()), "e1", locator, null, setOf("SR")) shouldBe false
+        written shouldBe emptyList()
+        events shouldBe listOf("locator")
+    }
+
+    @Test
+    fun `INV-AC-20767 no category call is made for an empty set`() {
+        recorder.record(TenantId(UUID.randomUUID()), "e1", locator, "U1") shouldBe true
+        written shouldBe emptyList()
+        events shouldBe listOf("locator", "index", "drain")
+    }
+}

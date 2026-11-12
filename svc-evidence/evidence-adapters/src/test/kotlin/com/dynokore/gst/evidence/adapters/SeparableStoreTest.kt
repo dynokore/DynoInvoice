@@ -73,7 +73,13 @@ class SeparableStoreTest {
                     .valueOf("P30DT0S"),
         )
 
-    private val constrained: Map<String, Any> = consumerConstrained + configConstrained()
+    /** The one foreign key of the schema: the category child row points at the `submission_index` row written here. */
+    private val indexKey: Map<String, Any> =
+        UUID.randomUUID().let { doc ->
+            mapOf("submission_index.doc_uuid" to doc, "submission_index_category.doc_uuid" to doc)
+        }
+
+    private val constrained: Map<String, Any> = consumerConstrained + configConstrained() + indexKey
 
     /** Columns left unset: a SECURITY case has no subject and no privacy facts (the shape check of `case_register`). */
     private val unset =
@@ -214,7 +220,7 @@ class SeparableStoreTest {
             EvidenceDb.superuserOf(url).use { superuser ->
                 val owner = DSL.using(superuser, SQLDialect.POSTGRES)
                 // the dead letters are written through a sys function, never by the runtime login itself
-                written.associate { table ->
+                written.sortedBy { it.name }.associate { table ->
                     table.name to insertOne(if (runtimeMayInsert(dsl, table)) dsl else owner, table, identity)
                 }
             }
