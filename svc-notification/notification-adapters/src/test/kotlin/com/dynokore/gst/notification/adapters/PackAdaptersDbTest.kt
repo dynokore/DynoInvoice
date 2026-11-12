@@ -54,8 +54,8 @@ class PackAdaptersDbTest {
         tiers: String = "[{\"tier\":1,\"daysToDue\":30},{\"tier\":2,\"daysToDue\":14}]",
     ) = exec(
         "insert into notification.alert_policy (tenant_id, entity_ref, alert_class, recipients, channels, " +
-            "escalation_tiers, updated_at) values ('$tenant', '$TENANT_WIDE_ENTITY_REF', '$cls', '$recipients', '[]', " +
-            "'$tiers', now())",
+            "escalation_tiers, updated_at) values ('$tenant', '$TENANT_WIDE_ENTITY_REF', '$cls', '$recipients', " +
+            "'[]', '$tiers', now())",
     )
 
     private fun seedAlert(
@@ -65,9 +65,9 @@ class PackAdaptersDbTest {
         snoozedUntil: String = "null",
         trigger: String = PACK_ALERT_TRIGGER,
     ) = exec(
-        "insert into notification.alert (tenant_id, alert_id, entity_ref, alert_class, state, raised_at, \"trigger\", " +
-            "snoozed_until) values ('$tenant', gen_random_uuid(), '$TENANT_WIDE_ENTITY_REF', '$cls', '$state', now(), " +
-            "'$trigger', $snoozedUntil)",
+        "insert into notification.alert (tenant_id, alert_id, entity_ref, alert_class, state, raised_at, " +
+            "\"trigger\", snoozed_until) values ('$tenant', gen_random_uuid(), '$TENANT_WIDE_ENTITY_REF', " +
+            "'$cls', '$state', now(), '$trigger', $snoozedUntil)",
     )
 
     private fun cleanup() =
@@ -83,7 +83,8 @@ class PackAdaptersDbTest {
             s
                 .executeQuery(
                     "select state, alert_class, \"trigger\", entity_ref, period_ref, current_tier::text, " +
-                        "snoozed_until::text from notification.alert where tenant_id = '$tenant' order by state, alert_class",
+                        "snoozed_until::text from notification.alert where tenant_id = '$tenant' " +
+                        "order by state, alert_class",
                 ).use { r ->
                     generateSequence { if (r.next()) (1..7).map { r.getString(it) } else null }.toList()
                 }
@@ -117,7 +118,9 @@ class PackAdaptersDbTest {
         bound(a) { c, dsl ->
             JooqPackAlerts(dsl, clock).raise(TenantId(a), draft) shouldBe true
             states(c, a) shouldBe
-                listOf(listOf("RAISED", "PACK_STALENESS", "PACK_NOT_ACTIVATED", TENANT_WIDE_ENTITY_REF, null, "2", null))
+                listOf(
+                    listOf("RAISED", "PACK_STALENESS", "PACK_NOT_ACTIVATED", TENANT_WIDE_ENTITY_REF, null, "2", null),
+                )
             c.createStatement().use { s ->
                 s.executeQuery("select raised_at::text from notification.alert where tenant_id = '$a'").use { r ->
                     r.next() shouldBe true
