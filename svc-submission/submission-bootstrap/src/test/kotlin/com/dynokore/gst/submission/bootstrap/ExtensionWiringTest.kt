@@ -135,7 +135,13 @@ class ExtensionWiringTest {
         context.getBeansOfType(ConsumerSubscription::class.java).values.map { it.topic } shouldBe
             listOf(SubmissionEvents.PAYLOAD_READY_TOPIC)
         context.getBeansOfType(JdbcInboxConsumer::class.java).keys shouldContainExactlyInAnyOrder
-            listOf("payloadReadyConsumer", "breakGlassSessionConsumer", "periodExtendedConsumer")
+            listOf(
+                "payloadReadyConsumer",
+                "breakGlassSessionConsumer",
+                "periodExtendedConsumer",
+                "canonicalVersionCreatedConsumer",
+                "periodDueDateChangedConsumer",
+            )
     }
 
     @Test

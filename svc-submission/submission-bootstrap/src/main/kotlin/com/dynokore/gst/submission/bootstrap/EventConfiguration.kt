@@ -62,9 +62,17 @@ object SubmissionEvents {
     const val PERIOD_EXTENDED_TOPIC = "gst.tenancy.period-extended.v1"
     const val PERIOD_EXTENDED_TYPE = "com.dynokore.gst.tenancy.PeriodExtended.v1"
 
+    const val CANONICAL_VERSION_CREATED_TOPIC = "gst.canonical.canonical-version-created.v1"
+    const val CANONICAL_VERSION_CREATED_TYPE = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"
+
+    const val PERIOD_DUE_DATE_CHANGED_TOPIC = "gst.tenancy.period-due-date-changed.v1"
+    const val PERIOD_DUE_DATE_CHANGED_TYPE = "com.dynokore.gst.tenancy.PeriodDueDateChanged.v1"
+
     /**
-     * `PayloadReady` (topics.yaml: producer payload-svc, content topic) and `PeriodExtended` (producer tenancy-svc, no
-     * content topic, INV-REQ-81); submission-svc is only their subscriber.
+     * `PayloadReady` (topics.yaml: producer payload-svc, content topic), `PeriodExtended` (producer tenancy-svc, no
+     * content topic, INV-REQ-81), `CanonicalVersionCreated` (producer canonical-svc, content topic) and
+     * `PeriodDueDateChanged` (producer tenancy-svc, no content topic), the last two feeding the obligation register
+     * (INV-REQ-570); submission-svc is only their subscriber.
      */
     val consumed: List<CatalogueEntry> =
         listOf(
@@ -78,6 +86,20 @@ object SubmissionEvents {
             CatalogueEntry(
                 PERIOD_EXTENDED_TYPE,
                 PERIOD_EXTENDED_TOPIC,
+                setOf("tenancy-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                CANONICAL_VERSION_CREATED_TYPE,
+                CANONICAL_VERSION_CREATED_TOPIC,
+                setOf("canonical-svc"),
+                contentTopic = true,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                PERIOD_DUE_DATE_CHANGED_TYPE,
+                PERIOD_DUE_DATE_CHANGED_TOPIC,
                 setOf("tenancy-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,

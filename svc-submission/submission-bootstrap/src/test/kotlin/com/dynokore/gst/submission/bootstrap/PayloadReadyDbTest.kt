@@ -325,7 +325,14 @@ class PayloadReadyDbTest {
         @TempDir dir: Path,
     ) = run(dir) {
         val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
-        consumers.keys shouldBe setOf("payloadReadyConsumer", "breakGlassSessionConsumer", "periodExtendedConsumer")
+        consumers.keys shouldBe
+            setOf(
+                "payloadReadyConsumer",
+                "breakGlassSessionConsumer",
+                "periodExtendedConsumer",
+                "canonicalVersionCreatedConsumer",
+                "periodDueDateChangedConsumer",
+            )
         val factory = (context as ConfigurableApplicationContext).beanFactory
         consumers.keys.filter { factory.getBeanDefinition(it).isPrimary } shouldBe emptyList()
         context.getBeansOfType(ReplayDelivery::class.java).keys shouldBe setOf("submissionReplayDelivery")
