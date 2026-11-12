@@ -1,5 +1,7 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
+import com.dynokore.gst.submission.adapters.persistence.JooqRegisterEntryStore
 import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedHandler
 import com.dynokore.gst.submission.application.register.DocumentKindResolver
 import com.dynokore.gst.submission.application.register.DocumentTypeKindResolver
@@ -143,9 +145,9 @@ class RegisterWriterWiringTest {
                 config.documentKindResolver(),
                 store,
             )
-        handler.javaClass.simpleName shouldBe "CanonicalVersionCreatedHandler"
-        context.getBean(RegisterEntryStore::class.java).javaClass.simpleName shouldBe "JooqRegisterEntryStore"
-        dueDates.javaClass.simpleName shouldBe "JooqPeriodDueDateStore"
+        handler.shouldBeInstanceOf<CanonicalVersionCreatedHandler>()
+        context.getBean(RegisterEntryStore::class.java).shouldBeInstanceOf<JooqRegisterEntryStore>()
+        dueDates.shouldBeInstanceOf<JooqPeriodDueDateStore>()
         context.getBean(DocumentKindResolver::class.java).shouldBeInstanceOf<DocumentTypeKindResolver>()
         context.getBean(FilingDeadlineSource::class.java).shouldBeInstanceOf<PeriodDueDateDeadlineSource>()
     }
