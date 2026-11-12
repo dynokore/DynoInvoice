@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-12
+### Changed
+- BREAKING (INV-T-20904, INV-AC-20903): `TriggerClass` constants renamed to equal the ingestion contract enum: `OUTBOUND_ISSUED` to `OUTBOUND_DOCUMENT_ISSUED`, `INBOUND_RECORDED` to `INBOUND_DOCUMENT_RECORDED`. Order and the other three names unchanged; no alias.
+
 ## [3.0.0] - 2026-11-12
 ### Changed
 - BREAKING (INV-T-20902, INV-Q-10027): `TriggerCoverageEntry.CoveredElsewhere` loses the `acknowledgerRoles` parameter and `TriggerCoverage.ENTITY_ADMIN` is removed; no role name is checked in the api half. The calling service decides per request from the scoped permission key through `AuthorityReplica.decide`; `acknowledgedBy` is the acting user id (INV-Q-10647).

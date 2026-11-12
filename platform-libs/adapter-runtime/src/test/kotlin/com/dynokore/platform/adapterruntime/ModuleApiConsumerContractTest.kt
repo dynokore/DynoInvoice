@@ -43,11 +43,12 @@ class ModuleApiConsumerContractTest {
     fun `TriggerCoverage refuses go-live naming the missing class and counts only System classes`() {
         val entries: Map<TriggerClass, TriggerCoverageEntry> =
             TriggerClass.entries.associateWith { TriggerCoverageEntry.Mapped("erp") } -
-                TriggerClass.INBOUND_RECORDED
-        TriggerCoverage.evaluate(entries) shouldBe CoverageVerdict.Incomplete(listOf(TriggerClass.INBOUND_RECORDED))
+                TriggerClass.INBOUND_DOCUMENT_RECORDED
+        TriggerCoverage.evaluate(entries) shouldBe
+            CoverageVerdict.Incomplete(listOf(TriggerClass.INBOUND_DOCUMENT_RECORDED))
         val elsewhere = TriggerCoverageEntry.CoveredElsewhere("ev", "a")
-        TriggerCoverage.evaluate(entries + (TriggerClass.INBOUND_RECORDED to elsewhere)) shouldBe
-            CoverageVerdict.Complete(TriggerClass.entries.toSet() - TriggerClass.INBOUND_RECORDED)
+        TriggerCoverage.evaluate(entries + (TriggerClass.INBOUND_DOCUMENT_RECORDED to elsewhere)) shouldBe
+            CoverageVerdict.Complete(TriggerClass.entries.toSet() - TriggerClass.INBOUND_DOCUMENT_RECORDED)
     }
 
     @Test

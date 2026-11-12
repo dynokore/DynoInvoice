@@ -17,15 +17,26 @@ class TriggerCoverageTest {
         all.associateWith<TriggerClass, TriggerCoverageEntry> { mapped } + over
 
     @Test
-    fun `exactly the five classes exist in order`() {
+    fun `INV-AC-20903 the five classes exist in order and equal the contract enum`() {
+        // Source: platform-contracts ingestion/openapi.yaml (1.18.0), components.parameters.TriggerClass.schema.enum,
+        // at commit d5f0f661.
         all.map { it.name } shouldBe
             listOf(
-                "OUTBOUND_ISSUED",
-                "INBOUND_RECORDED",
+                "OUTBOUND_DOCUMENT_ISSUED",
+                "INBOUND_DOCUMENT_RECORDED",
                 "AGGREGABLE_BATCH_CLOSED",
                 "JOURNAL_ONLY_SUPPLY",
                 "THIRD_PARTY_ISSUANCE",
             )
+    }
+
+    @Test
+    fun `INV-AC-20903 the superseded names and look-alikes are absent`() {
+        val names = all.map { it.name }
+        // Built by concatenation so that no old name appears as a literal under adapter-runtime/src.
+        val superseded = listOf("OUTBOUND_" + "ISSUED", "INBOUND_" + "RECORDED")
+        val lookAlikes = listOf("OUTBOUND_DOCUMENT_ISSUED" + "_", "Inbound_Document_Recorded")
+        (superseded + lookAlikes).forEach { names.contains(it) shouldBe false }
     }
 
     @Test
@@ -71,8 +82,8 @@ class TriggerCoverageTest {
     @Test
     fun `INV-AC-20901 covered elsewhere is complete but not a system class, waived is`() {
         val elsewhere = CoveredElsewhere("ev-1", "alice")
-        TriggerCoverage.evaluate(full(TriggerClass.INBOUND_RECORDED to elsewhere)) shouldBe
-            CoverageVerdict.Complete(all.toSet() - TriggerClass.INBOUND_RECORDED)
+        TriggerCoverage.evaluate(full(TriggerClass.INBOUND_DOCUMENT_RECORDED to elsewhere)) shouldBe
+            CoverageVerdict.Complete(all.toSet() - TriggerClass.INBOUND_DOCUMENT_RECORDED)
         TriggerCoverage.evaluate(full(TriggerClass.JOURNAL_ONLY_SUPPLY to Waived("none", review))) shouldBe
             CoverageVerdict.Complete(all.toSet())
     }
