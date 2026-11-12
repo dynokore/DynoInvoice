@@ -89,7 +89,14 @@ class HandleBacklogValuesTest {
         kinds(payload(unack = 6)) shouldBe listOf(BacklogResultKind.WITHIN_THRESHOLD, BacklogResultKind.RAISED)
         drafts shouldBe
             listOf(
-                BacklogAlertDraft(tenant, AlertClass.MISSING_ACKNOWLEDGEMENT, "BACKLOG_THRESHOLD", "E1", "2026-Q3", now),
+                BacklogAlertDraft(
+                    tenant,
+                    AlertClass.MISSING_ACKNOWLEDGEMENT,
+                    "BACKLOG_THRESHOLD",
+                    "E1",
+                    "2026-Q3",
+                    now,
+                ),
             )
     }
 

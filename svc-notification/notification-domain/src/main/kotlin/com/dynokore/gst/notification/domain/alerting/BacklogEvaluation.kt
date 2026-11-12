@@ -77,10 +77,20 @@ object BacklogEvaluation {
         t: BacklogThresholds?,
     ): Boolean? =
         when (value) {
-            BacklogValue.QUEUE_DEPTH -> t?.maxQueueDepth?.let { m.queueDepth > it }
-            BacklogValue.OLDEST_UNSENT_AGE ->
+            BacklogValue.QUEUE_DEPTH -> {
+                t?.maxQueueDepth?.let { m.queueDepth > it }
+            }
+
+            BacklogValue.OLDEST_UNSENT_AGE -> {
                 t?.maxOldestUnsentAgeSeconds?.let { max -> m.oldestUnsentAgeSeconds?.let { it > max } ?: false }
-            BacklogValue.FAILURE_RATE -> t?.maxFailureRatio?.let { m.failureRate > it }
-            BacklogValue.UNACKNOWLEDGED_COUNT -> t?.maxUnacknowledgedCount?.let { m.unacknowledgedCount > it }
+            }
+
+            BacklogValue.FAILURE_RATE -> {
+                t?.maxFailureRatio?.let { m.failureRate > it }
+            }
+
+            BacklogValue.UNACKNOWLEDGED_COUNT -> {
+                t?.maxUnacknowledgedCount?.let { m.unacknowledgedCount > it }
+            }
         }
 }

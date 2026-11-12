@@ -79,9 +79,13 @@ class HandleBacklogValues(
                             if (store.raise(draft)) BacklogResultKind.RAISED else BacklogResultKind.ALREADY_OPEN
                         }
 
-                        BacklogDecisionKind.WITHIN_THRESHOLD -> BacklogResultKind.WITHIN_THRESHOLD
+                        BacklogDecisionKind.WITHIN_THRESHOLD -> {
+                            BacklogResultKind.WITHIN_THRESHOLD
+                        }
 
-                        BacklogDecisionKind.NOT_CONFIGURED -> BacklogResultKind.NOT_CONFIGURED
+                        BacklogDecisionKind.NOT_CONFIGURED -> {
+                            BacklogResultKind.NOT_CONFIGURED
+                        }
                     }
                 BacklogClassResult(alertClass, kind, decision.breached, decision.notConfigured)
             }
@@ -96,7 +100,15 @@ class HandleBacklogValues(
         val rate = failureRate(payload)
         val unacknowledged =
             integer(payload, "unacknowledgedCount") ?: throw ContractViolation("unacknowledgedCount is required")
-        return BacklogMeasurement(entityRef, periodRef, instant(payload, "measuredAt"), queueDepth, age, rate, unacknowledged)
+        return BacklogMeasurement(
+            entityRef,
+            periodRef,
+            instant(payload, "measuredAt"),
+            queueDepth,
+            age,
+            rate,
+            unacknowledged,
+        )
     }
 
     private fun text(
@@ -127,10 +139,10 @@ class HandleBacklogValues(
     }
 
     private fun failureRate(payload: Map<String, Any?>): Double {
-        val value = payload["failureRate"] ?: throw ContractViolation("failureRate is required")
-        val number = (value as? Number)?.toDouble() ?: throw ContractViolation("failureRate must be a number")
-        if (number.isNaN() || number < 0.0 || number > 1.0) throw ContractViolation("failureRate must be within 0 to 1")
-        return number
+        val number =
+            (payload["failureRate"] as? Number)?.toDouble()
+                ?: throw ContractViolation("failureRate is required and must be a number")
+        return number.takeIf { it in 0.0..1.0 } ?: throw ContractViolation("failureRate must be within 0 to 1")
     }
 
     private fun instant(
