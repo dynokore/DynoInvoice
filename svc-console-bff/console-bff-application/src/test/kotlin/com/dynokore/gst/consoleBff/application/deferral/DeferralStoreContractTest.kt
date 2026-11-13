@@ -13,7 +13,7 @@ import java.util.UUID
 abstract class DeferralStoreContractTest {
     protected abstract fun newStore(): DeferralStore
 
-    /** Number of rows (any state) the store holds for the key; the adapter supplies its own count. */
+    /** Number of DEFERRED rows the store holds; the adapter supplies its own count. */
     protected abstract fun rowCount(store: DeferralStore): Int
 
     private val at = Instant.parse("2026-11-14T00:00:00Z")
