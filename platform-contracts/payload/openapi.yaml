@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -693,6 +693,52 @@ paths:
                     correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/payload/documents/{docUuid}/latest-version:
+    get:
+      operationId: getLatestDocumentVersion
+      summary: Read the highest stored version of a document
+      description: >-
+        Payload query API to console-bff. Answers the highest version stored
+        for the document in the payload-svc version facts (one row per
+        canonical version, built or blocked); a document with no stored
+        version fact is refused with 404 and SRT-005.
+      tags: [queries]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->payload-svc
+      x-timeout: 2000
+      x-error-codes: [SRT-005]
+      x-requirements: [INV-REQ-500]
+      parameters:
+        - $ref: '#/components/parameters/DocUuid'
+      responses:
+        '200':
+          description: The highest stored version of the document.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LatestDocumentVersion'
+              examples:
+                default:
+                  value:
+                    docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    version: 2
+        '404':
+          description: The document has no stored version fact (SRT-005).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Not found"
+                    status: 404
+                    code: "SRT-005"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/payload/documents/{docUuid}/versions/{version}:
     get:
       operationId: getPayload
@@ -1123,6 +1169,16 @@ components:
           type: boolean
           description: True exactly for a reason whose catalogue disposition is OVERRIDABLE (INV-REQ-500).
       required: [code, message]
+    LatestDocumentVersion:
+      type: object
+      required: [docUuid, version]
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
     PayloadMetadata:
       type: object
       properties:
