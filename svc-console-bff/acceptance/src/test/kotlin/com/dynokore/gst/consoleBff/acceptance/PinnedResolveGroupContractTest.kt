@@ -92,6 +92,10 @@ class PinnedResolveGroupContractTest {
                 .map { it.split('\t') }
                 .filter { it[0] == "operation" }
                 .map { it[1] }
-        requireEq("table operation ids", tableIds.toSet(), OperationsGate.contractOperations(File(consoleDir, "openapi.yaml").readText()))
+        requireEq(
+            "table operation ids",
+            tableIds.toSet(),
+            OperationsGate.contractOperations(File(consoleDir, "openapi.yaml").readText()),
+        )
     }
 }
