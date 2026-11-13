@@ -74,7 +74,7 @@ class IssueSignedLinkTest {
         assertEquals("ev-77", link.sourceEventId)
         val entry = kit.audits.single()
         assertEquals(kit.systemActor, entry.actor)
-        assertEquals("originEvent:ev-77", entry.reason)
+        assertEquals("ev-77", entry.reason)
         assertEquals("entity:E-ENV", entry.scope)
         // the sender is the system actor, never the event's source: no message and no audit field names it
         assertEquals(listOf("sig@example.com", "+6591234567"), kit.messages.map { it.recipient })
@@ -111,6 +111,7 @@ class IssueSignedLinkTest {
                 "RECIPIENT_OR_PURPOSE_MISSING",
                 "SMS_ONLY_NO_MOBILE",
                 "SMS_ONLY_GATEWAY_NOT_BOUND",
+                "ACTOR_NOT_SYSTEM",
             ),
             IssueRefusal.values().map { it.name },
         )

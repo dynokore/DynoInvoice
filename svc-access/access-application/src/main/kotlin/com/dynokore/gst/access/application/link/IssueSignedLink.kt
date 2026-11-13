@@ -122,6 +122,9 @@ enum class IssueRefusal {
 
     /** SMS only (VP-75) while the property `access.signed-link.sms-gateway-bound` is not true. */
     SMS_ONLY_GATEWAY_NOT_BOUND,
+
+    /** The caller identity is blank or is not the system actor (a role name, a person): issuing is system-only. */
+    ACTOR_NOT_SYSTEM,
 }
 
 sealed interface IssueLinkOutcome {
@@ -162,8 +165,21 @@ class IssueSignedLinkUseCase(
     private val systemActor: String,
     private val clock: Clock,
 ) {
-    fun handle(command: IssueLinkCommand): IssueLinkOutcome =
+    /** The call of the system: the caller identity is the configured system actor. */
+    fun handle(command: IssueLinkCommand): IssueLinkOutcome = handle(systemActor, command)
+
+    /**
+     * [actor] is the caller identity. Only the system actor id issues a link (INV-Q-17201): a blank id, a role name
+     * or any other id is refused before anything is read, stored or audited. No permission is decided.
+     */
+    fun handle(
+        actor: String,
+        command: IssueLinkCommand,
+    ): IssueLinkOutcome =
         tx.inTransaction {
+            if (actor.isBlank() || actor != systemActor) {
+                return@inTransaction IssueLinkOutcome.Refused(IssueRefusal.ACTOR_NOT_SYSTEM)
+            }
             val origin = command.originEventId
             val earlier = origin?.let { links.findBySourceEvent(it) }
             if (earlier != null) return@inTransaction IssueLinkOutcome.Duplicate(earlier.ref)
@@ -180,11 +196,11 @@ class IssueSignedLinkUseCase(
             requestMessages(command, ref, passcode)
             audit.record(
                 GrantAuditEntry(
-                    actor = systemActor,
+                    actor = actor,
                     action = "issueSignedLink",
                     scope = "entity:${alertEntity.value}",
-                    reason = origin?.let { "originEvent:$it" },
-                    priorStateJson = null,
+                    reason = origin,
+                    priorStateJson = PRIOR_STATE_NONE,
                 ),
             )
             IssueLinkOutcome.Issued(ref)
@@ -249,3 +265,6 @@ class IssueSignedLinkUseCase(
             else -> null
         }
 }
+
+/** A new link has no earlier state: the prior state of its audit entry says so. */
+private const val PRIOR_STATE_NONE = """{"link":null}"""
