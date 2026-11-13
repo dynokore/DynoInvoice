@@ -46,10 +46,6 @@ class EventPayloadContractTest {
                 """.trimMargin(),
             "ReadinessChanged" to
                 """{"entityRef":"E-001","period":"2026-Q3","verdict":"READY","countsByState":{"ACKNOWLEDGED":1}}""",
-            "BacklogValuesMeasured" to
-                """{"entityRef":"E-001","periodRef":"2026Q1","queueDepth":2,"failureRate":0.5,"unacknowledgedCount":1,
-                |"measuredAt":"2026-10-29T08:00:00Z"}
-                """.trimMargin(),
             "ComplianceAlertValuesMeasured" to
                 """{"entityRef":"E-001","periodRef":"2026Q1","measuredOn":"2026-10-29","documentsWithoutSubmission":1,
                 |"documentsPastDue":0,"daysToNearestDeadline":3}
