@@ -7,6 +7,7 @@ import com.networknt.schema.SpecificationVersion
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.DynamicTest.dynamicTest
 import org.junit.jupiter.api.Test
@@ -119,7 +120,11 @@ class EventPayloadContractTest {
         }
 
     @Test
-    fun `INV-AC-21642 the BacklogValuesMeasured sample validates and fails without each required member or with failureRate 1_5 or queueDepth -1`() {
+    @DisplayName(
+        "INV-AC-21642 the BacklogValuesMeasured sample validates and fails without each required member " +
+            "or with failureRate 1.5 or queueDepth -1",
+    )
+    fun backlogValuesMeasuredSample() {
         val sample = samples.getValue("BacklogValuesMeasured")
         errors("BacklogValuesMeasured", sample).shouldBeEmpty()
         listOf("entityRef", "periodRef", "queueDepth", "failureRate", "unacknowledgedCount", "measuredAt").forEach {
