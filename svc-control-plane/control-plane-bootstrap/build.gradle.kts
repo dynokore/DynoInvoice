@@ -96,7 +96,11 @@ val integrationTest =
         classpath = sourceSets["integrationTest"].runtimeClasspath
         shouldRunAfter(tasks.named("test"))
         dependsOn(":control-plane-adapters:harnessInitSql")
-        systemProperty("gst.pg.image", System.getProperty("gst.pg.image") ?: "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336")
+        systemProperty(
+            "gst.pg.image",
+            System.getProperty("gst.pg.image")
+                ?: "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336",
+        )
         systemProperty(
             "gst.sql.dir",
             rootProject.layout.projectDirectory

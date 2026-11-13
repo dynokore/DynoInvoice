@@ -30,9 +30,15 @@ object PostgresDb {
     private const val STARTUP_ATTEMPTS = 3
     private const val MIGRATE_LOGIN = "controlplane_migrate"
     private const val MIGRATE_PASSWORD = "controlplane_migrate_pw"
+    private const val DEFAULT_IMAGE =
+        "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"
+
+    /** A digest reference is not the default image name PostgreSQLContainer accepts, so it is declared compatible. */
+    private fun image(): DockerImageName =
+        DockerImageName.parse(System.getProperty("gst.pg.image", DEFAULT_IMAGE)).asCompatibleSubstituteFor("postgres")
 
     private val container: PostgreSQLContainer<*> =
-        PostgreSQLContainer(DockerImageName.parse(System.getProperty("gst.pg.image", "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336")))
+        PostgreSQLContainer(image())
             .withLabel("inv.agent", "c-inv-t-4985")
             // a saturated CI runner starts the container slowly: the default 60 s start-up wait is too short
             .withStartupTimeout(Duration.ofMinutes(STARTUP_MINUTES))
