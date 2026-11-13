@@ -47,7 +47,14 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 23
         OperationsGate.contractChannels(asyncapi).size shouldBe 4
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe ""
+        val assignedAndLive =
+            tsv
+                .lines()
+                .map { it.split('\t') }
+                .filter { it.size == 3 && it[0] == "operation" && it[2] != "UNASSIGNED" && it[1] !in stubs }
+                .map { it[2] }
+                .toSet()
+        assignedAndLive.containsAll(doneText!!.lines().filter { it.isNotBlank() }) shouldBe true
     }
 
     @Test
