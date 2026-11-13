@@ -17,8 +17,8 @@ import java.nio.file.Path
 import java.util.UUID
 
 /**
- * INV-AC-21332 (INV-T-21333): the `masterdata.held_document` table and [JooqHeldDocuments] over real PostgreSQL with the
- * runtime role. The adapters module has no database fixture, so the test sits here.
+ * INV-AC-21332 (INV-T-21333): the `masterdata.held_document` table and [JooqHeldDocuments] over real PostgreSQL with
+ * the runtime role. The adapters module has no database fixture, so the test sits here.
  */
 class HeldDocumentsStoreTest {
     private val d1 = uuid(1)
@@ -28,7 +28,7 @@ class HeldDocumentsStoreTest {
     private val d5 = uuid(5)
     private val d6 = uuid(6)
 
-    private fun uuid(n: Int) = UUID.fromString("00000000-0000-0000-0000-%012d".format(n))
+    private fun uuid(n: Int) = UUID.fromString("00000000-0000-0000-0000-" + n.toString().padStart(UUID_TAIL, '0'))
 
     private fun held(
         d: UUID,
@@ -207,10 +207,18 @@ class HeldDocumentsStoreTest {
         on { env, _ ->
             val t1 = TenantId(UUID.randomUUID())
             env.apply(t1, firstOrder)
-            assertThat(scalar("select relrowsecurity, relforcerowsecurity from pg_class where oid = 'masterdata.held_document'::regclass"))
-                .containsExactly("t|t")
-            assertThat(scalar("select policyname from pg_policies where schemaname = 'masterdata' and tablename = 'held_document'"))
-                .containsExactly("tenant_isolation")
+            assertThat(
+                scalar(
+                    "select relrowsecurity, relforcerowsecurity from pg_class " +
+                        "where oid = 'masterdata.held_document'::regclass",
+                ),
+            ).containsExactly("t|t")
+            assertThat(
+                scalar(
+                    "select policyname from pg_policies " +
+                        "where schemaname = 'masterdata' and tablename = 'held_document'",
+                ),
+            ).containsExactly("tenant_isolation")
             BoundaryFixture.asRuntime { c ->
                 c.createStatement().executeQuery("select count(*) from masterdata.held_document").use { rs ->
                     rs.next()
@@ -231,12 +239,14 @@ class HeldDocumentsStoreTest {
             assertThat(
                 scalar(
                     "select privilege_type from information_schema.role_table_grants " +
-                        "where grantee = 'masterdata_runtime' and table_schema = 'masterdata' and table_name = 'held_document'",
+                        "where grantee = 'masterdata_runtime' and table_schema = 'masterdata' " +
+                        "and table_name = 'held_document'",
                 ),
             ).containsExactlyInAnyOrder("SELECT", "INSERT", "UPDATE")
             assertThat(
                 scalar(
-                    "select a.attname from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey) " +
+                    "select a.attname from pg_index i join pg_attribute a " +
+                        "on a.attrelid = i.indrelid and a.attnum = any(i.indkey) " +
                         "where i.indrelid = 'masterdata.held_document'::regclass and i.indisprimary",
                 ),
             ).containsExactlyInAnyOrder("tenant_id", "doc_uuid")
@@ -267,9 +277,16 @@ class HeldDocumentsStoreTest {
 
     private companion object {
         const val STATEMENT_HEAD = 80
+        const val UUID_TAIL = 12
         val MIGRATION: Path =
             Path.of(
-                "..", "masterdata-adapters", "src", "main", "resources", "db", "migration",
+                "..",
+                "masterdata-adapters",
+                "src",
+                "main",
+                "resources",
+                "db",
+                "migration",
                 "V202611121000__create_held_document.sql",
             )
     }
