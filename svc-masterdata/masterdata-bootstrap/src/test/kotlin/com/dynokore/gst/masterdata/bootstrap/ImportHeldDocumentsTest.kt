@@ -96,6 +96,7 @@ class ImportHeldDocumentsTest {
         }
 
     @Test
+    @Suppress("LongMethod") // one scenario: record the held rows, import, read the envelopes
     fun `INV-AC-21337 an import lists the held documents of each written party and none for a party without`() =
         runRegistry { env ->
             val entity = env.entity()
@@ -144,7 +145,8 @@ class ImportHeldDocumentsTest {
             val applied =
                 env.post(
                     "$prefix/counterparties/import",
-                    """{"entityRef":"$entity","dryRunId":"$dryRunId","fileHash":"$h","rowCount":3,"providedBy":"MIGRATED"}""",
+                    """{"entityRef":"$entity","dryRunId":"$dryRunId","fileHash":"$h","rowCount":3,""" +
+                        """"providedBy":"MIGRATED"}""",
                 )
             assertThat(applied.first).isEqualTo(201)
             val resolved =
