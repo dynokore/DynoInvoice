@@ -18,13 +18,10 @@ import com.dynokore.gst.transport.application.RouteChangeRecorder
 import com.dynokore.gst.transport.application.SetConnectionEntities
 import com.dynokore.gst.transport.application.SwitchEntityAdapter
 import com.dynokore.gst.transport.application.TestConnection
-import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.connection.ConnectionStatusReporter
-import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -51,18 +48,6 @@ data class BreakerProperties(
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(BreakerProperties::class)
 class ConnectionConfiguration {
-    /**
-     * The API-15 key store of `setConnectionEntities`, over the service's own schema (V3). The runtime declares the
-     * same bean only when a job runtime or policy writer is present, so this one is declared here and the runtime's
-     * backs off.
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    fun idempotencyStore(
-        scope: TenantScope,
-        dsl: DSLContext,
-    ): IdempotencyStore = IdempotencyStore(scope, dsl, RouteConfiguration.SCHEMA)
-
     @Bean
     fun adapterCircuitBreaker(
         properties: BreakerProperties,

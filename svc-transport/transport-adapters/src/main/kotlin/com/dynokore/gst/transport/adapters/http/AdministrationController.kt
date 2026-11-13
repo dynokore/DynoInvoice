@@ -39,7 +39,6 @@ import com.dynokore.gst.transport.application.ConnectionTestResult as TestOutcom
  * 404 SRT-005 with nothing recorded or published. The refusals are mapped by [AdministrationAdvice].
  */
 @RestController
-@Suppress("LongParameterList") // one collaborator per operation of the interface, wired by the composition root
 open class AdministrationController(
     private val elect: ElectAcknowledgementRoute,
     private val clear: ClearAcknowledgementRoute,

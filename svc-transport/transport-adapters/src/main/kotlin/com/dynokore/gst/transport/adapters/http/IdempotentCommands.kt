@@ -16,8 +16,7 @@ import java.util.UUID
 /**
  * The API-15 key handling of an idempotent command (TPL-04): the command and the key record commit in one
  * transaction. A replay of the same key, operation and body returns the stored 200 and body and runs nothing; the same
- * key with another request is 422, one still running 409. A refusal thrown by the command rolls back and stores
- * nothing.
+ * key with another request is 422, one still running 409. A refusal thrown by the command rolls back and stores nothing.
  * The principal of the key is the actor, never a role (INV-Q-10647).
  */
 @Component

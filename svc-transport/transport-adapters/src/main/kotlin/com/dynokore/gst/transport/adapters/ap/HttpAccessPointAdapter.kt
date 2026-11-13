@@ -142,20 +142,18 @@ class HttpAccessPointAdapter(
                 .timeout(timeout)
                 .GET()
                 .build()
-        return try {
-            classify(client.send(request, HttpResponse.BodyHandlers.ofString()))
-        } catch (_: java.net.http.HttpTimeoutException) {
-            ProbeOutcome(TestClass.UNREACHABLE, "AP_TIMEOUT")
-        } catch (_: IOException) {
-            ProbeOutcome(TestClass.UNREACHABLE, "AP_UNREACHABLE")
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-            ProbeOutcome(TestClass.UNREACHABLE, "AP_INTERRUPTED")
-        }
-    }
-
-    private fun classify(response: HttpResponse<String>): ProbeOutcome =
-        when {
+        val response =
+            try {
+                client.send(request, HttpResponse.BodyHandlers.ofString())
+            } catch (_: java.net.http.HttpTimeoutException) {
+                return ProbeOutcome(TestClass.UNREACHABLE, "AP_TIMEOUT")
+            } catch (_: IOException) {
+                return ProbeOutcome(TestClass.UNREACHABLE, "AP_UNREACHABLE")
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return ProbeOutcome(TestClass.UNREACHABLE, "AP_INTERRUPTED")
+            }
+        return when {
             response.statusCode() == HTTP_UNAUTHORIZED || response.statusCode() == HTTP_FORBIDDEN -> {
                 ProbeOutcome(TestClass.AUTHENTICATION_REFUSED, "AP_AUTH_REFUSED")
             }
@@ -172,6 +170,7 @@ class HttpAccessPointAdapter(
                 ProbeOutcome(TestClass.UNEXPECTED_RESPONSE, "AP_STATUS_${response.statusCode()}")
             }
         }
+    }
 
     private fun isPage(body: String): Boolean =
         try {

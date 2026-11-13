@@ -15,8 +15,7 @@ import java.lang.reflect.Type
 
 /**
  * The request model holds `entityRefs` as a set, so a repeated ref would vanish while the body is bound. This reads the
- * raw array first and refuses a repeat as a validation error (`uniqueItems` of the contract; the use case refuses it
- * too).
+ * raw array first and refuses a repeat as a validation error (`uniqueItems` of the contract; the use case refuses it too).
  * Anything that does not parse is left to the message converter, which refuses it as a contract violation.
  */
 @ControllerAdvice(assignableTypes = [AdministrationController::class])
