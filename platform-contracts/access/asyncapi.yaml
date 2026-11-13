@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -158,8 +158,9 @@ components:
       name: com.dynokore.gst.access.AuthorityHeadObserved.v1
       title: AuthorityHeadObserved
       summary: AuthorityHeadObserved — catalogued in model/architecture/events.yaml (§19.8).
+      deprecated: true
       description: >-
-        Catalogued event AuthorityHeadObserved (model/architecture/events.yaml, class: domain). Emitted by: access-svc. Consumed by: aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Delivery: At-least-once. Subscribed on gst.access.authority-head-observed.v1 by the authority replica of every service except access-svc, which decides from its own store; a heartbeat of access-svc carrying its highest committed authority version, published every 500 ms, so that a replica measures its lag against a known head and counts silence of more than 1000 ms as a lost feed; the subscription is not a consumers entry, because a consumers entry is a domain edge from access-svc and INV-REQ-1227 needs the graph acyclic (INV-Q-8994, INV-Q-9047).
+        Deprecated: superseded by com.dynokore.gst.platform.AuthorityHeadObserved.v1 on gst.platform.authority-head-observed.v1 (class platform, INV-Q-17070); no producer publishes this message. Catalogued event AuthorityHeadObserved (model/architecture/events.yaml, class: domain). Emitted by: access-svc. Consumed by: aggregation-svc, canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc, transport-svc. Delivery: At-least-once. Subscribed on gst.access.authority-head-observed.v1 by the authority replica of every service except access-svc, which decides from its own store; a heartbeat of access-svc carrying its highest committed authority version, published every 500 ms, so that a replica measures its lag against a known head and counts silence of more than 1000 ms as a lost feed; the subscription is not a consumers entry, because a consumers entry is a domain edge from access-svc and INV-REQ-1227 needs the graph acyclic (INV-Q-8994, INV-Q-9047).
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/authority-head-observed-payload.schema.json'
