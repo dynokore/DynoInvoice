@@ -102,6 +102,8 @@ class RegisterWriterWiringTest {
                 SubmissionEvents.PERIOD_RECORDS_CHANGED_TYPE to SubmissionEvents.PERIOD_RECORDS_CHANGED_TOPIC,
                 "com.dynokore.gst.canonical.DocumentHeld.v1" to "gst.canonical.document-held.v1",
                 "com.dynokore.gst.canonical.DocumentReleased.v1" to "gst.canonical.document-released.v1",
+                SubmissionEvents.RULE_PACK_STAGED_TYPE to SubmissionEvents.RULE_PACK_STAGED_TOPIC,
+                SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC,
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
@@ -134,6 +136,8 @@ class RegisterWriterWiringTest {
                 "periodRecordsChangedConsumer",
                 "documentHeldConsumer",
                 "documentReleasedConsumer",
+                "rulePackStagedConsumer",
+                "rulePackActivatedConsumer",
             )
     }
 

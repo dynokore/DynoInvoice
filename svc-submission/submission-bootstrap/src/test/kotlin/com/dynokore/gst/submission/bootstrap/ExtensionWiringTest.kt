@@ -144,6 +144,8 @@ class ExtensionWiringTest {
                 "periodRecordsChangedConsumer",
                 "documentHeldConsumer",
                 "documentReleasedConsumer",
+                "rulePackStagedConsumer",
+                "rulePackActivatedConsumer",
             )
     }
 
