@@ -197,11 +197,22 @@ class RegisterWriterWiringTest {
         // look-alike topics are not accepted
         subscriptions.map { it.topic }.contains("gst.canonical.document-held.v2") shouldBe false
         subscriptions.map { it.topic }.contains("gst.canonical.document-releases.v1") shouldBe false
-        val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java).keys
-        consumers.filter { it.startsWith("document") } shouldContainExactlyInAnyOrder
+        val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
+        consumers.keys.filter { it.startsWith("document") } shouldContainExactlyInAnyOrder
             listOf("documentHeldConsumer", "documentReleasedConsumer")
+        // Each consumer bean holds its own subscription: a swap or two consumers on one topic fails here.
+        subscriptionOf(consumers.getValue("documentHeldConsumer")).topic shouldBe "gst.canonical.document-held.v1"
+        subscriptionOf(consumers.getValue("documentReleasedConsumer")).topic shouldBe
+            "gst.canonical.document-released.v1"
         // The runtime wraps every handler bean for tracing, so only the port type is visible.
         context.getBean("documentHeldHandler").shouldBeInstanceOf<EventHandler>()
         context.getBean("documentReleasedHandler").shouldBeInstanceOf<EventHandler>()
+    }
+
+    /** The platform class keeps its subscription private; the field is read by its exact name. */
+    private fun subscriptionOf(consumer: JdbcInboxConsumer): ConsumerSubscription {
+        val field = JdbcInboxConsumer::class.java.getDeclaredField("subscription")
+        field.isAccessible = true
+        return field.get(consumer) as ConsumerSubscription
     }
 }
