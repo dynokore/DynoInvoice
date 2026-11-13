@@ -8,8 +8,8 @@ import com.dynokore.gst.submission.application.filing.FilingFactStore
 import com.dynokore.gst.submission.application.filing.NewFilingFact
 import com.dynokore.gst.submission.application.register.RegisterEntry
 import com.dynokore.gst.submission.application.register.RegisterEntryStore
-import com.dynokore.gst.submission.domain.metrics.RowKind
 import com.dynokore.gst.submission.domain.listing.Direction
+import com.dynokore.gst.submission.domain.metrics.RowKind
 import com.dynokore.gst.submission.domain.register.ListFacts
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -66,13 +66,26 @@ class ArrivalHandlerDbTest {
             period: String = "2026-Q1",
         ) {
             val facts =
-                ListFacts("N-1", "380", Direction.SALE, "Acme", "201912345A", BigDecimal("1.00"), BigDecimal("0.09"), emptySet())
+                ListFacts(
+                    "N-1",
+                    "380",
+                    Direction.SALE,
+                    "Acme",
+                    "201912345A",
+                    BigDecimal("1.00"),
+                    BigDecimal("0.09"),
+                    emptySet(),
+                )
             val entry = RegisterEntry(doc, "E-001", period, LocalDate.of(2026, 4, 18), true, kind, facts, 1)
             asTenant { entries.upsert(TenantId(tenant), entry) }
         }
 
         fun file() =
-            asTenant { filing.append(NewFilingFact("E-001", "2026-Q1", LocalDate.of(2026, 4, 10), "A1", null, false, "u1")) }
+            asTenant {
+                filing.append(
+                    NewFilingFact("E-001", "2026-Q1", LocalDate.of(2026, 4, 10), "A1", null, false, "u1"),
+                )
+            }
 
         fun arrive(
             doc: String,
@@ -111,7 +124,9 @@ class ArrivalHandlerDbTest {
             asTenant {
                 dsl.fetchCount(
                     Outbox.OUTBOX,
-                    Outbox.OUTBOX.DOC_UUID.eq(UUID.fromString(doc)).and(Outbox.OUTBOX.TYPE.eq(codeType)),
+                    Outbox.OUTBOX.DOC_UUID
+                        .eq(UUID.fromString(doc))
+                        .and(Outbox.OUTBOX.TYPE.eq(codeType)),
                 )
             }
 
@@ -121,7 +136,12 @@ class ArrivalHandlerDbTest {
         fun count(
             name: String,
             vararg tags: String,
-        ): Double = registry.find(name).tags(*tags).counter()?.count() ?: 0.0
+        ): Double =
+            registry
+                .find(name)
+                .tags(*tags)
+                .counter()
+                ?.count() ?: 0.0
 
         fun unresolvedTotal(): Double = registry.find(unresolved).counters().sumOf { it.count() }
 
