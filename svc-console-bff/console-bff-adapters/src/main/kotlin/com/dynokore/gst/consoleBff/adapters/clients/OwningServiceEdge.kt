@@ -6,10 +6,6 @@ import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import java.time.Duration
 
-/** `x-timeout` of overrideValidation and overrideFilingGate in the pinned contracts, in milliseconds. */
-private const val EDGE_TIMEOUT_MILLIS = 2000L
-private val EDGE_TIMEOUT: Duration = Duration.ofMillis(EDGE_TIMEOUT_MILLIS)
-
 /**
  * The owning services console-bff calls synchronously (TPL-07, ARC-08): the edge name (the `x-sync-edge` of the
  * owner's contract), the property that holds the base URL and the edge timeout (the `x-timeout` of the operation).
@@ -19,8 +15,8 @@ enum class OwningService(
     val urlProperty: String,
     val timeout: Duration,
 ) {
-    PAYLOAD("console-bff->payload-svc", "console.payload-svc-url", EDGE_TIMEOUT),
-    SUBMISSION("console-bff->submission-svc", "console.submission-svc-url", EDGE_TIMEOUT),
+    PAYLOAD("console-bff->payload-svc", "console.payload-svc-url", Duration.ofMillis(2000)),
+    SUBMISSION("console-bff->submission-svc", "console.submission-svc-url", Duration.ofMillis(2000)),
 }
 
 /** The one place that names the edges, base URLs and timeouts of the owning-service clients. */
