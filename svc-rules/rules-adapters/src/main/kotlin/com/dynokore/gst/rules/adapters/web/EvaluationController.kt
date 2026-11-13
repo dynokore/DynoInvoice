@@ -8,10 +8,15 @@ import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.application.ClassifyCommand
 import com.dynokore.gst.rules.application.ClassifyDocument
 import com.dynokore.gst.rules.application.ClassifyResult
+import com.dynokore.gst.rules.application.CodeCreditNoteCommand
 import com.dynokore.gst.rules.application.CodeDocumentCommand
+import com.dynokore.gst.rules.application.CreditNoteCoding
+import com.dynokore.gst.rules.application.CreditNoteCodingResult
+import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DocumentCodingResult
 import com.dynokore.gst.rules.application.DocumentLine
 import com.dynokore.gst.rules.application.EvaluateDocument
+import com.dynokore.gst.rules.application.RateDateTrace
 import com.dynokore.gst.rules.contract.api.EvaluationApi
 import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
@@ -34,6 +39,7 @@ import com.dynokore.gst.rules.domain.coding.NO_ELECTION
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.gst.rules.domain.scope.ScopeOutcome
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -50,7 +56,7 @@ import com.dynokore.gst.rules.domain.scope.ScopeVerdict as DomainScopeVerdict
  * Open, because Spring proxies a controller.
  */
 @RestController
-@Suppress("TooManyFunctions", "LongParameterList") // one pure evaluation; each collaborator is a port of it
+@Suppress("TooManyFunctions", "LongParameterList", "LargeClass") // one pure evaluation; each collaborator is a port
 open class EvaluationController(
     private val evaluate: EvaluateDocument,
     private val packs: PackContentsReader,
@@ -60,18 +66,33 @@ open class EvaluationController(
     private val voluntary: VoluntaryOverSubmission,
     private val classify: ClassifyDocument,
 ) : EvaluationApi {
+    private val creditNotes = CreditNoteCoding(DocumentCoder(packs, packs, packs))
+
     override fun evaluateDocument(evaluateDocumentRequest: EvaluateDocumentRequest): ResponseEntity<EvaluationResult> =
-        ResponseEntity.ok(evaluated(evaluateDocumentRequest))
+        ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = false))
 
     override fun evaluatePreIssuanceDraft(
         evaluateDocumentRequest: EvaluateDocumentRequest,
-    ): ResponseEntity<EvaluationResult> = ResponseEntity.ok(evaluated(evaluateDocumentRequest))
+    ): ResponseEntity<EvaluationResult> = ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = true))
 
-    private fun evaluated(request: EvaluateDocumentRequest): EvaluationResult {
+    /**
+     * The dates of one evaluation (INV-Q-14414 A): [rateDate] is the date the rate, the category code and the mapping,
+     * code-catalogue and scenario packs resolve at, [ownDate] the one the scope verdict resolves at. They differ only
+     * for a credit note that states `precedingDocumentDate`. [extraTrace] and [straddleNote] are set for a credit note.
+     */
+    private data class Dating(
+        val ownDate: TransactionDate,
+        val rateDate: TransactionDate,
+        val extraTrace: Map<String, Any>,
+        val straddleNote: String?,
+    )
+
+    private fun evaluated(
+        request: EvaluateDocumentRequest,
+        draft: Boolean,
+    ): EvaluationResult {
         val tenant = tenants.current()
-        // one resolution date per document: the preceding document's for a linked credit note, which the caller
-        // derives and passes in (INV-REQ-362 behavior 4); never derived here
-        val date = TransactionDate(request.precedingDocumentDate ?: request.transactionDate)
+        val ownDate = TransactionDate(request.transactionDate)
         val elected = electedOf(request)
         val input =
             LineInput(
@@ -86,21 +107,133 @@ open class EvaluationController(
         return transactions.inTransaction {
             val classified = classificationOf(request, tenant)
             if (classified is Classified.Refused) {
-                return@inTransaction refusedClassification(request, tenant, date, classified)
+                return@inTransaction refusedClassification(request, tenant, ownDate, classified)
             }
-            val result =
-                evaluate.code(
-                    CodeDocumentCommand(tenant, date, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input))),
-                )
-            val coding = codingOf(result, tenant, date, input)
-            val (outcome, answered) = scopeOutcomeOf(request, tenant, date, coding)
-            val trace = ScopeRequestFacts.traceWith(traceOf(result, tenant, date, input), outcome)
             val classifiedResult = classified as? Classified.Done
-            val withClassification =
-                classifiedResult?.let { trace.orEmpty() + (CLASSIFICATION to classificationTrace(it.entry)) } ?: trace
-            val versions = versionsApplied(tenant, date) + listOfNotNull(classifiedResult?.version)
-            answer(outcome, answered, result, versions, withClassification, classified)
+            // a credit note is exactly a request the classification yields "381" for (INV-Q-14414 A); for any other
+            // request the two preceding fields are ignored
+            if (classifiedResult?.typeCode == CREDIT_NOTE_TYPE_CODE) {
+                creditNoteEvaluation(request, tenant, ownDate, input, classifiedResult, draft)
+            } else {
+                evaluatedAt(request, tenant, Dating(ownDate, ownDate, emptyMap(), null), input, classified, null)
+            }
         }
+    }
+
+    /**
+     * A credit note: `CreditNoteCoding` resolves the dates (INV-REQ-701, INV-REQ-702). On the draft operation a number
+     * without a date is refused with 400 SRT-001 before anything is looked up (INV-Q-14421 B); on `evaluateDocument` it
+     * is RUL-008 and nothing is coded (INV-Q-14404 A, INV-AC-1819). The controller makes no lookup.
+     */
+    private fun creditNoteEvaluation(
+        request: EvaluateDocumentRequest,
+        tenant: TenantId,
+        ownDate: TransactionDate,
+        input: LineInput,
+        classified: Classified.Done,
+        draft: Boolean,
+    ): EvaluationResult {
+        val number = request.precedingDocumentNumber?.takeUnless { it.isBlank() }
+        val stated = request.precedingDocumentDate?.let { TransactionDate(it) }
+        if (draft && number != null && stated == null) {
+            throw ApiRefusal(
+                ClosedErrorCode.CONTRACT_VIOLATION,
+                "precedingDocumentDate is required when precedingDocumentNumber is given",
+            )
+        }
+        val command =
+            CodeCreditNoteCommand(tenant, ownDate, number, stated, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input)))
+        return when (val coded = creditNotes.code(command)) {
+            is CreditNoteCodingResult.UnknownOriginal -> {
+                unknownOriginal(request, tenant, ownDate, coded, classified)
+            }
+
+            is CreditNoteCodingResult.Coded -> {
+                evaluatedAt(
+                    request,
+                    tenant,
+                    datingOf(coded.trace),
+                    input,
+                    classified,
+                    DocumentCodingResult.Coded(coded.document),
+                )
+            }
+
+            is CreditNoteCodingResult.NotCoded -> {
+                evaluatedAt(request, tenant, datingOf(coded.trace), input, classified, coded.result)
+            }
+        }
+    }
+
+    private fun datingOf(trace: RateDateTrace): Dating =
+        Dating(
+            trace.ownDate,
+            trace.rateDate,
+            listOfNotNull(
+                "ownDate" to trace.ownDate.value.toString(),
+                trace.precedingDate?.let { "precedingDate" to it.value.toString() },
+                "rateDate" to trace.rateDate.value.toString(),
+            ).toMap(),
+            trace.justificationNote,
+        )
+
+    /** RUL-008: BLOCK, no `categoryCode`, no `rate`; the scope verdict is still decided at the own date. */
+    private fun unknownOriginal(
+        request: EvaluateDocumentRequest,
+        tenant: TenantId,
+        ownDate: TransactionDate,
+        unknown: CreditNoteCodingResult.UnknownOriginal,
+        classified: Classified.Done,
+    ): EvaluationResult {
+        val coding = LineCoding.Refused(unknown.code)
+        val (outcome, answered) = scopeOutcomeOf(request, tenant, ownDate, coding)
+        val trace =
+            ScopeRequestFacts.traceWith(null, outcome).orEmpty() +
+                (CLASSIFICATION to classificationTrace(classified.entry))
+        return answer(
+            outcome,
+            answered,
+            DocumentCodingResult.Refused(unknown.code, PackTypes.SCOPE, ownDate),
+            listOf(classified.version),
+            trace,
+            classified,
+            null,
+        )
+    }
+
+    /**
+     * The coding and the answer at [dating]: the pack-resolved parts at `rateDate`, the scope verdict at `ownDate`.
+     * [coded] is the coding a credit note already has; null codes the line here.
+     */
+    private fun evaluatedAt(
+        request: EvaluateDocumentRequest,
+        tenant: TenantId,
+        dating: Dating,
+        input: LineInput,
+        classified: Classified,
+        coded: DocumentCodingResult?,
+    ): EvaluationResult {
+        val rateDate = dating.rateDate
+        val result =
+            coded
+                ?: evaluate.code(
+                    CodeDocumentCommand(tenant, rateDate, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input))),
+                )
+        val coding = codingOf(result, tenant, rateDate, input)
+        val (outcome, answered) = scopeOutcomeOf(request, tenant, dating.ownDate, coding)
+        val trace = ScopeRequestFacts.traceWith(traceOf(result, tenant, rateDate, input), outcome)
+        val classifiedResult = classified as? Classified.Done
+        val withClassification =
+            classifiedResult?.let { trace.orEmpty() + (CLASSIFICATION to classificationTrace(it.entry)) } ?: trace
+        val withDates =
+            if (dating.extraTrace.isEmpty()) {
+                withClassification
+            } else {
+                withClassification.orEmpty() +
+                    dating.extraTrace
+            }
+        val versions = versionsApplied(tenant, rateDate) + listOfNotNull(classifiedResult?.version)
+        return answer(outcome, answered, result, versions, withDates, classified, dating.straddleNote)
     }
 
     /** What the classification of the request came to; [None] when the request carries no `documentFunction`. */
@@ -235,6 +368,7 @@ open class EvaluationController(
             versions,
             trace,
             null,
+            null,
         )
     }
 
@@ -344,6 +478,7 @@ open class EvaluationController(
         versions: List<PackVersionApplied>,
         trace: Map<String, Any>?,
         classified: Classified?,
+        straddleNote: String?,
     ): EvaluationResult {
         val fields = fieldsOf(classified)
         val scope = EvaluationResult.ScopeVerdict.valueOf(outcome.verdict.name)
@@ -357,6 +492,7 @@ open class EvaluationController(
                     code = coding.code.code,
                     disregardedSupplyWarning = warning,
                     decisionTrace = trace,
+                    straddleNote = straddleNote,
                     documentFunction = fields?.function,
                     documentTypeCode = fields?.typeCode,
                     signNormalised = fields?.signNormalised,
@@ -374,6 +510,7 @@ open class EvaluationController(
                     disregardedSupplyWarning = warning,
                     decisionTrace = trace,
                     packVersionsApplied = versions,
+                    straddleNote = straddleNote,
                     documentFunction = fields?.function,
                     documentTypeCode = fields?.typeCode,
                     signNormalised = fields?.signNormalised,
@@ -421,6 +558,7 @@ open class EvaluationController(
     private companion object {
         const val LINE_ID = "1"
         const val CLASSIFICATION = "classification"
+        const val CREDIT_NOTE_TYPE_CODE = "381"
         val ZERO: BigDecimal = BigDecimal.ZERO
     }
 }

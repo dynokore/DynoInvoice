@@ -362,13 +362,15 @@ class ClassificationBoundaryTest(
     fun `INV-AC-14810 the classification table is read at the transaction date, not the preceding document date`() {
         val early = ""","precedingDocumentNumber":"INV-1","precedingDocumentDate":"$CL_BEFORE_SCOPE""""
         // the preceding date has no scope pack, the transaction date has: the table of the transaction date classifies
-        // (the line itself is then refused RUL-002 under the preceding date, as before this task)
-        both(request(DEBIT_NOTE, extra = early)).forEach {
-            it.text("documentFunction") shouldBe DEBIT_NOTE.function
-            it.text("documentTypeCode") shouldBe "380"
-            it.classification("tableKey") shouldBe DEBIT_NOTE.key
+        // (the line is coded under the preceding date and the verdict decided at the transaction date, INV-Q-14414 A)
+        both(request(NEGATIVE_INVOICE, extra = early)).forEach {
+            it.text("documentFunction") shouldBe NEGATIVE_INVOICE.function
+            it.text("documentTypeCode") shouldBe "381"
+            it.classification("tableKey") shouldBe NEGATIVE_INVOICE.key
             it.classification("packVersion") shouldBe SCOPE_VERSION
-            it.text("code") shouldBe "RUL-002"
+            // the verdict is decided at the transaction date (INV-Q-14414 A), where the scope pack is in force
+            it.text("code") shouldBe null
+            it.text("categoryCode") shouldBe "SR"
         }
     }
 
