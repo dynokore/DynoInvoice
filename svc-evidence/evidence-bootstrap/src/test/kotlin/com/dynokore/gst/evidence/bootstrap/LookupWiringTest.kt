@@ -218,6 +218,7 @@ class LookupWiringTest {
         val controller =
             LookupController(
                 bean,
+                configuration.reverseLookup(replica(), dsl(recorded), configuration.auditedReads(operations)),
                 object : ObjectProvider<HttpServletRequest> {
                     override fun getObject(): HttpServletRequest = request
                 },

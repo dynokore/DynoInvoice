@@ -17,6 +17,8 @@ import com.dynokore.gst.evidence.application.lookup.ChainItemKind
 import com.dynokore.gst.evidence.application.lookup.ChainRecordReader
 import com.dynokore.gst.evidence.application.lookup.ChainRecords
 import com.dynokore.gst.evidence.application.lookup.ENQUIRY_LOOKUP_BY_ACKNOWLEDGEMENT
+import com.dynokore.gst.evidence.application.lookup.ReverseLookup
+import com.dynokore.gst.evidence.application.lookup.SubmissionIndexReader
 import com.dynokore.gst.evidence.domain.integrity.IntegrityState
 import com.dynokore.gst.evidence.domain.integrity.RunCause
 import com.dynokore.gst.evidence.domain.integrity.RunResult
@@ -43,7 +45,6 @@ import io.kotest.matchers.shouldBe
 import jakarta.servlet.http.HttpServletRequest
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.ResponseEntity
 import java.lang.reflect.Proxy
 import java.time.Clock
 import java.time.Instant
@@ -211,6 +212,18 @@ class LookupControllerTest {
             )
         return LookupController(
             lookup,
+            ReverseLookup(
+                replica(granted),
+                SubmissionIndexReader {
+                    _,
+                    _,
+                    _,
+                    _,
+                    ->
+                    error("not used")
+                },
+                AuditedReads(Audit()),
+            ),
             object : ObjectProvider<HttpServletRequest> {
                 override fun getObject(): HttpServletRequest = request
             },
@@ -329,12 +342,5 @@ class LookupControllerTest {
         }
         calls shouldBe emptyList()
         c.getAcknowledgementChain("A1", 500, null).statusCode.value() shouldBe 200
-    }
-
-    @Test
-    fun `INV-AC-20576 reverseLookup still answers 501`() {
-        val response: ResponseEntity<*> =
-            controller(user()).reverseLookup(null, null, null, null, null, null, null, 100, null)
-        response.statusCode.value() shouldBe 501
     }
 }

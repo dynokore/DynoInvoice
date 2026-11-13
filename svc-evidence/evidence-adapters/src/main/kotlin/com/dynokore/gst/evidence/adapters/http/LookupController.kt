@@ -5,10 +5,16 @@ import com.dynokore.gst.evidence.application.lookup.ChainCursor
 import com.dynokore.gst.evidence.application.lookup.ChainItem
 import com.dynokore.gst.evidence.application.lookup.ChainItemKind
 import com.dynokore.gst.evidence.application.lookup.ChainLookupResult
+import com.dynokore.gst.evidence.application.lookup.ReverseLookup
+import com.dynokore.gst.evidence.application.lookup.ReverseLookupFilter
+import com.dynokore.gst.evidence.application.lookup.ReverseLookupResult
+import com.dynokore.gst.evidence.application.lookup.ReverseLookupRow
 import com.dynokore.gst.evidence.contract.api.LookupApi
 import com.dynokore.gst.evidence.contract.model.EvidenceChain
 import com.dynokore.gst.evidence.contract.model.EvidenceChainItem
 import com.dynokore.gst.evidence.contract.model.IntegrityResult
+import com.dynokore.gst.evidence.contract.model.ReverseLookupItem
+import com.dynokore.gst.evidence.contract.model.ReverseLookupPage
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -29,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.nio.charset.StandardCharsets
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Base64
 import java.util.UUID
@@ -66,6 +73,7 @@ class LookupRefusalAdvice {
 @RestController
 open class LookupController(
     private val acknowledgementChain: AcknowledgementChainLookup,
+    private val reverseLookup: ReverseLookup,
     private val requests: ObjectProvider<HttpServletRequest>,
 ) : LookupApi {
     override fun getAcknowledgementChain(
@@ -106,6 +114,72 @@ open class LookupController(
             ChainLookupResult.Incomplete -> refuse(ClosedErrorCode.INTERNAL_ERROR)
         }
     }
+
+    /**
+     * `reverseLookup` (INV-T-20725; INV-REQ-724): tenant 401, then the use case: Page 200, InvalidRequest 400 SRT-001,
+     * Forbidden 403 SRT-004. No filter is ever refused (round h ruling 1, 5). The 202 tier answer is not produced.
+     */
+    @Suppress("LongParameterList") // the generated operation signature
+    override fun reverseLookup(
+        counterparty: String?,
+        dateFrom: LocalDate?,
+        dateTo: LocalDate?,
+        documentNumber: String?,
+        docUuid: UUID?,
+        periodRef: String?,
+        categoryCode: String?,
+        limit: Int,
+        cursor: String?,
+    ): ResponseEntity<ReverseLookupPage> {
+        val caller =
+            requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
+        val tenant = caller?.tenant ?: throw LookupRefusal(ClosedErrorCode.UNAUTHENTICATED)
+        val context =
+            EventContext(
+                tenant,
+                EntityRef.TENANT_WIDE,
+                null,
+                null,
+                "reverseLookup",
+                null,
+                CorrelationId(correlation()),
+                CausationId(correlation()),
+            )
+        val filter =
+            ReverseLookupFilter(counterparty, dateFrom, dateTo, documentNumber, docUuid, periodRef, categoryCode)
+        return when (
+            val result =
+                reverseLookup.lookup(
+                    tenant,
+                    Principal(caller.actor, PrincipalKind.HUMAN),
+                    filter,
+                    limit,
+                    cursor,
+                    context,
+                )
+        ) {
+            is ReverseLookupResult.Page -> {
+                ResponseEntity.ok(ReverseLookupPage(items = result.items.map(::row), nextCursor = result.nextCursor))
+            }
+
+            ReverseLookupResult.InvalidRequest -> {
+                refuse(ClosedErrorCode.CONTRACT_VIOLATION)
+            }
+
+            ReverseLookupResult.Forbidden -> {
+                refuse(ClosedErrorCode.ACCESS_DENIED)
+            }
+        }
+    }
+
+    private fun row(row: ReverseLookupRow) =
+        ReverseLookupItem(
+            docUuid = row.key.docUuid,
+            version = row.key.version,
+            state = row.state,
+            ackId = row.ackId,
+            acknowledgedAt = row.acknowledgedAt?.atOffset(ZoneOffset.UTC),
+        )
 
     private fun refuse(code: ClosedErrorCode): Nothing = throw LookupRefusal(code)
 
