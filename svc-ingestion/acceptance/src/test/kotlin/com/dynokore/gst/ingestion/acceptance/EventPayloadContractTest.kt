@@ -36,8 +36,9 @@ class EventPayloadContractTest {
                 """{"feed":"F-1","entityRef":"E-001","period":"2026Q3","control":"COUNT","state":"CLEARED"}""",
             "ExampleHappened" to """{"entityRef":"E-001"}""",
             "TriggerCoverageChanged" to
-                """{"entityRef":"E-001","triggerClass":"OUTBOUND_DOCUMENT_ISSUED","status":"MAPPED","adapterRef":"erp-ar",""" +
-                """"changedAt":"2026-11-12T10:00:00Z","actorUserId":"3f2c1c52-0b1e-4c0a-9a53-0d6a4f6d9a11"}""",
+                """{"entityRef":"E-001","triggerClass":"OUTBOUND_DOCUMENT_ISSUED","status":"MAPPED",""" +
+                """"adapterRef":"erp-ar","changedAt":"2026-11-12T10:00:00Z",""" +
+                """"actorUserId":"3f2c1c52-0b1e-4c0a-9a53-0d6a4f6d9a11"}""",
         )
 
     private fun map(value: Any?): Map<String, Any?> {

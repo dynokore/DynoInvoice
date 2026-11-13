@@ -1,12 +1,14 @@
 package com.dynokore.gst.ingestion.adapters.persistence
 
 import com.dynokore.gst.ingestion.adapters.persistence.jooq.tables.TriggerCoverage.Companion.TRIGGER_COVERAGE
+import com.dynokore.gst.ingestion.adapters.persistence.jooq.tables.records.TriggerCoverageRecord
 import com.dynokore.gst.ingestion.application.triggers.TriggerCoverageStore
 import com.dynokore.gst.ingestion.domain.triggers.CoverageRecord
 import com.dynokore.gst.ingestion.domain.triggers.TriggerClass
 import org.jooq.DSLContext
 import org.jooq.Record
 import java.time.Clock
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -38,32 +40,7 @@ class TriggerCoverageJooqStore(
         record: CoverageRecord,
         actorUserId: UUID,
     ) {
-        val at = clock.instant().atOffset(java.time.ZoneOffset.UTC)
-        val row =
-            dsl
-                .newRecord(TRIGGER_COVERAGE)
-                .also {
-                    it.tenantId = tenantId
-                    it.entityRef = entityRef
-                    it.triggerClass = triggerClass.name
-                    it.recordedBy = actorUserId
-                    it.recordedAt = at
-                    when (record) {
-                        is CoverageRecord.Mapped -> {
-                            it.status = MAPPED
-                            it.adapterRef = record.adapterRef
-                        }
-                        is CoverageRecord.Waived -> {
-                            it.status = WAIVED
-                            it.reviewDate = record.reviewDate
-                        }
-                        is CoverageRecord.CoveredElsewhere -> {
-                            it.status = COVERED
-                            it.coveringSolution = record.coveringSolution
-                            it.evidenceReference = record.evidenceReference
-                        }
-                    }
-                }
+        val row = newRow(tenantId, entityRef, triggerClass, record, actorUserId)
         dsl
             .insertInto(TRIGGER_COVERAGE)
             .set(row)
@@ -79,14 +56,56 @@ class TriggerCoverageJooqStore(
             .execute()
     }
 
+    private fun newRow(
+        tenantId: UUID,
+        entityRef: String,
+        triggerClass: TriggerClass,
+        record: CoverageRecord,
+        actorUserId: UUID,
+    ): TriggerCoverageRecord =
+        dsl.newRecord(TRIGGER_COVERAGE).also {
+            it.tenantId = tenantId
+            it.entityRef = entityRef
+            it.triggerClass = triggerClass.name
+            it.recordedBy = actorUserId
+            it.recordedAt = clock.instant().atOffset(ZoneOffset.UTC)
+            when (record) {
+                is CoverageRecord.Mapped -> {
+                    it.status = MAPPED
+                    it.adapterRef = record.adapterRef
+                }
+
+                is CoverageRecord.Waived -> {
+                    it.status = WAIVED
+                    it.reviewDate = record.reviewDate
+                }
+
+                is CoverageRecord.CoveredElsewhere -> {
+                    it.status = COVERED
+                    it.coveringSolution = record.coveringSolution
+                    it.evidenceReference = record.evidenceReference
+                }
+            }
+        }
+
     private fun record(row: Record): CoverageRecord {
         val r = row.into(TRIGGER_COVERAGE)
         return when (r.status) {
-            MAPPED -> CoverageRecord.Mapped(checkNotNull(r.adapterRef))
-            WAIVED -> CoverageRecord.Waived(checkNotNull(r.reviewDate))
-            COVERED ->
+            MAPPED -> {
+                CoverageRecord.Mapped(checkNotNull(r.adapterRef))
+            }
+
+            WAIVED -> {
+                CoverageRecord.Waived(checkNotNull(r.reviewDate))
+            }
+
+            COVERED -> {
                 CoverageRecord.CoveredElsewhere(checkNotNull(r.coveringSolution), checkNotNull(r.evidenceReference))
-            else -> error("unknown coverage status ${r.status}")
+            }
+
+            else -> {
+                error("unknown coverage status ${r.status}")
+            }
         }
     }
 

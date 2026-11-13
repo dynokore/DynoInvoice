@@ -51,10 +51,12 @@ class TriggerCoverageChangedOutbox(
                 node.put("status", "MAPPED")
                 node.put("adapterRef", record.adapterRef)
             }
+
             is CoverageRecord.Waived -> {
                 node.put("status", "WAIVED")
                 node.put("reviewDate", record.reviewDate.toString())
             }
+
             is CoverageRecord.CoveredElsewhere -> {
                 node.put("status", "COVERED_BY_OTHER_SOLUTION")
                 node.put("coveringSolution", record.coveringSolution)

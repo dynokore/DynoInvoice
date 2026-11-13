@@ -14,3 +14,4 @@ operation	replayFeed	UNASSIGNED
 operation	sendTestEvent	UNASSIGNED
 channel	gst.ingestion.feed-health-changed.v1	UNASSIGNED
 channel	gst.ingestion.example-happened.v1	UNASSIGNED
+channel	gst.ingestion.trigger-coverage-changed.v1	UNASSIGNED

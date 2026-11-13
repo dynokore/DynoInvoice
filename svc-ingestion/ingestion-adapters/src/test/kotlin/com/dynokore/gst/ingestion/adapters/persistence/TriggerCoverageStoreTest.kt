@@ -46,7 +46,7 @@ class TriggerCoverageStoreTest {
             ),
         )
 
-    /** One transaction of the runtime login bound to [tenant]; committed when [block] returns, rolled back otherwise. */
+    /** One transaction of the runtime login bound to [tenant]: committed when [block] returns, else rolled back. */
     private fun <T> inTransaction(
         tenant: UUID,
         block: (DSLContext, TriggerCoverageJooqStore, TriggerCoverageChangedOutbox) -> T,
@@ -57,7 +57,8 @@ class TriggerCoverageStoreTest {
                 SignedBindings.bind(connection, tenant)
                 val dsl = DSL.using(connection, SQLDialect.POSTGRES)
                 val writer = JdbcOutboxWriter(dsl, IngestionDb.SCHEMA, "ingestion-svc", "i-1", catalogue, clock)
-                val result = block(dsl, TriggerCoverageJooqStore(dsl, clock), TriggerCoverageChangedOutbox(writer, clock))
+                val store = TriggerCoverageJooqStore(dsl, clock)
+                val result = block(dsl, store, TriggerCoverageChangedOutbox(writer, clock))
                 connection.commit()
                 result
             } catch (e: Throwable) {
@@ -120,11 +121,10 @@ class TriggerCoverageStoreTest {
     fun `INV-AC-20937 a save writes one row and a second save for the same key updates it in place`() {
         val tenant = UUID.randomUUID()
         save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.Mapped("erp-ar"))
-        save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.Waived(LocalDate.parse("2027-03-31")))
+        save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.Waived(REVIEW))
         coverageRows(tenant) shouldBe 1
         inTransaction(tenant) { _, store, _ ->
-            store.find(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED) shouldBe
-                CoverageRecord.Waived(LocalDate.parse("2027-03-31"))
+            store.find(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED) shouldBe CoverageRecord.Waived(REVIEW)
         }
     }
 
@@ -133,7 +133,8 @@ class TriggerCoverageStoreTest {
         val tenant = UUID.randomUUID()
         save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.Mapped("erp-ar"))
         save(tenant, "E-1", TriggerClass.INBOUND_DOCUMENT_RECORDED, CoverageRecord.Mapped("erp-ap"))
-        save(tenant, "E-2", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.CoveredElsewhere("Peppol AP", "EV-9"))
+        val elsewhere = CoverageRecord.CoveredElsewhere("Peppol AP", "EV-9")
+        save(tenant, "E-2", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, elsewhere)
         coverageRows(tenant) shouldBe 3
     }
 
@@ -153,19 +154,33 @@ class TriggerCoverageStoreTest {
     @Test
     fun `INV-AC-20937 the row stores status, the members of its record, the acting user id and the time`() {
         val tenant = UUID.randomUUID()
-        save(tenant, "E-1", TriggerClass.THIRD_PARTY_ISSUANCE, CoverageRecord.CoveredElsewhere("CES portal", "EV-1"))
+        val elsewhere = CoverageRecord.CoveredElsewhere("CES portal", "EV-1")
+        save(tenant, "E-1", TriggerClass.THIRD_PARTY_ISSUANCE, elsewhere)
         val facts =
             superuser(
                 "select status, covering_solution, evidence_reference, adapter_ref, review_date, recorded_by, " +
                     "recorded_at from ingestion.trigger_coverage where tenant_id = '$tenant'",
             ) {
                 listOf(
-                    it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getString(5),
-                    it.getString(6), it.getTimestamp(7).toInstant().toString(),
+                    it.getString(1),
+                    it.getString(2),
+                    it.getString(3),
+                    it.getString(4),
+                    it.getString(5),
+                    it.getString(6),
+                    it.getTimestamp(7).toInstant().toString(),
                 )
             }
         facts shouldBe
-            listOf("COVERED_BY_OTHER_SOLUTION", "CES portal", "EV-1", null, null, actor.toString(), "2026-11-12T10:00:00Z")
+            listOf(
+                "COVERED_BY_OTHER_SOLUTION",
+                "CES portal",
+                "EV-1",
+                null,
+                null,
+                actor.toString(),
+                "2026-11-12T10:00:00Z",
+            )
     }
 
     @Test
@@ -192,8 +207,9 @@ class TriggerCoverageStoreTest {
         outboxRows(tenant) shouldBe 1
         val data =
             superuser("select data::text from ingestion.outbox where tenant_id = '$tenant'") { it.getString(1) }
-        listOf("\"entityRef\": \"E-1\"", "\"status\": \"MAPPED\"", "\"adapterRef\": \"pos\"", "\"actorUserId\": \"$actor\"")
-            .forEach { (data.contains(it)) shouldBe true }
+        listOf("\"entityRef\": \"E-1\"", "\"status\": \"MAPPED\"", "\"adapterRef\": \"pos\"")
+            .plus("\"actorUserId\": \"$actor\"")
+            .forEach { data.contains(it) shouldBe true }
     }
 
     @Test
@@ -203,7 +219,8 @@ class TriggerCoverageStoreTest {
             inTransaction(tenant) { _, store, outbox ->
                 val record = CoverageRecord.Mapped("erp-ar")
                 store.save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, record, actor)
-                outbox.publish(TriggerCoverageChanged(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, record, actor))
+                val event = TriggerCoverageChanged(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, record, actor)
+                outbox.publish(event)
                 error("failure before commit")
             }
         }
@@ -240,9 +257,8 @@ class TriggerCoverageStoreTest {
         save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.Mapped("erp-ar"))
         val privileges =
             listOf("select", "insert", "update", "delete", "truncate", "references", "trigger").associateWith {
-                superuser("select has_table_privilege('ingestion_runtime', 'ingestion.trigger_coverage', '$it')") { r ->
-                    r.getBoolean(1)
-                }
+                val sql = "select has_table_privilege('ingestion_runtime', 'ingestion.trigger_coverage', '$it')"
+                superuser(sql) { r -> r.getBoolean(1) }
             }
         privileges.filterValues { it }.keys shouldBe setOf("select", "insert", "update")
         IngestionDb.connect(IngestionDb.RUNTIME, IngestionDb.RUNTIME_PASSWORD).use { connection ->
@@ -254,5 +270,9 @@ class TriggerCoverageStoreTest {
             connection.rollback()
         }
         coverageRows(tenant) shouldBe 1
+    }
+
+    private companion object {
+        val REVIEW: LocalDate = LocalDate.parse("2027-03-31")
     }
 }
