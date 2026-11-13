@@ -31,6 +31,9 @@ gstJooqCodegen {
     bindingRuntimeRole = "console_bff_runtime"
 }
 
+// DeferralStoreDbTest runs the abstract DeferralStoreContractTest of the application module's tests (INV-AC-21156).
+evaluationDependsOn(":console-bff-application")
+
 dependencies {
     bindingKernel(platform(libs.platform.bom))
     bindingKernel(libs.platform.tenancyKernel.impl)
@@ -61,6 +64,13 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(
+        rootProject
+            .project(":console-bff-application")
+            .extensions
+            .getByType<SourceSetContainer>()["test"]
+            .output,
+    )
     testImplementation(libs.springBoot.test)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
