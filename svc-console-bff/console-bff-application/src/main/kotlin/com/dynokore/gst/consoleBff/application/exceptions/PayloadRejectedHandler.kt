@@ -7,7 +7,8 @@ import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.tenancykernel.TenantContext
 
 /**
- * Opens the exception row of a `PayloadRejected` event (INV-AC-21057), open-only slice. It runs in the consumer's transaction.
+ * Opens the exception row of a `PayloadRejected` event (INV-AC-21057), open-only slice.
+ * It runs in the consumer's transaction.
  * The raised instant is the envelope `time`; the period reference is the empty string. The tenant-wide and platform
  * entity references name no legal entity and count as absent. A malformed event is a `ContractViolation` raised by
  * the reader (dead letter at once, nothing written).
