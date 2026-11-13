@@ -15,11 +15,13 @@ import tools.jackson.databind.ObjectMapper
 import java.time.LocalDate
 
 /**
- * [SafetyMargins] over the configuration resolver (INV-REQ-1279, INV-AC-20848): the variation point VP-18 is resolved
- * at entity scope on the business date passed in (the adapter reads no clock). Option LARGER carries a typed duration
- * `{"value": n, "unit": "DAYS" | "HOURS"}` that is returned as a [PackMargin]; option PACK_DEFAULT returns the answer
- * of [PackDefaultMargin] for the tenant and date. Anything else (a resolver exception, an unreadable value, a unit
- * other than DAYS or HOURS, a missing or repeated option) is [SafetyMarginAnswer.Unavailable]: fail closed, no default
+ * [SafetyMargins] over the configuration resolver (INV-REQ-1279, INV-AC-20848): the variation point VP-18 is
+ * resolved at entity scope on the business date passed in (the adapter reads no clock). Option LARGER carries a
+ * bare JSON integer (config-resolver validates a DURATION only as a number), counted in the unit of the
+ * calendar-pack margin datum of the tenant on that date and returned as a [PackMargin]; an object, text, a
+ * non-integer, a number outside [PackMargin.of] or an unknown pack margin is Unavailable. Option PACK_DEFAULT
+ * returns the answer of [PackDefaultMargin] for the tenant and date. Anything else (a resolver exception, an
+ * unreadable value, a missing or repeated option) is [SafetyMarginAnswer.Unavailable]: fail closed, no default
  * number. The key is read from the generated catalogue; no margin number is written here.
  */
 class PolicySafetyMargins(
@@ -48,7 +50,7 @@ class PolicySafetyMargins(
         val scope = PolicyScope.entity(tenant, entity = entityRef)
         val selected = reader.resolve(VariationPointKey(KEY), scope, on).selected.singleOrNull()
         return when (selected?.key) {
-            LARGER -> larger(selected.valueJson)
+            LARGER -> larger(tenant, on, selected.valueJson)
             PACK_DEFAULT -> packDefault(tenant, on)
             else -> SafetyMarginAnswer.Unavailable
         }
@@ -63,23 +65,17 @@ class PolicySafetyMargins(
             PackMarginAnswer.Unknown -> SafetyMarginAnswer.Unavailable
         }
 
-    private fun larger(valueJson: String?): SafetyMarginAnswer {
-        val node: JsonNode = mapper.readTree(valueJson ?: return SafetyMarginAnswer.Unavailable)
-        val value = node.get("value")
-        val unit = node.get("unit")
-        val margin = margin(value, unit)
+    private fun larger(
+        tenant: TenantId,
+        on: LocalDate,
+        valueJson: String?,
+    ): SafetyMarginAnswer {
+        val node: JsonNode? = valueJson?.let { mapper.readTree(it) }
+        val unit = (packDefault.on(tenant, on) as? PackMarginAnswer.Known)?.margin?.unit?.name
+        val number = node?.takeIf { it.isIntegralNumber && it.canConvertToLong() }?.asLong()
+        val margin = if (unit == null || number == null) null else PackMargin.of(number, unit)
         return if (margin == null) SafetyMarginAnswer.Unavailable else SafetyMarginAnswer.Known(margin)
     }
-
-    private fun margin(
-        value: JsonNode?,
-        unit: JsonNode?,
-    ): PackMargin? =
-        if (value?.isIntegralNumber == true && unit?.isString == true) {
-            PackMargin.of(value.asLong(), unit.asString())
-        } else {
-            null
-        }
 
     companion object {
         /** VP-18, read from the generated catalogue; a test compares it with the catalogue entry. */

@@ -135,6 +135,20 @@ class DrainBacklogDbTest {
         read(t)!!.none { it.docUuid.startsWith("u1") } shouldBe true
     }
 
+    @Test
+    fun `INV-AC-20847 the statements carry the tenant condition themselves when asked for tenant B under tenant A`() {
+        val (t, u) = scenario()
+        // The connection is bound to t (row level security shows t rows) while the source is asked for u.
+        bound.set(t)
+        val rows =
+            try {
+                runner.inTransaction { source.queued(TenantId(u)) }
+            } finally {
+                bound.remove()
+            }
+        checkNotNull(rows) shouldBe emptyList()
+    }
+
     /** A DSL over a connection that is already closed, with a runner that opens no transaction of its own. */
     private fun failingDsl() =
         DSL.using(
