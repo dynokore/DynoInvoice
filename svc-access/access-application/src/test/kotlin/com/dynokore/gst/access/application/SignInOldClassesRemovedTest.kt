@@ -1,20 +1,20 @@
 package com.dynokore.gst.access.application
 
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import kotlin.test.assertNotNull
 
 class SignInOldClassesRemovedTest {
     @Test
     fun `INV-AC-16513 the old sign-in use case no longer exists`() {
-        assertThrows<ClassNotFoundException> {
+        assertThrows(ClassNotFoundException::class.java) {
             Class.forName("com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCase")
         }
     }
 
     @Test
     fun `INV-AC-16513 the old sign-in outcome no longer exists`() {
-        assertThrows<ClassNotFoundException> {
+        assertThrows(ClassNotFoundException::class.java) {
             Class.forName("com.dynokore.gst.access.application.breakglass.SignInBreakGlassOutcome")
         }
     }
@@ -27,7 +27,7 @@ class SignInOldClassesRemovedTest {
 
     @Test
     fun `INV-AC-16513 a look-alike with a suffix does not load`() {
-        assertThrows<ClassNotFoundException> {
+        assertThrows(ClassNotFoundException::class.java) {
             Class.forName("com.dynokore.gst.access.application.breakglass.SignInBreakGlassUseCaseV2")
         }
     }
