@@ -26,21 +26,29 @@ object EvidenceEvents {
     private const val SERVICE = "evidence-svc"
     private const val TYPE_PREFIX = "com.dynokore.gst.evidence."
 
-    /** Event type (the AsyncAPI message name) to topic (the channel address). */
+    /**
+     * Event type (the AsyncAPI message name) to topic (the channel address). It also holds
+     * `TenantWideArchiveVolumeMeasured` (INV-Q-14069 A), the platform event of the stored audit bytes of the
+     * tenant-wide entity: evidence-svc is its only producer, since a domain event cannot carry that entity.
+     */
     val topicByType: Map<String, String> =
         listOf(
             "EvidenceIntegrityFailed" to "gst.evidence.evidence-integrity-failed.v1",
             "PriorSubmissionEvidenceImported" to "gst.evidence.prior-submission-evidence-imported.v1",
             "ArchiveVolumeMeasured" to "gst.evidence.archive-volume-measured.v1",
-        ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
+        ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic } +
+            (
+                "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1" to
+                    "gst.platform.tenant-wide-archive-volume-measured.v1"
+            )
 
     /**
      * The platform events that have a topic (`PlatformEventCatalogue.ALL`, producer every service): the job runtime of
      * service-runtime writes `JobRegistered` and `JobRunRecorded` through the outbox, and the emission guard refuses
      * any type the catalogue lacks (INV-Q-12992 A, INV-Q-10922 A). `AuditEntryRecorded` is already a record entry, so
      * it is left out here, and `PolicyChanged` and `TenantWideEvidenceIntegrityFailed` are the hand-written entries of
-     * [platformEntries] (the latter with evidence-svc as its only producer), and so is
-     * `TenantWideArchiveVolumeMeasured`.
+     * [platformEntries] (the latter with evidence-svc as its only producer), and `TenantWideArchiveVolumeMeasured` is
+     * an entry of [topicByType].
      */
     private val jobEntries: List<CatalogueEntry> =
         PlatformEventCatalogue.ALL
@@ -147,8 +155,6 @@ object EvidenceEvents {
      * `setPolicy` of service-runtime emits it on a stored change, so the emission guard needs the entry.
      * `TenantWideEvidenceIntegrityFailed` (INV-Q-12994 A): the platform event of a failed tenant-wide chain, produced
      * by evidence-svc alone, since a domain event cannot carry the tenant-wide entity.
-     * `TenantWideArchiveVolumeMeasured` (INV-Q-14069 A): the stored audit bytes of the tenant-wide entity, likewise
-     * produced by evidence-svc alone.
      */
     val platformEntries: List<CatalogueEntry> =
         jobEntries +
@@ -163,14 +169,6 @@ object EvidenceEvents {
             CatalogueEntry(
                 "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1",
                 "gst.platform.tenant-wide-evidence-integrity-failed.v1",
-                setOf(SERVICE),
-                contentTopic = false,
-                recordTopic = false,
-                retainedWhileResolvable = false,
-            ) +
-            CatalogueEntry(
-                "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1",
-                "gst.platform.tenant-wide-archive-volume-measured.v1",
                 setOf(SERVICE),
                 contentTopic = false,
                 recordTopic = false,

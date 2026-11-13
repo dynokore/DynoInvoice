@@ -91,7 +91,7 @@ class ArchiveVolumeJobTest {
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val objects = Objects()
         val source: ArchiveVolumeSource = RetainedArchiveVolume(JooqStoredContentBytes(dsl), ObjectStoreBytes(objects))
-        private val catalogue = EventCatalogue(EvidenceEvents.entries + EvidenceEvents.platformEntries)
+        private val catalogue = EventCatalogue(EvidenceEvents.entries)
         private val publisher =
             ArchiveVolumePublisher(
                 JooqArchiveVolumeLedger(dsl),
@@ -315,7 +315,7 @@ class ArchiveVolumeJobTest {
                     EvidenceDb.SCHEMA,
                     "evidence-svc",
                     "evidence-svc-0",
-                    EventCatalogue(EvidenceEvents.entries + EvidenceEvents.platformEntries),
+                    EventCatalogue(EvidenceEvents.entries),
                     clock,
                 ),
                 clock,
@@ -398,7 +398,7 @@ class ArchiveVolumeJobTest {
             @TempDir dir: Path,
         ) {
             val type = ArchiveVolumePublisher.TENANT_WIDE_EVENT_TYPE
-            val entry = EvidenceEvents.platformEntries.single { it.eventType == type }
+            val entry = EvidenceEvents.entries.single { it.eventType == type }
             listOf(
                 type,
                 entry.topic,
