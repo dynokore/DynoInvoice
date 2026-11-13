@@ -252,3 +252,5 @@ periodRef	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
 code	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
 remediationOwner	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
 disposition	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
+getLatestReadinessCheck	operation	openapi.yaml	INV-REQ-500
+getLatestReadinessCheck.SRT-005	operation_error_code	openapi.yaml	INV-REQ-500

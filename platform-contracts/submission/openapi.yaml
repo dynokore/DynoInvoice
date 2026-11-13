@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.17.0
+  version: 1.18.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -48,6 +48,9 @@ info:
     replaySubmissions unchanged (INV-REQ-563, INV-REQ-575, INV-REQ-1348,
     the question on INV-REQ-563 attrs.verification, option A, task
     INV-T-13146); it is additive.
+    1.18.0 adds the internal read getLatestReadinessCheck for console-bff,
+    the newest readiness check record of a period (404 SRT-005 when none);
+    it is additive (INV-REQ-500, INV-T-21128).
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -1297,6 +1300,38 @@ paths:
                         status: "PENDING"
                         requestedBy: "5b1f7c0e-2d4a-4c55-9a3e-0c1d2e3f4a5b"
                         requestedAt: "2026-04-28T08:55:00Z"
+        '404':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/entities/{entityRef}/periods/{periodRef}/readiness/latest-check:
+    get:
+      operationId: getLatestReadinessCheck
+      summary: Read the latest readiness check of a period
+      description: >-
+        Answers the first item `listReadinessChecks` would answer for the
+        period, the newest record, and appends no record (INV-REQ-500,
+        INV-REQ-951). Called by console-bff on behalf of a person, so that
+        the filing-gate override names the `checkId` that is the latest
+        (overrideFilingGate). A period with no readiness check is refused
+        with `404` and SRT-005.
+      tags: [readiness]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->submission-svc
+      x-timeout: 2000
+      x-error-codes: [SRT-005]
+      x-requirements: [INV-REQ-500]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+      responses:
+        '200':
+          description: The latest readiness check record of the period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessCheckRecord'
         '404':
           $ref: '#/components/responses/Error'
         default:
