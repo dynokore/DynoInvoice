@@ -20,9 +20,15 @@ class PinnedDeferralContractTest {
     @Test
     fun `INV-AC-21143 the pinned contract carries SRT-005 on the three operations and 5000 ms on overrideException`() {
         val ops = operations()
-        listOf("deferDocument", "undeferDocument", "overrideException").forEach { id ->
+        listOf("deferDocument", "undeferDocument").forEach { id ->
             val op = checkNotNull(ops[id]) { "operation $id is not in the pinned contract" }
             check(op["x-error-codes"] == listOf("SRT-005")) { "x-error-codes of $id is ${op["x-error-codes"]}" }
+        }
+        // The third pin bump (INV-T-21172) lists the relayed codes; see PinnedOverrideContractTest.
+        val override = checkNotNull(ops["overrideException"]) { "overrideException is not in the pinned contract" }
+        val relayed = listOf("SRT-005", "SRT-004", "SRT-008", "PAY-017", "SRT-001")
+        check(override["x-error-codes"] == relayed) {
+            "x-error-codes of overrideException is ${override["x-error-codes"]}"
         }
         check(ops.getValue("overrideException")["x-timeout"] == 5000) {
             "x-timeout of overrideException is ${ops.getValue("overrideException")["x-timeout"]}"
