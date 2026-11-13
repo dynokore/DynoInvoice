@@ -32,7 +32,7 @@ object PostgresDb {
     private const val MIGRATE_PASSWORD = "controlplane_migrate_pw"
 
     private val container: PostgreSQLContainer<*> =
-        PostgreSQLContainer(DockerImageName.parse(System.getProperty("gst.pg.image", "postgres:18")))
+        PostgreSQLContainer(DockerImageName.parse(System.getProperty("gst.pg.image", "postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336")))
             .withLabel("inv.agent", "c-inv-t-4985")
             // a saturated CI runner starts the container slowly: the default 60 s start-up wait is too short
             .withStartupTimeout(Duration.ofMinutes(STARTUP_MINUTES))
