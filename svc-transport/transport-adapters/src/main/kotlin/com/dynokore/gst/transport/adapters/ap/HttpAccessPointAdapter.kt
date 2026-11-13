@@ -4,6 +4,8 @@ import com.dynokore.gst.transport.application.AccessPointAdapters
 import com.dynokore.gst.transport.application.AccessPointPort
 import com.dynokore.gst.transport.application.NotificationPage
 import com.dynokore.gst.transport.application.NotificationSource
+import com.dynokore.gst.transport.application.ProbeOutcome
+import com.dynokore.gst.transport.application.TestClass
 import com.dynokore.gst.transport.domain.AdapterId
 import com.dynokore.gst.transport.domain.ApNotification
 import com.dynokore.gst.transport.domain.DocRef
@@ -123,6 +125,61 @@ class HttpAccessPointAdapter(
         return NotificationPage(items.mapNotNull(::item), next ?: cursor)
     }
 
+    /**
+     * The probe of "Test connection" (INV-REQ-835): one read of the AP's notification page with limit 1, which changes
+     * nothing at the AP and moves no cursor. The answer is classified, never passed on raw: an I/O failure or a timeout
+     * is UNREACHABLE; 401 or 403 is AUTHENTICATION_REFUSED; a 200 whose body is the expected page is SUCCESS; anything
+     * else (another status, a body that is not the page) was reached and answered, but not as the contract says:
+     * UNEXPECTED_RESPONSE. The detail is a code only (INV-Q-2944).
+     */
+    fun probe(): ProbeOutcome {
+        val base = endpoints.active().toString().trimEnd('/')
+        val target = URI.create("$base/ap/v1/$apPath/notifications?limit=1")
+        lastRequestUri = target
+        val request =
+            HttpRequest
+                .newBuilder(target)
+                .timeout(timeout)
+                .GET()
+                .build()
+        return try {
+            classify(client.send(request, HttpResponse.BodyHandlers.ofString()))
+        } catch (_: java.net.http.HttpTimeoutException) {
+            ProbeOutcome(TestClass.UNREACHABLE, "AP_TIMEOUT")
+        } catch (_: IOException) {
+            ProbeOutcome(TestClass.UNREACHABLE, "AP_UNREACHABLE")
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            ProbeOutcome(TestClass.UNREACHABLE, "AP_INTERRUPTED")
+        }
+    }
+
+    private fun classify(response: HttpResponse<String>): ProbeOutcome =
+        when {
+            response.statusCode() == HTTP_UNAUTHORIZED || response.statusCode() == HTTP_FORBIDDEN -> {
+                ProbeOutcome(TestClass.AUTHENTICATION_REFUSED, "AP_AUTH_REFUSED")
+            }
+
+            response.statusCode() == HTTP_OK && isPage(response.body()) -> {
+                ProbeOutcome(TestClass.SUCCESS)
+            }
+
+            response.statusCode() == HTTP_OK -> {
+                ProbeOutcome(TestClass.UNEXPECTED_RESPONSE, "AP_BODY_UNEXPECTED")
+            }
+
+            else -> {
+                ProbeOutcome(TestClass.UNEXPECTED_RESPONSE, "AP_STATUS_${response.statusCode()}")
+            }
+        }
+
+    private fun isPage(body: String): Boolean =
+        try {
+            mapper.readTree(body)?.get("notifications")?.isArray == true
+        } catch (_: tools.jackson.core.JacksonException) {
+            false
+        }
+
     private fun send(request: HttpRequest): String {
         val response =
             try {
@@ -215,6 +272,8 @@ class HttpAccessPointAdapter(
                 "INBOUND_DOCUMENT" to NotificationTranslator.INBOUND_NETWORK_DOCUMENT,
             )
         const val HTTP_OK = 200
+        const val HTTP_UNAUTHORIZED = 401
+        const val HTTP_FORBIDDEN = 403
         const val HTTP_ACCEPTED = 202
         const val HTTP_UNPROCESSABLE = 422
     }

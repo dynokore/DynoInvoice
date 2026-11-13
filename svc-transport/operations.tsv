@@ -3,10 +3,10 @@ operation	submitPayload	INV-T-4981
 operation	submitPackage	UNASSIGNED
 operation	sendNetworkDocument	UNASSIGNED
 operation	receiveApNotification	INV-T-12486
-operation	rotateCredential	INV-T-4983
-operation	testConnection	INV-T-4983
-operation	failoverAdapter	INV-T-4983
-operation	setConnectionEntities	INV-T-4983
+operation	rotateCredential	INV-T-18676
+operation	testConnection	INV-T-18675
+operation	failoverAdapter	INV-T-18675
+operation	setConnectionEntities	INV-T-18675
 operation	electAcknowledgementRoute	INV-T-4982
 operation	clearAcknowledgementRoute	INV-T-4982
 channel	gst.transport.acknowledgement-received.v1	INV-T-4982

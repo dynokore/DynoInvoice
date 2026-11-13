@@ -43,6 +43,8 @@ class JooqEntityAdapterAssignments(
                 .doUpdate()
                 .set(ENTITY_ADAPTER.ADAPTER_ID, adapter.value)
                 .set(ENTITY_ADAPTER.ASSIGNED_AT, now)
+                // a repeat for an entity already on the adapter is a no-op: the row, assigned_at included, stays
+                .where(ENTITY_ADAPTER.ADAPTER_ID.ne(adapter.value))
                 .execute()
         }
     }

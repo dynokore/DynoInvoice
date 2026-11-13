@@ -43,3 +43,11 @@ inv:
     # sys-owned lookup function attempt_owner (no tenant column in its result) and the platform table ap_poll_cursor (the
     # poll position of an adapter). The signed-binding key table is not generated.
     platform-scoped-tables: transport.adapter_attempt_counts,transport.attempt_owner,transport.ap_poll_cursor
+transport:
+  ap:
+    # the adapter circuit breaker (INV-REQ-1353; INV-T-18675): consecutive failures that open it, how long it stays open
+    # before one probe may pass (half-open), and the successes in half-open that close it. Configuration, not code.
+    breaker:
+      failure-threshold: 5
+      open-for: 30s
+      half-open-successes: 2
