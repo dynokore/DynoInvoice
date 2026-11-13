@@ -125,7 +125,6 @@ class Tpl16ServiceCompositionTest {
         val EXPECTED_TABLES =
             setOf(
                 "console_session",
-                "deferral",
                 "consumer_offset",
                 "consumer_replay",
                 "consumer_replay_marker",
