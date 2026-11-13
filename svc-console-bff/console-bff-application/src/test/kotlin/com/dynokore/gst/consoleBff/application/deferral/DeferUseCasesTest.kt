@@ -163,6 +163,19 @@ class DeferUseCasesTest {
     }
 
     @Test
+    fun `INV-AC-21160 the authority call carries tenant, user, entity and the key text by equality`() {
+        val f = fx()
+        f.defer.execute("T1", "U7", "E1", doc)
+        f.asked.single()[0] shouldBe "T1"
+        f.asked.single()[1] shouldBe "U7"
+        f.asked.single()[2] shouldBe "E1"
+        f.asked.single()[3] shouldBe "exception.defer"
+        val g = fx()
+        g.undefer.execute("T9", "U8", "E2", UUID.randomUUID())
+        g.asked.single() shouldBe listOf("T9", "U8", "E2", "exception.defer")
+    }
+
+    @Test
     fun `INV-AC-21160 denied defer is Forbidden and neither targets nor store were called`() {
         val f = fx(grant = false)
         f.defer.execute("T1", "U1", "E1", doc) shouldBe DeferResult.Forbidden
