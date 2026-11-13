@@ -178,6 +178,17 @@ class AuthorityIncarnationDbTest {
     }
 
     @Test
+    fun `INV-AC-22069 after a publish of 40 a sequence reset to 7 raises the incarnation at the next start`() {
+        withContext { c ->
+            given(incarnation = 1_000, mark = 0, sequence = 41)
+            inTx(c) { c.getBean(AuthorityHeadStore::class.java).advance(40) }
+            assertThat(inTx(c) { store(c, 5_000).start() }).isEqualTo(1_000L)
+            sql("select setval('access.authority_version_seq', 7)")
+            assertThat(inTx(c) { store(c, 5_000).start() }).isEqualTo(5_000L)
+        }
+    }
+
+    @Test
     fun `INV-AC-22069 the heartbeat carries the stored incarnation`() {
         withContext { c ->
             given(incarnation = 4_242, mark = 0, sequence = 1)
