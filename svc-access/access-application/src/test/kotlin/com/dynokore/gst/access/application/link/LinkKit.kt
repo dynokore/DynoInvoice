@@ -46,6 +46,7 @@ import java.time.ZoneOffset
 /** Fake ports for the signed-link use cases: in memory, one tenant, no database. */
 class LinkKit(
     var now: Instant = Instant.parse("2026-11-06T02:00:00Z"),
+    consentRepository: ConsentRepository? = null,
 ) {
     val clock: Clock =
         object : Clock() {
@@ -172,8 +173,8 @@ class LinkKit(
     // consents, grants-free decision, evidence
     val consents = mutableMapOf<String, Consent>()
     val withdrawals = mutableListOf<String>()
-    val consentRepo =
-        object : ConsentRepository {
+    val consentRepo: ConsentRepository =
+        consentRepository ?: object : ConsentRepository {
             override fun find(ref: ConsentRef) = consents[ref.value].also { reads += "consent:${ref.value}" }
 
             override fun lock(ref: ConsentRef) = consents[ref.value].also { reads += "consent:${ref.value}" }

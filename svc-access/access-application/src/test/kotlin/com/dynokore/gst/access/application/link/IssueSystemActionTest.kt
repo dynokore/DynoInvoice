@@ -1,5 +1,9 @@
 package com.dynokore.gst.access.application.link
 
+import com.dynokore.gst.access.application.consent.ConsentRepository
+import com.dynokore.gst.access.domain.consent.Consent
+import com.dynokore.gst.access.domain.consent.ConsentRef
+import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.role.Role
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -31,10 +35,39 @@ class IssueSystemActionTest {
         assertEquals(2, kit.messages.size)
     }
 
+    /** Every method of the consent read port records its call; the issue path must make none. */
+    private class RecordingConsents : ConsentRepository {
+        val calls = mutableListOf<String>()
+
+        override fun find(ref: ConsentRef): Consent? = null.also { calls += "find" }
+
+        override fun lock(ref: ConsentRef): Consent? = null.also { calls += "lock" }
+
+        override fun findLiveForClient(client: EntityRef): Consent? = null.also { calls += "findLiveForClient" }
+
+        override fun insert(consent: Consent) {
+            calls += "insert"
+        }
+
+        override fun update(
+            before: Consent,
+            after: Consent,
+        ) {
+            calls += "update"
+        }
+
+        override fun nextAuthorityVersion(): Long = 1L.also { calls += "nextAuthorityVersion" }
+
+        override fun nextRef(): ConsentRef = ConsentRef("C-X").also { calls += "nextRef" }
+    }
+
     @Test
     fun `INV-AC-17419 no agent-scope lookup and no consent read on the issue path`() {
-        kit.issue.handle(kit.systemActor, event())
-        assertTrue(kit.reads.isEmpty())
+        val consents = RecordingConsents()
+        val watched = LinkKit(consentRepository = consents)
+        val out = watched.issue.handle(watched.systemActor, event())
+        assertTrue(out is IssueLinkOutcome.Issued)
+        assertTrue(consents.calls.isEmpty(), consents.calls.toString())
     }
 
     @Test
