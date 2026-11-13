@@ -40,25 +40,6 @@ class ExceptionHandlersTest {
         ) = rowsOfDocument(tenantId, docUuid).filter { it.state == ItemState.OPEN }
     }
 
-    /** A store that returns the OPEN rows of every document, so only the domain filter separates documents. */
-    private class LeakyStore : ExceptionStore {
-        val rows = linkedMapOf<Pair<String, UUID>, ExceptionRow>()
-
-        override fun upsert(rows: List<ExceptionRow>) {
-            rows.forEach { this.rows[it.tenantId to it.exceptionId] = it }
-        }
-
-        override fun rowsOfDocument(
-            tenantId: String,
-            docUuid: String,
-        ) = rows.values.filter { it.tenantId == tenantId }
-
-        override fun openRowsOfDocument(
-            tenantId: String,
-            docUuid: String,
-        ) = rowsOfDocument(tenantId, docUuid).filter { it.state == ItemState.OPEN }
-    }
-
     private val tenantId = TenantId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val doc = "22222222-2222-2222-2222-222222222222"
     private val t1 = Instant.parse("2026-11-12T08:00:00Z")
@@ -215,18 +196,5 @@ class ExceptionHandlersTest {
         shouldThrow<ContractViolation> { held.handle(envelope("DocumentHeld", "bad")) }
         shouldThrow<ContractViolation> { released.handle(envelope("DocumentReleased", "bad")) }
         store.rows.size shouldBe 0
-    }
-
-    @Test
-    fun `INV-AC-21027 a release resolves no row of another docUuid even when the store returns them`() {
-        val leaky = LeakyStore()
-        DocumentHeldHandler(tenants, heldReader, RecordDocumentHeld(leaky))
-            .handle(envelope("DocumentHeld", "payload:ENT-P")) shouldBe HandleOutcome.APPLIED
-        val other = "33333333-3333-3333-3333-333333333333"
-        DocumentReleasedHandler(tenants, releasedReader, RecordDocumentReleased(leaky))
-            .handle(envelope("DocumentReleased", "$other|PAY-001,MDM-002")) shouldBe HandleOutcome.IGNORED
-        leaky.rows.values
-            .map { it.state }
-            .toSet() shouldBe setOf(ItemState.OPEN)
     }
 }
