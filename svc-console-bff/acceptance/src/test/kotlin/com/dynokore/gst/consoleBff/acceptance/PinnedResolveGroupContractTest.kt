@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test
 import org.yaml.snakeyaml.Yaml
 import java.io.File
 
-/** The pinned contract holds resolveGroup with its request, result, error codes and timeout; operations.tsv lists it. */
+/** The pinned contract holds resolveGroup (request, result, codes, timeout); operations.tsv lists it. */
 class PinnedResolveGroupContractTest {
     private val consoleDir = File(System.getProperty("gst.contract.dir"))
     private val console = document("console-bff")
@@ -38,12 +38,6 @@ class PinnedResolveGroupContractTest {
         checkNotNull(((this["components"] as Map<*, *>)["schemas"] as Map<*, *>)[name] as? Map<*, *>) {
             "schema $name is absent"
         }
-
-    private fun Op.schemaRef(status: String): Any? {
-        val response = (body["responses"] as Map<*, *>)[status] as Map<*, *>
-        val json = (response["content"] as Map<*, *>)["application/json"] as Map<*, *>
-        return (json["schema"] as Map<*, *>)["\$ref"]
-    }
 
     private fun requireEq(
         what: String,
@@ -82,8 +76,22 @@ class PinnedResolveGroupContractTest {
         requireEq("ResolveGroupResult required", (result["required"] as List<*>).toSet(), counts)
 
         val rows =
-            File(System.getProperty("gst.root.dir"), "operations.tsv").readLines().drop(1).map { it.split('\t') }.filter { it.getOrNull(1) == "resolveGroup" }
+            File(
+                System.getProperty("gst.root.dir"),
+                "operations.tsv",
+            ).readLines().drop(1).map { it.split('\t') }.filter {
+                it.getOrNull(1) ==
+                    "resolveGroup"
+            }
         requireEq("operations.tsv resolveGroup rows", rows.size, 1)
         requireEq("operations.tsv row", rows.single(), listOf("operation", "resolveGroup", "UNASSIGNED"))
+        val tableIds =
+            File(System.getProperty("gst.root.dir"), "operations.tsv")
+                .readLines()
+                .drop(1)
+                .map { it.split('\t') }
+                .filter { it[0] == "operation" }
+                .map { it[1] }
+        requireEq("table operation ids", tableIds.toSet(), OperationsGate.contractOperations(File(consoleDir, "openapi.yaml").readText()))
     }
 }
