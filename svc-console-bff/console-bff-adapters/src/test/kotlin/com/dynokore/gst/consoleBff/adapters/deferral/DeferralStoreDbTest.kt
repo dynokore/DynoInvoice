@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
  */
 class DeferralStoreDbTest {
     private val migration =
-        checkNotNull(javaClass.getResource("/db/migration/V202611121200__console_bff_deferral.sql")).readText()
+        checkNotNull(javaClass.getResource("/db/migration/V202611121300__console_bff_deferral.sql")).readText()
 
     private val begin = "-- BEGIN TenantRlsMigration.ddl(\"console_bff\", \"deferral\")"
     private val end = "-- END TenantRlsMigration.ddl"
