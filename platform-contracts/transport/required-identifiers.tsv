@@ -63,3 +63,9 @@ receiveApNotification.SUB-024	operation_error_code	openapi.yaml	INV-REQ-585
 failoverAdapter	operation	openapi.yaml	INV-REQ-796
 targetAdapterRef	property	openapi.yaml	INV-REQ-796
 ConnectionTestResult.detail	schema_property	openapi.yaml	INV-REQ-835
+# INV-T-22003. rotateCredential declares its five refusals (INV-REQ-957, the first member of its x-requirements).
+rotateCredential.SRT-005	operation_error_code	openapi.yaml	INV-REQ-957
+rotateCredential.SRT-010	operation_error_code	openapi.yaml	INV-REQ-957
+rotateCredential.SUB-026	operation_error_code	openapi.yaml	INV-REQ-957
+rotateCredential.SUB-027	operation_error_code	openapi.yaml	INV-REQ-957
+rotateCredential.SUB-028	operation_error_code	openapi.yaml	INV-REQ-957

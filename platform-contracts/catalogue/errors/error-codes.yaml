@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 0d26d2de1cdc959de01882fe034ee56cdf42c1bd (2026-11-12), the merge of invoice-docs INV-T-21274 adding SRT-015, group has members already submitted (INV-T-21276, coordinator ruling round zt of tooling/wave1/crun/chains/req137-pending-rulings.txt);
+# pinned at commit 0fae8dc0cd382fe12bed1c1c43a48808cc4d270d (2026-11-13), the merge of invoice-docs INV-T-22014 adding SUB-026 to SUB-028, the credential rotation refusals (INV-T-22003, coordinator ruling (delegated) HIGH option A on the refusal codes of rotateCredential, breakdown tooling/gap18676-gap.md);
+# previously pinned at 0d26d2de1cdc959de01882fe034ee56cdf42c1bd (2026-11-12), the merge of invoice-docs INV-T-21274 adding SRT-015, group has members already submitted (INV-T-21276, coordinator ruling round zt of tooling/wave1/crun/chains/req137-pending-rulings.txt);
 # previously pinned at 5b5ef83811591636c5b5f45829a436d57884bd0f (2026-11-12), the merge of invoice-docs INV-T-20618 adding SUB-025, replay refused, version not replayable (INV-T-20619, coordinator ruling of breakdown tooling/req-breakdown-138.md round d);
 # previously pinned at 0a3dcc90467b4325597eaaa26935083dfb3072c9 (2026-11-10), the merge of invoice-docs INV-T-19786 adding TNC-014, tenant close refused while SCHEDULED or CLOSED (INV-T-19787, coordinator ruling of breakdown tooling/gap8179-gap.md; this re-vendor also brings CPL-010 and CPL-011 from INV-T-19763);
 # previously pinned at 2e75aa4e9274fc6664fd09a392c5c56dab24c14d (2026-11-10), the merge of invoice-docs INV-T-19491 adding TNC-013 (INV-T-19492, coordinator ruling of breakdown tooling/gap15888-gap.md);
@@ -537,6 +538,21 @@ error_codes:
   condition: 'Replay refused: the version is in a state other than DEAD_LETTERED or QUEUED, so it is not replayable; its state is unchanged and nothing is enqueued (HTTP 409; INV-REQ-575)'
   severity: BLOCK
   disposition: TERMINAL
+  owner: Platform
+- code: SUB-026
+  condition: 'Credential rotation refused, reference not usable: the replacement credential reference of the request names a reference that the secret store does not hold, so no rotation starts and the credential state is unchanged (UNKNOWN_REFERENCE; HTTP 422; INV-REQ-837, INV-REQ-957)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-027
+  condition: 'Credential rotation refused, no change: the replacement credential reference of the request equals the current credential reference of the connection, so nothing is rotated and the credential state is unchanged (SAME_AS_CURRENT; HTTP 422; INV-REQ-837, INV-REQ-957)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform
+- code: SUB-028
+  condition: 'Credential rotation refused, overlap window open: the overlap window of an earlier rotation of the connection has not ended, so no second rotation starts and the credential state is unchanged; the caller retries after the window ends (ROTATION_IN_PROGRESS; HTTP 409; INV-REQ-837, INV-REQ-957)'
+  severity: BLOCK
+  disposition: MANUAL
   owner: Platform
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -46,10 +46,12 @@ info:
     catalogue, not named here.
 
 
-    Neither new operation has a matching code in the vendored gst-catalogue
+    `testConnection` has no matching code in the vendored gst-catalogue
     (`catalogue/errors/error-codes.yaml` has no transport-admin prefix);
     `x-error-codes: []` below, flagged as a catalogue gap in the MR rather
-    than invented.
+    than invented. `rotateCredential` declares its five refusals (SRT-005,
+    SRT-010, SUB-026, SUB-027, SUB-028; INV-T-22003), the three SUB codes
+    being catalogue rows since INV-T-22014.
   contact:
     name: transport (see CODEOWNERS)
 servers:
@@ -389,12 +391,20 @@ paths:
         below is the first Keel lists (a single Keel-catalogue role per
         the Spectral `x-operation` schema), `platform.engineer` is
         authorised the same way.
+
+
+        Refusals, each leaving the credential state unchanged: 422 SUB-026
+        for a replacement reference the vault does not hold; 422 SUB-027
+        for a replacement reference equal to the current one; 409 SUB-028
+        while the overlap window of an earlier rotation is still open; 404
+        SRT-005 for a connection that does not exist for the caller's
+        tenant; 500 SRT-010 while the overlap window is not configured.
       tags: [administration]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->transport-svc
-      x-error-codes: []
+      x-error-codes: [SRT-005, SRT-010, SUB-026, SUB-027, SUB-028]
       x-requirements: [INV-REQ-957, INV-REQ-1010, "INV-NOTE-7 §7"]
       x-operation:
         kind: PERMISSION
