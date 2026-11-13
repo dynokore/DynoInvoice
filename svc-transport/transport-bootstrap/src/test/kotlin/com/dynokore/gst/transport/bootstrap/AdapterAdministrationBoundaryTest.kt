@@ -412,7 +412,7 @@ class AdapterAdministrationBoundaryTest {
     @Test
     fun `testConnection against the simulator answers each class with a code-only detail`(
         @TempDir dir: Path,
-    ) = run(dir, "transport.ap.breaker.failure-threshold=50", "transport.ap.timeout=1500ms") { r ->
+    ) = run(dir, "transport.ap.breaker.failure-threshold=50", "transport.ap.timeout=4s") { r ->
         val tenant = r.tenantWithConnections()
         val user = r.user(tenant, RouteCaller.ADAPTER_CONFIGURE_PERMISSION)
         val primary = r.harness.primary.value
@@ -438,10 +438,13 @@ class AdapterAdministrationBoundaryTest {
         r.testConnection(primary, user).detail() shouldBe "AP_STATUS_503"
         ApSimulator.reset()
 
-        ApSimulator.control("/faults/latency", """{"delayMs":3000}""")
+        ApSimulator.control("/faults/latency", """{"delayMs":6000}""")
+        val before = ApSimulator.callCount()
         val slow = r.testConnection(primary, user)
         slow.resultClass() shouldBe "UNREACHABLE"
         slow.detail() shouldBe "AP_TIMEOUT"
+        // the simulator still handles the request the client gave up on: wait for it before the next reset
+        ApSimulator.awaitCalls(before + 1)
         ApSimulator.reset()
     }
 

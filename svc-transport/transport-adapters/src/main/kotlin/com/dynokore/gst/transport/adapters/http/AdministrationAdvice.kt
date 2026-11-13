@@ -15,11 +15,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
 
 /**
- * The refusals of the route commands, scoped to [AdministrationController] (API-20 envelope through
- * [ApiRefusalAdvice]). A body that does not parse or breaks the request schema, a fourth route value among them, is
- * 400 SRT-001 (the text offered is never echoed, API-22); a connection ref naming no record of the tenant, or a failover target that is no registered adapter, is 404
- * SRT-005; an entity held by another connection is 422 SUB-018; a repeated entity ref is 400 SRT-001; a clearing or removal the Observe guard refuses is 422 SUB-023 or SUB-019 with a reason naming the
- * connection and its entities. Nothing is recorded or published in any of them: the use cases raise before they write.
+ * The refusals of the administration commands, scoped to [AdministrationController] (API-20 envelope through
+ * [ApiRefusalAdvice]).
+ * - 400 SRT-001: a body that does not parse or breaks the request schema (a fourth route value, a repeated entity
+ *   ref); the text offered is never echoed (API-22).
+ * - 404 SRT-005: a connection ref naming no record of the tenant, or a failover target that is no registered adapter.
+ * - 422 SUB-018: an entity held by another connection.
+ * - 422 SUB-023 or SUB-019: a clearing or removal the Observe guard refuses, with a reason naming the connection and
+ *   its entities.
+ *
+ * Nothing is recorded or published in any of them: the use cases raise before they write.
  */
 @RestControllerAdvice(assignableTypes = [AdministrationController::class])
 class AdministrationAdvice(
@@ -41,7 +46,7 @@ class AdministrationAdvice(
     fun observeGuard(refused: ObserveGuardRefused): ResponseEntity<String> =
         refusals.refuse(CatalogueRefusal(HTTP_UNPROCESSABLE, refused.code, title(refused.code), refused.message))
 
-    /** SUB-018: an entity is assigned to at most one connection of its tenant; the reason names what the caller owns. */
+    /** SUB-018: an entity is held by at most one connection of its tenant; the reason names what the caller owns. */
     @ExceptionHandler(EntityAssignedToOtherConnection::class)
     fun assignedElsewhere(refused: EntityAssignedToOtherConnection): ResponseEntity<String> =
         refusals.refuse(

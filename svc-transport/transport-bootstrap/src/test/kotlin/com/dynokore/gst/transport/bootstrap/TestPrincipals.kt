@@ -9,8 +9,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The end-user tokens of the tests: `Authorization: Bearer <name>` resolves to the principal registered under the name,
- * anything else is unauthenticated. No entity set unless a test names one: only `failoverAdapter` is marked `x-entity-ref`, so the runtime checks its
- * body `entityRef` against the set of the principal (API-24).
+ * anything else is unauthenticated. No entity set unless a test names one: the runtime checks the body entity refs of
+ * the operations marked `x-entity-ref` against the set of the principal (API-24).
  */
 object TestPrincipals {
     private val byToken = ConcurrentHashMap<String, EndUserPrincipal>()

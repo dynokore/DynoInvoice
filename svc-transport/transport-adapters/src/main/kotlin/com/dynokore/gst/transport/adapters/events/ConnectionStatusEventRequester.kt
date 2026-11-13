@@ -17,7 +17,8 @@ import java.util.UUID
  * Requests `ConnectionStatusChanged` (INV-REQ-836 b3-b4, INV-REQ-835 b5) through the one shared publisher of
  * service-runtime, never a writer of its own. The state is passed on as the breaker state it came from (UP is closed,
  * DEGRADED half-open, DOWN open); the publisher writes the event under the connection's tenant and tenant-wide entity.
- * [recordOf] names the connection: endpoint, environment tag and credential reference of the adapter of [connectionRef].
+ * [recordOf] names the connection: endpoint, environment tag and credential reference of the adapter of
+ * [connectionRef].
  */
 class ConnectionStatusEventRequester(
     private val reporter: ConnectionStatusReporter,
