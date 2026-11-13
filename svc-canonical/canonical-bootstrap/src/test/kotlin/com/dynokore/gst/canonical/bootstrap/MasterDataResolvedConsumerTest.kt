@@ -62,7 +62,7 @@ class MasterDataResolvedConsumerTest {
     }
 
     private class Boundary(
-        context: ApplicationContext,
+        val context: ApplicationContext,
         topic: String,
     ) {
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
@@ -174,10 +174,15 @@ class MasterDataResolvedConsumerTest {
     }
 
     @Test
-    fun `INV-AC-21250 the consumer subscription equals canonical-svc, the topic and schema canonical`() {
-        MasterDataResolvedConsumerConfiguration.CONSUMER shouldBe "canonical-svc"
-        MasterDataResolvedConsumerConfiguration.TOPIC shouldBe "gst.masterdata.master-data-resolved.v1"
-        MasterDataResolvedConsumerConfiguration.SCHEMA shouldBe "canonical"
+    fun `INV-AC-21250 the consumer subscription equals canonical-svc, the topic and schema canonical`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        // The bean the application context builds, not the constants: a wrong topic wired into the bean fails here.
+        val bean = context.getBean("masterDataResolvedConsumer", JdbcInboxConsumer::class.java)
+        val field = JdbcInboxConsumer::class.java.getDeclaredField("subscription")
+        field.isAccessible = true
+        field.get(bean) shouldBe
+            ConsumerSubscription("canonical-svc", "gst.masterdata.master-data-resolved.v1", "canonical")
     }
 
     @Test
