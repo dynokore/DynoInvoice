@@ -15,12 +15,13 @@ import tools.jackson.databind.ObjectMapper
 import java.time.LocalDate
 
 /**
- * [SafetyMargins] over the configuration resolver (INV-REQ-1279, INV-AC-20848): the variation point VP-18 is resolved
- * at entity scope on the business date passed in (the adapter reads no clock). Option LARGER carries a bare JSON integer
- * (config-resolver validates a DURATION only as a number), counted in the unit of the calendar-pack margin datum of the
- * tenant on that date and returned as a [PackMargin]; an object, text, a non-integer, a number outside
- * [PackMargin.of] or an unknown pack margin is Unavailable. Option PACK_DEFAULT returns the answer
- * of [PackDefaultMargin] for the tenant and date. Anything else (a resolver exception, an unreadable value, a missing or repeated option) is [SafetyMarginAnswer.Unavailable]: fail closed, no default
+ * [SafetyMargins] over the configuration resolver (INV-REQ-1279, INV-AC-20848): the variation point VP-18 is
+ * resolved at entity scope on the business date passed in (the adapter reads no clock). Option LARGER carries a
+ * bare JSON integer (config-resolver validates a DURATION only as a number), counted in the unit of the
+ * calendar-pack margin datum of the tenant on that date and returned as a [PackMargin]; an object, text, a
+ * non-integer, a number outside [PackMargin.of] or an unknown pack margin is Unavailable. Option PACK_DEFAULT
+ * returns the answer of [PackDefaultMargin] for the tenant and date. Anything else (a resolver exception, an
+ * unreadable value, a missing or repeated option) is [SafetyMarginAnswer.Unavailable]: fail closed, no default
  * number. The key is read from the generated catalogue; no margin number is written here.
  */
 class PolicySafetyMargins(
@@ -69,14 +70,10 @@ class PolicySafetyMargins(
         on: LocalDate,
         valueJson: String?,
     ): SafetyMarginAnswer {
-        val node: JsonNode = mapper.readTree(valueJson ?: return SafetyMarginAnswer.Unavailable)
-        if (!node.isIntegralNumber || !node.canConvertToLong()) return SafetyMarginAnswer.Unavailable
-        val unit =
-            when (val answer = packDefault.on(tenant, on)) {
-                is PackMarginAnswer.Known -> answer.margin.unit.name
-                PackMarginAnswer.Unknown -> return SafetyMarginAnswer.Unavailable
-            }
-        val margin = PackMargin.of(node.asLong(), unit)
+        val node: JsonNode? = valueJson?.let { mapper.readTree(it) }
+        val unit = (packDefault.on(tenant, on) as? PackMarginAnswer.Known)?.margin?.unit?.name
+        val number = node?.takeIf { it.isIntegralNumber && it.canConvertToLong() }?.asLong()
+        val margin = if (unit == null || number == null) null else PackMargin.of(number, unit)
         return if (margin == null) SafetyMarginAnswer.Unavailable else SafetyMarginAnswer.Known(margin)
     }
 
