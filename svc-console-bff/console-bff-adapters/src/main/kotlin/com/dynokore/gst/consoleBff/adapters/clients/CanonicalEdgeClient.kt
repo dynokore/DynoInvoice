@@ -6,6 +6,8 @@ import com.dynokore.gst.consoleBff.adapters.clients.model.DocumentSummary
 import com.dynokore.gst.consoleBff.adapters.clients.model.DocumentVersion
 import com.dynokore.gst.consoleBff.adapters.clients.model.PreparedReassignment
 import com.dynokore.gst.consoleBff.adapters.clients.model.PreparedReassignmentPage
+import com.dynokore.gst.consoleBff.adapters.clients.model.ReleaseHeldDocumentRequest
+import com.dynokore.gst.consoleBff.adapters.clients.model.ReleasedDocument
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
@@ -13,7 +15,7 @@ import org.springframework.web.client.RestClient
 import java.util.UUID
 
 /**
- * ARC-08, STK-46, INV-REQ-1202 behavior 2: the four end-user operations of canonical-svc that console-bff calls
+ * ARC-08, STK-46, INV-REQ-1202 behavior 2: the five end-user operations of canonical-svc that console-bff calls
  * (`x-sync-edge: console-bff->canonical-svc`), through the client generated from the owner's contract. The
  * [RestClient] comes from the bean `internalRestClientBuilder`, whose interceptors (service-runtime) set the
  * `Authorization` header to the end user's token of the request being served. This class sets no header itself.
@@ -49,6 +51,11 @@ class CanonicalEdgeClient(
         entityRef: String,
         reassignmentId: UUID,
     ): PreparedReassignment = reassignments.confirmPeriodReassignment(entityRef, reassignmentId)
+
+    fun releaseHeldDocument(
+        docUuid: UUID,
+        request: ReleaseHeldDocumentRequest,
+    ): ReleasedDocument = documents.releaseHeldDocument(docUuid, request)
 
     companion object {
         const val URL_PROPERTY = "console.canonical-svc-url"

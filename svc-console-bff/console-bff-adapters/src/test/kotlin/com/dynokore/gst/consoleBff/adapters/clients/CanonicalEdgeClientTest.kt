@@ -1,5 +1,6 @@
 package com.dynokore.gst.consoleBff.adapters.clients
 
+import com.dynokore.gst.consoleBff.adapters.clients.model.ReleaseHeldDocumentRequest
 import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentEndUserToken
 import com.dynokore.platform.serviceruntime.resilience.http.EndUserTokenPropagationInterceptor
@@ -19,7 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.function.Supplier
 
 /**
- * INV-AC-12290 (INV-T-12292): console-bff forwards the end user's token on the four canonical-svc operations marked
+ * INV-AC-12290 (INV-T-12292): console-bff forwards the end user's token on the five canonical-svc operations marked
  * end-user. The client is the generated one, the builder is the bean `internalRestClientBuilder` with the
  * interceptor service-runtime contributes, and the server is a stub HTTP server of canonical-svc.
  */
@@ -47,13 +48,23 @@ class CanonicalEdgeClientTest {
                 exchange.requestURI.path,
                 exchange.requestHeaders.entries.associate { it.key.lowercase() to it.value.toList() },
             )
-        // The proof is the request; the body is not a valid model, so the generated client reports a failure.
-        exchange.sendResponseHeaders(404, -1)
+        // The proof is the request. releaseHeldDocument is answered with a ReleasedDocument; the other operations
+        // get a 404, which the generated client reports as a failure after the request was sent.
+        if (exchange.requestURI.path.endsWith("/release")) {
+            val bytes = released.toByteArray()
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.write(bytes)
+        } else {
+            exchange.sendResponseHeaders(404, -1)
+        }
         exchange.close()
     }
 
     private val docUuid = UUID.randomUUID()
     private val reassignmentId = UUID.randomUUID()
+    private val released =
+        """{"docUuid":"$docUuid","holdCode":"ING-017","releasedBy":"user-1","releasedAt":"2026-11-13T10:00:00Z"}"""
 
     private val operations: Map<String, (CanonicalEdgeClient) -> Any?> =
         mapOf(
@@ -61,6 +72,9 @@ class CanonicalEdgeClientTest {
             "getDocumentVersion" to { c -> c.getDocumentVersion(docUuid, 1) },
             "listPreparedReassignments" to { c -> c.listPreparedReassignments("ENT-1") },
             "confirmPeriodReassignment" to { c -> c.confirmPeriodReassignment("ENT-1", reassignmentId) },
+            "releaseHeldDocument" to { c ->
+                c.releaseHeldDocument(docUuid, ReleaseHeldDocumentRequest(ReleaseHeldDocumentRequest.HoldCode.ING_017))
+            },
         )
 
     /** The context is built as the service builds it: the auto-configuration of the builder, the interceptor beans. */
@@ -89,7 +103,7 @@ class CanonicalEdgeClientTest {
     private fun authorization(request: Seen): List<String>? = request.headers["authorization"]
 
     @Test
-    fun `INV-AC-12290 each of the four operations carries the ambient end-user token`() =
+    fun `INV-AC-12290 each of the five operations carries the ambient end-user token`() =
         withClient { client ->
             for ((name, op) in operations) {
                 seen.clear()
@@ -121,13 +135,25 @@ class CanonicalEdgeClientTest {
                 call { op(client) }
                 withClue(name) { seen.size shouldBe 1 }
                 withClue(name) { authorization(seen.single()) shouldBe null }
-                withClue(name) { seen.single().headers.keys.filter { it.startsWith("author") } shouldBe emptyList() }
+                withClue(name) {
+                    seen
+                        .single()
+                        .headers.keys
+                        .filter { it.startsWith("author") } shouldBe emptyList()
+                }
             }
         }
 
     @Test
-    fun `INV-AC-12290 the console-bff end-user operations of the canonical contract are exactly the four covered`() {
-        consoleBffEndUserOperations() shouldBe operations.keys
+    fun `INV-AC-12290 the console-bff end-user operations of the canonical contract are exactly the five covered`() {
+        consoleBffEndUserOperations() shouldBe
+            setOf(
+                "getDocument",
+                "getDocumentVersion",
+                "listPreparedReassignments",
+                "confirmPeriodReassignment",
+                "releaseHeldDocument",
+            )
     }
 
     /** Operation blocks are read by line: `operationId` and the `x-*` members are siblings at one indent. */
@@ -140,16 +166,28 @@ class CanonicalEdgeClientTest {
     }
 
     @Test
-    fun `INV-AC-12290 the set check reports a fifth console-bff end-user operation`() {
-        val fifth =
+    fun `INV-AC-12290 the set check reports a sixth console-bff end-user operation`() {
+        val sixth =
             """
             |  /x:
             |    get:
-            |      operationId: releaseHeldDocument
+            |      operationId: sixthOperation
             |      x-caller-auth: end-user
             |      x-sync-edge: console-bff->canonical-svc
             """.trimMargin()
-        endUserConsoleOperations(fifth) shouldBe setOf("releaseHeldDocument")
+        endUserConsoleOperations(sixth) shouldBe setOf("sixthOperation")
+    }
+
+    @Test
+    fun `INV-AC-12290 a look-alike operation name is a different member of the set`() {
+        val lookAlike =
+            """
+            |    a:
+            |      operationId: releaseHeldDocuments
+            |      x-caller-auth: end-user
+            |      x-sync-edge: console-bff->canonical-svc
+            """.trimMargin()
+        (endUserConsoleOperations(lookAlike) == setOf("releaseHeldDocument")) shouldBe false
     }
 
     @Test
@@ -204,12 +242,17 @@ class CanonicalEdgeClientTest {
                     listKey = inline.isEmpty()
                 }
 
-                listKey && line.startsWith("- ") -> ops.last().edges += line.removePrefix("- ").trim().trim('\'', '"')
+                listKey && line.startsWith("- ") -> {
+                    ops.last().edges += line.removePrefix("- ").trim().trim('\'', '"')
+                }
 
-                else -> listKey = false
+                else -> {
+                    listKey = false
+                }
             }
         }
-        return ops.filter { op -> op.auth == "end-user" && op.edges.any { it.startsWith("console-bff->") } }
+        return ops
+            .filter { op -> op.auth == "end-user" && op.edges.any { it.startsWith("console-bff->") } }
             .map { it.id }
             .toSet()
     }
