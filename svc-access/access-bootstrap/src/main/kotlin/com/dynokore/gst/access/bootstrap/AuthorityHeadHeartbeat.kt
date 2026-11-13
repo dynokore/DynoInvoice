@@ -2,10 +2,12 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.events.AuthorityHeadOutbox
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.JooqAuthorityHeadStore
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -70,7 +72,7 @@ class AuthorityHeadLifecycle(
     override fun isRunning(): Boolean = executor != null
 
     private companion object {
-        val log = LoggerFactory.getLogger(AuthorityHeadLifecycle::class.java)
+        val log: Logger = LoggerFactory.getLogger(AuthorityHeadLifecycle::class.java)
     }
 }
 
@@ -78,6 +80,10 @@ class AuthorityHeadLifecycle(
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AuthorityHeadProperties::class)
 class AuthorityHeadHeartbeat {
+    /** The head record of the authority versions (INV-Q-17072 A), advanced by every AuthorityChanged append. */
+    @Bean
+    fun authorityHeadStore(dsl: DSLContext): AuthorityHeadStore = JooqAuthorityHeadStore(dsl)
+
     @Suppress("LongParameterList") // one collaborator per port of the publish
     @Bean
     fun authorityHeadOutbox(

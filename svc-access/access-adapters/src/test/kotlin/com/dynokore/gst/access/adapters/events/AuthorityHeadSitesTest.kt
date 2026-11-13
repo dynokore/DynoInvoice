@@ -58,14 +58,14 @@ class AuthorityHeadSitesTest {
         )
 
     @Test
-    fun `INV-AC-9060 a grant append advances the head record with its authorityVersion`() {
+    fun `INV-AC-9051 a grant append advances the head record with its authorityVersion`() {
         AuthorityChangedOutbox(writer, mapper, head).publish(listOf(grant(21), grant(22)))
         assertEquals(listOf(21L, 22L), head.advanced)
         assertEquals(22L, head.current())
     }
 
     @Test
-    fun `INV-AC-9060 a consent change append advances the head record with its authorityVersion`() {
+    fun `INV-AC-9051 a consent change append advances the head record with its authorityVersion`() {
         val consent =
             Consent(
                 ConsentRef("CNS-1"),
@@ -85,7 +85,7 @@ class AuthorityHeadSitesTest {
     }
 
     @Test
-    fun `INV-AC-9060 a principal revocation append advances the head record with its authorityVersion`() {
+    fun `INV-AC-9051 a principal revocation append advances the head record with its authorityVersion`() {
         val principal =
             ServicePrincipal(
                 "PRN-1",
@@ -101,7 +101,7 @@ class AuthorityHeadSitesTest {
     }
 
     @Test
-    fun `INV-AC-9060 an event of another type appended through the writer does not advance the head record`() {
+    fun `INV-AC-9051 an event of another type appended through the writer does not advance the head record`() {
         writer.append(
             listOf(OutboundEvent("com.dynokore.gst.platform.AuditEntryRecorded.v1", "{}")),
             EventContexts.forAggregate(TenantId.PLATFORM, OutboxEntityRef.PLATFORM, "x"),
@@ -111,7 +111,7 @@ class AuthorityHeadSitesTest {
     }
 
     @Test
-    fun `INV-AC-9060 the heartbeat payload validates against the contract schema and carries the version`() {
+    fun `INV-AC-9051 the heartbeat payload validates against the contract schema and carries the version`() {
         val outbox =
             AuthorityHeadOutbox(
                 org.mockito.Mockito.mock(com.dynokore.platform.tenancykernel.PlatformTenantBinding::class.java),

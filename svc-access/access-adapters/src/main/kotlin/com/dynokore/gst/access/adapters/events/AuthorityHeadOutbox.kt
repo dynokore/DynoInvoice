@@ -32,6 +32,7 @@ import java.time.ZoneOffset
  * ticks of two instances. The type is the platform type of the catalogue, under `TenantId.PLATFORM` and
  * `EntityRef.PLATFORM` (the guard of outbox-and-queue is not changed).
  */
+@Suppress("LongParameterList") // one collaborator per port of the publish transaction
 class AuthorityHeadOutbox(
     private val platform: PlatformTenantBinding,
     private val tx: TransactionRunner,

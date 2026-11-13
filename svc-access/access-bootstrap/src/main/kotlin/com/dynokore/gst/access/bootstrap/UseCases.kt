@@ -6,7 +6,6 @@ import com.dynokore.gst.access.adapters.events.VersionStoringGrantChanges
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
-import com.dynokore.gst.access.adapters.persistence.JooqAuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
@@ -85,10 +84,6 @@ class UseCases {
         head: AuthorityHeadStore,
     ): AuthorityChangePublisher =
         VersionStoringGrantChanges(AuthorityChangedOutbox(outbox, mapper, head), StoredAuthorityVersions(dsl))
-
-    /** The head record of the authority versions (INV-Q-17072 A), advanced by every AuthorityChanged append. */
-    @Bean
-    fun authorityHeadStore(dsl: DSLContext): AuthorityHeadStore = JooqAuthorityHeadStore(dsl)
 
     @Bean
     fun grantAudit(
