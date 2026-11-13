@@ -21,6 +21,10 @@ import java.util.UUID
 
 /** INV-T-21320 (INV-REQ-941): the `MasterDataResolved` mapping writes `docUuids` and the pinned schema accepts it. */
 class MasterDataResolvedOutboxTest {
+    private companion object {
+        val AT: Instant = Instant.parse("2026-11-08T00:00:00Z")
+    }
+
     private val schema =
         SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12).getSchema(
             checkNotNull(
@@ -43,13 +47,13 @@ class MasterDataResolvedOutboxTest {
         CounterpartyVersion(
             PartyRef("P"),
             1,
-            Instant.parse("2026-11-08T00:00:00Z"),
+            AT,
             CounterpartyContent(
                 listOf(
                     Identifier(
                         IdentifierScheme.UEN,
                         "201912345K",
-                        Provenance.declared(ProvidedBy.INTERNAL, EvidenceRef("EV-1"), Instant.parse("2026-11-08T00:00:00Z")),
+                        Provenance.declared(ProvidedBy.INTERNAL, EvidenceRef("EV-1"), AT),
                     ),
                 ),
                 null,
@@ -66,7 +70,7 @@ class MasterDataResolvedOutboxTest {
     private fun errors(json: String) = schema.validate(json, InputFormat.JSON)
 
     @Test
-    fun `INV-AC-21319 the payload for three documents holds docUuids in list order as lower-case strings and validates`() {
+    fun `INV-AC-21319 the payload for three documents holds docUuids in order and validates`() {
         val payload = outbox.payload(version, listOf(d3, d1, d2))
         assertThat(docs(payload)).isEqualTo(
             listOf(
@@ -77,7 +81,13 @@ class MasterDataResolvedOutboxTest {
         )
         assertThat(payload.get("partyRef").asString()).isEqualTo("P")
         assertThat(payload.get("resolvedIdentifiers").size()).isEqualTo(1)
-        assertThat(payload.get("resolvedIdentifiers").get(0).get("value").asString()).isEqualTo("201912345K")
+        assertThat(
+            payload
+                .get("resolvedIdentifiers")
+                .get(0)
+                .get("value")
+                .asString(),
+        ).isEqualTo("201912345K")
         assertThat(errors(payload.toString())).isEmpty()
     }
 
