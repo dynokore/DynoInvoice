@@ -11,11 +11,11 @@ create table submission.filing_fact (
     filed_at date not null,
     acknowledgement_ref text not null check (char_length(btrim(acknowledgement_ref)) >= 1),
     portal_ref text null,
-    is_correction boolean not null default false,
+    correction boolean not null default false,
     recorded_by text not null check (char_length(btrim(recorded_by)) >= 1),
     recorded_at timestamptz not null,
     constraint filing_fact_identical_key
-        unique (tenant_id, entity_ref, period_ref, filed_at, acknowledgement_ref, is_correction)
+        unique (tenant_id, entity_ref, period_ref, filed_at, acknowledgement_ref, correction)
 );
 comment on column submission.filing_fact.seq is 'class: operational';
 comment on column submission.filing_fact.tenant_id is 'class: operational';
@@ -24,7 +24,7 @@ comment on column submission.filing_fact.period_ref is 'class: operational';
 comment on column submission.filing_fact.filed_at is 'class: operational';
 comment on column submission.filing_fact.acknowledgement_ref is 'class: operational';
 comment on column submission.filing_fact.portal_ref is 'class: operational';
-comment on column submission.filing_fact.is_correction is 'class: operational';
+comment on column submission.filing_fact.correction is 'class: operational';
 comment on column submission.filing_fact.recorded_by is 'class: personal';
 comment on column submission.filing_fact.recorded_at is 'class: operational';
 

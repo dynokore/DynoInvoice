@@ -201,7 +201,7 @@ class FilingFactStoreDbTest {
         dueDate(t)
         owner(
             "insert into submission.filing_fact (tenant_id, entity_ref, period_ref, filed_at, acknowledgement_ref, " +
-                "is_correction, recorded_by, recorded_at) values ('$t2', 'E', 'P', date '2026-04-25', 'X1', false, " +
+                "correction, recorded_by, recorded_at) values ('$t2', 'E', 'P', date '2026-04-25', 'X1', false, " +
                 "'someone', now())",
         )
         val first = call(t, 18, "A1")

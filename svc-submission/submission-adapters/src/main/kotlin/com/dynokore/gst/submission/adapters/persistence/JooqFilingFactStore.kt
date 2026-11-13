@@ -43,7 +43,7 @@ class JooqFilingFactStore(
                     filedAt = checkNotNull(it.filedAt),
                     acknowledgementRef = checkNotNull(it.acknowledgementRef),
                     portalRef = it.portalRef,
-                    correction = checkNotNull(it.isCorrection),
+                    correction = checkNotNull(it.correction),
                     recordedBy = checkNotNull(it.recordedBy),
                     recordedAt = checkNotNull(it.recordedAt).toInstant(),
                 )
@@ -67,10 +67,10 @@ class JooqFilingFactStore(
             .set(f.FILED_AT, fact.filedAt)
             .set(f.ACKNOWLEDGEMENT_REF, fact.acknowledgementRef)
             .set(f.PORTAL_REF, fact.portalRef)
-            .set(f.IS_CORRECTION, fact.correction)
+            .set(f.CORRECTION, fact.correction)
             .set(f.RECORDED_BY, fact.recordedBy)
             .set(f.RECORDED_AT, clock.instant().atOffset(ZoneOffset.UTC))
-            .onConflict(f.TENANT_ID, f.ENTITY_REF, f.PERIOD_REF, f.FILED_AT, f.ACKNOWLEDGEMENT_REF, f.IS_CORRECTION)
+            .onConflict(f.TENANT_ID, f.ENTITY_REF, f.PERIOD_REF, f.FILED_AT, f.ACKNOWLEDGEMENT_REF, f.CORRECTION)
             .doNothing()
             .execute()
     }
