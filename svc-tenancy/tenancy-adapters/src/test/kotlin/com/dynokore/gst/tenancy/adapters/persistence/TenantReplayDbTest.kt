@@ -1,5 +1,6 @@
 package com.dynokore.gst.tenancy.adapters.persistence
 
+import com.dynokore.gst.tenancy.adapters.PgTestImages
 import com.dynokore.gst.tenancy.adapters.events.OrganisationStructureReplaySource
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.BUSINESS_UNIT
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.ENTITY
@@ -274,7 +275,7 @@ class TenantReplayDbTest {
         private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
         private const val KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
         private val container: PostgreSQLContainer<*> =
-            PostgreSQLContainer("postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3")
+            PostgreSQLContainer(PgTestImages.postgres(PgTestImages.PG17))
                 .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
                 .withStartupAttempts(PG_START_ATTEMPTS)
                 .withCommand(*pgFastCommand)
