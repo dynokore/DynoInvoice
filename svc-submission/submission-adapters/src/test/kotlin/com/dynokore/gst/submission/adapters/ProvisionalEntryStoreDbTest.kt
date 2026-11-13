@@ -130,8 +130,7 @@ class ProvisionalEntryStoreDbTest {
         val grants =
             dsl
                 .fetch(
-                    "select case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end, " +
-                        "a.privilege_type " +
+                    "select case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end, a.privilege_type " +
                         "from pg_class c, aclexplode(c.relacl) a " +
                         "where c.oid = 'submission.provisional_register_entry'::regclass and a.grantee <> c.relowner " +
                         "order by 1, 2",
