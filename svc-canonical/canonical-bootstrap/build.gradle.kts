@@ -9,6 +9,7 @@ dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":canonical-adapters"))
+    implementation(project(":canonical-application"))
     implementation(project(":canonical-contract"))
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
