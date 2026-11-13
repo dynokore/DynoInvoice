@@ -10,7 +10,6 @@ import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
-import java.sql.SQLException
 import java.time.LocalDate
 import java.util.UUID
 
@@ -195,14 +194,8 @@ class PackMarginStoreDbTest {
         tenant: UUID? = null,
     ) {
         if (tenant != null) SignedBindings.bind(connection, tenant)
-        var refused = false
-        try {
-            connection.createStatement().use { it.executeUpdate(sql) }
-        } catch (e: SQLException) {
-            refused = true
-        } finally {
-            connection.rollback()
-        }
+        val refused = runCatching { connection.createStatement().use { it.executeUpdate(sql) } }.isFailure
+        connection.rollback()
         refused shouldBe true
     }
 }

@@ -145,7 +145,7 @@ class PackMarginConsumersDbTest {
         margin: String?,
         type: String = "calendar",
     ) = """{"packIdentifier":"$id","packType":"$type","version":"$version","effectiveFrom":"2026-01-01",
-        |"artefact":{"contents":{${margin?.let { "\"safetyMargin\":$it" } ?: ""}}}}
+        |"artefact":{"contents":{${margin?.let { "\"safetyMargin\":$it" }.orEmpty()}}}}
         """.trimMargin()
 
     private fun activated(
@@ -254,17 +254,19 @@ class PackMarginConsumersDbTest {
         rows(t2, "calendar_pack_version").map { it["pack_identifier"] }.toSet() shouldBe setOf("P-OTHER")
         rows(t2, "calendar_pack_activation") shouldBe emptyList()
         answer(t2, "2026-12-31") shouldBe PackMarginAnswer.Unknown
+        unboundCount("calendar_pack_version") shouldBe 0
+        unboundCount("calendar_pack_activation") shouldBe 0
+    }
+
+    private fun unboundCount(table: String): Int =
         SubmissionDb.connect(SubmissionDb.RUNTIME, SubmissionDb.RUNTIME_PASSWORD).use { c ->
-            listOf("calendar_pack_version", "calendar_pack_activation").forEach { table ->
-                c.createStatement().use { st ->
-                    st.executeQuery("select count(*) from submission.$table").use {
-                        it.next()
-                        it.getInt(1) shouldBe 0
-                    }
+            c.createStatement().use { st ->
+                st.executeQuery("select count(*) from submission.$table").use {
+                    it.next()
+                    it.getInt(1)
                 }
             }
         }
-    }
 
     @Test
     fun `INV-AC-20786 a payload missing a required member is a ContractViolation and writes nothing`(
