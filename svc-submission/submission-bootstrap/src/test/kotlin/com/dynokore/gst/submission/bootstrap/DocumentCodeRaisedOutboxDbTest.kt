@@ -23,7 +23,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** `DocumentCodeRaised` through the real catalogue, code store and outbox, in one transaction (INV-AC-21088). */
+/** `DocumentCodeRaised` through the real catalogue, code store and outbox, in the caller's transaction (INV-AC-21088). */
 class DocumentCodeRaisedOutboxDbTest {
     private val type = "com.dynokore.gst.submission.DocumentCodeRaised.v1"
     private val topic = "gst.submission.document-code-raised.v1"
@@ -86,8 +86,8 @@ class DocumentCodeRaisedOutboxDbTest {
         block: Fixture.() -> Unit,
     ) = SubmissionContext.online(dir).run { context -> Fixture(context).block() }
 
-    @Suppress("UNCHECKED_CAST")
     private fun payload(row: OutboxRecord): Map<String, Any?> {
+        @Suppress("UNCHECKED_CAST")
         val json = JsonMapper.builder().build()
         return json.readValue(checkNotNull(row.data).data(), Map::class.java) as Map<String, Any?>
     }
