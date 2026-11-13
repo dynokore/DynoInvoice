@@ -4,6 +4,8 @@ import com.dynokore.gst.canonical.application.source.RecordedResult
 import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.source.SourceKey
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.util.UUID
 
 data class PartyIdentifier(
@@ -21,6 +23,11 @@ data class RecordDocumentCommand(
     val direction: Direction?,
     val supplier: PartyIdentifier,
     val buyer: PartyIdentifier,
+    val documentFunction: String? = null,
+    val postingTimestamp: OffsetDateTime? = null,
+    val localPostingTimestamp: LocalDateTime? = null,
+    val sourceTimeZone: String? = null,
+    val invoiceBacked: Boolean = true,
 )
 
 /** Builds the result text of a recorded document; implemented outside this service. */
