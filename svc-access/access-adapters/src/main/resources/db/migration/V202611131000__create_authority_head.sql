@@ -22,11 +22,19 @@ GRANT SELECT ON access.authority_head TO access_runtime;
 GRANT SELECT, INSERT, UPDATE ON access.authority_head TO access_sys;
 
 CREATE FUNCTION access.advance_authority_head(p_version bigint) RETURNS SETOF bigint
-LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, access, pg_temp AS $$
-    INSERT INTO access.authority_head (singleton, authority_version) VALUES (true, p_version)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, access, pg_temp AS $$
+BEGIN
+    -- input validation at the trust boundary of a SECURITY DEFINER function (OWASP ASVS V5): a version below 1 is
+    -- refused here, not only by the caller, and leaves the stored value unchanged
+    IF p_version IS NULL OR p_version < 1 THEN
+        RAISE EXCEPTION 'authority version must be at least 1' USING ERRCODE = '22023';
+    END IF;
+    RETURN QUERY
+    INSERT INTO access.authority_head AS h (singleton, authority_version) VALUES (true, p_version)
     ON CONFLICT (singleton) DO UPDATE
-        SET authority_version = GREATEST(access.authority_head.authority_version, excluded.authority_version)
-    RETURNING authority_version
+        SET authority_version = GREATEST(h.authority_version, excluded.authority_version)
+    RETURNING h.authority_version;
+END
 $$;
 
 GRANT CREATE ON SCHEMA access TO access_sys;
