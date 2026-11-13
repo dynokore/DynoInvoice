@@ -246,7 +246,7 @@ class JooqRenditionHistoryTest {
         private const val RUNTIME_PASSWORD = "runtime-password-for-tests"
         private const val KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
         private val container: PostgreSQLContainer<*> =
-            PostgreSQLContainer("postgres:17")
+            PostgreSQLContainer("postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3")
                 .withStartupTimeout(Duration.ofMinutes(3))
                 .withStartupAttempts(3)
                 .withCommand(

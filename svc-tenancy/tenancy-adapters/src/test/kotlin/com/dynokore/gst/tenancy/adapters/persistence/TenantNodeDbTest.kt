@@ -324,7 +324,7 @@ class TenantNodeDbTest {
         private const val PG_START_TIMEOUT_MINUTES = 3L
         private const val PG_START_ATTEMPTS = 3
         private val container: PostgreSQLContainer<*> =
-            PostgreSQLContainer("postgres:17")
+            PostgreSQLContainer("postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3")
                 .withStartupTimeout(Duration.ofMinutes(PG_START_TIMEOUT_MINUTES))
                 .withStartupAttempts(PG_START_ATTEMPTS)
                 .withCommand(

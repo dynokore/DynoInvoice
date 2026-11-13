@@ -21,10 +21,10 @@ import java.time.Duration
 import java.util.UUID
 
 /** The PostgreSQL major the suite runs on (STK-14 lists 17 and 18); the other major has its own database below. */
-object BoundaryFixture : BoundaryDatabase("postgres:17", "c-inv-t-4927")
+object BoundaryFixture : BoundaryDatabase("postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3", "c-inv-t-4927")
 
 /** PostgreSQL 18, for the tests that must pass on both supported majors (INV-T-3290). */
-object BoundaryFixture18 : BoundaryDatabase("postgres:18", "c-inv-t-3290")
+object BoundaryFixture18 : BoundaryDatabase("postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336", "c-inv-t-3290")
 
 /** One PostgreSQL with the service schema migrated as the installation does, and the context runner over it. */
 open class BoundaryDatabase(
