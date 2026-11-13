@@ -29,3 +29,4 @@ operation	getComplianceMetrics	INV-T-12844
 operation	previewDrainPeriod	UNASSIGNED
 operation	previewReplayScope	UNASSIGNED
 channel	gst.submission.period-filing-status-changed.v1	UNASSIGNED
+operation	getLatestReadinessCheck	INV-T-21141
