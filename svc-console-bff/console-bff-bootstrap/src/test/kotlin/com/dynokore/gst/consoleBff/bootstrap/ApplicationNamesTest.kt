@@ -26,7 +26,7 @@ class ApplicationNamesTest {
             Binder
                 .get(env)
                 .bind("inv.tenancy.platform-scoped-tables", Bindable.listOf(String::class.java))
-                .get() shouldBe listOf("console_bff.console_session", "console_bff.claim_due")
+                .get() shouldBe listOf("console_bff.console_session")
         }
     }
 }

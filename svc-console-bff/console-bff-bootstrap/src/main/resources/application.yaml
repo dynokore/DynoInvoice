@@ -51,5 +51,3 @@ inv:
     # (owner answer of 2026-11-11, INV-T-14458 option A; the table comment says the same).
     platform-scoped-tables:
       - console_bff.console_session
-      # The sys-owned claim function of the queue (QueueSchema.CLAIM_DUE): TableClasses.verify cannot see it as library-declared.
-      - console_bff.claim_due
