@@ -23,6 +23,10 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /** INV-AC-21173: the one place that names the edges, base URLs and timeouts of the payload and submission clients. */
 class OwningServiceEdgeTest {
+    private companion object {
+        const val TIMEOUT_MS = 2000L
+    }
+
     private val placeholder = "$" + "{CONSOLE_PAYLOAD_SVC_URL}"
 
     private fun env(
@@ -95,10 +99,12 @@ class OwningServiceEdgeTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21173 (h) the timeouts are 2000 ms, the x-timeout of overrideValidation and overrideFilingGate")
+    @DisplayName(
+        "INV-AC-21173 (h) the timeouts are 2000 ms, the x-timeout of overrideValidation and overrideFilingGate",
+    )
     fun timeouts() {
-        assertEquals(Duration.ofMillis(2000), OwningService.PAYLOAD.timeout)
-        assertEquals(Duration.ofMillis(2000), OwningService.SUBMISSION.timeout)
+        assertEquals(Duration.ofMillis(TIMEOUT_MS), OwningService.PAYLOAD.timeout)
+        assertEquals(Duration.ofMillis(TIMEOUT_MS), OwningService.SUBMISSION.timeout)
     }
 
     @Test
@@ -117,8 +123,13 @@ class OwningServiceEdgeTest {
         try {
             forEachService { s ->
                 val url = "http://127.0.0.1:${server.address.port}"
-                val client: RestClient = OwningServiceEdge.restClient(RestClient.builder(), env(s.urlProperty, url), s)
-                client.get().uri("/probe/${s.name}").retrieve().toBodilessEntity()
+                val client: RestClient =
+                    OwningServiceEdge.restClient(RestClient.builder(), env(s.urlProperty, url), s)
+                client
+                    .get()
+                    .uri("/probe/${s.name}")
+                    .retrieve()
+                    .toBodilessEntity()
             }
         } finally {
             server.stop(0)
