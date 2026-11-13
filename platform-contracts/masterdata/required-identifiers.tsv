@@ -223,3 +223,5 @@ receiveSignedLinkInvalidated	asyncapi_operation	asyncapi.yaml	INV-REQ-901
 ImportRatesRequest.entityRef	schema_property	openapi.yaml	INV-REQ-957
 entityRef	query_parameter	openapi.yaml	INV-REQ-469
 SendCounterpartyRequestBody.entityRef	schema_property	openapi.yaml	INV-REQ-957
+# INV-T-20995. INV-REQ-940: the optional docUuids member of the MasterDataResolved payload (a different file from the openapi.yaml row above).
+docUuids	property	schemas/master-data-resolved-payload.schema.json	INV-REQ-940

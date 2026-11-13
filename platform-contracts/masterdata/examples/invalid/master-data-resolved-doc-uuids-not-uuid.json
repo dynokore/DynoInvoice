@@ -1,0 +1,13 @@
+{
+  "partyRef": "P-001",
+  "resolvedIdentifiers": [
+    {
+      "scheme": "UEN",
+      "value": "201912345A"
+    }
+  ],
+  "docUuids": [
+    "not-a-uuid",
+    "7a1c4d20-9b3e-4f55-8c62-1d0e5a7b3c44"
+  ]
+}

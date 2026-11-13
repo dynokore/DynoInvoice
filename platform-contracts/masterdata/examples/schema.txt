@@ -28,3 +28,4 @@
 ../openapi.yaml#/components/schemas/RunGapReportRequest run-gap-report-request-*.json
 ../openapi.yaml#/components/schemas/ConnectionHealth connection-health-*.json
 ../openapi.yaml#/components/schemas/ImportRatesRequest import-rates-request-*.json
+../schemas/master-data-resolved-payload.schema.json master-data-resolved-*.json

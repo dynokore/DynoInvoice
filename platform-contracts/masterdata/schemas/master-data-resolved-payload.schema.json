@@ -31,6 +31,15 @@
         ],
         "additionalProperties": true
       }
+    },
+    "docUuids": {
+      "type": "array",
+      "description": "Optional (INV-REQ-940). UUIDs of the documents affected by the resolution. The member is absent when the producer names no documents; a consumer never guesses documents.",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "uniqueItems": true
     }
   },
   "required": [
