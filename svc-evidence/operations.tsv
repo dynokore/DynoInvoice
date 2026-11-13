@@ -1,6 +1,6 @@
 kind	id	task
 operation	intakeCertificationReport	UNASSIGNED
-operation	getAcknowledgementChain	UNASSIGNED
+operation	getAcknowledgementChain	INV-T-20577
 operation	reverseLookup	UNASSIGNED
 operation	getEvidenceExport	UNASSIGNED
 operation	getIntegrityReport	UNASSIGNED
