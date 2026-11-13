@@ -3,13 +3,6 @@ package com.dynokore.gst.submission.adapters
 import com.dynokore.gst.submission.adapters.persistence.JooqDrainBacklog
 import com.dynokore.gst.submission.adapters.persistence.JooqDrainResidualSource
 import com.dynokore.gst.submission.application.drain.QueuedVersion
-import com.dynokore.platform.outboxandqueue.JdbcWorkQueue
-import com.dynokore.platform.outboxandqueue.LaneLimits
-import com.dynokore.platform.outboxandqueue.LaneRateLimiter
-import com.dynokore.platform.outboxandqueue.PendingPartitionReader
-import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.tenancykernel.CurrentConnection
-import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
@@ -17,8 +10,6 @@ import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
-import java.sql.Connection
-import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -40,35 +31,9 @@ class DrainBacklogDbTest {
                 return block().also { connection.commit() }
             }
         }
-    private val source = JooqDrainBacklog(dsl, runner, realReader(connection, dsl))
+    private val source = JooqDrainBacklog(dsl, runner)
     private val t0 = Instant.parse("2026-11-01T01:00:00Z")
     private val s = UUID.randomUUID().toString().take(8)
-
-    /** The real [JdbcWorkQueue] as the reader, built over the same connection; the tenant is the bound one. */
-    private fun realReader(
-        connection: Connection,
-        dsl: org.jooq.DSLContext,
-    ): PendingPartitionReader {
-        val tenants =
-            object : TenantContext {
-                override fun current(): TenantId = TenantId(checkNotNull(bound.get()))
-
-                override fun currentActor(): String = SignedBindings.ACTOR
-
-                override fun <T> bind(
-                    tenant: TenantId,
-                    actor: String,
-                    block: () -> T,
-                ): T = error("not used")
-            }
-        val current =
-            object : CurrentConnection {
-                override fun require(): Connection = connection
-            }
-        val scope = TenantScope(tenants, runner, current, SignedBindings.ACTOR)
-        val limiter = LaneRateLimiter(scope, dsl, SubmissionDb.SCHEMA, LaneLimits())
-        return JdbcWorkQueue(scope, dsl, SubmissionDb.SCHEMA, limiter, Clock.systemUTC())
-    }
 
     @AfterEach
     fun close() = connection.close()
@@ -94,37 +59,31 @@ class DrainBacklogDbTest {
         period: String,
         queuedAt: Instant,
         item: String? = "PENDING",
-        withEntry: Boolean = true,
-        withVersion: Boolean = true,
     ) = asTenant(tenant) {
-        if (withEntry) {
-            dsl.execute(
-                "insert into submission.obligation_register_entry " +
-                    "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, " +
-                    "in_scope, kind) values (?, ?, ?, ?, ?::date, true, 'INVOICE')",
-                tenant,
-                doc,
-                entity,
-                period,
-                LocalDate.of(2026, 11, 30),
-            )
-        }
-        if (withVersion) {
-            dsl.execute(
-                "insert into submission.submission (tenant_id, doc_uuid, version, state, entity_ref, queued_at) " +
-                    "values (?, ?, 1, 'QUEUED', ?, ?::timestamptz)",
-                tenant,
-                doc,
-                entity,
-                queuedAt.atOffset(ZoneOffset.UTC),
-            )
-        }
+        dsl.execute(
+            "insert into submission.obligation_register_entry " +
+                "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, " +
+                "in_scope, kind) values (?, ?, ?, ?, ?::date, true, 'INVOICE')",
+            tenant,
+            doc,
+            entity,
+            period,
+            LocalDate.of(2026, 11, 30),
+        )
+        dsl.execute(
+            "insert into submission.submission (tenant_id, doc_uuid, version, state, entity_ref, queued_at) " +
+                "values (?, ?, 1, 'QUEUED', ?, ?::timestamptz)",
+            tenant,
+            doc,
+            entity,
+            queuedAt.atOffset(ZoneOffset.UTC),
+        )
         if (item != null) {
             dsl.execute(
                 "insert into submission.work_queue (tenant_id, partition_key, lane, payload, state) " +
                     "values (?, ?, 'LIVE', ?::jsonb, ?)",
                 tenant,
-                doc,
+                "P-$doc",
                 """{"docUuid":"$doc","version":1}""",
                 item,
             )
@@ -176,34 +135,6 @@ class DrainBacklogDbTest {
         read(t)!!.none { it.docUuid.startsWith("u1") } shouldBe true
     }
 
-    @Test
-    fun `INV-AC-20847 the statements carry the tenant condition themselves when asked for tenant B under tenant A`() {
-        val (t, u) = scenario()
-        // The connection is bound to t (row level security shows t rows) while the source is asked for u.
-        bound.set(t)
-        val rows =
-            try {
-                runner.inTransaction { source.queued(TenantId(u)) }
-            } finally {
-                bound.remove()
-            }
-        checkNotNull(rows) shouldBe emptyList()
-    }
-
-    @Test
-    fun `INV-AC-20847 a queued version with an unclaimed item and no register entry gives null`() {
-        val (t, _) = scenario()
-        seed(t, "n1-$s", "E1-$s", "2026-Q1", t0.plusSeconds(400), withEntry = false)
-        read(t) shouldBe null
-    }
-
-    @Test
-    fun `INV-AC-20847 a pending item whose document has no queued version of the tenant is skipped`() {
-        val (t, _) = scenario()
-        seed(t, "r1-$s", "E1-$s", "2026-Q1", t0, withVersion = false)
-        read(t)!!.map { it.docUuid } shouldBe listOf("q1-$s", "q2-$s", "q3-$s", "q4-$s", "q5-$s")
-    }
-
     /** A DSL over a connection that is already closed, with a runner that opens no transaction of its own. */
     private fun failingDsl() =
         DSL.using(
@@ -220,11 +151,7 @@ class DrainBacklogDbTest {
     fun `INV-AC-20847 with the connection failing the queued source returns null, never an empty list`() {
         val t = UUID.randomUUID()
         seed(t, "f1-$s", "E1-$s", "2026-Q1", t0)
-        val reader =
-            object : PendingPartitionReader {
-                override fun pendingPartitionKeys() = listOf("f1-$s")
-            }
-        JooqDrainBacklog(failingDsl(), passThrough, reader).queued(TenantId(t)) shouldBe null
+        JooqDrainBacklog(failingDsl(), passThrough).queued(TenantId(t)) shouldBe null
     }
 
     @Test

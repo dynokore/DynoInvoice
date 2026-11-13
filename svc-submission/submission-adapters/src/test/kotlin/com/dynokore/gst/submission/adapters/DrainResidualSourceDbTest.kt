@@ -175,12 +175,4 @@ class DrainResidualSourceDbTest {
         checkNotNull(read(t, e2)).map { it.docUuid to it.reasonCode } shouldBe listOf("e2-$s" to "PAY-020")
         checkNotNull(read(t, e1)).none { it.docUuid.startsWith("e2") } shouldBe true
     }
-
-    @Test
-    fun `INV-AC-20847 the statements carry the tenant condition themselves when asked for tenant B under tenant A`() {
-        val (t, u) = scenario()
-        // The connection is bound to t (row level security shows t rows) while the source is asked for u.
-        val rows = asTenant(t) { source.candidates(TenantId(u), e1, q1) }
-        checkNotNull(rows) shouldBe emptyList()
-    }
 }

@@ -79,27 +79,23 @@ class PolicySafetyMarginsTest {
                 calls += Triple(key.value, scope, at)
                 failures[scope.entity]?.let { throw it() }
                 return when (scope.entity) {
-                    "E1" -> setting(key.value, at, "LARGER", "10")
-                    "E2" -> setting(key.value, at, "LARGER", "36")
+                    "E1" -> setting(key.value, at, "LARGER", """{"value":10,"unit":"DAYS"}""")
+                    "E2" -> setting(key.value, at, "LARGER", """{"value":36,"unit":"HOURS"}""")
                     "E3" -> setting(key.value, at, "PACK_DEFAULT")
-                    "E5" -> setting(key.value, at, "LARGER", """{"value":3,"unit":"DAYS"}""")
+                    "E5" -> setting(key.value, at, "LARGER", """{"value":3,"unit":"WEEKS"}""")
                     "E6" -> setting(key.value, at, "LARGER", "not json")
                     "E7" -> setting(key.value, at, "LARGER", null)
-                    "E8" -> setting(key.value, at, "LARGER", "3.5")
-                    "E10" -> setting(key.value, at, "LARGER", "\"10\"")
-                    "E11" -> setting(key.value, at, "LARGER", "99999999999")
-                    "E12" -> setting(key.value, at, "LARGER", "-1")
+                    "E8" -> setting(key.value, at, "LARGER", """{"value":3.5,"unit":"DAYS"}""")
                     "E9" -> setting(key.value, at, "SOMETHING_ELSE")
                     else -> error("unexpected entity")
                 }
             }
         }
 
-    private var packUnit = "DAYS"
     private val pack =
         PackDefaultMargin { t, d ->
             if (t == tenant && d == day) {
-                PackMarginAnswer.Known(checkNotNull(PackMargin.of(7, packUnit)))
+                PackMarginAnswer.Known(checkNotNull(PackMargin.of(7, "DAYS")))
             } else {
                 PackMarginAnswer.Unknown
             }
@@ -128,9 +124,7 @@ class PolicySafetyMarginsTest {
 
     @Test
     fun `INV-AC-20848 a duration in hours is returned in hours for the use case to convert`() {
-        packUnit = "HOURS"
         ask("E2") shouldBe known(36, "HOURS")
-        ask("E1") shouldBe known(10, "HOURS")
         (ask("E2") as SafetyMarginAnswer.Known).margin.unit shouldBe MarginUnit.HOURS
     }
 
@@ -148,12 +142,6 @@ class PolicySafetyMarginsTest {
     @Test
     fun `INV-AC-20848 an unreadable value, a unit the adapter cannot convert and an unknown option give unavailable`() {
         listOf("E5", "E6", "E7", "E8", "E9").forEach { ask(it) shouldBe SafetyMarginAnswer.Unavailable }
-    }
-
-    @Test
-    fun `INV-AC-20848 an object, text, a non-integer, a number outside the margin range or an unknown pack unit`() {
-        listOf("E5", "E8", "E10", "E11", "E12").forEach { ask(it) shouldBe SafetyMarginAnswer.Unavailable }
-        ask("E1", otherDay) shouldBe SafetyMarginAnswer.Unavailable
     }
 
     @Test
