@@ -302,6 +302,7 @@ class EntityScopeTest {
         ).containsExactly(
             "POST\t/internal/v1/masterdata/counterparties/bulk-resolution\tentityRef",
             "POST\t/internal/v1/masterdata/counterparties/import\tentityRef",
+            "POST\t/internal/v1/masterdata/counterparties/{counterpartyRef}/requests\tentityRef",
             "POST\t/internal/v1/masterdata/counterparties/{counterpartyRef}/resolution\tentityRef",
             "POST\t/internal/v1/masterdata/exchange-rates/import\tentityRef",
             "POST\t/internal/v1/masterdata/gap-reports\tentityRef",
