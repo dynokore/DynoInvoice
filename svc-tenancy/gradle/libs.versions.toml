@@ -19,8 +19,8 @@ konsist = "0.17.3"
 swaggerAnnotations = "2.2.55"
 jsonSchemaValidator = "3.0.8"
 # The published platform-contracts bundle tenancy-contract generates from (a main build including INV-T-4909 and
-# INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876, 3030c14b adds the INV-T-8269 marker rule and the recordEntitlement operation; a85d629f is the lowest published bundle with the INV-T-18816 migration-cutover operations, TNC-011 in x-error-codes and the migration-cutover.record / .view x-operation.permission; 3236fcd7 is the lowest published bundle with the optional filingDueDate of INV-T-20742); bumped deliberately, like platform-libs' product-runtime does.
-platformContractsBundle = "0.0.0-dev+3236fcd7"
+# INV-T-3298; 5e3e8fd2 adds the tenancy dataRegion of INV-T-8695; 6b339bef adds the replay 200 of INV-T-11876, 3030c14b adds the INV-T-8269 marker rule and the recordEntitlement operation; a85d629f is the lowest published bundle with the INV-T-18816 migration-cutover operations, TNC-011 in x-error-codes and the migration-cutover.record / .view x-operation.permission; 3236fcd7 is the lowest published bundle with the optional filingDueDate of INV-T-20742; b1b1ca29 is the lowest published bundle (d980d9b1 was not published on its own) with the ingestion TriggerCoverageChanged event of INV-T-20933); bumped deliberately, like platform-libs' product-runtime does.
+platformContractsBundle = "0.0.0-dev+b1b1ca29"
 bouncycastle = "1.86"
 # Explicit override of the catalogue platform-libs builds against (INV-T-12278); 2.45.0 is above the RolePermissionsPinTest floor of 2.31.0.
 gstCatalogue = "2.58.0"

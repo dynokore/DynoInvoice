@@ -20,6 +20,8 @@ object TenancyEventCatalogue {
     const val SERVICE = "tenancy-svc"
     const val SHORT_CODE_USED_TYPE = "com.dynokore.gst.aggregation.ShortCodeUsed.v1"
     const val SHORT_CODE_USED_TOPIC = "gst.aggregation.short-code-used.v1"
+    const val TRIGGER_COVERAGE_CHANGED_TYPE = "com.dynokore.gst.ingestion.TriggerCoverageChanged.v1"
+    const val TRIGGER_COVERAGE_CHANGED_TOPIC = "gst.ingestion.trigger-coverage-changed.v1"
     const val PERIOD_FILING_STATUS_TYPE = "com.dynokore.gst.submission.PeriodFilingStatusChanged.v1"
     const val PERIOD_FILING_STATUS_TOPIC = "gst.submission.period-filing-status-changed.v1"
     const val SUBMISSION_ACKNOWLEDGED_TYPE = "com.dynokore.gst.submission.SubmissionAcknowledged.v1"
@@ -62,7 +64,7 @@ object TenancyEventCatalogue {
         val known =
             ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED +
-                SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE + ConsumedRenditionEvents.TYPE
+                SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE + ConsumedRenditionEvents.TYPE + TRIGGER_COVERAGE_CHANGED_TYPE
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
@@ -113,6 +115,12 @@ object TenancyEventCatalogue {
                 contentTopic = false,
             ),
             CatalogueEntry(ARCHIVE_VOLUME_TYPE, ARCHIVE_VOLUME_TOPIC, setOf("evidence-svc"), contentTopic = false),
+            CatalogueEntry(
+                TRIGGER_COVERAGE_CHANGED_TYPE,
+                TRIGGER_COVERAGE_CHANGED_TOPIC,
+                setOf("ingestion-svc"),
+                contentTopic = false,
+            ),
             CatalogueEntry(
                 ConsumedRenditionEvents.TYPE,
                 ConsumedRenditionEvents.TOPIC,
