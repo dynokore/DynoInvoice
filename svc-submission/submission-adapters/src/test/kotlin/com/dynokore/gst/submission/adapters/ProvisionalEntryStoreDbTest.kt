@@ -126,6 +126,31 @@ class ProvisionalEntryStoreDbTest {
     )
 
     @Test
+    fun `the table grants exactly select insert update delete to the runtime role and forces row level security`() {
+        val grants =
+            dsl
+                .fetch(
+                    "select grantee, privilege_type from information_schema.role_table_grants " +
+                        "where table_schema = 'submission' and table_name = 'provisional_register_entry' " +
+                        "and grantee not in (select tableowner from pg_tables " +
+                        "where schemaname = 'submission' and tablename = 'provisional_register_entry') " +
+                        "order by 1, 2",
+                ).map { "${it.get(0)}:${it.get(1)}" }
+        grants shouldBe
+            listOf(
+                "submission_runtime:DELETE",
+                "submission_runtime:INSERT",
+                "submission_runtime:SELECT",
+                "submission_runtime:UPDATE",
+            )
+        dsl
+            .fetch(
+                "select relrowsecurity, relforcerowsecurity from pg_class " +
+                    "where oid = 'submission.provisional_register_entry'::regclass",
+            ).map { "${it.get(0)}/${it.get(1)}" } shouldBe listOf("true/true")
+    }
+
+    @Test
     fun `INV-AC-20691 placements are stored once, newer ones replace, registered ones are refused`() {
         val d1 = UUID.randomUUID().toString()
         val d2 = UUID.randomUUID().toString()
