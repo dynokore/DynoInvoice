@@ -76,4 +76,21 @@ class JooqLatestDocumentVersionsTest {
         record(t, d, 2, total = null)
         latest(t, d) shouldBe LatestVersionFacts(2, "E-2")
     }
+
+    @Test
+    fun `INV-AC-21135 the tenant predicate hides the row of another tenant also when row security shows it`() {
+        record(u, y, 9)
+        // the session is bound to tenant u (row security lets u's rows through) but the request's tenant is t
+        val answer =
+            PayloadDb.connect(PayloadDb.RUNTIME, PayloadDb.RUNTIME_PASSWORD).use { c ->
+                c.autoCommit = false
+                SignedBindings.bind(c, u)
+                try {
+                    JooqLatestDocumentVersions(DSL.using(c, SQLDialect.POSTGRES)) { t }.latest(y)
+                } finally {
+                    c.commit()
+                }
+            }
+        answer shouldBe null
+    }
 }
