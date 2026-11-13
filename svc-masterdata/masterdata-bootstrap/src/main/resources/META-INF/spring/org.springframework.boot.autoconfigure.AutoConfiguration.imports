@@ -1,3 +1,4 @@
 com.dynokore.gst.masterdata.bootstrap.StructureFeed
 com.dynokore.gst.masterdata.bootstrap.RatePackFeed
 com.dynokore.gst.masterdata.bootstrap.SignedLinkFeed
+com.dynokore.gst.masterdata.bootstrap.HeldDocumentFeed

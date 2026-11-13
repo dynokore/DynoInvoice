@@ -32,6 +32,8 @@ channel	masterdataReferenceRateLoaded	INV-T-18775	done
 channel	masterdataSignedLinkRequested	INV-T-4945	open
 channel	accessSignedLinkIssued	INV-T-18221	done
 channel	accessSignedLinkInvalidated	INV-T-18221	done
+channel	canonicalDocumentHeld	INV-T-21336	done
+channel	canonicalDocumentReleased	INV-T-21336	done
 channel	masterdataIdentityTripleCorrected	INV-T-8017	done
 channel	masterdataIdentityTripleChanged	INV-T-17823	done
 channel	masterdataExampleHappened	PLACEHOLDER	open

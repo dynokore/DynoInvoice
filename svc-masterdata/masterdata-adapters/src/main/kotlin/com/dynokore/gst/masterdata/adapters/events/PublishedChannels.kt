@@ -17,11 +17,17 @@ object PublishedChannels {
 
     /**
      * The asyncapi channels of other services this build consumes, each through an idempotent consumer of the link
-     * bindings (`SignedLinkIssued`, `SignedLinkInvalidated` of access-svc). The contract gate holds these `done`
+     * bindings (`SignedLinkIssued`, `SignedLinkInvalidated` of access-svc) and the held-documents replica
+     * (`DocumentHeld`, `DocumentReleased` of canonical-svc). The contract gate holds these `done`
      * exactly as the published ones: [IMPLEMENTED] is the union.
      */
     val CONSUMED: Set<String> =
-        setOf(ConsumedSignedLinkEvents.ISSUED_CHANNEL, ConsumedSignedLinkEvents.INVALIDATED_CHANNEL)
+        setOf(
+            ConsumedSignedLinkEvents.ISSUED_CHANNEL,
+            ConsumedSignedLinkEvents.INVALIDATED_CHANNEL,
+            ConsumedHeldDocumentEvents.HELD_CHANNEL,
+            ConsumedHeldDocumentEvents.RELEASED_CHANNEL,
+        )
 
     val IMPLEMENTED: Set<String> = ALL + CONSUMED
 }

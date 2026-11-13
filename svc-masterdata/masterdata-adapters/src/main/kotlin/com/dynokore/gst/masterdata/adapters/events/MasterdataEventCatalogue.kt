@@ -57,7 +57,8 @@ object MasterdataEventCatalogue {
                 .map { (type, topic) ->
                     CatalogueEntry(type, topic, setOf(ConsumedSignedLinkEvents.EMITTER), contentTopic = false)
                 }
-        val seen = seenBeforeLinks + links.map { it.eventType }
+        val heldDocuments = heldDocumentEntries(seenBeforeLinks + links.map { it.eventType })
+        val seen = seenBeforeLinks + (links + heldDocuments).map { it.eventType }
         val platform =
             PlatformEventCatalogue.ALL
                 .filter { it.topic != null && it.eventType !in seen }
@@ -69,8 +70,15 @@ object MasterdataEventCatalogue {
                         contentTopic = false,
                     )
                 }
-        return EventCatalogue(own + consumed + packs + links + platform)
+        return EventCatalogue(own + consumed + packs + links + heldDocuments + platform)
     }
+
+    private fun heldDocumentEntries(seen: Set<String>): List<CatalogueEntry> =
+        ConsumedHeldDocumentEvents.SUBSCRIPTIONS
+            .filterKeys { it !in seen }
+            .map { (type, topic) ->
+                CatalogueEntry(type, topic, setOf(ConsumedHeldDocumentEvents.EMITTER), contentTopic = false)
+            }
 
     /** A channel message is either inline or a `$ref` to `#/components/messages/<name>`. */
     private fun resolve(
