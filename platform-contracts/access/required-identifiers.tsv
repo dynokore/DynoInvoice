@@ -186,3 +186,7 @@ SignedLinkInvalidated	asyncapi_message	asyncapi.yaml	INV-REQ-901
 publishSignedLinkIssued	asyncapi_operation	asyncapi.yaml	INV-REQ-901
 publishSignedLinkInvalidated	asyncapi_operation	asyncapi.yaml	INV-REQ-901
 MessageRequested	asyncapi_message	asyncapi.yaml	INV-REQ-2762
+# INV-T-22071. bumpAuthorityIncarnation and its response, from INV-REQ-1201.
+bumpAuthorityIncarnation	operation	openapi.yaml	INV-REQ-1201
+AuthorityIncarnationResponse.incarnation	schema_property	openapi.yaml	INV-REQ-1201
+AuthorityIncarnationResponse.previousIncarnation	schema_property	openapi.yaml	INV-REQ-1201
