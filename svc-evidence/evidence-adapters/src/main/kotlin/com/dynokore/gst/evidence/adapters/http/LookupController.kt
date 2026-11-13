@@ -26,6 +26,7 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilt
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
+import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
@@ -134,17 +135,6 @@ open class LookupController(
         val caller =
             requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
         val tenant = caller?.tenant ?: throw LookupRefusal(ClosedErrorCode.UNAUTHENTICATED)
-        val context =
-            EventContext(
-                tenant,
-                EntityRef.TENANT_WIDE,
-                null,
-                null,
-                "reverseLookup",
-                null,
-                CorrelationId(correlation()),
-                CausationId(correlation()),
-            )
         val filter =
             ReverseLookupFilter(counterparty, dateFrom, dateTo, documentNumber, docUuid, periodRef, categoryCode)
         return when (
@@ -155,7 +145,7 @@ open class LookupController(
                     filter,
                     limit,
                     cursor,
-                    context,
+                    reverseContext(tenant),
                 )
         ) {
             is ReverseLookupResult.Page -> {
@@ -177,6 +167,18 @@ open class LookupController(
             }
         }
     }
+
+    private fun reverseContext(tenant: TenantId) =
+        EventContext(
+            tenant,
+            EntityRef.TENANT_WIDE,
+            null,
+            null,
+            "reverseLookup",
+            null,
+            CorrelationId(correlation()),
+            CausationId(correlation()),
+        )
 
     private fun row(row: ReverseLookupRow) =
         ReverseLookupItem(
