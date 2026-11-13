@@ -7,6 +7,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
 import java.security.MessageDigest
 import java.util.HexFormat
 
@@ -21,6 +22,7 @@ import java.util.HexFormat
  * once). A second delivery of a stored version with another `payloadSha256` is a [ContractViolation] too: a stored
  * version is never replaced and the conflict is not discarded silently.
  */
+@Suppress("LongParameterList") // the constructor shape is ruled (INV-T-21096 design (2))
 class PayloadReadyHandler(
     private val tenants: TenantContext,
     private val store: SubmissionStore,
@@ -64,6 +66,16 @@ class PayloadReadyHandler(
             }
             return HandleOutcome.IGNORED
         }
+        plan(tenant, docUuid, version)
+        return HandleOutcome.APPLIED
+    }
+
+    /** Plans the arrival, enqueues in the lane of the plan and raises the codes, in the open transaction. */
+    private fun plan(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+    ) {
         val earlier = inFlight.lockVersions(tenant, docUuid).filter { it.version < version }.map { it.state }
         val plan = planning.plan(tenant, docUuid, earlier)
         queue.enqueue(docUuid, version, plan.lane)
@@ -73,6 +85,5 @@ class PayloadReadyHandler(
             val periodRef = checkNotNull(plan.periodRef)
             raising.raise(tenant, docUuid, version, entityRef, periodRef, plan.codes)
         }
-        return HandleOutcome.APPLIED
     }
 }

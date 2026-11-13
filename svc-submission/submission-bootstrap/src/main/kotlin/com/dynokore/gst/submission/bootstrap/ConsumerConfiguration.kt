@@ -43,6 +43,7 @@ class ConsumerConfiguration {
     fun payloadReadyDataReader(): PayloadReadyDataReader = JacksonPayloadReadyDataReader()
 
     @Bean
+    @Suppress("LongParameterList") // composition root: the handler takes seven collaborators
     fun payloadReadyHandler(
         tenants: TenantContext,
         store: SubmissionStore,
