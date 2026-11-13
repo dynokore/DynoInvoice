@@ -736,6 +736,107 @@ paths:
                     status: "PENDING"
         default:
           $ref: '#/components/responses/Error'
+  /bff/entities/{entityRef}/group-resolutions:
+    post:
+      operationId: resolveGroup
+      summary: Resolve one master-data gap across a group of documents
+      description: >-
+        People, through console-bff only (INV-REQ-941, INV-REQ-959). The group
+        is checked with submission-svc's boundary query first
+        (`checkSubmissionBoundary`); a group with a submitted member (SENT or
+        beyond) is refused whole with 409 SRT-015 and the extension member
+        `submittedCount`, and nothing is applied. Then masterdata
+        `bulkResolveCounterparty` is called once for the one counterparty and
+        its result and error codes are relayed unchanged. The runtime check is
+        the scoped permission key `masterdata-exception.resolve` decided per
+        request by AuthorityReplica.decide; `x-operation.role` is the
+        published role text only. The released and remaining counts reach the
+        user through the exception read model as DocumentReleased arrives, not
+        through this response.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 5 s for an operation making two sequential downstream
+        calls (x-timeout 5000): first the boundary check, then the bulk call.
+      tags: [exceptions]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 5000
+      x-error-codes: [MDM-001, MDM-002, MDM-003, MDM-004, MDM-006, SRT-001, SRT-004, SRT-014, SRT-015]
+      x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-941, INV-REQ-959]
+      x-operation:
+        role: tax.operator
+        scope: entity
+        precondition: "A group of documents sharing one error code and one counterparty; none SENT or beyond (FR-AC.3, checked through submission-svc's boundary query before the bulk call)."
+        reversibility: UNDOABLE
+        repeatKey: "operation id (the Idempotency-Key): the second call reports no change"
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+        - $ref: '../masterdata/openapi.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveGroupRequest'
+            examples:
+              default:
+                value:
+                  errorCode: "MDM-001"
+                  counterpartyRef: "CP-0001"
+                  docUuids: ["3fa85f64-5717-4562-b3fc-2c963f66afa6"]
+                  resolvedIdentifiers:
+                    - scheme: "UEN"
+                      value: "201912345A"
+                  evidenceRef: "EV-0001"
+      responses:
+        '200':
+          description: The group was resolved (or was already resolved); the owner's counts are relayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolveGroupResult'
+              examples:
+                default:
+                  value:
+                    resolvedCount: 1
+                    unchangedCount: 0
+        '409':
+          description: SRT-015, the group has members already submitted (SENT or beyond); the extension member `submittedCount` gives their number and nothing is applied.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Group has members already submitted"
+                    status: 409
+                    code: "SRT-015"
+                    submittedCount: 2
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        '413':
+          description: SRT-014, the group has more than 5000 documents.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Too many documents in one call"
+                    status: 413
+                    code: "SRT-014"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
   /bff/entities/{entityRef}/deferrals:
     post:
       operationId: deferDocument
@@ -1869,6 +1970,41 @@ components:
           items:
             $ref: '#/components/schemas/ProfileValueChange'
       required: [profileRef, profileVersion, status, mode, changes]
+    ResolveGroupRequest:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          pattern: '^[A-Z]{2,10}-[0-9]{3}$'
+        counterpartyRef:
+          type: string
+          minLength: 1
+          maxLength: 40
+        docUuids:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            type: string
+            format: uuid
+        resolvedIdentifiers:
+          type: array
+          items:
+            type: object
+            properties:
+              scheme: { type: string, maxLength: 32 }
+              value: { type: string, maxLength: 64 }
+            required: [scheme, value]
+        evidenceRef:
+          type: string
+          maxLength: 64
+      required: [errorCode, counterpartyRef, docUuids, resolvedIdentifiers, evidenceRef]
+    ResolveGroupResult:
+      type: object
+      properties:
+        resolvedCount: { type: integer, minimum: 0 }
+        unchangedCount: { type: integer, minimum: 0 }
+      required: [resolvedCount, unchangedCount]
   responses:
     Error:
       description: Error (API-20 envelope)

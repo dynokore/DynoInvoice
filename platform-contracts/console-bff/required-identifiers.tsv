@@ -63,3 +63,21 @@ previewConfigurationPromotion.SRT-004	operation_error_code	openapi.yaml	INV-REQ-
 previewConfigurationPromotion.SRT-005	operation_error_code	openapi.yaml	INV-REQ-1128
 # INV-T-15842. Operation applyOperatingProfile (INV-REQ-1255, INV-Q-15834 A).
 applyOperatingProfile	operation	openapi.yaml	INV-REQ-1255
+# INV-T-21282. Operation resolveGroup, bulk master-data resolution of a group (INV-REQ-941, INV-REQ-959, INV-Q-21209 A).
+resolveGroup	operation	openapi.yaml	INV-REQ-941
+ResolveGroupRequest.errorCode	schema_property	openapi.yaml	INV-REQ-941
+ResolveGroupRequest.counterpartyRef	schema_property	openapi.yaml	INV-REQ-941
+ResolveGroupRequest.docUuids	schema_property	openapi.yaml	INV-REQ-941
+ResolveGroupRequest.resolvedIdentifiers	schema_property	openapi.yaml	INV-REQ-941
+ResolveGroupRequest.evidenceRef	schema_property	openapi.yaml	INV-REQ-941
+ResolveGroupResult.resolvedCount	schema_property	openapi.yaml	INV-REQ-941
+ResolveGroupResult.unchangedCount	schema_property	openapi.yaml	INV-REQ-941
+resolveGroup.MDM-001	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.MDM-002	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.MDM-003	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.MDM-004	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.MDM-006	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.SRT-001	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.SRT-004	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.SRT-014	operation_error_code	openapi.yaml	INV-REQ-941
+resolveGroup.SRT-015	operation_error_code	openapi.yaml	INV-REQ-941
