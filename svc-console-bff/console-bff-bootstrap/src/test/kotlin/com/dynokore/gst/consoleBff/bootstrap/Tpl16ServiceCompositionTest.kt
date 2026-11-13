@@ -139,6 +139,7 @@ class Tpl16ServiceCompositionTest {
                 "outbox_claim_page",
                 "outbox_claim_v",
                 "outbox_sequence",
+                "period_due_date",
             )
     }
 }
