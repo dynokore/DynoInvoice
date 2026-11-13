@@ -35,7 +35,9 @@ class CanonicalClientGenerationTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21697 (a) every operationId of the canonical contract is a public method of a generated api class")
+    @DisplayName(
+        "INV-AC-21697 (a) every operationId of the canonical contract is a public method of a generated api class",
+    )
     fun everyOperationIdIsAMethod() {
         val ids = operationIds()
         assertTrue(
