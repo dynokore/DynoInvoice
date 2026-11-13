@@ -2,6 +2,12 @@ package com.dynokore.gst.submission.application.queue
 
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 
+/** The document version one turn of [DespatchCycle] despatched. */
+data class DespatchedVersion(
+    val docUuid: String,
+    val version: Int,
+)
+
 /**
  * One turn of the polling loop (INV-Q-7266 A steps (2) to (5)): take an item, send it, apply the outcome. An item
  * whose row is `SENT` or `SENT_UNCONFIRMED` goes through [SentRecovery]; any other state is a stop (the item stays
@@ -14,8 +20,11 @@ class DespatchCycle(
     private val applier: AttemptOutcomeApplier,
 ) {
     /** @return false when no work was claimable. */
-    fun runOnce(): Boolean {
-        val taken = worker.takeNext() ?: return false
+    fun runOnce(): Boolean = runOnceItem() != null
+
+    /** @return the version this turn despatched, or null when no work was claimable. */
+    fun runOnceItem(): DespatchedVersion? {
+        val taken = worker.takeNext() ?: return null
         val dispatch = dispatchOf(taken)
         val result =
             transport.submit(
@@ -29,7 +38,7 @@ class DespatchCycle(
                 ),
             )
         applier.apply(dispatch, result)
-        return true
+        return DespatchedVersion(dispatch.docUuid, dispatch.version)
     }
 
     private fun dispatchOf(taken: SentResult): Dispatch {
