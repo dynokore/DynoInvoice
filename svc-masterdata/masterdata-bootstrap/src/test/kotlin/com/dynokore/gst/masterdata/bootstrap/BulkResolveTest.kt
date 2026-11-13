@@ -100,4 +100,60 @@ class BulkResolveTest {
             assertThat(status).isEqualTo(403)
             assertThat(env.versions()).isEqualTo(before)
         }
+
+    private fun CounterpartyEnv.docUuidsOf(party: String): List<List<String>?> =
+        captured.envelopes.filter { it.subject == party && it.tenant == tenant }.map { envelope ->
+            val data =
+                tools.jackson.databind.json.JsonMapper
+                    .builder()
+                    .build()
+                    .readTree(envelope.dataJson)
+            assertThat(data["partyRef"].asString()).isEqualTo(party)
+            assertThat(envelope.entity.value).isEqualTo(ENTITY)
+            data.get("docUuids")?.let { array -> (0 until array.size()).map { array.get(it).asString() } }
+        }
+
+    @Test
+    fun `INV-AC-21321 a bulk resolution emits docUuids in request order, other emissions have no docUuids member`() =
+        runCounterparty { env ->
+            val party = unique("CTP-BULK")
+            val (d1, d2, d3) = docs(3)
+            val first =
+                env.bulk(
+                    body(listOf(d3, d1, d2, d1), listOf(d1, d2, d3).map { it to party }, uen = unique("U")),
+                )
+            assertThat(first.first).isEqualTo(200)
+            assertThat(first.second).contains("\"resolvedCount\":3").contains("\"unchangedCount\":0")
+            assertThat(env.rows("counterparty_version", party, "party_version")).hasSize(1)
+            assertThat(env.docUuidsOf(party)).containsExactly(listOf(d3, d1, d2).map { it.toString() })
+
+            val second = env.bulk(body(listOf(d1), listOf(d1 to party), uen = unique("U")))
+            assertThat(second.first).isEqualTo(200)
+            assertThat(second.second).contains("\"resolvedCount\":1").contains("\"unchangedCount\":0")
+            assertThat(env.docUuidsOf(party)).containsExactly(
+                listOf(d3, d1, d2).map { it.toString() },
+                listOf(d1.toString()),
+            )
+
+            env.write(party, env.request("UEN" to unique("U"), entity = ENTITY))
+            val emitted = env.docUuidsOf(party)
+            assertThat(emitted).hasSize(3)
+            assertThat(emitted.last()).isNull()
+        }
+
+    @Test
+    fun `INV-AC-21321 refused bulk calls append no envelope and store no version`() =
+        runCounterparty { env ->
+            val two = docs(2)
+            val many = docs(5001)
+            val party = unique("CTP-BULK")
+            val versions = env.versions()
+            val events = env.captured.envelopes.size
+            val two2 = body(two, listOf(two[0] to "CTP-A-${unique("x")}", two[1] to "CTP-B-${unique("x")}"))
+            assertThat(env.bulk(two2).first).isEqualTo(400)
+            assertThat(env.bulk(body(many, many.map { it to party })).first).isEqualTo(413)
+            assertThat(env.bulk(body(two, two.map { it to party }), actor = "IDN-NOBODY").first).isEqualTo(403)
+            assertThat(env.versions()).isEqualTo(versions)
+            assertThat(env.captured.envelopes.size).isEqualTo(events)
+        }
 }

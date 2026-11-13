@@ -56,7 +56,9 @@ open class RemediationController(
         val party = runCatching { PartyRef(parties.single()) }.getOrElse { invalid("counterpartyRef is invalid") }
         val change = CounterpartyChangeMapping.change(request.resolvedIdentifiers, null, null, null, null)
         val evidence = CounterpartyChangeMapping.evidence(request.evidenceRef)
-        record.handle(RecordCommand(entity, party, change, evidence, WriteOrigin.OPERATOR))
+        record.handle(
+            RecordCommand(entity, party, change, evidence, WriteOrigin.OPERATOR, request.docUuids.distinct()),
+        )
         return ResponseEntity.ok(BulkResolveResult(resolvedCount = docs.size, unchangedCount = 0))
     }
 
