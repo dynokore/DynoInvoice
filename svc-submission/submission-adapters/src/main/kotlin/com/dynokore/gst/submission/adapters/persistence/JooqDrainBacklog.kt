@@ -44,7 +44,7 @@ class JooqDrainBacklog(
         return dsl
             .select(version.DOC_UUID, version.VERSION, version.ENTITY_REF, version.QUEUED_AT, entry.PERIOD_REF)
             .from(version)
-            .join(entry)
+            .leftJoin(entry)
             .on(entry.DOC_UUID.eq(version.DOC_UUID))
             .and(entry.TENANT_ID.eq(version.TENANT_ID))
             .where(version.TENANT_ID.eq(tenant.value))
@@ -56,7 +56,7 @@ class JooqDrainBacklog(
                     docUuid = checkNotNull(row.get(version.DOC_UUID)),
                     version = checkNotNull(row.get(version.VERSION)),
                     entityRef = checkNotNull(row.get(version.ENTITY_REF)),
-                    periodRef = checkNotNull(row.get(entry.PERIOD_REF)),
+                    periodRef = row.get(entry.PERIOD_REF) ?: error("queued version without register entry"),
                     queuedAt = checkNotNull(row.get(version.QUEUED_AT)).toInstant(),
                 )
             }.sortedWith(compareBy({ it.queuedAt }, { it.docUuid }, { it.version }))

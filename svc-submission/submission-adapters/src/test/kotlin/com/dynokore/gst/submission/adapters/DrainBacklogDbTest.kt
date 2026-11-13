@@ -94,25 +94,31 @@ class DrainBacklogDbTest {
         period: String,
         queuedAt: Instant,
         item: String? = "PENDING",
+        withEntry: Boolean = true,
+        withVersion: Boolean = true,
     ) = asTenant(tenant) {
-        dsl.execute(
-            "insert into submission.obligation_register_entry " +
-                "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, " +
-                "in_scope, kind) values (?, ?, ?, ?, ?::date, true, 'INVOICE')",
-            tenant,
-            doc,
-            entity,
-            period,
-            LocalDate.of(2026, 11, 30),
-        )
-        dsl.execute(
-            "insert into submission.submission (tenant_id, doc_uuid, version, state, entity_ref, queued_at) " +
-                "values (?, ?, 1, 'QUEUED', ?, ?::timestamptz)",
-            tenant,
-            doc,
-            entity,
-            queuedAt.atOffset(ZoneOffset.UTC),
-        )
+        if (withEntry) {
+            dsl.execute(
+                "insert into submission.obligation_register_entry " +
+                    "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, " +
+                    "in_scope, kind) values (?, ?, ?, ?, ?::date, true, 'INVOICE')",
+                tenant,
+                doc,
+                entity,
+                period,
+                LocalDate.of(2026, 11, 30),
+            )
+        }
+        if (withVersion) {
+            dsl.execute(
+                "insert into submission.submission (tenant_id, doc_uuid, version, state, entity_ref, queued_at) " +
+                    "values (?, ?, 1, 'QUEUED', ?, ?::timestamptz)",
+                tenant,
+                doc,
+                entity,
+                queuedAt.atOffset(ZoneOffset.UTC),
+            )
+        }
         if (item != null) {
             dsl.execute(
                 "insert into submission.work_queue (tenant_id, partition_key, lane, payload, state) " +
@@ -182,6 +188,20 @@ class DrainBacklogDbTest {
                 bound.remove()
             }
         checkNotNull(rows) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-20847 a queued version with an unclaimed item and no register entry gives null`() {
+        val (t, _) = scenario()
+        seed(t, "n1-$s", "E1-$s", "2026-Q1", t0.plusSeconds(400), withEntry = false)
+        read(t) shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-20847 a pending item whose document has no queued version of the tenant is skipped`() {
+        val (t, _) = scenario()
+        seed(t, "r1-$s", "E1-$s", "2026-Q1", t0, withVersion = false)
+        read(t)!!.map { it.docUuid } shouldBe listOf("q1-$s", "q2-$s", "q3-$s", "q4-$s", "q5-$s")
     }
 
     /** A DSL over a connection that is already closed, with a runner that opens no transaction of its own. */
