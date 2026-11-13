@@ -159,7 +159,13 @@ open class LookupController(
                 )
         ) {
             is ReverseLookupResult.Page -> {
-                ResponseEntity.ok(ReverseLookupPage(items = result.items.map(::row), nextCursor = result.nextCursor))
+                ResponseEntity.ok(
+                    ReverseLookupPage(
+                        items = result.items.map(::row),
+                        nextCursor = result.nextCursor,
+                        integrityStatus = IntegrityResult.valueOf(result.integrityStatus.name),
+                    ),
+                )
             }
 
             ReverseLookupResult.InvalidRequest -> {

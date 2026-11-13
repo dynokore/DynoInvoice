@@ -6,6 +6,7 @@ import com.dynokore.gst.evidence.adapters.http.LookupRefusalAdvice
 import com.dynokore.gst.evidence.application.auditedread.AuditedReads
 import com.dynokore.gst.evidence.application.chain.AcknowledgementLocator
 import com.dynokore.gst.evidence.application.chain.AcknowledgementLocatorStore
+import com.dynokore.gst.evidence.application.integrity.IntegrityRunRow
 import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
 import com.dynokore.gst.evidence.application.integrity.IntegrityStore
 import com.dynokore.gst.evidence.application.lookup.AcknowledgementChainLookup
@@ -17,6 +18,9 @@ import com.dynokore.gst.evidence.application.lookup.ReverseLookupFilter
 import com.dynokore.gst.evidence.application.lookup.ReverseLookupKey
 import com.dynokore.gst.evidence.application.lookup.ReverseLookupRow
 import com.dynokore.gst.evidence.application.lookup.SubmissionIndexReader
+import com.dynokore.gst.evidence.domain.integrity.IntegrityState
+import com.dynokore.gst.evidence.domain.integrity.RunCause
+import com.dynokore.gst.evidence.domain.integrity.RunResult
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.outboxandqueue.EventContext
@@ -55,7 +59,14 @@ class ReverseLookupControllerTest {
 
     private fun rows(count: Int) =
         (1..count).map {
-            ReverseLookupRow(ReverseLookupKey(LocalDate.parse("2026-03-20"), doc, it), "SENT", null, null)
+            ReverseLookupRow(
+                ReverseLookupKey(LocalDate.parse("2026-03-20"), doc, it),
+                "SENT",
+                null,
+                null,
+                "ENT-1",
+                "2026-03",
+            )
         }
 
     private fun replica(granted: Boolean): AuthorityReplica {
@@ -100,6 +111,7 @@ class ReverseLookupControllerTest {
         caller: EndUserPrincipal?,
         granted: Boolean = true,
         stored: Int = 2,
+        integrity: IntegrityState = IntegrityState.VERIFIED,
     ): LookupController {
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
@@ -135,12 +147,34 @@ class ReverseLookupControllerTest {
             )
         return LookupController(
             chain,
-            ReverseLookup(replica(granted), reader, AuditedReads(audit)),
+            ReverseLookup(replica(granted), reader, IntegrityStatusQueryHandler(runs(integrity)), AuditedReads(audit)),
             object : ObjectProvider<HttpServletRequest> {
                 override fun getObject(): HttpServletRequest = request
             },
         )
     }
+
+    private fun runs(state: IntegrityState): IntegrityStore =
+        Proxy.newProxyInstance(javaClass.classLoader, arrayOf(IntegrityStore::class.java)) { _, method, _ ->
+            check(method.name.startsWith("latestRun")) { "a lookup never writes: ${method.name}" }
+            when (state) {
+                IntegrityState.VERIFIED -> run(RunResult.VERIFIED)
+                IntegrityState.FAILED -> run(RunResult.FAILED)
+                IntegrityState.NEVER_RUN -> null
+            }
+        } as IntegrityStore
+
+    private fun run(result: RunResult) =
+        IntegrityRunRow(
+            "ENT-1",
+            "2026-03",
+            "run-1",
+            Instant.parse("2026-03-20T03:10:00Z"),
+            result,
+            RunCause.VERIFICATION,
+            2,
+            "d",
+        )
 
     private fun unusedIntegrity(): IntegrityStore =
         Proxy.newProxyInstance(javaClass.classLoader, arrayOf(IntegrityStore::class.java)) { _, _, _ ->
@@ -180,6 +214,15 @@ class ReverseLookupControllerTest {
         body.items.map { it.docUuid } shouldBe listOf(doc, doc)
         (body.nextCursor != null) shouldBe true
         reads.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-20724 integrityStatus is exactly the use case state in every 200, the empty page included`() {
+        IntegrityState.entries.forEach { state ->
+            call(controller(user(), integrity = state)).body!!.integrityStatus!!.value shouldBe state.name
+            call(controller(user(), stored = 0, integrity = state)).body!!.integrityStatus!!.value shouldBe "NEVER_RUN"
+        }
+        (call(controller(user())).body!!.integrityStatus!!.value == "verified") shouldBe false
     }
 
     @Test

@@ -37,7 +37,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** INV-AC-20724: the `reverseLookup` bean of [LookupConfiguration] composes the controller and reads `submission_index`. */
+/** INV-AC-20724: the `reverseLookup` bean of [LookupConfiguration] composes the controller and reads the index. */
 class ReverseLookupWiringTest {
     private val clock = Clock.fixed(Instant.parse("2026-11-10T00:00:00Z"), ZoneOffset.UTC)
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-000000000001"))
@@ -122,7 +122,7 @@ class ReverseLookupWiringTest {
                     IntegrityStatusQueryHandler(unusedStore),
                     audited,
                 ),
-                configuration.reverseLookup(replica, dsl, audited),
+                configuration.reverseLookup(replica, dsl, IntegrityStatusQueryHandler(unusedStore), audited),
                 object : ObjectProvider<HttpServletRequest> {
                     override fun getObject(): HttpServletRequest = request
                 },

@@ -214,14 +214,8 @@ class LookupControllerTest {
             lookup,
             ReverseLookup(
                 replica(granted),
-                SubmissionIndexReader {
-                    _,
-                    _,
-                    _,
-                    _,
-                    ->
-                    error("not used")
-                },
+                unusedIndex,
+                IntegrityStatusQueryHandler(Integrity(state)),
                 AuditedReads(Audit()),
             ),
             object : ObjectProvider<HttpServletRequest> {
@@ -229,6 +223,8 @@ class LookupControllerTest {
             },
         )
     }
+
+    private val unusedIndex = SubmissionIndexReader { _, _, _, _ -> error("not used") }
 
     private fun user(tenant: TenantId? = this.tenant) = EndUserPrincipal("user-42", tenant, emptySet())
 

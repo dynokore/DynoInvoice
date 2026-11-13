@@ -45,6 +45,7 @@ class LookupConfiguration {
     fun reverseLookup(
         replica: AuthorityReplica,
         dsl: DSLContext,
+        integrityStatusQuery: IntegrityStatusQueryHandler,
         audited: AuditedReads,
-    ): ReverseLookup = ReverseLookup(replica, JooqSubmissionIndexReader(dsl), audited)
+    ): ReverseLookup = ReverseLookup(replica, JooqSubmissionIndexReader(dsl), integrityStatusQuery, audited)
 }
