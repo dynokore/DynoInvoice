@@ -333,6 +333,8 @@ class PayloadReadyDbTest {
                 "canonicalVersionCreatedConsumer",
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
+                "documentHeldConsumer",
+                "documentReleasedConsumer",
             )
         val factory = (context as ConfigurableApplicationContext).beanFactory
         consumers.keys.filter { factory.getBeanDefinition(it).isPrimary } shouldBe emptyList()

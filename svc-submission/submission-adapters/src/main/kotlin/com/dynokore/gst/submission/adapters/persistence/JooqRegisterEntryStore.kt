@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.adapters.persistence
 
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ObligationRegisterEntry
+import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ProvisionalRegisterEntry
 import com.dynokore.gst.submission.application.register.RegisterEntry
 import com.dynokore.gst.submission.application.register.RegisterEntryStore
 import com.dynokore.gst.submission.application.register.UpsertResult
@@ -12,14 +13,17 @@ import org.jooq.Field
 /**
  * [RegisterEntryStore] over the register entry (INV-REQ-975, INV-Q-16315 A): in one transaction of the bound tenant,
  * `insert ... on conflict (doc_uuid) do nothing` (one row: INSERTED), else a version-guarded `update` where tenant and
- * doc match and the stored `source_version` is null or lower (one row: UPDATED, none: UNCHANGED). No select, so the
- * result cannot race with a concurrent writer; forced row level security applies (CS-19). Values are never logged.
+ * doc match and the stored `source_version` is null or lower (one row: UPDATED, none: UNCHANGED). After an insert or
+ * update the provisional row of the same tenant and docUuid is deleted in the same transaction (INV-AC-1778), so a
+ * failing insert rolls the delete back. No select, so the result cannot race with a concurrent writer; forced row
+ * level security applies (CS-19). Values are never logged.
  */
 class JooqRegisterEntryStore(
     private val dsl: DSLContext,
     private val runner: TransactionRunner,
 ) : RegisterEntryStore {
     private val e = ObligationRegisterEntry.OBLIGATION_REGISTER_ENTRY
+    private val provisional = ProvisionalRegisterEntry.PROVISIONAL_REGISTER_ENTRY
 
     override fun upsert(
         tenant: TenantId,
@@ -36,19 +40,28 @@ class JooqRegisterEntryStore(
                     .onConflict(e.DOC_UUID)
                     .doNothing()
                     .execute()
-            if (inserted == 1) {
-                UpsertResult.INSERTED
-            } else {
-                val updated =
-                    dsl
-                        .update(e)
-                        .set(values)
-                        .where(e.TENANT_ID.eq(tenant.value))
-                        .and(e.DOC_UUID.eq(entry.docUuid))
-                        .and(e.SOURCE_VERSION.isNull.or(e.SOURCE_VERSION.lt(entry.sourceVersion)))
-                        .execute()
-                if (updated == 1) UpsertResult.UPDATED else UpsertResult.UNCHANGED
+            val result =
+                if (inserted == 1) {
+                    UpsertResult.INSERTED
+                } else {
+                    val updated =
+                        dsl
+                            .update(e)
+                            .set(values)
+                            .where(e.TENANT_ID.eq(tenant.value))
+                            .and(e.DOC_UUID.eq(entry.docUuid))
+                            .and(e.SOURCE_VERSION.isNull.or(e.SOURCE_VERSION.lt(entry.sourceVersion)))
+                            .execute()
+                    if (updated == 1) UpsertResult.UPDATED else UpsertResult.UNCHANGED
+                }
+            if (result != UpsertResult.UNCHANGED) {
+                dsl
+                    .deleteFrom(provisional)
+                    .where(provisional.TENANT_ID.eq(tenant.value))
+                    .and(provisional.DOC_UUID.eq(entry.docUuid))
+                    .execute()
             }
+            result
         }
 
     /** Every column except the key (`tenant_id`, `doc_uuid`): set on insert and on a version-guarded update. */

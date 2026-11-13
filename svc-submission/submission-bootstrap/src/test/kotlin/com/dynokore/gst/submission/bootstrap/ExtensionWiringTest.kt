@@ -142,6 +142,8 @@ class ExtensionWiringTest {
                 "canonicalVersionCreatedConsumer",
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
+                "documentHeldConsumer",
+                "documentReleasedConsumer",
             )
     }
 

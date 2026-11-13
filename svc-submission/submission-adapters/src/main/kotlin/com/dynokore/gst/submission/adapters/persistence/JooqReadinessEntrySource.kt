@@ -1,6 +1,7 @@
 package com.dynokore.gst.submission.adapters.persistence
 
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ObligationRegisterEntry
+import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ProvisionalRegisterEntry
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.application.readiness.HoldingChecks
 import com.dynokore.gst.submission.application.readiness.ReadinessEntrySource
@@ -17,7 +18,10 @@ import org.jooq.Record
  * the row level security (CS-19). An entry without version rows is read as one state: NOT_SUBMITTABLE when out of
  * scope, HELD with its reason code when it has one, else QUEUED. An entry is overridden only when the check that held
  * it has a RELEASED override (compared by string equality); the document uuid is never compared. The result is null
- * (unavailable) when an entry has no transaction date: no date is guessed. Values are never logged.
+ * (unavailable) when an entry has no transaction date: no date is guessed. A provisional entry of the entity and period
+ * whose docUuid has no register row is read as one entry: INGESTED with no reason code, or HELD with its reason code,
+ * on its stored transaction date (INV-AC-1778, INV-AC-1691); the anti-join keeps every docUuid distinct. Values are
+ * never logged.
  */
 class JooqReadinessEntrySource(
     private val dsl: DSLContext,
@@ -27,6 +31,7 @@ class JooqReadinessEntrySource(
 ) : ReadinessEntrySource {
     private val entry = ObligationRegisterEntry.OBLIGATION_REGISTER_ENTRY
     private val version = Submission.SUBMISSION_
+    private val provisional = ProvisionalRegisterEntry.PROVISIONAL_REGISTER_ENTRY
 
     override fun entries(
         entityRef: String,
@@ -52,7 +57,43 @@ class JooqReadinessEntrySource(
         val groups = records.groupBy { checkNotNull(it.get(entry.DOC_UUID)) }
         if (groups.values.any { it.first().get(entry.TRANSACTION_DATE) == null }) return null
         val released by lazy { overrides.releasedCheckIds(entityRef, periodRef) }
-        return groups.map { (docUuid, group) -> toEntry(docUuid, group, entityRef, periodRef) { released } }
+        val registered = groups.map { (docUuid, group) -> toEntry(docUuid, group, entityRef, periodRef) { released } }
+        return registered + provisionalEntries(entityRef, periodRef) { released }
+    }
+
+    private fun provisionalEntries(
+        entityRef: String,
+        periodRef: String,
+        released: () -> Set<String>,
+    ): List<ReadinessEntry> {
+        val tenant = tenants.current().value
+        val registered =
+            dsl
+                .selectOne()
+                .from(entry)
+                .where(entry.TENANT_ID.eq(provisional.TENANT_ID))
+                .and(entry.DOC_UUID.eq(provisional.DOC_UUID))
+        return dsl
+            .select(provisional.DOC_UUID, provisional.TRANSACTION_DATE, provisional.REASON_CODE)
+            .from(provisional)
+            .where(provisional.TENANT_ID.eq(tenant))
+            .and(provisional.ENTITY_REF.eq(entityRef))
+            .and(provisional.PERIOD_REF.eq(periodRef))
+            .andNotExists(registered)
+            .orderBy(provisional.DOC_UUID.asc())
+            .fetch()
+            .map { row ->
+                val docUuid = checkNotNull(row.get(provisional.DOC_UUID))
+                val reason = row.get(provisional.REASON_CODE)
+                val holder = holding.holdingCheckId(entityRef, periodRef, docUuid)
+                ReadinessEntry(
+                    docUuid = docUuid,
+                    versions = listOf(if (reason == null) LifecycleState.INGESTED else LifecycleState.HELD),
+                    transactionDate = checkNotNull(row.get(provisional.TRANSACTION_DATE)),
+                    overridden = holder != null && holder in released(),
+                    reasonCode = reason,
+                )
+            }
     }
 
     private fun toEntry(

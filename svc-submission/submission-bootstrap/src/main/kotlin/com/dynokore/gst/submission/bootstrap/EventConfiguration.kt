@@ -71,11 +71,19 @@ object SubmissionEvents {
     const val PERIOD_RECORDS_CHANGED_TOPIC = "gst.tenancy.period-records-changed.v1"
     const val PERIOD_RECORDS_CHANGED_TYPE = "com.dynokore.gst.tenancy.PeriodRecordsChanged.v1"
 
+    const val DOCUMENT_HELD_TOPIC = "gst.canonical.document-held.v1"
+    const val DOCUMENT_HELD_TYPE = "com.dynokore.gst.canonical.DocumentHeld.v1"
+
+    const val DOCUMENT_RELEASED_TOPIC = "gst.canonical.document-released.v1"
+    const val DOCUMENT_RELEASED_TYPE = "com.dynokore.gst.canonical.DocumentReleased.v1"
+
     /**
-     * `PayloadReady` (topics.yaml: producer payload-svc, content topic), `PeriodExtended` (producer tenancy-svc, no
-     * content topic, INV-REQ-81), `CanonicalVersionCreated` (producer canonical-svc, content topic) and
-     * `PeriodDueDateChanged` (producer tenancy-svc, no content topic), the last two feeding the obligation register
-     * (INV-REQ-570), and `PeriodRecordsChanged` (producer tenancy-svc, no content topic, INV-REQ-570); submission-svc
+     * `DocumentHeld` and `DocumentReleased` (producer canonical-svc, no content topic) feed the provisional register
+     * entries (INV-REQ-570 behavior 2). `PayloadReady` (topics.yaml: producer payload-svc, content topic),
+     * `PeriodExtended` (producer tenancy-svc, no content topic, INV-REQ-81), `CanonicalVersionCreated` (producer
+     * canonical-svc, content topic) and `PeriodDueDateChanged` (producer tenancy-svc, no content topic), the last
+     * two feeding the obligation register (INV-REQ-570), and `PeriodRecordsChanged` (producer tenancy-svc, no
+     * content topic, INV-REQ-570); submission-svc
      * is only their subscriber.
      */
     val consumed: List<CatalogueEntry> =
@@ -112,6 +120,20 @@ object SubmissionEvents {
                 PERIOD_RECORDS_CHANGED_TYPE,
                 PERIOD_RECORDS_CHANGED_TOPIC,
                 setOf("tenancy-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                DOCUMENT_HELD_TYPE,
+                DOCUMENT_HELD_TOPIC,
+                setOf("canonical-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                DOCUMENT_RELEASED_TYPE,
+                DOCUMENT_RELEASED_TOPIC,
+                setOf("canonical-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,
             ),

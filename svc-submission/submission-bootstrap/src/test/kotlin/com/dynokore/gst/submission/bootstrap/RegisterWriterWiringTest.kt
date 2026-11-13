@@ -100,6 +100,8 @@ class RegisterWriterWiringTest {
                 canonicalType to canonicalTopic,
                 dueDateType to dueDateTopic,
                 SubmissionEvents.PERIOD_RECORDS_CHANGED_TYPE to SubmissionEvents.PERIOD_RECORDS_CHANGED_TOPIC,
+                "com.dynokore.gst.canonical.DocumentHeld.v1" to "gst.canonical.document-held.v1",
+                "com.dynokore.gst.canonical.DocumentReleased.v1" to "gst.canonical.document-released.v1",
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
@@ -130,6 +132,8 @@ class RegisterWriterWiringTest {
                 "canonicalVersionCreatedConsumer",
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
+                "documentHeldConsumer",
+                "documentReleasedConsumer",
             )
     }
 
@@ -173,5 +177,42 @@ class RegisterWriterWiringTest {
         shouldThrow<IllegalStateException> {
             canonicalConsumer(context, EventCatalogue(without(context, canonicalType) + lookAlike))
         }
+    }
+
+    @Test
+    fun `INV-AC-1778 exactly two provisional subscriptions on the exact topics, one inbox consumer each`(
+        @TempDir dir: Path,
+    ) = withContext(dir) { context ->
+        val subscriptions =
+            listOf(
+                ProvisionalEntryConsumers.heldSubscription(),
+                ProvisionalEntryConsumers.releasedSubscription(),
+            )
+        subscriptions.map { it.topic } shouldBe
+            listOf("gst.canonical.document-held.v1", "gst.canonical.document-released.v1")
+        subscriptions.forEach {
+            it.consumer shouldBe "submission-svc"
+            it.schema shouldBe "submission"
+        }
+        // look-alike topics are not accepted
+        subscriptions.map { it.topic }.contains("gst.canonical.document-held.v2") shouldBe false
+        subscriptions.map { it.topic }.contains("gst.canonical.document-releases.v1") shouldBe false
+        val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
+        consumers.keys.filter { it.startsWith("document") } shouldContainExactlyInAnyOrder
+            listOf("documentHeldConsumer", "documentReleasedConsumer")
+        // Each consumer bean holds its own subscription: a swap or two consumers on one topic fails here.
+        subscriptionOf(consumers.getValue("documentHeldConsumer")).topic shouldBe "gst.canonical.document-held.v1"
+        subscriptionOf(consumers.getValue("documentReleasedConsumer")).topic shouldBe
+            "gst.canonical.document-released.v1"
+        // The runtime wraps every handler bean for tracing, so only the port type is visible.
+        context.getBean("documentHeldHandler").shouldBeInstanceOf<EventHandler>()
+        context.getBean("documentReleasedHandler").shouldBeInstanceOf<EventHandler>()
+    }
+
+    /** The platform class keeps its subscription private; the field is read by its exact name. */
+    private fun subscriptionOf(consumer: JdbcInboxConsumer): ConsumerSubscription {
+        val field = JdbcInboxConsumer::class.java.getDeclaredField("subscription")
+        field.isAccessible = true
+        return field.get(consumer) as ConsumerSubscription
     }
 }

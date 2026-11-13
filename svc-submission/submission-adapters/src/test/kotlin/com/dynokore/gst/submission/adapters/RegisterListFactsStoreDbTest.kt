@@ -219,7 +219,11 @@ class RegisterListFactsStoreDbTest {
     @Test
     fun `INV-AC-16322 no other table of the schema has a column of those names`() {
         val names = newColumns.joinToString(",") { "'$it'" }
-        val others = schemaColumns("table_name <> 'obligation_register_entry' and column_name in ($names)")
+        val others =
+            schemaColumns(
+                "table_name not in ('obligation_register_entry', 'provisional_register_entry') " +
+                    "and column_name in ($names)",
+            )
         others shouldBe emptyList()
     }
 
