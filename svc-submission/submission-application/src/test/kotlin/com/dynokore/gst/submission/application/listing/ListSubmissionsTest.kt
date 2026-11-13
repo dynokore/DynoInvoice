@@ -365,6 +365,35 @@ class ListSubmissionsTest {
     }
 
     @Test
+    fun `INV-AC-21818 a cursor whose last row left the list resumes after its position, never from the first row`() {
+        listOf<String?>(null, "-transactionDate", "dueDate", "-dueDate").forEach { sort ->
+            val first = ListSubmissions(replicaFor(holder to roleHoldingBoth()), RecordingSource(SourceRead(rows, 0)))
+            val page1 =
+                first
+                    .handle(request(limit = 2, sort = sort), deadline)
+                    .shouldBeInstanceOf<ListSubmissionsResult.Page>()
+            val cursor = checkNotNull(page1.nextCursor)
+            val lastKey = page1.keys().last().first
+            val remaining = rows.filterNot { it.docUuid == lastKey.first && it.version == lastKey.second }
+            val second =
+                ListSubmissions(replicaFor(holder to roleHoldingBoth()), RecordingSource(SourceRead(remaining, 0)))
+            val full =
+                second
+                    .handle(request(limit = 500, sort = sort), deadline)
+                    .shouldBeInstanceOf<ListSubmissionsResult.Page>()
+                    .keys()
+            val resumed =
+                second
+                    .handle(request(limit = 500, cursor = cursor, sort = sort), deadline)
+                    .shouldBeInstanceOf<ListSubmissionsResult.Page>()
+                    .keys()
+            val seenOnPage1 = page1.keys().map { it.first }.toSet()
+            resumed.map { it.first }.none { it in seenOnPage1 } shouldBe true
+            resumed shouldBe full.dropWhile { it.first in seenOnPage1 }
+        }
+    }
+
+    @Test
     fun `INV-AC-21818 a bad sort and a limit above maxLimit are refused`() {
         val uc = ListSubmissions(replicaFor(holder to roleHoldingBoth()), RecordingSource(SourceRead(rows, 0)))
         uc.handle(request(sort = "bogus"), deadline) shouldBe

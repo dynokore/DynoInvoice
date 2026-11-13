@@ -164,8 +164,29 @@ class ListSubmissions(
         when (val decoded = ListCursor.decode(token, filterKey, sortKey)) {
             is CursorDecoding.Resumed -> {
                 val position = decoded.position
-                val at = ordered.indexOfFirst { it.docUuid == position.docUuid && it.version == position.version }
-                if (at < 0) 0 else at + 1
+                val descending = sortKey.startsWith("-")
+                val after =
+                    ordered.indexOfFirst { row ->
+                        val value =
+                            if (sortKey.endsWith(
+                                    "dueDate",
+                                )
+                            ) {
+                                row.dueDate.toString()
+                            } else {
+                                row.transactionDate.toString()
+                            }
+                        val byValue = value.compareTo(position.sortValue).let { if (descending) -it else it }
+                        val byKey =
+                            if (byValue != 0) {
+                                byValue
+                            } else {
+                                val byDoc = row.docUuid.compareTo(position.docUuid)
+                                if (byDoc != 0) byDoc else row.version.compareTo(position.version)
+                            }
+                        byKey > 0
+                    }
+                if (after < 0) ordered.size else after
             }
 
             is CursorDecoding.Refused -> {
