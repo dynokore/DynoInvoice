@@ -36,7 +36,7 @@ class OperationsGateTest {
         val cell: String,
     )
 
-    /** Parallel change (INV-Q-15626 A): exactly the three states: before INV-T-12486, after it and after INV-T-4982. */
+    /** Parallel change (INV-Q-15626 A): four states, before INV-T-12486, after it, after 4982, after 18675. */
     private val state1 =
         GateState(
             done = "INV-T-4981\n",
@@ -57,7 +57,17 @@ class OperationsGateTest {
                     "electAcknowledgementRoute" - "clearAcknowledgementRoute",
             cell = "INV-T-12486",
         )
-    private val allStates = listOf(state1, state2, state3)
+    private val state4 =
+        GateState(
+            done = "INV-T-4981\nINV-T-12486\nINV-T-4982\nINV-T-18675\n",
+            stubSet = state3.stubSet - "testConnection" - "failoverAdapter" - "setConnectionEntities",
+            cell = "INV-T-12486",
+        )
+    private val allStates = listOf(state1, state2, state3, state4)
+
+    /** Replaces the row setConnectionEntities by UNASSIGNED whatever its assignee is. */
+    private fun unassignSetConnectionEntities(table: String): String =
+        table.replaceFirst(Regex("setConnectionEntities\t[^\t\r\n]*"), "setConnectionEntities\tUNASSIGNED")
 
     /** The state selected by the done text alone (equality), or null. */
     private fun stateByDone(done: String?): GateState? = allStates.firstOrNull { it.done == done }
@@ -124,8 +134,9 @@ class OperationsGateTest {
 
     @Test
     fun `UNASSIGNED is allowed only for the three ids of INV-Q-8045`() {
-        run(table = tsv.replaceFirst("setConnectionEntities\tINV-T-4983", "setConnectionEntities\tUNASSIGNED"))
-            .shouldNotBeEmpty()
+        val replaced = unassignSetConnectionEntities(tsv)
+        (replaced != tsv) shouldBe true
+        run(table = replaced).shouldNotBeEmpty()
         run(table = tsv.replaceFirst("submitPayload\tINV-T-4981", "submitPayload\tUNASSIGNED")).shouldNotBeEmpty()
         run(
             table =
@@ -330,5 +341,19 @@ class OperationsGateTest {
         cellOf("operation\treceiveApNotifications\tINV-T-4982\n").shouldBeNull()
         cellOf("channel\treceiveApNotification\tINV-T-4982\n").shouldBeNull()
         cellOf("operation\treceiveApNotification\tA\noperation\treceiveApNotification\tB\n").shouldBeNull()
+    }
+
+    @Test
+    fun `INV-AC-21892 the gate refuses UNASSIGNED setConnectionEntities whatever the task and selects state 4`() {
+        val before = tsv.replaceFirst(Regex("setConnectionEntities\t[^\t\r\n]*"), "setConnectionEntities\tINV-T-4983")
+        val after = tsv.replaceFirst(Regex("setConnectionEntities\t[^\t\r\n]*"), "setConnectionEntities\tINV-T-18675")
+        listOf(before, after).forEach { table ->
+            val replaced = unassignSetConnectionEntities(table)
+            (replaced != table) shouldBe true
+            run(table = replaced).shouldNotBeEmpty()
+        }
+        stateByDone(state4.done) shouldBe state4
+        stateByDone(state4.done + "INV-T-186750\n").shouldBeNull()
+        stateByDone("INV-T-4981\nINV-T-12486\nINV-T-4982\nINV-T-186750\n").shouldBeNull()
     }
 }
