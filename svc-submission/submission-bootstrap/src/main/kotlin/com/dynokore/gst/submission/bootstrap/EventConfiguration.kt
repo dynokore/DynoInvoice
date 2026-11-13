@@ -77,6 +77,12 @@ object SubmissionEvents {
     const val DOCUMENT_RELEASED_TOPIC = "gst.canonical.document-released.v1"
     const val DOCUMENT_RELEASED_TYPE = "com.dynokore.gst.canonical.DocumentReleased.v1"
 
+    const val RULE_PACK_STAGED_TOPIC = "gst.rules.rule-pack-staged.v1"
+    const val RULE_PACK_STAGED_TYPE = "com.dynokore.gst.rules.RulePackStaged.v1"
+
+    const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
+    const val RULE_PACK_ACTIVATED_TYPE = "com.dynokore.gst.rules.RulePackActivated.v1"
+
     /**
      * `DocumentHeld` and `DocumentReleased` (producer canonical-svc, no content topic) feed the provisional register
      * entries (INV-REQ-570 behavior 2). `PayloadReady` (topics.yaml: producer payload-svc, content topic),
@@ -135,6 +141,22 @@ object SubmissionEvents {
                 DOCUMENT_RELEASED_TOPIC,
                 setOf("canonical-svc"),
                 contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                RULE_PACK_STAGED_TYPE,
+                RULE_PACK_STAGED_TOPIC,
+                setOf("rules-svc"),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = true,
+            ),
+            CatalogueEntry(
+                RULE_PACK_ACTIVATED_TYPE,
+                RULE_PACK_ACTIVATED_TOPIC,
+                setOf("rules-svc"),
+                contentTopic = false,
+                recordTopic = false,
                 retainedWhileResolvable = false,
             ),
         )
