@@ -33,6 +33,7 @@ class MasterDataResolvedOutbox(
     override fun publish(
         entity: String,
         version: CounterpartyVersion,
+        docUuids: List<UUID>,
     ) {
         val correlation = CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
         val causation = CorrelationContext.currentCausationId()?.value ?: correlation
@@ -47,10 +48,13 @@ class MasterDataResolvedOutbox(
                 correlation = CorrelationId(correlation),
                 causation = CausationId(causation),
             )
-        outbox.append(listOf(OutboundEvent(EVENT_TYPE, payload(version).toString())), context)
+        outbox.append(listOf(OutboundEvent(EVENT_TYPE, payload(version, docUuids).toString())), context)
     }
 
-    internal fun payload(version: CounterpartyVersion): ObjectNode {
+    internal fun payload(
+        version: CounterpartyVersion,
+        docUuids: List<UUID> = emptyList(),
+    ): ObjectNode {
         val root = mapper.createObjectNode()
         root.put("partyRef", version.partyRef.value)
         val identifiers = root.putArray("resolvedIdentifiers")
@@ -61,6 +65,10 @@ class MasterDataResolvedOutbox(
             node.put("providedBy", it.provenance.providedBy.name)
             node.put("evidenceRef", it.provenance.evidenceRef.value)
             node.put("capturedAt", ISO.format(it.provenance.capturedAt.atOffset(ZoneOffset.UTC)))
+        }
+        if (docUuids.isNotEmpty()) {
+            val docs = root.putArray("docUuids")
+            docUuids.forEach { docs.add(it.toString()) }
         }
         return root
     }

@@ -14,6 +14,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.UUID
 
 internal val T0: Instant = Instant.parse("2026-11-08T00:00:00Z")
 internal const val TENANT = "11111111-1111-1111-1111-111111111111"
@@ -96,6 +97,7 @@ internal class Recorder :
     SubmissionAudit {
     val links = mutableListOf<SignedLinkRequest>()
     val resolved = mutableListOf<CounterpartyVersion>()
+    val resolvedDocUuids = mutableListOf<List<UUID>>()
     val audits = mutableListOf<Pair<String, String>>()
 
     override fun publish(
@@ -108,8 +110,10 @@ internal class Recorder :
     override fun publish(
         entity: String,
         version: CounterpartyVersion,
+        docUuids: List<UUID>,
     ) {
         resolved += version
+        resolvedDocUuids += docUuids
     }
 
     override fun accepted(

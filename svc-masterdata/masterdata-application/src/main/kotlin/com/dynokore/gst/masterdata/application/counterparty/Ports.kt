@@ -6,6 +6,7 @@ import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
 import com.dynokore.gst.masterdata.domain.counterparty.StructureNode
 import com.dynokore.platform.partyregistry.IdentifierScheme
 import java.time.Instant
+import java.util.UUID
 
 /** The counterparties of the bound tenant (TPL-11); every call runs inside the caller's transaction. */
 interface CounterpartyRepository {
@@ -56,9 +57,17 @@ interface StructureNodeRepository {
  * Publishes `MasterDataResolved` for a version just written, in the transaction of the write (TPL-05, CS-17). The
  * entity is the one the request names, not one derived from the structure (INV-Q-8480 A).
  */
-fun interface MasterDataResolvedPublisher {
+interface MasterDataResolvedPublisher {
+    /** [docUuids] are the documents the write resolved (INV-REQ-941), in order; empty when none is named. */
     fun publish(
         entity: String,
         version: CounterpartyVersion,
+        docUuids: List<UUID>,
     )
+
+    /** A write that names no documents: the callers of the two-argument form stay as they were. */
+    fun publish(
+        entity: String,
+        version: CounterpartyVersion,
+    ) = publish(entity, version, emptyList())
 }

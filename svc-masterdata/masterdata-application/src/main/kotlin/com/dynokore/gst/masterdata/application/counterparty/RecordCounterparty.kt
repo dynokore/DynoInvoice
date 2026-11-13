@@ -8,6 +8,7 @@ import com.dynokore.gst.masterdata.domain.counterparty.WriteOrigin
 import com.dynokore.gst.masterdata.domain.counterparty.after
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
+import java.util.UUID
 
 /** One write to [party] on behalf of [entity]: what changes, the evidence for it and where it comes from. */
 data class RecordCommand(
@@ -16,6 +17,7 @@ data class RecordCommand(
     val change: CounterpartyChange,
     val evidenceRef: String,
     val origin: WriteOrigin,
+    val docUuids: List<UUID> = emptyList(),
 )
 
 /**
@@ -40,7 +42,7 @@ class RecordCounterparty(
                         command.party,
                     )?.content
                     .after(command.change, command.evidenceRef, command.origin, now)
-            parties.append(command.party, content, now).also { publisher.publish(command.entity, it) }
+            parties.append(command.party, content, now).also { publisher.publish(command.entity, it, command.docUuids) }
         }
 }
 
