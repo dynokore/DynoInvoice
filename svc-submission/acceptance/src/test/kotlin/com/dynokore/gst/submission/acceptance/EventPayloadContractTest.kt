@@ -64,6 +64,10 @@ class EventPayloadContractTest {
                 """{"entityRef":"E-001","periodRef":"2026Q1","queueDepth":4,"failureRate":0.25,"unacknowledgedCount":2,
                 |"oldestUnsentAgeSeconds":90,"measuredAt":"2026-11-13T08:00:00Z"}
                 """.trimMargin(),
+            "DocumentCodeRaised" to
+                """{"docUuid":"0b0e9a43-6d3c-4f6e-9f0a-3f2a6a1c9d11","version":1,"entityRef":"E-001","periodRef":"2026Q1",
+                |"code":"SUB-001"}
+                """.trimMargin(),
             "ExampleHappened" to """{"entityRef":"E-001"}""",
         )
 
@@ -138,7 +142,7 @@ class EventPayloadContractTest {
     }
 
     @Test
-    fun `every sample belongs to a channel of the contract`() {
+    fun `INV-AC-21902 every sample belongs to a channel of the contract`() {
         samples.keys shouldBe channels().values.toSet()
     }
 

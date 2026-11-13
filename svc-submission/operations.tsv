@@ -21,6 +21,7 @@ channel	gst.submission.submission-type-decided.v1	UNASSIGNED
 channel	gst.submission.example-happened.v1	UNASSIGNED
 channel	gst.submission.compliance-alert-values-measured.v1	UNASSIGNED
 channel	gst.submission.backlog-values-measured.v1	UNASSIGNED
+channel	gst.submission.document-code-raised.v1	UNASSIGNED
 operation	resolveAmendmentHold	UNASSIGNED
 operation	approveFilingGateOverride	INV-T-10714
 operation	getFilingGateOverrides	INV-T-10714

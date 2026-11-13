@@ -28,11 +28,11 @@ class OperationsGateTest {
     ) = OperationsGate.findings(table, spec, asyncapi, stubSet, done)
 
     @Test
-    fun `the real table covers the real contract`() {
+    fun `INV-AC-21902 the real table covers the real contract`() {
         OperationsGate.contractOperations(openapi).size shouldBe 20
         OperationsGate.contractOperations(openapi) shouldContain "approveFilingGateOverride"
         OperationsGate.contractOperations(openapi) shouldContain "getFilingGateOverrides"
-        OperationsGate.contractChannels(asyncapi).size shouldBe 9
+        OperationsGate.contractChannels(asyncapi).size shouldBe 10
         run(done = doneText).shouldBeEmpty()
         doneText shouldBe "INV-T-20589\nINV-T-20607\n"
     }
