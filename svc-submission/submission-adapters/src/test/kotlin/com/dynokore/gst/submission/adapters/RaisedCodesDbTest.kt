@@ -66,19 +66,21 @@ class RaisedCodesDbTest {
         SubmissionDb.superuser().use { c ->
             val cols = mutableListOf<String>()
             c.createStatement().use { st ->
-                st.executeQuery(
-                    "select column_name from information_schema.columns where table_schema = 'submission' " +
-                        "and table_name = 'raised_code' order by ordinal_position",
-                ).use { rs -> while (rs.next()) cols += rs.getString(1) }
+                st
+                    .executeQuery(
+                        "select column_name from information_schema.columns where table_schema = 'submission' " +
+                            "and table_name = 'raised_code' order by ordinal_position",
+                    ).use { rs -> while (rs.next()) cols += rs.getString(1) }
             }
             cols shouldBe
                 listOf("seq", "tenant_id", "doc_uuid", "version", "entity_ref", "period_ref", "code", "raised_at")
             val keys = mutableListOf<String>()
             c.createStatement().use { st ->
-                st.executeQuery(
-                    "select pg_get_constraintdef(oid) from pg_constraint " +
-                        "where conrelid = 'submission.raised_code'::regclass and contype = 'u'",
-                ).use { rs -> while (rs.next()) keys += rs.getString(1) }
+                st
+                    .executeQuery(
+                        "select pg_get_constraintdef(oid) from pg_constraint " +
+                            "where conrelid = 'submission.raised_code'::regclass and contype = 'u'",
+                    ).use { rs -> while (rs.next()) keys += rs.getString(1) }
             }
             keys shouldBe listOf("UNIQUE (tenant_id, doc_uuid, version, code)")
         }
