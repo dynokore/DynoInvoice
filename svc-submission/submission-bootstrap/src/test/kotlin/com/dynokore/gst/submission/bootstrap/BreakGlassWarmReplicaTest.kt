@@ -59,7 +59,14 @@ class BreakGlassWarmReplicaTest {
         @TempDir dir: Path,
     ) {
         serve(dir) { replica ->
-            replica.lag().isWithin(replica.lagBound) shouldBe true
+            val before = BreakGlassDoubles.now.get()
+            try {
+                BreakGlassDoubles.now.set(before.plus(replica.lagBound).plusSeconds(CLOCK_STEP_SECONDS))
+                replica.lag().isWithin(replica.lagBound) shouldBe true
+            } finally {
+                BreakGlassDoubles.now.set(before)
+            }
+            BreakGlassDoubles.now.get() shouldBe BreakGlassTestBeans.BEFORE_E
         }
     }
 
@@ -83,6 +90,7 @@ class BreakGlassWarmReplicaTest {
 
     private companion object {
         const val ISSUER = "https://access.test/"
+        const val CLOCK_STEP_SECONDS = 60L
         const val AUDIENCE = "gst-public-api"
         val BREAK_GLASS_CLOCK: java.time.Clock =
             java.time.Clock.fixed(BreakGlassTestBeans.BEFORE_E, java.time.ZoneOffset.UTC)
