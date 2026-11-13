@@ -60,7 +60,7 @@ class CallerChecks(
         return (callers + unmapped).mapNotNull { (what, headers) ->
             val answer = send(operation, headers)
             "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}".takeIf {
-                answer.statusCode() != if (operation.label in IMPLEMENTED) OK else NOT_IMPLEMENTED
+                answer.statusCode() != (IMPLEMENTED[operation.label] ?: NOT_IMPLEMENTED)
             }
         }
     }
@@ -134,8 +134,17 @@ class CallerChecks(
     companion object {
         const val EXCEPT = "any-except:"
 
-        /** The operations a task has built (operations.tsv): they answer 200 to a caller they allow, the others 501. */
-        private val IMPLEMENTED = setOf("GET /internal/v1/evidence/retention/maximum")
+        /**
+         * The operations a task has built (operations.tsv) and the status an allowed caller gets, the others 501. The
+         * chain lookup answers 403 SRT-004 here: the end-user token of this test holds no lookup key, so the handler
+         * itself refuses it (INV-T-20577).
+         */
+        private val IMPLEMENTED =
+            mapOf(
+                "GET /internal/v1/evidence/retention/maximum" to OK,
+                "GET /internal/v1/evidence/acknowledgements/{ackId}" to FORBIDDEN,
+            )
+        private const val FORBIDDEN = 403
         private const val OK = 200
         private const val NOT_IMPLEMENTED = 501
         const val TOKEN = "X-Workload-Token"

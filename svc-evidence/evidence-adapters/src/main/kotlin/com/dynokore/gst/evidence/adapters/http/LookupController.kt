@@ -8,6 +8,7 @@ import com.dynokore.gst.evidence.application.lookup.ChainLookupResult
 import com.dynokore.gst.evidence.contract.api.LookupApi
 import com.dynokore.gst.evidence.contract.model.EvidenceChain
 import com.dynokore.gst.evidence.contract.model.EvidenceChainItem
+import com.dynokore.gst.evidence.contract.model.IntegrityResult
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -75,10 +76,7 @@ open class LookupController(
         val caller =
             requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
         val tenant = caller?.tenant ?: throw LookupRefusal(ClosedErrorCode.UNAUTHENTICATED)
-        if (ackId.isBlank() || ackId.length > MAX_ACK_ID || ackId.any { it.isISOControl() }) {
-            throw LookupRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
-        }
-        if (limit !in 1..AcknowledgementChainLookup.MAX_LIMIT) throw LookupRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+        requireContract(ackId, limit)
         val after = cursor?.let { PageCursor.decode(it, ackId) }
         val context =
             EventContext(
@@ -103,10 +101,22 @@ open class LookupController(
                 )
         ) {
             is ChainLookupResult.Found -> ResponseEntity.ok(chain(result))
-            ChainLookupResult.NotFound -> throw LookupRefusal(ClosedErrorCode.NOT_FOUND)
-            ChainLookupResult.Forbidden -> throw LookupRefusal(ClosedErrorCode.ACCESS_DENIED)
-            ChainLookupResult.Incomplete -> throw LookupRefusal(ClosedErrorCode.INTERNAL_ERROR)
+            ChainLookupResult.NotFound -> refuse(ClosedErrorCode.NOT_FOUND)
+            ChainLookupResult.Forbidden -> refuse(ClosedErrorCode.ACCESS_DENIED)
+            ChainLookupResult.Incomplete -> refuse(ClosedErrorCode.INTERNAL_ERROR)
         }
+    }
+
+    private fun refuse(code: ClosedErrorCode): Nothing = throw LookupRefusal(code)
+
+    private fun requireContract(
+        ackId: String,
+        limit: Int,
+    ) {
+        if (ackId.isBlank() || ackId.length > MAX_ACK_ID || ackId.any { it.isISOControl() }) {
+            throw LookupRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+        }
+        if (limit !in 1..AcknowledgementChainLookup.MAX_LIMIT) throw LookupRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
     }
 
     private fun correlation(): String = CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
@@ -117,6 +127,7 @@ open class LookupController(
             docUuid = found.docUuid,
             version = found.version,
             imported = false,
+            integrityStatus = IntegrityResult.valueOf(found.integrityStatus.name),
             items = found.items.map(::item),
             nextCursor = found.nextCursor?.let { PageCursor.encode(found.ackId, it) },
         )

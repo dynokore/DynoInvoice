@@ -6,6 +6,10 @@ import com.dynokore.gst.evidence.adapters.http.LookupRefusalAdvice
 import com.dynokore.gst.evidence.application.auditedread.AuditedReads
 import com.dynokore.gst.evidence.application.chain.AcknowledgementLocator
 import com.dynokore.gst.evidence.application.chain.AcknowledgementLocatorStore
+import com.dynokore.gst.evidence.application.integrity.IntegrityFailureRow
+import com.dynokore.gst.evidence.application.integrity.IntegrityRunRow
+import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
+import com.dynokore.gst.evidence.application.integrity.IntegrityStore
 import com.dynokore.gst.evidence.application.lookup.AcknowledgementChainLookup
 import com.dynokore.gst.evidence.application.lookup.ChainCursor
 import com.dynokore.gst.evidence.application.lookup.ChainItem
@@ -13,6 +17,9 @@ import com.dynokore.gst.evidence.application.lookup.ChainItemKind
 import com.dynokore.gst.evidence.application.lookup.ChainRecordReader
 import com.dynokore.gst.evidence.application.lookup.ChainRecords
 import com.dynokore.gst.evidence.application.lookup.ENQUIRY_LOOKUP_BY_ACKNOWLEDGEMENT
+import com.dynokore.gst.evidence.domain.integrity.IntegrityState
+import com.dynokore.gst.evidence.domain.integrity.RunCause
+import com.dynokore.gst.evidence.domain.integrity.RunResult
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -49,6 +56,8 @@ class LookupControllerTest {
     private val doc = UUID.fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6")
     private val at = Instant.parse("2026-03-20T03:10:00Z")
     private val calls = mutableListOf<String>()
+    private val chainEntity = "ENT-1"
+    private val chainPeriod = "2026-03"
 
     private fun item(
         kind: ChainItemKind,
@@ -93,6 +102,46 @@ class LookupControllerTest {
         ): ChainRecords {
             calls += "read"
             return answer
+        }
+    }
+
+    private inner class Integrity(
+        private val state: IntegrityState,
+    ) : IntegrityStore {
+        override fun lock(
+            tenant: TenantId,
+            entityRef: String,
+            period: String,
+        ) = error("a lookup never writes")
+
+        override fun failureExists(
+            tenant: TenantId,
+            row: IntegrityFailureRow,
+        ): Boolean = error("a lookup never writes")
+
+        override fun insertFailure(
+            tenant: TenantId,
+            row: IntegrityFailureRow,
+        ) = error("a lookup never writes")
+
+        override fun insertRun(
+            tenant: TenantId,
+            row: IntegrityRunRow,
+        ) = error("a lookup never writes")
+
+        override fun latestRun(
+            tenant: TenantId,
+            entityRef: String,
+            period: String,
+        ): IntegrityRunRow? {
+            check(entityRef == chainEntity && period == chainPeriod) { "integrity read for $entityRef/$period" }
+            val result =
+                when (state) {
+                    IntegrityState.VERIFIED -> RunResult.VERIFIED
+                    IntegrityState.FAILED -> RunResult.FAILED
+                    IntegrityState.NEVER_RUN -> return null
+                }
+            return IntegrityRunRow(entityRef, period, "run-1", at, result, RunCause.VERIFICATION, 2, "digest")
         }
     }
 
@@ -143,15 +192,23 @@ class LookupControllerTest {
 
     private fun controller(
         caller: EndUserPrincipal?,
-        records: ChainRecords = ChainRecords.Complete(listOf(ack, payload)),
+        records: ChainRecords = ChainRecords.Complete(listOf(ack, payload), chainEntity, chainPeriod),
         granted: Boolean = true,
+        state: IntegrityState = IntegrityState.VERIFIED,
     ): LookupController {
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
                 check(method.name == "getAttribute") { "unexpected request call ${method.name}" }
                 caller.takeIf { args[0] == EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE }
             } as HttpServletRequest
-        val lookup = AcknowledgementChainLookup(replica(granted), Locators(), Reader(records), AuditedReads(Audit()))
+        val lookup =
+            AcknowledgementChainLookup(
+                replica(granted),
+                Locators(),
+                Reader(records),
+                IntegrityStatusQueryHandler(Integrity(state)),
+                AuditedReads(Audit()),
+            )
         return LookupController(
             lookup,
             object : ObjectProvider<HttpServletRequest> {
@@ -195,6 +252,19 @@ class LookupControllerTest {
         body.items.map { it.kind.value } shouldBe listOf("PAYLOAD", "ACKNOWLEDGEMENT")
         body.items.map { it.sequence } shouldBe listOf(1, 2)
         body.nextCursor shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-20576 integrityStatus equals the use case state on both pages, no reproduction`() {
+        IntegrityState.entries.forEach { state ->
+            val c = controller(user(), state = state)
+            val first = c.getAcknowledgementChain("A1", 1, null).body!!
+            val second = c.getAcknowledgementChain("A1", 1, first.nextCursor).body!!
+            first.integrityStatus!!.name shouldBe state.name
+            second.integrityStatus!!.name shouldBe state.name
+            first.reproduction shouldBe null
+            second.reproduction shouldBe null
+        }
     }
 
     @Test
