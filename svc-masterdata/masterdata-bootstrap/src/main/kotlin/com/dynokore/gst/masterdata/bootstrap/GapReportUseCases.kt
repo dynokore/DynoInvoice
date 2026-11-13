@@ -4,6 +4,7 @@ import com.dynokore.gst.masterdata.adapters.events.ImportEvidenceOutbox
 import com.dynokore.gst.masterdata.adapters.http.AuditLogExportAudit
 import com.dynokore.gst.masterdata.adapters.persistence.JooqDryRunStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqGapReportStore
+import com.dynokore.gst.masterdata.adapters.persistence.JooqHeldDocuments
 import com.dynokore.gst.masterdata.adapters.persistence.JooqImportStore
 import com.dynokore.gst.masterdata.adapters.persistence.JooqStaleRecordTenantSource
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
@@ -16,6 +17,7 @@ import com.dynokore.gst.masterdata.application.gapreport.ReadGapReport
 import com.dynokore.gst.masterdata.application.gapreport.RunGapReport
 import com.dynokore.gst.masterdata.application.gapreport.StaleRecordTenantSource
 import com.dynokore.gst.masterdata.application.gapreport.SweepStaleRecords
+import com.dynokore.gst.masterdata.application.held.HeldDocuments
 import com.dynokore.gst.masterdata.application.imports.DryRunCounterpartyImport
 import com.dynokore.gst.masterdata.application.imports.DryRunStore
 import com.dynokore.gst.masterdata.application.imports.ImportCounterparties
@@ -141,9 +143,13 @@ class GapReportUseCases {
         imports: ImportStore,
         clock: Clock,
         publisher: MasterDataResolvedPublisher,
+        held: HeldDocuments,
         evidence: ImportEvidence,
         runner: LongRunner,
-    ) = ImportCounterparties(tx, parties, dryRuns, imports, clock, publisher, evidence, runner)
+    ) = ImportCounterparties(tx, parties, dryRuns, imports, clock, publisher, held, evidence, runner)
+
+    @Bean
+    fun heldDocuments(dsl: DSLContext): HeldDocuments = JooqHeldDocuments(dsl)
 
     @Bean
     fun readImportRecord(

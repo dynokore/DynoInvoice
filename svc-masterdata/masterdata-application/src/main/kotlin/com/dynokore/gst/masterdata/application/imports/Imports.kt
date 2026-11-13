@@ -2,6 +2,7 @@ package com.dynokore.gst.masterdata.application.imports
 
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
+import com.dynokore.gst.masterdata.application.held.HeldDocuments
 import com.dynokore.gst.masterdata.application.gapreport.LongOutcome
 import com.dynokore.gst.masterdata.application.gapreport.LongRunner
 import com.dynokore.gst.masterdata.application.gapreport.RecordState
@@ -252,6 +253,7 @@ class ImportCounterparties(
     private val imports: ImportStore,
     private val clock: Clock,
     private val publisher: MasterDataResolvedPublisher,
+    private val heldDocuments: HeldDocuments,
     private val evidence: ImportEvidence,
     private val runner: LongRunner,
 ) {
@@ -351,7 +353,8 @@ class ImportCounterparties(
                 approvedSchemes = null,
             )
         val content = held.after(change, record.importId, record.providedBy.origin, now)
-        publisher.publish(record.entity, parties.append(target.party, content, now, record.importId))
+        val version = parties.append(target.party, content, now, record.importId)
+        publisher.publish(record.entity, version, heldDocuments.heldFor(record.entity, target.party))
     }
 }
 
