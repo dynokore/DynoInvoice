@@ -81,3 +81,6 @@ resolveGroup.SRT-001	operation_error_code	openapi.yaml	INV-REQ-941
 resolveGroup.SRT-004	operation_error_code	openapi.yaml	INV-REQ-941
 resolveGroup.SRT-014	operation_error_code	openapi.yaml	INV-REQ-941
 resolveGroup.SRT-015	operation_error_code	openapi.yaml	INV-REQ-941
+deferDocument.SRT-005	operation_error_code	openapi.yaml	INV-REQ-960
+undeferDocument.SRT-005	operation_error_code	openapi.yaml	INV-REQ-960
+overrideException.SRT-005	operation_error_code	openapi.yaml	INV-REQ-500

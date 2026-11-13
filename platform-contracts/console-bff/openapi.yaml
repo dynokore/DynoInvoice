@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -341,13 +341,13 @@ paths:
 
 
         Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
-        console-bff`, 3 s for an operation making at most one downstream
-        call (x-timeout 3000): the one routed command.
+        console-bff`, 5 s for two sequential downstream calls (x-timeout 5000):
+        the routed read of the version or check the command needs, then the routed command.
       tags: [exceptions]
       x-principal: filing-workflow
       x-caller-auth: end-user
-      x-timeout: 3000
-      x-error-codes: []
+      x-timeout: 5000
+      x-error-codes: [SRT-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-500]
       x-operation:
         role: tax.approver
@@ -867,7 +867,7 @@ paths:
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-timeout: 3000
-      x-error-codes: []
+      x-error-codes: [SRT-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-960]
       x-operation:
         role: tax.operator
@@ -931,7 +931,7 @@ paths:
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-timeout: 3000
-      x-error-codes: []
+      x-error-codes: [SRT-005]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-960]
       x-operation:
         role: tax.operator
