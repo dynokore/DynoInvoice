@@ -64,6 +64,18 @@ class OwningServiceEdgeTest {
         }
 
     @Test
+    @DisplayName("INV-AC-21173 (c2) baseUrl throws for a raw placeholder the environment hands back unresolved")
+    fun rawPlaceholderFromEnvironment() =
+        forEachService { s ->
+            // an Environment that does not resolve nested placeholders returns the text as written
+            val raw =
+                object : MockEnvironment() {
+                    override fun getRequiredProperty(key: String): String = placeholder
+                }
+            assertThrows(IllegalArgumentException::class.java) { OwningServiceEdge.baseUrl(raw, s) }
+        }
+
+    @Test
     @DisplayName("INV-AC-21173 (d) baseUrl returns the set value unchanged for each service")
     fun setValue() =
         forEachService { s ->
