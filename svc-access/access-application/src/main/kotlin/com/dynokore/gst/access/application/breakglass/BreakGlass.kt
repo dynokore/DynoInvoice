@@ -277,45 +277,6 @@ fun expiryOf(
     hours: Int,
 ): Instant = unlockedAt.plus(Duration.ofHours(hours.toLong()))
 
-sealed interface SignInBreakGlassOutcome {
-    data class SignedIn(
-        val session: BreakGlassSession,
-    ) : SignInBreakGlassOutcome
-
-    data object NotFound : SignInBreakGlassOutcome
-
-    /** No open unlock: the session is resealed or its expiry has passed (409). */
-    data object NotOpen : SignInBreakGlassOutcome
-
-    /** A wrong sealing credential, or a tenant with no account row (403). */
-    data object WrongCredential : SignInBreakGlassOutcome
-}
-
-/**
- * `signInBreakGlass` (INV-REQ-896, INV-REQ-1262, INV-Q-8661 A): the session must exist and be open (a call at the
- * expiry instant is already refused), then the digest of the presented credential is compared with the stored
- * verifier in constant time. No account row is a wrong credential. Nothing is written.
- */
-class SignInBreakGlassUseCase(
-    private val tx: TransactionRunner,
-    private val sessions: BreakGlassSessions,
-    private val keeper: SealedAccountKeeper,
-    private val clock: Clock,
-) {
-    fun handle(
-        unlockRef: String,
-        sealingCredential: String,
-    ): SignInBreakGlassOutcome =
-        tx.inTransaction {
-            val session = sessions.find(unlockRef) ?: return@inTransaction SignInBreakGlassOutcome.NotFound
-            when {
-                !session.isOpenAt(clock.instant()) -> SignInBreakGlassOutcome.NotOpen
-                !keeper.matches(sealingCredential) -> SignInBreakGlassOutcome.WrongCredential
-                else -> SignInBreakGlassOutcome.SignedIn(session)
-            }
-        }
-}
-
 sealed interface ResealBreakGlassOutcome {
     /** Closed by this call; [credential] is the new sealing credential, null when no account row exists. */
     data class Resealed(
