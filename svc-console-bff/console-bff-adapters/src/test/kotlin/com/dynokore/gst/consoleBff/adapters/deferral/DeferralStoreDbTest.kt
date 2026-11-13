@@ -267,6 +267,23 @@ class DeferralStoreDbTest {
     }
 
     @Test
+    fun `INV-AC-21156 the store names the tenant itself when a connection bypasses RLS`() {
+        val a = UUID.randomUUID()
+        val b = UUID.randomUUID()
+        val rowA = asTenant(a) { s, _ -> s.deferIfAbsent(candidate()) }
+        // a superuser connection bypasses row level security: only the store's own tenant condition isolates here
+        ConsoleDb.superuser().use { c ->
+            c.autoCommit = false
+            SignedBindings.bind(c, b)
+            val store = JooqDeferralStore(DSL.using(c, SQLDialect.POSTGRES))
+            store.findDeferred("entity-1", rowA.target) shouldBe null
+            store.undo("entity-1", rowA.deferralId) shouldBe null
+            c.rollback()
+        }
+        asTenant(a) { s, _ -> s.findDeferred("entity-1", rowA.target) } shouldBe rowA
+    }
+
+    @Test
     fun `INV-AC-21156 the migration RLS section equals TenantRlsMigration ddl and both clauses equal the predicate`() {
         val section = migration.substringAfter(begin, "").substringBefore(end, "")
         (section.isNotBlank()) shouldBe true
