@@ -38,14 +38,27 @@ class OverrideException(
         reason: String,
     ): OverrideOutcome {
         val row = targets.find(exceptionId) ?: return OverrideOutcome.NotFound
-        if (!authority.holds(tenantId, userId, row.entityRef)) return OverrideOutcome.Forbidden
-        if (row.state != OPEN) return OverrideOutcome.NotFound
-        return when (RouteTable.routeOf(row.code)) {
-            Route.PAYLOAD -> if (row.docUuid.isEmpty()) OverrideOutcome.NotFound else viaPayload(row, reason)
-            Route.SUBMISSION -> if (row.periodRef.isEmpty()) OverrideOutcome.NotFound else viaSubmission(row, reason)
-            null -> OverrideOutcome.NotFound
+        return if (!authority.holds(tenantId, userId, row.entityRef)) {
+            OverrideOutcome.Forbidden
+        } else {
+            routed(row, reason)
         }
     }
+
+    private fun routed(
+        row: OverridableRow,
+        reason: String,
+    ): OverrideOutcome =
+        when {
+            row.state != OPEN -> OverrideOutcome.NotFound
+            else ->
+                when (RouteTable.routeOf(row.code)) {
+                    Route.PAYLOAD -> if (row.docUuid.isEmpty()) OverrideOutcome.NotFound else viaPayload(row, reason)
+                    Route.SUBMISSION ->
+                        if (row.periodRef.isEmpty()) OverrideOutcome.NotFound else viaSubmission(row, reason)
+                    null -> OverrideOutcome.NotFound
+                }
+        }
 
     private fun viaPayload(
         row: OverridableRow,
