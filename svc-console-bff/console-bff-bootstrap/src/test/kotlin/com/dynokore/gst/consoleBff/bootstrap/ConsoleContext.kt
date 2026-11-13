@@ -27,6 +27,8 @@ object ConsoleContext {
             "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
             "spring.datasource.url=$OFFLINE_URL",
             "console.canonical-svc-url=http://localhost:8082", // CanonicalEdgeClient requires its base URL (TPL-16)
+            "console.payload-svc-url=http://localhost:8083", // PayloadOverrideClient requires its base URL (TPL-16)
+            "console.submission-svc-url=http://localhost:8084", // SubmissionOverrideClient requires its base URL (TPL-16)
             *extra,
         )
     }
