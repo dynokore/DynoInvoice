@@ -171,7 +171,7 @@ class ProvisionalReadinessDbTest {
     }
 
     @Test
-    fun `the anti-join hides a provisional row whose docUuid has a register row`() {
+    fun `INV-AC-1778 the anti-join hides a provisional row whose docUuid has a register row`() {
         val doc = UUID.randomUUID().toString()
         place(held(doc, "ING-016"))
         // Insert the register row directly so the provisional row survives (the store would delete it).

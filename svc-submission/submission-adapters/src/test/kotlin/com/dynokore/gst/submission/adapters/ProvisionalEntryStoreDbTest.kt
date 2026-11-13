@@ -130,7 +130,8 @@ class ProvisionalEntryStoreDbTest {
         val grants =
             dsl
                 .fetch(
-                    "select case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end, a.privilege_type " +
+                    "select case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end, " +
+                        "a.privilege_type " +
                         "from pg_class c, aclexplode(c.relacl) a " +
                         "where c.oid = 'submission.provisional_register_entry'::regclass and a.grantee <> c.relowner " +
                         "order by 1, 2",
@@ -186,6 +187,16 @@ class ProvisionalEntryStoreDbTest {
         place(provisional(d3)) shouldBe Placement.PLACED
         // The entry carries tenant T2 while the session is bound to T1: the with-check of the register rejects it.
         shouldThrow<Exception> { asTenant(t1) { register.upsert(TenantId(t2), registerEntry(d3, 1)) } }
+        rows(d3).size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-20691 a register insert rejected for the same tenant keeps the provisional row of that tenant`() {
+        val d3 = UUID.randomUUID().toString()
+        place(provisional(d3)) shouldBe Placement.PLACED
+        // A NUL byte in a text column is rejected by the database after the tenant check, so the entry names T1.
+        val bad = registerEntry(d3, 1).copy(periodRef = "2026-06\u0000")
+        shouldThrow<Exception> { asTenant(t1) { register.upsert(TenantId(t1), bad) } }
         rows(d3).size shouldBe 1
     }
 
