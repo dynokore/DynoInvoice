@@ -1,6 +1,6 @@
 package com.dynokore.gst.consoleBff.adapters.clients
 
-import com.dynokore.gst.consoleBff.adapters.clients.model.ReleaseHeldDocumentRequest
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.model.ReleaseHeldDocumentRequest
 import com.dynokore.platform.serviceruntime.client.InternalRestClientAutoConfiguration
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentEndUserToken
 import com.dynokore.platform.serviceruntime.resilience.http.EndUserTokenPropagationInterceptor

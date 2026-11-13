@@ -1,13 +1,13 @@
 package com.dynokore.gst.consoleBff.adapters.clients
 
-import com.dynokore.gst.consoleBff.adapters.clients.api.DocumentsApi
-import com.dynokore.gst.consoleBff.adapters.clients.api.ReassignmentsApi
-import com.dynokore.gst.consoleBff.adapters.clients.model.DocumentSummary
-import com.dynokore.gst.consoleBff.adapters.clients.model.DocumentVersion
-import com.dynokore.gst.consoleBff.adapters.clients.model.PreparedReassignment
-import com.dynokore.gst.consoleBff.adapters.clients.model.PreparedReassignmentPage
-import com.dynokore.gst.consoleBff.adapters.clients.model.ReleaseHeldDocumentRequest
-import com.dynokore.gst.consoleBff.adapters.clients.model.ReleasedDocument
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.api.DocumentsApi
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.api.ReassignmentsApi
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.model.DocumentSummary
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.model.DocumentVersion
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.model.PreparedReassignment
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.model.PreparedReassignmentPage
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.model.ReleaseHeldDocumentRequest
+import com.dynokore.gst.consoleBff.adapters.clients.canonical.model.ReleasedDocument
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
