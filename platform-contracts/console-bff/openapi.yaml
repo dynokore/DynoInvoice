@@ -777,7 +777,13 @@ paths:
           schema:
             type: string
             maxLength: 40
-        - $ref: '../masterdata/openapi.yaml#/components/parameters/IdempotencyKey'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 'API-15: a UUID, deduplicating an exact request replay for at least 24h.'
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
