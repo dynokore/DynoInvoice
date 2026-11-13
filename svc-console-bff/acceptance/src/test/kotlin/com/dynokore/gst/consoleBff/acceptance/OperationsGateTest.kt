@@ -1,8 +1,13 @@
 package com.dynokore.gst.consoleBff.acceptance
 
+import com.dynokore.gst.consoleBff.contract.api.ConfigurationApi
+import com.dynokore.gst.consoleBff.contract.api.DeferralsApi
+import com.dynokore.gst.consoleBff.contract.api.DocumentsApi
 import com.dynokore.gst.consoleBff.contract.api.EvidenceApi
 import com.dynokore.gst.consoleBff.contract.api.ExceptionsApi
+import com.dynokore.gst.consoleBff.contract.api.PortfolioApi
 import com.dynokore.gst.consoleBff.contract.api.PrivacyApi
+import com.dynokore.gst.consoleBff.contract.api.ProfilesApi
 import com.dynokore.gst.consoleBff.contract.api.SupportApi
 import com.dynokore.gst.consoleBff.contract.api.WorkspacesApi
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -23,9 +28,14 @@ class OperationsGateTest {
     private val stubs: Set<String> =
         OperationsStubs.stubs(
             listOf(
+                ConfigurationApi::class.java,
+                DeferralsApi::class.java,
+                DocumentsApi::class.java,
                 EvidenceApi::class.java,
                 ExceptionsApi::class.java,
+                PortfolioApi::class.java,
                 PrivacyApi::class.java,
+                ProfilesApi::class.java,
                 SupportApi::class.java,
                 WorkspacesApi::class.java,
             ),
@@ -40,8 +50,39 @@ class OperationsGateTest {
 
     @Test
     fun `INV-AC-14437 the real table covers the real contract`() {
-        OperationsGate.contractOperations(openapi).size shouldBe 6
+        OperationsGate.contractOperations(openapi).size shouldBe 16
         OperationsGate.contractChannels(asyncapi).size shouldBe 1
+        run(done = doneText).shouldBeEmpty()
+        doneText shouldBe ""
+    }
+
+    @Test
+    fun `INV-AC-21120 sixteen operations, ten added rows UNASSIGNED, stubs equal the contract`() {
+        val ids = OperationsGate.contractOperations(openapi)
+        ids.size shouldBe 16
+        OperationsGate.contractChannels(asyncapi).size shouldBe 1
+        val rows = tsv.lines().filter { it.isNotBlank() }.map { it.split('\t') }
+        rows.filter { it[0] == "operation" }.map { it[1] }.toSet() shouldBe ids
+        val added =
+            listOf(
+                "getPortfolio",
+                "getExceptionDecisionTrace",
+                "getOverridePreview",
+                "promoteConfiguration",
+                "deferDocument",
+                "undeferDocument",
+                "searchDocuments",
+                "compareDocumentVersions",
+                "previewConfigurationPromotion",
+                "applyOperatingProfile",
+            )
+        for (id in added) {
+            val own = rows.filter { it[0] == "operation" && it[1] == id }
+            own.size shouldBe 1
+            own.single()[2] shouldBe "UNASSIGNED"
+        }
+        stubs.size shouldBe 16
+        stubs shouldBe ids
         run(done = doneText).shouldBeEmpty()
         doneText shouldBe ""
     }

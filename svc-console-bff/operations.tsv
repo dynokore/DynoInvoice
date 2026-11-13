@@ -6,3 +6,13 @@ operation	correctPersonalData	UNASSIGNED
 operation	copyAnonymisedSample	UNASSIGNED
 operation	exportSupportBundle	UNASSIGNED
 channel	gst.console-bff.example-happened.v1	UNASSIGNED
+operation	getPortfolio	UNASSIGNED
+operation	getExceptionDecisionTrace	UNASSIGNED
+operation	getOverridePreview	UNASSIGNED
+operation	promoteConfiguration	UNASSIGNED
+operation	deferDocument	UNASSIGNED
+operation	undeferDocument	UNASSIGNED
+operation	searchDocuments	UNASSIGNED
+operation	compareDocumentVersions	UNASSIGNED
+operation	previewConfigurationPromotion	UNASSIGNED
+operation	applyOperatingProfile	UNASSIGNED

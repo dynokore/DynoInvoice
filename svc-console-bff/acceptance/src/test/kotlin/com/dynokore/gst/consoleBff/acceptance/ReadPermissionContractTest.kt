@@ -112,7 +112,15 @@ class ReadPermissionContractTest {
     }
 
     private companion object {
-        /** GET operations of the contract that have no permission decision yet; empty at this breakdown. */
-        val EXPECTED_UNMAPPED: Set<String> = emptySet()
+        /** GET operations of the contract that have no permission decision yet (the filter refuses their routes). */
+        val EXPECTED_UNMAPPED: Set<String> =
+            setOf(
+                "getPortfolio",
+                "getExceptionDecisionTrace",
+                "getOverridePreview",
+                "searchDocuments",
+                "compareDocumentVersions",
+                "previewConfigurationPromotion",
+            )
     }
 }
