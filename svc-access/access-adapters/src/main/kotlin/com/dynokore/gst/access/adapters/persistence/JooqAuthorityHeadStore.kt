@@ -2,7 +2,6 @@ package com.dynokore.gst.access.adapters.persistence
 
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 
 /** The head record of the authority versions (INV-Q-17072 A): the one row of `access.authority_head`. */
 interface AuthorityHeadStore {
@@ -17,19 +16,23 @@ interface AuthorityHeadStore {
 }
 
 /**
- * jOOQ implementation of [AuthorityHeadStore]. [advance] calls the SECURITY DEFINER function [FUNCTION] (TPL-11,
- * the form of [JooqIdpSyncClaim]): tenancy-jooq refuses a write of this platform-scoped table under a tenant
- * binding, so the write runs as `access_sys` through the function, which takes the row lock of the one row (so
- * concurrent transactions queue on it until commit and cannot deadlock) and keeps the record monotonic whatever the
- * commit order.
+ * jOOQ implementation of [AuthorityHeadStore]. The upsert takes the row lock of the one row, so concurrent
+ * transactions queue on it until commit and cannot deadlock (one lock only); `greatest` keeps the record monotonic
+ * whatever the commit order.
  */
 class JooqAuthorityHeadStore(
     private val dsl: DSLContext,
 ) : AuthorityHeadStore {
     override fun advance(version: Long) {
         require(version >= 1) { "an authority version is 1 or more, not $version" }
-        val advance = DSL.function(DSL.name(ACCESS_SCHEMA, FUNCTION), SQLDataType.BIGINT, DSL.`val`(version))
-        dsl.select(advance).fetchOne()
+        dsl
+            .insertInto(TABLE)
+            .columns(SINGLETON, VERSION)
+            .values(true, version)
+            .onConflict(SINGLETON)
+            .doUpdate()
+            .set(VERSION, DSL.greatest(STORED_VERSION, DSL.excluded(VERSION)))
+            .execute()
     }
 
     override fun current(): Long? =
@@ -39,10 +42,13 @@ class JooqAuthorityHeadStore(
             .where(SINGLETON.isTrue)
             .fetchOne(VERSION)
 
-    companion object {
-        const val FUNCTION = "advance_authority_head"
-        private val TABLE = DSL.table(DSL.name(ACCESS_SCHEMA, "authority_head"))
-        private val SINGLETON = DSL.field(DSL.name("singleton"), SQLDataType.BOOLEAN)
-        private val VERSION = DSL.field(DSL.name("authority_version"), SQLDataType.BIGINT)
+    private companion object {
+        val TABLE = DSL.table(DSL.name(ACCESS_SCHEMA, "authority_head"))
+        val SINGLETON = DSL.field(DSL.name("singleton"), org.jooq.impl.SQLDataType.BOOLEAN)
+        val VERSION = DSL.field(DSL.name("authority_version"), org.jooq.impl.SQLDataType.BIGINT)
+
+        /** The stored value, qualified by the table: in the update of an upsert the bare name is ambiguous. */
+        val STORED_VERSION =
+            DSL.field(DSL.name(ACCESS_SCHEMA, "authority_head", "authority_version"), org.jooq.impl.SQLDataType.BIGINT)
     }
 }

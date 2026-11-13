@@ -466,9 +466,6 @@ object BoundaryFixture {
                 "service-runtime.pool.profile=minimal",
                 "service-runtime.event-loops.enabled=false",
                 "access.gateway.workload-subject=system:serviceaccount:gateway:api-gateway",
-                // quiet by default (INV-T-9060): the production interval is 500ms, too fast for a test context that
-                // runs longer than that; a test of the heartbeat itself overrides this through tokenProperties.
-                "access.authority-head.interval=PT1H",
                 *tokenProperties,
                 "access.identity-provider.issuer-uri=http://127.0.0.1:1/realms/boundary-test",
                 "access.identity-provider.directory.base-uri=http://127.0.0.1:1",
