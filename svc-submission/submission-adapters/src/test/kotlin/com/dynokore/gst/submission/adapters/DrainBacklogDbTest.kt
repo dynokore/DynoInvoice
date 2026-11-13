@@ -3,6 +3,13 @@ package com.dynokore.gst.submission.adapters
 import com.dynokore.gst.submission.adapters.persistence.JooqDrainBacklog
 import com.dynokore.gst.submission.adapters.persistence.JooqDrainResidualSource
 import com.dynokore.gst.submission.application.drain.QueuedVersion
+import com.dynokore.platform.outboxandqueue.JdbcWorkQueue
+import com.dynokore.platform.outboxandqueue.LaneLimits
+import com.dynokore.platform.outboxandqueue.LaneRateLimiter
+import com.dynokore.platform.outboxandqueue.PendingPartitionReader
+import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.tenancykernel.CurrentConnection
+import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
@@ -10,6 +17,8 @@ import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import java.sql.Connection
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -31,9 +40,35 @@ class DrainBacklogDbTest {
                 return block().also { connection.commit() }
             }
         }
-    private val source = JooqDrainBacklog(dsl, runner)
+    private val source = JooqDrainBacklog(dsl, runner, realReader(connection, dsl))
     private val t0 = Instant.parse("2026-11-01T01:00:00Z")
     private val s = UUID.randomUUID().toString().take(8)
+
+    /** The real [JdbcWorkQueue] as the reader, built over the same connection; the tenant is the bound one. */
+    private fun realReader(
+        connection: Connection,
+        dsl: org.jooq.DSLContext,
+    ): PendingPartitionReader {
+        val tenants =
+            object : TenantContext {
+                override fun current(): TenantId = TenantId(checkNotNull(bound.get()))
+
+                override fun currentActor(): String = SignedBindings.ACTOR
+
+                override fun <T> bind(
+                    tenant: TenantId,
+                    actor: String,
+                    block: () -> T,
+                ): T = error("not used")
+            }
+        val current =
+            object : CurrentConnection {
+                override fun require(): Connection = connection
+            }
+        val scope = TenantScope(tenants, runner, current, SignedBindings.ACTOR)
+        val limiter = LaneRateLimiter(scope, dsl, SubmissionDb.SCHEMA, LaneLimits())
+        return JdbcWorkQueue(scope, dsl, SubmissionDb.SCHEMA, limiter, Clock.systemUTC())
+    }
 
     @AfterEach
     fun close() = connection.close()
@@ -83,7 +118,7 @@ class DrainBacklogDbTest {
                 "insert into submission.work_queue (tenant_id, partition_key, lane, payload, state) " +
                     "values (?, ?, 'LIVE', ?::jsonb, ?)",
                 tenant,
-                "P-$doc",
+                doc,
                 """{"docUuid":"$doc","version":1}""",
                 item,
             )
@@ -165,7 +200,11 @@ class DrainBacklogDbTest {
     fun `INV-AC-20847 with the connection failing the queued source returns null, never an empty list`() {
         val t = UUID.randomUUID()
         seed(t, "f1-$s", "E1-$s", "2026-Q1", t0)
-        JooqDrainBacklog(failingDsl(), passThrough).queued(TenantId(t)) shouldBe null
+        val reader =
+            object : PendingPartitionReader {
+                override fun pendingPartitionKeys() = listOf("f1-$s")
+            }
+        JooqDrainBacklog(failingDsl(), passThrough, reader).queued(TenantId(t)) shouldBe null
     }
 
     @Test
