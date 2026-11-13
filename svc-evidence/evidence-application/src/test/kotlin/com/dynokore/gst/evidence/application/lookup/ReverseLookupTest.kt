@@ -1,6 +1,13 @@
 package com.dynokore.gst.evidence.application.lookup
 
 import com.dynokore.gst.evidence.application.auditedread.AuditedReads
+import com.dynokore.gst.evidence.application.integrity.IntegrityFailureRow
+import com.dynokore.gst.evidence.application.integrity.IntegrityRunRow
+import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
+import com.dynokore.gst.evidence.application.integrity.IntegrityStore
+import com.dynokore.gst.evidence.domain.integrity.IntegrityState
+import com.dynokore.gst.evidence.domain.integrity.RunCause
+import com.dynokore.gst.evidence.domain.integrity.RunResult
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -41,7 +48,8 @@ class ReverseLookupTest {
     private val user = Principal("user-42", PrincipalKind.HUMAN)
     private val noKeyUser = Principal("user-43", PrincipalKind.HUMAN)
     private val calls = mutableListOf<String>()
-    private val row = ReverseLookupRow(ReverseLookupKey(LocalDate.of(2026, 1, 15), doc, 1), "SENT", null, null)
+    private val row =
+        ReverseLookupRow(ReverseLookupKey(LocalDate.of(2026, 1, 15), doc, 1), "SENT", null, null, null, null)
     private val seen = mutableListOf<Triple<ReverseLookupFilter, ReverseLookupKey?, Int>>()
 
     private inner class Rows(
@@ -58,6 +66,47 @@ class ReverseLookupTest {
             return rows.filter { after == null || it.key.version > after.version }.take(limit)
         }
     }
+
+    private class Runs(
+        private val runs: Map<Triple<TenantId, String, String>, RunResult>,
+    ) : IntegrityStore {
+        val asked = mutableListOf<Triple<TenantId, String, String>>()
+
+        override fun lock(
+            tenant: TenantId,
+            entityRef: String,
+            period: String,
+        ) = Unit
+
+        override fun failureExists(
+            tenant: TenantId,
+            row: IntegrityFailureRow,
+        ) = false
+
+        override fun insertFailure(
+            tenant: TenantId,
+            row: IntegrityFailureRow,
+        ) = Unit
+
+        override fun insertRun(
+            tenant: TenantId,
+            row: IntegrityRunRow,
+        ) = Unit
+
+        override fun latestRun(
+            tenant: TenantId,
+            entityRef: String,
+            period: String,
+        ): IntegrityRunRow? {
+            asked += Triple(tenant, entityRef, period)
+            val at = Instant.parse("2026-11-01T00:00:00Z")
+            return runs[Triple(tenant, entityRef, period)]?.let {
+                IntegrityRunRow(entityRef, period, "r", at, it, RunCause.VERIFICATION, 1, null)
+            }
+        }
+    }
+
+    private var store = Runs(emptyMap())
 
     private class Audit : AuditedOperations {
         val entries = mutableListOf<AuditEntry>()
@@ -124,7 +173,8 @@ class ReverseLookupTest {
         filter: ReverseLookupFilter = ReverseLookupFilter(),
         limit: Int = 100,
         cursor: String? = null,
-    ) = ReverseLookup(replica, Rows(rows), AuditedReads(audit)).lookup(t1, who, filter, limit, cursor, context)
+    ) = ReverseLookup(replica, Rows(rows), IntegrityStatusQueryHandler(store), AuditedReads(audit))
+        .lookup(t1, who, filter, limit, cursor, context)
 
     @Test
     fun `INV-AC-20722 a caller with the key gets the page with state SENT and no ack`() {
@@ -207,6 +257,94 @@ class ReverseLookupTest {
                 .shouldBeInstanceOf<ReverseLookupResult.Page>()
         third.items shouldBe rows.drop(4)
         third.nextCursor shouldBe null
+    }
+
+    private fun pairRow(
+        version: Int,
+        entity: String?,
+        period: String?,
+    ) = row.copy(key = row.key.copy(version = version), entityRef = entity, periodRef = period)
+
+    private fun status(
+        runs: Map<Triple<TenantId, String, String>, RunResult>,
+        rows: List<ReverseLookupRow>,
+        limit: Int = 100,
+    ): IntegrityState {
+        store = Runs(runs)
+        return lookup(rows = rows, limit = limit).shouldBeInstanceOf<ReverseLookupResult.Page>().integrityStatus
+    }
+
+    private fun run(
+        tenant: TenantId,
+        entity: String,
+        period: String,
+        result: RunResult,
+    ) = Triple(tenant, entity, period) to result
+
+    private val v1 = run(t1, "E1", "P1", RunResult.VERIFIED)
+    private val v2 = run(t1, "E2", "P1", RunResult.VERIFIED)
+    private val f2 = run(t1, "E2", "P1", RunResult.FAILED)
+    private val r1 = pairRow(1, "E1", "P1")
+    private val r2 = pairRow(2, "E2", "P1")
+
+    @Test
+    fun `INV-AC-21950 all pairs VERIFIED gives VERIFIED`() {
+        status(mapOf(v1, v2), listOf(r1, r2)) shouldBe IntegrityState.VERIFIED
+    }
+
+    @Test
+    fun `INV-AC-21950 one FAILED and one VERIFIED gives FAILED`() {
+        status(mapOf(v1, f2), listOf(r1, r2)) shouldBe IntegrityState.FAILED
+    }
+
+    @Test
+    fun `INV-AC-21950 one FAILED and one with no run gives FAILED`() {
+        status(mapOf(f2), listOf(r1, r2)) shouldBe IntegrityState.FAILED
+    }
+
+    @Test
+    fun `INV-AC-21950 one with no run and one VERIFIED gives NEVER_RUN`() {
+        status(mapOf(v1), listOf(r1, r2)) shouldBe IntegrityState.NEVER_RUN
+    }
+
+    @Test
+    fun `INV-AC-21950 an empty page gives NEVER_RUN`() {
+        status(mapOf(v1), emptyList()) shouldBe IntegrityState.NEVER_RUN
+    }
+
+    @Test
+    fun `INV-AC-21950 a row with a null entityRef or periodRef among VERIFIED rows gives NEVER_RUN`() {
+        status(mapOf(v1, v2), listOf(r1, r2, pairRow(3, null, "P1"))) shouldBe IntegrityState.NEVER_RUN
+        status(mapOf(v1, v2), listOf(r1, r2, pairRow(3, "E1", null))) shouldBe IntegrityState.NEVER_RUN
+    }
+
+    @Test
+    fun `INV-AC-21950 three rows of one pair ask the store once`() {
+        status(mapOf(v1), listOf(r1, pairRow(2, "E1", "P1"), pairRow(3, "E1", "P1"))) shouldBe IntegrityState.VERIFIED
+        store.asked shouldBe listOf(Triple(t1, "E1", "P1"))
+    }
+
+    @Test
+    fun `INV-AC-21950 the extra row read for the cursor is never asked`() {
+        val r3 = pairRow(3, "E3", "P1")
+        status(mapOf(v1, v2, run(t1, "E3", "P1", RunResult.FAILED)), listOf(r1, r2, r3), limit = 2) shouldBe
+            IntegrityState.VERIFIED
+        store.asked.map { it.second } shouldBe listOf("E1", "E2")
+    }
+
+    @Test
+    fun `INV-AC-21950 a FAILED run of another period or of another tenant leaves the page VERIFIED`() {
+        val other = mapOf(v1, run(t1, "E1", "P2", RunResult.FAILED), run(t2, "E1", "P1", RunResult.FAILED))
+        status(other, listOf(r1)) shouldBe IntegrityState.VERIFIED
+    }
+
+    @Test
+    fun `INV-AC-21950 Forbidden and InvalidRequest ask the integrity store nothing`() {
+        store = Runs(mapOf(v1))
+        lookup(who = noKeyUser, rows = listOf(r1)) shouldBe ReverseLookupResult.Forbidden
+        lookup(limit = 0, rows = listOf(r1)) shouldBe ReverseLookupResult.InvalidRequest
+        lookup(cursor = "!!!", rows = listOf(r1)) shouldBe ReverseLookupResult.InvalidRequest
+        store.asked shouldBe emptyList()
     }
 
     private companion object {

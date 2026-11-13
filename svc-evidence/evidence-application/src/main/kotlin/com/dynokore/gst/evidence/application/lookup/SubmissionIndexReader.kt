@@ -26,12 +26,15 @@ data class ReverseLookupKey(
 /**
  * One matching document version. [state] is the stored lifecycle state verbatim (never null: a row without state is
  * not returned); [ackId] and [acknowledgedAt] are set only once the acknowledgement is written.
+ * [entityRef] and [periodRef] are as written, null when absent.
  */
 data class ReverseLookupRow(
     val key: ReverseLookupKey,
     val state: String,
     val ackId: String?,
     val acknowledgedAt: Instant?,
+    val entityRef: String?,
+    val periodRef: String?,
 )
 
 /** Reads `submission_index` in the caller's tenant transaction (INV-REQ-724). */

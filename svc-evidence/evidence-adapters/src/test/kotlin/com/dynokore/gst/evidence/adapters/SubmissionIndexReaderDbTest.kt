@@ -35,13 +35,15 @@ class SubmissionIndexReaderDbTest {
         state: String? = "SENT",
         ack: String? = null,
         codes: List<String> = emptyList(),
+        entity: String? = null,
     ) {
         fun q(v: String?) = v?.let { "'$it'" } ?: "null"
         sql(
-            "insert into evidence.submission_index (tenant_id, doc_uuid, version, period_ref, document_number, " +
-                "document_date, counterparty_uen, ack_id, acknowledged_at, state, recorded_at) values " +
-                "('$tenantId', '$doc', $version, ${q(period)}, ${q(number)}, ${q(date)}, ${q(counterparty)}, " +
-                "${q(ack)}, ${if (ack == null) "null" else "'$ackAt'"}, ${q(state)}, now())",
+            "insert into evidence.submission_index (tenant_id, doc_uuid, version, entity_ref, period_ref, " +
+                "document_number, document_date, counterparty_uen, ack_id, acknowledged_at, state, recorded_at) " +
+                "values " +
+                "('$tenantId', '$doc', $version, ${q(entity)}, ${q(period)}, ${q(number)}, ${q(date)}, " +
+                "${q(counterparty)}, ${q(ack)}, ${if (ack == null) "null" else "'$ackAt'"}, ${q(state)}, now())",
             *codes
                 .map {
                     "insert into evidence.submission_index_category values ('$tenantId', '$doc', $version, '$it')"
@@ -64,6 +66,19 @@ class SubmissionIndexReaderDbTest {
         }
 
     private fun docs(filter: ReverseLookupFilter) = read(filter).map { it.key.docUuid }.toSet()
+
+    @Test
+    fun `INV-AC-21950 every row carries the entity_ref and period_ref it was written with`() {
+        val a = UUID.randomUUID()
+        val b = UUID.randomUUID()
+        put(doc = a, entity = "E1", period = "2026-Q1", date = "2026-01-10")
+        put(doc = b, entity = null, period = "2026-Q2", date = "2026-01-11")
+        val rows = read().associateBy { it.key.docUuid }
+        rows.getValue(a).entityRef shouldBe "E1"
+        rows.getValue(a).periodRef shouldBe "2026-Q1"
+        rows.getValue(b).entityRef shouldBe null
+        rows.getValue(b).periodRef shouldBe "2026-Q2"
+    }
 
     @Test
     fun `INV-AC-20722 each filter alone returns only matching versions`() {

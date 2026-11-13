@@ -1,8 +1,11 @@
 package com.dynokore.gst.evidence.application.lookup
 
 import com.dynokore.gst.evidence.application.auditedread.AuditedReads
+import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQuery
+import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
 import com.dynokore.gst.evidence.domain.auditedread.AuditedCall
 import com.dynokore.gst.evidence.domain.auditedread.ReverseLookupParameter
+import com.dynokore.gst.evidence.domain.integrity.IntegrityState
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.Principal
@@ -15,10 +18,14 @@ import java.util.UUID
 const val ENQUIRY_LOOKUP_REVERSE = "enquiry-lookup.reverse"
 
 sealed interface ReverseLookupResult {
-    /** [nextCursor] is opaque (base64url) and null on the last page. */
+    /**
+     * [nextCursor] is opaque (base64url) and null on the last page. [integrityStatus] is the worst integrity status of
+     * the (entity, period) pairs of [items] (DEP-007).
+     */
     data class Page(
         val items: List<ReverseLookupRow>,
         val nextCursor: String?,
+        val integrityStatus: IntegrityState,
     ) : ReverseLookupResult
 
     /** The permission is not held, or the decision is unavailable (fail closed). */
@@ -36,6 +43,7 @@ sealed interface ReverseLookupResult {
 class ReverseLookup(
     private val replica: AuthorityReplica,
     private val reader: SubmissionIndexReader,
+    private val integrity: IntegrityStatusQueryHandler,
     private val audited: AuditedReads,
 ) {
     @Suppress("LongParameterList") // the request of the operation: caller, filters, page, audit context
@@ -67,8 +75,30 @@ class ReverseLookup(
         audited.perform(AuditedCall.ReverseLookup(parametersOf(filter)), principal.id, context) {
             val rows = reader.read(tenant, filter, after, limit + 1)
             val page = rows.take(limit)
-            ReverseLookupResult.Page(page, if (rows.size > limit) encode(page.last().key) else null)
+            ReverseLookupResult.Page(
+                page,
+                if (rows.size > limit) encode(page.last().key) else null,
+                integrityOf(tenant, page),
+            )
         }
+
+    /**
+     * Fail-closed aggregate (NIST SP 800-53 SI-7): FAILED if any pair failed; else NEVER_RUN when any pair has no run,
+     * a row lacks its entity or period, or the page is empty; else VERIFIED. Each distinct pair is asked once.
+     */
+    private fun integrityOf(
+        tenant: TenantId,
+        page: List<ReverseLookupRow>,
+    ): IntegrityState {
+        val pairs = page.mapNotNull { r -> r.entityRef?.let { e -> r.periodRef?.let { p -> e to p } } }.toSet()
+        val states = pairs.map { (e, p) -> integrity.handle(tenant, IntegrityStatusQuery(e, p)).result }
+        return when {
+            IntegrityState.FAILED in states -> IntegrityState.FAILED
+            page.isEmpty() || page.any { it.entityRef == null || it.periodRef == null } -> IntegrityState.NEVER_RUN
+            IntegrityState.NEVER_RUN in states -> IntegrityState.NEVER_RUN
+            else -> IntegrityState.VERIFIED
+        }
+    }
 
     private fun parametersOf(filter: ReverseLookupFilter): Map<ReverseLookupParameter, String> =
         buildMap {

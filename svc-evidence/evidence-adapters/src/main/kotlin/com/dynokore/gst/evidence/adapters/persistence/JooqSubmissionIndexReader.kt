@@ -28,8 +28,16 @@ class JooqSubmissionIndexReader(
     ): List<ReverseLookupRow> {
         val i = SUBMISSION_INDEX
         return dsl
-            .select(i.DOCUMENT_DATE, i.DOC_UUID, i.VERSION, i.STATE, i.ACK_ID, i.ACKNOWLEDGED_AT)
-            .from(i)
+            .select(
+                i.DOCUMENT_DATE,
+                i.DOC_UUID,
+                i.VERSION,
+                i.STATE,
+                i.ACK_ID,
+                i.ACKNOWLEDGED_AT,
+                i.ENTITY_REF,
+                i.PERIOD_REF,
+            ).from(i)
             .where(conditions(tenant, filter, after))
             .orderBy(i.DOCUMENT_DATE, i.DOC_UUID, i.VERSION)
             .limit(limit)
@@ -44,6 +52,8 @@ class JooqSubmissionIndexReader(
                     checkNotNull(it[i.STATE]),
                     it[i.ACK_ID],
                     it[i.ACKNOWLEDGED_AT]?.toInstant(),
+                    it[i.ENTITY_REF],
+                    it[i.PERIOD_REF],
                 )
             }
     }
