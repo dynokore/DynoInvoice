@@ -1,8 +1,8 @@
 package com.dynokore.gst.access.bootstrap
 
-import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.events.OperatorAccessOutbox
 import com.dynokore.gst.access.adapters.events.OperatorSessionKeysChangedOutbox
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.JooqAuthorityVersions
 import com.dynokore.gst.access.adapters.persistence.JooqOperatorKeyPublication
 import com.dynokore.gst.access.adapters.structure.ReplicaTenantDirectory

@@ -60,9 +60,21 @@ class AuthorityRoundTripTest {
     private val versions = AtomicLong(0)
     private val mapper = RoleGrantMapper()
     private val writer = CapturedEvents()
-    private val grantsOut = AuthorityChangedOutbox(writer, JsonMapper.builder().build(), InMemoryAuthorityHead(), InMemoryAuthorityIncarnation())
+    private val grantsOut =
+        AuthorityChangedOutbox(
+            writer,
+            JsonMapper.builder().build(),
+            InMemoryAuthorityHead(),
+            InMemoryAuthorityIncarnation(),
+        )
     private val revocationsOut =
-        PrincipalRevocationOutbox(writer, JsonMapper.builder().build(), clock, InMemoryAuthorityHead(), InMemoryAuthorityIncarnation())
+        PrincipalRevocationOutbox(
+            writer,
+            JsonMapper.builder().build(),
+            clock,
+            InMemoryAuthorityHead(),
+            InMemoryAuthorityIncarnation(),
+        )
 
     private val operations =
         mapOf(

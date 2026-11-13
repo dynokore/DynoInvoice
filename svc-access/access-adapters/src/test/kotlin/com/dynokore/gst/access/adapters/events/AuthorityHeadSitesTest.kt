@@ -59,7 +59,12 @@ class AuthorityHeadSitesTest {
 
     @Test
     fun `INV-AC-9051 a grant append advances the head record with its authorityVersion`() {
-        AuthorityChangedOutbox(writer, mapper, head, InMemoryAuthorityIncarnation()).publish(listOf(grant(21), grant(22)))
+        AuthorityChangedOutbox(
+            writer,
+            mapper,
+            head,
+            InMemoryAuthorityIncarnation(),
+        ).publish(listOf(grant(21), grant(22)))
         assertEquals(listOf(21L, 22L), head.advanced)
         assertEquals(22L, head.current())
     }
@@ -97,7 +102,15 @@ class AuthorityHeadSitesTest {
                 PrincipalStatus.REVOKED,
                 1,
             )
-        PrincipalRevocationOutbox(writer, mapper, Clock.systemUTC(), head, InMemoryAuthorityIncarnation()).publishRevoked(principal) { 41L }
+        PrincipalRevocationOutbox(
+            writer,
+            mapper,
+            Clock.systemUTC(),
+            head,
+            InMemoryAuthorityIncarnation(),
+        ).publishRevoked(principal) {
+            41L
+        }
         assertEquals(listOf(41L), head.advanced)
     }
 

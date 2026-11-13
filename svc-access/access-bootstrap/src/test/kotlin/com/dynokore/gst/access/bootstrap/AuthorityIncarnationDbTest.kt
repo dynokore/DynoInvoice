@@ -31,7 +31,7 @@ class AuthorityIncarnationDbTest {
             .runner(
                 catalogueMatrix = true,
                 tokenProperties =
-                    TestSecrets.TOKEN_PROPERTIES + BoundaryFixture.INSTALLATION_ROLES + arrayOf("access.authority-head.interval=PT1H"),
+                    TestSecrets.TOKEN_PROPERTIES + BoundaryFixture.INSTALLATION_ROLES + QUIET,
             ).run { context ->
                 context.startupFailure?.let { throw it }
                 result = block(context)
@@ -123,7 +123,7 @@ class AuthorityIncarnationDbTest {
     }
 
     @Test
-    fun `INV-AC-22069 a sequence set back below the mark raises the incarnation at start to max of stored plus 1 and now`() {
+    fun `INV-AC-22069 a sequence set back below the mark raises the incarnation at start to max(stored+1, now)`() {
         withContext { c ->
             given(incarnation = 1_000, mark = 40, sequence = 7)
             assertThat(inTx(c) { store(c, 5_000).start() }).isEqualTo(5_000L)
@@ -153,7 +153,7 @@ class AuthorityIncarnationDbTest {
     }
 
     @Test
-    fun `INV-AC-22069 bump with a later clock stores max of stored plus 1 and now, with an earlier clock stored plus 1`() {
+    fun `INV-AC-22069 bump with a later clock stores max(stored+1, now), with an earlier clock stored+1`() {
         withContext { c ->
             given(incarnation = 1_000, mark = 40, sequence = 41)
             assertThat(inTx(c) { store(c, 5_000).bump() }).isEqualTo(5_000L)
@@ -207,5 +207,9 @@ class AuthorityIncarnationDbTest {
                 .hasStackTraceContaining("integer overflow")
             assertThat(heartbeatPayloads()).isEmpty()
         }
+    }
+
+    private companion object {
+        val QUIET = arrayOf("access.authority-head.interval=PT1H")
     }
 }

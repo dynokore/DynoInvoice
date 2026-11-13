@@ -1,6 +1,5 @@
 package com.dynokore.gst.access.bootstrap
 
-import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.credential.NimbusCredentialMaterial
 import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
 import com.dynokore.gst.access.adapters.credential.VariationPointClientSecretPolicy
@@ -8,6 +7,7 @@ import com.dynokore.gst.access.adapters.events.PrincipalRevocationOutbox
 import com.dynokore.gst.access.adapters.events.StoredAuthorityVersions
 import com.dynokore.gst.access.adapters.events.VersionStoringPrincipalRevocations
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.JooqCredentialRepository
 import com.dynokore.gst.access.adapters.persistence.JooqPrincipalRepository
 import com.dynokore.gst.access.adapters.persistence.JooqRevocationListWriter
@@ -51,6 +51,7 @@ class PrincipalUseCases {
         clock: Clock,
     ): PrincipalRepository = JooqPrincipalRepository(dsl, tenants, clock)
 
+    @Suppress("LongParameterList") // one collaborator per port of the publisher
     @Bean
     fun principalRevocationPublisher(
         outbox: OutboxWriter,

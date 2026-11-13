@@ -1,6 +1,5 @@
 package com.dynokore.gst.access.bootstrap
 
-import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.consent.AgentTenancyConstraints
 import com.dynokore.gst.access.adapters.consent.VariationPointAgentTenancy
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
@@ -8,6 +7,7 @@ import com.dynokore.gst.access.adapters.events.StoredAuthorityVersions
 import com.dynokore.gst.access.adapters.events.VersionStoringConsentChanges
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.JooqConsents
 import com.dynokore.gst.access.adapters.persistence.JooqHandoverStatements
 import com.dynokore.gst.access.adapters.persistence.JooqLiveConsentProbe

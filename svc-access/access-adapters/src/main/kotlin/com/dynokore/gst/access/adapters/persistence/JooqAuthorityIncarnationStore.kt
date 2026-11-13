@@ -14,7 +14,7 @@ interface AuthorityIncarnationStore {
     /** The stored value; fails when the table holds no row (the start-time step has not run). */
     fun current(): Long
 
-    /** The start-time rule: creates the first value from the clock, or raises it when the sequence is below the mark. */
+    /** The start-time rule: the first value from the clock, or a rise when the sequence is below the mark. */
     fun start(): Long
 
     /** Raises the value to `max(stored + 1, now in epoch seconds)`; the operation of INV-T-22072 calls it. */

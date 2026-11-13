@@ -1,7 +1,7 @@
 package com.dynokore.gst.access.bootstrap
 
-import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.events.AuthorityChangedReplaySource
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.JooqInstallationRoleGrants
 import com.dynokore.gst.access.adapters.persistence.JooqReplayTenants
 import com.dynokore.platform.outboxandqueue.ReplayStateSource
@@ -20,6 +20,7 @@ import tools.jackson.databind.ObjectMapper
  */
 @Configuration(proxyBeanMethods = false)
 class ReplaySourcesConfiguration {
+    @Suppress("LongParameterList") // one collaborator per port of the replay source
     @Bean
     fun authorityChangedReplaySource(
         dsl: DSLContext,
@@ -29,5 +30,12 @@ class ReplaySourcesConfiguration {
         tenants: TenantContext,
         incarnations: AuthorityIncarnationStore,
     ): ReplayStateSource =
-        AuthorityChangedReplaySource(dsl, mapper, installation, tenants::current, JooqReplayTenants(dsl, tx), incarnations)
+        AuthorityChangedReplaySource(
+            dsl,
+            mapper,
+            installation,
+            tenants::current,
+            JooqReplayTenants(dsl, tx),
+            incarnations,
+        )
 }

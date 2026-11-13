@@ -105,7 +105,7 @@ class AuthorityChangedPayloadTest {
         schema.validate(outbox.payload(change).toString(), com.networknt.schema.InputFormat.JSON)
 
     @Test
-    fun `INV-AC-22069 every AuthorityChanged payload kind carries the stored incarnation and validates against the schema`() {
+    fun `INV-AC-22069 every AuthorityChanged payload kind carries the stored incarnation and validates`() {
         val payloads = AuthorityChangedPayloads(mapper, InMemoryAuthorityIncarnation(4_242))
         val installation =
             com.dynokore.gst.access.adapters.persistence.InstallationRoleGrantRow(
