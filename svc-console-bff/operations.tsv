@@ -16,3 +16,4 @@ operation	searchDocuments	UNASSIGNED
 operation	compareDocumentVersions	UNASSIGNED
 operation	previewConfigurationPromotion	UNASSIGNED
 operation	applyOperatingProfile	UNASSIGNED
+operation	resolveGroup	UNASSIGNED

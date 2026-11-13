@@ -50,16 +50,16 @@ class OperationsGateTest {
 
     @Test
     fun `INV-AC-14437 the real table covers the real contract`() {
-        OperationsGate.contractOperations(openapi).size shouldBe 16
+        OperationsGate.contractOperations(openapi).size shouldBe 17
         OperationsGate.contractChannels(asyncapi).size shouldBe 1
         run(done = doneText).shouldBeEmpty()
         doneText shouldBe ""
     }
 
     @Test
-    fun `INV-AC-21120 sixteen operations, ten added rows UNASSIGNED, stubs equal the contract`() {
+    fun `INV-AC-21120 seventeen operations, ten added rows UNASSIGNED, stubs equal the contract`() {
         val ids = OperationsGate.contractOperations(openapi)
-        ids.size shouldBe 16
+        ids.size shouldBe 17
         OperationsGate.contractChannels(asyncapi).size shouldBe 1
         val rows = tsv.lines().filter { it.isNotBlank() }.map { it.split('\t') }
         rows.filter { it[0] == "operation" }.map { it[1] }.toSet() shouldBe ids
@@ -81,7 +81,7 @@ class OperationsGateTest {
             own.size shouldBe 1
             own.single()[2] shouldBe "UNASSIGNED"
         }
-        stubs.size shouldBe 16
+        stubs.size shouldBe 17
         stubs shouldBe ids
         run(done = doneText).shouldBeEmpty()
         doneText shouldBe ""
