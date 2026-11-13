@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.18.0] - 2026-11-13
+### Added
+- `VerdictCachingAuthorityFallback`: a Found access-svc fallback answer is reused for at most 1000 ms per (tenant, principal id, entityRef, action), at most 10,000 entries, never NotFound or Unavailable; property `service-runtime.replica.authority-fallback-cache-ttl` (default 1s, above zero and at most 1000 ms, refused at start otherwise); counter `authority.fallback.cache.hit` (INV-Q-9085 A; INV-T-9181, INV-AC-9180).
+
 ## [13.17.1] - 2026-11-13
 ### Changed
 - Version step only: dependencies `outbox-and-queue` rose to 6.22.1, `audit-log` to 4.0.33 and `config-resolver` to 6.0.6 (test fixture only); no code change.

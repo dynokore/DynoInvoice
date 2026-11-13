@@ -41,7 +41,23 @@ data class ReplicaProperties(
      * installation (INV-Q-8972 A). Unset: tombstones are not evicted. No default exists (INV-Q-13768 A).
      */
     val authorityTombstoneTtl: Duration? = null,
-)
+    /**
+     * How long a Found access-svc fallback answer is reused (INV-Q-9085 A). At most 1000 ms and above zero: the cache
+     * cannot be switched off and the revocation tolerance stays bounded.
+     */
+    val authorityFallbackCacheTtl: Duration = Duration.ofSeconds(1),
+) {
+    init {
+        require(
+            !authorityFallbackCacheTtl.isNegative &&
+                !authorityFallbackCacheTtl.isZero &&
+                authorityFallbackCacheTtl <= VerdictCachingAuthorityFallback.MAX_TTL,
+        ) {
+            "service-runtime.replica.authority-fallback-cache-ttl must be above zero and at most " +
+                "${VerdictCachingAuthorityFallback.MAX_TTL.toMillis()} ms"
+        }
+    }
+}
 
 const val TENANCY_EDGE = "tenancy-svc"
 const val ACCESS_EDGE = "access-svc"
@@ -99,7 +115,10 @@ class ReplicaAutoConfiguration {
             properties.authorityLagBound,
             fallback.ifAvailable
                 ?.guardedBy(registry.forEdge(ACCESS_EDGE))
-                ?.let { CoalescingAuthorityFallback(it, clock, meters.ifAvailable) },
+                ?.let { CoalescingAuthorityFallback(it, clock, meters.ifAvailable) }
+                ?.let {
+                    VerdictCachingAuthorityFallback(it, clock, meters.ifAvailable, properties.authorityFallbackCacheTtl)
+                },
             DegradedAllowResource.load(
                 checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
             ),
