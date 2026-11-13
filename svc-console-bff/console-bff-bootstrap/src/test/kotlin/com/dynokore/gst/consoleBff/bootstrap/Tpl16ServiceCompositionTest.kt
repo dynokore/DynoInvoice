@@ -131,6 +131,7 @@ class Tpl16ServiceCompositionTest {
                 "consumer_sequence",
                 "consumer_source_seen",
                 "event_dead_letter",
+                "exception",
                 "event_dead_letter_triage_page",
                 "event_dead_letter_triage_v",
                 "inbox",
