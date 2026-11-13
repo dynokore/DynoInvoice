@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.23.0] - 2026-11-14
+### Added
+- New interface `PendingPartitionReader` (`pendingPartitionKeys()`): the distinct partition keys of the `PENDING` items of the bound tenant, ascending byte order (`COLLATE "C"`), empty list when none; implemented by `JdbcWorkQueue`; no schema change (see the answered design question raised at the body of INV-T-20852 (option A; tooling `gap20852b-gap.md`), INV-AC-21942, INV-T-21943).
+
 ## [6.22.1] - 2026-11-13
 ### Changed
 - Test fixture only: `OutboxPostgresFixture` declares a digest-pinned postgres image a compatible substitute for `postgres` (CI-FAST, owner INV-1 A); no production code change.

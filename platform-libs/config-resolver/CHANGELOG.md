@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.7] - 2026-11-14
+### Changed
+- Version step only: dependencies `outbox-and-queue` rose to 6.23.0 and `audit-log` to 4.0.34 (`PendingPartitionReader`; see the answered design question raised at the body of INV-T-20852 (option A; tooling `gap20852b-gap.md`), INV-AC-21942, INV-T-21943); no code change.
+
 ## [6.0.6] - 2026-11-13
 ### Changed
 - Version step only: dependencies `outbox-and-queue` rose to 6.22.1 and `audit-log` to 4.0.33 (test fixture only); no code change.

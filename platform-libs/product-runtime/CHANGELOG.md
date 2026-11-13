@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.11] - 2026-11-14
+### Changed
+- Version step only: depends on `service-runtime` 13.18.1 and `outbox-and-queue` 6.23.0 (`PendingPartitionReader`; see the answered design question raised at the body of INV-T-20852 (option A; tooling `gap20852b-gap.md`), INV-AC-21942, INV-T-21943); no code change.
+
 ## [2.19.10] - 2026-11-13
 ### Changed
 - POM only: depends on `service-runtime` 13.18.0 (`VerdictCachingAuthorityFallback`; INV-T-9181, rule G-DVS); no code change.

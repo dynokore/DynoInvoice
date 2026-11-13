@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.18.1] - 2026-11-14
+### Changed
+- Version step only: dependency `outbox-and-queue` rose to 6.23.0 (`PendingPartitionReader` is offered by the `JdbcWorkQueue` bean; see the answered design question raised at the body of INV-T-20852 (option A; tooling `gap20852b-gap.md`), INV-AC-21942, INV-T-21943); no code change.
+
 ## [13.18.0] - 2026-11-13
 ### Added
 - `VerdictCachingAuthorityFallback`: a Found access-svc fallback answer is reused for at most 1000 ms per (tenant, principal id, entityRef, action), at most 10,000 entries, never NotFound or Unavailable; property `service-runtime.replica.authority-fallback-cache-ttl` (default 1s, above zero and at most 1000 ms, refused at start otherwise); counter `authority.fallback.cache.hit` (INV-Q-9085 A; INV-T-9181, INV-AC-9180).

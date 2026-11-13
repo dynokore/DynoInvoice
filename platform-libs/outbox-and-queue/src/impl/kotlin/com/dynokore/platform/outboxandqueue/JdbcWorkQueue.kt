@@ -44,7 +44,8 @@ class JdbcWorkQueue(
     private val consumer: String? = null,
     private val claimTimeout: Duration = Duration.ofMinutes(DEFAULT_CLAIM_TIMEOUT_MINUTES),
 ) : WorkQueue,
-    DrainOrderAssigner {
+    DrainOrderAssigner,
+    PendingPartitionReader {
     private val schemaName = SqlIdentifier.require(schema, "schema")
     private val queue: Table<*> = DSL.table(DSL.name(schemaName, QueueSchema.WORK_QUEUE))
 
@@ -85,6 +86,17 @@ class JdbcWorkQueue(
             .and(PARTITION_KEY.eq(partitionKey))
             .and(STATE.eq("PENDING"))
             .execute()
+    }
+
+    override fun pendingPartitionKeys(): List<String> {
+        val tenant = scope.tenants.current()
+        return dsl
+            .selectDistinct(PARTITION_KEY_BYTES)
+            .from(queue)
+            .where(TENANT_ID.eq(tenant.value))
+            .and(STATE.eq("PENDING"))
+            .orderBy(PARTITION_KEY_BYTES)
+            .fetch(PARTITION_KEY_BYTES)
     }
 
     override fun claimNext(): ClaimedItem? {
@@ -145,6 +157,9 @@ class JdbcWorkQueue(
         val SEQ = DSL.field(DSL.name("seq"), SQLDataType.BIGINT)
         val TENANT_ID = DSL.field(DSL.name("tenant_id"), SQLDataType.UUID)
         val PARTITION_KEY = DSL.field(DSL.name("partition_key"), SQLDataType.CLOB)
+
+        // byte order whatever the database collation
+        val PARTITION_KEY_BYTES = PARTITION_KEY.collate(DSL.collation(DSL.name("C")))
         val LANE = DSL.field(DSL.name("lane"), SQLDataType.CLOB)
         val CONSUMER = DSL.field(DSL.name("consumer"), SQLDataType.CLOB)
         val PAYLOAD = DSL.field(DSL.name("payload"), SQLDataType.JSONB)

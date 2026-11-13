@@ -54,6 +54,13 @@ a tier outside 1 to 3 or a negative rank is an `IllegalArgumentException`. `Queu
 schema; `QueueSchema.drainOrderUpgradeDdl(schema, runtimeRole, sysRole)` is the idempotent text a service migration embeds
 for an existing one.
 
+## Pending partitions of the work queue (INV-REQ-554)
+
+`PendingPartitionReader.pendingPartitionKeys()` (implemented by `JdbcWorkQueue`, in the caller's tenant transaction, no
+new transaction) returns the distinct `partition_key` values of the `PENDING` items of the bound tenant (every lane,
+every consumer), in ascending byte order of the key text (`COLLATE "C"`), reading no payload and no other column. A partition whose items are
+all `CLAIMED` is not listed; with nothing pending the result is an empty list, never null. No schema change.
+
 Consumer retry with bounded, jittered backoff is in 1.4.0 (`ConsumerRetryPolicy`); the attempt state lives on
 `consumer_offset`. Defaults: 8 attempts; the wait after failed attempt n is 1 s
 doubled each time (1, 2, 4 ... s), capped at 5 min, then shortened by a random share of up to 50 %; after the 8th failure
