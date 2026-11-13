@@ -14,7 +14,6 @@ class RecordDocumentPipelineTest {
     private val tenant = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
     private var open = false
     private var nextDoc = 0
-    private val log = mutableListOf<String>()
 
     private val tx =
         object : TransactionRunner {

@@ -7,9 +7,9 @@ import com.dynokore.gst.canonical.application.document.PartyRefAnswer
 import java.time.LocalDate
 
 /**
- * [CounterpartyDirectory] over `resolveCounterparty` of masterdata-svc. Not a Spring component: the caller task wires it.
- * A reference of 1 to 40 characters is Found; no counterparty (answered null, or 404) is NotFound; any other refusal, no
- * answer, and a blank or over-long reference are Unavailable (a malformed reference is not a fact).
+ * [CounterpartyDirectory] over `resolveCounterparty` of masterdata-svc. Not a Spring component: the caller task
+ * wires it. A reference of 1 to 40 characters is Found; no counterparty (answered null, or 404) is NotFound; any
+ * other refusal, no answer, and a blank or over-long reference are Unavailable (a malformed reference is no fact).
  */
 class MasterDataCounterpartyDirectory(
     private val resolve: (String, String, String, String, LocalDate) -> MasterDataAnswer<ResolvedCounterparty>,
