@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.16.0
+  version: 1.17.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -347,7 +347,7 @@ paths:
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-timeout: 5000
-      x-error-codes: [SRT-005]
+      x-error-codes: [SRT-005, SRT-004, SRT-008, PAY-017, SRT-001]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-500]
       x-operation:
         role: tax.approver
@@ -388,6 +388,21 @@ paths:
                     state: "OVERRIDDEN"
                     reason: "Confirmed with customer: register lookup unavailable, manually verified"
                     overriddenAt: "2026-04-01T02:00:00Z"
+        '202':
+          description: >-
+            A second approver is needed in the owning service and nothing was
+            released; the exception stays open until the owning service's event.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingOverride'
+              examples:
+                default:
+                  value:
+                    exceptionId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    reason: "Confirmed with customer: register lookup unavailable, manually verified"
+                    requestedAt: "2026-04-01T02:00:00Z"
+                    status: "PENDING"
         default:
           $ref: '#/components/responses/Error'
   /bff/exceptions/{id}/override-preview:
@@ -1647,6 +1662,22 @@ components:
           type: string
           format: date-time
       required: [exceptionId, state, reason, overriddenAt]
+    PendingOverride:
+      type: object
+      properties:
+        exceptionId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [PENDING]
+          x-extensible-enum: true
+      required: [exceptionId, reason, requestedAt, status]
     OverridePreview:
       type: object
       properties:

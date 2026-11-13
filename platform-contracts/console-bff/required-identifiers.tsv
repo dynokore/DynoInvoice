@@ -84,3 +84,11 @@ resolveGroup.SRT-015	operation_error_code	openapi.yaml	INV-REQ-941
 deferDocument.SRT-005	operation_error_code	openapi.yaml	INV-REQ-960
 undeferDocument.SRT-005	operation_error_code	openapi.yaml	INV-REQ-960
 overrideException.SRT-005	operation_error_code	openapi.yaml	INV-REQ-500
+overrideException.SRT-004	operation_error_code	openapi.yaml	INV-REQ-500
+overrideException.SRT-008	operation_error_code	openapi.yaml	INV-REQ-500
+overrideException.PAY-017	operation_error_code	openapi.yaml	INV-REQ-500
+overrideException.SRT-001	operation_error_code	openapi.yaml	INV-REQ-500
+PendingOverride.exceptionId	schema_property	openapi.yaml	INV-REQ-500
+PendingOverride.reason	schema_property	openapi.yaml	INV-REQ-500
+PendingOverride.requestedAt	schema_property	openapi.yaml	INV-REQ-500
+PendingOverride.status	schema_property	openapi.yaml	INV-REQ-500
