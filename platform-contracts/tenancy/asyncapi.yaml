@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: tenancy events
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Every event tenancy produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -255,6 +255,8 @@ components:
         INV-REQ-815; class: domain). Emitted by: tenancy-svc. Consumed by: console-bff, notification-svc,
         submission-svc. Delivery: At-least-once. Payload (catalogue text): entityRef or the installation,
         DEP code (DEP-004 to DEP-006), raised or cleared, cause. Authored by INV-T-2853 (T9).
+        Deprecated: superseded by com.dynokore.gst.platform.InstallationStatusChanged.v1 on gst.platform.installation-status-changed.v1 (class platform, INV-Q-14289); no producer publishes this message.
+      deprecated: true
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/installation-status-changed-payload.schema.json'
