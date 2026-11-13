@@ -38,7 +38,6 @@ object InstallationGrantRef {
  * new version; an entry equal to an ACTIVE row writes nothing. The event is the platform event of the catalogue, under
  * `TenantId.PLATFORM` and `EntityRef.PLATFORM`, keyed on the subject.
  */
-@Suppress("LongParameterList") // one collaborator per step of the reconcile transaction
 class InstallationRoleReconciler(
     private val platform: PlatformTenantBinding,
     private val tx: TransactionRunner,

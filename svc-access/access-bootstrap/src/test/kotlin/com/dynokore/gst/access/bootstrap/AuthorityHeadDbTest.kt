@@ -30,11 +30,8 @@ class AuthorityHeadDbTest {
     private fun <T> withContext(block: (AssertableWebApplicationContext) -> T): T {
         var result: T? = null
         BoundaryFixture
-            .runner(
-                catalogueMatrix = true,
-                tokenProperties =
-                    TestSecrets.TOKEN_PROPERTIES + BoundaryFixture.INSTALLATION_ROLES + QUIET,
-            ).run { context ->
+            .runner(catalogueMatrix = true, tokenProperties = TestSecrets.TOKEN_PROPERTIES + QUIET)
+            .run { context ->
                 context.startupFailure?.let { throw it }
                 reset()
                 result = block(context)

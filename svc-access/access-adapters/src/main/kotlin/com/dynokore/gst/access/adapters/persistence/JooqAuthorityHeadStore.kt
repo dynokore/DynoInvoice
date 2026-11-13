@@ -31,7 +31,7 @@ class JooqAuthorityHeadStore(
             .values(true, version)
             .onConflict(SINGLETON)
             .doUpdate()
-            .set(VERSION, DSL.greatest(STORED_VERSION, DSL.excluded(VERSION)))
+            .set(VERSION, DSL.greatest(VERSION, DSL.excluded(VERSION)))
             .execute()
     }
 
@@ -46,9 +46,5 @@ class JooqAuthorityHeadStore(
         val TABLE = DSL.table(DSL.name(ACCESS_SCHEMA, "authority_head"))
         val SINGLETON = DSL.field(DSL.name("singleton"), org.jooq.impl.SQLDataType.BOOLEAN)
         val VERSION = DSL.field(DSL.name("authority_version"), org.jooq.impl.SQLDataType.BIGINT)
-
-        /** The stored value, qualified by the table: in the update of an upsert the bare name is ambiguous. */
-        val STORED_VERSION =
-            DSL.field(DSL.name(ACCESS_SCHEMA, "authority_head", "authority_version"), org.jooq.impl.SQLDataType.BIGINT)
     }
 }

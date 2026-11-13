@@ -61,8 +61,6 @@ inv:
       # The published INSTALLATION role grants (INV-T-9235): a grant at installation scope has no tenant; the row policy admits
       # only a transaction bound to the platform tenant.
       - access.installation_role_grant
-      # The head record of the authority versions (INV-T-9060): one row, no tenant column, no tenant data.
-      - access.authority_head
 access:
   # installation-roles: the subjects that hold platform.engineer (SaaS) or deployment.operator (private) at installation
   # scope (INV-Q-8789 A), a list of entries with a subject and a role. Set per installation; there is no default and
