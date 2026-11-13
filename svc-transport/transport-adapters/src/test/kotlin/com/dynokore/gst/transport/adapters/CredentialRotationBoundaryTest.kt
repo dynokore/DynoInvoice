@@ -115,7 +115,7 @@ class CredentialRotationBoundaryTest {
                 }
             }
 
-        /** Every column of the state and rotation rows of the bound tenant, as text, for a field by field comparison. */
+        /** Every column of the state and rotation rows of the bound tenant, as text, to compare field by field. */
         fun snapshot(adapter: String): Pair<List<String>, List<String>> =
             bindings.bind(TenantId(bound), SignedBindings.ACTOR) {
                 impl.inTransaction {
@@ -245,7 +245,7 @@ class CredentialRotationBoundaryTest {
         val before = s.snapshot(adapter)
         val result =
             RotateCredential(s.states, vault, s.log, clock)
-                .rotate(AdapterId(adapter), CredentialRef(new.format(adapter)), window, "user-1")
+                .rotate(AdapterId(adapter), CredentialRef(new.replace("{adapter}", adapter)), window, "user-1")
         val reason = (result as RotateResult.Refused).reason
         val response = AdministrationAdvice(ApiRefusalAdvice()).rotationRefused(CredentialRotationRefused(reason))
         s.snapshot(adapter) shouldBe before
@@ -275,7 +275,7 @@ class CredentialRotationBoundaryTest {
     @Test
     fun `SAME_AS_CURRENT answers 422 SUB-027, not 409 or SRT-008, and changes nothing`() {
         // the initial reference of a connection with no row is its current one
-        val (answer, _, reads) = refusal(Duration.ofHours(1), "ap/%s")
+        val (answer, _, reads) = refusal(Duration.ofHours(1), "ap/{adapter}")
         answer.shouldBe(422, "SUB-027")
         answer.body shouldNotContain "SRT-008"
         reads shouldBe 0

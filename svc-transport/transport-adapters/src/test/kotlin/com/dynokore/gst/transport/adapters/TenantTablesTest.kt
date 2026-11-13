@@ -97,7 +97,7 @@ class TenantTablesTest {
             "ap_credential_states",
             GOOD_DDL +
                 "alter table transport.ap_credential_states enable row level security;" +
-                POLICY.format("(select transport.bound_tenant())", "(select transport.bound_tenant())"),
+                policy("(select transport.bound_tenant())"),
         ) shouldBe EXPECTED
     }
 
@@ -105,7 +105,7 @@ class TenantTablesTest {
     fun `a credential table whose policy compares another function is a finding`() {
         findingOf(
             "ap_credential_states",
-            GOOD_DDL + FORCED + POLICY.format("(select gen_random_uuid())", "(select gen_random_uuid())"),
+            GOOD_DDL + FORCED + policy("(select gen_random_uuid())"),
         ) shouldBe EXPECTED
     }
 
@@ -114,7 +114,8 @@ class TenantTablesTest {
         findingOf(
             "ap_credential_states",
             GOOD_DDL + FORCED +
-                "create policy p on transport.ap_credential_states using (tenant_id = (select transport.bound_tenant()));",
+                "create policy p on transport.ap_credential_states " +
+                "using (tenant_id = (select transport.bound_tenant()));",
         ) shouldBe EXPECTED
     }
 
@@ -134,7 +135,7 @@ class TenantTablesTest {
             "ap_credential_states",
             "create table transport.ap_credential_states (tenant_id uuid, adapter_id text, primary key (adapter_id));" +
                 FORCED +
-                POLICY.format("(select transport.bound_tenant())", "(select transport.bound_tenant())"),
+                policy("(select transport.bound_tenant())"),
         ) shouldBe EXPECTED
     }
 
@@ -142,7 +143,7 @@ class TenantTablesTest {
     fun `the look-alike table with all four properties passes, so the probes above fail only for their defect`() {
         findingOf(
             "ap_credential_states",
-            GOOD_DDL + FORCED + POLICY.format("(select transport.bound_tenant())", "(select transport.bound_tenant())"),
+            GOOD_DDL + FORCED + policy("(select transport.bound_tenant())"),
         ) shouldBe null
     }
 
@@ -155,8 +156,10 @@ class TenantTablesTest {
         const val FORCED =
             "alter table transport.ap_credential_states enable row level security;" +
                 "alter table transport.ap_credential_states force row level security;"
-        const val POLICY =
-            "create policy p on transport.ap_credential_states using (tenant_id = %s) with check (tenant_id = %s);"
+
+        fun policy(expr: String) =
+            "create policy p on transport.ap_credential_states using (tenant_id = $expr) with check (tenant_id = $expr);"
+
         const val INSPECT =
             "select c.relname, c.relrowsecurity, c.relforcerowsecurity, " +
                 "exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' " +
