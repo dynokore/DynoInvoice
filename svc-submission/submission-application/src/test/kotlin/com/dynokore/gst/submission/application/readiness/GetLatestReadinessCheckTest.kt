@@ -82,7 +82,7 @@ class GetLatestReadinessCheckTest {
     }
 
     @Test
-    fun `INV-AC-21136 a held permission asks the authority exactly once with userId, VALIDATION_OVERRIDE and entityRef, before the reader is called`() {
+    fun `INV-AC-21136 a held permission asks the authority once with userId, VALIDATION_OVERRIDE, entityRef first`() {
         val order = mutableListOf<String>()
         val reader = FakeReader(mapOf(("E1" to "P1") to checksOfP1), order)
         val authority = FakeAuthority(holds = true, order)
