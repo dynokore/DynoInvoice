@@ -19,12 +19,25 @@ class MasterDataCounterpartyDirectory(
     override fun partyRefOf(lookup: CounterpartyLookup): PartyRefAnswer =
         when (
             val answer =
-                resolve(lookup.entityRef, lookup.constitution, lookup.partyScheme, lookup.partyValue, lookup.transactionDate)
+                resolve(
+                    lookup.entityRef,
+                    lookup.constitution,
+                    lookup.partyScheme,
+                    lookup.partyValue,
+                    lookup.transactionDate,
+                )
         ) {
-            is MasterDataAnswer.Answered -> fromRef(answer.value.partyRef)
-            is MasterDataAnswer.Refused ->
+            is MasterDataAnswer.Answered -> {
+                fromRef(answer.value.partyRef)
+            }
+
+            is MasterDataAnswer.Refused -> {
                 if (answer.status == NOT_FOUND) PartyRefAnswer.NotFound else PartyRefAnswer.Unavailable
-            is MasterDataAnswer.Unavailable -> PartyRefAnswer.Unavailable
+            }
+
+            is MasterDataAnswer.Unavailable -> {
+                PartyRefAnswer.Unavailable
+            }
         }
 
     private fun fromRef(ref: String?): PartyRefAnswer =
