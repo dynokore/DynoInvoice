@@ -35,6 +35,9 @@ class EventPayloadContractTest {
             "FeedHealthChanged" to
                 """{"feed":"F-1","entityRef":"E-001","period":"2026Q3","control":"COUNT","state":"CLEARED"}""",
             "ExampleHappened" to """{"entityRef":"E-001"}""",
+            "TriggerCoverageChanged" to
+                """{"entityRef":"E-001","triggerClass":"OUTBOUND_DOCUMENT_ISSUED","status":"MAPPED","adapterRef":"erp-ar",""" +
+                """"changedAt":"2026-11-12T10:00:00Z","actorUserId":"3f2c1c52-0b1e-4c0a-9a53-0d6a4f6d9a11"}""",
         )
 
     private fun map(value: Any?): Map<String, Any?> {
@@ -102,6 +105,13 @@ class EventPayloadContractTest {
             val name = map(map(map(asyncapi["components"])["messages"])[message])["name"]
             name shouldBe type
         }
+    }
+
+    @Test
+    fun `the emission catalogue accepts TriggerCoverageChanged and refuses its look-alike type`() {
+        IngestionEvents.topicByType["com.dynokore.gst.ingestion.TriggerCoverageChanged.v1"] shouldBe
+            "gst.ingestion.trigger-coverage-changed.v1"
+        IngestionEvents.topicByType.containsKey("com.dynokore.gst.ingestion.TriggerCoverageChange.v1") shouldBe false
     }
 
     private companion object {

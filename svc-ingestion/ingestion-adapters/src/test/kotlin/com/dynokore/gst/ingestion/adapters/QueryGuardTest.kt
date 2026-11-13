@@ -27,6 +27,11 @@ class QueryGuardTest {
                 "instance_id, correlation_id, causation_id, data) values ('$tenant', 'gst.ingestion.example.v1', " +
                 "'Example', 'ingestion-svc', 's', now(), $t, 'E', 'i', 'c', 'c', '{}'::jsonb)",
         )
+        superuser(
+            "insert into ingestion.trigger_coverage (tenant_id, entity_ref, trigger_class, status, adapter_ref, " +
+                "recorded_by, recorded_at) values ($t, 'E', 'OUTBOUND_DOCUMENT_ISSUED', 'MAPPED', 'erp-ar', " +
+                "'$tenant', now())",
+        )
         superuser("insert into ingestion.outbox_sequence values ($t, 'k', 1)")
         superuser("insert into ingestion.inbox (consumer, event_id, tenant_id) values ('c', '$tenant', $t)")
         superuser("insert into ingestion.consumer_sequence values ('c', 's', 'sub', $t, 1)")

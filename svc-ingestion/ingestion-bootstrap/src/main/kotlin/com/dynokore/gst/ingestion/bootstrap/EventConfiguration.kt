@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events ingestion-svc may emit (INV-REQ-815 behaviour 2): the two its AsyncAPI contract publishes, each on the
+ * The events ingestion-svc may emit (INV-REQ-815 behaviour 2): the three its AsyncAPI contract publishes, each on the
  * topic its channel names. The emission guard of the outbox refuses any other type.
  */
 @Configuration(proxyBeanMethods = false)
@@ -24,6 +24,7 @@ object IngestionEvents {
         listOf(
             "FeedHealthChanged" to "gst.ingestion.feed-health-changed.v1",
             "ExampleHappened" to "gst.ingestion.example-happened.v1",
+            "TriggerCoverageChanged" to "gst.ingestion.trigger-coverage-changed.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
     val entries: List<CatalogueEntry> =
