@@ -9,6 +9,7 @@ import com.dynokore.gst.submission.adapters.http.SubmissionListingHandler
 import com.dynokore.gst.submission.adapters.http.TransactionsController
 import com.dynokore.gst.submission.adapters.http.TransactionsRefusalAdvice
 import com.dynokore.gst.submission.application.listing.ListSubmissions
+import com.dynokore.gst.submission.application.listing.ListSubmissionsRow
 import com.dynokore.gst.submission.application.listing.ListingActions
 import com.dynokore.gst.submission.application.listing.SourceRead
 import com.dynokore.gst.submission.application.listing.SubmissionRowSource
@@ -21,15 +22,21 @@ import com.dynokore.gst.submission.domain.listing.SortKey
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.listing.SubmissionRow
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
+import com.dynokore.gst.submission.domain.register.MaskedListFacts
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
+import com.dynokore.platform.serviceruntime.identity.MachineTokenFilter
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
+import com.dynokore.platform.serviceruntime.replica.MachinePrincipalFixtures
 import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
@@ -39,6 +46,7 @@ import io.kotest.matchers.shouldBe
 import jakarta.servlet.http.HttpServletRequest
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
+import tools.jackson.databind.json.JsonMapper
 import java.lang.reflect.Proxy
 import java.math.BigDecimal
 import java.nio.file.Files
@@ -72,25 +80,7 @@ class SubmissionListingHandlerTest {
             OperationRoles.rolesFor(DeploymentForm.SAAS, key).mapValues { CellAllowance.valueOf(it.value.name) }
         }
 
-    private fun roleHoldingBoth(): String =
-        (roleMap.rolesFor(ListingActions.VIEW_STATUS).keys intersect roleMap.rolesFor(ListingActions.VIEW_CONTENT).keys)
-            .sorted()
-            .first()
-
-    private fun roleOnly(
-        key: String,
-        notFor: String,
-    ): String = (roleMap.rolesFor(key).keys - roleMap.rolesFor(notFor).keys).sorted().first()
-
-    private fun replica(vararg grants: Pair<String, String>): AuthorityReplica =
-        AuthorityReplica(clock, roleMap).also { replica ->
-            replica.onSnapshotComplete(0)
-            grants.forEachIndexed { n, (principal, role) ->
-                val grant = RoleGrant(role, GrantScope.ENTITY, entity, clock.instant().minusSeconds(60))
-                val record = AuthorityRecord.RoleGrantRecord("$role-$n", RoleGrantState.ACTIVE, grant)
-                replica.accept(AuthorityChanged(tenant, principal, n + 1L, record))
-            }
-        }
+    private fun replica(): AuthorityReplica = AuthorityReplica(clock, roleMap).also { it.onSnapshotComplete(0) }
 
     private class RecordingSource(
         private val rows: List<SubmissionRow>,
@@ -203,14 +193,19 @@ class SubmissionListingHandlerTest {
     )
 
     private fun fixture(
-        caller: EndUserPrincipal?,
+        caller: Principal?,
         replica: AuthorityReplica,
+        endUser: EndUserPrincipal? = null,
     ): Fixture {
         val source = RecordingSource(rows)
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
                 check(method.name == "getAttribute") { "unexpected request call ${method.name}" }
-                caller.takeIf { args[0] == EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE }
+                when (args[0]) {
+                    MachineTokenFilter.PRINCIPAL_ATTRIBUTE -> caller
+                    EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE -> endUser
+                    else -> null
+                }
             } as HttpServletRequest
         val controller =
             TransactionsController(
@@ -225,19 +220,13 @@ class SubmissionListingHandlerTest {
         return Fixture(controller, source)
     }
 
-    private fun user(
-        name: String,
-        entities: Set<String> = setOf(entity),
-        tenant: TenantId? = this.tenant,
-    ) = EndUserPrincipal(name, tenant, entities.map { EntityRef(it) }.toSet(), true)
+    private fun machine(
+        id: String = "m1",
+        coverage: MachineEntityCoverage = MachineEntityCoverage.Entity(entity),
+        type: String = "reporting",
+    ): Principal = MachinePrincipalFixtures.machine(id, tenant, coverage, type)
 
-    private fun both() = fixture(user("holder"), replica("holder" to roleHoldingBoth()))
-
-    private fun statusOnly() =
-        fixture(
-            user("status-only"),
-            replica("status-only" to roleOnly(ListingActions.VIEW_STATUS, ListingActions.VIEW_CONTENT)),
-        )
+    private fun both() = fixture(machine(), replica())
 
     @Suppress("LongParameterList")
     private fun call(
@@ -278,6 +267,7 @@ class SubmissionListingHandlerTest {
         return response.statusCode.value() to code
     }
 
+    @Suppress("LongParameterList")
     private fun refusedCall(
         f: Fixture,
         entityRef: String = entity,
@@ -288,15 +278,15 @@ class SubmissionListingHandlerTest {
     ) = refused { call(f, entityRef, counterparty, null, limit, cursor, direction) }
 
     @Test
-    fun `INV-AC-16326 a caller without submission-view-status gets 403 SRT-004 and the source records zero calls`() {
-        val f = fixture(user("stranger"), replica())
+    fun `INV-AC-16326 a machine caller not listed for machine-submissions-read gets 403 SRT-004 and no read`() {
+        val f = fixture(machine(type = "no-such-type"), replica())
         refusedCall(f) shouldBe (403 to "SRT-004")
         f.source.calls shouldBe 0
     }
 
     @Test
-    fun `INV-AC-16326 a caller without doc-view-content gets masked facts and 400 SRT-001 for a counterparty filter`() {
-        val f = statusOnly()
+    fun `INV-AC-16326 a machine caller covering the entity gets masked facts and 400 SRT-001 on a filter on them`() {
+        val f = both()
         val page = call(f)
         page.items.size shouldBe rows.size
         page.items.all { it.documentNumber == null && it.counterpartyName == null && it.taxableAmount == null } shouldBe
@@ -351,30 +341,68 @@ class SubmissionListingHandlerTest {
 
     @Test
     fun `INV-AC-16326 money fields are decimal strings equal to the fixture strings`() {
+        // a machine caller holds no content key (no machine type does), so the amounts are masked, never zero
         val item = call(both()).items.single { it.docUuid.toString() == doc1 && it.version == 2 }
-        item.taxableAmount!!.toPlainString() shouldBe "200.00"
-        item.gstAmount!!.toPlainString() shouldBe "18.00"
-        item.totalAmount!!.toPlainString() shouldBe "218.00"
-        val jsonFormat =
-            com.dynokore.gst.submission.contract.model.SubmissionSummary::class.java
-                .getDeclaredMethod("getTaxableAmount")
-                .getAnnotation(com.fasterxml.jackson.annotation.JsonFormat::class.java)
-        jsonFormat.shape shouldBe com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING
+        listOf(item.taxableAmount, item.gstAmount, item.totalAmount).all { it == null } shouldBe true
+        // the wire form of every amount of the contract model is a decimal string (API-12)
+        listOf("getTaxableAmount", "getGstAmount", "getTotalAmount").forEach { getter ->
+            val format =
+                com.dynokore.gst.submission.contract.model.SubmissionSummary::class.java
+                    .getDeclaredMethod(getter)
+                    .getAnnotation(com.fasterxml.jackson.annotation.JsonFormat::class.java)
+            format.shape shouldBe com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING
+        }
     }
 
     @Test
-    fun `INV-AC-16326 a missing principal is 401 and an entityRef outside the entity set is 404`() {
-        val none = fixture(null, replica("holder" to roleHoldingBoth()))
-        refusedCall(none) shouldBe (401 to "SRT-003")
-        val outside = both()
-        refusedCall(outside, entityRef = "E2").first shouldBe 404
-        outside.source.calls shouldBe 0
-        val tenantless =
-            fixture(
-                user("holder", entities = emptySet(), tenant = null),
-                replica("holder" to roleHoldingBoth()),
+    fun `INV-AC-16326 an unmasked row maps to the decimal strings 200-00 18-00 and 218-00`() {
+        val facts =
+            MaskedListFacts(
+                documentNumber = "N-1",
+                documentTypeCode = "380",
+                direction = Direction.SALE,
+                counterpartyName = "Acme",
+                counterpartyUen = "UEN-Acme",
+                taxableAmount = BigDecimal("200.00"),
+                gstAmount = BigDecimal("18.00"),
+                categoryCodes = setOf("SR"),
             )
-        refusedCall(tenantless).first shouldBe 401
+        val row =
+            ListSubmissionsRow(
+                docUuid = doc1,
+                version = 2,
+                submissionType = SubmissionKind.TYPE_1A,
+                state = LifecycleState.ACKNOWLEDGED,
+                dueDate = LocalDate.of(2026, 11, 10),
+                transactionDate = LocalDate.of(2026, 11, 2),
+                facts = facts,
+                submittedAt = Instant.parse("2026-11-02T00:00:00Z"),
+                acknowledgedAt = null,
+                acknowledgementId = null,
+            )
+        val mapper = JsonMapper.builder().build()
+        val handler = SubmissionListingHandler(ListSubmissions(replica(), RecordingSource(emptyList())))
+        val json = mapper.readTree(mapper.writeValueAsString(handler.summary(row)))
+        json.get("taxableAmount").asString() shouldBe "200.00"
+        json.get("gstAmount").asString() shouldBe "18.00"
+        json.get("totalAmount").asString() shouldBe "218.00"
+    }
+
+    @Test
+    fun `INV-AC-16326 a request with no machine principal is 401 SRT-003 also with an end-user principal`() {
+        refusedCall(fixture(null, replica())) shouldBe (401 to "SRT-003")
+        val endUser = EndUserPrincipal("holder", tenant, setOf(EntityRef(entity)), true)
+        refusedCall(fixture(null, replica(), endUser)) shouldBe (401 to "SRT-003")
+        // a principal in the machine attribute that is not of kind MACHINE is refused too
+        val human = Principal("holder", PrincipalKind.HUMAN)
+        refusedCall(fixture(human, replica())) shouldBe (401 to "SRT-003")
+    }
+
+    @Test
+    fun `INV-AC-16326 an entityRef the machine token does not cover is 403 SRT-004`() {
+        val f = both()
+        refusedCall(f, entityRef = "E2") shouldBe (403 to "SRT-004")
+        f.source.calls shouldBe 0
     }
 
     @Test

@@ -11,11 +11,8 @@ import com.dynokore.gst.submission.domain.listing.SubmissionFilter
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.reconciliation.ReconciliationBucket
-import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.replica.Principal
-import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
@@ -45,25 +42,23 @@ data class ListingQuery(
  * The delegate that serves `listSubmissions` for `TransactionsController` (the operation is tagged `transactions`,
  * so its generated interface is already implemented there). It maps the contract parameters to the use case and its
  * result to the contract page; the permission is decided inside [ListSubmissions] through `AuthorityReplica.decide`,
- * so this class reads no role name and holds no permission string (INV-Q-10027). Refusals are thrown as
- * [ComplianceRefusal] and rendered once by `TransactionsRefusalAdvice`.
+ * so an `entityRef` the token does not cover is Forbidden (SRT-004) there. This class reads no role name and holds
+ * no permission string (INV-Q-10027). Refusals are thrown as [ComplianceRefusal] and rendered once by
+ * `TransactionsRefusalAdvice`.
  */
 @Component
 class SubmissionListingHandler(
     private val listing: ListSubmissions,
 ) {
     fun list(
-        caller: EndUserPrincipal,
+        caller: Principal,
         query: ListingQuery,
     ): SubmissionPage {
         val tenant = caller.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
-        if (caller.entitySetCurrent && !caller.covers(EntityRef(query.entityRef))) {
-            throw ComplianceRefusal(ClosedErrorCode.NOT_FOUND)
-        }
         val request =
             ListSubmissionsRequest(
                 tenant = tenant,
-                principal = Principal(caller.actor, PrincipalKind.HUMAN),
+                principal = caller,
                 entityRef = query.entityRef,
                 periodRef = query.periodRef,
                 filter = filterOf(query),
@@ -72,14 +67,16 @@ class SubmissionListingHandler(
                 limit = query.limit,
                 maxLimit = MAX_LIMIT,
             )
-        return when (
-            val result = listing.handle(request, CurrentDeadline.current() ?: error("no call deadline is bound"))
-        ) {
+        val deadline = CurrentDeadline.current() ?: error("no call deadline is bound")
+        return page(listing.handle(request, deadline))
+    }
+
+    private fun page(result: ListSubmissionsResult): SubmissionPage =
+        when (result) {
             is ListSubmissionsResult.Page -> SubmissionPage(result.rows.map(::summary), result.nextCursor)
             ListSubmissionsResult.Forbidden -> throw ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
             is ListSubmissionsResult.Refused -> throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
         }
-    }
 
     /** A filter value outside the contract enums or breaking a filter rule is SRT-001 before any read. */
     private fun filterOf(query: ListingQuery): SubmissionFilter =
@@ -99,7 +96,7 @@ class SubmissionListingHandler(
             throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
         }
 
-    private fun summary(row: ListSubmissionsRow): SubmissionSummary {
+    internal fun summary(row: ListSubmissionsRow): SubmissionSummary {
         val facts = row.facts
         val taxable = facts.taxableAmount
         val gst = facts.gstAmount
