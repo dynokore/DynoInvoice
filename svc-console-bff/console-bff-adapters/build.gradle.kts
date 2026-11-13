@@ -42,6 +42,7 @@ dependencies {
     implementation(libs.swagger.annotations)
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.tenancyKernel.api)
+    implementation(libs.platform.outboxAndQueue.api)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.jooq)
     implementation(libs.flyway.core)

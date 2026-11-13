@@ -4,7 +4,10 @@ plugins {
 }
 
 dependencies {
+    implementation(platform(libs.platform.bom))
     implementation(project(":console-bff-domain"))
+    implementation(libs.platform.tenancyKernel.api)
+    implementation(libs.platform.outboxAndQueue.api)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
