@@ -212,3 +212,5 @@ disposition	property	schemas/document-held-payload.schema.json	INV-REQ-940
 decisions	property	schemas/decision-trace-recorded-payload.schema.json	INV-REQ-942
 ruleId	property	schemas/decision-trace-recorded-payload.schema.json	INV-REQ-942
 packVersions	property	schemas/decision-trace-recorded-payload.schema.json	INV-REQ-942
+# INV-T-21280: optional partyRef on the DocumentHeld payload (INV-REQ-1016)
+partyRef	property	schemas/document-held-payload.schema.json	INV-REQ-1016

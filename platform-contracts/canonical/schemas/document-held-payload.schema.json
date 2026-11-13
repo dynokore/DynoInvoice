@@ -70,6 +70,12 @@
       "minLength": 1,
       "maxLength": 40,
       "description": "Optional (INV-REQ-940). The base disposition of the code in the error catalogue, read as Exception.disposition of console-bff/openapi.yaml (AUTO_RELEASE, AUTO_RETRY, MANUAL, OVERRIDABLE, TERMINAL; extensible). Absent when the producer does not know it; never guessed by the consumer."
+    },
+    "partyRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "Optional (INV-REQ-1016). The masterdata counterparty reference the document waits for. Present only when the producer holds it; absent is valid."
     }
 
   },

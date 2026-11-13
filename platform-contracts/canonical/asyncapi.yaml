@@ -191,8 +191,8 @@ components:
       summary: DocumentHeld — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event DocumentHeld (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: canonical-svc. Consumed by: console-bff, notification-svc,
-        submission-svc. Delivery: At-least-once. Payload (catalogue text): docUuid, docsequence, hold
+        class: domain). Emitted by: canonical-svc. Consumed by: console-bff, masterdata-svc,
+        notification-svc, submission-svc. Delivery: At-least-once. Payload (catalogue text): docUuid, docsequence, hold
         reasons, entityRef, direction, documentDate, and a provisional prescribedPeriodRef — the period of
         the provisional transaction date built from what is known at ingestion, or the earliest candidate
         period where that date cannot yet be determined (FR-AE.9; added 25 Sep 2026, Keel INV-Q-1679).
@@ -207,8 +207,8 @@ components:
       summary: DocumentReleased — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event DocumentReleased (model/architecture/events.yaml, INV-NOTE-3 §19.8, INV-REQ-815;
-        class: domain). Emitted by: canonical-svc. Consumed by: console-bff, submission-svc. Delivery:
-        At-least-once. Payload (catalogue text): docUuid, docsequence, released hold reasons. Authored by
+        class: domain). Emitted by: canonical-svc. Consumed by: console-bff, masterdata-svc,
+        submission-svc. Delivery: At-least-once. Payload (catalogue text): docUuid, docsequence, released hold reasons. Authored by
         INV-T-2854 (T10).
       contentType: application/cloudevents+json
       payload:
