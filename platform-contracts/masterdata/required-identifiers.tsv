@@ -225,3 +225,6 @@ entityRef	query_parameter	openapi.yaml	INV-REQ-469
 SendCounterpartyRequestBody.entityRef	schema_property	openapi.yaml	INV-REQ-957
 # INV-T-20995. INV-REQ-940: the optional docUuids member of the MasterDataResolved payload (a different file from the openapi.yaml row above).
 docUuids	property	schemas/master-data-resolved-payload.schema.json	INV-REQ-940
+# INV-T-21329. INV-REQ-941: the consumed canonical events DocumentHeld and DocumentReleased.
+receiveDocumentHeld	asyncapi_operation	asyncapi.yaml	INV-REQ-941
+receiveDocumentReleased	asyncapi_operation	asyncapi.yaml	INV-REQ-941

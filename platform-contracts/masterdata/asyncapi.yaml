@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: masterdata events
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Every event masterdata produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -61,6 +61,16 @@ channels:
     messages:
       SignedLinkInvalidated:
         $ref: '#/components/messages/SignedLinkInvalidated'
+  canonicalDocumentHeld:
+    address: 'gst.canonical.document-held.v1'
+    messages:
+      DocumentHeld:
+        $ref: '#/components/messages/DocumentHeld'
+  canonicalDocumentReleased:
+    address: 'gst.canonical.document-released.v1'
+    messages:
+      DocumentReleased:
+        $ref: '#/components/messages/DocumentReleased'
   masterdataExampleHappened:
     address: 'gst.masterdata.example-happened.v1'
     messages:
@@ -125,6 +135,28 @@ operations:
       $ref: '#/channels/accessSignedLinkInvalidated'
     messages:
       - $ref: '#/channels/accessSignedLinkInvalidated/messages/SignedLinkInvalidated'
+  receiveDocumentHeld:
+    action: receive
+    description: >-
+      DocumentHeld, published by canonical-svc (INV-REQ-941). For imports svc-masterdata keeps a local
+      held-documents-by-identifier table fed by canonical's DocumentHeld/DocumentReleased events
+      (event-carried state transfer, no cross-service read). Idempotent consumer (at-least-once delivery),
+      order-insensitive by the per-document docsequence: a repeated or reordered event leaves the row equal.
+    channel:
+      $ref: '#/channels/canonicalDocumentHeld'
+    messages:
+      - $ref: '#/channels/canonicalDocumentHeld/messages/DocumentHeld'
+  receiveDocumentReleased:
+    action: receive
+    description: >-
+      DocumentReleased, published by canonical-svc (INV-REQ-941). For imports svc-masterdata keeps a local
+      held-documents-by-identifier table fed by canonical's DocumentHeld/DocumentReleased events
+      (event-carried state transfer, no cross-service read). Idempotent consumer (at-least-once delivery),
+      order-insensitive by the per-document docsequence: a repeated or reordered event leaves the row equal.
+    channel:
+      $ref: '#/channels/canonicalDocumentReleased'
+    messages:
+      - $ref: '#/channels/canonicalDocumentReleased/messages/DocumentReleased'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -212,6 +244,26 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: '../access/schemas/signed-link-invalidated-payload.schema.json'
+    DocumentHeld:
+      name: com.dynokore.gst.canonical.DocumentHeld.v1
+      title: DocumentHeld
+      summary: DocumentHeld — a document was placed on hold (INV-REQ-941).
+      description: >-
+        Event DocumentHeld of canonical-svc (canonical/asyncapi.yaml), consumed by masterdata-svc (INV-REQ-941).
+        Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '../canonical/schemas/document-held-payload.schema.json'
+    DocumentReleased:
+      name: com.dynokore.gst.canonical.DocumentReleased.v1
+      title: DocumentReleased
+      summary: DocumentReleased — hold reasons of a document were released (INV-REQ-941).
+      description: >-
+        Event DocumentReleased of canonical-svc (canonical/asyncapi.yaml), consumed by masterdata-svc (INV-REQ-941).
+        Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '../canonical/schemas/document-released-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.masterdata.ExampleHappened.v1
       title: ExampleHappened
