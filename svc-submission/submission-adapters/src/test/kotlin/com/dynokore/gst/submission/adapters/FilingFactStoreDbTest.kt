@@ -236,6 +236,11 @@ class FilingFactStoreDbTest {
         inTx(t2) { store.facts("E", "P") }.map { it.acknowledgementRef } shouldBe listOf("X1")
         inTx(t) { store.facts("E", "P") }.none { it.acknowledgementRef == "X1" } shouldBe true
 
+        inTx(t) { store.facts("E", "P") } shouldBe all
+        updateAndDeleteAreRefused(t)
+    }
+
+    private fun updateAndDeleteAreRefused(t: UUID) {
         for (sql in listOf(
             "update submission.filing_fact set recorded_by = 'x'",
             "delete from submission.filing_fact",
@@ -244,7 +249,6 @@ class FilingFactStoreDbTest {
             e.message.orEmpty().contains("permission denied") shouldBe true
             connection.rollback()
         }
-        inTx(t) { store.facts("E", "P") } shouldBe all
         ownerStrings("select has_table_privilege('submission_runtime', 'submission.filing_fact', 'UPDATE')") shouldBe
             listOf("f")
         ownerStrings("select has_table_privilege('submission_runtime', 'submission.filing_fact', 'DELETE')") shouldBe
