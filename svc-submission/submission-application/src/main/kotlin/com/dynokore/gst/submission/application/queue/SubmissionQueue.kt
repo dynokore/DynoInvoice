@@ -71,12 +71,14 @@ class SubmissionQueue(
     private val queue: WorkQueue,
 ) {
     /**
+     * [lane] is the lane of the queue item; the default is the routine lane (LIVE).
      * @throws VersionNotReady when the version is not `READY`; nothing is written then.
      * @throws InFlightBreach when the unique index refuses the update (a bypass of the check above).
      */
     fun enqueue(
         docUuid: String,
         version: Int,
+        lane: Lane = Lane.LIVE,
     ): EnqueueResult {
         val doc = UUID.fromString(docUuid).toString()
         require(version >= 1) { "version starts at 1" }
@@ -86,7 +88,7 @@ class SubmissionQueue(
                 throw VersionNotReady(doc, version)
             }
             val blocking = rows.firstOrNull { it.version != version && InFlight.isInFlight(it.state) }
-            if (blocking != null) EnqueueResult.Waiting(blocking.version) else queueLocked(doc, version)
+            if (blocking != null) EnqueueResult.Waiting(blocking.version) else queueLocked(doc, version, lane)
         }
     }
 
@@ -102,7 +104,7 @@ class SubmissionQueue(
             if (next == null || rows.any { InFlight.isInFlight(it.state) }) {
                 ReleaseResult.NothingToRelease
             } else {
-                queueLocked(doc, next.version)
+                queueLocked(doc, next.version, Lane.LIVE)
                 ReleaseResult.Released(next.version)
             }
         }
@@ -112,9 +114,10 @@ class SubmissionQueue(
     private fun queueLocked(
         doc: String,
         version: Int,
+        lane: Lane,
     ): EnqueueResult {
         if (store.moveReadyToQueued(tenants.current(), doc, version) != 1) throw VersionNotReady(doc, version)
-        queue.enqueue(QueueEntry(partitionKey = doc, lane = Lane.LIVE, payloadJson = itemPayload(doc, version)))
+        queue.enqueue(QueueEntry(partitionKey = doc, lane = lane, payloadJson = itemPayload(doc, version)))
         return EnqueueResult.Queued
     }
 

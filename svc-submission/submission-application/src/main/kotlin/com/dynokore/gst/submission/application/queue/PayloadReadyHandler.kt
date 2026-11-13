@@ -1,5 +1,7 @@
 package com.dynokore.gst.submission.application.queue
 
+import com.dynokore.gst.submission.application.arrival.ArrivalPlanning
+import com.dynokore.gst.submission.application.arrival.CodeRaising
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -24,6 +26,9 @@ class PayloadReadyHandler(
     private val store: SubmissionStore,
     private val queue: SubmissionQueue,
     private val reader: PayloadReadyDataReader,
+    private val inFlight: InFlightStore,
+    private val planning: ArrivalPlanning,
+    private val raising: CodeRaising,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
         val data = reader.read(event.dataJson)
@@ -59,7 +64,15 @@ class PayloadReadyHandler(
             }
             return HandleOutcome.IGNORED
         }
-        queue.enqueue(docUuid, version)
+        val earlier = inFlight.lockVersions(tenant, docUuid).filter { it.version < version }.map { it.state }
+        val plan = planning.plan(tenant, docUuid, earlier)
+        queue.enqueue(docUuid, version, plan.lane)
+        if (plan.codes.isNotEmpty()) {
+            // A non-empty code list implies the register keys are set (ArrivalPlanning.planFirst).
+            val entityRef = checkNotNull(plan.entityRef)
+            val periodRef = checkNotNull(plan.periodRef)
+            raising.raise(tenant, docUuid, version, entityRef, periodRef, plan.codes)
+        }
         return HandleOutcome.APPLIED
     }
 }
