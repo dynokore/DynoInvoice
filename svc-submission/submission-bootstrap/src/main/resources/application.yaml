@@ -55,3 +55,7 @@ inv:
   compliance-evaluation:
     # The daily compliance evaluation (INV-REQ-1069, INV-Q-12767 A, INV-Q-16757 A): a six-field cron, evaluated in UTC; no default in code.
     cron: "0 0 2 * * *"
+  backlog-evaluation:
+    # The backlog evaluation (INV-REQ-1370, INV-AC-20583): a six-field cron, evaluated in UTC; no default in code.
+    cron: "0 */15 * * * *"
+    tolerance: PT30M # ISO-8601 duration, positive; two run intervals; no default in code

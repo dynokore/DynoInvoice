@@ -132,8 +132,9 @@ class JobRuntimeCompositionTest {
     ) = run(dir) { context ->
         context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
         val definitions = context.getBean(JobRuntime::class.java).registered()
-        definitions.map { it.name }.toSet() shouldBe setOf("compliance-evaluation", "waiting-sweep")
-        definitions.size shouldBe 2
+        definitions.map { it.name }.toSet() shouldBe
+            setOf("backlog-evaluation", "compliance-evaluation", "waiting-sweep")
+        definitions.size shouldBe 3
         val definition = definitions.single { it.name == "waiting-sweep" }
         definition.ownerService shouldBe "submission-svc"
         definition.entityScope shouldBe JobEntityScope.PLATFORM
@@ -172,8 +173,9 @@ class JobRuntimeCompositionTest {
                 setOf(
                     JobRuntimeConfiguration.WAITING_SWEEP.schedule.cron,
                     context.environment.getProperty("inv.compliance-evaluation.cron"),
+                    context.environment.getProperty("inv.backlog-evaluation.cron"),
                 )
-            context.cronTasks().size shouldBe 2
+            context.cronTasks().size shouldBe 3
         }
     }
 
