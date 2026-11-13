@@ -2,6 +2,7 @@
 plugins {
     id("gst.adapters")
     id("gst.jooq-codegen")
+    id("gst.contract-client")
     `java-test-fixtures`
 }
 
@@ -11,6 +12,12 @@ plugins {
 val bindingKernel: Configuration by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
+}
+
+// The client of canonical-svc's end-user operations (STK-46, ARC-08), generated from the pinned platform-contracts
+// bundle staged in console-bff-contract (INV-T-21698).
+contractClient {
+    generatorSource("platform-contracts:canonical:openapi.yaml")
 }
 
 gstJooqCodegen {
@@ -28,6 +35,11 @@ dependencies {
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":console-bff-application"))
     implementation(project(":console-bff-domain"))
+    implementation(project(":console-bff-contract"))
+    implementation(platform(libs.jackson.bom))
+    implementation(libs.jackson.moduleKotlin)
+    implementation(libs.springBoot.starterValidation)
+    implementation(libs.swagger.annotations)
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.tenancyKernel.api)
     implementation(libs.springBoot.starterWeb)

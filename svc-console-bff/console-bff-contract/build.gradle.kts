@@ -34,7 +34,7 @@ dependencies {
 }
 
 // The services staged from the bundle; the marker covers the list, so a changed list restages.
-val stagedServices = listOf("console-bff")
+val stagedServices = listOf("console-bff", "canonical")
 
 // gst.contract-server resolves `platform-contracts:console-bff:+` while the task graph is built, so the layout
 // is staged while this project is configured, once per bundle version (the marker file).
@@ -109,4 +109,12 @@ val stageContractResource by tasks.registering(Sync::class) {
 sourceSets.main {
     resources.srcDir(layout.buildDirectory.dir("contract-resources"))
 }
-tasks.named("processResources") { dependsOn(stageContractResource) }
+
+// The pinned canonical-svc contract is shipped as gst/contracts/canonical/openapi.yaml (INV-T-21698); the client
+// generated from it lives in console-bff-adapters.
+val stageCanonicalContractResource by tasks.registering(Sync::class) {
+    val version = libs.versions.platformContractsBundle.get()
+    from(layout.buildDirectory.file("contracts-repo/platform-contracts/canonical/$version/openapi.yaml"))
+    into(layout.buildDirectory.dir("contract-resources/gst/contracts/canonical"))
+}
+tasks.named("processResources") { dependsOn(stageContractResource, stageCanonicalContractResource) }
