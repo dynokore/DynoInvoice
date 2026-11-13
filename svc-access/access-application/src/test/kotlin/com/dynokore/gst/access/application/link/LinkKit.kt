@@ -78,6 +78,7 @@ class LinkKit(
     val issuedLinks = mutableListOf<SignedLink>()
     val invalidated = mutableListOf<Pair<SignedLink, LinkInvalidationReason>>()
     val reads = mutableListOf<String>()
+    val grantEvents = mutableListOf<String>()
     var setting = LinkPasscodeSetting.DEFAULT
     var smsBound = false
 
@@ -126,6 +127,22 @@ class LinkKit(
                 audits += entry
             }
         }
+    val clientGrants =
+        object : ClientSignatoryGrants {
+            override fun issued(
+                link: SignedLink,
+                issuedAt: Instant,
+            ) {
+                grantEvents += "ACTIVE ${link.ref.value} ${link.client?.value} $issuedAt"
+            }
+
+            override fun removed(
+                link: SignedLink,
+                at: Instant,
+            ) {
+                grantEvents += "REMOVED ${link.ref.value} ${link.client?.value} $at"
+            }
+        }
     val accessAlerts = AccessAlerts { code, scope -> alerts += code to scope }
     val settings = LinkPasscodeSettings { setting }
 
@@ -155,6 +172,7 @@ class LinkKit(
                     issuedLinks += link
                 }
             },
+            clientGrants,
             audit,
             systemActor,
             clock,
@@ -166,7 +184,7 @@ class LinkKit(
             digests,
             settings,
             accessAlerts,
-            { link, reason -> invalidated += link to reason },
+            RemovingClientSignatoryOnInvalidation({ link, reason -> invalidated += link to reason }, clientGrants),
             clock,
         )
 

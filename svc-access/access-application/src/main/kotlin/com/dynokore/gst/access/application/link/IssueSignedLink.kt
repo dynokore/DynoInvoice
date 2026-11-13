@@ -161,6 +161,7 @@ class IssueSignedLinkUseCase(
     private val settings: LinkPasscodeSettings,
     private val smsGateway: SmsGatewayBinding,
     private val messages: LinkMessages,
+    private val clientSignatory: ClientSignatoryGrants,
     private val audit: GrantAudit,
     private val systemActor: String,
     private val clock: Clock,
@@ -193,6 +194,7 @@ class IssueSignedLinkUseCase(
             val link = newLink(command, ref, alertEntity, digests.digestOf(ref, passcode))
             links.insert(link)
             messages.issued(link)
+            if (ClientSignatoryGrants.applies(link)) clientSignatory.issued(link, now)
             requestMessages(command, ref, passcode)
             audit.record(
                 GrantAuditEntry(

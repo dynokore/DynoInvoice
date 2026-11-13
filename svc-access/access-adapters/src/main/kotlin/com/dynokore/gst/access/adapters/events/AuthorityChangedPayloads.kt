@@ -4,9 +4,11 @@ import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.InstallationRoleGrantRow
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.grant.RoleGrantChange
+import com.dynokore.gst.access.application.grant.RoleGrantState
 import com.dynokore.gst.access.application.operatorsession.OperatorAccessRecord
 import com.dynokore.gst.access.domain.consent.ConsentStatus
 import com.dynokore.gst.access.domain.consent.ScopeItem
+import com.dynokore.gst.access.domain.role.Role
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
 import java.time.Instant
@@ -56,6 +58,33 @@ class AuthorityChangedPayloads(
         change.validUntil?.let { node.put("validUntil", ISO.format(it.atOffset(java.time.ZoneOffset.UTC))) }
         change.periodFrom?.let { node.put("periodFrom", it.toString()) }
         change.periodTo?.let { node.put("periodTo", it.toString()) }
+        return root
+    }
+
+    /**
+     * The role grant a signatory link stands for (INV-Q-9222 A): the link principal `link:<linkRef>` holds
+     * `client.signatory` at CLIENT_ENTITY scope on [client], valid [from] to [until]; no period span.
+     */
+    fun clientSignatoryGrant(
+        linkRef: String,
+        client: String,
+        state: RoleGrantState,
+        from: Instant,
+        until: Instant,
+        authorityVersion: Long,
+    ): ObjectNode {
+        val root = newRoot()
+        root.put("changeKind", "ROLE_GRANT")
+        root.put("principalRef", linkPrincipal(linkRef))
+        root.put("authorityVersion", authorityVersion)
+        val node = root.putObject("roleGrantRecord")
+        node.put("grantRef", linkRef)
+        node.put("role", Role.CLIENT_SIGNATORY.wire)
+        node.put("state", state.name)
+        node.put("scopeLevel", CLIENT_ENTITY)
+        node.put("scopeRef", client)
+        node.put("validFrom", ISO.format(from.atOffset(ZoneOffset.UTC)))
+        node.put("validUntil", ISO.format(until.atOffset(ZoneOffset.UTC)))
         return root
     }
 
@@ -125,8 +154,13 @@ class AuthorityChangedPayloads(
     private fun newRoot(): ObjectNode =
         mapper.createObjectNode().also { it.put("incarnation", Math.toIntExact(incarnations.current())) }
 
-    private companion object {
-        const val INSTALLATION = "INSTALLATION"
-        val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
+    companion object {
+        private const val INSTALLATION = "INSTALLATION"
+        private const val CLIENT_ENTITY = "CLIENT_ENTITY"
+
+        /** The principal of a link: `link:` and the link reference (the form of INV-Q-9222 A). */
+        fun linkPrincipal(linkRef: String): String = "link:$linkRef"
+
+        private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     }
 }

@@ -5,6 +5,7 @@ import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.application.link.IssueSignedLinkUseCase
 import com.dynokore.gst.access.application.link.LinkPasscodeSetting
 import com.dynokore.gst.access.application.link.PasscodeDigests
+import com.dynokore.gst.access.application.link.RemovingClientSignatoryOnInvalidation
 import com.dynokore.gst.access.application.link.SecureLinkSecrets
 import com.dynokore.gst.access.application.link.SignedLinks
 import com.dynokore.gst.access.application.link.VerifyLinkOutcome
@@ -111,6 +112,14 @@ class SignedLinkEventsTest {
         }
     private val outbox = OutboxLinkMessages(captured, tenants, mapper)
     private val sentPasscodes = mutableListOf<String>()
+    private val grantsOut =
+        ClientSignatoryGrantOutbox(
+            captured,
+            tenants,
+            mapper,
+            InMemoryAuthorityHead(),
+            InMemoryAuthorityIncarnation(),
+        ) { 1L }
     private val issue =
         IssueSignedLinkUseCase(
             tx,
@@ -124,6 +133,7 @@ class SignedLinkEventsTest {
             { LinkPasscodeSetting.DEFAULT },
             { false },
             outbox,
+            grantsOut,
             object : GrantAudit {
                 override fun record(entry: GrantAuditEntry) {
                     check(!failAfterStore) { "injected failure after the link store" }
@@ -139,7 +149,7 @@ class SignedLinkEventsTest {
             digests,
             { LinkPasscodeSetting.DEFAULT },
             { _, _ -> },
-            SignedLinkEventOutbox(captured, tenants, mapper),
+            RemovingClientSignatoryOnInvalidation(SignedLinkEventOutbox(captured, tenants, mapper), grantsOut),
             clock,
         )
     private val handler =
