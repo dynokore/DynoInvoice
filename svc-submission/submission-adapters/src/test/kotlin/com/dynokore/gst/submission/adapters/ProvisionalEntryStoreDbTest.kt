@@ -130,10 +130,9 @@ class ProvisionalEntryStoreDbTest {
         val grants =
             dsl
                 .fetch(
-                    "select grantee, privilege_type from information_schema.role_table_grants " +
-                        "where table_schema = 'submission' and table_name = 'provisional_register_entry' " +
-                        "and grantee not in (select tableowner from pg_tables " +
-                        "where schemaname = 'submission' and tablename = 'provisional_register_entry') " +
+                    "select case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end, a.privilege_type " +
+                        "from pg_class c, aclexplode(c.relacl) a " +
+                        "where c.oid = 'submission.provisional_register_entry'::regclass and a.grantee <> c.relowner " +
                         "order by 1, 2",
                 ).map { "${it.get(0)}:${it.get(1)}" }
         grants shouldBe
