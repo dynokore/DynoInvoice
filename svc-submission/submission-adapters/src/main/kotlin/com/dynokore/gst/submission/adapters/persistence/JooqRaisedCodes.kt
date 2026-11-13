@@ -1,12 +1,12 @@
 package com.dynokore.gst.submission.adapters.persistence
 
-import com.dynokore.gst.submission.adapters.persistence.jooq.tables.RaisedCode as RaisedCodeTable
 import com.dynokore.gst.submission.application.arrival.RaisedCode
 import com.dynokore.gst.submission.application.arrival.RaisedCodes
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import java.time.Instant
 import java.time.ZoneOffset
+import com.dynokore.gst.submission.adapters.persistence.jooq.tables.RaisedCode as RaisedCodeTable
 
 /**
  * [RaisedCodes] over the append-only `submission.raised_code` (INV-AC-21088), in the open tenant transaction. A repeat
