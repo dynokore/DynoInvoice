@@ -33,6 +33,7 @@ class PreviewDrain(
     private val selection: DrainSelection,
     private val facts: RegisterListFactsStore,
 ) {
+    @Suppress("ReturnCount")
     fun run(
         request: DrainRequest,
         deadline: Deadline,

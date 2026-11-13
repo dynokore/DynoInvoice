@@ -48,6 +48,7 @@ class DrainSelection(
     private val margins: SafetyMargins,
     private val clock: Clock,
 ) {
+    @Suppress("ReturnCount")
     fun select(request: DrainRequest): DrainSelected {
         val today = LocalDate.now(clock)
         val queued = backlog.queued(request.tenant) ?: return DrainSelected.Refused
@@ -68,6 +69,7 @@ class DrainSelection(
     }
 
     /** The tier a version of the drained entity and period has now; null when no due date or margin is known. */
+    @Suppress("ReturnCount")
     fun tierOfDrained(
         request: DrainRequest,
         docUuid: String,

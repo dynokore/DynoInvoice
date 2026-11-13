@@ -53,6 +53,7 @@ sealed interface DrainResult {
  * the loop read the residual items and run the readiness check in its own transaction. The acting user id is the
  * principal id, never a role.
  */
+@Suppress("LongParameterList") // one port or collaborator per step of the drain
 class DrainPeriod(
     private val authority: DrainAuthority,
     private val selection: DrainSelection,
@@ -78,6 +79,7 @@ class DrainPeriod(
         }
     }
 
+    @Suppress("ReturnCount")
     private fun drain(request: DrainRequest): DrainResult {
         var selected = selection.select(request)
         if (selected !is DrainSelected.Ranked) return DrainResult.Unavailable(REFUSED)
@@ -110,6 +112,7 @@ class DrainPeriod(
         }
 
     /** @return false when the loop ends: nothing claimable, or a version of this call came back. */
+    @Suppress("ReturnCount")
     private fun despatchBatch(
         done: MutableSet<DespatchedVersion>,
         tiers: Map<Pair<String, Int>, Tier>,
@@ -124,6 +127,7 @@ class DrainPeriod(
         return true
     }
 
+    @Suppress("ReturnCount")
     private fun report(
         request: DrainRequest,
         counts: Map<Tier, Int>,
@@ -154,6 +158,7 @@ class DrainPeriod(
     }
 
     /** Null when the candidates, a code or the data for a tier cannot be trusted: no code is invented or defaulted. */
+    @Suppress("ReturnCount")
     private fun residualItems(request: DrainRequest): List<ResidualItem>? {
         val read = residuals.candidates(request.tenant, request.entityRef, request.periodRef) ?: return null
         val items = ArrayList<ResidualItem>()
