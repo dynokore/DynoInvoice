@@ -19,11 +19,11 @@ import tools.jackson.databind.json.JsonMapper
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Instant
-import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import com.dynokore.gst.submission.adapters.persistence.jooq.tables.RaisedCode as RaisedCodeTable
 
-/** `DocumentCodeRaised` through the real catalogue, code store and outbox, in the caller's transaction (INV-AC-21088). */
+/** `DocumentCodeRaised` through the real catalogue, code store and outbox, in one transaction (INV-AC-21088). */
 class DocumentCodeRaisedOutboxDbTest {
     private val type = "com.dynokore.gst.submission.DocumentCodeRaised.v1"
     private val topic = "gst.submission.document-code-raised.v1"
@@ -62,8 +62,12 @@ class DocumentCodeRaisedOutboxDbTest {
         ): List<Pair<String, Instant>> =
             asTenant(tenant) {
                 dsl
-                    .fetch("select code, raised_at from submission.raised_code where doc_uuid = ? order by seq", doc)
-                    .map { it.get(0, String::class.java) to it.get(1, OffsetDateTime::class.java).toInstant() }
+                    .select(RaisedCodeTable.RAISED_CODE.CODE, RaisedCodeTable.RAISED_CODE.RAISED_AT)
+                    .from(RaisedCodeTable.RAISED_CODE)
+                    .where(RaisedCodeTable.RAISED_CODE.DOC_UUID.eq(doc))
+                    .orderBy(RaisedCodeTable.RAISED_CODE.SEQ)
+                    .fetch()
+                    .map { it.value1()!! to it.value2()!!.toInstant() }
             }
 
         fun events(
@@ -84,10 +88,12 @@ class DocumentCodeRaisedOutboxDbTest {
     private fun run(
         dir: Path,
         block: Fixture.() -> Unit,
-    ) = SubmissionContext.online(dir).run { context -> Fixture(context).block() }
+    ) {
+        SubmissionContext.online(dir).run { context -> Fixture(context).block() }
+    }
 
+    @Suppress("UNCHECKED_CAST")
     private fun payload(row: OutboxRecord): Map<String, Any?> {
-        @Suppress("UNCHECKED_CAST")
         val json = JsonMapper.builder().build()
         return json.readValue(checkNotNull(row.data).data(), Map::class.java) as Map<String, Any?>
     }
@@ -95,9 +101,11 @@ class DocumentCodeRaisedOutboxDbTest {
     @Test
     fun `INV-AC-21088 the topic map and the bean of the bootstrap`(
         @TempDir dir: Path,
-    ) = SubmissionContext.online(dir).run { context ->
-        SubmissionEvents.topicByType[type] shouldBe topic
-        context.getBean(CodeRaising::class.java)
+    ) {
+        SubmissionContext.online(dir).run { context ->
+            SubmissionEvents.topicByType[type] shouldBe topic
+            context.getBean(CodeRaising::class.java)
+        }
     }
 
     @Test
@@ -124,6 +132,31 @@ class DocumentCodeRaisedOutboxDbTest {
             entry.disposition?.let { expected["disposition"] = it.name }
             payload shouldBe expected
         }
+    }
+
+    @Test
+    fun `INV-AC-21088 a member the catalogue entry does not give is absent from the stored payload`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val noDisposition = ErrorCode.entries.filter { it.disposition == null }
+        check(noDisposition.isNotEmpty()) { "no catalogue entry lacks a disposition" }
+        val unknown = "ZZZ-999"
+        val doc = UUID.randomUUID().toString()
+        val codes = noDisposition.map { it.code } + unknown
+        asTenant(a) { raise(doc, 1, *codes.toTypedArray()) } shouldBe codes.size
+
+        val staged = events(a, doc).map { payload(it) }
+        staged.size shouldBe codes.size
+        staged.forEach {
+            it.keys.containsAll(listOf("docUuid", "version", "entityRef", "periodRef", "code")) shouldBe
+                true
+        }
+        staged.take(noDisposition.size).zip(noDisposition).forEach { (payload, entry) ->
+            payload.containsKey("disposition") shouldBe false
+            payload["remediationOwner"] shouldBe entry.owner
+        }
+        staged.last().containsKey("remediationOwner") shouldBe false
+        staged.last().containsKey("disposition") shouldBe false
     }
 
     @Test
@@ -166,9 +199,12 @@ class DocumentCodeRaisedOutboxDbTest {
         val doc = UUID.randomUUID().toString()
         asTenant(a) { raise(doc, 1, "SUB-010") } shouldBe 1
 
-        runCatching { asTenant(a) { dsl.execute("update submission.raised_code set code = 'X-1'") } }
-            .isFailure shouldBe true
-        runCatching { asTenant(a) { dsl.execute("delete from submission.raised_code") } }.isFailure shouldBe true
+        runCatching {
+            asTenant(
+                a,
+            ) { dsl.update(RaisedCodeTable.RAISED_CODE).set(RaisedCodeTable.RAISED_CODE.CODE, "X-1").execute() }
+        }.isFailure shouldBe true
+        runCatching { asTenant(a) { dsl.deleteFrom(RaisedCodeTable.RAISED_CODE).execute() } }.isFailure shouldBe true
         rows(a, doc).size shouldBe 1
     }
 }
