@@ -137,13 +137,12 @@ class CallerChecks(
         /**
          * The operations a task has built (operations.tsv) and the status an allowed caller gets, the others 501. The
          * chain lookup answers 403 SRT-004 here: the end-user token of this test holds no lookup key, so the handler
-         * itself refuses it (INV-T-20577; the reverse lookup, INV-T-20725).
+         * itself refuses it (INV-T-20577).
          */
         private val IMPLEMENTED =
             mapOf(
                 "GET /internal/v1/evidence/retention/maximum" to OK,
                 "GET /internal/v1/evidence/acknowledgements/{ackId}" to FORBIDDEN,
-                "GET /internal/v1/evidence/lookup" to FORBIDDEN,
             )
         private const val FORBIDDEN = 403
         private const val OK = 200
