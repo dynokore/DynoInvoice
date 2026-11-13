@@ -10,7 +10,7 @@ import java.lang.reflect.Modifier
 
 /** INV-AC-21697: the canonical-svc client is generated from the pinned contract staged as a classpath resource. */
 class CanonicalClientGenerationTest {
-    private val apiPackage = "com.dynokore.gst.consoleBff.adapters.clients.api"
+    private val apiPackage = "com.dynokore.gst.consoleBff.adapters.clients.canonical.api"
     private val resource = "gst/contracts/canonical/openapi.yaml"
 
     private fun operationIds(): Set<String> {

@@ -15,9 +15,12 @@ val bindingKernel: Configuration by configurations.creating {
 }
 
 // The client of canonical-svc's end-user operations (STK-46, ARC-08), generated from the pinned platform-contracts
-// bundle staged in console-bff-contract (INV-T-21698).
+// bundle staged in console-bff-contract (INV-T-21698); the payload and submission clients carry the override
+// operations (INV-T-21174).
 contractClient {
     generatorSource("platform-contracts:canonical:openapi.yaml")
+    generatorSource("platform-contracts:payload:openapi.yaml")
+    generatorSource("platform-contracts:submission:openapi.yaml")
 }
 
 gstJooqCodegen {
