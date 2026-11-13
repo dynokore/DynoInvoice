@@ -22,7 +22,6 @@ import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.http.SubmissionErrorCode
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
-import com.dynokore.platform.serviceruntime.identity.MachineTokenFilter
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
@@ -90,7 +89,6 @@ class TransactionsRefusalAdvice {
  * operation answers 501 until the task named for it in `operations.tsv` overrides its method.
  */
 @RestController
-@Suppress("TooManyFunctions") // one controller per generated interface (OpenAPI Generator pattern, ruled)
 open class TransactionsController(
     private val replay: ReplayBySelection,
     private val replayOne: ReplaySingleVersion,
@@ -138,7 +136,7 @@ open class TransactionsController(
     ): ResponseEntity<SubmissionPage> =
         ResponseEntity.ok(
             listing.list(
-                machineCaller(),
+                caller(),
                 ListingQuery(
                     entityRef,
                     periodRef,
@@ -256,12 +254,6 @@ open class TransactionsController(
 
     private fun caller(): EndUserPrincipal =
         requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
-            ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
-
-    /** The verified machine principal of the route; absent or of another kind is 401, even with an end-user one. */
-    private fun machineCaller(): Principal =
-        (requests.getObject().getAttribute(MachineTokenFilter.PRINCIPAL_ATTRIBUTE) as? Principal)
-            ?.takeIf { it.kind == PrincipalKind.MACHINE }
             ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
 
     private companion object {

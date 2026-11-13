@@ -82,9 +82,6 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
-    testImplementation(libs.platform.serviceRuntime.api) {
-        capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }
-    }
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
