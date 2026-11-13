@@ -6,12 +6,15 @@ import com.dynokore.platform.serviceruntime.resilience.http.CurrentEndUserToken
 import com.dynokore.platform.serviceruntime.resilience.http.EndUserTokenPropagationInterceptor
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.config.YamlMapFactoryBean
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.core.env.MapPropertySource
+import org.springframework.core.io.ByteArrayResource
 import org.springframework.http.client.ClientHttpRequestInterceptor
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -144,117 +147,159 @@ class CanonicalEdgeClientTest {
             }
         }
 
+    private val five =
+        setOf(
+            "getDocument",
+            "getDocumentVersion",
+            "listPreparedReassignments",
+            "confirmPeriodReassignment",
+            "releaseHeldDocument",
+        )
+
+    private val contractText: String =
+        checkNotNull(javaClass.classLoader.getResourceAsStream("gst/contracts/canonical/openapi.yaml")) {
+            "missing classpath resource gst/contracts/canonical/openapi.yaml"
+        }.use { it.readBytes().toString(Charsets.UTF_8) }
+
     @Test
     fun `INV-AC-12290 the console-bff end-user operations of the canonical contract are exactly the five covered`() {
-        consoleBffEndUserOperations() shouldBe
-            setOf(
-                "getDocument",
-                "getDocumentVersion",
-                "listPreparedReassignments",
-                "confirmPeriodReassignment",
-                "releaseHeldDocument",
+        endUserConsoleOperations(contractText) shouldBe five
+    }
+
+    /** A copy of the pinned contract with [extraOperation] added as one more path item. */
+    private fun withPath(extraOperation: String): String {
+        val copy = contractText.replaceFirst("\npaths:\n", "\npaths:\n$extraOperation\n")
+        check(copy != contractText) { "the contract has no top-level paths: line to extend" }
+        return copy
+    }
+
+    private fun sixthOperation(name: String) =
+        "  /internal/v1/canonical/probe-$name:\n    post:\n      operationId: $name\n" +
+            "      x-caller-auth: end-user\n      x-sync-edge: console-bff->canonical-svc\n" +
+            "      responses:\n        '200':\n          description: probe"
+
+    @Test
+    fun `INV-AC-12290 probe a copy of the contract with a sixth console-bff end-user operation fails the set test`() {
+        (endUserConsoleOperations(withPath(sixthOperation("sixthOperation"))) == five) shouldBe false
+        endUserConsoleOperations(withPath(sixthOperation("sixthOperation"))) shouldBe five + "sixthOperation"
+    }
+
+    @Test
+    fun `INV-AC-12290 probe a copy of the contract without releaseHeldDocument fails the set test`() {
+        val without = contractText.replace("operationId: releaseHeldDocument", "operationId: releaseHeldDocumentGone")
+        (endUserConsoleOperations(without) == five) shouldBe false
+        endUserConsoleOperations(without) shouldBe five - "releaseHeldDocument" + "releaseHeldDocumentGone"
+        val removed =
+            contractText.replace(
+                "x-caller-auth: end-user\n      x-sync-edge: console-bff->canonical-svc",
+                "x-caller-auth: workload",
             )
-    }
-
-    /** Operation blocks are read by line: `operationId` and the `x-*` members are siblings at one indent. */
-    private fun consoleBffEndUserOperations(): Set<String> {
-        val text =
-            checkNotNull(javaClass.classLoader.getResourceAsStream("gst/contracts/canonical/openapi.yaml")) {
-                "missing classpath resource gst/contracts/canonical/openapi.yaml"
-            }.use { it.readBytes().toString(Charsets.UTF_8) }
-        return endUserConsoleOperations(text)
+        (endUserConsoleOperations(removed) == five) shouldBe false
     }
 
     @Test
-    fun `INV-AC-12290 the set check reports a sixth console-bff end-user operation`() {
-        val sixth =
-            """
-            |  /x:
-            |    get:
-            |      operationId: sixthOperation
-            |      x-caller-auth: end-user
-            |      x-sync-edge: console-bff->canonical-svc
-            """.trimMargin()
-        endUserConsoleOperations(sixth) shouldBe setOf("sixthOperation")
+    fun `INV-AC-12290 probe a copy of the contract with the look-alike releaseHeldDocuments fails the set test`() {
+        val lookAlike = contractText.replace("operationId: releaseHeldDocument", "operationId: releaseHeldDocuments")
+        (endUserConsoleOperations(lookAlike) == five) shouldBe false
+        endUserConsoleOperations(lookAlike) shouldBe five - "releaseHeldDocument" + "releaseHeldDocuments"
     }
 
     @Test
-    fun `INV-AC-12290 a look-alike operation name is a different member of the set`() {
-        val lookAlike =
+    fun `INV-AC-12290 the markers ahead of operationId still belong to their own operation`() {
+        val reordered =
             """
-            |    a:
-            |      operationId: releaseHeldDocuments
-            |      x-caller-auth: end-user
-            |      x-sync-edge: console-bff->canonical-svc
-            """.trimMargin()
-        (endUserConsoleOperations(lookAlike) == setOf("releaseHeldDocument")) shouldBe false
+            paths:
+              /a:
+                post:
+                  x-caller-auth: end-user
+                  x-sync-edge: console-bff->canonical-svc
+                  operationId: markersFirst
+              /b:
+                get:
+                  operationId: markersLast
+                  x-sync-edge:
+                    - ingestion-svc->canonical-svc
+                    - console-bff->canonical-svc
+                  x-caller-auth: end-user
+            """.trimIndent()
+        endUserConsoleOperations(reordered) shouldBe setOf("markersFirst", "markersLast")
     }
 
     @Test
     fun `INV-AC-12290 an end-user operation of another edge or another caller auth is not in the set`() {
         val other =
             """
-            |    a:
-            |      operationId: onIngestionEdge
-            |      x-caller-auth: end-user
-            |      x-sync-edge: ingestion-svc->canonical-svc
-            |    b:
-            |      operationId: onWorkload
-            |      x-caller-auth: workload
-            |      x-sync-edge: console-bff->canonical-svc
-            |    c:
-            |      operationId: inList
-            |      x-caller-auth: end-user
-            |      x-sync-edge:
-            |        - ingestion-svc->canonical-svc
-            |        - console-bff->canonical-svc
-            """.trimMargin()
-        endUserConsoleOperations(other) shouldBe setOf("inList")
+            paths:
+              /a:
+                get:
+                  operationId: onIngestionEdge
+                  x-caller-auth: end-user
+                  x-sync-edge: ingestion-svc->canonical-svc
+              /b:
+                get:
+                  operationId: onWorkload
+                  x-caller-auth: workload
+                  x-sync-edge: console-bff->canonical-svc
+              /c:
+                get:
+                  operationId: noEdge
+                  x-caller-auth: end-user
+            """.trimIndent()
+        endUserConsoleOperations(other) shouldBe emptySet()
     }
 
+    @Test
+    fun `INV-AC-12290 a shape the check does not know is a failure, not a skipped operation`() {
+        val unknownEdge =
+            "paths:\n  /a:\n    get:\n      operationId: x\n      x-caller-auth: end-user\n      x-sync-edge: {a: b}\n"
+        shouldThrow<IllegalStateException> { endUserConsoleOperations(unknownEdge) }
+        val noId = "paths:\n  /a:\n    get:\n      x-caller-auth: end-user\n      x-sync-edge: console-bff->x\n"
+        shouldThrow<IllegalStateException> { endUserConsoleOperations(noId) }
+        shouldThrow<IllegalStateException> { endUserConsoleOperations("paths:\n  /a:\n    \$ref: other.yaml\n") }
+    }
+
+    /** The YAML document is parsed (not scanned by line): `paths.*.<method>` members, any key order. */
     private fun endUserConsoleOperations(text: String): Set<String> {
-        class Op(
-            val id: String,
-            var auth: String? = null,
-            val edges: MutableList<String> = mutableListOf(),
-        )
-        val ops = mutableListOf<Op>()
-        var listKey = false
-        for (raw in text.lines()) {
-            val line = raw.trim()
-            val value = { key: String -> line.removePrefix("$key:").trim().trim('\'', '"') }
-            when {
-                line.startsWith("operationId:") -> {
-                    ops += Op(value("operationId"))
-                    listKey = false
-                }
+        val root = YamlMapFactoryBean().apply { setResources(ByteArrayResource(text.toByteArray())) }.getObject()
+        val paths = checkNotNull(root?.get("paths") as? Map<*, *>) { "the contract has no paths map" }
+        val found = mutableSetOf<String>()
+        for ((path, item) in paths) {
+            val operations = checkNotNull(item as? Map<*, *>) { "path item $path is not a map" }
+            check(!operations.containsKey("\$ref")) { "path item $path is a \$ref, which this check does not follow" }
+            for ((method, op) in operations) {
+                if (method !in HTTP_METHODS) continue
+                val members = checkNotNull(op as? Map<*, *>) { "$method $path is not a map" }
+                val id = checkNotNull(members["operationId"] as? String) { "$method $path has no operationId" }
+                val edges =
+                    when (val edge = members["x-sync-edge"]) {
+                        null -> {
+                            emptyList()
+                        }
 
-                ops.isEmpty() -> {}
+                        is String -> {
+                            listOf(edge)
+                        }
 
-                line.startsWith("x-caller-auth:") -> {
-                    ops.last().auth = value("x-caller-auth")
-                    listKey = false
-                }
+                        is List<*> -> {
+                            edge.map {
+                                checkNotNull(
+                                    it as? String,
+                                ) { "$id: x-sync-edge element is not a string" }
+                            }
+                        }
 
-                line.startsWith("x-sync-edge:") -> {
-                    val inline = value("x-sync-edge")
-                    if (inline.isNotEmpty()) ops.last().edges += inline
-                    listKey = inline.isEmpty()
-                }
-
-                listKey && line.startsWith("- ") -> {
-                    ops.last().edges += line.removePrefix("- ").trim().trim('\'', '"')
-                }
-
-                else -> {
-                    listKey = false
-                }
+                        else -> {
+                            error("$id: x-sync-edge is neither a string nor a list")
+                        }
+                    }
+                if (members["x-caller-auth"] == "end-user" && edges.any { it.startsWith("console-bff->") }) found += id
             }
         }
-        return ops
-            .filter { op -> op.auth == "end-user" && op.edges.any { it.startsWith("console-bff->") } }
-            .map { it.id }
-            .toSet()
+        return found
+    }
+
+    private companion object {
+        val HTTP_METHODS = setOf("get", "put", "post", "delete", "patch", "head", "options", "trace")
     }
 
     private fun <T> withClue(
