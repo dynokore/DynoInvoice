@@ -271,7 +271,8 @@ class SubmissionRowSourceDbTest {
         }
         statements.set(0)
         read(a, e, p).rows.size shouldBe 50
-        statements.get() shouldBe 1
+        // INV-T-20600: the rows select plus one extension select of the period, never one per document.
+        statements.get() shouldBe 2
     }
 
     @Test
@@ -282,8 +283,10 @@ class SubmissionRowSourceDbTest {
         seedVersion(a, "d-$s", 1, LifecycleState.READY, Extras("e-$s"))
         boundValues.clear()
         read(a, "e-$s", "p-$s").rows.size shouldBe 1
-        boundValues.size shouldBe 1
-        Regex("\"tenant_id\" = (cast\\()?\\?").containsMatchIn(boundValues.single() as String) shouldBe true
-        (boundValues.single() as String).contains("where") shouldBe true
+        boundValues.size shouldBe 2
+        boundValues.forEach {
+            Regex("\"tenant_id\" = (cast\\()?\\?").containsMatchIn(it as String) shouldBe true
+            it.contains("where") shouldBe true
+        }
     }
 }

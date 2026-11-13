@@ -2,6 +2,7 @@ package com.dynokore.gst.submission.adapters.persistence
 
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ObligationRegisterEntry
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
+import com.dynokore.gst.submission.application.extension.ExtensionInput
 import com.dynokore.gst.submission.application.listing.SourceRead
 import com.dynokore.gst.submission.application.listing.SubmissionRowSource
 import com.dynokore.gst.submission.domain.listing.Direction
@@ -15,8 +16,9 @@ import org.jooq.Record
 
 /**
  * [SubmissionRowSource] over the version rows joined to the register entry of the same document (INV-REQ-975,
- * INV-Q-16290 A): one select in one read transaction of the bound tenant, tenant in the WHERE clause as well as the
- * row level security (CS-19). No condition on state, amount, counterparty or category: the filter is the domain's.
+ * INV-Q-16290 A): one select, plus one select of the period's extension rows mapped through EffectiveDueDate
+ * (INV-REQ-81), in one read transaction of the bound tenant, tenant in the WHERE clause as well as the row level
+ * security (CS-19). No condition on state, amount, counterparty or category: the filter is the domain's.
  * A version row that cannot form a row (entry without facts, no submission type, no transaction date, unpaired
  * acknowledgement) is counted in `withoutFacts`, never mapped with an invented value. Values are never logged.
  */
@@ -32,8 +34,10 @@ class JooqSubmissionRowSource(
         entityRef: String,
         periodRef: String,
     ): SourceRead {
+        var extensions: List<ExtensionInput> = emptyList()
         val records =
             runner.inTransaction {
+                extensions = readExtensions(dsl, tenant, entityRef, periodRef)[entityRef to periodRef].orEmpty()
                 dsl
                     .select(
                         version.DOC_UUID,
@@ -62,11 +66,14 @@ class JooqSubmissionRowSource(
                     .and(entry.PERIOD_REF.eq(periodRef))
                     .fetch()
             }
-        val rows = records.mapNotNull(::toRow)
+        val rows = records.mapNotNull { toRow(it, extensions) }
         return SourceRead(rows, records.size - rows.size)
     }
 
-    private fun toRow(r: Record): SubmissionRow? {
+    private fun toRow(
+        r: Record,
+        extensions: List<ExtensionInput>,
+    ): SubmissionRow? {
         val type = r.get(version.SUBMISSION_TYPE)
         val txDate = r.get(version.TRANSACTION_DATE)
         val ackAt = r.get(version.ACKNOWLEDGED_AT)
@@ -82,7 +89,13 @@ class JooqSubmissionRowSource(
                 version = checkNotNull(r.get(version.VERSION)),
                 submissionType = SubmissionKind.valueOf(checkNotNull(type)),
                 state = LifecycleState.valueOf(checkNotNull(r.get(version.STATE))),
-                dueDate = checkNotNull(r.get(entry.DUE_DATE)),
+                dueDate =
+                    effectiveDueDate(
+                        checkNotNull(r.get(entry.DUE_DATE)),
+                        checkNotNull(r.get(version.DOC_UUID)),
+                        txDate,
+                        extensions,
+                    ),
                 documentNumber = checkNotNull(number),
                 documentTypeCode = checkNotNull(r.get(entry.DOCUMENT_TYPE_CODE)),
                 direction = Direction.valueOf(checkNotNull(r.get(entry.DIRECTION))),
