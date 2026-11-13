@@ -45,6 +45,7 @@ import java.util.logging.LogRecord
 import java.util.logging.Logger
 
 /** The listing use case over fakes (INV-REQ-975, INV-AC-21818). */
+@Suppress("LargeClass") // the task fixes all INV-AC-21818 cases in this one file
 class ListSubmissionsTest {
     private val clock = Clock.fixed(Instant.parse("2026-11-13T00:00:00Z"), ZoneOffset.UTC)
     private val deadline = Deadline.after(Duration.ofSeconds(5), clock)
@@ -442,6 +443,73 @@ class ListSubmissionsTest {
         page(SubmissionFilter(amountMax = BigDecimal("100.00"))) shouldBe listOf("D1" to 1, "D2" to 1)
         page(SubmissionFilter(acknowledged = true)) shouldBe listOf("D1" to 2, "D5" to 1)
         page(SubmissionFilter(bucket = ReconciliationBucket.NEVER_SENT)) shouldBe listOf("D3" to 1)
+    }
+
+    @Test
+    fun `INV-AC-21818 bucket table serves four classes and refuses SENT_NOT_ACKNOWLEDGED with no source call`() {
+        ReconciliationBucket.entries.forEach { bucket ->
+            val source = RecordingSource(SourceRead(rows, 0))
+            val uc = ListSubmissions(replicaFor(holder to roleHoldingBoth()), source)
+            val result = uc.handle(request(filter = SubmissionFilter(bucket = bucket)), deadline)
+            if (bucket in SERVED_BUCKETS) {
+                result.shouldBeInstanceOf<ListSubmissionsResult.Page>()
+            } else {
+                result shouldBe ListSubmissionsResult.Refused(ListSubmissionsRefusal.BUCKET_NOT_SERVED)
+                source.calls.size shouldBe 0
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-21818 a caller denied submission view-status with bucket SENT_NOT_ACKNOWLEDGED gets Forbidden`() {
+        val source = RecordingSource(SourceRead(rows, 0))
+        val uc = ListSubmissions(replicaFor(holder to roleHoldingBoth()), source)
+        val filter = SubmissionFilter(bucket = ReconciliationBucket.SENT_NOT_ACKNOWLEDGED)
+        uc.handle(request(principal = stranger, filter = filter), deadline) shouldBe ListSubmissionsResult.Forbidden
+        source.calls.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-21818 buckets classify the document so all rows of a document are in or out together`() {
+        fun mk(
+            doc: String,
+            version: Int,
+            state: LifecycleState,
+        ) = row(
+            doc,
+            version,
+            state,
+            SubmissionKind.TYPE_1A,
+            Direction.SALE,
+            LocalDate.of(2026, 11, 10),
+            LocalDate.of(2026, 11, 1),
+            "Acme",
+            "UEN1",
+            BigDecimal("10.00"),
+            setOf("SR"),
+            false,
+        )
+        val docs =
+            listOf(
+                mk("A", 1, LifecycleState.ACKNOWLEDGED),
+                mk("A", 2, LifecycleState.REJECTED),
+                mk("B", 1, LifecycleState.REJECTED),
+                mk("C", 1, LifecycleState.DEAD_LETTERED),
+                mk("D", 1, LifecycleState.QUEUED),
+                mk("E", 1, LifecycleState.SENT),
+            )
+        val uc = ListSubmissions(replicaFor(holder to roleHoldingBoth()), RecordingSource(SourceRead(docs, 0)))
+
+        fun page(bucket: ReconciliationBucket) =
+            uc
+                .handle(request(filter = SubmissionFilter(bucket = bucket)), deadline)
+                .shouldBeInstanceOf<ListSubmissionsResult.Page>()
+                .rows
+                .map { it.docUuid to it.version }
+        page(ReconciliationBucket.SENT_ACKNOWLEDGED) shouldBe listOf("A" to 1, "A" to 2)
+        page(ReconciliationBucket.REJECTED) shouldBe listOf("B" to 1)
+        page(ReconciliationBucket.DEAD_LETTERED) shouldBe listOf("C" to 1)
+        page(ReconciliationBucket.NEVER_SENT) shouldBe listOf("D" to 1)
     }
 
     @Test

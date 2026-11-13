@@ -44,6 +44,19 @@ data class ListSubmissionsRequest(
     val maxLimit: Int,
 )
 
+/**
+ * The reconciliation classes this list can serve. SENT_NOT_ACKNOWLEDGED needs an acknowledgement deadline and a
+ * clock that the register rows and this request-scoped use case do not carry (open design question on the
+ * reconciliation task), so that drill-down is refused rather than silently matching nothing.
+ */
+val SERVED_BUCKETS: Set<ReconciliationBucket> =
+    setOf(
+        ReconciliationBucket.SENT_ACKNOWLEDGED,
+        ReconciliationBucket.REJECTED,
+        ReconciliationBucket.DEAD_LETTERED,
+        ReconciliationBucket.NEVER_SENT,
+    )
+
 /** One list row as served to the caller: the content facts already masked per [ListFactsPolicy.mask]. */
 data class ListSubmissionsRow(
     val docUuid: String,
@@ -59,7 +72,13 @@ data class ListSubmissionsRow(
 )
 
 /** Why [ListSubmissions.handle] refused the request; never carries a value of the request itself. */
-enum class ListSubmissionsRefusal { MASKED_FACT_FILTER, CURSOR_MISMATCH, BAD_SORT, LIMIT_OUT_OF_RANGE }
+enum class ListSubmissionsRefusal {
+    MASKED_FACT_FILTER,
+    CURSOR_MISMATCH,
+    BAD_SORT,
+    LIMIT_OUT_OF_RANGE,
+    BUCKET_NOT_SERVED,
+}
 
 sealed interface ListSubmissionsResult {
     data class Page(
@@ -114,6 +133,10 @@ class ListSubmissions(
                 ListSubmissionsResult.Refused(ListSubmissionsRefusal.LIMIT_OUT_OF_RANGE)
             }
 
+            request.filter.bucket != null && request.filter.bucket !in SERVED_BUCKETS -> {
+                ListSubmissionsResult.Refused(ListSubmissionsRefusal.BUCKET_NOT_SERVED)
+            }
+
             else -> {
                 buildPage(request, sort, mayViewContent)
             }
@@ -126,7 +149,7 @@ class ListSubmissions(
         mayViewContent: Boolean,
     ): ListSubmissionsResult {
         val read = source.rows(request.tenant, request.entityRef, request.periodRef)
-        val ordered = SubmissionRows.assemble(request.filter.select(read.rows, ::bucketOf), sort)
+        val ordered = SubmissionRows.assemble(request.filter.select(read.rows, documentBuckets(read.rows)::get), sort)
         val filterKey = request.filter.canonical()
         val sortKey = sortText(sort)
         val from = request.cursor?.let { resumeIndex(it, filterKey, sortKey, ordered) }
@@ -208,14 +231,19 @@ class ListSubmissions(
             filter.amountMax != null || filter.categoryCode != null
 
     /**
-     * The row's own reconciliation class (INV-REQ-976), without the overdue threshold: this request-scoped use case
-     * threads no clock (ARC-13), and the overdue determination is the reconciliation view's own concern, out of this
-     * task's scope. A row in SENT or SENT_UNCONFIRMED state therefore never matches a bucket filter here.
+     * The reconciliation class of each document (INV-REQ-976 behavior 3): every row of a document shares its class,
+     * so a document with versions ACKNOWLEDGED then REJECTED is SENT_ACKNOWLEDGED in all its rows. No deadline or
+     * clock is carried, so the class never is SENT_NOT_ACKNOWLEDGED and the instant passed is never compared.
      */
-    private fun bucketOf(row: SubmissionRow): ReconciliationBucket? {
-        val version = VersionFact(row.version, row.state, acknowledgementDeadline = null)
-        val doc = DocFact(row.docUuid, listOf(version), row.taxableAmount)
-        return SentVersusAcknowledged.bucketOf(doc, Instant.EPOCH)
+    private fun documentBuckets(rows: List<SubmissionRow>): Map<SubmissionRow, ReconciliationBucket?> {
+        val byDoc = rows.groupBy { it.docUuid }
+        val classOf =
+            byDoc.mapValues { (docUuid, group) ->
+                val ordered = group.sortedBy { it.version }
+                val versions = ordered.map { VersionFact(it.version, it.state, acknowledgementDeadline = null) }
+                SentVersusAcknowledged.bucketOf(DocFact(docUuid, versions, ordered.last().taxableAmount), Instant.EPOCH)
+            }
+        return rows.associateWith { classOf[it.docUuid] }
     }
 
     private fun sortText(sort: SortKey): String {
