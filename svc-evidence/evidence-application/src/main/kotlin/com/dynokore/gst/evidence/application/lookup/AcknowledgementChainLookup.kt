@@ -2,7 +2,10 @@ package com.dynokore.gst.evidence.application.lookup
 
 import com.dynokore.gst.evidence.application.auditedread.AuditedReads
 import com.dynokore.gst.evidence.application.chain.AcknowledgementLocatorStore
+import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQuery
+import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
 import com.dynokore.gst.evidence.domain.auditedread.AuditedCall
+import com.dynokore.gst.evidence.domain.integrity.IntegrityState
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.Principal
@@ -30,9 +33,14 @@ data class ChainItem(
 
 /** The answer of [ChainRecordReader]: the items of the version, or a stored link whose record is missing. */
 sealed interface ChainRecords {
-    /** Every item of the version, ordered by [ChainItem.key], with [ChainItem.sequence] the rank in that order. */
+    /**
+     * Every item of the version, ordered by [ChainItem.key], with [ChainItem.sequence] the rank in that order;
+     * [entityRef] and [periodRef] are the one pair of the version's records.
+     */
     data class Complete(
         val items: List<ChainItem>,
+        val entityRef: String,
+        val periodRef: String,
     ) : ChainRecords
 
     /** A locator or sealed-payload link has no `applied_record` row, or the chain lacks the record it names. */
@@ -69,6 +77,7 @@ sealed interface ChainLookupResult {
         val version: Int,
         val items: List<ChainItem>,
         val nextCursor: ChainCursor?,
+        val integrityStatus: IntegrityState,
     ) : ChainLookupResult
 
     /** An unknown id and the id of another tenant answer the same. */
@@ -89,6 +98,7 @@ class AcknowledgementChainLookup(
     private val replica: AuthorityReplica,
     private val locators: AcknowledgementLocatorStore,
     private val records: ChainRecordReader,
+    private val integrity: IntegrityStatusQueryHandler,
     private val audited: AuditedReads,
 ) {
     @Suppress("LongParameterList") // the request of the operation: caller, id, page, audit context
@@ -114,7 +124,9 @@ class AcknowledgementChainLookup(
                     }
 
                     is ChainRecords.Complete -> {
-                        page(locator.ackId, locator.docUuid, locator.version, read.items, limit, cursor)
+                        val state =
+                            integrity.handle(tenant, IntegrityStatusQuery(read.entityRef, read.periodRef)).result
+                        page(locator.ackId, locator.docUuid, locator.version, read.items, limit, cursor, state)
                     }
                 }
             }
@@ -129,12 +141,13 @@ class AcknowledgementChainLookup(
         items: List<ChainItem>,
         limit: Int,
         cursor: ChainCursor?,
+        integrityStatus: IntegrityState,
     ): ChainLookupResult.Found {
         val ordered = items.sortedBy { it.key }
         val rest = if (cursor == null) ordered else ordered.filter { it.key > cursor }
         val page = rest.take(limit)
         val next = if (rest.size > limit) page.last().key else null
-        return ChainLookupResult.Found(ackId, docUuid, version, page, next)
+        return ChainLookupResult.Found(ackId, docUuid, version, page, next, integrityStatus)
     }
 
     companion object {

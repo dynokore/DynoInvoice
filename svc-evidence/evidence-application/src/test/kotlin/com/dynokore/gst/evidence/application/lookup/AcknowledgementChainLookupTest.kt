@@ -3,6 +3,13 @@ package com.dynokore.gst.evidence.application.lookup
 import com.dynokore.gst.evidence.application.auditedread.AuditedReads
 import com.dynokore.gst.evidence.application.chain.AcknowledgementLocator
 import com.dynokore.gst.evidence.application.chain.AcknowledgementLocatorStore
+import com.dynokore.gst.evidence.application.integrity.IntegrityFailureRow
+import com.dynokore.gst.evidence.application.integrity.IntegrityRunRow
+import com.dynokore.gst.evidence.application.integrity.IntegrityStatusQueryHandler
+import com.dynokore.gst.evidence.application.integrity.IntegrityStore
+import com.dynokore.gst.evidence.domain.integrity.IntegrityState
+import com.dynokore.gst.evidence.domain.integrity.RunCause
+import com.dynokore.gst.evidence.domain.integrity.RunResult
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -106,6 +113,48 @@ class AcknowledgementChainLookupTest {
         }
     }
 
+    private fun complete(vararg items: ChainItem) = ChainRecords.Complete(items.toList(), "ENT-1", "2026-Q1")
+
+    private class Integrity(
+        private val run: RunResult?,
+    ) : IntegrityStore {
+        val asked = mutableListOf<Pair<String, String>>()
+
+        override fun lock(
+            tenant: TenantId,
+            entityRef: String,
+            period: String,
+        ) = error("not used")
+
+        override fun failureExists(
+            tenant: TenantId,
+            row: IntegrityFailureRow,
+        ): Boolean = error("not used")
+
+        override fun insertFailure(
+            tenant: TenantId,
+            row: IntegrityFailureRow,
+        ) = error("not used")
+
+        override fun insertRun(
+            tenant: TenantId,
+            row: IntegrityRunRow,
+        ) = error("not used")
+
+        override fun latestRun(
+            tenant: TenantId,
+            entityRef: String,
+            period: String,
+        ): IntegrityRunRow? {
+            asked += entityRef to period
+            return run?.let {
+                val runAt = Instant.parse("2026-11-01T00:00:00Z")
+                IntegrityRunRow(entityRef, period, "R1", runAt, it, RunCause.VERIFICATION, 2, null)
+            }
+        }
+    }
+
+    private var store = Integrity(null)
     private val audit = Audit()
     private val context =
         EventContext(t1, EntityRef("ENT-1"), null, null, "agg", null, CorrelationId("c"), CausationId("d"))
@@ -149,11 +198,16 @@ class AcknowledgementChainLookupTest {
         ackId: String = "A1",
         who: Principal = user,
         replica: AuthorityReplica = replica(),
-        records: ChainRecords = ChainRecords.Complete(listOf(ack, payload)),
+        records: ChainRecords = complete(ack, payload),
         limit: Int = 100,
         cursor: ChainCursor? = null,
-    ) = AcknowledgementChainLookup(replica, Locators(), Reader(records), AuditedReads(audit))
-        .lookup(tenant, who, ackId, limit, cursor, context)
+    ) = AcknowledgementChainLookup(
+        replica,
+        Locators(),
+        Reader(records),
+        IntegrityStatusQueryHandler(store),
+        AuditedReads(audit),
+    ).lookup(tenant, who, ackId, limit, cursor, context)
 
     @Test
     fun `INV-AC-20574 found answers PAYLOAD then ACKNOWLEDGEMENT in sequence order and no DECISION_TRACE item`() {
@@ -178,7 +232,7 @@ class AcknowledgementChainLookupTest {
 
     @Test
     fun `INV-AC-20574 three records with limit 2 give ranks 1 2 3 and the cursor of page one holds no rank`() {
-        val all = ChainRecords.Complete(listOf(third, payload, ack))
+        val all = complete(third, payload, ack)
         val first = lookup(records = all, limit = 2).shouldBeInstanceOf<ChainLookupResult.Found>()
         first.items.map { it.sequence } shouldBe listOf(1L, 2L)
         first.nextCursor shouldBe ack.key
@@ -236,6 +290,28 @@ class AcknowledgementChainLookupTest {
     fun `INV-AC-20574 the look-alike key enquiry-lookup-reverse does not allow the lookup`() {
         lookup(replica = replica(key = "enquiry-lookup.reverse")) shouldBe ChainLookupResult.Forbidden
         calls shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21785 found carries integrityStatus of the configured run, asked once for the reader pair`() {
+        for ((run, state) in listOf(
+            RunResult.VERIFIED to IntegrityState.VERIFIED,
+            RunResult.FAILED to IntegrityState.FAILED,
+            null to IntegrityState.NEVER_RUN,
+        )) {
+            store = Integrity(run)
+            lookup().shouldBeInstanceOf<ChainLookupResult.Found>().integrityStatus shouldBe state
+            store.asked shouldBe listOf("ENT-1" to "2026-Q1")
+        }
+    }
+
+    @Test
+    fun `INV-AC-21785 the integrity store is not asked for a refused caller, unknown id or incomplete version`() {
+        store = Integrity(RunResult.VERIFIED)
+        lookup(who = noKeyUser) shouldBe ChainLookupResult.Forbidden
+        lookup(ackId = "NOPE") shouldBe ChainLookupResult.NotFound
+        lookup(records = ChainRecords.Incomplete) shouldBe ChainLookupResult.Incomplete
+        store.asked shouldBe emptyList()
     }
 
     private companion object {

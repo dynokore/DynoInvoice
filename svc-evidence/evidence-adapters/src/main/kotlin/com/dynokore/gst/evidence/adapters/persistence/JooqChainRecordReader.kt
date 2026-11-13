@@ -59,11 +59,14 @@ class JooqChainRecordReader(
             } else {
                 null
             }
-        return if (acks == null || payloads == null) {
+        val pairs = applied.values.map { it.entityRef to it.periodRef }.distinct()
+        return if (acks == null || payloads == null || pairs.size != 1) {
             ChainRecords.Incomplete
         } else {
             ChainRecords.Complete(
                 (acks + payloads).sortedBy { it.key }.mapIndexed { i, item -> item.copy(sequence = i + 1L) },
+                pairs.single().first,
+                pairs.single().second,
             )
         }
     }

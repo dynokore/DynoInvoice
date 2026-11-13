@@ -46,11 +46,12 @@ class ChainRecordReaderDbTest {
     private fun locate(
         tenant: UUID,
         version: Int = 2,
+        entity: String = "ENT-1",
     ) = tx(tenant) { dsl, t ->
         JooqLocatorStore(dsl).insert(
             t,
             "L$version",
-            DocumentLocator(doc, version, "ENT-1", "2026-Q1", LocalDate.of(2026, 1, 15), "trace/$version", "INV-1"),
+            DocumentLocator(doc, version, entity, "2026-Q1", LocalDate.of(2026, 1, 15), "trace/$version", "INV-1"),
             at,
         )
     }
@@ -85,6 +86,53 @@ class ChainRecordReaderDbTest {
     ) = tx(tenant) { dsl, t -> reader(dsl).read(t, ackId, doc, version) }
 
     private fun complete(records: ChainRecords) = records.shouldBeInstanceOf<ChainRecords.Complete>().items
+
+    @Test
+    fun `INV-AC-21785 the Complete answer names the entity and period of the version's locator`() {
+        val t = UUID.randomUUID()
+        locate(t)
+        seal(t, 2, "P1")
+        acknowledge(t, "A1", 2, "ACK-E1")
+        val answer = read(t, "A1", 2).shouldBeInstanceOf<ChainRecords.Complete>()
+        answer.entityRef shouldBe "ENT-1"
+        answer.periodRef shouldBe "2026-Q1"
+    }
+
+    @Test
+    fun `INV-AC-21785 a PAYLOAD record in the chain of another entity answers Incomplete`() {
+        val t = UUID.randomUUID()
+        locate(t)
+        locate(t, 3, "ENT-2")
+        tx(t) { dsl, tenant ->
+            ChainWiring
+                .recordAppender(dsl, Clock.fixed(at, ZoneOffset.UTC))
+                .appendBound(tenant, RecordKind.EVIDENCE_PAYLOAD, doc, 3, "P-OTHER", "{}".toByteArray(), at)
+        }
+        acknowledge(t, "A1", 2, "ACK-E1")
+        // link the ENT-2 payload event to version 2, as a data defect would
+        tx(t) { dsl, tenant ->
+            dsl.execute(
+                "insert into evidence.sealed_payload (tenant_id, doc_uuid, version, source_event_id, recorded_at) " +
+                    "values (?, ?, 2, 'P-OTHER', now())",
+                tenant.value,
+                doc,
+            )
+        }
+        read(t, "A1", 2) shouldBe ChainRecords.Incomplete
+    }
+
+    @Test
+    fun `INV-AC-21785 the reader built by ChainWiring chainRecordReader returns the same items, entity and period`() {
+        val t = UUID.randomUUID()
+        locate(t)
+        seal(t, 2, "P1")
+        acknowledge(t, "A1", 2, "ACK-E1")
+        val direct = read(t, "A1", 2).shouldBeInstanceOf<ChainRecords.Complete>()
+        val wired =
+            tx(t) { dsl, tenant -> ChainWiring.chainRecordReader(dsl).read(tenant, "A1", doc, 2) }
+                .shouldBeInstanceOf<ChainRecords.Complete>()
+        wired shouldBe direct
+    }
 
     @Test
     fun `INV-AC-20574 the ACKNOWLEDGEMENT record is found through the locator's source event`() {

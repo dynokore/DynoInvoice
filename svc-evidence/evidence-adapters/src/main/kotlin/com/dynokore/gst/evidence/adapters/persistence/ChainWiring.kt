@@ -16,6 +16,7 @@ import com.dynokore.gst.evidence.application.integrity.ChainVerification
 import com.dynokore.gst.evidence.application.integrity.ChainVerificationRecorder
 import com.dynokore.gst.evidence.application.integrity.DigestCopies
 import com.dynokore.gst.evidence.application.integrity.VerificationSources
+import com.dynokore.gst.evidence.application.lookup.ChainRecordReader
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.EntityRef
 import com.dynokore.platform.evidencestore.JdbcEvidenceLedger
@@ -36,6 +37,9 @@ object ChainWiring {
     /** One ledger per chain table, the one place that decides which ledger writes and reads the `version` column. */
     internal fun ledgers(dsl: DSLContext): Map<RecordKind, JdbcEvidenceLedger> =
         RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table, versionColumn(it)) }
+
+    /** The chain record reader over the same ledgers as the appender, for the bootstrap (INV-REQ-691). */
+    fun chainRecordReader(dsl: DSLContext): ChainRecordReader = JooqChainRecordReader(dsl, ledgers(dsl))
 
     fun recordAppender(
         dsl: DSLContext,
