@@ -50,14 +50,25 @@ class OverrideException(
         reason: String,
     ): OverrideOutcome =
         when {
-            row.state != OPEN -> OverrideOutcome.NotFound
-            else ->
+            row.state != OPEN -> {
+                OverrideOutcome.NotFound
+            }
+
+            else -> {
                 when (RouteTable.routeOf(row.code)) {
-                    Route.PAYLOAD -> if (row.docUuid.isEmpty()) OverrideOutcome.NotFound else viaPayload(row, reason)
-                    Route.SUBMISSION ->
+                    Route.PAYLOAD -> {
+                        if (row.docUuid.isEmpty()) OverrideOutcome.NotFound else viaPayload(row, reason)
+                    }
+
+                    Route.SUBMISSION -> {
                         if (row.periodRef.isEmpty()) OverrideOutcome.NotFound else viaSubmission(row, reason)
-                    null -> OverrideOutcome.NotFound
+                    }
+
+                    null -> {
+                        OverrideOutcome.NotFound
+                    }
                 }
+            }
         }
 
     private fun viaPayload(
