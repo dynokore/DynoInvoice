@@ -163,9 +163,7 @@ class ConfirmFilingTest {
         period: String = "P",
         day: Int = 18,
         ack: String = "A1",
-        correction: Boolean = false,
-        portal: String? = null,
-    ) = ConfirmFilingRequest(tenant, who, "e1", period, LocalDate.of(2026, 4, day), ack, portal, correction)
+    ) = ConfirmFilingRequest(tenant, who, "e1", period, LocalDate.of(2026, 4, day), ack, null, false)
 
     @Test
     fun `INV-AC-20622 first fact second date and correction`() {
@@ -184,7 +182,7 @@ class ConfirmFilingTest {
 
         val fix =
             uc
-                .handle(req(day = 19, ack = "A3", correction = true), deadline)
+                .handle(req(day = 19, ack = "A3").copy(correction = true), deadline)
                 .shouldBeInstanceOf<ConfirmFilingResult.Recorded>()
         fix.governingFiledAt shouldBe LocalDate.of(2026, 4, 19)
         fix.conflict shouldBe null
@@ -289,7 +287,7 @@ class ConfirmFilingTest {
     @Test
     fun `the handed fact carries portalRef as given and null when absent`() {
         val uc = useCase(holder())
-        uc.handle(req(portal = "portal-1"), deadline)
+        uc.handle(req().copy(portalRef = "portal-1"), deadline)
         uc.handle(req(day = 20, ack = "A2"), deadline)
         store.handed.map { it.portalRef } shouldBe listOf("portal-1", null)
     }
