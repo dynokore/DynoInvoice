@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.consent.AgentTenancyConstraints
 import com.dynokore.gst.access.adapters.consent.VariationPointAgentTenancy
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
@@ -74,9 +75,10 @@ class ConsentUseCases {
         mapper: ObjectMapper,
         dsl: DSLContext,
         head: AuthorityHeadStore,
+        incarnations: AuthorityIncarnationStore,
     ): ConsentChangePublisher {
         // wrapped, so that the bean is not also an AuthorityChangePublisher candidate of the grant use cases
-        val events = AuthorityChangedOutbox(outbox, mapper, head)
+        val events = AuthorityChangedOutbox(outbox, mapper, head, incarnations)
         return VersionStoringConsentChanges({ events.publish(it) }, StoredAuthorityVersions(dsl))
     }
 

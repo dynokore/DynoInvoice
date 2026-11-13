@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.events.AuthorityChangedReplaySource
 import com.dynokore.gst.access.adapters.persistence.JooqInstallationRoleGrants
 import com.dynokore.gst.access.adapters.persistence.JooqReplayTenants
@@ -26,6 +27,7 @@ class ReplaySourcesConfiguration {
         mapper: ObjectMapper,
         installation: JooqInstallationRoleGrants,
         tenants: TenantContext,
+        incarnations: AuthorityIncarnationStore,
     ): ReplayStateSource =
-        AuthorityChangedReplaySource(dsl, mapper, installation, tenants::current, JooqReplayTenants(dsl, tx))
+        AuthorityChangedReplaySource(dsl, mapper, installation, tenants::current, JooqReplayTenants(dsl, tx), incarnations)
 }

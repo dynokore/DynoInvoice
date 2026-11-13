@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.events.AuthorityChangedPayloads
 import com.dynokore.gst.access.adapters.events.InstallationRoleReconciler
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
@@ -35,7 +36,8 @@ class InstallationRoleGrantsConfiguration {
         mapper: ObjectMapper,
         clock: Clock,
         head: AuthorityHeadStore,
-    ) = InstallationRoleReconciler(platform, tx, grants, outbox, AuthorityChangedPayloads(mapper), clock, head)
+        incarnations: AuthorityIncarnationStore,
+    ) = InstallationRoleReconciler(platform, tx, grants, outbox, AuthorityChangedPayloads(mapper, incarnations), clock, head)
 
     /** Runs the reconciliation after every singleton exists, so that a refused entry stops the start. */
     @Bean

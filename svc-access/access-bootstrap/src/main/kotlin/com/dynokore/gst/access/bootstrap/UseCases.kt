@@ -1,4 +1,5 @@
 package com.dynokore.gst.access.bootstrap
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.audit.OutboxGrantAudit
 import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
 import com.dynokore.gst.access.adapters.events.StoredAuthorityVersions
@@ -82,8 +83,9 @@ class UseCases {
         mapper: ObjectMapper,
         dsl: DSLContext,
         head: AuthorityHeadStore,
+        incarnations: AuthorityIncarnationStore,
     ): AuthorityChangePublisher =
-        VersionStoringGrantChanges(AuthorityChangedOutbox(outbox, mapper, head), StoredAuthorityVersions(dsl))
+        VersionStoringGrantChanges(AuthorityChangedOutbox(outbox, mapper, head, incarnations), StoredAuthorityVersions(dsl))
 
     @Bean
     fun grantAudit(

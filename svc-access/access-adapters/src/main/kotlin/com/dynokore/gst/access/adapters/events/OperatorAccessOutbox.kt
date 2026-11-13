@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.application.operatorsession.OperatorAccessPublisher
 import com.dynokore.gst.access.application.operatorsession.OperatorAccessRecord
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -17,8 +18,9 @@ import tools.jackson.databind.node.ObjectNode
 class OperatorAccessOutbox(
     private val outbox: OutboxWriter,
     mapper: ObjectMapper,
+    incarnations: AuthorityIncarnationStore,
 ) : OperatorAccessPublisher {
-    private val payloads = AuthorityChangedPayloads(mapper)
+    private val payloads = AuthorityChangedPayloads(mapper, incarnations)
 
     override fun publish(record: OperatorAccessRecord) {
         val context = EventContexts.forAggregate(record.tenant, EntityRef.TENANT_WIDE, record.operatorRef)

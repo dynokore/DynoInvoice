@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.events.OperatorAccessOutbox
 import com.dynokore.gst.access.adapters.events.OperatorSessionKeysChangedOutbox
 import com.dynokore.gst.access.adapters.persistence.JooqAuthorityVersions
@@ -61,7 +62,8 @@ class OperatorSessionUseCases {
     fun operatorAccessPublisher(
         outbox: OutboxWriter,
         mapper: ObjectMapper,
-    ): OperatorAccessPublisher = OperatorAccessOutbox(outbox, mapper)
+        incarnations: AuthorityIncarnationStore,
+    ): OperatorAccessPublisher = OperatorAccessOutbox(outbox, mapper, incarnations)
 
     @Bean
     fun authorityVersions(dsl: DSLContext): AuthorityVersions = JooqAuthorityVersions(dsl)

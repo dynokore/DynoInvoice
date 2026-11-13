@@ -48,11 +48,13 @@ class AuthorityChangedPayloadTest {
             outbox = org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java),
             mapper = mapper,
             head = InMemoryAuthorityHead(),
+            incarnations = InMemoryAuthorityIncarnation(),
         )
     private val operatorOutbox =
         OperatorAccessOutbox(
             org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java),
             mapper,
+            InMemoryAuthorityIncarnation(),
         )
     private val schema =
         resource("gst/contracts/service-runtime/schemas/authority-changed-payload.schema.json").let { text ->
@@ -101,6 +103,35 @@ class AuthorityChangedPayloadTest {
 
     private fun errors(change: RoleGrantChange) =
         schema.validate(outbox.payload(change).toString(), com.networknt.schema.InputFormat.JSON)
+
+    @Test
+    fun `INV-AC-22069 every AuthorityChanged payload kind carries the stored incarnation and validates against the schema`() {
+        val payloads = AuthorityChangedPayloads(mapper, InMemoryAuthorityIncarnation(4_242))
+        val installation =
+            com.dynokore.gst.access.adapters.persistence.InstallationRoleGrantRow(
+                InstallationGrantRef
+                    .of("deployment.operator", "user:op-1"),
+                "user:op-1",
+                "deployment.operator",
+                true,
+                42,
+                java.time.OffsetDateTime
+                    .parse("2026-11-09T01:02:03Z"),
+            )
+        val byKind =
+            mapOf(
+                "ROLE_GRANT" to payloads.roleGrant(change()),
+                "INSTALLATION" to payloads.installationGrant(installation),
+                "CONSENT" to payloads.consent(consent(ConsentStatus.LIVE, ScopeItem.entries.first())),
+                "REVOCATION" to payloads.principalRevoked("PRN-1", 9, Instant.parse("2026-11-01T00:00:00Z")),
+                "OPERATOR_ACCESS" to payloads.operatorAccess(operatorRecord(null)),
+            )
+        byKind.forEach { (kind, node) ->
+            assertEquals(4_242, node["incarnation"].asInt(), kind)
+            val found = schema.validate(node.toString(), com.networknt.schema.InputFormat.JSON)
+            assertTrue(found.isEmpty(), "$kind: $found")
+        }
+    }
 
     @Test
     fun `a role grant change of every scope level and state validates against the AuthorityChanged schema`() {
@@ -294,7 +325,7 @@ class AuthorityChangedPayloadTest {
                     return emptyList()
                 }
             }
-        val grants = AuthorityChangedOutbox(writer, mapper, InMemoryAuthorityHead())
+        val grants = AuthorityChangedOutbox(writer, mapper, InMemoryAuthorityHead(), InMemoryAuthorityIncarnation())
         grants.publish(listOf(change()))
         grants.publish(consent(ConsentStatus.LIVE, ScopeItem.SUBMIT_INVOICE_DATA))
         val principal =
@@ -312,6 +343,7 @@ class AuthorityChangedPayloadTest {
             mapper,
             Clock.systemUTC(),
             InMemoryAuthorityHead(),
+            InMemoryAuthorityIncarnation(),
         ).publishRevoked(principal) { 7L }
         assertEquals(3, captured.size)
         captured.forEach { assertEquals("com.dynokore.gst.platform.AuthorityChanged.v1", it.type) }

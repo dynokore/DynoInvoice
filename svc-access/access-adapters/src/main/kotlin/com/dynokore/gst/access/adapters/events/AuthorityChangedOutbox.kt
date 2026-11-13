@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.consent.ConsentChangePublisher
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
@@ -24,9 +25,10 @@ class AuthorityChangedOutbox(
     private val outbox: OutboxWriter,
     mapper: ObjectMapper,
     private val head: AuthorityHeadStore,
+    incarnations: AuthorityIncarnationStore,
 ) : AuthorityChangePublisher,
     ConsentChangePublisher {
-    private val payloads = AuthorityChangedPayloads(mapper)
+    private val payloads = AuthorityChangedPayloads(mapper, incarnations)
 
     override fun publish(changes: List<RoleGrantChange>) {
         changes.forEach { change ->

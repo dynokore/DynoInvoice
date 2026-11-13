@@ -16,7 +16,7 @@ import java.time.OffsetDateTime
  */
 class InstallationGrantPayloadTest {
     private val mapper = JsonMapper.builder().build()
-    private val payloads = AuthorityChangedPayloads(mapper)
+    private val payloads = AuthorityChangedPayloads(mapper, InMemoryAuthorityIncarnation())
     private val schema =
         checkNotNull(
             javaClass.classLoader.getResourceAsStream(

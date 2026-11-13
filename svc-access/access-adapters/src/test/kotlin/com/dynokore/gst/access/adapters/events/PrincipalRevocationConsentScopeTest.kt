@@ -20,7 +20,7 @@ class PrincipalRevocationConsentScopeTest {
     fun `a stored principal with a consent scope publishes the one principal record event`() {
         val writer = CapturedEvents()
         val outbox =
-            PrincipalRevocationOutbox(writer, JsonMapper.builder().build(), Clock.systemUTC(), InMemoryAuthorityHead())
+            PrincipalRevocationOutbox(writer, JsonMapper.builder().build(), Clock.systemUTC(), InMemoryAuthorityHead(), InMemoryAuthorityIncarnation())
         val scope = "consent:${tenant.value}"
         val principal = ServicePrincipal("PRN-1", tenant, PrincipalType.INGEST, scope, null, PrincipalStatus.REVOKED, 1)
         outbox.publishRevoked(principal) { 1L }

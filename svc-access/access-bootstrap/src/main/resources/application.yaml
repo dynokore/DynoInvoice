@@ -63,6 +63,8 @@ inv:
       - access.installation_role_grant
       # The head record of the authority versions (INV-T-9060): one row, no tenant column, no tenant data.
       - access.authority_head
+      # The incarnation of the authority versions (INV-T-9261): one row, no tenant column, no tenant data.
+      - access.authority_incarnation
       # Its SECURITY DEFINER write function (RETURNS SETOF, so jOOQ generates it as a table, like the claim above);
       # current() still reads the table above.
       - access.advance_authority_head

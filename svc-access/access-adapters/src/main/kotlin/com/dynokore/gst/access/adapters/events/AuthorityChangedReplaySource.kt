@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.JooqInstallationRoleGrants
 import com.dynokore.gst.access.adapters.persistence.column
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.CONSENT
@@ -46,8 +47,9 @@ class AuthorityChangedReplaySource(
     private val installation: JooqInstallationRoleGrants,
     private val bound: () -> TenantId,
     private val tenantsOf: () -> List<TenantId>,
+    incarnations: AuthorityIncarnationStore,
 ) : ReplayStateSource {
-    private val payloads = AuthorityChangedPayloads(mapper)
+    private val payloads = AuthorityChangedPayloads(mapper, incarnations)
     private val consentReader = ConsentReplayReader(dsl, payloads)
 
     override val eventType: String = PlatformEventCatalogue.AUTHORITY_CHANGED.eventType

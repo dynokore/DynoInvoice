@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.InstallationRoleGrantRow
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.grant.RoleGrantChange
@@ -18,6 +19,7 @@ import java.time.format.DateTimeFormatter
  */
 class AuthorityChangedPayloads(
     private val mapper: ObjectMapper,
+    private val incarnations: AuthorityIncarnationStore,
 ) {
     fun consent(record: ConsentAuthorityRecord): ObjectNode {
         val consent = record.consent
@@ -25,7 +27,7 @@ class AuthorityChangedPayloads(
             consent.terms.validFrom
                 .atStartOfDay()
                 .atOffset(java.time.ZoneOffset.UTC)
-        val root = mapper.createObjectNode()
+        val root = newRoot()
         root.put("changeKind", "CONSENT")
         root.put("principalRef", consent.agent.value)
         root.put("authorityVersion", record.authorityVersion)
@@ -40,7 +42,7 @@ class AuthorityChangedPayloads(
     }
 
     fun roleGrant(change: RoleGrantChange): ObjectNode {
-        val root = mapper.createObjectNode()
+        val root = newRoot()
         root.put("changeKind", "ROLE_GRANT")
         root.put("principalRef", change.identity.value)
         root.put("authorityVersion", change.authorityVersion)
@@ -62,7 +64,7 @@ class AuthorityChangedPayloads(
      * `scopeRef`; [validFrom] is the instant the state was written, and there is no end and no period.
      */
     fun installationGrant(row: InstallationRoleGrantRow): ObjectNode {
-        val root = mapper.createObjectNode()
+        val root = newRoot()
         root.put("changeKind", "ROLE_GRANT")
         root.put("principalRef", row.subject)
         root.put("authorityVersion", row.authorityVersion)
@@ -81,7 +83,7 @@ class AuthorityChangedPayloads(
         authorityVersion: Long,
         validFrom: Instant,
     ): ObjectNode {
-        val root = mapper.createObjectNode()
+        val root = newRoot()
         root.put("changeKind", "REVOCATION")
         root.put("principalRef", principalRef)
         root.put("authorityVersion", authorityVersion)
@@ -95,7 +97,7 @@ class AuthorityChangedPayloads(
      * the case. `doc.view.content` is never in `permissions`; `elevation` is present only for an elevated session.
      */
     fun operatorAccess(record: OperatorAccessRecord): ObjectNode {
-        val root = mapper.createObjectNode()
+        val root = newRoot()
         root.put("changeKind", "OPERATOR_ACCESS")
         root.put("principalRef", record.operatorRef)
         root.put("authorityVersion", record.authorityVersion)
@@ -114,6 +116,14 @@ class AuthorityChangedPayloads(
         }
         return root
     }
+
+    /**
+     * The document root with the stored incarnation (INV-Q-9243 B (a)). The value is converted with `toIntExact`, as
+     * the generated payload property is a 32-bit integer: a stored value above `Int.MAX_VALUE` throws here, before
+     * anything is appended.
+     */
+    private fun newRoot(): ObjectNode =
+        mapper.createObjectNode().also { it.put("incarnation", Math.toIntExact(incarnations.current())) }
 
     private companion object {
         const val INSTALLATION = "INSTALLATION"

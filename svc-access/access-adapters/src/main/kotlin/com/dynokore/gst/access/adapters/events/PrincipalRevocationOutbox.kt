@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.application.principal.PrincipalRevocationPublisher
 import com.dynokore.gst.access.domain.principal.ServicePrincipal
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -22,8 +23,9 @@ class PrincipalRevocationOutbox(
     mapper: ObjectMapper,
     private val clock: Clock,
     private val head: AuthorityHeadStore,
+    incarnations: AuthorityIncarnationStore,
 ) : PrincipalRevocationPublisher {
-    private val payloads = AuthorityChangedPayloads(mapper)
+    private val payloads = AuthorityChangedPayloads(mapper, incarnations)
 
     override fun publishRevoked(
         principal: ServicePrincipal,

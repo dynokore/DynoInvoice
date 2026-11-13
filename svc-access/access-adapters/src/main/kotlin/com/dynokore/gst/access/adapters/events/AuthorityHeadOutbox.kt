@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.productRuntimeAuthorityHeadEvents.adapters.events.model.AuthorityHeadObservedPayload
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -41,6 +42,7 @@ class AuthorityHeadOutbox(
     private val outbox: OutboxWriter,
     private val mapper: ObjectMapper,
     private val clock: Clock,
+    private val incarnations: AuthorityIncarnationStore,
 ) {
     /** One heartbeat; true when an event was appended, false when the lock was held elsewhere or no head exists. */
     fun publish(): Boolean =
@@ -64,6 +66,7 @@ class AuthorityHeadOutbox(
         mapper.valueToTree<tools.jackson.databind.node.ObjectNode>(
             AuthorityHeadObservedPayload(
                 authorityVersion = Math.toIntExact(version),
+                incarnation = Math.toIntExact(incarnations.current()),
                 observedAt = clock.instant().atOffset(ZoneOffset.UTC),
             ),
         )

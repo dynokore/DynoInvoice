@@ -243,9 +243,15 @@ class AuthorityVersionMigrationDbTest {
                 mapper,
                 JooqInstallationRoleGrants(dsl),
                 { TenantId(UUID.randomUUID()) },
-            ) {
-                emptyList()
-            }
+                { emptyList() },
+                object : com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore {
+                    override fun current() = 1L
+
+                    override fun start() = 1L
+
+                    override fun bump() = 2L
+                },
+            )
         val replayed = pages(source)
         val grant = db.rows.first { it.ref == "GRT-a-0" }
         val state = replayed.single { it.dataJson.contains("\"grantRef\":\"GRT-a-0\"") }

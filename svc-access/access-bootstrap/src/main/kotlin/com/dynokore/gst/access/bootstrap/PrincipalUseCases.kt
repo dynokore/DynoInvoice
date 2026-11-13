@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.credential.NimbusCredentialMaterial
 import com.dynokore.gst.access.adapters.credential.TightenOnlyClientSecretWriter
 import com.dynokore.gst.access.adapters.credential.VariationPointClientSecretPolicy
@@ -57,9 +58,10 @@ class PrincipalUseCases {
         clock: Clock,
         dsl: DSLContext,
         head: AuthorityHeadStore,
+        incarnations: AuthorityIncarnationStore,
     ): PrincipalRevocationPublisher =
         VersionStoringPrincipalRevocations(
-            PrincipalRevocationOutbox(outbox, mapper, clock, head),
+            PrincipalRevocationOutbox(outbox, mapper, clock, head, incarnations),
             StoredAuthorityVersions(dsl),
         )
 

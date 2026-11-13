@@ -2,13 +2,16 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.events.AuthorityHeadOutbox
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.adapters.persistence.JooqAuthorityHeadStore
+import com.dynokore.gst.access.adapters.persistence.JooqAuthorityIncarnationStore
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.SmartLifecycle
@@ -84,6 +87,27 @@ class AuthorityHeadHeartbeat {
     @Bean
     fun authorityHeadStore(dsl: DSLContext): AuthorityHeadStore = JooqAuthorityHeadStore(dsl)
 
+    /** The incarnation of the authority versions (INV-T-9261): kept in `access.authority_incarnation`. */
+    @Bean
+    fun authorityIncarnationStore(
+        dsl: DSLContext,
+        clock: Clock,
+    ): AuthorityIncarnationStore = JooqAuthorityIncarnationStore(dsl, clock)
+
+    /**
+     * The start-time rule, run after every singleton exists and before the heartbeat lifecycle starts: the value rises
+     * only when the sequence is below the high-water mark; a failure stops the start (fail fast).
+     */
+    @Bean
+    fun authorityIncarnationAtStart(
+        platform: PlatformTenantBinding,
+        tx: TransactionRunner,
+        incarnations: AuthorityIncarnationStore,
+    ) = SmartInitializingSingleton {
+        val value = platform.bindPlatform(AUTHORITY_INCARNATION_ACTOR) { tx.inTransaction { incarnations.start() } }
+        LoggerFactory.getLogger(AuthorityHeadHeartbeat::class.java).info("authority incarnation {}", value)
+    }
+
     @Suppress("LongParameterList") // one collaborator per port of the publish
     @Bean
     fun authorityHeadOutbox(
@@ -94,7 +118,8 @@ class AuthorityHeadHeartbeat {
         outbox: OutboxWriter,
         mapper: ObjectMapper,
         clock: Clock,
-    ) = AuthorityHeadOutbox(platform, tx, dsl, head, outbox, mapper, clock)
+        incarnations: AuthorityIncarnationStore,
+    ) = AuthorityHeadOutbox(platform, tx, dsl, head, outbox, mapper, clock, incarnations)
 
     @Bean
     fun authorityHeadLifecycle(
@@ -102,3 +127,6 @@ class AuthorityHeadHeartbeat {
         properties: AuthorityHeadProperties,
     ) = AuthorityHeadLifecycle(outbox, properties)
 }
+
+/** The workload principal of the start-time incarnation check (ARC-21). */
+const val AUTHORITY_INCARNATION_ACTOR = "svc:access-svc/job:authority-incarnation-start"
