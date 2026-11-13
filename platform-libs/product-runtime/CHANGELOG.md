@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.9] - 2026-11-13
+### Changed
+- POM only: depends on `service-runtime` 13.17.1 (version step only); no code change.
+
 ## [2.19.8] - 2026-11-13
 ### Changed
 - POM only: depends on `service-runtime` 13.17.0 (`RelayedRefusal.extensions`; INV-T-21287, rule G-DVS); no code change.

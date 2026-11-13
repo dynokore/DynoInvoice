@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.33] - 2026-11-13
+### Changed
+- Version step only: dependency `outbox-and-queue` rose to 6.22.1 (test fixture only); no code change.
+
 ## [4.0.32] - 2026-11-12
 ### Changed
 - Version step only: dependency `outbox-and-queue` rose to 6.22.0 (`OutboxWriter.appendSequenced`; INV-T-20997); no code change.

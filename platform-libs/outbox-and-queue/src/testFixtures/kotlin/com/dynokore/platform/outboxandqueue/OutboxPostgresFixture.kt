@@ -55,7 +55,7 @@ class OutboxPostgresFixture(
         }
 
     private val container: Postgres =
-        Postgres(DockerImageName.parse(image)).let {
+        Postgres(DockerImageName.parse(image).asCompatibleSubstituteFor("postgres")).let {
             if (script == null) {
                 it.withInitScript("db/outbox-and-queue-test-roles.sql")
             } else {

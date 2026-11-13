@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.17.1] - 2026-11-13
+### Changed
+- Version step only: dependencies `outbox-and-queue` rose to 6.22.1, `audit-log` to 4.0.33 and `config-resolver` to 6.0.6 (test fixture only); no code change.
+
 ## [13.17.0] - 2026-11-13
 ### Added
 - `RelayedRefusal.extensions`: optional map of non-negative numeric RFC 9457 extension members (such as `submittedCount`) that `Problems.renderRelayed` writes after the envelope members; a key outside `^[a-z][A-Za-z0-9]{0,31}$`, a reserved envelope member name or a negative value is refused; an empty map leaves the output unchanged (coordinator ruling round zu, 2026-11-12; INV-T-21287, INV-AC-21286).

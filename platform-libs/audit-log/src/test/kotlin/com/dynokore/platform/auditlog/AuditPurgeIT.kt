@@ -55,7 +55,7 @@ class AuditPurgeIT {
     fun close() = fixtures.values.forEach { it.close() }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = [PG17_IMAGE, PG18_IMAGE])
     fun `the purge writes its own entry and deletes only the entries older than the cut-off`(image: String) {
         val p = purge(image)
         val tenant = UUID.randomUUID()
@@ -97,7 +97,7 @@ class AuditPurgeIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = [PG17_IMAGE, PG18_IMAGE])
     fun `a purge with nothing to delete still writes its entry, with no prior state`(image: String) {
         val p = purge(image)
         p.seed(PLATFORM, p.yearsAgo(1))
@@ -115,7 +115,7 @@ class AuditPurgeIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = [PG17_IMAGE, PG18_IMAGE])
     fun `a purge whose own entry cannot be written deletes nothing`(image: String) {
         val p = purge(image, NO_SYS_INSERT)
         p.seed(PLATFORM, p.yearsAgo(7))
@@ -128,7 +128,7 @@ class AuditPurgeIT {
      * with a time older than the floor is stored at the database's time, so a later purge cannot erase it.
      */
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = [PG17_IMAGE, PG18_IMAGE])
     fun `a backdated purge entry is stored at the database time and a later purge keeps it`(image: String) {
         val p = purge(image)
         p.seed(PLATFORM, p.yearsAgo(7))
@@ -171,7 +171,7 @@ class AuditPurgeIT {
      * deletes nothing. Look-alike: a binding valid for `controlplane` does not pass the function of another schema.
      */
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = [PG17_IMAGE, PG18_IMAGE])
     fun `a forged binding signature is refused like the unbound case, and one schema's binding does not pass another's`(
         image: String,
     ) {
@@ -191,7 +191,7 @@ class AuditPurgeIT {
     }
 
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = [PG17_IMAGE, PG18_IMAGE])
     fun `the runtime login holds only SELECT and INSERT, cannot delete, and raw SQL cannot pass the floor`(
         image: String,
     ) {
@@ -226,7 +226,7 @@ class AuditPurgeIT {
 
     /** The precondition (INV-Q-6586): without the binding functions the purge raises and changes nothing. */
     @ParameterizedTest(name = "{displayName}[{0}]")
-    @ValueSource(strings = ["postgres:17", "postgres:18"])
+    @ValueSource(strings = [PG17_IMAGE, PG18_IMAGE])
     fun `a schema without the binding functions makes the purge raise and change nothing`(image: String) {
         val p = purge(image)
         val bare = p.db.dsl(p.db.ownerTx, mapOf("$BARE.audit_entry" to TableClass.TENANT))
@@ -492,7 +492,7 @@ class AuditPurgeIT {
         const val SCOPE = "platform (control-plane-svc audit_entry)"
         const val DAY = 86_400L
         val PLATFORM: UUID = TenantId.PLATFORM.value
-        val IMAGES = listOf("postgres:17", "postgres:18")
+        val IMAGES = listOf(PG17_IMAGE, PG18_IMAGE)
         val PRIVILEGE_CHECKS = setOf("actor unset", WRONG_TENANT)
         const val ALREADY_PRESENT = "entry id already present"
         const val WRONG_TENANT = "tenant not the platform tenant"

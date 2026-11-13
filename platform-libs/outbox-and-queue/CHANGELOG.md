@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.22.1] - 2026-11-13
+### Changed
+- Test fixture only: `OutboxPostgresFixture` declares a digest-pinned postgres image a compatible substitute for `postgres` (CI-FAST, owner INV-1 A); no production code change.
+
 ## [6.22.0] - 2026-11-12
 ### Added
 - `OutboxWriter.appendSequenced(type, context, dataJson)`: appends one sequenced event whose payload is built from the `docsequence` reserved in the caller's transaction, so the column, the envelope and the payload member carry the same number; the default refuses with `UnsupportedOperationException`; `JdbcOutboxWriter` implements it with the emission checks of `append` first (INV-REQ-1221, INV-AC-20996, INV-T-20997).

@@ -203,7 +203,7 @@ class AuditHarness(
         const val MDM_003 = "MDM-003"
         const val SUB_009 = "SUB-009"
         const val PAY_001 = "PAY-001"
-        val IMAGES = listOf("postgres:17", "postgres:18")
+        val IMAGES = listOf(PG17_IMAGE, PG18_IMAGE)
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC)
         val CATALOGUE =
             ErrorCatalogue {
