@@ -14,7 +14,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 /**
  * [OverrideAuthority] over `AuthorityReplica.decide` (INV-Q-10027, INV-T-21141). One scoped permission is decided per
  * request for the bound tenant; no role name is read. Only a LOCAL or FALLBACK decision that allows grants: a DEGRADED
- * answer, a lag beyond the bound, no replica and a revoked person all answer false (deny by default, OWASP ASVS V4.1.1).
+ * answer, a lag beyond the bound, no replica and a revoked person all answer false (deny by default, ASVS V4.1.1).
  * An exception propagates, so nothing is read after a failed decision (fail closed).
  */
 class AuthorityReplicaOverrideAuthority internal constructor(

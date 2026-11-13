@@ -6,6 +6,7 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
+import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.BreakGlassAction
 import com.dynokore.platform.serviceruntime.replica.BreakGlassActionReporter
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -13,6 +14,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -110,6 +112,11 @@ class BreakGlassTestBeans(
         BreakGlassActionReporter { unlockRef, action, target, occurredAt ->
             BreakGlassDoubles.reports += Report(unlockRef, action, target, occurredAt)
         }
+
+    /** INV-AC-22036: completes the snapshot of the authority replica once, before the first request (warm replica). */
+    @Bean
+    fun warmAuthorityReplica(replica: ObjectProvider<AuthorityReplica>): SmartInitializingSingleton =
+        SmartInitializingSingleton { replica.getObject().onSnapshotComplete(0) }
 
     @Bean
     @Primary
