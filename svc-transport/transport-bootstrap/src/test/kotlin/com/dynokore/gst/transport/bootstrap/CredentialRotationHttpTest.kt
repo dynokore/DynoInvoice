@@ -81,7 +81,7 @@ internal class RecordingReporterConfig {
  * double: a file per reference) (INV-T-18676; INV-REQ-837). The AuthorityReplica is the real one, fed per test with the
  * grants of the caller.
  */
-class CredentialRotationBoundaryTest {
+class CredentialRotationHttpTest {
     private val http = HttpClient.newHttpClient()
     private val mapper = JsonMapper.builder().build()
 

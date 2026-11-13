@@ -32,12 +32,27 @@ class TenantTablesTest {
             }
     }
 
-    private fun tables(): List<TableFacts> =
+    private fun tables(): List<TableFacts> = TransportDb.superuser().use { tables(it) }
+
+    private fun tables(connection: java.sql.Connection): List<TableFacts> =
+        connection.createStatement().use { statement ->
+            statement.executeQuery(INSPECT).use { rows ->
+                generateSequence { if (rows.next()) TableFacts(rows) else null }.toList()
+            }
+        }
+
+    /** Creates the scratch [ddl] in one transaction, reads the findings of [table] as the gate does, and rolls back. */
+    private fun findingOf(
+        table: String,
+        ddl: String,
+    ): String? =
         TransportDb.superuser().use { connection ->
-            connection.createStatement().use { statement ->
-                statement.executeQuery(INSPECT).use { rows ->
-                    generateSequence { if (rows.next()) TableFacts(rows) else null }.toList()
-                }
+            connection.autoCommit = false
+            try {
+                connection.createStatement().use { it.execute(ddl) }
+                tables(connection).single { it.name == table }.finding()
+            } finally {
+                connection.rollback()
             }
         }
 
@@ -60,7 +75,88 @@ class TenantTablesTest {
         ).shouldBeEmpty()
     }
 
+    @Test
+    fun `the two credential tables exist and the plural look-alike names do not`() {
+        val names = tables().map { it.name }
+        (setOf("ap_credential_state", "ap_credential_rotation") - names.toSet()).shouldBeEmpty()
+        // look-alike: the plural name is not a table of the schema
+        (names.contains("ap_credential_states") || names.contains("ap_credential_rotations")) shouldBe false
+    }
+
+    @Test
+    fun `a credential table declared without tenant_id is a finding`() {
+        findingOf(
+            "ap_credential_states",
+            "create table transport.ap_credential_states (adapter_id text primary key, current_ref text not null)",
+        ) shouldBe "ap_credential_states: no tenant_id and not platform-scoped"
+    }
+
+    @Test
+    fun `a credential table without force row level security is a finding`() {
+        findingOf(
+            "ap_credential_states",
+            GOOD_DDL +
+                "alter table transport.ap_credential_states enable row level security;" +
+                POLICY.format("(select transport.bound_tenant())", "(select transport.bound_tenant())"),
+        ) shouldBe EXPECTED
+    }
+
+    @Test
+    fun `a credential table whose policy compares another function is a finding`() {
+        findingOf(
+            "ap_credential_states",
+            GOOD_DDL + FORCED + POLICY.format("(select gen_random_uuid())", "(select gen_random_uuid())"),
+        ) shouldBe EXPECTED
+    }
+
+    @Test
+    fun `a credential table whose policy has only using is a finding`() {
+        findingOf(
+            "ap_credential_states",
+            GOOD_DDL + FORCED +
+                "create policy p on transport.ap_credential_states using (tenant_id = (select transport.bound_tenant()));",
+        ) shouldBe EXPECTED
+    }
+
+    @Test
+    fun `a credential table whose policy checks only with check is a finding`() {
+        findingOf(
+            "ap_credential_states",
+            GOOD_DDL + FORCED +
+                "create policy p on transport.ap_credential_states " +
+                "with check (tenant_id = (select transport.bound_tenant()));",
+        ) shouldBe EXPECTED
+    }
+
+    @Test
+    fun `a credential table with a nullable tenant_id is a finding`() {
+        findingOf(
+            "ap_credential_states",
+            "create table transport.ap_credential_states (tenant_id uuid, adapter_id text, primary key (adapter_id));" +
+                FORCED +
+                POLICY.format("(select transport.bound_tenant())", "(select transport.bound_tenant())"),
+        ) shouldBe EXPECTED
+    }
+
+    @Test
+    fun `the look-alike table with all four properties passes, so the probes above fail only for their defect`() {
+        findingOf(
+            "ap_credential_states",
+            GOOD_DDL + FORCED + POLICY.format("(select transport.bound_tenant())", "(select transport.bound_tenant())"),
+        ) shouldBe null
+    }
+
     private companion object {
+        const val EXPECTED =
+            "ap_credential_states: tenant_id NOT NULL, ENABLE and FORCE ROW LEVEL SECURITY and a bound_tenant() policy"
+        const val GOOD_DDL =
+            "create table transport.ap_credential_states (tenant_id uuid not null, adapter_id text not null, " +
+                "primary key (tenant_id, adapter_id));"
+        const val FORCED =
+            "alter table transport.ap_credential_states enable row level security;" +
+                "alter table transport.ap_credential_states force row level security;"
+        const val POLICY =
+            "create policy p on transport.ap_credential_states using (tenant_id = %s) with check (tenant_id = %s);"
         const val INSPECT =
             "select c.relname, c.relrowsecurity, c.relforcerowsecurity, " +
                 "exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' " +

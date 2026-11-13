@@ -39,7 +39,8 @@ class JooqAdapterCredentialStates(
             dsl
                 .select(AP_CONNECTION.ADAPTER_ID)
                 .from(AP_CONNECTION)
-                .where(AP_CONNECTION.ADAPTER_ID.eq(adapter.value))
+                .where(AP_CONNECTION.TENANT_ID.eq(tenants.current().value))
+                .and(AP_CONNECTION.ADAPTER_ID.eq(adapter.value))
                 .forUpdate()
                 .fetch()
             row(adapter)
@@ -55,7 +56,8 @@ class JooqAdapterCredentialStates(
     private fun row(adapter: AdapterId) =
         dsl
             .selectFrom(AP_CREDENTIAL_STATE)
-            .where(AP_CREDENTIAL_STATE.ADAPTER_ID.eq(adapter.value))
+            .where(AP_CREDENTIAL_STATE.TENANT_ID.eq(tenants.current().value))
+            .and(AP_CREDENTIAL_STATE.ADAPTER_ID.eq(adapter.value))
             .fetchOne()
 
     override fun save(
@@ -114,7 +116,8 @@ class JooqCredentialRotationLog(
         runner.inTransaction {
             dsl
                 .selectFrom(AP_CREDENTIAL_ROTATION)
-                .where(AP_CREDENTIAL_ROTATION.ADAPTER_ID.eq(adapter.value))
+                .where(AP_CREDENTIAL_ROTATION.TENANT_ID.eq(tenants.current().value))
+                .and(AP_CREDENTIAL_ROTATION.ADAPTER_ID.eq(adapter.value))
                 .and(AP_CREDENTIAL_ROTATION.NEW_REF.eq(credentialId.value))
                 .fetchOne()
                 ?.let {

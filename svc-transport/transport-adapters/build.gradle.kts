@@ -58,6 +58,7 @@ dependencies {
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
     testImplementation(libs.jsonSchemaValidator)
+    testImplementation(libs.gstCatalogue)
 }
 
 // The route-change publisher test validates the payload against the schema of the pinned platform-contracts bundle,
