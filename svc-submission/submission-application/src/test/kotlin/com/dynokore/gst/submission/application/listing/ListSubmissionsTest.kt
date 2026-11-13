@@ -18,6 +18,8 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.MachineEntityCoverage
+import com.dynokore.platform.serviceruntime.replica.MachinePrincipalFixtures
 import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
@@ -510,6 +512,96 @@ class ListSubmissionsTest {
         page(ReconciliationBucket.REJECTED) shouldBe listOf("B" to 1)
         page(ReconciliationBucket.DEAD_LETTERED) shouldBe listOf("C" to 1)
         page(ReconciliationBucket.NEVER_SENT) shouldBe listOf("D" to 1)
+    }
+
+    private fun machine(
+        id: String = "m1",
+        coverage: MachineEntityCoverage = MachineEntityCoverage.Entity("E1"),
+        type: String = "reporting",
+    ): Principal = MachinePrincipalFixtures.machine(id, tenant, coverage, type)
+
+    @Test
+    fun `INV-AC-21923 a MACHINE covering E1 gets Page through the machine key and the person key alone cannot`() {
+        val source = RecordingSource(SourceRead(rows, 0))
+        val m = machine()
+        ListSubmissions(replicaFor(), source)
+            .handle(request(principal = m), deadline)
+            .shouldBeInstanceOf<ListSubmissionsResult.Page>()
+        source.calls shouldBe listOf(Triple(tenant, entityRef, periodRef))
+        // the person key is not what allows it: a MACHINE is never allowed by a grant of the person key alone
+        val other = machine(type = "no-such-type")
+        ListSubmissions(replicaFor(other to roleHoldingBoth()), RecordingSource(SourceRead(rows, 0)))
+            .handle(request(principal = other), deadline) shouldBe ListSubmissionsResult.Forbidden
+    }
+
+    @Test
+    fun `INV-AC-21923 a MACHINE covering E1 asking for E2 is Forbidden with zero source calls`() {
+        val source = RecordingSource(SourceRead(rows, 0))
+        val req = request(principal = machine()).copy(entityRef = "E2")
+        ListSubmissions(replicaFor(), source).handle(req, deadline) shouldBe ListSubmissionsResult.Forbidden
+        source.calls.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-21923 a MACHINE of an unlisted type holding the person key is Forbidden with zero source calls`() {
+        val m = machine(type = "no-such-type")
+        val source = RecordingSource(SourceRead(rows, 0))
+        ListSubmissions(replicaFor(m to roleHoldingBoth()), source)
+            .handle(request(principal = m), deadline) shouldBe ListSubmissionsResult.Forbidden
+        source.calls.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-21923 a HUMAN granted only the machine key is Forbidden with zero source calls`() {
+        val source = RecordingSource(SourceRead(rows, 0))
+        val replica = replicaFor(holder to roleOnly(ListingActions.VIEW_STATUS_MACHINE, ListingActions.VIEW_STATUS))
+        ListSubmissions(replica, source)
+            .handle(request(principal = holder), deadline) shouldBe ListSubmissionsResult.Forbidden
+        source.calls.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-21923 a HUMAN granted the person key still gets the same Page as before`() {
+        val uc = ListSubmissions(replicaFor(holder to roleHoldingBoth()), RecordingSource(SourceRead(rows, 0)))
+        val page = uc.handle(request(principal = holder), deadline).shouldBeInstanceOf<ListSubmissionsResult.Page>()
+        page.keys() shouldBe expected(rows, mayViewContent = true)
+    }
+
+    @Test
+    fun `INV-AC-21923 a MACHINE gets masked content facts and a masked-fact filter is Refused with zero calls`() {
+        val m = machine()
+        val source = RecordingSource(SourceRead(rows, 0))
+        val page =
+            ListSubmissions(replicaFor(), source)
+                .handle(request(principal = m), deadline)
+                .shouldBeInstanceOf<ListSubmissionsResult.Page>()
+        page.keys() shouldBe expected(rows, mayViewContent = false)
+
+        val refusedSource = RecordingSource(SourceRead(rows, 0))
+        ListSubmissions(replicaFor(), refusedSource)
+            .handle(request(principal = m, filter = SubmissionFilter(counterparty = "Acme")), deadline) shouldBe
+            ListSubmissionsResult.Refused(ListSubmissionsRefusal.MASKED_FACT_FILTER)
+        refusedSource.calls.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-21923 the machine key constant equals the x-operation permission of listSubmissions in the contract`() {
+        val root = Path.of(System.getProperty("user.dir")).parent.resolve("submission-contract/build/contracts-repo")
+        val doc = Files.walk(root).use { s -> s.filter { it.endsWith("submission/openapi.yaml") }.sorted().toList() }
+        doc.isNotEmpty() shouldBe true
+        val lines = Files.readAllLines(doc.last())
+        val at = lines.indexOfFirst { it.trim() == "operationId: listSubmissions" }
+        (at >= 0) shouldBe true
+        val permission =
+            lines
+                .drop(at)
+                .takeWhile { it.trim() != "operationId: listSubmissions" || it === lines[at] }
+                .take(60)
+                .firstOrNull { it.trim().startsWith("permission:") }
+                ?.substringAfter("permission:")
+                ?.trim()
+                ?.trim('"', '\'')
+        permission shouldBe ListingActions.VIEW_STATUS_MACHINE
     }
 
     @Test

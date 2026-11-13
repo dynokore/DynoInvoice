@@ -20,14 +20,20 @@ import com.dynokore.gst.submission.domain.register.MaskedListFacts
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Instant
 import java.time.LocalDate
 
-/** The two scoped permission keys the listing use case decides (INV-REQ-975, INV-Q-10027): no role name is read. */
+/**
+ * The three scoped permission keys the listing use case decides (INV-REQ-975, INV-Q-10027): no role name is read.
+ * [VIEW_STATUS] is asked for every principal that is not a MACHINE, [VIEW_STATUS_MACHINE] (the `x-operation.permission`
+ * of `listSubmissions`) for a MACHINE principal, and [VIEW_CONTENT] for every principal.
+ */
 object ListingActions {
     const val VIEW_STATUS = "submission.view-status"
+    const val VIEW_STATUS_MACHINE = "machine.submissions.read"
     const val VIEW_CONTENT = "doc.view.content"
 }
 
@@ -108,7 +114,13 @@ class ListSubmissions(
         request: ListSubmissionsRequest,
         deadline: Deadline,
     ): ListSubmissionsResult {
-        if (!decide(request, ListingActions.VIEW_STATUS, deadline).allowed) {
+        val viewKey =
+            if (request.principal.kind == PrincipalKind.MACHINE) {
+                ListingActions.VIEW_STATUS_MACHINE
+            } else {
+                ListingActions.VIEW_STATUS
+            }
+        if (!decide(request, viewKey, deadline).allowed) {
             return ListSubmissionsResult.Forbidden
         }
         val mayViewContent = decide(request, ListingActions.VIEW_CONTENT, deadline).allowed
