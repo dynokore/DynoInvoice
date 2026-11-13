@@ -451,7 +451,7 @@ class ListSubmissionsTest {
             val source = RecordingSource(SourceRead(rows, 0))
             val uc = ListSubmissions(replicaFor(holder to roleHoldingBoth()), source)
             val result = uc.handle(request(filter = SubmissionFilter(bucket = bucket)), deadline)
-            if (bucket in SERVED_BUCKETS) {
+            if (bucket != ReconciliationBucket.SENT_NOT_ACKNOWLEDGED) {
                 result.shouldBeInstanceOf<ListSubmissionsResult.Page>()
             } else {
                 result shouldBe ListSubmissionsResult.Refused(ListSubmissionsRefusal.BUCKET_NOT_SERVED)
