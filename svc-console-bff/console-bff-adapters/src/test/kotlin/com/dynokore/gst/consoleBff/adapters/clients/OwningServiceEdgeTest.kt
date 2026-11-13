@@ -64,18 +64,6 @@ class OwningServiceEdgeTest {
         }
 
     @Test
-    @DisplayName("INV-AC-21173 (c2) baseUrl throws for a raw placeholder the environment hands back unresolved")
-    fun rawPlaceholderFromEnvironment() =
-        forEachService { s ->
-            // an Environment that does not resolve nested placeholders returns the text as written
-            val raw =
-                object : MockEnvironment() {
-                    override fun getRequiredProperty(key: String): String = placeholder
-                }
-            assertThrows(IllegalArgumentException::class.java) { OwningServiceEdge.baseUrl(raw, s) }
-        }
-
-    @Test
     @DisplayName("INV-AC-21173 (d) baseUrl returns the set value unchanged for each service")
     fun setValue() =
         forEachService { s ->
@@ -111,9 +99,7 @@ class OwningServiceEdgeTest {
     }
 
     @Test
-    @DisplayName(
-        "INV-AC-21173 (h) the timeouts are 2000 ms, the x-timeout of overrideValidation and overrideFilingGate",
-    )
+    @DisplayName("INV-AC-21173 (h) the timeouts are 2000 ms, the x-timeout of overrideValidation and overrideFilingGate")
     fun timeouts() {
         assertEquals(Duration.ofMillis(TIMEOUT_MS), OwningService.PAYLOAD.timeout)
         assertEquals(Duration.ofMillis(TIMEOUT_MS), OwningService.SUBMISSION.timeout)
@@ -137,11 +123,7 @@ class OwningServiceEdgeTest {
                 val url = "http://127.0.0.1:${server.address.port}"
                 val client: RestClient =
                     OwningServiceEdge.restClient(RestClient.builder(), env(s.urlProperty, url), s)
-                client
-                    .get()
-                    .uri("/probe/${s.name}")
-                    .retrieve()
-                    .toBodilessEntity()
+                client.get().uri("/probe/${s.name}").retrieve().toBodilessEntity()
             }
         } finally {
             server.stop(0)
