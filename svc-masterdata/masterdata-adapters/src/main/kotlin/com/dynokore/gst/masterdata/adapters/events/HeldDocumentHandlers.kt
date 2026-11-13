@@ -48,34 +48,31 @@ private fun JsonNode.docUuid(): UUID {
 
 private fun JsonNode.docsequence(): Long {
     val node = this["docsequence"]
-    if (node == null || !node.isIntegralNumber || !node.canConvertToLong() || node.asLong() < 1) {
-        throw ContractViolation("docsequence is an integer of 1 or more")
-    }
-    return node.asLong()
+    val value = if (node != null && node.isIntegralNumber && node.canConvertToLong()) node.asLong() else 0L
+    if (value < 1) throw ContractViolation("docsequence is an integer of 1 or more")
+    return value
 }
+
+private fun isErrorCode(node: JsonNode) = node.isString && REASON.matches(node.asString())
 
 private fun JsonNode.reasons(name: String) {
     val node = this[name]
-    if (node == null || !node.isArray || node.isEmpty || node.any { !it.isString || !REASON.matches(it.asString()) }) {
-        throw ContractViolation("payload member $name is a non-empty list of error codes")
-    }
+    val valid = node != null && node.isArray && !node.isEmpty && node.all(::isErrorCode)
+    if (!valid) throw ContractViolation("payload member $name is a non-empty list of error codes")
 }
 
 private fun JsonNode.ref(name: String): String? {
-    val node = this[name] ?: return null
-    if (node.isNull) return null
-    val text = if (node.isString) node.asString() else null
-    if (text.isNullOrBlank() || text.length > ConsumedHeldDocumentEvents.REF_MAX) {
-        throw ContractViolation("$name is 1 to ${ConsumedHeldDocumentEvents.REF_MAX} characters")
-    }
+    val node = this[name]?.takeUnless { it.isNull }
+    val text = node?.let { if (it.isString) it.asString() else "" }
+    val valid = text == null || (text.isNotBlank() && text.length <= ConsumedHeldDocumentEvents.REF_MAX)
+    if (!valid) throw ContractViolation("$name is 1 to ${ConsumedHeldDocumentEvents.REF_MAX} characters")
     return text
 }
 
 private fun JsonNode.checkTenant(event: Envelope) {
-    val tenant = this["tenant"]
-    if (tenant != null && !tenant.isNull && (!tenant.isString || tenant.asString() != event.tenant.toString())) {
-        throw ContractViolation("tenant is not the tenant of the event")
-    }
+    val tenant = this["tenant"]?.takeUnless { it.isNull } ?: return
+    val own = tenant.isString && tenant.asString() == event.tenant.toString()
+    if (!own) throw ContractViolation("tenant is not the tenant of the event")
 }
 
 private val REASON = Regex("^[A-Z]{2,10}-[0-9]{3}$")

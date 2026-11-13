@@ -3,7 +3,6 @@ package com.dynokore.gst.masterdata.bootstrap
 import com.dynokore.gst.masterdata.adapters.events.ConsumedHeldDocumentEvents
 import com.dynokore.gst.masterdata.adapters.events.DocumentHeldHandler
 import com.dynokore.gst.masterdata.adapters.events.DocumentReleasedHandler
-import com.dynokore.gst.masterdata.adapters.persistence.JooqHeldDocuments
 import com.dynokore.gst.masterdata.application.held.HeldDocuments
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -15,7 +14,6 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import org.jooq.DSLContext
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.context.annotation.Bean
@@ -30,9 +28,6 @@ import java.time.Clock
  */
 @AutoConfiguration(afterName = ["com.dynokore.platform.serviceruntime.composition.L1CompositionAutoConfiguration"])
 class HeldDocumentFeed {
-    @Bean
-    fun heldDocuments(dsl: DSLContext): HeldDocuments = JooqHeldDocuments(dsl)
-
     @Bean
     fun documentHeldHandler(
         tx: TransactionRunner,

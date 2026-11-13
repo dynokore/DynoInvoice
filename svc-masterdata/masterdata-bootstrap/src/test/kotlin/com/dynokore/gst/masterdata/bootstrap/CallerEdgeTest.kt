@@ -117,6 +117,18 @@ class CallerEdgeTest {
     fun `INV-AC-8455 every mapped operation answers the callers its x-sync-edge names and refuses the rest`() =
         assertEdges(document)
 
+    /**
+     * The text of [file] for the literal search. One line is dropped from exactly one file: the producer constant
+     * `const val EMITTER = "<service>"` of the held-document consumers, which names the producer of consumed events
+     * for the catalogue and is not a caller check (INV-T-21336). The `check` token search still reads every line.
+     */
+    private fun withoutProducerConstant(file: Path): String {
+        val text = Files.readString(file)
+        val relative = Path.of("..").relativize(file).joinToString("/")
+        if (relative != PRODUCER_CONSTANT_FILE) return text
+        return text.lines().filterNot { PRODUCER_CONSTANT.matches(it) }.joinToString("\n")
+    }
+
     @Test
     fun `INV-AC-8455 the main source sets hold no literal caller name passed to a caller check`() {
         val names = callersOf(ContractDocument.operations(document))
@@ -136,9 +148,7 @@ class CallerEdgeTest {
                         }
                     }
                 }.filter {
-                    literal.containsMatchIn(
-                        Files.readString(it),
-                    ) || check.containsMatchIn(Files.readString(it))
+                    literal.containsMatchIn(withoutProducerConstant(it)) || check.containsMatchIn(Files.readString(it))
                 }
         assertThat(offenders).isEmpty()
     }
@@ -165,5 +175,11 @@ class CallerEdgeTest {
                 service.call(handler, doubles.tokenOf(doubles.lookalike), EndUserDoubles.USER_A)
             }
         }
+    }
+
+    private companion object {
+        const val PRODUCER_CONSTANT_FILE =
+            "masterdata-adapters/src/main/kotlin/com/dynokore/gst/masterdata/adapters/events/HeldDocumentHandlers.kt"
+        val PRODUCER_CONSTANT = Regex("""^\s*const val EMITTER = "[a-z-]+"\s*$""")
     }
 }
