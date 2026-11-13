@@ -23,8 +23,16 @@ data class ApProperties(
     val metricsWindow: Duration = Duration.ofHours(1),
     /** How often a POLLING adapter is polled (INV-Q-9684): no default, required when any adapter is POLLING. */
     val pollInterval: Duration? = null,
+    /**
+     * The overlap window of a credential rotation (INV-REQ-837, INV-Q-18656 A): no default. While it is unset a
+     * rotation is refused (fail closed); a value of zero or less is refused at start.
+     */
+    val rotationOverlap: Duration? = null,
 ) {
     init {
+        require(rotationOverlap == null || !(rotationOverlap.isZero || rotationOverlap.isNegative)) {
+            "transport.ap.rotation-overlap must be longer than zero"
+        }
         val polling = adapters.filter { it.notifications == NotificationMode.POLLING }
         require(pollInterval != null || polling.isEmpty()) {
             "transport.ap.poll-interval is required when an adapter has notifications POLLING"

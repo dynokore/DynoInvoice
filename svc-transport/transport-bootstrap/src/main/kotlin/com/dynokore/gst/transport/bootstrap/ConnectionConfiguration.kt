@@ -5,6 +5,7 @@ import com.dynokore.gst.transport.adapters.ap.ApConnectionProbe
 import com.dynokore.gst.transport.adapters.ap.ApEndpoints
 import com.dynokore.gst.transport.adapters.ap.BreakerSettings
 import com.dynokore.gst.transport.adapters.events.ConnectionStatusEventRequester
+import com.dynokore.gst.transport.adapters.persistence.JooqAdapterCredentialStates
 import com.dynokore.gst.transport.adapters.persistence.JooqConnectionAssignments
 import com.dynokore.gst.transport.adapters.persistence.JooqConnectionStatusStore
 import com.dynokore.gst.transport.application.AccessPointAdapters
@@ -18,6 +19,7 @@ import com.dynokore.gst.transport.application.RouteChangeRecorder
 import com.dynokore.gst.transport.application.SetConnectionEntities
 import com.dynokore.gst.transport.application.SwitchEntityAdapter
 import com.dynokore.gst.transport.application.TestConnection
+import com.dynokore.gst.transport.domain.AdapterId
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.connection.ConnectionStatusReporter
@@ -95,6 +97,7 @@ class ConnectionConfiguration {
     fun connectionStatusEvents(
         reporter: ConnectionStatusReporter,
         properties: ApProperties,
+        credentials: JooqAdapterCredentialStates,
         clock: Clock,
     ): ConnectionStatusEvents {
         val endpoints = ApEndpoints(properties.environment, properties.sandboxEndpoint, properties.productionEndpoint)
@@ -107,7 +110,7 @@ class ConnectionConfiguration {
                     adapterId,
                     endpoints.active().toString(),
                     environment,
-                    SecretRef("ap/$adapterId"),
+                    SecretRef(credentials.currentRef(AdapterId(adapterId)).value),
                 )
             },
             clock,

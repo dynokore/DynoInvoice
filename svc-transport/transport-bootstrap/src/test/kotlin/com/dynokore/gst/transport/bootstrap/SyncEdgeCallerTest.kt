@@ -141,6 +141,9 @@ class SyncEdgeCallerTest {
             ENTITIES to CallerChecks.Reach(FORBIDDEN, """{"entityRefs":["E-001"]}"""),
             FAILOVER to CallerChecks.Reach(FORBIDDEN, """{"targetAdapterRef":"p-other","entityRef":"E-001"}"""),
             CONNECTION_TEST to CallerChecks.Reach(FORBIDDEN, ""),
+            // built (INV-T-18676): the end user of this test holds no `ap-credential.manage` grant, so the handler
+            // answers 403 and records nothing
+            ROTATE to CallerChecks.Reach(FORBIDDEN, """{"credentialId":"vault/c2"}"""),
             // built (INV-T-4982): a named caller reaches the handler once; the end user of this test holds no
             // `vp-49.set` grant, so the handler itself answers 403 and records nothing
             ROUTE to CallerChecks.Reach(FORBIDDEN, """{"acknowledgementRoute":"POLLING"}"""),
@@ -262,6 +265,7 @@ class SyncEdgeCallerTest {
         const val ROUTE_PATH = "/internal/v1/transport/connections/{connectionRef}/acknowledgement-route"
         const val ROUTE = "PUT $ROUTE_PATH"
         const val FAILOVER = "POST /internal/v1/transport/adapters/{adapterRef}/failovers"
+        const val ROTATE = "POST /internal/v1/transport/adapters/{adapterRef}/credential-rotations"
         const val CONNECTION_TEST = "POST /internal/v1/transport/adapters/{adapterRef}/connection-tests"
         const val ENTITIES = "PUT /internal/v1/transport/connections/{connectionRef}/entities"
         const val UNIQUE = 12

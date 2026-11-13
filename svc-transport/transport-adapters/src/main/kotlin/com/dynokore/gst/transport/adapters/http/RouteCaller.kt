@@ -62,5 +62,8 @@ class RouteCaller(
 
         /** `setConnectionEntities` and `testConnection` (INV-Q-18652 A), declared in the contract. */
         const val ADAPTER_CONFIGURE_PERMISSION = "adapter.configure"
+
+        /** `rotateCredential` (INV-Q-18652 A), declared in the contract; `adapter.configure` does not permit it. */
+        const val AP_CREDENTIAL_MANAGE_PERMISSION = "ap-credential.manage"
     }
 }

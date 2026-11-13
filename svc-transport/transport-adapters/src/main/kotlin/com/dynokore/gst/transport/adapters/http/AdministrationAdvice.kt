@@ -5,6 +5,7 @@ import com.dynokore.gst.transport.application.ConnectionNotFound
 import com.dynokore.gst.transport.application.DuplicateEntityRef
 import com.dynokore.gst.transport.application.EntityAssignedToOtherConnection
 import com.dynokore.gst.transport.application.ObserveGuardRefused
+import com.dynokore.gst.transport.application.RotationRefusal
 import com.dynokore.gst.transport.domain.InvalidAcknowledgementRoute
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import org.springframework.http.ResponseEntity
@@ -42,6 +43,27 @@ class AdministrationAdvice(
     @ExceptionHandler(ConnectionNotFound::class, AdapterNotRegistered::class)
     fun notFound(): ResponseEntity<String> = refusals.refuse(ApiRefusal(ClosedErrorCode.NOT_FOUND))
 
+    /**
+     * A rotation the use case refuses (the contract names no catalogue code for it): an unset window fails closed as an
+     * internal error (a configuration fault, not the caller's); a reference the vault does not hold or that is already
+     * current is a contract violation; a rotation whose window is still open is a conflict. Nothing is changed.
+     */
+    @ExceptionHandler(CredentialRotationRefused::class)
+    fun rotationRefused(refused: CredentialRotationRefused): ResponseEntity<String> =
+        refusals.refuse(
+            ApiRefusal(
+                when (refused.reason) {
+                    RotationRefusal.NO_WINDOW -> ClosedErrorCode.INTERNAL_ERROR
+
+                    RotationRefusal.UNKNOWN_REFERENCE,
+                    RotationRefusal.SAME_AS_CURRENT,
+                    -> ClosedErrorCode.CONTRACT_VIOLATION
+
+                    RotationRefusal.ROTATION_IN_PROGRESS -> ClosedErrorCode.STALE_AGGREGATE
+                },
+            ),
+        )
+
     @ExceptionHandler(ObserveGuardRefused::class)
     fun observeGuard(refused: ObserveGuardRefused): ResponseEntity<String> =
         refusals.refuse(CatalogueRefusal(HTTP_UNPROCESSABLE, refused.code, title(refused.code), refused.message))
@@ -69,3 +91,8 @@ class AdministrationAdvice(
         const val REMOVAL_TITLE = "An entity in Observe mode cannot be removed from the connection"
     }
 }
+
+/** A rotation refused by the use case, carried to [AdministrationAdvice]. */
+class CredentialRotationRefused(
+    val reason: RotationRefusal,
+) : RuntimeException("rotation refused: ${reason.name}")
