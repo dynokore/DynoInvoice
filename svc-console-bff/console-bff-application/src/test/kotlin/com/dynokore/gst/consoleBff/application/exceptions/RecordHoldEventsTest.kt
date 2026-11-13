@@ -112,4 +112,46 @@ class RecordHoldEventsTest {
         recordReleased.record(tenant, released("PAY-001"))
         state("PAY-001") shouldBe ItemState.OVERRIDDEN
     }
+
+    @Test
+    fun `INV-AC-21027 hold returns true on first call and differing row and false on identical repeat`() {
+        recordHeld.record(tenant, held, raised) shouldBe true
+        recordHeld.record(tenant, held, raised) shouldBe false
+        recordHeld.record(tenant, held, Instant.parse("2026-11-13T08:00:00Z")) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-21027 hold returns false when the only candidate row is kept because it is OVERRIDDEN`() {
+        val single = held.copy(holdReasons = listOf("PAY-001"))
+        recordHeld.record(tenant, single, raised) shouldBe true
+        store.upsert(
+            listOf(
+                store.rows.values
+                    .single()
+                    .copy(state = ItemState.OVERRIDDEN),
+            ),
+        )
+        recordHeld.record(tenant, single, Instant.parse("2026-11-13T08:00:00Z")) shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-21027 release returns true when an OPEN row resolved and false on repeat or no matching code`() {
+        recordHeld.record(tenant, held, raised)
+        recordReleased.record(tenant, released("PAY-001")) shouldBe true
+        recordReleased.record(tenant, released("PAY-001")) shouldBe false
+        recordReleased.record(tenant, released("XXX-999")) shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-21027 release returns false when the only matching row is OVERRIDDEN`() {
+        recordHeld.record(tenant, held.copy(holdReasons = listOf("PAY-001")), raised)
+        store.upsert(
+            listOf(
+                store.rows.values
+                    .single()
+                    .copy(state = ItemState.OVERRIDDEN),
+            ),
+        )
+        recordReleased.record(tenant, released("PAY-001")) shouldBe false
+    }
 }
