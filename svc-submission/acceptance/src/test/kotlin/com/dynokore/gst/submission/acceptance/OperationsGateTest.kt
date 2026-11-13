@@ -29,29 +29,27 @@ class OperationsGateTest {
 
     @Test
     fun `INV-AC-21902 the real table covers the real contract`() {
-        OperationsGate.contractOperations(openapi).size shouldBe 21
+        OperationsGate.contractOperations(openapi).size shouldBe 20
         OperationsGate.contractOperations(openapi) shouldContain "approveFilingGateOverride"
         OperationsGate.contractOperations(openapi) shouldContain "getFilingGateOverrides"
         OperationsGate.contractChannels(asyncapi).size shouldBe 10
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe "INV-T-20589\nINV-T-20607\nINV-T-21141\n"
+        doneText shouldBe "INV-T-20589\nINV-T-20607\n"
     }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
         // getComplianceMetrics is implemented by INV-T-12844, replaySubmissionsByScope by INV-T-20589 and
-        // replaySubmissions by INV-T-20607 and getLatestReadinessCheck by INV-T-21141, so they no longer answer 501.
+        // replaySubmissions by INV-T-20607, so they no longer answer 501.
         stubs shouldBe
             OperationsGate.contractOperations(openapi) - "getComplianceMetrics" - "replaySubmissionsByScope" -
-            "replaySubmissions" - "getLatestReadinessCheck"
+            "replaySubmissions"
     }
 
     @Test
     fun `the real done set names the row of replaySubmissionsByScope and a look-alike key fails`() {
-        run(
-            done = "INV-T-20589\nINV-T-20607\nINV-T-21141\n",
-            stubSet = stubs - "replaySubmissionsByScope" - "replaySubmissions" - "getLatestReadinessCheck",
-        ).shouldBeEmpty()
+        run(done = "INV-T-20589\nINV-T-20607\n", stubSet = stubs - "replaySubmissionsByScope" - "replaySubmissions")
+            .shouldBeEmpty()
         run(done = "INV-T-20590\n") shouldContain "done-tasks.txt: INV-T-20590 names no row of operations.tsv"
         run(done = "INV-T-205890\n") shouldContain "done-tasks.txt: INV-T-205890 names no row of operations.tsv"
     }

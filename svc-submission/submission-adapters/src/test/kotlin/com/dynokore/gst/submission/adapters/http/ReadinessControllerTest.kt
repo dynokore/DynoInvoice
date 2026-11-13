@@ -199,13 +199,13 @@ class ReadinessControllerTest {
         status shouldBe 403
         code shouldBe "SRT-004"
         body shouldContain "SRT-004"
-        body shouldNotContain "checkId"
-        body shouldNotContain "approver"
+        body shouldNotContain newestOfT
+        body shouldNotContain "a3"
     }
 
     @Test
     fun `INV-AC-21137 401 without a verified principal`() {
-        val (status, _, _) = refusal(controller(null), "P1")
+        val (status, code, _) = refusal(controller(null), "P1")
         status shouldBe 401
         authorityCalls shouldBe 0
     }
