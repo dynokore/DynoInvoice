@@ -35,9 +35,11 @@ import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SchemaRegistryConfig
 import com.networknt.schema.SpecificationVersion
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
 import org.jooq.DSLContext
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
@@ -89,7 +91,7 @@ class ArchiveVolumeJobTest {
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val objects = Objects()
         val source: ArchiveVolumeSource = RetainedArchiveVolume(JooqStoredContentBytes(dsl), ObjectStoreBytes(objects))
-        private val catalogue = EventCatalogue(EvidenceEvents.entries)
+        private val catalogue = EventCatalogue(EvidenceEvents.entries + EvidenceEvents.platformEntries)
         private val publisher =
             ArchiveVolumePublisher(
                 JooqArchiveVolumeLedger(dsl),
@@ -122,6 +124,14 @@ class ArchiveVolumeJobTest {
             tenant: UUID,
             block: () -> T,
         ): T = scope.bind(TenantId(tenant), actor) { runner.inTransaction { block() } }
+
+        fun seeds(
+            tenant: UUID,
+            vararg rows: Pair<String, Int>,
+        ) = rows.forEach { (entity, length) -> seedTrace(tenant, entity, length) }
+
+        fun beanCount(type: String): Int =
+            context.getBean(EventCatalogue::class.java).entries().count { it.eventType == type }
 
         fun listed(tenant: UUID): Set<String> =
             ArchiveVolumeEntitySource(scope, dsl)
@@ -175,6 +185,7 @@ class ArchiveVolumeJobTest {
     )
 
     private data class Row(
+        val type: String,
         val tenant: String,
         val entity: String,
         val correlation: String,
@@ -187,8 +198,8 @@ class ArchiveVolumeJobTest {
             c.createStatement().use { s ->
                 s
                     .executeQuery(
-                        "select tenant_id, entity_ref, correlation_id, causation_id, data::text from evidence.outbox " +
-                            "where tenant_id = '$tenant' order by seq",
+                        "select type, tenant_id, entity_ref, correlation_id, causation_id, data::text " +
+                            "from evidence.outbox where tenant_id = '$tenant' order by seq",
                     ).use { r ->
                         generateSequence {
                             if (r.next()) {
@@ -198,6 +209,7 @@ class ArchiveVolumeJobTest {
                                     r.getString(3),
                                     r.getString(4),
                                     r.getString(5),
+                                    r.getString(6),
                                 )
                             } else {
                                 null
@@ -303,7 +315,7 @@ class ArchiveVolumeJobTest {
                     EvidenceDb.SCHEMA,
                     "evidence-svc",
                     "evidence-svc-0",
-                    EventCatalogue(EvidenceEvents.entries),
+                    EventCatalogue(EvidenceEvents.entries + EvidenceEvents.platformEntries),
                     clock,
                 ),
                 clock,
@@ -323,32 +335,88 @@ class ArchiveVolumeJobTest {
         (registered == declared.copy(name = "archive-volume-measure")) shouldBe false
     }
 
-    @Test
-    fun `the entity source lists only the real pairs and the reserved tenant-wide entity gets no row`(
-        @TempDir dir: Path,
-    ) = run(dir) {
-        val tenant = UUID.randomUUID()
-        val tenantWide = EntityRef.TENANT_WIDE.value
-        val lookAlike = "00000000-0000-0000-0000-000000000001"
-        seedTrace(tenant, "E1", 10)
-        seedTrace(tenant, tenantWide, 20)
-        seedTrace(tenant, lookAlike, 30)
-        listed(tenant) shouldBe setOf("E1", lookAlike)
-        listed(tenant).forEach { runJob(tenant, it) }
-        outbox(tenant).map { it.entity }.toSet() shouldBe setOf("E1", lookAlike)
-        outbox(tenant).any { it.entity == tenantWide } shouldBe false
-        superuser { c ->
-            c.createStatement().use { s ->
-                s
-                    .executeQuery(
-                        "select count(*) from evidence.archive_volume_published where tenant_id = '$tenant' " +
-                            "and entity_ref = '$tenantWide'",
-                    ).use {
-                        it.next()
-                        it.getInt(1)
-                    }
+    /** The tenant-wide target of the job (INV-Q-14069 A). */
+    @Nested
+    inner class TenantWideTarget {
+        @Test
+        fun `INV-AC-16557 the entity source lists the tenant-wide target and the look-alike as an ordinary entity`(
+            @TempDir dir: Path,
+        ) = run(dir) {
+            val tenant = UUID.randomUUID()
+            val wide = EntityRef.TENANT_WIDE.value
+            seeds(tenant, "E1" to 10, wide to 20)
+            ArchiveVolumeEntitySource(scope, dsl)
+                .entities(ArchiveVolumeJob.DEFINITION)
+                .filter { it.tenant.value == tenant } shouldContainExactlyInAnyOrder
+                listOf(
+                    JobTarget.Entity(TenantId(tenant), EntityRef("E1")),
+                    JobTarget.Entity(TenantId(tenant), EntityRef.TENANT_WIDE),
+                )
+            seedTrace(tenant, "00000000-0000-0000-0000-000000000001", 30)
+            listed(tenant) shouldBe setOf("E1", wide, "00000000-0000-0000-0000-000000000001")
+        }
+
+        @Test
+        fun `INV-AC-16557 the tenant-wide run publishes one TenantWideArchiveVolumeMeasured, E1 unchanged`(
+            @TempDir dir: Path,
+        ) = run(dir) {
+            val tenant = UUID.randomUUID()
+            val wide = EntityRef.TENANT_WIDE.value
+            seeds(tenant, wide to 100, wide to 200, "E1" to 7000)
+            seeds(UUID.randomUUID(), wide to 5000)
+            putObject(tenant, "E1", 1000)
+            listed(tenant).forEach { runJob(tenant, it) }
+            val rows = outbox(tenant)
+            rows.map { it.type to it.entity } shouldContainExactlyInAnyOrder
+                listOf(ArchiveVolumePublisher.TENANT_WIDE_EVENT_TYPE to wide, ArchiveVolumePublisher.EVENT_TYPE to "E1")
+            rows.single { it.entity == wide }.let {
+                bytesOf(it) shouldBe 300L
+                mapper.readTree(it.data).has("entityRef") shouldBe false
+                it.causation shouldBe causation(tenant.toString(), wide, "SCHEDULED")
             }
-        } shouldBe 0
+            bytesOf(rows.single { it.entity == "E1" }) shouldBe 8000L
+            ledgerRows(tenant) shouldBe 2
+        }
+
+        @Test
+        fun `INV-AC-16557 after all tenant-wide content is deleted one run publishes zero and then nothing is listed`(
+            @TempDir dir: Path,
+        ) = run(dir) {
+            val tenant = UUID.randomUUID()
+            val wide = EntityRef.TENANT_WIDE.value
+            seedTrace(tenant, wide, 100)
+            runJob(tenant, wide)
+            deleteContent(tenant, wide)
+            listed(tenant) shouldBe setOf(wide)
+            runJob(tenant, wide)
+            listed(tenant) shouldBe emptySet()
+            outbox(tenant).map(::bytesOf) shouldBe listOf(100L, 0L)
+        }
+
+        @Test
+        fun `INV-AC-16557 the production catalogue holds one TenantWideArchiveVolumeMeasured entry with the values`(
+            @TempDir dir: Path,
+        ) {
+            val type = ArchiveVolumePublisher.TENANT_WIDE_EVENT_TYPE
+            val entry = EvidenceEvents.platformEntries.single { it.eventType == type }
+            listOf(
+                type,
+                entry.topic,
+                entry.producers,
+                entry.contentTopic,
+                entry.recordTopic,
+                entry.retainedWhileResolvable,
+            ) shouldBe
+                listOf(
+                    "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1",
+                    "gst.platform.tenant-wide-archive-volume-measured.v1",
+                    setOf("evidence-svc"),
+                    false,
+                    false,
+                    false,
+                )
+            EvidenceContext.online(dir).run { Boundary(it).beanCount(type) shouldBe 1 }
+        }
     }
 
     @Test

@@ -16,7 +16,8 @@ import java.util.UUID
  * The (tenant, entity) pairs the archive-volume job runs for (INV-Q-12685 A, INV-Q-12687 A): the key columns of the
  * SECURITY DEFINER function `evidence.archive_volume_entities()` and nothing else, read as the platform tenant the way
  * [com.dynokore.gst.evidence.adapters.jobs.VerificationEntitySource] reads its function. The reserved tenant-wide
- * entity cannot be a [JobTarget.Entity] (service-runtime refuses it), so a pair that names it is left out.
+ * entity is a target like any other (INV-Q-14069 A): [JobTarget.Entity] accepts it with a real tenant, and its run
+ * publishes `TenantWideArchiveVolumeMeasured`.
  */
 class ArchiveVolumeEntitySource(
     private val scope: TenantScope,
@@ -34,8 +35,7 @@ class ArchiveVolumeEntitySource(
                     .map {
                         EntityRef(it["entity_ref"].asString()) to
                             TenantId(UUID.fromString(it["tenant_id"].asString()))
-                    }.filterNot { (entity, _) -> entity.isTenantWide }
-                    .map { (entity, tenant) -> JobTarget.Entity(tenant, entity) }
+                    }.map { (entity, tenant) -> JobTarget.Entity(tenant, entity) }
             }
         }
 }

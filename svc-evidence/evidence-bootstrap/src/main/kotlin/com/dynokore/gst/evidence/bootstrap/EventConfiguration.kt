@@ -39,14 +39,16 @@ object EvidenceEvents {
      * service-runtime writes `JobRegistered` and `JobRunRecorded` through the outbox, and the emission guard refuses
      * any type the catalogue lacks (INV-Q-12992 A, INV-Q-10922 A). `AuditEntryRecorded` is already a record entry, so
      * it is left out here, and `PolicyChanged` and `TenantWideEvidenceIntegrityFailed` are the hand-written entries of
-     * [platformEntries] (the latter with evidence-svc as its only producer).
+     * [platformEntries] (the latter with evidence-svc as its only producer), and so is
+     * `TenantWideArchiveVolumeMeasured`.
      */
     private val jobEntries: List<CatalogueEntry> =
         PlatformEventCatalogue.ALL
             .filterNot {
                 it == PlatformEventCatalogue.AUDIT_ENTRY_RECORDED ||
                     it == PlatformEventCatalogue.POLICY_CHANGED ||
-                    it == PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED
+                    it == PlatformEventCatalogue.TENANT_WIDE_EVIDENCE_INTEGRITY_FAILED ||
+                    it == PlatformEventCatalogue.TENANT_WIDE_ARCHIVE_VOLUME_MEASURED
             }.mapNotNull { event ->
                 event.topic?.let {
                     CatalogueEntry(event.eventType, it, setOf(CatalogueEntry.EVERY_SERVICE), contentTopic = false)
@@ -145,6 +147,8 @@ object EvidenceEvents {
      * `setPolicy` of service-runtime emits it on a stored change, so the emission guard needs the entry.
      * `TenantWideEvidenceIntegrityFailed` (INV-Q-12994 A): the platform event of a failed tenant-wide chain, produced
      * by evidence-svc alone, since a domain event cannot carry the tenant-wide entity.
+     * `TenantWideArchiveVolumeMeasured` (INV-Q-14069 A): the stored audit bytes of the tenant-wide entity, likewise
+     * produced by evidence-svc alone.
      */
     val platformEntries: List<CatalogueEntry> =
         jobEntries +
@@ -159,6 +163,14 @@ object EvidenceEvents {
             CatalogueEntry(
                 "com.dynokore.gst.platform.TenantWideEvidenceIntegrityFailed.v1",
                 "gst.platform.tenant-wide-evidence-integrity-failed.v1",
+                setOf(SERVICE),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ) +
+            CatalogueEntry(
+                "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1",
+                "gst.platform.tenant-wide-archive-volume-measured.v1",
                 setOf(SERVICE),
                 contentTopic = false,
                 recordTopic = false,
